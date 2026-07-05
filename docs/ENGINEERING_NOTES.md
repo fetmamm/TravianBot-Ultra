@@ -178,6 +178,8 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   nollstaller deferred construction-retries sa ett fastnat "waiting" utan faktiskt bygge kan brytas.
 - Construction- och byggkologik (ActiveConstructions som SOT, queue-full-defer, storage-capacity, estimat):
   [ADR 2026-06-20 construction-queue](adr/2026-06-20-construction-queue.md).
+- Construct-tasks vars krav matchar en aktiv `ActiveConstructions`-prereq ska defer:as tills prereqens
+  `FinishUtc` passerat (plus liten buffer), sa andra byar/tasks kan koras i stallet.
 - Smithy-upgrade och trupptraning (DOM, per-by-payloads, automation groups):
   [ADR 2026-06-20 smithy-troop-training](adr/2026-06-20-smithy-troop-training.md).
 - Village Overview och byval visar kapitalen forst; ovriga byar behaller Travian-listans DOM/sidebar-ordning.

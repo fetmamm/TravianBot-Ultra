@@ -284,6 +284,20 @@ public partial class MainWindow
 
         if (hasQueueWait)
         {
+            if (IsConstructionQueueTask(item.TaskName)
+                && ConstructionQueueState.IsConstructionRequirementDeferMessage(ex.Message)
+                && TryResolveConstructActivePrerequisiteDelay(
+                    item,
+                    DateTimeOffset.UtcNow,
+                    out var dependencyDelay))
+            {
+                queueWaitDelay = dependencyDelay.Delay;
+                AppendLog(
+                    $"[construction-dependency:verbose] worker requirement wait aligned to active prerequisite " +
+                    $"id={item.Id} task='{item.TaskName}' waitSeconds={queueWaitDelay.TotalSeconds:F0} " +
+                    $"requirements='{dependencyDelay.Detail}'");
+            }
+
             if (IsConstructionQueueTask(item.TaskName))
             {
                 await Dispatcher.InvokeAsync(() => ApplyConstructionInlineWait(queueWaitDelay));

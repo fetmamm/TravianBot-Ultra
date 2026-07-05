@@ -839,6 +839,7 @@ public partial class MainWindow
         }
 
         var updated = update(existing);
+        updated = ConstructionQueueState.PreserveKnownConstructionState(updated, existing);
         if (updated.SmithyUpgradeStatus is not null)
         {
             updated = updated with

@@ -911,6 +911,40 @@ public partial class MainWindow : Window
         await Dispatcher.InvokeAsync(() =>
         {
             ApplyStorageStatusToUi(status, source);
+            if (source.Contains("construction", StringComparison.OrdinalIgnoreCase))
+            {
+                UpdateCachedTimerStatus(status.ActiveVillage, cached => cached with
+                {
+                    BuildQueue = status.BuildQueue,
+                    IsBuildingInProgress = status.IsBuildingInProgress,
+                    ActiveBuildCount = status.ActiveBuildCount,
+                    BuildQueueRemainingSeconds = status.BuildQueueRemainingSeconds,
+                    BuildQueueRemainingText = status.BuildQueueRemainingText,
+                    BuildQueueFinish = status.BuildQueueFinish,
+                    ActiveConstructions = status.ActiveConstructions,
+                    ActiveConstructionsFromOverview = status.ActiveConstructionsFromOverview,
+                });
+
+                if (_lastBuildingStatus is not null && IsStatusForSelectedVillage(status))
+                {
+                    var updatedBuildingStatus = _lastBuildingStatus with
+                    {
+                        BuildQueue = status.BuildQueue,
+                        IsBuildingInProgress = status.IsBuildingInProgress,
+                        ActiveBuildCount = status.ActiveBuildCount,
+                        BuildQueueRemainingSeconds = status.BuildQueueRemainingSeconds,
+                        BuildQueueRemainingText = status.BuildQueueRemainingText,
+                        BuildQueueFinish = status.BuildQueueFinish,
+                        ActiveConstructions = status.ActiveConstructions,
+                        ActiveConstructionsFromOverview = status.ActiveConstructionsFromOverview,
+                    };
+                    _lastBuildingStatus = ConstructionQueueState.PreserveKnownConstructionState(
+                        updatedBuildingStatus,
+                        _lastBuildingStatus);
+                }
+
+                RefreshVillageActivityIndicatorsOnDashboard();
+            }
         });
     }
 

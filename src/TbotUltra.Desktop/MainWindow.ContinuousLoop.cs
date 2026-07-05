@@ -1233,6 +1233,12 @@ public partial class MainWindow
             return null;
         }
 
+        if (TryDeferConstructUntilActivePrerequisiteFinishes(selection.Item, now, preview, out var dependencySkipReason))
+        {
+            skipReason = dependencySkipReason;
+            return null;
+        }
+
         if (selection.ForcedLiveValidation && !preview)
         {
             var villageName = NormalizeVillageName(GetQueueItemVillageName(selection.Item)) ?? "-";
@@ -1249,6 +1255,77 @@ public partial class MainWindow
         }
 
         return selection.Item;
+    }
+
+    private bool TryDeferConstructUntilActivePrerequisiteFinishes(
+        QueueItem item,
+        DateTimeOffset now,
+        bool preview,
+        out string skipReason)
+    {
+        skipReason = string.Empty;
+        if (!TryResolveConstructActivePrerequisiteDelay(item, now, out var dependencyDelay))
+        {
+            return false;
+        }
+
+        skipReason =
+            $"group=Construction task='{item.TaskName}' waiting for active prerequisite {dependencyDelay.Detail}";
+        if (preview)
+        {
+            return true;
+        }
+
+        var payload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonRequirements,
+            [BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
+                ConstructionQueueState.CurrentDeferClassificationVersion,
+        };
+        payload.Remove(BotOptionPayloadKeys.RequirementDeferCount);
+
+        if (_botService.UpdateDeferredQueueItem(item.Id, payload, dependencyDelay.Delay))
+        {
+            item.Payload = payload;
+            var villageName = NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-";
+            AppendLoopPickVerbose(
+                $"[construction-dependency:verbose] deferred construct until prerequisite finishes " +
+                $"id={item.Id} village='{villageName}' waitSeconds={dependencyDelay.Delay.TotalSeconds:F0} " +
+                $"requirements='{dependencyDelay.Detail}'",
+                $"construction-dependency:{item.Id}:{dependencyDelay.Detail}");
+            RequestQueueUiRefresh(item.Id);
+        }
+        else
+        {
+            AppendLoopPickVerbose(
+                $"[construction-dependency:verbose] could not persist prerequisite defer id={item.Id}; " +
+                "skipping this loop pass.",
+                $"construction-dependency-persist:{item.Id}");
+        }
+
+        return true;
+    }
+
+    private bool TryResolveConstructActivePrerequisiteDelay(
+        QueueItem item,
+        DateTimeOffset now,
+        out ConstructionDependencyDelay dependencyDelay)
+    {
+        dependencyDelay = null!;
+        var status = ResolveBuildingStatusForQueueItem(item);
+        if (status is null)
+        {
+            return false;
+        }
+
+        var result = ConstructionDependencyGate.ResolveConstructDelay(item, status, now);
+        if (result is null)
+        {
+            return false;
+        }
+
+        dependencyDelay = result;
+        return true;
     }
 
     private ConstructionQueueAvailability ResolveConstructionQueueAvailability(
