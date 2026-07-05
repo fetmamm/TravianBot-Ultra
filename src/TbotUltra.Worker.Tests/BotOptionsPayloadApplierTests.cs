@@ -507,17 +507,17 @@ public sealed class BotOptionsPayloadApplierTests
 
         Assert.True(options.ActionPacingEnabled);
         Assert.Equal(0.8, options.ActionPacingTaskMinSeconds);
-        Assert.Equal(3.0, options.ActionPacingTaskMaxSeconds);
-        Assert.Equal(0.8, options.ActionPacingPageLoadMinSeconds);
-        Assert.Equal(1.8, options.ActionPacingPageLoadMaxSeconds);
-        Assert.Equal(0.6, options.ActionPacingClickMinSeconds);
-        Assert.Equal(1.8, options.ActionPacingClickMaxSeconds);
+        Assert.Equal(2.0, options.ActionPacingTaskMaxSeconds);
+        Assert.Equal(0.6, options.ActionPacingPageLoadMinSeconds);
+        Assert.Equal(1.6, options.ActionPacingPageLoadMaxSeconds);
+        Assert.Equal(0.4, options.ActionPacingClickMinSeconds);
+        Assert.Equal(1.4, options.ActionPacingClickMaxSeconds);
         Assert.Equal(4.0, options.ActionPacingLoopMinSeconds);
         Assert.Equal(25.0, options.ActionPacingLoopMaxSeconds);
         Assert.Equal(1.5, options.FarmListStepDelayMinSeconds);
         Assert.Equal(4.0, options.FarmListStepDelayMaxSeconds);
-        Assert.Equal(0.8, options.CollectStepDelayMinSeconds);
-        Assert.Equal(2.5, options.CollectStepDelayMaxSeconds);
+        Assert.Equal(0.6, options.CollectStepDelayMinSeconds);
+        Assert.Equal(2.0, options.CollectStepDelayMaxSeconds);
         Assert.False(options.IncreaseAdventuresToHard);
     }
 

@@ -391,8 +391,9 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 - Pause bevarar sessionens aterstaende pacing; endast Stop/reset nollstaller den. `Start bot` kor alltid
   continuous loop; manuella knappfloden far fortsatt kunna koras nar loopen ar idle.
 - Conservative automation defaults ska vara styrande for nya/reset-installningar: session pacing pa
-  (90 min run, 45 min sleep, 40% variation, 18h daily max), action pacing pa
-  (task 1-6s, page load 1-3s, loop 6-30s), farming dispatch 20m/20%.
+  (run 40-100 min, sleep 20-60 min, 18h daily max), action pacing pa
+  (task 0.8-2s, page load 0.6-1.6s, click 0.4-1.4s, loop 4-25s),
+  farm-list step 1.5-4s, collect tasks/daily step 0.6-2s.
   High-volume scans och keep-alive ska ha jitter/pacing och far inte infora zero-delay bursts.
 - State-changing JS/Evaluate-klick i build/hero/celebration-floden ska foregas av `DelayBeforeClickAsync`;
   reload-grenar ska anvanda samma page-load pacing som navigation.

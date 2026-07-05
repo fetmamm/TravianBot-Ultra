@@ -34,8 +34,8 @@ public sealed class LogClassifierTests
     }
 
     [Theory]
-    [InlineData("[pacing] Action pacing \"Click\" delay: waiting 2.3s")]
-    [InlineData("[pacing] before task: waiting 4.0s")]
+    [InlineData("[pacing] Click: waiting 2.3s")]
+    [InlineData("[pacing] Task: before task: waiting 4.0s")]
     [InlineData("[pacing] session run timer started; next sleep in 00:42:10.")]
     [InlineData("Session sleep (manual) sleep starting; sleeping for 00:30:00.")]
     [InlineData("Session waking - resuming.")]

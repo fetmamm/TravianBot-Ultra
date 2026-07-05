@@ -1543,12 +1543,11 @@ public partial class MainWindow
             }
 
             var options = AutomationExecutionOptions.WithoutImplicitVillageTarget(LoadBotOptions());
-            var loopDelaySeconds = Math.Max(5, options.LoopIntervalSeconds);
             var tickId = Interlocked.Increment(ref _loopTickCounter);
             var tickSw = Stopwatch.StartNew();
             try
             {
-                AppendLog($"[LOOP {tickId}] START interval={loopDelaySeconds}s");
+                AppendLog($"[LOOP {tickId}] START");
                 await EnsureChromiumInstalledAsync();
                 await HonorPendingVillageSwitchAsync(options, token);
                 await EnsureContinuousLoopConstructionStatusAsync(options, token);
@@ -1596,7 +1595,7 @@ public partial class MainWindow
                 }
                 else
                 {
-                    var waitDelay = ResolveContinuousLoopWaitDelay(loopDelaySeconds);
+                    var waitDelay = ResolveContinuousLoopWaitDelay();
                     await WaitForNextContinuousLoopPassAsync(tickId, waitDelay, options, token);
                 }
             }
@@ -1607,18 +1606,18 @@ public partial class MainWindow
             catch (Exception ex)
             {
                 AppendLog($"[LOOP {tickId}] FAIL {tickSw.Elapsed.TotalSeconds:F1}s | {FormatExceptionForLog(ex)}");
-                await Task.Delay(TimeSpan.FromSeconds(loopDelaySeconds), token);
+                await WaitForNextContinuousLoopPassAsync(tickId, null, options, token);
             }
         }
     }
 
-    private TimeSpan ResolveContinuousLoopWaitDelay(int fallbackSeconds)
+    private TimeSpan? ResolveContinuousLoopWaitDelay()
     {
         try
         {
             if (GetContinuousLoopConsideredGroupsInOrder().Count <= 0)
             {
-                return TimeSpan.FromSeconds(Math.Max(5, fallbackSeconds));
+                return null;
             }
 
             var now = DateTimeOffset.UtcNow;
@@ -1628,7 +1627,7 @@ public partial class MainWindow
                 .FirstOrDefault();
             if (nextDeferred is null)
             {
-                return TimeSpan.FromSeconds(Math.Max(5, fallbackSeconds));
+                return null;
             }
 
             var delay = nextDeferred.NextAttemptAt - now;
@@ -1637,25 +1636,28 @@ public partial class MainWindow
                 return TimeSpan.FromSeconds(1);
             }
 
-            return delay <= TimeSpan.FromSeconds(fallbackSeconds)
-                ? delay
-                : TimeSpan.FromSeconds(Math.Max(5, fallbackSeconds));
+            return delay;
         }
         catch
         {
-            return TimeSpan.FromSeconds(Math.Max(5, fallbackSeconds));
+            return null;
         }
     }
 
-    private async Task WaitForNextContinuousLoopPassAsync(long tickId, TimeSpan waitDelay, BotOptions options, CancellationToken token)
+    private async Task WaitForNextContinuousLoopPassAsync(long tickId, TimeSpan? waitDelay, BotOptions options, CancellationToken token)
     {
-        var totalSeconds = Math.Max(1, (int)Math.Ceiling(waitDelay.TotalSeconds));
+        var totalSeconds = waitDelay is null
+            ? Math.Max(1, options.LoopIntervalSeconds)
+            : Math.Max(1, (int)Math.Ceiling(waitDelay.Value.TotalSeconds));
         if (options.ActionPacingEnabled)
         {
             var minMs = (int)Math.Round(Math.Max(0, options.ActionPacingLoopMinSeconds) * 1000);
             var maxMs = (int)Math.Round(Math.Max(options.ActionPacingLoopMinSeconds, options.ActionPacingLoopMaxSeconds) * 1000);
             var pacingSeconds = Random.Shared.Next(minMs, maxMs + 1) / 1000.0;
-            totalSeconds = Math.Max(totalSeconds, (int)Math.Ceiling(pacingSeconds));
+            var pacingTotalSeconds = Math.Max(1, (int)Math.Ceiling(pacingSeconds));
+            totalSeconds = waitDelay is null
+                ? pacingTotalSeconds
+                : Math.Min(totalSeconds, pacingTotalSeconds);
         }
 
         AppendLog($"[LOOP {tickId}] WAIT {totalSeconds}s");

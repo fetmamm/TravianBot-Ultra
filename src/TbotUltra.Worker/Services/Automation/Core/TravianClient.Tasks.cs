@@ -236,7 +236,7 @@ public sealed partial class TravianClient
     }
 
     // Randomized delay between internal clicks/steps in the auto-collect tasks/daily-quests flows
-    // only (configured by CollectStepDelayMin/MaxSeconds, default 0.8-2.5s). Set both to 0 to disable.
+    // only (configured by CollectStepDelayMin/MaxSeconds, default 0.6-2.0s). Set both to 0 to disable.
     // Deliberately does not log per delay to avoid log noise in these tight click loops.
     private Task ApplyCollectStepDelayAsync(CancellationToken cancellationToken)
     {

@@ -25,13 +25,13 @@ public sealed partial class TravianClient
             return Task.CompletedTask;
         }
 
-        // Default reason so the click-pacing delay is always logged (e.g. [pacing] Action pacing "Click" delay: waiting 2.3s),
+        // Default reason so the click-pacing delay is always logged (e.g. [pacing] Click: waiting 2.3s),
         // while callers that pass their own reason keep it.
         return ActionPacer.FromOptions(_config, Notify).DelayAsync(
             _config.ActionPacingClickMinSeconds,
             _config.ActionPacingClickMaxSeconds,
             cancellationToken,
-            string.IsNullOrWhiteSpace(reason) ? "Action pacing \"Click\" delay" : reason);
+            string.IsNullOrWhiteSpace(reason) ? "Click" : $"Click: {reason}");
     }
 
     private Task DelayFarmListStepAsync(CancellationToken cancellationToken)
@@ -39,7 +39,8 @@ public sealed partial class TravianClient
         return new ActionPacer(enabled: true, Notify).DelayAsync(
             _config.FarmListStepDelayMinSeconds,
             _config.FarmListStepDelayMaxSeconds,
-            cancellationToken);
+            cancellationToken,
+            "Farm list: step");
     }
 
     // Types a value into an input the way a person would: focus (real mouse click), clear, then enter the
