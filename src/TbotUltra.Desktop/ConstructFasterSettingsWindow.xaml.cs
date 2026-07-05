@@ -50,6 +50,8 @@ public sealed class ConstructFasterSettingsRow : INotifyPropertyChanged
 
 public partial class ConstructFasterSettingsWindow : Window
 {
+    private bool _syncingRandomGateToggles;
+
     public ObservableCollection<ConstructFasterSettingsRow> Rows { get; }
 
     public int MinimumBuildMinutes { get; private set; }
@@ -74,9 +76,8 @@ public partial class ConstructFasterSettingsWindow : Window
         RandomChancePercent = Math.Clamp(randomChancePercent, 0, 100);
 
         DataContext = this;
-        SubtitleTextBlock.Text = $"{Rows.Count} village(s)";
         MinimumBuildMinutesTextBox.Text = MinimumBuildMinutes.ToString();
-        RandomEnabledCheckBox.IsChecked = RandomEnabled;
+        SetRandomGateToggles(RandomEnabled);
         SelectChanceItem(RandomChancePercent);
     }
 
@@ -111,6 +112,31 @@ public partial class ConstructFasterSettingsWindow : Window
     {
         DialogResult = false;
         Close();
+    }
+
+    private void RandomGateToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_syncingRandomGateToggles)
+        {
+            return;
+        }
+
+        SetRandomGateToggles((sender as CheckBox)?.IsChecked == true);
+    }
+
+    private void SetRandomGateToggles(bool isEnabled)
+    {
+        _syncingRandomGateToggles = true;
+        try
+        {
+            RandomEnabledCheckBox.IsChecked = isEnabled;
+            ChanceEnabledCheckBox.IsChecked = isEnabled;
+            RandomChanceComboBox.IsEnabled = isEnabled;
+        }
+        finally
+        {
+            _syncingRandomGateToggles = false;
+        }
     }
 
     private int ReadSelectedChancePercent()

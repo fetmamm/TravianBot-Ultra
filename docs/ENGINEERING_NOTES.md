@@ -291,7 +291,8 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
   `#contract_building*` fore klick, las resursbrist/krav innan ko-/progresskontroller som navigerar till
   `dorf2`, och krav success vara malspecifik (slot-level/matchande aktiv konstruktion). Saknade krav = temporar defer.
 - Construct-faster anvander Official-knappen `.upgradeButtonsContainer .section2 button.videoFeatureButton`;
-  missing/disabled/short duration/random-skip faller igenom tyst, videofel loggar ALARM och vanlig build-knapp forsoks.
+  missing/disabled/short duration/random-skip faller igenom tyst. Efter video ska main-sidan navigera
+  till farsk `dorf2.php` och verifiera ko/slot; saknas bevis forsoks video en gang till, sedan ALARM + vanlig build.
 - Byggnadsuppgradering far ateranvanda aktuell `build.php?id=N` for slot snapshot endast nar sidan ar ratt slot,
   inte stale och kan lasa niva + namn/gid; annars ska flodet falla tillbaka till `dorf2`.
 - Construct mot en slot som redan har byggnaden (stale construct-task, eller fast specialslot RP=39/Wall=40 som

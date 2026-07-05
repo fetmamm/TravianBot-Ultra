@@ -838,20 +838,22 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
                                         <StackPanel Grid.Column="0">
-                                            <StackPanel Orientation="Horizontal">
-                                                <CheckBox x:Name="AutoCollectTasksCheckBox" Content="Collect tasks"
-                                                          Style="{StaticResource ToggleSwitchStyle}"
-                                                          Foreground="{DynamicResource TextSecondaryBrush}"
-                                                          Checked="AutoCollectTasksSetting_Changed" Unchecked="AutoCollectTasksSetting_Changed" />
-                                                <ContentControl Style="{StaticResource SettingInfoIconStyle}">
-                                                    <ContentControl.ToolTip>
-                                                        <ToolTip MaxWidth="320">
-                                                            <TextBlock TextWrapping="Wrap"
-                                                                       Text="Official servers only. When the Questmaster has claimable task rewards, the bot opens the Tasks page, collects the rewards on both the village and general tabs, and returns to the village." />
-                                                        </ToolTip>
-                                                    </ContentControl.ToolTip>
-                                                </ContentControl>
-                                            </StackPanel>
+                                            <Grid>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <CheckBox x:Name="AutoCollectTasksCheckBox" Content="Collect tasks"
+                                                              Style="{StaticResource ToggleSwitchStyle}"
+                                                              Foreground="{DynamicResource TextSecondaryBrush}"
+                                                              Checked="AutoCollectTasksSetting_Changed" Unchecked="AutoCollectTasksSetting_Changed" />
+                                                    <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                                        <ContentControl.ToolTip>
+                                                            <ToolTip MaxWidth="320">
+                                                                <TextBlock TextWrapping="Wrap"
+                                                                           Text="Official servers only. When the Questmaster has claimable task rewards, the bot opens the Tasks page, collects the rewards on both the village and general tabs, and returns to the village." />
+                                                            </ToolTip>
+                                                        </ContentControl.ToolTip>
+                                                    </ContentControl>
+                                                </StackPanel>
+                                            </Grid>
                                             <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                                                 <CheckBox x:Name="AutoCollectDailyQuestsCheckBox" Content="Collect daily quests"
                                                           Style="{StaticResource ToggleSwitchStyle}"
@@ -940,35 +942,38 @@
                                                         Click="GoldSpendingSettingsButton_Click" />
                                             </StackPanel>
                                         </StackPanel>
-                                        <StackPanel Grid.Column="1" Margin="18,0,0,0" VerticalAlignment="Top">
-                                            <StackPanel Orientation="Horizontal">
-                                                <CheckBox x:Name="ConstructFasterCheckBox" Content="Construct 25% faster"
-                                                          Style="{StaticResource ToggleSwitchStyle}"
-                                                          Foreground="{DynamicResource TextSecondaryBrush}"
-                                                          VerticalAlignment="Center"
-                                                          Checked="ConstructFasterSetting_Changed" Unchecked="ConstructFasterSetting_Changed" />
-                                                <ContentControl Style="{StaticResource SettingInfoIconStyle}">
-                                                    <ContentControl.ToolTip>
-                                                        <ToolTip MaxWidth="320">
-                                                            <TextBlock TextWrapping="Wrap"
-                                                                       Text="Master toggle for Official Travian construct-faster bonus videos. Open settings to choose villages, minimum build time, and random chance." />
-                                                        </ToolTip>
-                                                    </ContentControl.ToolTip>
-                                                </ContentControl>
-                                                <Button x:Name="ConstructFasterSettingsButton"
-                                                        Content="&#xE713;"
-                                                        FontFamily="Segoe MDL2 Assets"
-                                                        FontSize="13"
-                                                        Width="26"
-                                                        Height="22"
-                                                        Padding="0"
-                                                        Margin="6,0,0,0"
-                                                        VerticalAlignment="Center"
-                                                        Background="{DynamicResource SurfaceBrush}"
-                                                        BorderBrush="{DynamicResource BorderBrush}"
-                                                        ToolTip="Open Construct 25% faster settings"
-                                                        Click="ConstructFasterSettingsButton_Click" />
-                                            </StackPanel>
+                                        <StackPanel Grid.Column="1"
+                                                    Orientation="Horizontal"
+                                                    Margin="28,0,0,0"
+                                                    HorizontalAlignment="Left"
+                                                    VerticalAlignment="Top">
+                                            <CheckBox x:Name="ConstructFasterCheckBox" Content="Construct 25% faster"
+                                                      Style="{StaticResource ToggleSwitchStyle}"
+                                                      Foreground="{DynamicResource TextSecondaryBrush}"
+                                                      VerticalAlignment="Center"
+                                                      Checked="ConstructFasterSetting_Changed" Unchecked="ConstructFasterSetting_Changed" />
+                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                            Margin="4,0,0,0">
+                                                <ContentControl.ToolTip>
+                                                    <ToolTip MaxWidth="320">
+                                                        <TextBlock TextWrapping="Wrap"
+                                                                   Text="For the selected village. Enables Official Travian construct-faster bonus videos. Open settings to choose villages, minimum build time, and random chance." />
+                                                    </ToolTip>
+                                                </ContentControl.ToolTip>
+                                            </ContentControl>
+                                            <Button x:Name="ConstructFasterSettingsButton"
+                                                    Content="&#xE713;"
+                                                    FontFamily="Segoe MDL2 Assets"
+                                                    FontSize="13"
+                                                    Width="30"
+                                                    Height="24"
+                                                    Padding="0"
+                                                    Margin="8,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    Background="{DynamicResource SurfaceBrush}"
+                                                    BorderBrush="{DynamicResource BorderBrush}"
+                                                    ToolTip="Open Construct 25% faster settings"
+                                                    Click="ConstructFasterSettingsButton_Click" />
                                         </StackPanel>
                                     </Grid>
                                 </StackPanel>
@@ -3183,32 +3188,55 @@
                                         BorderBrush="{DynamicResource BorderSubtleBrush}"
                                         BorderThickness="1"
                                         CornerRadius="6">
-                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="Totals (selected village):"
-                                                   Foreground="{DynamicResource TextSecondaryBrush}"
-                                                   FontWeight="SemiBold"
-                                                   VerticalAlignment="Center"
-                                                   Margin="0,0,12,0" />
-                                        <TextBlock Text="Cost "
-                                                   Foreground="{DynamicResource TextSubtleBrush}"
-                                                   VerticalAlignment="Center" />
-                                        <TextBlock x:Name="QueueTotalWoodTextBlock" Text="-" Foreground="{DynamicResource WoodTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                        <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
-                                        <TextBlock x:Name="QueueTotalClayTextBlock" Text="-" Foreground="{DynamicResource ClayTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                        <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
-                                        <TextBlock x:Name="QueueTotalIronTextBlock" Text="-" Foreground="{DynamicResource IronTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                        <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
-                                        <TextBlock x:Name="QueueTotalCropTextBlock" Text="-" Foreground="{DynamicResource CropTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                        <TextBlock Text="Time "
-                                                   Foreground="{DynamicResource TextSubtleBrush}"
-                                                   VerticalAlignment="Center"
-                                                   Margin="24,0,0,0" />
-                                        <TextBlock x:Name="QueueTotalTimeTextBlock"
-                                                   Text="-"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                                   FontWeight="SemiBold"
-                                                   VerticalAlignment="Center" />
-                                    </StackPanel>
+                                    <Grid>
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+
+                                        <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                            <TextBlock Text="Totals (selected village):"
+                                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center"
+                                                       Margin="0,0,12,0" />
+                                            <TextBlock Text="Cost "
+                                                       Foreground="{DynamicResource TextSubtleBrush}"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock x:Name="QueueTotalWoodTextBlock" Text="-" Foreground="{DynamicResource WoodTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="QueueTotalClayTextBlock" Text="-" Foreground="{DynamicResource ClayTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="QueueTotalIronTextBlock" Text="-" Foreground="{DynamicResource IronTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
+                                            <TextBlock x:Name="QueueTotalCropTextBlock" Text="-" Foreground="{DynamicResource CropTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                            <TextBlock Text="Time "
+                                                       Foreground="{DynamicResource TextSubtleBrush}"
+                                                       VerticalAlignment="Center"
+                                                       Margin="24,0,0,0" />
+                                            <TextBlock x:Name="QueueTotalTimeTextBlock"
+                                                       Text="-"
+                                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+
+                                        <StackPanel Grid.Column="1"
+                                                    Orientation="Horizontal"
+                                                    HorizontalAlignment="Right"
+                                                    VerticalAlignment="Center"
+                                                    Margin="18,0,0,0">
+                                            <TextBlock Text="Time (25%): "
+                                                       Foreground="#C084FC"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center" />
+                                            <TextBlock x:Name="QueueTotalTimeConstructFasterTextBlock"
+                                                       Text="-"
+                                                       Foreground="#C084FC"
+                                                       FontWeight="SemiBold"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Grid>
                                 </Border>
                             </Grid>
                         </Border>

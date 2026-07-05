@@ -312,6 +312,7 @@ public partial class MainWindow
         var seconds = BuildingCatalogService.BuildSecondsFor(gid, nextLevel, ResolveServerSpeed(), ResolveMainBuildingLevel());
         return new BuildingNextLevelEstimate(
             nextLevel,
+            seconds,
             FormatBuildDuration(seconds),
             FormatResourceAmount(stats.Wood),
             FormatResourceAmount(stats.Clay),
@@ -365,6 +366,7 @@ public partial class MainWindow
 
         return new BuildingNextLevelEstimate(
             toLevel,
+            seconds,
             FormatBuildDuration(seconds),
             FormatResourceAmount(wood),
             FormatResourceAmount(clay),
@@ -408,6 +410,9 @@ public partial class MainWindow
         }
 
         QueueTotalTimeTextBlock.Text = counted > 0 ? FormatBuildDuration(seconds) : "-";
+        QueueTotalTimeConstructFasterTextBlock.Text = counted > 0
+            ? FormatBuildDuration(seconds * 0.75)
+            : "-";
         QueueTotalWoodTextBlock.Text = counted > 0 ? FormatResourceAmount(wood) : "-";
         QueueTotalClayTextBlock.Text = counted > 0 ? FormatResourceAmount(clay) : "-";
         QueueTotalIronTextBlock.Text = counted > 0 ? FormatResourceAmount(iron) : "-";

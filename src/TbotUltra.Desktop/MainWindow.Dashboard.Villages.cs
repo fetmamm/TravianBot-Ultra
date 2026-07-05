@@ -636,6 +636,7 @@ public partial class MainWindow
                     IsEnabledForAutomation = _villageSettingsStore.GetEnabled(keyInfo),
                     NpcTrade = _villageSettingsStore.GetNpcTrade(keyInfo),
                     HeroResourcesEnabled = _villageSettingsStore.GetHeroResourcesEnabled(keyInfo),
+                    ConstructFasterEnabled = _villageSettingsStore.GetConstructFaster(keyInfo),
                     GroupToggles = toggles,
                 };
             })
@@ -646,11 +647,13 @@ public partial class MainWindow
             PersistVillageEnabledFromSettingsRow,
             PersistVillageNpcTradeFromSettingsRow,
             PersistVillageHeroResourcesFromSettingsRow,
+            PersistVillageConstructFasterFromSettingsRow,
             PersistVillageGroupsFromSettingsRow,
             OpenTroopSettingsFromVillageSettings,
             OpenSmithyUpgradeSettingsFromVillageSettings,
             OpenTownHallSettingsFromVillageSettings,
             OpenHeroResourceSettingsFromVillageSettings,
+            OpenConstructFasterSettingsFromVillageSettings,
             OnVillageSettingsSaved)
         {
             Owner = this,
@@ -666,6 +669,21 @@ public partial class MainWindow
         }
 
         _villageSettingsStore.SetHeroResourcesEnabled(row.KeyInfo, row.HeroResourcesEnabled);
+    }
+
+    private void PersistVillageConstructFasterFromSettingsRow(VillageSettingsRow row)
+    {
+        if (row?.KeyInfo is null)
+        {
+            return;
+        }
+
+        var wasEnabled = _villageSettingsStore.GetConstructFaster(row.KeyInfo);
+        _villageSettingsStore.SetConstructFaster(row.KeyInfo, row.ConstructFasterEnabled);
+        if (!wasEnabled && row.ConstructFasterEnabled)
+        {
+            ResetDeferredConstructionWaitsNow("construct-faster enabled in village settings");
+        }
     }
 
     // Persists a village's per-village automation-group set from the Village settings window, then keeps the
@@ -703,6 +721,7 @@ public partial class MainWindow
     {
         RefreshVillageEnabledStateOnDashboard();
         RefreshAutomationLoopDashboardUi();
+        SaveConstructFasterMasterFlag();
         ApplyConstructFasterConfigToUi();
         ApplyHeroResourceTransferConfigToUi();
 

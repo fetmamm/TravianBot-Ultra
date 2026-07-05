@@ -12,6 +12,7 @@ public partial class MainWindow
     private bool _suppressAutoCollectTasksConfigWrite;
     private bool _suppressAutoCollectDailyQuestsConfigWrite;
     private bool _suppressConstructFasterConfigWrite;
+    private bool _suppressHeroResourceTransferConfigWrite;
 
     private void ApplyAutoCollectTasksConfigToUi(BotOptions options)
     {
@@ -86,19 +87,26 @@ public partial class MainWindow
         }
     }
 
-    private bool _suppressHeroResourceTransferConfigWrite;
-
     private void ApplyConstructFasterConfigToUi(BotOptions options)
+    {
+        _ = options;
+        ApplyConstructFasterConfigToUi();
+    }
+
+    private void ApplyConstructFasterConfigToUi()
     {
         if (ConstructFasterCheckBox is null)
         {
             return;
         }
 
+        var selectedVillage = GetSelectedVillageKeyInfoOrNull();
         _suppressConstructFasterConfigWrite = true;
         try
         {
-            ConstructFasterCheckBox.IsChecked = options.ConstructFasterEnabled;
+            ConstructFasterCheckBox.IsEnabled = selectedVillage is not null;
+            ConstructFasterCheckBox.IsChecked = selectedVillage is not null
+                && _villageSettingsStore.GetConstructFaster(selectedVillage);
         }
         finally
         {
@@ -106,22 +114,22 @@ public partial class MainWindow
         }
     }
 
-    private void ApplyConstructFasterConfigToUi()
-    {
-        ApplyConstructFasterConfigToUi(LoadBotOptions());
-    }
-
     private void ConstructFasterSetting_Changed(object sender, RoutedEventArgs e)
     {
-        if (_suppressConstructFasterConfigWrite || _botConfigStore is null)
+        if (_suppressConstructFasterConfigWrite)
+        {
+            return;
+        }
+
+        var selectedVillage = GetSelectedVillageKeyInfoOrNull();
+        if (selectedVillage is null)
         {
             return;
         }
 
         var enabled = ConstructFasterCheckBox.IsChecked == true;
-        var config = _botConfigStore.Load();
-        config[BotOptionPayloadKeys.ConstructFasterEnabled] = enabled;
-        _botConfigStore.Save(config);
+        _villageSettingsStore.SetConstructFaster(selectedVillage, enabled);
+        SaveConstructFasterMasterFlag();
 
         if (enabled)
         {
@@ -142,10 +150,10 @@ public partial class MainWindow
             return;
         }
 
+        var selectedVillage = GetSelectedVillageKeyInfoOrNull();
         _suppressHeroResourceTransferConfigWrite = true;
         try
         {
-            var selectedVillage = GetSelectedVillageKeyInfoOrNull();
             HeroResourceTransferCheckBox.IsEnabled = selectedVillage is not null;
             HeroResourceTransferCheckBox.IsChecked = selectedVillage is not null
                 && _villageSettingsStore.GetHeroResourcesEnabled(selectedVillage);
@@ -169,10 +177,10 @@ public partial class MainWindow
             return;
         }
 
-        _villageSettingsStore.SetHeroResourcesEnabled(selectedVillage, HeroResourceTransferCheckBox.IsChecked == true);
+        var enabled = HeroResourceTransferCheckBox.IsChecked == true;
+        _villageSettingsStore.SetHeroResourcesEnabled(selectedVillage, enabled);
 
-        // Checked for the selected village: waiting construction may now be buildable using hero inventory.
-        if (HeroResourceTransferCheckBox.IsChecked == true)
+        if (enabled)
         {
             ResetDeferredConstructionWaitsNow("hero resource transfer enabled");
         }

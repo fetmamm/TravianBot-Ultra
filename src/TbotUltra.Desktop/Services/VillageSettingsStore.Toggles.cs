@@ -270,6 +270,15 @@ public sealed partial class VillageSettingsStore
         }
     }
 
+    public bool HasAnyConstructFasterEnabled()
+    {
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            return _cache.Values.Any(record => record.ConstructFasterEnabled == true);
+        }
+    }
+
     public void SetConstructFaster(VillageKeyInfo village, bool enabled)
     {
         if (village is null || string.IsNullOrWhiteSpace(village.Key))

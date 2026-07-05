@@ -21,11 +21,13 @@ public partial class VillageSettingsWindow : Window
     private readonly Action<VillageSettingsRow>? _onEnabledChanged;
     private readonly Action<VillageSettingsRow>? _onNpcTradeChanged;
     private readonly Action<VillageSettingsRow>? _onHeroResourcesChanged;
+    private readonly Action<VillageSettingsRow>? _onConstructFasterChanged;
     private readonly Action<VillageSettingsRow>? _onGroupsChanged;
     private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onTroopSettingsRequested;
     private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onSmithyUpgradeSettingsRequested;
     private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onTownHallSettingsRequested;
     private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onHeroResourceSettingsRequested;
+    private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onConstructFasterSettingsRequested;
     private readonly Action? _onSaved;
 
     public VillageSettingsWindow(
@@ -33,11 +35,13 @@ public partial class VillageSettingsWindow : Window
         Action<VillageSettingsRow>? onEnabledChanged = null,
         Action<VillageSettingsRow>? onNpcTradeChanged = null,
         Action<VillageSettingsRow>? onHeroResourcesChanged = null,
+        Action<VillageSettingsRow>? onConstructFasterChanged = null,
         Action<VillageSettingsRow>? onGroupsChanged = null,
         Action<IReadOnlyList<VillageSettingsRow>>? onTroopSettingsRequested = null,
         Action<IReadOnlyList<VillageSettingsRow>>? onSmithyUpgradeSettingsRequested = null,
         Action<IReadOnlyList<VillageSettingsRow>>? onTownHallSettingsRequested = null,
         Action<IReadOnlyList<VillageSettingsRow>>? onHeroResourceSettingsRequested = null,
+        Action<IReadOnlyList<VillageSettingsRow>>? onConstructFasterSettingsRequested = null,
         Action? onSaved = null)
     {
         InitializeComponent();
@@ -46,11 +50,13 @@ public partial class VillageSettingsWindow : Window
         _onEnabledChanged = onEnabledChanged;
         _onNpcTradeChanged = onNpcTradeChanged;
         _onHeroResourcesChanged = onHeroResourcesChanged;
+        _onConstructFasterChanged = onConstructFasterChanged;
         _onGroupsChanged = onGroupsChanged;
         _onTroopSettingsRequested = onTroopSettingsRequested;
         _onSmithyUpgradeSettingsRequested = onSmithyUpgradeSettingsRequested;
         _onTownHallSettingsRequested = onTownHallSettingsRequested;
         _onHeroResourceSettingsRequested = onHeroResourceSettingsRequested;
+        _onConstructFasterSettingsRequested = onConstructFasterSettingsRequested;
         _onSaved = onSaved;
         BuildGroupColumns(rows);
         VillageSettingsDataGrid.ItemsSource = rows;
@@ -86,6 +92,21 @@ public partial class VillageSettingsWindow : Window
                 CellTemplate = BuildGroupCellTemplate(toggle.GroupKey, $"GroupToggles[{i}].IsEnabled"),
             });
 
+            if (string.Equals(toggle.GroupKey, QueueGroupCatalog.GetKey(QueueGroup.Construction), StringComparison.OrdinalIgnoreCase))
+            {
+                VillageSettingsDataGrid.Columns.Add(new DataGridTemplateColumn
+                {
+                    Header = BuildColumnHeader(
+                        "25% constr.",
+                        "Construct 25% faster. Enables Official Travian construct-faster bonus videos for this village."),
+                    Width = DataGridLength.Auto,
+                    CellTemplate = BuildToggleWithGearCellTemplate(
+                        nameof(VillageSettingsRow.ConstructFasterEnabled),
+                        "Open Construct 25% faster settings",
+                        ConstructFasterSettingsButton_Click),
+                });
+            }
+
             if (string.Equals(toggle.GroupKey, QueueGroupCatalog.GetKey(QueueGroup.Hero), StringComparison.OrdinalIgnoreCase))
             {
                 VillageSettingsDataGrid.Columns.Add(new DataGridTemplateColumn
@@ -107,7 +128,11 @@ public partial class VillageSettingsWindow : Window
         var groupsBeforeNpc = template.TakeWhile(toggle =>
             !string.Equals(toggle.GroupKey, resourceTransferKey, StringComparison.OrdinalIgnoreCase)
             && !string.Equals(toggle.GroupKey, reinforcementsKey, StringComparison.OrdinalIgnoreCase));
-        NpcTradeColumn.DisplayIndex = 3 + groupsBeforeNpc.Count();
+        var constructFasterColumnBeforeNpc = template.Any(toggle =>
+            string.Equals(toggle.GroupKey, QueueGroupCatalog.GetKey(QueueGroup.Construction), StringComparison.OrdinalIgnoreCase))
+            ? 1
+            : 0;
+        NpcTradeColumn.DisplayIndex = 3 + groupsBeforeNpc.Count() + constructFasterColumnBeforeNpc;
     }
 
     // Builds a compact column header: small title text with the explanation as tooltip directly on the
@@ -238,6 +263,11 @@ public partial class VillageSettingsWindow : Window
         _onHeroResourceSettingsRequested?.Invoke(_rows);
     }
 
+    private void ConstructFasterSettingsButton_Click(object sender, RoutedEventArgs e)
+    {
+        _onConstructFasterSettingsRequested?.Invoke(_rows);
+    }
+
     // Persists every row's current state via the callbacks, then closes. The persist callbacks no-op when
     // a value is unchanged, so writing all rows is cheap.
     private void SaveAndCloseButton_Click(object sender, RoutedEventArgs e)
@@ -247,6 +277,7 @@ public partial class VillageSettingsWindow : Window
             _onEnabledChanged?.Invoke(row);
             _onNpcTradeChanged?.Invoke(row);
             _onHeroResourcesChanged?.Invoke(row);
+            _onConstructFasterChanged?.Invoke(row);
             _onGroupsChanged?.Invoke(row);
         }
 

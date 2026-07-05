@@ -11,105 +11,23 @@
     <Grid Margin="18">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <StackPanel Grid.Row="0" Margin="0,0,0,12">
-            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                <TextBlock Text="Construct 25% faster by village"
-                           FontSize="18"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           VerticalAlignment="Center" />
-                <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                                Margin="8,2,0,0"
-                                ToolTip="Enable the Official Travian construct-faster bonus video per village and set duration/random gates." />
-            </StackPanel>
-            <TextBlock x:Name="SubtitleTextBlock"
-                       Foreground="{DynamicResource TextSubtleBrush}"
-                       TextWrapping="Wrap"
-                       Margin="0,4,0,0" />
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10" VerticalAlignment="Center">
+            <TextBlock Text="Construct 25% faster by village"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimaryBrush}"
+                       VerticalAlignment="Center" />
+            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                            Margin="8,2,0,0"
+                            ToolTip="Enable the Official Travian construct-faster bonus video per village and set duration/random gates." />
         </StackPanel>
 
         <Border Grid.Row="1"
-                Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="14"
-                Margin="0,0,0,12">
-            <Grid>
-                <Grid.ColumnDefinitions>
-                    <ColumnDefinition Width="180" />
-                    <ColumnDefinition Width="150" />
-                    <ColumnDefinition Width="150" />
-                    <ColumnDefinition Width="*" />
-                </Grid.ColumnDefinitions>
-
-                <StackPanel Grid.Column="0">
-                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                        <TextBlock Text="Minimum build time"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}" />
-                        <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                                        Margin="5,0,0,0"
-                                        ToolTip="Builds at or below this duration skip the video and use the normal build button." />
-                    </StackPanel>
-                    <TextBox x:Name="MinimumBuildMinutesTextBox"
-                             Width="86"
-                             Padding="6,4"
-                             Margin="0,6,0,0"
-                             HorizontalAlignment="Left"
-                             BorderBrush="{DynamicResource BorderSubtleBrush}" />
-                </StackPanel>
-
-                <StackPanel Grid.Column="1">
-                    <TextBlock Text="Random gate"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimaryBrush}" />
-                    <CheckBox x:Name="RandomEnabledCheckBox"
-                              Content="Enabled"
-                              Style="{DynamicResource ToggleSwitchBlueStyle}"
-                              Margin="0,6,0,0"
-                              Foreground="{DynamicResource TextSecondaryBrush}" />
-                </StackPanel>
-
-                <StackPanel Grid.Column="2">
-                    <TextBlock Text="Chance"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimaryBrush}" />
-                    <ComboBox x:Name="RandomChanceComboBox"
-                              Width="92"
-                              Height="28"
-                              Margin="0,6,0,0"
-                              HorizontalAlignment="Left">
-                        <ComboBoxItem Content="0%" Tag="0" />
-                        <ComboBoxItem Content="10%" Tag="10" />
-                        <ComboBoxItem Content="20%" Tag="20" />
-                        <ComboBoxItem Content="30%" Tag="30" />
-                        <ComboBoxItem Content="40%" Tag="40" />
-                        <ComboBoxItem Content="50%" Tag="50" />
-                        <ComboBoxItem Content="60%" Tag="60" />
-                        <ComboBoxItem Content="70%" Tag="70" />
-                        <ComboBoxItem Content="80%" Tag="80" />
-                        <ComboBoxItem Content="90%" Tag="90" />
-                        <ComboBoxItem Content="100%" Tag="100" />
-                    </ComboBox>
-                </StackPanel>
-
-                <Button Grid.Column="3"
-                        Width="92"
-                        Height="30"
-                        HorizontalAlignment="Right"
-                        VerticalAlignment="Bottom"
-                        Content="Toggle all"
-                        Click="ToggleAllButton_Click" />
-            </Grid>
-        </Border>
-
-        <Border Grid.Row="2"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
@@ -123,16 +41,12 @@
                 <Border Grid.Row="0"
                         BorderBrush="{DynamicResource BorderSubtleBrush}"
                         BorderThickness="0,0,0,1"
-                        Padding="14,12,14,10">
+                        Padding="10,7,10,6">
                     <Grid>
                         <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="64" />
+                            <ColumnDefinition Width="54" />
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
-                        <TextBlock Text="ON"
-                                   FontSize="11"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextMutedBrush}" />
                         <TextBlock Grid.Column="1"
                                    Text="VILLAGE"
                                    FontSize="11"
@@ -149,10 +63,10 @@
                             <DataTemplate>
                                 <Border BorderBrush="{DynamicResource BorderSubtleBrush}"
                                         BorderThickness="0,0,0,1"
-                                        Padding="14,12">
+                                        Padding="10,6">
                                     <Grid>
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="64" />
+                                            <ColumnDefinition Width="54" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
 
@@ -185,6 +99,109 @@
                         </ItemsControl.ItemTemplate>
                     </ItemsControl>
                 </ScrollViewer>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="2"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="10"
+                Margin="0,12,0,0">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+
+                <Button Grid.Row="0"
+                        Width="92"
+                        Height="28"
+                        HorizontalAlignment="Left"
+                        Content="Toggle all"
+                        Click="ToggleAllButton_Click" />
+
+                <Grid Grid.Row="1"
+                      Margin="0,9,0,0"
+                      HorizontalAlignment="Left">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="12" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0"
+                                Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="Min build time"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   VerticalAlignment="Center" />
+                        <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                        Margin="5,0,0,0"
+                                        ToolTip="Builds at or below this duration skip the video and use the normal build button." />
+                    </StackPanel>
+
+                    <TextBox x:Name="MinimumBuildMinutesTextBox"
+                             Grid.Column="2"
+                             Width="86"
+                             Padding="6,3"
+                             BorderBrush="{DynamicResource BorderSubtleBrush}" />
+                </Grid>
+
+                <StackPanel Grid.Row="2"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Right"
+                            Margin="0,10,0,0">
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center"
+                                Margin="0,0,24,0">
+                        <CheckBox x:Name="RandomEnabledCheckBox"
+                                  Content="Random"
+                                  Style="{DynamicResource ToggleSwitchBlueStyle}"
+                                  Foreground="{DynamicResource TextPrimaryBrush}"
+                                  VerticalAlignment="Center"
+                                  Checked="RandomGateToggle_Changed"
+                                  Unchecked="RandomGateToggle_Changed"
+                                  ToolTip="Enable the random gate before trying the construct-faster video." />
+                        <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                        Margin="5,0,0,0"
+                                        ToolTip="When enabled, each eligible build rolls the chance before trying the construct-faster video. When disabled, every eligible build tries the video." />
+                    </StackPanel>
+
+                    <StackPanel Orientation="Horizontal"
+                                VerticalAlignment="Center">
+                        <CheckBox x:Name="ChanceEnabledCheckBox"
+                                  Content="Chance"
+                                  Style="{DynamicResource ToggleSwitchBlueStyle}"
+                                  Foreground="{DynamicResource TextPrimaryBrush}"
+                                  VerticalAlignment="Center"
+                                  Checked="RandomGateToggle_Changed"
+                                  Unchecked="RandomGateToggle_Changed"
+                                  ToolTip="Enable chance-based use of construct-faster videos." />
+                        <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                        Margin="5,0,8,0"
+                                        ToolTip="Used only when Random is enabled. 80% means an 80% chance to try the video after village, duration, and button checks pass." />
+                        <ComboBox x:Name="RandomChanceComboBox"
+                                  Width="92"
+                                  Height="28"
+                                  HorizontalAlignment="Left">
+                            <ComboBoxItem Content="0%" Tag="0" />
+                            <ComboBoxItem Content="10%" Tag="10" />
+                            <ComboBoxItem Content="20%" Tag="20" />
+                            <ComboBoxItem Content="30%" Tag="30" />
+                            <ComboBoxItem Content="40%" Tag="40" />
+                            <ComboBoxItem Content="50%" Tag="50" />
+                            <ComboBoxItem Content="60%" Tag="60" />
+                            <ComboBoxItem Content="70%" Tag="70" />
+                            <ComboBoxItem Content="80%" Tag="80" />
+                            <ComboBoxItem Content="90%" Tag="90" />
+                            <ComboBoxItem Content="100%" Tag="100" />
+                        </ComboBox>
+                    </StackPanel>
+                </StackPanel>
             </Grid>
         </Border>
 

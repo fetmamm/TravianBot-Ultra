@@ -9,6 +9,7 @@ public sealed partial class TravianClient
     private const string ConstructFasterButtonSelector = ".upgradeButtonsContainer .section2 button.videoFeatureButton";
     private const int ConstructFasterVideoTimeoutSeconds = 75;
     private const int ConstructFasterVideoPollIntervalMs = 2000;
+    private const int ConstructFasterMaxVideoAttempts = 2;
 
     private sealed record ConstructFasterButtonState(
         bool Present,
@@ -45,14 +46,67 @@ public sealed partial class TravianClient
             return false;
         }
 
+        string? lastVideoResult = null;
+        string? lastEvidence = null;
         var navigatedForVerification = false;
-        try
+        for (var attempt = 1; attempt <= ConstructFasterMaxVideoAttempts; attempt++)
         {
-            Notify($"[construct-faster] starting — slot={slotId}, gid={gid?.ToString(CultureInfo.InvariantCulture) ?? "unknown"}, duration={durationSeconds}s, reason={decision.Reason}.");
-            var videoResult = await RunConstructFasterVideoAsync(slotId, gid, buildingName, cancellationToken);
-            Notify($"[construct-faster] video flow completed: {videoResult}");
+            try
+            {
+                Notify($"[construct-faster] starting — slot={slotId}, gid={gid?.ToString(CultureInfo.InvariantCulture) ?? "unknown"}, duration={durationSeconds}s, attempt={attempt}/{ConstructFasterMaxVideoAttempts}, reason={decision.Reason}.");
+                lastVideoResult = await RunConstructFasterVideoAsync(slotId, gid, buildingName, cancellationToken);
+                Notify($"[construct-faster] video flow completed: {lastVideoResult}");
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                lastVideoResult = ex.Message;
+                Notify($"[construct-faster] video attempt {attempt}/{ConstructFasterMaxVideoAttempts} ended before normal completion: {ex.Message}. Verifying on fresh dorf2 before fallback.");
+            }
 
             navigatedForVerification = true;
+            var verification = await VerifyConstructFasterResultOnDorf2Async(
+                slotId,
+                previousLevel,
+                buildingName,
+                queueFingerprintBefore,
+                cancellationToken);
+            lastEvidence = verification.Evidence;
+            if (verification.Success)
+            {
+                Notify($"[construct-faster] success — slot={slotId}, evidence={verification.Evidence}.");
+                return true;
+            }
+
+            if (attempt < ConstructFasterMaxVideoAttempts)
+            {
+                Notify($"[construct-faster] no queue/progress evidence after attempt {attempt}/{ConstructFasterMaxVideoAttempts}: {verification.Evidence}. Retrying video once.");
+                continue;
+            }
+        }
+
+        Notify($"ALARM: construct-faster video failed after {ConstructFasterMaxVideoAttempts} attempts (last video: {lastVideoResult ?? "no result"}, evidence: {lastEvidence ?? "none"}) — building normally.");
+        if (navigatedForVerification)
+        {
+            await RestoreBuildPageAfterConstructFasterFallbackAsync(slotId, restorePath, cancellationToken);
+        }
+
+        return false;
+    }
+
+    private async Task<(bool Success, string Evidence)> VerifyConstructFasterResultOnDorf2Async(
+        int slotId,
+        int previousLevel,
+        string buildingName,
+        string queueFingerprintBefore,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            Notify($"[construct-faster] verifying result on fresh dorf2 — slot={slotId}.");
             await GotoAsync(Paths.Buildings, cancellationToken);
             var progress = await WaitForBuildingLevelAdvanceAsync(
                 slotId,
@@ -62,19 +116,16 @@ public sealed partial class TravianClient
                 cancellationToken);
             if (progress.Advanced || progress.QueuedOrInProgress)
             {
-                Notify($"[construct-faster] success — slot={slotId}, evidence={progress.Evidence}.");
-                return true;
+                return (true, progress.Evidence);
             }
 
             var dorf2Level = await ProbeSlotLevelOnDorf2Async(slotId, cancellationToken);
             if (dorf2Level is int confirmedLevel && confirmedLevel > previousLevel)
             {
-                Notify($"[construct-faster] success — slot={slotId}, dorf2 level {confirmedLevel}.");
-                return true;
+                return (true, $"dorf2 level {confirmedLevel}");
             }
 
-            Notify($"ALARM: construct-faster video failed (no queue/progress evidence: {progress.Evidence}) — building normally.");
-            return false;
+            return (false, progress.Evidence);
         }
         catch (OperationCanceledException)
         {
@@ -82,15 +133,7 @@ public sealed partial class TravianClient
         }
         catch (Exception ex)
         {
-            Notify($"ALARM: construct-faster video failed ({ex.Message}) — building normally.");
-            return false;
-        }
-        finally
-        {
-            if (navigatedForVerification)
-            {
-                await RestoreBuildPageAfterConstructFasterFallbackAsync(slotId, restorePath, cancellationToken);
-            }
+            return (false, $"verification failed: {ex.Message}");
         }
     }
 

@@ -44,6 +44,7 @@ public partial class MainWindow
     {
         var tickSw = Stopwatch.StartNew();
         var terminalCountBefore = await Dispatcher.InvokeAsync(() => _terminalEntries.Count);
+        RefreshConstructFasterPayloadForExecution(item);
         _botService.MarkQueueItemRunning(item.Id);
         // Keep the Dashboard "active village" border on the village this task runs in, so the user can
         // see where the bot is working as it rotates between villages.

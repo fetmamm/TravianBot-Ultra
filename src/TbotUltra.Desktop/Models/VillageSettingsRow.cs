@@ -37,6 +37,22 @@ public sealed class VillageSettingsRow : INotifyPropertyChanged
         }
     }
 
+    private bool _constructFasterEnabled;
+    public bool ConstructFasterEnabled
+    {
+        get => _constructFasterEnabled;
+        set
+        {
+            if (_constructFasterEnabled == value)
+            {
+                return;
+            }
+
+            _constructFasterEnabled = value;
+            OnPropertyChanged();
+        }
+    }
+
     private bool _isEnabledForAutomation;
     public bool IsEnabledForAutomation
     {
