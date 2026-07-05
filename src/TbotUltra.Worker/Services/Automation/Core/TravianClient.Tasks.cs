@@ -134,8 +134,18 @@ public sealed partial class TravianClient
                       && rect.width > 0
                       && rect.height > 0;
                   };
+                  const isEnabledCollectButton = button => {
+                    if (!isVisible(button)) return false;
+                    const className = button.className || '';
+                    const disabled = button.disabled
+                      || /(^|\s)disabled(\s|$)/i.test(className)
+                      || button.getAttribute('aria-disabled') === 'true';
+                    if (disabled) return false;
+                    const label = (button.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                    return label === 'collect';
+                  };
                   return Array.from(document.querySelectorAll('button.textButtonV2.collect'))
-                    .some(button => isVisible(button));
+                    .some(button => isEnabledCollectButton(button));
                 }
                 """,
                 null,

@@ -50,7 +50,7 @@ public sealed partial class TravianClient
                 if (ex is PlaywrightException pwx && IsTransientExecutionContextError(pwx) && attempt < attempts)
                 {
                     await TryDismissContinuePromptAsync();
-                    Notify($"{label} hit transient navigation context on attempt {attempt}/{attempts}. Retrying...");
+                    Notify($"[retry:verbose] {label} hit transient navigation context on attempt {attempt}/{attempts}. Retrying...");
                     await Task.Delay(250 * attempt, cancellationToken);
                     continue;
                 }
@@ -61,7 +61,7 @@ public sealed partial class TravianClient
                 }
 
                 await TryDismissContinuePromptAsync();
-                Notify($"{label} failed on attempt {attempt}/{attempts}. Retrying...");
+                Notify($"[retry:verbose] {label} failed on attempt {attempt}/{attempts}. Retrying...");
                 await Task.Delay(400 * attempt, cancellationToken);
             }
         }
@@ -91,7 +91,7 @@ public sealed partial class TravianClient
                 if (IsTransientExecutionContextException(ex) && attempt < attempts)
                 {
                     await TryDismissContinuePromptAsync();
-                    Notify($"{label} hit transient navigation context on attempt {attempt}/{attempts}. Retrying...");
+                    Notify($"[retry:verbose] {label} hit transient navigation context on attempt {attempt}/{attempts}. Retrying...");
                     await Task.Delay(250 * attempt, cancellationToken);
                     continue;
                 }
@@ -102,7 +102,7 @@ public sealed partial class TravianClient
                 }
 
                 await TryDismissContinuePromptAsync();
-                Notify($"{label} failed on attempt {attempt}/{attempts}. Retrying...");
+                Notify($"[retry:verbose] {label} failed on attempt {attempt}/{attempts}. Retrying...");
                 await Task.Delay(400 * attempt, cancellationToken);
             }
         }
