@@ -137,8 +137,7 @@
                           Foreground="{DynamicResource TextPrimaryBrush}"
                           VerticalAlignment="Center"
                           Checked="MinimumBuildTimeToggle_Changed"
-                          Unchecked="MinimumBuildTimeToggle_Changed"
-                          ToolTip="When enabled, builds at or below this duration skip the video. When disabled, all eligible builds try the video." />
+                          Unchecked="MinimumBuildTimeToggle_Changed" />
 
                 <TextBox x:Name="MinimumBuildMinutesTextBox"
                          Grid.Row="0"
@@ -151,7 +150,7 @@
                                 Grid.Column="2"
                                 Style="{DynamicResource InfoTooltipIconStyle}"
                                 Margin="5,0,0,0"
-                                ToolTip="When enabled, builds at or below this duration skip the video and use the normal build button." />
+                                ToolTip="When enabled the function is used for all buildings that take longer than the value.&#10;&#10;Example: if 30 min is set and a building takes 35 min, the function will be used." />
 
                 <CheckBox x:Name="RandomEnabledCheckBox"
                           Grid.Row="1"
@@ -163,7 +162,7 @@
                           VerticalAlignment="Center"
                           Checked="RandomGateToggle_Changed"
                           Unchecked="RandomGateToggle_Changed"
-                          ToolTip="Enable the random gate before trying the construct-faster video." />
+                            />
                 <ComboBox x:Name="RandomChanceComboBox"
                           Grid.Row="1"
                           Grid.Column="1"
@@ -187,7 +186,7 @@
                                 Grid.Column="2"
                                 Style="{DynamicResource InfoTooltipIconStyle}"
                                 Margin="5,10,0,0"
-                                ToolTip="Used only when Random is enabled. 80% means an 80% chance to try the video after village, duration, and button checks pass." />
+                                ToolTip="Used only when Random is enabled.&#10;&#10;80% means an 80% chance to use the function before each construction." />
             </Grid>
         </Border>
 
