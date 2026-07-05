@@ -94,7 +94,7 @@ public sealed class SessionPacer
     public string StatusText => Phase switch
     {
         SessionPacerPhase.Running => $"Next sleep: {Format(TimeUntilSleep)}",
-        SessionPacerPhase.Paused => $"Paused - next sleep: {Format(_pausedRunRemaining)}",
+        SessionPacerPhase.Paused => "Paused",
         // All sleep reasons (session pacing, scheduled off-hours, daily limit, manual) show the same
         // "Sleeping: <countdown>" badge. The reason stays available via SleepReason / the Run-now button.
         SessionPacerPhase.Sleeping => $"Sleeping: {Format(TimeUntilWake)}",

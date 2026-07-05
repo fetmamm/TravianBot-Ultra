@@ -1,0 +1,160 @@
+using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
+using Xunit;
+
+namespace TbotUltra.Desktop.Tests;
+
+public sealed class EnvAccountStoreTests : IDisposable
+{
+    private readonly string _envPath;
+
+    public EnvAccountStoreTests()
+    {
+        _envPath = Path.Combine(Path.GetTempPath(), $"tbot-env-store-{Guid.NewGuid():N}.env");
+    }
+
+    private static AccountEntry Account(string name) => new()
+    {
+        Name = name,
+        Username = name,
+        Password = "pw",
+        ServerName = "Server",
+        ServerUrl = "https://ts1.travian.eu",
+    };
+
+    [Fact]
+    public void SaveAccount_SetActive_BecomesActiveAccount()
+    {
+        var store = new EnvAccountStore(_envPath);
+
+        store.SaveAccount(Account("alice"), setActive: true);
+
+        Assert.Equal("alice", store.ActiveAccountName());
+        Assert.True(store.ListAccounts().Single().IsActive);
+    }
+
+    [Fact]
+    public void SaveAccount_WithoutSetActive_KeepsExistingActive()
+    {
+        var store = new EnvAccountStore(_envPath);
+        store.SaveAccount(Account("alice"), setActive: true);
+
+        store.SaveAccount(Account("bob"), setActive: false);
+
+        Assert.Equal("alice", store.ActiveAccountName());
+        Assert.Equal(2, store.ListAccounts().Count);
+    }
+
+    [Fact]
+    public void SetActive_SwitchesActiveAccount()
+    {
+        var store = new EnvAccountStore(_envPath);
+        store.SaveAccount(Account("alice"), setActive: true);
+        store.SaveAccount(Account("bob"), setActive: false);
+
+        store.SetActive("bob");
+
+        Assert.Equal("bob", store.ActiveAccountName());
+    }
+
+    [Fact]
+    public void SetActive_UnknownAccount_Throws()
+    {
+        var store = new EnvAccountStore(_envPath);
+        store.SaveAccount(Account("alice"), setActive: true);
+
+        Assert.Throws<InvalidOperationException>(() => store.SetActive("ghost"));
+    }
+
+    [Fact]
+    public void DeleteAccount_RemovesAccount()
+    {
+        var store = new EnvAccountStore(_envPath);
+        store.SaveAccount(Account("alice"), setActive: true);
+        store.SaveAccount(Account("bob"), setActive: false);
+
+        store.DeleteAccount("bob");
+
+        Assert.DoesNotContain(store.ListAccounts(), a => a.Name == "bob");
+    }
+
+    [Fact]
+    public void DeleteAccount_ActiveAccount_ReassignsActiveToRemaining()
+    {
+        var store = new EnvAccountStore(_envPath);
+        store.SaveAccount(Account("alice"), setActive: true);
+        store.SaveAccount(Account("bob"), setActive: false);
+
+        store.DeleteAccount("alice");
+
+        Assert.Equal("bob", store.ActiveAccountName());
+    }
+
+    [Fact]
+    public void DeleteAccount_LastAccount_ClearsActive()
+    {
+        var store = new EnvAccountStore(_envPath);
+        store.SaveAccount(Account("alice"), setActive: true);
+
+        store.DeleteAccount("alice");
+
+        Assert.Empty(store.ActiveAccountName());
+        Assert.Empty(store.ListAccounts());
+    }
+
+    [Fact]
+    public void DeleteAccount_Unknown_Throws()
+    {
+        var store = new EnvAccountStore(_envPath);
+        store.SaveAccount(Account("alice"), setActive: true);
+
+        Assert.Throws<InvalidOperationException>(() => store.DeleteAccount("ghost"));
+    }
+
+    [Fact]
+    public void ListAccounts_ReturnsSavedFields_AndTrimsTrailingSlashOnUrl()
+    {
+        var store = new EnvAccountStore(_envPath);
+        store.SaveAccount(new AccountEntry
+        {
+            Name = "alice",
+            Username = "aliceUser",
+            Password = "secret",
+            ServerName = "Asia 50",
+            ServerUrl = "https://ts50.travian.com/",
+        }, setActive: true);
+
+        var alice = store.ListAccounts().Single();
+        Assert.Equal("alice", alice.Name);
+        Assert.Equal("aliceUser", alice.Username);
+        Assert.Equal("secret", alice.Password);
+        Assert.Equal("Asia 50", alice.ServerName);
+        Assert.Equal("https://ts50.travian.com", alice.ServerUrl);
+    }
+
+    [Fact]
+    public void SaveAccount_NormalizesNameToLowercaseUnderscored()
+    {
+        var store = new EnvAccountStore(_envPath);
+
+        store.SaveAccount(Account("My Account"), setActive: true);
+
+        Assert.Equal("my_account", store.ActiveAccountName());
+    }
+
+    [Fact]
+    public void SaveAccount_EmptyName_Throws()
+    {
+        var store = new EnvAccountStore(_envPath);
+
+        Assert.Throws<InvalidOperationException>(() => store.SaveAccount(Account(""), setActive: true));
+    }
+
+    public void Dispose()
+    {
+        if (File.Exists(_envPath))
+        {
+            File.Delete(_envPath);
+        }
+    }
+}
