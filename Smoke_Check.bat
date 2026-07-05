@@ -4,14 +4,14 @@ cd /d "%~dp0"
 set "SMOKE_EXIT_CODE=0"
 
 echo Running smoke check...
-"C:\Program Files\dotnet\dotnet.exe" build TbotUltra.sln -c Debug
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\Build-Check.ps1"
 if errorlevel 1 (
   echo Build failed.
   set "SMOKE_EXIT_CODE=1"
   goto done
 )
 
-"C:\Program Files\dotnet\dotnet.exe" test src\TbotUltra.Worker.Tests\TbotUltra.Worker.Tests.csproj -c Debug --no-build
+powershell -NoProfile -ExecutionPolicy Bypass -File ".\scripts\Run-Tests.ps1" -Project "src\TbotUltra.Worker.Tests\TbotUltra.Worker.Tests.csproj"
 if errorlevel 1 (
   echo Tests failed.
   set "SMOKE_EXIT_CODE=1"

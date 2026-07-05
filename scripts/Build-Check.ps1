@@ -23,8 +23,19 @@ function Invoke-DotNetWithTimeout {
     Write-Host $Description
     Write-Host "dotnet $($Arguments -join ' ')"
 
-    $process = Start-Process -FilePath "dotnet" -ArgumentList $Arguments -NoNewWindow -PassThru
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = "dotnet"
+    $startInfo.Arguments = ($Arguments | ForEach-Object { ConvertTo-CommandLineArgument $_ }) -join " "
+    $startInfo.UseShellExecute = $false
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
     try {
+        if (-not $process.Start()) {
+            Write-Host "ERROR: Could not start dotnet for $Description."
+            exit 1
+        }
+
         if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
             Write-Host "ERROR: $Description timed out after $TimeoutSeconds seconds. Killing only this dotnet process tree (PID $($process.Id))."
             & taskkill /PID $process.Id /T /F | Out-Host
@@ -38,6 +49,19 @@ function Invoke-DotNetWithTimeout {
     finally {
         $process.Dispose()
     }
+}
+
+function ConvertTo-CommandLineArgument {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Value
+    )
+
+    if ($Value -notmatch '[\s"]') {
+        return $Value
+    }
+
+    return '"' + $Value.Replace('"', '\"') + '"'
 }
 
 if ([string]::IsNullOrWhiteSpace($RunName)) {
