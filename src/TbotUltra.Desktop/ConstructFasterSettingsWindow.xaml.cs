@@ -54,6 +54,7 @@ public partial class ConstructFasterSettingsWindow : Window
 
     public ObservableCollection<ConstructFasterSettingsRow> Rows { get; }
 
+    public bool MinimumBuildTimeEnabled { get; private set; } = true;
     public int MinimumBuildMinutes { get; private set; }
     public bool RandomEnabled { get; private set; }
     public int RandomChancePercent { get; private set; }
@@ -63,6 +64,7 @@ public partial class ConstructFasterSettingsWindow : Window
 
     public ConstructFasterSettingsWindow(
         IReadOnlyList<ConstructFasterSettingsRow> rows,
+        bool minimumBuildTimeEnabled,
         int minimumBuildMinutes,
         bool randomEnabled,
         int randomChancePercent)
@@ -71,12 +73,15 @@ public partial class ConstructFasterSettingsWindow : Window
         ThemeChrome.EnableEarlyDarkTitleBar(this);
 
         Rows = new ObservableCollection<ConstructFasterSettingsRow>(rows);
+        MinimumBuildTimeEnabled = minimumBuildTimeEnabled;
         MinimumBuildMinutes = Math.Max(0, minimumBuildMinutes);
         RandomEnabled = randomEnabled;
         RandomChancePercent = Math.Clamp(randomChancePercent, 0, 100);
 
         DataContext = this;
+        MinimumBuildTimeEnabledCheckBox.IsChecked = MinimumBuildTimeEnabled;
         MinimumBuildMinutesTextBox.Text = MinimumBuildMinutes.ToString();
+        ApplyMinimumBuildTimeEnabled();
         SetRandomGateToggles(RandomEnabled);
         SelectChanceItem(RandomChancePercent);
     }
@@ -98,6 +103,7 @@ public partial class ConstructFasterSettingsWindow : Window
         }
 
         MinimumBuildMinutes = Math.Max(0, minMinutes);
+        MinimumBuildTimeEnabled = MinimumBuildTimeEnabledCheckBox.IsChecked == true;
         RandomEnabled = RandomEnabledCheckBox.IsChecked == true;
         RandomChancePercent = ReadSelectedChancePercent();
         Results = Rows
@@ -112,6 +118,16 @@ public partial class ConstructFasterSettingsWindow : Window
     {
         DialogResult = false;
         Close();
+    }
+
+    private void MinimumBuildTimeToggle_Changed(object sender, RoutedEventArgs e)
+    {
+        ApplyMinimumBuildTimeEnabled();
+    }
+
+    private void ApplyMinimumBuildTimeEnabled()
+    {
+        MinimumBuildMinutesTextBox.IsEnabled = MinimumBuildTimeEnabledCheckBox.IsChecked == true;
     }
 
     private void RandomGateToggle_Changed(object sender, RoutedEventArgs e)

@@ -220,4 +220,75 @@
         </Setter>
     </Style>
 
+    <!-- Same compact switch as ToggleSwitchBlueStyle, but purple when enabled.
+         Used for Construct 25% faster so it matches the feature accent. -->
+    <Style x:Key="ToggleSwitchPurpleStyle" TargetType="CheckBox">
+        <Setter Property="Cursor" Value="Hand" />
+        <Setter Property="SnapsToDevicePixels" Value="True" />
+        <Setter Property="VerticalContentAlignment" Value="Center" />
+        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+        <Setter Property="Template">
+            <Setter.Value>
+                <ControlTemplate TargetType="CheckBox">
+                    <StackPanel Orientation="Horizontal" Background="Transparent">
+                        <Grid Width="36" Height="20" VerticalAlignment="Center">
+                            <Border x:Name="Track"
+                                    Background="{TemplateBinding Background}"
+                                    CornerRadius="10"
+                                    BorderBrush="{DynamicResource ToggleTrackBorderBrush}"
+                                    BorderThickness="1" />
+                            <Ellipse x:Name="Thumb"
+                                     Width="14"
+                                     Height="14"
+                                     Margin="3"
+                                     Fill="{DynamicResource ThumbBrush}"
+                                     Stroke="{DynamicResource ThumbStrokeBrush}"
+                                     StrokeThickness="1"
+                                     HorizontalAlignment="Left">
+                                <Ellipse.Effect>
+                                    <DropShadowEffect BlurRadius="4"
+                                                      ShadowDepth="1"
+                                                      Direction="270"
+                                                      Opacity="0.14" />
+                                </Ellipse.Effect>
+                            </Ellipse>
+                        </Grid>
+                        <ContentPresenter x:Name="Label"
+                                          Margin="8,0,0,0"
+                                          VerticalAlignment="Center"
+                                          TextElement.Foreground="{TemplateBinding Foreground}"
+                                          RecognizesAccessKey="True" />
+                    </StackPanel>
+                    <ControlTemplate.Triggers>
+                        <Trigger Property="IsChecked" Value="True">
+                            <Setter TargetName="Track" Property="Background" Value="{DynamicResource ConstructFasterBrush}" />
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource ConstructFasterBrush}" />
+                            <Setter TargetName="Thumb" Property="HorizontalAlignment" Value="Right" />
+                            <Setter TargetName="Thumb" Property="Stroke" Value="{DynamicResource ThumbStrokeOnBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsMouseOver" Value="True">
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource BorderHoverBrush}" />
+                        </Trigger>
+                        <MultiTrigger>
+                            <MultiTrigger.Conditions>
+                                <Condition Property="IsMouseOver" Value="True" />
+                                <Condition Property="IsChecked" Value="True" />
+                            </MultiTrigger.Conditions>
+                            <Setter TargetName="Track" Property="Background" Value="{DynamicResource ConstructFasterHoverBrush}" />
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource ConstructFasterHoverBrush}" />
+                        </MultiTrigger>
+                        <Trigger Property="IsKeyboardFocused" Value="True">
+                            <Setter TargetName="Track" Property="BorderBrush" Value="{DynamicResource FocusBorderBrush}" />
+                        </Trigger>
+                        <Trigger Property="IsEnabled" Value="False">
+                            <Setter TargetName="Track" Property="Opacity" Value="0.55" />
+                            <Setter TargetName="Thumb" Property="Opacity" Value="0.75" />
+                        </Trigger>
+                    </ControlTemplate.Triggers>
+                </ControlTemplate>
+            </Setter.Value>
+        </Setter>
+    </Style>
+
 </ResourceDictionary>

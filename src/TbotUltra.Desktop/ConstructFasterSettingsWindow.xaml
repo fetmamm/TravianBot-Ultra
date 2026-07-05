@@ -3,13 +3,14 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Construct 25% faster settings"
-        Width="720"
+        Width="560"
         MinHeight="320"
         Height="520"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner">
     <Grid Margin="18">
         <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
@@ -27,7 +28,15 @@
                             ToolTip="Enable the Official Travian construct-faster bonus video per village and set duration/random gates." />
         </StackPanel>
 
-        <Border Grid.Row="1"
+        <Button Grid.Row="1"
+                Width="92"
+                Height="28"
+                HorizontalAlignment="Left"
+                Margin="0,0,0,8"
+                Content="Toggle all"
+                Click="ToggleAllButton_Click" />
+
+        <Border Grid.Row="2"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
@@ -70,7 +79,7 @@
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
 
-                                        <CheckBox Style="{DynamicResource ToggleSwitchBlueStyle}"
+                                        <CheckBox Style="{DynamicResource ToggleSwitchPurpleStyle}"
                                                   HorizontalAlignment="Left"
                                                   VerticalAlignment="Center"
                                                   ToolTip="Allow construct-faster bonus videos in this village."
@@ -102,7 +111,7 @@
             </Grid>
         </Border>
 
-        <Border Grid.Row="2"
+        <Border Grid.Row="3"
                 Background="{DynamicResource SurfaceBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
@@ -115,97 +124,91 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="150" />
+                    <ColumnDefinition Width="24" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
 
-                <Button Grid.Row="0"
-                        Width="92"
-                        Height="28"
-                        HorizontalAlignment="Left"
-                        Content="Toggle all"
-                        Click="ToggleAllButton_Click" />
+                <CheckBox x:Name="MinimumBuildTimeEnabledCheckBox"
+                          Grid.Row="0"
+                          Grid.Column="0"
+                          Content="Min build time"
+                          Style="{DynamicResource ToggleSwitchPurpleStyle}"
+                          Foreground="{DynamicResource TextPrimaryBrush}"
+                          VerticalAlignment="Center"
+                          Checked="MinimumBuildTimeToggle_Changed"
+                          Unchecked="MinimumBuildTimeToggle_Changed"
+                          ToolTip="When enabled, builds at or below this duration skip the video. When disabled, all eligible builds try the video." />
+                <ContentControl Grid.Row="0"
+                                Grid.Column="1"
+                                Style="{DynamicResource InfoTooltipIconStyle}"
+                                Margin="5,0,0,0"
+                                ToolTip="When enabled, builds at or below this duration skip the video and use the normal build button." />
 
-                <Grid Grid.Row="1"
-                      Margin="0,9,0,0"
-                      HorizontalAlignment="Left">
-                    <Grid.ColumnDefinitions>
-                        <ColumnDefinition Width="Auto" />
-                        <ColumnDefinition Width="12" />
-                        <ColumnDefinition Width="Auto" />
-                    </Grid.ColumnDefinitions>
+                <TextBox x:Name="MinimumBuildMinutesTextBox"
+                         Grid.Row="0"
+                         Grid.Column="2"
+                         Width="86"
+                         Padding="6,3"
+                         BorderBrush="{DynamicResource BorderSubtleBrush}" />
 
-                    <StackPanel Grid.Column="0"
-                                Orientation="Horizontal"
-                                VerticalAlignment="Center">
-                        <TextBlock Text="Min build time"
-                                   FontWeight="SemiBold"
-                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                   VerticalAlignment="Center" />
-                        <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                                        Margin="5,0,0,0"
-                                        ToolTip="Builds at or below this duration skip the video and use the normal build button." />
-                    </StackPanel>
+                <CheckBox x:Name="RandomEnabledCheckBox"
+                          Grid.Row="1"
+                          Grid.Column="0"
+                          Content="Random"
+                          Style="{DynamicResource ToggleSwitchPurpleStyle}"
+                          Foreground="{DynamicResource TextPrimaryBrush}"
+                          Margin="0,10,0,0"
+                          VerticalAlignment="Center"
+                          Checked="RandomGateToggle_Changed"
+                          Unchecked="RandomGateToggle_Changed"
+                          ToolTip="Enable the random gate before trying the construct-faster video." />
+                <ContentControl Grid.Row="1"
+                                Grid.Column="1"
+                                Style="{DynamicResource InfoTooltipIconStyle}"
+                                Margin="5,10,0,0"
+                                ToolTip="When enabled, each eligible build rolls the chance before trying the construct-faster video. When disabled, every eligible build tries the video." />
 
-                    <TextBox x:Name="MinimumBuildMinutesTextBox"
-                             Grid.Column="2"
-                             Width="86"
-                             Padding="6,3"
-                             BorderBrush="{DynamicResource BorderSubtleBrush}" />
-                </Grid>
-
-                <StackPanel Grid.Row="2"
-                            Orientation="Horizontal"
-                            HorizontalAlignment="Right"
-                            Margin="0,10,0,0">
-                    <StackPanel Orientation="Horizontal"
-                                VerticalAlignment="Center"
-                                Margin="0,0,24,0">
-                        <CheckBox x:Name="RandomEnabledCheckBox"
-                                  Content="Random"
-                                  Style="{DynamicResource ToggleSwitchBlueStyle}"
-                                  Foreground="{DynamicResource TextPrimaryBrush}"
-                                  VerticalAlignment="Center"
-                                  Checked="RandomGateToggle_Changed"
-                                  Unchecked="RandomGateToggle_Changed"
-                                  ToolTip="Enable the random gate before trying the construct-faster video." />
-                        <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                                        Margin="5,0,0,0"
-                                        ToolTip="When enabled, each eligible build rolls the chance before trying the construct-faster video. When disabled, every eligible build tries the video." />
-                    </StackPanel>
-
-                    <StackPanel Orientation="Horizontal"
-                                VerticalAlignment="Center">
-                        <CheckBox x:Name="ChanceEnabledCheckBox"
-                                  Content="Chance"
-                                  Style="{DynamicResource ToggleSwitchBlueStyle}"
-                                  Foreground="{DynamicResource TextPrimaryBrush}"
-                                  VerticalAlignment="Center"
-                                  Checked="RandomGateToggle_Changed"
-                                  Unchecked="RandomGateToggle_Changed"
-                                  ToolTip="Enable chance-based use of construct-faster videos." />
-                        <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                                        Margin="5,0,8,0"
-                                        ToolTip="Used only when Random is enabled. 80% means an 80% chance to try the video after village, duration, and button checks pass." />
-                        <ComboBox x:Name="RandomChanceComboBox"
-                                  Width="92"
-                                  Height="28"
-                                  HorizontalAlignment="Left">
-                            <ComboBoxItem Content="0%" Tag="0" />
-                            <ComboBoxItem Content="10%" Tag="10" />
-                            <ComboBoxItem Content="20%" Tag="20" />
-                            <ComboBoxItem Content="30%" Tag="30" />
-                            <ComboBoxItem Content="40%" Tag="40" />
-                            <ComboBoxItem Content="50%" Tag="50" />
-                            <ComboBoxItem Content="60%" Tag="60" />
-                            <ComboBoxItem Content="70%" Tag="70" />
-                            <ComboBoxItem Content="80%" Tag="80" />
-                            <ComboBoxItem Content="90%" Tag="90" />
-                            <ComboBoxItem Content="100%" Tag="100" />
-                        </ComboBox>
-                    </StackPanel>
-                </StackPanel>
+                <CheckBox x:Name="ChanceEnabledCheckBox"
+                          Grid.Row="2"
+                          Grid.Column="0"
+                          Content="Chance"
+                          Style="{DynamicResource ToggleSwitchPurpleStyle}"
+                          Foreground="{DynamicResource TextPrimaryBrush}"
+                          Margin="0,10,0,0"
+                          VerticalAlignment="Center"
+                          Checked="RandomGateToggle_Changed"
+                          Unchecked="RandomGateToggle_Changed"
+                          ToolTip="Enable chance-based use of construct-faster videos." />
+                <ContentControl Grid.Row="2"
+                                Grid.Column="1"
+                                Style="{DynamicResource InfoTooltipIconStyle}"
+                                Margin="5,10,0,0"
+                                ToolTip="Used only when Random is enabled. 80% means an 80% chance to try the video after village, duration, and button checks pass." />
+                <ComboBox x:Name="RandomChanceComboBox"
+                          Grid.Row="2"
+                          Grid.Column="2"
+                          Width="92"
+                          Height="28"
+                          Margin="0,10,0,0"
+                          HorizontalAlignment="Left">
+                    <ComboBoxItem Content="0%" Tag="0" />
+                    <ComboBoxItem Content="10%" Tag="10" />
+                    <ComboBoxItem Content="20%" Tag="20" />
+                    <ComboBoxItem Content="30%" Tag="30" />
+                    <ComboBoxItem Content="40%" Tag="40" />
+                    <ComboBoxItem Content="50%" Tag="50" />
+                    <ComboBoxItem Content="60%" Tag="60" />
+                    <ComboBoxItem Content="70%" Tag="70" />
+                    <ComboBoxItem Content="80%" Tag="80" />
+                    <ComboBoxItem Content="90%" Tag="90" />
+                    <ComboBoxItem Content="100%" Tag="100" />
+                </ComboBox>
             </Grid>
         </Border>
 
-        <StackPanel Grid.Row="3"
+        <StackPanel Grid.Row="4"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="0,16,0,0">

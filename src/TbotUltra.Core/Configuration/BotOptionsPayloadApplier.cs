@@ -18,6 +18,7 @@ public static class BotOptionsPayloadApplier
         var buildingConstructGid = source.BuildingConstructGid;
         var buildingConstructName = source.BuildingConstructName;
         var constructFasterEnabled = source.ConstructFasterEnabled;
+        var constructFasterMinBuildTimeEnabled = source.ConstructFasterMinBuildTimeEnabled;
         var constructFasterMinBuildMinutes = source.ConstructFasterMinBuildMinutes;
         var constructFasterRandomEnabled = source.ConstructFasterRandomEnabled;
         var constructFasterRandomChancePercent = source.ConstructFasterRandomChancePercent;
@@ -227,6 +228,13 @@ public static class BotOptionsPayloadApplier
                     && bool.TryParse(value, out var constructFaster))
                 {
                     constructFasterEnabled = constructFaster;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ConstructFasterMinBuildTimeEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var constructFasterMinTime))
+                {
+                    constructFasterMinBuildTimeEnabled = constructFasterMinTime;
                     continue;
                 }
 
@@ -1203,6 +1211,7 @@ public static class BotOptionsPayloadApplier
             BuildingConstructGid = buildingConstructGid,
             BuildingConstructName = buildingConstructName,
             ConstructFasterEnabled = constructFasterEnabled,
+            ConstructFasterMinBuildTimeEnabled = constructFasterMinBuildTimeEnabled,
             ConstructFasterMinBuildMinutes = constructFasterMinBuildMinutes,
             ConstructFasterRandomEnabled = constructFasterRandomEnabled,
             ConstructFasterRandomChancePercent = constructFasterRandomChancePercent,

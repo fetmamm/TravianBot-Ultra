@@ -18,8 +18,10 @@ internal static class ConstructFasterDecision
             return new ConstructFasterDecisionResult(false, "feature disabled");
         }
 
-        var minSeconds = Math.Max(0, options.ConstructFasterMinBuildMinutes) * 60;
-        if (durationSeconds <= minSeconds)
+        var minSeconds = options.ConstructFasterMinBuildTimeEnabled
+            ? Math.Max(0, options.ConstructFasterMinBuildMinutes) * 60
+            : -1;
+        if (minSeconds >= 0 && durationSeconds <= minSeconds)
         {
             return new ConstructFasterDecisionResult(false, $"duration {durationSeconds}s <= minimum {minSeconds}s");
         }

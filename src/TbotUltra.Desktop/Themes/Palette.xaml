@@ -82,6 +82,8 @@
     <SolidColorBrush x:Key="InfoBrush" Color="#58A6FF" />
     <SolidColorBrush x:Key="InfoBgBrush" Color="#0D2847" />
     <SolidColorBrush x:Key="InfoTextBrush" Color="#79C0FF" />
+    <SolidColorBrush x:Key="ConstructFasterBrush" Color="#A371F7" />
+    <SolidColorBrush x:Key="ConstructFasterHoverBrush" Color="#BC8CFF" />
     <SolidColorBrush x:Key="SelectedRowBgBrush" Color="#1F2D3D" />
 
     <!-- ===== Status: danger / error (red) ===== -->

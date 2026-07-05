@@ -23,12 +23,24 @@ public sealed class ConstructFasterDecisionTests
     public void Evaluate_DurationAtThreshold_Skips()
     {
         var result = ConstructFasterDecision.Evaluate(
-            new BotOptions { ConstructFasterEnabled = true, ConstructFasterMinBuildMinutes = 30 },
+            new BotOptions { ConstructFasterEnabled = true, ConstructFasterMinBuildTimeEnabled = true, ConstructFasterMinBuildMinutes = 30 },
             durationSeconds: 1800,
             buttonPresent: true,
             buttonDisabled: false);
 
         Assert.False(result.UseVideo);
+    }
+
+    [Fact]
+    public void Evaluate_MinBuildTimeDisabled_UsesVideoRegardlessDuration()
+    {
+        var result = ConstructFasterDecision.Evaluate(
+            new BotOptions { ConstructFasterEnabled = true, ConstructFasterMinBuildTimeEnabled = false, ConstructFasterMinBuildMinutes = 30 },
+            durationSeconds: 10,
+            buttonPresent: true,
+            buttonDisabled: false);
+
+        Assert.True(result.UseVideo);
     }
 
     [Theory]

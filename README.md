@@ -93,6 +93,7 @@ Compatible with:
 - Reduce adventure duration 25% button / video watch
 - Increase adventure to hard button / video watch
 - Auto town hall celebrations
+- Construct 25% faster with button / video watch
 
 
 - Read ingame status
@@ -106,7 +107,6 @@ Compatible with:
 ## Future functions:
 
 - +15% resource production for 8h automatic watch video
-- construct 25% faster button / video watch
 - Detect incomming attacks and send notification
 - Auto scout players and farms
 - Auto bid on auctions

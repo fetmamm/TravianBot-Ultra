@@ -41,6 +41,8 @@ public partial class MainWindow
         }
 
         payload[BotOptionPayloadKeys.ConstructFasterEnabled] = villageEnabled ? "true" : "false";
+        payload[BotOptionPayloadKeys.ConstructFasterMinBuildTimeEnabled] =
+            options.ConstructFasterMinBuildTimeEnabled ? "true" : "false";
         payload[BotOptionPayloadKeys.ConstructFasterMinBuildMinutes] =
             Math.Max(0, options.ConstructFasterMinBuildMinutes).ToString(CultureInfo.InvariantCulture);
         payload[BotOptionPayloadKeys.ConstructFasterRandomEnabled] =
@@ -58,6 +60,7 @@ public partial class MainWindow
 
         var payload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase);
         var beforeEnabled = payload.GetValueOrDefault(BotOptionPayloadKeys.ConstructFasterEnabled);
+        var beforeMinEnabled = payload.GetValueOrDefault(BotOptionPayloadKeys.ConstructFasterMinBuildTimeEnabled);
         var beforeMin = payload.GetValueOrDefault(BotOptionPayloadKeys.ConstructFasterMinBuildMinutes);
         var beforeRandom = payload.GetValueOrDefault(BotOptionPayloadKeys.ConstructFasterRandomEnabled);
         var beforeChance = payload.GetValueOrDefault(BotOptionPayloadKeys.ConstructFasterRandomChancePercent);
@@ -68,6 +71,7 @@ public partial class MainWindow
             GetQueueItemVillageName(item));
 
         var changed = !string.Equals(beforeEnabled, payload.GetValueOrDefault(BotOptionPayloadKeys.ConstructFasterEnabled), StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(beforeMinEnabled, payload.GetValueOrDefault(BotOptionPayloadKeys.ConstructFasterMinBuildTimeEnabled), StringComparison.OrdinalIgnoreCase)
             || !string.Equals(beforeMin, payload.GetValueOrDefault(BotOptionPayloadKeys.ConstructFasterMinBuildMinutes), StringComparison.OrdinalIgnoreCase)
             || !string.Equals(beforeRandom, payload.GetValueOrDefault(BotOptionPayloadKeys.ConstructFasterRandomEnabled), StringComparison.OrdinalIgnoreCase)
             || !string.Equals(beforeChance, payload.GetValueOrDefault(BotOptionPayloadKeys.ConstructFasterRandomChancePercent), StringComparison.OrdinalIgnoreCase);
@@ -82,6 +86,7 @@ public partial class MainWindow
             $"[construct-faster] refreshed queue payload before execution: id={item.Id} " +
             $"village='{GetQueueItemVillageName(item) ?? "-"}' " +
             $"enabled={payload.GetValueOrDefault(BotOptionPayloadKeys.ConstructFasterEnabled, "false")} " +
+            $"minEnabled={payload.GetValueOrDefault(BotOptionPayloadKeys.ConstructFasterMinBuildTimeEnabled, "true")} " +
             $"min={payload.GetValueOrDefault(BotOptionPayloadKeys.ConstructFasterMinBuildMinutes, "0")}m" +
             (persisted ? string.Empty : " (not persisted; using in-memory value)"));
     }
@@ -116,6 +121,7 @@ public partial class MainWindow
 
         var window = new ConstructFasterSettingsWindow(
             rows,
+            options.ConstructFasterMinBuildTimeEnabled,
             options.ConstructFasterMinBuildMinutes,
             options.ConstructFasterRandomEnabled,
             options.ConstructFasterRandomChancePercent)
@@ -138,6 +144,7 @@ public partial class MainWindow
         {
             var config = _botConfigStore.Load();
             config[BotOptionPayloadKeys.ConstructFasterEnabled] = _villageSettingsStore.HasAnyConstructFasterEnabled();
+            config[BotOptionPayloadKeys.ConstructFasterMinBuildTimeEnabled] = window.MinimumBuildTimeEnabled;
             config[BotOptionPayloadKeys.ConstructFasterMinBuildMinutes] = window.MinimumBuildMinutes;
             config[BotOptionPayloadKeys.ConstructFasterRandomEnabled] = window.RandomEnabled;
             config[BotOptionPayloadKeys.ConstructFasterRandomChancePercent] = window.RandomChancePercent;

@@ -382,6 +382,9 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructFasterEnabled)]
     public bool ConstructFasterEnabled { get; init; }
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructFasterMinBuildTimeEnabled)]
+    public bool ConstructFasterMinBuildTimeEnabled { get; init; } = true;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructFasterMinBuildMinutes)]
     public int ConstructFasterMinBuildMinutes { get; init; } = 30;
 

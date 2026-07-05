@@ -48,6 +48,7 @@ public sealed class BotOptionsPayloadApplierTests
             BuildingConstructGid = 6,
             BuildingConstructName = "Main Building",
             ConstructFasterEnabled = false,
+            ConstructFasterMinBuildTimeEnabled = true,
             ConstructFasterMinBuildMinutes = 30,
             ConstructFasterRandomEnabled = false,
             ConstructFasterRandomChancePercent = 50,
@@ -86,6 +87,7 @@ public sealed class BotOptionsPayloadApplierTests
             [BotOptionPayloadKeys.BuildingConstructGid] = "14",
             [BotOptionPayloadKeys.BuildingConstructName] = "Barracks",
             [BotOptionPayloadKeys.ConstructFasterEnabled] = "true",
+            [BotOptionPayloadKeys.ConstructFasterMinBuildTimeEnabled] = "false",
             [BotOptionPayloadKeys.ConstructFasterMinBuildMinutes] = "45",
             [BotOptionPayloadKeys.ConstructFasterRandomEnabled] = "true",
             [BotOptionPayloadKeys.ConstructFasterRandomChancePercent] = "70",
@@ -130,6 +132,7 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.Equal(14, result.BuildingConstructGid);
         Assert.Equal("Barracks", result.BuildingConstructName);
         Assert.True(result.ConstructFasterEnabled);
+        Assert.False(result.ConstructFasterMinBuildTimeEnabled);
         Assert.Equal(45, result.ConstructFasterMinBuildMinutes);
         Assert.True(result.ConstructFasterRandomEnabled);
         Assert.Equal(70, result.ConstructFasterRandomChancePercent);
@@ -291,6 +294,7 @@ public sealed class BotOptionsPayloadApplierTests
             ["server_name"] = "Official",
             ["base_url"] = "https://ts50.x5.europe.travian.com",
             [BotOptionPayloadKeys.ConstructFasterEnabled] = "true",
+            [BotOptionPayloadKeys.ConstructFasterMinBuildTimeEnabled] = "false",
             [BotOptionPayloadKeys.ConstructFasterMinBuildMinutes] = "-5",
             [BotOptionPayloadKeys.ConstructFasterRandomEnabled] = "true",
             [BotOptionPayloadKeys.ConstructFasterRandomChancePercent] = "150",
@@ -302,6 +306,7 @@ public sealed class BotOptionsPayloadApplierTests
         var options = BotOptionsFactory.FromConfiguration(configuration);
 
         Assert.True(options.ConstructFasterEnabled);
+        Assert.False(options.ConstructFasterMinBuildTimeEnabled);
         Assert.Equal(0, options.ConstructFasterMinBuildMinutes);
         Assert.True(options.ConstructFasterRandomEnabled);
         Assert.Equal(100, options.ConstructFasterRandomChancePercent);
@@ -321,6 +326,7 @@ public sealed class BotOptionsPayloadApplierTests
         var options = BotOptionsFactory.FromConfiguration(configuration);
 
         Assert.False(options.ConstructFasterEnabled);
+        Assert.True(options.ConstructFasterMinBuildTimeEnabled);
         Assert.Equal(30, options.ConstructFasterMinBuildMinutes);
         Assert.False(options.ConstructFasterRandomEnabled);
         Assert.Equal(50, options.ConstructFasterRandomChancePercent);

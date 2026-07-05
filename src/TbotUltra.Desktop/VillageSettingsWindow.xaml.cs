@@ -103,7 +103,8 @@ public partial class VillageSettingsWindow : Window
                     CellTemplate = BuildToggleWithGearCellTemplate(
                         nameof(VillageSettingsRow.ConstructFasterEnabled),
                         "Open Construct 25% faster settings",
-                        ConstructFasterSettingsButton_Click),
+                        ConstructFasterSettingsButton_Click,
+                        "ToggleSwitchPurpleStyle"),
                 });
             }
 
@@ -207,7 +208,8 @@ public partial class VillageSettingsWindow : Window
     private static DataTemplate BuildToggleWithGearCellTemplate(
         string bindingPath,
         string tooltip,
-        RoutedEventHandler clickHandler)
+        RoutedEventHandler clickHandler,
+        string toggleStyleKey = "ToggleSwitchBlueStyle")
     {
         var template = new DataTemplate();
         var panel = new FrameworkElementFactory(typeof(StackPanel));
@@ -216,7 +218,7 @@ public partial class VillageSettingsWindow : Window
         panel.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
 
         var toggle = new FrameworkElementFactory(typeof(CheckBox));
-        toggle.SetResourceReference(FrameworkElement.StyleProperty, "ToggleSwitchBlueStyle");
+        toggle.SetResourceReference(FrameworkElement.StyleProperty, toggleStyleKey);
         toggle.SetValue(FrameworkElement.HorizontalAlignmentProperty, HorizontalAlignment.Center);
         toggle.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Center);
         toggle.SetValue(FrameworkElement.MarginProperty, new Thickness(2, 0, 0, 0));

@@ -293,6 +293,7 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 - Construct-faster anvander Official-knappen `.upgradeButtonsContainer .section2 button.videoFeatureButton`;
   missing/disabled/short duration/random-skip faller igenom tyst. Efter video ska main-sidan navigera
   till farsk `dorf2.php` och verifiera ko/slot; saknas bevis forsoks video en gang till, sedan ALARM + vanlig build.
+  `construct_faster_min_build_time_enabled=false` betyder att duration-gaten ar av och alla kvalificerade byggen provas.
 - Byggnadsuppgradering far ateranvanda aktuell `build.php?id=N` for slot snapshot endast nar sidan ar ratt slot,
   inte stale och kan lasa niva + namn/gid; annars ska flodet falla tillbaka till `dorf2`.
 - Construct mot en slot som redan har byggnaden (stale construct-task, eller fast specialslot RP=39/Wall=40 som

@@ -30,6 +30,7 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.BuildingConstructGid,
         BotOptionPayloadKeys.BuildingConstructName,
         BotOptionPayloadKeys.ConstructFasterEnabled,
+        BotOptionPayloadKeys.ConstructFasterMinBuildTimeEnabled,
         BotOptionPayloadKeys.ConstructFasterMinBuildMinutes,
         BotOptionPayloadKeys.ConstructFasterRandomEnabled,
         BotOptionPayloadKeys.ConstructFasterRandomChancePercent,
