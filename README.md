@@ -1,4 +1,4 @@
-# Tbot Ultra
+# TravianBot Ultra
 
 `Preview` of the program
 
@@ -21,7 +21,7 @@ Here you can ask questions, report bugs and come with suggestions for new featur
 
 ---
 
-## TBot Ultra - Advanced Travian Bot
+## TravianBot Ultra - Advanced Travian Bot
 Advanced open-source `Travian Bot` for official Travian Legends servers with automation, farming, building management, resource optimization and `multi-village support`.
 
 The project target is official Travian Legends servers.
@@ -59,7 +59,7 @@ instances from the same folder.
 
 ## What can this program do?
 
-Tbot Ultra is an automation tool for Travian. It helps players automate repetitive tasks such as village management, resource handling, farming, troops, construction and so much more.
+TravianBot Ultra is an automation tool for Travian. It helps players automate repetitive tasks such as village management, resource handling, farming, troops, construction and so much more.
 It is made to be realistic and human, and to reduce the boring tasks of travian.
 
 Compatible with:
@@ -116,7 +116,7 @@ All features is configurable to all the players villages. So different villages 
 
 ## Known bugs:
 
-Please visit the [issues page](https://github.com/fetmamm/Tbot_ultra_new/issues) for known bugs or the [Discord channel](https://discord.gg/7bgzKy9sHK).
+Please visit the [issues page](https://github.com/fetmamm/TravianBot-Ultra/issues) for known bugs or the [Discord channel](https://discord.gg/7bgzKy9sHK).
 
 ---
 

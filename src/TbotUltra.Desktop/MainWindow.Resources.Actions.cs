@@ -259,7 +259,7 @@ public partial class MainWindow
         return Task.CompletedTask;
     }
 
-    private const string SavePageHtmlDirectory = @"C:\Users\jespe\Documents\GitHub\Tbot_ultra_new\temp_build_out\DOM";
+    private string SavePageHtmlDirectory => Path.Combine(_projectRoot, "temp_build_out", "DOM");
 
     private void SavePageHtmlButton_Click(object sender, RoutedEventArgs e)
     {
