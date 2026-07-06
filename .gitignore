@@ -11,6 +11,7 @@ config/servers.user.json
 config/account-analysis/
 config/cache/
 Data/Maps/
+reports/
 
 # --- Python / legacy captcha trainer ---
 .venv/
@@ -63,3 +64,8 @@ artifacts/
 
 # --- Other
 docs/CODING_FETMAMM.md
+Reports/report_20260706_231321.png
+Reports/report_20260706_231303.png
+Reports/report_20260706_230901.png
+Reports/report_20260706_230834.png
+Reports/report_20260706_230827.png
