@@ -55,6 +55,7 @@
                     </CheckBox>
                     <Button x:Name="MarkMessagesReadButton"
                             Width="120"
+                            HorizontalAlignment="Left"
                             Margin="0"
                             Content="Mark as read"
                             IsEnabled="{Binding ActionsEnabled}"
@@ -98,6 +99,7 @@
                     </CheckBox>
                     <Button x:Name="MarkReportsReadButton"
                             Width="120"
+                            HorizontalAlignment="Left"
                             Margin="0"
                             Content="Mark as read"
                             IsEnabled="{Binding ActionsEnabled}"

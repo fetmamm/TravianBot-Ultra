@@ -15,6 +15,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
@@ -66,26 +67,28 @@
                     Content="Open reports folder"
                     ToolTip="Opens the folder where report PNG files are saved."
                     Click="OpenReportsFolderButton_Click" />
-            <TextBlock x:Name="StatusTextBlock"
-                       VerticalAlignment="Center"
-                       Foreground="{DynamicResource InfoBrush}"
-                       Margin="10,0,0,0" />
-        </StackPanel>
-
-        <Separator Grid.Row="3" Margin="0,0,0,12" />
-
-        <StackPanel Grid.Row="4"
-                    Orientation="Horizontal"
-                    HorizontalAlignment="Right">
             <Button x:Name="SaveButton"
                     Width="110"
-                    Margin="0,0,8,0"
+                    Margin="10,0,0,0"
                     Background="{DynamicResource AccentBrush}"
                     BorderBrush="{DynamicResource AccentBrush}"
                     Foreground="White"
                     FontWeight="SemiBold"
                     Content="Save report"
                     Click="SaveButton_Click" />
+        </StackPanel>
+
+        <Separator Grid.Row="3" Margin="0,0,0,12" />
+
+        <TextBlock x:Name="StatusTextBlock"
+                   Grid.Row="4"
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource InfoBrush}"
+                   Margin="0,0,0,10" />
+
+        <StackPanel Grid.Row="5"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
             <Button Width="100"
                     Content="Close"
                     Click="CloseButton_Click" />
