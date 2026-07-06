@@ -48,16 +48,13 @@ public sealed partial class TravianClient
         }
         finally
         {
-            if (hideAttacker || hideDefender)
+            try
             {
-                try
-                {
-                    await RemoveReportPngBlurStyleAsync();
-                }
-                catch (Exception ex)
-                {
-                    Notify($"[report-png] blur cleanup failed: {ex.Message}");
-                }
+                await RemoveReportPngBlurStyleAsync();
+            }
+            catch (Exception ex)
+            {
+                Notify($"[report-png] blur cleanup failed: {ex.Message}");
             }
         }
     }
