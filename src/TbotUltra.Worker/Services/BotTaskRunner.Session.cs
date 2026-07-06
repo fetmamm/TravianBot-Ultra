@@ -121,7 +121,21 @@ public sealed partial class BotTaskRunner
         if (options.PostLoginAnalyzeHeroInventory)
         {
             // Suppress the village/profile UI-sync so the inventory is read before the profile nav.
-            heroInventory = await client.ReadHeroInventoryResourcesAsync(cancellationToken, suppressUiSync: true);
+            // Non-fatal: a transient nav timeout here must NOT abort the whole login (it once left the bot
+            // parked idle overnight). Continue with heroInventory=null so skipOverviewNavigation stays false
+            // and ReadAccountSnapshotAsync does its normal dorf1 hop; the rest of the snapshot proceeds.
+            try
+            {
+                heroInventory = await client.ReadHeroInventoryResourcesAsync(cancellationToken, suppressUiSync: true);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                log($"[hero-inventory] post-login read failed (continuing without it): {ex.Message}");
+            }
         }
 
         var accountSnapshot = await client.ReadAccountSnapshotAsync(

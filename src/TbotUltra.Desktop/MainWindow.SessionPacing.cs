@@ -268,8 +268,11 @@ public partial class MainWindow
                 return;
             }
 
-            await ExecuteLoginFlowAsync();
-            if (!_isLoggedIn)
+            // Wake login must survive a transient failure (the root cause of the overnight stall: the
+            // post-login snapshot navigation timed out, ExecuteLoginFlowAsync swallowed it, _isLoggedIn
+            // stayed false, and the pacer — already Disabled with its timer stopped — never retried). Keep
+            // re-logging-in on a backoff until it takes or the state says to stop.
+            if (!await TryWakeLoginWithRetryAsync())
             {
                 return;
             }
@@ -294,6 +297,100 @@ public partial class MainWindow
         {
             _sessionPacingWakeInProgress = false;
         }
+    }
+
+    // Backoff between wake-login attempts. After the ramp it stays at the last value (30 min) with NO cap on
+    // attempt count: an overnight transient (network/server timeout during the post-login snapshot) must never
+    // leave the bot parked idle until morning — it keeps retrying, sparsely, until login takes.
+    private static readonly int[] WakeLoginRetryBackoffMinutes = { 1, 2, 5, 10, 15, 30 };
+
+    // Re-runs ExecuteLoginFlowAsync on a backoff until it logs in. ExecuteLoginFlowAsync swallows its own
+    // exceptions and only leaves _isLoggedIn false on failure, so this loop just retries it. Returns true once
+    // logged in, false if the retry was aborted (manual login, new sleep, account switch, or app shutdown).
+    private async Task<bool> TryWakeLoginWithRetryAsync()
+    {
+        for (var attempt = 1; ; attempt++)
+        {
+            await ExecuteLoginFlowAsync();
+            if (_isLoggedIn)
+            {
+                if (attempt > 1)
+                {
+                    AppendLog($"[pacing] wake login succeeded on attempt {attempt}.");
+                }
+
+                return true;
+            }
+
+            if (ShouldAbortWakeRetry(out var reason))
+            {
+                AppendLog($"[pacing] wake login retry stopped: {reason}.");
+                return false;
+            }
+
+            var index = Math.Min(attempt - 1, WakeLoginRetryBackoffMinutes.Length - 1);
+            var waitMinutes = WakeLoginRetryBackoffMinutes[index];
+            AppendLog($"[pacing] wake login failed (attempt {attempt}) — retrying in {waitMinutes} min.");
+
+            if (!await DelayWhileWakeRetryAllowedAsync(TimeSpan.FromMinutes(waitMinutes)))
+            {
+                AppendLog("[pacing] wake login retry stopped during wait (state changed or app closing).");
+                return false;
+            }
+        }
+    }
+
+    // Abort the wake-login retry when logging in no longer makes sense: the user logged in manually, a new
+    // sleep window began, an account switch started, or the app is shutting down.
+    private bool ShouldAbortWakeRetry(out string reason)
+    {
+        if (_isLoggedIn)
+        {
+            reason = "already logged in";
+            return true;
+        }
+
+        if (IsSessionSleeping)
+        {
+            reason = "session is sleeping again";
+            return true;
+        }
+
+        if (_accountSwitchInProgress)
+        {
+            reason = "account switch in progress";
+            return true;
+        }
+
+        if (_shutdownInProgress || _shutdownCompleted || _loopController.IsClosing)
+        {
+            reason = "app closing";
+            return true;
+        }
+
+        reason = string.Empty;
+        return false;
+    }
+
+    // Sleeps up to `total` in short slices so an abort (or app shutdown) is noticed within a couple of seconds
+    // instead of blocking for the whole retry interval. Returns false as soon as the retry should stop.
+    private async Task<bool> DelayWhileWakeRetryAllowedAsync(TimeSpan total)
+    {
+        var remaining = total;
+        var slice = TimeSpan.FromSeconds(2);
+        while (remaining > TimeSpan.Zero)
+        {
+            if (ShouldAbortWakeRetry(out _))
+            {
+                return false;
+            }
+
+            var wait = remaining < slice ? remaining : slice;
+            await Task.Delay(wait);
+            remaining -= wait;
+        }
+
+        return !ShouldAbortWakeRetry(out _);
     }
 
     // Login should respect planned off-hours / daily-limit windows, but manual in-session actions

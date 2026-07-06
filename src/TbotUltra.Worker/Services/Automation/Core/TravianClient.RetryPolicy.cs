@@ -27,6 +27,24 @@ public sealed partial class TravianClient
             && IsTransientExecutionContextException(ex.InnerException);
     }
 
+    // A navigation/action timeout (e.g. Playwright's "Timeout 20000ms exceeded.") almost always means a slow
+    // network or server, so a 400ms pause between attempts recovers nothing — back off longer for these.
+    private static bool IsTimeoutError(Exception ex)
+    {
+        if (ex is TimeoutException)
+        {
+            return true;
+        }
+
+        var message = ex.Message?.ToLowerInvariant() ?? string.Empty;
+        if (message.Contains("timeout") && message.Contains("exceeded"))
+        {
+            return true;
+        }
+
+        return ex.InnerException is not null && IsTimeoutError(ex.InnerException);
+    }
+
     private async Task RetryAsync(string label, Func<Task> action, int attempts = 3, CancellationToken cancellationToken = default)
     {
         Exception? lastError = null;
@@ -62,7 +80,7 @@ public sealed partial class TravianClient
 
                 await TryDismissContinuePromptAsync();
                 Notify($"[retry:verbose] {label} failed on attempt {attempt}/{attempts}. Retrying...");
-                await Task.Delay(400 * attempt, cancellationToken);
+                await Task.Delay((IsTimeoutError(ex) ? 5000 : 400) * attempt, cancellationToken);
             }
         }
 
@@ -103,7 +121,7 @@ public sealed partial class TravianClient
 
                 await TryDismissContinuePromptAsync();
                 Notify($"[retry:verbose] {label} failed on attempt {attempt}/{attempts}. Retrying...");
-                await Task.Delay(400 * attempt, cancellationToken);
+                await Task.Delay((IsTimeoutError(ex) ? 5000 : 400) * attempt, cancellationToken);
             }
         }
 
