@@ -309,6 +309,13 @@ public partial class MainWindow
     // logged in, false if the retry was aborted (manual login, new sleep, account switch, or app shutdown).
     private async Task<bool> TryWakeLoginWithRetryAsync()
     {
+        // Preserve what to resume after login. If a scheduled off-hours / daily-limit window opens mid-retry,
+        // a login attempt converts into a planned sleep via TryEnterPlannedSleepInsteadOfLogin, which resets
+        // these to "idle". Without restoring them, the wake after that window would log in but never resume
+        // the automation that was running before the original sleep.
+        var resumeContinuousLoop = _wasContinuousLoopRunningBeforeSleep;
+        var resumeQueueAutoRun = _wasQueueAutoRunningBeforeSleep;
+
         for (var attempt = 1; ; attempt++)
         {
             await ExecuteLoginFlowAsync();
@@ -320,6 +327,17 @@ public partial class MainWindow
                 }
 
                 return true;
+            }
+
+            // A planned sleep window (off-hours / daily limit) took over this attempt. Restore the resume
+            // intent so the wake after that window continues automation instead of sitting idle logged in.
+            if (IsSessionSleeping)
+            {
+                _wasLoggedInBeforeSleep = true;
+                _wasContinuousLoopRunningBeforeSleep = resumeContinuousLoop;
+                _wasQueueAutoRunningBeforeSleep = resumeQueueAutoRun;
+                AppendLog("[pacing] wake retry: a planned sleep window took over; automation will resume after it.");
+                return false;
             }
 
             if (ShouldAbortWakeRetry(out var reason))
