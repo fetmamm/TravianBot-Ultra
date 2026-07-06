@@ -262,6 +262,7 @@ public sealed partial class TravianClient : IBuildingClient
                     null,
                     null,
                     null,
+                    null,
                     string.Empty);
 
                 // The current build page already has the exact resource block and hero-transfer control.
@@ -1339,6 +1340,7 @@ public sealed partial class TravianClient : IBuildingClient
                 var actionability = pageAnalysis.UpgradeActionability ?? new UpgradeAttemptResult(
                     UpgradeAttemptOutcome.BlockedUnknown,
                     "Construction page analysis did not return upgrade actionability.",
+                    null,
                     null,
                     null,
                     null,
@@ -4106,6 +4108,11 @@ public sealed partial class TravianClient : IBuildingClient
                         return null;
                       };
 
+                      const parseTargetLevel = (raw) => {
+                        const match = clean(raw || '').match(/upgrade\s+to\s+level\s+(\d{1,3})/i);
+                        return match ? Number(match[1]) : null;
+                      };
+
                       const detectQueueWaitSeconds = () => {
                         const timerSelectors = [
                           '.buildingList .timer',
@@ -4310,7 +4317,7 @@ public sealed partial class TravianClient : IBuildingClient
                         });
 
                         if (!disabled) {
-                          clickOrder.push({ candidateIndex, text: displayText, classes: `${classes} ${controlClasses}`, inUpgradeContainer, inOfficialPrimarySection });
+                          clickOrder.push({ candidateIndex, text: displayText, targetLevel: parseTargetLevel(displayText), classes: `${classes} ${controlClasses}`, inUpgradeContainer, inOfficialPrimarySection });
                         }
                       }
 
@@ -4359,6 +4366,7 @@ public sealed partial class TravianClient : IBuildingClient
                           reason: `Detected candidate '${clickOrder[0].text.slice(0, 80)}'`,
                           detectedMaxLevel: detectMaxLevel(),
                           queueWaitSeconds: detectQueueWaitSeconds(),
+                          detectedTargetLevel: clickOrder[0].targetLevel,
                           candidateIndex: clickOrder[0].candidateIndex,
                           summary: picked.slice(0, 8)
                         });
@@ -4468,6 +4476,7 @@ public sealed partial class TravianClient : IBuildingClient
                     Reason: reason,
                     DetectedMaxLevel: parsed?.DetectedMaxLevel,
                     QueueWaitSeconds: parsed?.QueueWaitSeconds,
+                    DetectedTargetLevel: parsed?.DetectedTargetLevel,
                     CandidateIndex: parsed?.CandidateIndex,
                     DebugSummary: summary);
             }

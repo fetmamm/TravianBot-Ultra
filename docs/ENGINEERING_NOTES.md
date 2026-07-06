@@ -345,6 +345,9 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
   direkt (`#videoFeature.showVideo` / `#videoArea`) — da ska confirm returnera direkt utan att leta efter OK-knappen.
 - Byggnadsuppgradering far ateranvanda aktuell `build.php?id=N` for slot snapshot endast nar sidan ar ratt slot,
   inte stale och kan lasa niva + namn/gid; annars ska flodet falla tillbaka till `dorf2`.
+- Resource field header/dorf1-level kan vara stale nar en tidigare niva ligger i byggkon; for fortsatt
+  resource-upgrade pa samma slot ar Official-knapptexten (`Upgrade to level N`) och cost/transfer-payload sann
+  aktuell upgrade-offer. Hero-transfer-dedupe ska darfor nycklas pa offer (slot+niva/cost), inte bara slot.
 - Construct mot en slot som redan har byggnaden (stale construct-task, eller fast specialslot RP=39/Wall=40 som
   finns fran grundning) far INTE ALARM:a pa saknad construct-choice-DOM. `ConstructBuildingAsync` lasar slotens
   build-sida live (`TryReadExistingBuildingOnSlotBuildPageAsync`); bekraftad befintlig byggnad (level >= 1, ingen

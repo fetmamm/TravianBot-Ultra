@@ -226,7 +226,7 @@ public sealed partial class TravianClient
         var safetyCap = UpgradeMath.ComputeResourceUpgradeSafetyCap(targetLevel);
         int? lastKnownLevel = null;
         var constructionNpcTradeAttempted = false;
-        var heroTransferAttempted = false;
+        var heroTransferAttemptedOffers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (var iteration = 0; iteration < safetyCap; iteration++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -292,18 +292,27 @@ public sealed partial class TravianClient
                 }
 
                 var blockedByResources = actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources;
-                if (!heroTransferAttempted && (blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken)))
+                var pageLooksBlockedByResources = blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken);
+                if (pageLooksBlockedByResources)
                 {
-                    heroTransferAttempted = true;
-                    if (await TryHeroResourceTransferForConstructionAsync($"Resource slot {slotId} ({resourceName}) upgrade to level {effectiveTarget}", cancellationToken))
+                    var offerLevel = ResolveResourceUpgradeOfferLevel(currentLevel.Value, effectiveTarget, highestKnownLevel, actionability);
+                    var offerCost = await TryReadLiveResourceUpgradeCostOnCurrentPageAsync(cancellationToken);
+                    var offerKey = BuildResourceHeroTransferOfferKey(slotId, offerLevel, offerCost);
+                    if (heroTransferAttemptedOffers.Add(offerKey))
                     {
-                        continue;
+                        var label = $"Resource slot {slotId} ({resourceName}) upgrade to level {offerLevel ?? effectiveTarget}";
+                        Notify($"[resources] hero-transfer offer key={offerKey} label='{label}'.");
+                        if (await TryHeroResourceTransferForConstructionAsync(label, cancellationToken))
+                        {
+                            continue;
+                        }
                     }
                 }
-                if (!constructionNpcTradeAttempted && (blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken)))
+                if (!constructionNpcTradeAttempted && pageLooksBlockedByResources)
                 {
                     constructionNpcTradeAttempted = true;
-                    if (await TryNpcTradeForConstructionAsync($"Resource slot {slotId} ({resourceName}) upgrade to level {effectiveTarget}", cancellationToken))
+                    var offerLevel = ResolveResourceUpgradeOfferLevel(currentLevel.Value, effectiveTarget, highestKnownLevel, actionability);
+                    if (await TryNpcTradeForConstructionAsync($"Resource slot {slotId} ({resourceName}) upgrade to level {offerLevel ?? effectiveTarget}", cancellationToken))
                     {
                         continue;
                     }
@@ -402,7 +411,7 @@ public sealed partial class TravianClient
         var transientRetries = 0;
         int? currentTransientSlot = null;
         var constructionNpcTradeAttempted = false;
-        var heroTransferAttemptedSlots = new HashSet<int>();
+        var heroTransferAttemptedOffers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -532,7 +541,7 @@ public sealed partial class TravianClient
                         skipNavigationIfOnExpectedSlot: true);
                     var cap = actionability.DetectedMaxLevel ?? fallbackMax;
                     var effectiveTarget = Math.Min(targetLevel, cap);
-                    Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} actionability={actionability.Outcome} effectiveTarget={effectiveTarget} max={actionability.DetectedMaxLevel?.ToString() ?? "unknown"} candidateIndex={actionability.CandidateIndex?.ToString() ?? "-"} reason={actionability.Reason}");
+                    Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} actionability={actionability.Outcome} effectiveTarget={effectiveTarget} detectedTarget={actionability.DetectedTargetLevel?.ToString() ?? "unknown"} max={actionability.DetectedMaxLevel?.ToString() ?? "unknown"} candidateIndex={actionability.CandidateIndex?.ToString() ?? "-"} reason={actionability.Reason}");
                     if (level >= effectiveTarget)
                     {
                         Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} level={level} already meets effective target {effectiveTarget}. Skipping.");
@@ -602,20 +611,27 @@ public sealed partial class TravianClient
                         goto NextLoopTick;
                     }
 
+                    var offerLevel = ResolveResourceUpgradeOfferLevel(level, effectiveTarget, highestQueuedLevel, actionability);
                     var label = string.IsNullOrWhiteSpace(candidate.Name)
-                        ? $"Resource slot {slot} upgrade to level {effectiveTarget}"
-                        : $"Resource slot {slot} ({candidate.Name}) upgrade to level {effectiveTarget}";
+                        ? $"Resource slot {slot} upgrade to level {offerLevel ?? effectiveTarget}"
+                        : $"Resource slot {slot} ({candidate.Name}) upgrade to level {offerLevel ?? effectiveTarget}";
                     var blockedByResources = actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources;
-                    if (!heroTransferAttemptedSlots.Contains(slot) && (blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken)))
+                    var pageLooksBlockedByResources = blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken);
+                    if (pageLooksBlockedByResources)
                     {
-                        heroTransferAttemptedSlots.Add(slot);
-                        if (await TryHeroResourceTransferForConstructionAsync(label, cancellationToken))
+                        var offerCost = await TryReadLiveResourceUpgradeCostOnCurrentPageAsync(cancellationToken);
+                        var offerKey = BuildResourceHeroTransferOfferKey(slot, offerLevel, offerCost);
+                        if (heroTransferAttemptedOffers.Add(offerKey))
                         {
-                            Notify($"[UpgradeAllResourcesToLevelAsync] hero transfer completed for slot={slot}; rechecking same build page before navigating away.");
-                            goto ReevaluateCurrentSlot;
+                            Notify($"[UpgradeAllResourcesToLevelAsync] hero-transfer offer key={offerKey} label='{label}'.");
+                            if (await TryHeroResourceTransferForConstructionAsync(label, cancellationToken))
+                            {
+                                Notify($"[UpgradeAllResourcesToLevelAsync] hero transfer completed for slot={slot}; rechecking same build page before navigating away.");
+                                goto ReevaluateCurrentSlot;
+                            }
                         }
                     }
-                    if (!constructionNpcTradeAttempted && (blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken)))
+                    if (!constructionNpcTradeAttempted && pageLooksBlockedByResources)
                     {
                         constructionNpcTradeAttempted = true;
                         if (await TryNpcTradeForConstructionAsync(label, cancellationToken))
@@ -2436,6 +2452,47 @@ public sealed partial class TravianClient
         bool HasReadableCost);
 
     private sealed record ResourceUpgradeCostSnapshot(long Wood, long Clay, long Iron, long Crop);
+
+    internal static string BuildResourceHeroTransferOfferKeyForTests(
+        int slotId,
+        int? detectedTargetLevel,
+        long? wood,
+        long? clay,
+        long? iron,
+        long? crop)
+    {
+        var cost = wood is long w && clay is long c && iron is long i && crop is long cr
+            ? new ResourceUpgradeCostSnapshot(w, c, i, cr)
+            : null;
+        return BuildResourceHeroTransferOfferKey(slotId, detectedTargetLevel, cost);
+    }
+
+    private static string BuildResourceHeroTransferOfferKey(int slotId, int? detectedTargetLevel, ResourceUpgradeCostSnapshot? cost)
+    {
+        var levelPart = detectedTargetLevel is int level ? $"level:{level}" : "level:unknown";
+        var costPart = cost is null
+            ? "cost:unknown"
+            : $"cost:{cost.Wood}:{cost.Clay}:{cost.Iron}:{cost.Crop}";
+        return $"slot:{slotId}|{levelPart}|{costPart}";
+    }
+
+    private static int? ResolveResourceUpgradeOfferLevel(
+        int currentLevel,
+        int effectiveTarget,
+        int highestKnownQueuedLevel,
+        UpgradeAttemptResult actionability)
+    {
+        if (actionability.DetectedTargetLevel is int detectedTargetLevel)
+        {
+            return detectedTargetLevel;
+        }
+
+        var nextKnownLevel = highestKnownQueuedLevel > currentLevel
+            ? highestKnownQueuedLevel + 1
+            : currentLevel + 1;
+
+        return Math.Min(effectiveTarget, nextKnownLevel);
+    }
 
     private sealed record ResourceUpgradeAffordability(long TimeUntilAffordableSeconds, bool HasUnknownWait, long TotalCost);
 

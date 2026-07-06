@@ -262,6 +262,7 @@ public sealed partial class TravianClient
         string Reason,
         int? DetectedMaxLevel,
         int? QueueWaitSeconds,
+        int? DetectedTargetLevel,
         int? CandidateIndex,
         string DebugSummary);
 

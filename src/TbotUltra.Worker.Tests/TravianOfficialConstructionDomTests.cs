@@ -137,6 +137,77 @@ public sealed class TravianOfficialConstructionDomTests
         Assert.Equal("Upgrade to level 7", selected.Text);
     }
 
+    [Fact]
+    public void OfficialQueuedResourceDom_UsesButtonLevelWhenHeaderLevelIsStale()
+    {
+        const string level4Html = """
+            <h1 class="titleInHeader">Cropland <span class="level">Level 3</span></h1>
+            <div id="build" class="gid4 level3">
+              <div class="inlineIconList">
+                <i class="r1Big"></i><span class="value">325</span>
+                <i class="r2Big"></i><span class="value">420</span>
+                <i class="r3Big"></i><span class="value">325</span>
+                <i class="r4Big"></i><span class="value">95</span>
+              </div>
+              <div class="upgradeButtonsContainer section2Enabled">
+                <div class="section1">
+                  <button type="button" value="Upgrade to level 4" class="textButtonV1 green build"
+                          onclick="window.location.href='/dorf1.php?id=15&amp;gid=4&amp;action=build&amp;checksum=c92d6a'; return false;">
+                    Upgrade to level 4
+                  </button>
+                </div>
+              </div>
+            </div>
+            """;
+        const string level5Html = """
+            <h1 class="titleInHeader">Cropland <span class="level">Level 3</span></h1>
+            <div id="build" class="gid4 level3">
+              <div class="inlineIconList">
+                <i class="r1Big"></i><span class="value">545</span>
+                <i class="r2Big"></i><span class="value">700</span>
+                <i class="r3Big"></i><span class="value">545</span>
+                <i class="r4Big"></i><span class="value">155</span>
+              </div>
+              <div class="upgradeButtonsContainer section2Enabled">
+                <div class="section1">
+                  <button type="button" value="Upgrade to level 5" class="textButtonV1 green build"
+                          onclick="window.location.href='/dorf1.php?id=15&amp;gid=4&amp;action=build&amp;checksum=c92d6a'; return false;">
+                    Upgrade to level 5
+                  </button>
+                </div>
+              </div>
+            </div>
+            """;
+
+        var title4 = BuildingDomParser.ParseBuildPageTitle("Cropland Level 3");
+        var title5 = BuildingDomParser.ParseBuildPageTitle("Cropland Level 3");
+        var button4 = BuildingDomParser.SelectUpgradeButtonCandidateFromHtmlForTests(level4Html, nextLevel: 4);
+        var button5 = BuildingDomParser.SelectUpgradeButtonCandidateFromHtmlForTests(level5Html, nextLevel: 5);
+
+        Assert.Equal(3, title4.Level);
+        Assert.Equal(3, title5.Level);
+        Assert.NotNull(button4);
+        Assert.NotNull(button5);
+        Assert.Equal("Upgrade to level 4", button4.Text);
+        Assert.Equal("Upgrade to level 5", button5.Text);
+        Assert.Contains("id=15", button4.OnClick, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("id=15", button5.OnClick, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(420, BuildingDomParser.ReadConstructionCostFromHtmlForTests(level4Html)["clay"]);
+        Assert.Equal(700, BuildingDomParser.ReadConstructionCostFromHtmlForTests(level5Html)["clay"]);
+    }
+
+    [Fact]
+    public void ResourceHeroTransferOfferKey_DistinguishesSameSlotDifferentQueuedLevels()
+    {
+        var level4 = TravianClient.BuildResourceHeroTransferOfferKeyForTests(15, 4, 325, 420, 325, 95);
+        var level5 = TravianClient.BuildResourceHeroTransferOfferKeyForTests(15, 5, 545, 700, 545, 155);
+        var unknownLevel4 = TravianClient.BuildResourceHeroTransferOfferKeyForTests(15, null, 325, 420, 325, 95);
+        var unknownLevel5 = TravianClient.BuildResourceHeroTransferOfferKeyForTests(15, null, 545, 700, 545, 155);
+
+        Assert.NotEqual(level4, level5);
+        Assert.NotEqual(unknownLevel4, unknownLevel5);
+    }
+
     [Theory]
     [InlineData("buildingpage_infrastructure.txt")]
     [InlineData("buildingpage_military.txt")]
