@@ -199,13 +199,75 @@ public sealed class TravianOfficialConstructionDomTests
     [Fact]
     public void ResourceHeroTransferOfferKey_DistinguishesSameSlotDifferentQueuedLevels()
     {
-        var level4 = TravianClient.BuildResourceHeroTransferOfferKeyForTests(15, 4, 325, 420, 325, 95);
-        var level5 = TravianClient.BuildResourceHeroTransferOfferKeyForTests(15, 5, 545, 700, 545, 155);
-        var unknownLevel4 = TravianClient.BuildResourceHeroTransferOfferKeyForTests(15, null, 325, 420, 325, 95);
-        var unknownLevel5 = TravianClient.BuildResourceHeroTransferOfferKeyForTests(15, null, 545, 700, 545, 155);
+        var level4 = TravianClient.BuildConstructionHeroTransferOfferKeyForTests(15, 4, 325, 420, 325, 95);
+        var level5 = TravianClient.BuildConstructionHeroTransferOfferKeyForTests(15, 5, 545, 700, 545, 155);
+        var unknownLevel4 = TravianClient.BuildConstructionHeroTransferOfferKeyForTests(15, null, 325, 420, 325, 95);
+        var unknownLevel5 = TravianClient.BuildConstructionHeroTransferOfferKeyForTests(15, null, 545, 700, 545, 155);
 
         Assert.NotEqual(level4, level5);
         Assert.NotEqual(unknownLevel4, unknownLevel5);
+    }
+
+    [Fact]
+    public void OfficialQueuedBuildingDom_UsesButtonLevelWhenHeaderLevelIsStale()
+    {
+        const string level6Html = """
+            <h1 class="titleInHeader">Main Building <span class="level">Level 5</span></h1>
+            <div id="build" class="gid15 level5">
+              <div class="inlineIconList">
+                <i class="r1Big"></i><span class="value">240</span>
+                <i class="r2Big"></i><span class="value">135</span>
+                <i class="r3Big"></i><span class="value">205</span>
+                <i class="r4Big"></i><span class="value">70</span>
+              </div>
+              <div class="upgradeButtonsContainer section2Enabled">
+                <div class="section1">
+                  <button type="button" value="Upgrade to level 6" class="textButtonV1 green build"
+                          onclick="window.location.href='/dorf2.php?id=26&amp;gid=15&amp;action=build&amp;checksum=6321f2'; return false;">
+                    Upgrade to level 6
+                  </button>
+                </div>
+              </div>
+            </div>
+            """;
+        const string level7Html = """
+            <h1 class="titleInHeader">Main Building <span class="level">Level 5</span></h1>
+            <div id="build" class="gid15 level5">
+              <div class="inlineIconList">
+                <i class="r1Big"></i><span class="value">310</span>
+                <i class="r2Big"></i><span class="value">175</span>
+                <i class="r3Big"></i><span class="value">265</span>
+                <i class="r4Big"></i><span class="value">90</span>
+              </div>
+              <div class="upgradeButtonsContainer section2Enabled">
+                <div class="section1">
+                  <button type="button" value="Upgrade to level 7" class="textButtonV1 green build"
+                          onclick="window.location.href='/dorf2.php?id=26&amp;gid=15&amp;action=build&amp;checksum=6321f2'; return false;">
+                    Upgrade to level 7
+                  </button>
+                </div>
+              </div>
+            </div>
+            """;
+
+        var title6 = BuildingDomParser.ParseBuildPageTitle("Main Building Level 5");
+        var title7 = BuildingDomParser.ParseBuildPageTitle("Main Building Level 5");
+        var button6 = BuildingDomParser.SelectUpgradeButtonCandidateFromHtmlForTests(level6Html, nextLevel: 6);
+        var button7 = BuildingDomParser.SelectUpgradeButtonCandidateFromHtmlForTests(level7Html, nextLevel: 7);
+        var key6 = TravianClient.BuildConstructionHeroTransferOfferKeyForTests(26, 6, 240, 135, 205, 70);
+        var key7 = TravianClient.BuildConstructionHeroTransferOfferKeyForTests(26, 7, 310, 175, 265, 90);
+
+        Assert.Equal(5, title6.Level);
+        Assert.Equal(5, title7.Level);
+        Assert.NotNull(button6);
+        Assert.NotNull(button7);
+        Assert.Equal("Upgrade to level 6", button6.Text);
+        Assert.Equal("Upgrade to level 7", button7.Text);
+        Assert.Contains("id=26", button6.OnClick, StringComparison.OrdinalIgnoreCase);
+        Assert.Contains("id=26", button7.OnClick, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal(135, BuildingDomParser.ReadConstructionCostFromHtmlForTests(level6Html)["clay"]);
+        Assert.Equal(175, BuildingDomParser.ReadConstructionCostFromHtmlForTests(level7Html)["clay"]);
+        Assert.NotEqual(key6, key7);
     }
 
     [Theory]

@@ -297,7 +297,7 @@ public sealed partial class TravianClient
                 {
                     var offerLevel = ResolveResourceUpgradeOfferLevel(currentLevel.Value, effectiveTarget, highestKnownLevel, actionability);
                     var offerCost = await TryReadLiveResourceUpgradeCostOnCurrentPageAsync(cancellationToken);
-                    var offerKey = BuildResourceHeroTransferOfferKey(slotId, offerLevel, offerCost);
+                    var offerKey = BuildConstructionHeroTransferOfferKey(slotId, offerLevel, offerCost);
                     if (heroTransferAttemptedOffers.Add(offerKey))
                     {
                         var label = $"Resource slot {slotId} ({resourceName}) upgrade to level {offerLevel ?? effectiveTarget}";
@@ -620,7 +620,7 @@ public sealed partial class TravianClient
                     if (pageLooksBlockedByResources)
                     {
                         var offerCost = await TryReadLiveResourceUpgradeCostOnCurrentPageAsync(cancellationToken);
-                        var offerKey = BuildResourceHeroTransferOfferKey(slot, offerLevel, offerCost);
+                        var offerKey = BuildConstructionHeroTransferOfferKey(slot, offerLevel, offerCost);
                         if (heroTransferAttemptedOffers.Add(offerKey))
                         {
                             Notify($"[UpgradeAllResourcesToLevelAsync] hero-transfer offer key={offerKey} label='{label}'.");
@@ -2453,7 +2453,7 @@ public sealed partial class TravianClient
 
     private sealed record ResourceUpgradeCostSnapshot(long Wood, long Clay, long Iron, long Crop);
 
-    internal static string BuildResourceHeroTransferOfferKeyForTests(
+    internal static string BuildConstructionHeroTransferOfferKeyForTests(
         int slotId,
         int? detectedTargetLevel,
         long? wood,
@@ -2464,10 +2464,10 @@ public sealed partial class TravianClient
         var cost = wood is long w && clay is long c && iron is long i && crop is long cr
             ? new ResourceUpgradeCostSnapshot(w, c, i, cr)
             : null;
-        return BuildResourceHeroTransferOfferKey(slotId, detectedTargetLevel, cost);
+        return BuildConstructionHeroTransferOfferKey(slotId, detectedTargetLevel, cost);
     }
 
-    private static string BuildResourceHeroTransferOfferKey(int slotId, int? detectedTargetLevel, ResourceUpgradeCostSnapshot? cost)
+    private static string BuildConstructionHeroTransferOfferKey(int slotId, int? detectedTargetLevel, ResourceUpgradeCostSnapshot? cost)
     {
         var levelPart = detectedTargetLevel is int level ? $"level:{level}" : "level:unknown";
         var costPart = cost is null

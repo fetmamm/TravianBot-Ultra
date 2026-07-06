@@ -161,7 +161,7 @@ public sealed partial class TravianClient : IBuildingClient
         int? lastKnownLevel = null;
         var transientRetries = 0;
         var constructionNpcTradeAttempted = false;
-        var heroTransferAttempted = false;
+        var heroTransferAttemptedOffers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (var iteration = 0; iteration < safetyCap; iteration++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -267,35 +267,41 @@ public sealed partial class TravianClient : IBuildingClient
 
                 // The current build page already has the exact resource block and hero-transfer control.
                 // Use it before any dorf2 queue probe so a normal top-up does not navigate away and back.
-                if (!heroTransferAttempted
-                    && actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources
+                if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources
                     && pageAnalysis.LooksBlockedByResources)
                 {
-                    heroTransferAttempted = true;
-                    if (await TryHeroResourceTransferForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
+                    var offerLevel = actionability.DetectedTargetLevel ?? nextLevel;
+                    var offerCost = await TryReadLiveResourceUpgradeCostOnCurrentPageAsync(cancellationToken);
+                    var offerKey = BuildConstructionHeroTransferOfferKey(slotId, offerLevel, offerCost);
+                    if (heroTransferAttemptedOffers.Add(offerKey))
                     {
-                        // The transfer topped up resources and reloaded the build page. Retry construct-faster
-                        // before falling back to the normal button; resource shortage can disable the video
-                        // button until this point.
-                        await EnsureExpectedBuildSlotPageAsync(slotId, "upgrade after hero transfer", cancellationToken);
-                        await ActionPacer.FromOptions(_config, Notify).DelayAsync(
-                            _config.ActionPacingPageLoadMinSeconds,
-                            _config.ActionPacingPageLoadMaxSeconds,
-                            cancellationToken,
-                            "after hero transfer reload");
-                        clicked = await TryUseConstructFasterForBuildAsync(
-                            slotId,
-                            ParseGidFromBuildingCode(info.BuildingCode),
-                            buildingName,
-                            currentLevel,
-                            nextLevel,
-                            buildQueueBefore,
-                            durationSeconds,
-                            null,
-                            cancellationToken);
-                        if (!clicked)
+                        var label = $"Building slot {slotId} ({buildingName}) upgrade to level {offerLevel}";
+                        Notify($"[build] hero-transfer offer key={offerKey} label='{label}'.");
+                        if (await TryHeroResourceTransferForConstructionAsync(label, cancellationToken))
                         {
-                            clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
+                            // The transfer topped up resources and reloaded the build page. Retry construct-faster
+                            // before falling back to the normal button; resource shortage can disable the video
+                            // button until this point.
+                            await EnsureExpectedBuildSlotPageAsync(slotId, "upgrade after hero transfer", cancellationToken);
+                            await ActionPacer.FromOptions(_config, Notify).DelayAsync(
+                                _config.ActionPacingPageLoadMinSeconds,
+                                _config.ActionPacingPageLoadMaxSeconds,
+                                cancellationToken,
+                                "after hero transfer reload");
+                            clicked = await TryUseConstructFasterForBuildAsync(
+                                slotId,
+                                ParseGidFromBuildingCode(info.BuildingCode),
+                                buildingName,
+                                currentLevel,
+                                nextLevel,
+                                buildQueueBefore,
+                                durationSeconds,
+                                null,
+                                cancellationToken);
+                            if (!clicked)
+                            {
+                                clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
+                            }
                         }
                     }
                 }
@@ -316,7 +322,7 @@ public sealed partial class TravianClient : IBuildingClient
                 if (!clicked && !constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
                 {
                     constructionNpcTradeAttempted = true;
-                    if (await TryNpcTradeForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
+                    if (await TryNpcTradeForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {actionability.DetectedTargetLevel ?? nextLevel}", cancellationToken))
                     {
                         continue;
                     }
@@ -1245,7 +1251,7 @@ public sealed partial class TravianClient : IBuildingClient
         var upgrades = 0;
         var transientRetries = 0;
         var constructionNpcTradeAttempted = false;
-        var heroTransferAttempted = false;
+        var heroTransferAttemptedOffers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
         for (var iteration = 0; iteration < safetyCap; iteration++)
         {
@@ -1348,35 +1354,41 @@ public sealed partial class TravianClient : IBuildingClient
 
                 // The current build page already has the exact resource block and hero-transfer control.
                 // Use it before any dorf2 queue probe so a normal top-up does not navigate away and back.
-                if (!heroTransferAttempted
-                    && actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources
+                if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources
                     && pageAnalysis.LooksBlockedByResources)
                 {
-                    heroTransferAttempted = true;
-                    if (await TryHeroResourceTransferForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
+                    var offerLevel = actionability.DetectedTargetLevel ?? nextLevel;
+                    var offerCost = await TryReadLiveResourceUpgradeCostOnCurrentPageAsync(cancellationToken);
+                    var offerKey = BuildConstructionHeroTransferOfferKey(slotId, offerLevel, offerCost);
+                    if (heroTransferAttemptedOffers.Add(offerKey))
                     {
-                        // The transfer topped up resources and reloaded the build page. Retry construct-faster
-                        // before falling back to the normal button; resource shortage can disable the video
-                        // button until this point.
-                        await EnsureExpectedBuildSlotPageAsync(slotId, "upgrade after hero transfer", cancellationToken);
-                        await ActionPacer.FromOptions(_config, Notify).DelayAsync(
-                            _config.ActionPacingPageLoadMinSeconds,
-                            _config.ActionPacingPageLoadMaxSeconds,
-                            cancellationToken,
-                            "after hero transfer reload");
-                        clicked = await TryUseConstructFasterForBuildAsync(
-                            slotId,
-                            gid,
-                            buildingName,
-                            currentLevel,
-                            nextLevel,
-                            buildQueueBefore,
-                            durationSeconds,
-                            null,
-                            cancellationToken);
-                        if (!clicked)
+                        var label = $"Building slot {slotId} ({buildingName}) upgrade to level {offerLevel}";
+                        Notify($"[build] hero-transfer offer key={offerKey} label='{label}'.");
+                        if (await TryHeroResourceTransferForConstructionAsync(label, cancellationToken))
                         {
-                            clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
+                            // The transfer topped up resources and reloaded the build page. Retry construct-faster
+                            // before falling back to the normal button; resource shortage can disable the video
+                            // button until this point.
+                            await EnsureExpectedBuildSlotPageAsync(slotId, "upgrade after hero transfer", cancellationToken);
+                            await ActionPacer.FromOptions(_config, Notify).DelayAsync(
+                                _config.ActionPacingPageLoadMinSeconds,
+                                _config.ActionPacingPageLoadMaxSeconds,
+                                cancellationToken,
+                                "after hero transfer reload");
+                            clicked = await TryUseConstructFasterForBuildAsync(
+                                slotId,
+                                gid,
+                                buildingName,
+                                currentLevel,
+                                nextLevel,
+                                buildQueueBefore,
+                                durationSeconds,
+                                null,
+                                cancellationToken);
+                            if (!clicked)
+                            {
+                                clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
+                            }
                         }
                     }
                 }
@@ -1397,7 +1409,7 @@ public sealed partial class TravianClient : IBuildingClient
                 if (!clicked && !constructionNpcTradeAttempted && await CurrentPageLooksBlockedByResourcesAsync(cancellationToken))
                 {
                     constructionNpcTradeAttempted = true;
-                    if (await TryNpcTradeForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}", cancellationToken))
+                    if (await TryNpcTradeForConstructionAsync($"Building slot {slotId} ({buildingName}) upgrade to level {actionability.DetectedTargetLevel ?? nextLevel}", cancellationToken))
                     {
                         continue;
                     }
