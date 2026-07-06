@@ -18,6 +18,8 @@ public sealed record AccountSnapshot(
     IReadOnlyList<Village> Villages,
     DateTimeOffset? ServerTimeUtc = null);
 
+public sealed record ReportPngResult(bool IsReportPage, string Url, string? FilePath);
+
 public sealed record AccountAnalysisSnapshot(
     int SchemaVersion,
     DateTimeOffset AnalyzedAtUtc,

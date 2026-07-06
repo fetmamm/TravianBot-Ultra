@@ -167,6 +167,7 @@ public partial class MainWindow : Window
     private readonly Dictionary<int, (int Target, DateTimeOffset At)> _resourceLastQueuedTargetBySlot = new();
     private FunctionTestWindow? _resourceTestFunctionsWindow;
     private SavePageHtmlWindow? _savePageHtmlWindow;
+    private SaveReportPngWindow? _saveReportPngWindow;
     private BulkSavePageHtmlWindow? _bulkSavePageHtmlWindow;
     private BulkMessagesWindow? _bulkMessagesWindow;
     private bool _serverSpeedAlarmRaised;

@@ -67,6 +67,7 @@ public interface IDesktopBotService
     Task<VillageStatus> ReadCurrentPageStorageStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<string, double?>> ReadCurrentPageResourceProductionPerHourAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<PageHtmlCapture> ReadCurrentPageHtmlAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<ReportPngResult> SaveReportScreenshotAsync(BotOptions options, string filePath, bool hideAttacker, bool hideDefender, Action<string> log, CancellationToken cancellationToken);
     Task<PageHtmlCapture> NavigateToPageAndReadHtmlAsync(BotOptions options, string pagePath, Action<string> log, CancellationToken cancellationToken);
     Task NavigateToVillageResourceFieldsAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken);
     Task RefreshCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);

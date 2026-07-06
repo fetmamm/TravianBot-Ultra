@@ -257,6 +257,31 @@ public sealed partial class BotTaskRunner
         return capture ?? throw new InvalidOperationException("Could not read current page HTML.");
     }
 
+    public async Task<ReportPngResult> SaveReportScreenshotAsync(
+        BotOptions options,
+        string filePath,
+        bool hideAttacker,
+        bool hideDefender,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        ReportPngResult? result = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                result = await client.SaveReportScreenshotAsync(filePath, hideAttacker, hideDefender, cancellationToken);
+            },
+            saveStateMode: BrowserStateSaveMode.Skip);
+
+        return result ?? throw new InvalidOperationException("Could not save report screenshot.");
+    }
+
     public async Task<PageHtmlCapture> NavigateToPageAndReadHtmlAsync(
         BotOptions options,
         string pagePath,

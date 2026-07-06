@@ -307,6 +307,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.ReadCurrentPageHtmlAsync(options, log, null, cancellationToken);
     }
 
+    public Task<ReportPngResult> SaveReportScreenshotAsync(BotOptions options, string filePath, bool hideAttacker, bool hideDefender, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.SaveReportScreenshotAsync(options, filePath, hideAttacker, hideDefender, log, null, cancellationToken);
+    }
+
     public Task<PageHtmlCapture> NavigateToPageAndReadHtmlAsync(BotOptions options, string pagePath, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.NavigateToPageAndReadHtmlAsync(options, pagePath, log, null, cancellationToken);

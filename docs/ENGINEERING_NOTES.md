@@ -55,6 +55,8 @@ Runtime-path helpers i `TravianClient.Selectors.cs` ar Official-only. Anropa hel
   racker inte for klick. Anvand `await WaitForPageReadyAsync(ct)` nar hela sidan maste vara laddad —
   den kastar (TimeoutException, sista felet som inner) efter uttomda retries; anropare ska defer:a/retry:a.
 - Official `/messages/write` ar klassiskt form-DOM: recipient `#receiver`/`name=an`, subject `name=be`, body `textarea#message`.
+- Report PNG-capture ar Official `/report*` + oppnad rapport `#reportWrapper .role.attacker`; blur scope:as till
+  `.role.attacker/.role.defender .troopHeadline` och `.header .subject`, aldrig rapportlistan.
 - Bulk messages far aldrig skriva till systemspelarna `Multihunter`, `Natar` eller `Natars`; filtrera bade vid analys och direkt fore send.
 - Bulk messages ska hantera Official-dialogen `The name X does not exist.` genom att klicka OK, rensa recipient-faltet, ta bort X ur aktuell batch och forsoka igen utan att cacha X som skickad.
 - Bulk messages UI satter `Max recipients` fran senaste `map.sql`-analysens spelarantal; fallback/default ar 5000.

@@ -221,6 +221,7 @@ public partial class MainWindow
             _queuePopupWindow?.Close();
             _resourceTestFunctionsWindow?.Close();
             _savePageHtmlWindow?.Close();
+            _saveReportPngWindow?.Close();
             _bulkSavePageHtmlWindow?.Close();
             _bulkMessagesWindow?.Close();
         }
