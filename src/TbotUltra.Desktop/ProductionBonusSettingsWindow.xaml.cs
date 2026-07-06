@@ -25,11 +25,14 @@ public partial class ProductionBonusSettingsWindow : Window
         ("crop", "Crop"),
     };
 
+    private const int StoreReloadEveryTicks = 3;
+
     private readonly string _projectRoot;
     private readonly string _accountName;
     private readonly Action? _onScanRequested;
     private readonly Action? _onClearRequested;
     private readonly DispatcherTimer _tick;
+    private int _tickCount;
 
     private Dictionary<string, ProductionBonusResourceTimer> _timersByResource = new(StringComparer.OrdinalIgnoreCase);
 
@@ -55,11 +58,18 @@ public partial class ProductionBonusSettingsWindow : Window
         ReloadTimersFromStore();
         UpdateTimers();
 
-        // Reload the store each tick so a "Scan timers" (or auto) run's fresh state appears while open.
+        // Recompute the countdowns every second (from already-loaded absolute times) but only re-read the
+        // store from disk every few seconds, so a "Scan timers"/auto run's fresh state appears while open
+        // without hitting the (possibly OneDrive-synced) file on every tick.
         _tick = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _tick.Tick += (_, _) =>
         {
-            ReloadTimersFromStore();
+            _tickCount++;
+            if (_tickCount % StoreReloadEveryTicks == 0)
+            {
+                ReloadTimersFromStore();
+            }
+
             UpdateTimers();
         };
         _tick.Start();

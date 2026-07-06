@@ -12,6 +12,10 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
+    // Backoff written when a run finished without a state token (e.g. the verify read failed) and nothing
+    // is remembered yet, so a persistent failure cannot re-queue on every ~20s tick.
+    private static readonly TimeSpan ProductionBonusFailureBackoff = TimeSpan.FromMinutes(30);
+
     // Account-wide free +15% production bonus videos. Queued from the background refresh when the toggle
     // is on and the store says the next attempt is due; state is persisted so the popup timers survive
     // restart. Mirrors the auto-collect daily-quests pattern.
@@ -28,8 +32,7 @@ public partial class MainWindow
             return;
         }
 
-        var timers = ProductionBonusStateStore.Load(_projectRoot, _accountStore.ActiveAccountName());
-        if (!ProductionBonusStateStore.ShouldAttemptNow(timers, DateTimeOffset.UtcNow))
+        if (!ProductionBonusStateStore.ShouldAttemptNow(_projectRoot, _accountStore.ActiveAccountName(), DateTimeOffset.UtcNow))
         {
             return;
         }
@@ -43,14 +46,17 @@ public partial class MainWindow
     // dashboard popup can restore and count down the timers.
     private void ApplyProductionBonusResult(string? message)
     {
+        var account = _accountStore.ActiveAccountName();
         var states = ProductionBonusDomParser.ParseResultToken(message);
         if (states.Count == 0)
         {
+            // The run produced no state token (e.g. skipped, or the verify read failed). If nothing is
+            // remembered yet, stamp a short backoff so the loop does not re-queue on every tick.
+            StampProductionBonusBackoffIfEmpty(account);
             return;
         }
 
         var now = DateTimeOffset.UtcNow;
-        var account = _accountStore.ActiveAccountName();
 
         // Human-like: never fire at the exact moment a cooldown timer expires (24h re-activation, 25%
         // expiry, or the failed-video retry) — add one random delay (min..max minutes) on top. Only
@@ -78,6 +84,27 @@ public partial class MainWindow
 
         ProductionBonusStateStore.Save(_projectRoot, account, timers);
         AppendLog($"Production bonus: saved timers ({FormatProductionBonusStates(states)}); next-run jitter +{jitter.TotalMinutes:0} min.");
+    }
+
+    private void StampProductionBonusBackoffIfEmpty(string? account)
+    {
+        if (string.IsNullOrWhiteSpace(account))
+        {
+            return;
+        }
+
+        // Only stamp when nothing is remembered — an existing set of timers already gates the loop.
+        if (ProductionBonusStateStore.Load(_projectRoot, account).Count > 0)
+        {
+            return;
+        }
+
+        var next = DateTimeOffset.UtcNow.Add(ProductionBonusFailureBackoff);
+        var placeholder = ProductionBonusDomParser.Resources
+            .Select(resource => new ProductionBonusResourceTimer(resource, 0, DateTimeOffset.UtcNow, next))
+            .ToList();
+        ProductionBonusStateStore.Save(_projectRoot, account, placeholder);
+        AppendLog($"Production bonus: run produced no state — backing off {ProductionBonusFailureBackoff.TotalMinutes:0} min before retry.");
     }
 
     private void ProductionBonusSettingsButton_Click(object sender, RoutedEventArgs e)
@@ -112,6 +139,13 @@ public partial class MainWindow
     {
         if (BlockIfSessionSleeping("Scan production bonus timers"))
         {
+            return;
+        }
+
+        // Avoid racing the auto-activation over the session/state: if one is queued or running, let it finish.
+        if (HasActiveProductionBonusTask())
+        {
+            AppendLog("Production bonus: a +15% activation is in progress — skipping the manual scan.");
             return;
         }
 

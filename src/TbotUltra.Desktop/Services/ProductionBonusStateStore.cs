@@ -71,7 +71,8 @@ public static class ProductionBonusStateStore
 
         lock (FileIoLock)
         {
-            var file = ReadFile(projectRoot, accountName);
+            // Best-effort for display: a missing or unreadable file just shows no timers.
+            var file = ReadFileOrNull(projectRoot, accountName);
             if (file?.Resources is null)
             {
                 return Array.Empty<ProductionBonusResourceTimer>();
@@ -101,7 +102,7 @@ public static class ProductionBonusStateStore
         lock (FileIoLock)
         {
             // Preserve the user's delay settings when overwriting the timers.
-            var file = ReadFile(projectRoot, accountName) ?? new StateFile();
+            var file = ReadFileOrNull(projectRoot, accountName) ?? new StateFile();
             file.Resources = timers
                 .Where(timer => timer is not null && !string.IsNullOrWhiteSpace(timer.Resource))
                 .Select(timer => new ResourceState
@@ -127,7 +128,7 @@ public static class ProductionBonusStateStore
 
         lock (FileIoLock)
         {
-            var file = ReadFile(projectRoot, accountName);
+            var file = ReadFileOrNull(projectRoot, accountName);
             if (file is null)
             {
                 return;
@@ -147,7 +148,7 @@ public static class ProductionBonusStateStore
 
         lock (FileIoLock)
         {
-            var file = ReadFile(projectRoot, accountName);
+            var file = ReadFileOrNull(projectRoot, accountName);
             if (file is null)
             {
                 return new ProductionBonusSettings(DefaultDelayMinMinutes, DefaultDelayMaxMinutes);
@@ -168,7 +169,7 @@ public static class ProductionBonusStateStore
         var (min, max) = NormalizeDelay(delayMinMinutes, delayMaxMinutes);
         lock (FileIoLock)
         {
-            var file = ReadFile(projectRoot, accountName) ?? new StateFile();
+            var file = ReadFileOrNull(projectRoot, accountName) ?? new StateFile();
             file.DelayMinMinutes = min;
             file.DelayMaxMinutes = max;
             WriteFile(projectRoot, accountName, file);
@@ -190,35 +191,96 @@ public static class ProductionBonusStateStore
 
     /// <summary>
     /// True when the feature should attempt a run now: no remembered state yet, or at least one
-    /// resource's next-attempt time has passed.
+    /// resource's next-attempt time has passed. When the state file exists but cannot be read (transient
+    /// OneDrive/AV lock or corruption), returns false — an unknown state must not trigger a run.
     /// </summary>
-    public static bool ShouldAttemptNow(
-        IReadOnlyList<ProductionBonusResourceTimer> timers,
-        DateTimeOffset nowUtc)
+    public static bool ShouldAttemptNow(string projectRoot, string? accountName, DateTimeOffset nowUtc)
     {
-        if (timers.Count == 0)
+        if (string.IsNullOrWhiteSpace(accountName))
         {
-            return true;
+            return false;
         }
 
-        return timers.Any(timer => timer.NextAttemptAtUtc <= nowUtc);
+        lock (FileIoLock)
+        {
+            var outcome = TryReadFile(projectRoot, accountName, out var file);
+            if (outcome == ReadOutcome.Missing)
+            {
+                return true; // first run — nothing remembered yet
+            }
+
+            if (outcome == ReadOutcome.Error || file is null)
+            {
+                return false; // unknown state — stay conservative
+            }
+
+            var resources = file.Resources ?? new List<ResourceState>();
+            if (resources.Count == 0)
+            {
+                return true;
+            }
+
+            return resources.Any(entry => entry is not null && entry.NextAttemptAtUtc.ToUniversalTime() <= nowUtc);
+        }
     }
 
-    private static StateFile? ReadFile(string projectRoot, string accountName)
+    private enum ReadOutcome
     {
+        Missing,
+        Loaded,
+        Error,
+    }
+
+    private static StateFile? ReadFileOrNull(string projectRoot, string accountName)
+        => TryReadFile(projectRoot, accountName, out var file) == ReadOutcome.Loaded ? file : null;
+
+    private static ReadOutcome TryReadFile(string projectRoot, string accountName, out StateFile? file)
+    {
+        file = null;
         var path = AccountStoragePaths.ProductionBonusStatePath(projectRoot, accountName);
         if (!File.Exists(path))
         {
-            return null;
+            return ReadOutcome.Missing;
+        }
+
+        string raw;
+        try
+        {
+            raw = ReadAllTextWithRetry(path);
+        }
+        catch
+        {
+            return ReadOutcome.Error; // could not read after retries (locked file, etc.)
         }
 
         try
         {
-            return JsonSerializer.Deserialize<StateFile>(File.ReadAllText(path), SerializerOptions);
+            file = JsonSerializer.Deserialize<StateFile>(raw, SerializerOptions);
+            return file is null ? ReadOutcome.Error : ReadOutcome.Loaded;
         }
-        catch
+        catch (JsonException)
         {
-            return null;
+            return ReadOutcome.Error; // corrupt JSON
+        }
+    }
+
+    // Retries transient IOException/UnauthorizedAccessException (OneDrive/AV holding the file), per the
+    // OneDrive file-IO rule in the engineering notes. Writes go through AtomicFile which already retries.
+    private static string ReadAllTextWithRetry(string path)
+    {
+        const int maxAttempts = 5;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                using var reader = new StreamReader(stream);
+                return reader.ReadToEnd();
+            }
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < maxAttempts)
+            {
+                System.Threading.Thread.Sleep(40 * attempt);
+            }
         }
     }
 

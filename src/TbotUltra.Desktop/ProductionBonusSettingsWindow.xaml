@@ -64,7 +64,7 @@
                     Orientation="Horizontal"
                     VerticalAlignment="Center"
                     Margin="0,14,0,0">
-            <TextBlock Text="Next run delay:"
+            <TextBlock Text="Delay:"
                        VerticalAlignment="Center"
                        Foreground="{DynamicResource TextSecondaryBrush}" />
             <TextBox x:Name="DelayMinTextBox"
@@ -74,7 +74,7 @@
                      VerticalAlignment="Center"
                      BorderBrush="{DynamicResource BorderSubtleBrush}"
                      LostFocus="DelaySetting_Changed" />
-            <TextBlock Text="–"
+            <TextBlock Text="-"
                        VerticalAlignment="Center"
                        Margin="6,0,6,0"
                        Foreground="{DynamicResource TextSecondaryBrush}" />
@@ -84,10 +84,14 @@
                      VerticalAlignment="Center"
                      BorderBrush="{DynamicResource BorderSubtleBrush}"
                      LostFocus="DelaySetting_Changed" />
-            <TextBlock Text="min (random, to look human)"
+            <TextBlock Text="min"
                        VerticalAlignment="Center"
-                       Margin="8,0,0,0"
-                       Foreground="{DynamicResource TextMutedBrush}" />
+                       Margin="6,0,0,0"
+                       Foreground="{DynamicResource TextSecondaryBrush}" />
+            <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                            Margin="8,0,0,0"
+                            VerticalAlignment="Center"
+                            ToolTip="When a bonus timer runs out, the bot waits a random time within this range before watching the videos again, so it doesn't act the exact second a timer expires.&#10;&#10;Example: the 24h timer ends and 40 min is picked at random — the bot runs about 40 min later, then watches every available video in a row." />
         </StackPanel>
 
         <DockPanel Grid.Row="3"
