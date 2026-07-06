@@ -206,6 +206,10 @@ public partial class MainWindow
         {
             ScheduleNextReinforcementSendAfterSuccess(options);
         }
+        else if (string.Equals(item.TaskName, "activate_production_bonus", StringComparison.OrdinalIgnoreCase))
+        {
+            ApplyProductionBonusResult(executionResult.LastTask?.Message);
+        }
 
         return fullConstructionRefreshDone;
     }

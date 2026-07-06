@@ -943,37 +943,68 @@
                                             </StackPanel>
                                         </StackPanel>
                                         <StackPanel Grid.Column="1"
-                                                    Orientation="Horizontal"
+                                                    Orientation="Vertical"
                                                     Margin="28,0,0,0"
                                                     HorizontalAlignment="Left"
                                                     VerticalAlignment="Top">
-                                            <CheckBox x:Name="ConstructFasterCheckBox" Content="Construct 25% faster"
-                                                      Style="{StaticResource ToggleSwitchStyle}"
-                                                      Foreground="{DynamicResource TextSecondaryBrush}"
-                                                      VerticalAlignment="Center"
-                                                      Checked="ConstructFasterSetting_Changed" Unchecked="ConstructFasterSetting_Changed" />
-                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}"
-                                                            Margin="4,0,0,0">
-                                                <ContentControl.ToolTip>
-                                                    <ToolTip MaxWidth="320">
-                                                        <TextBlock TextWrapping="Wrap"
-                                                                   Text="For the selected village. Enables Official Travian construct-faster bonus videos. Open settings to choose villages, minimum build time, and random chance." />
-                                                    </ToolTip>
-                                                </ContentControl.ToolTip>
-                                            </ContentControl>
-                                            <Button x:Name="ConstructFasterSettingsButton"
-                                                    Content="&#xE713;"
-                                                    FontFamily="Segoe MDL2 Assets"
-                                                    FontSize="13"
-                                                    Width="30"
-                                                    Height="24"
-                                                    Padding="0"
-                                                    Margin="8,0,0,0"
-                                                    VerticalAlignment="Center"
-                                                    Background="{DynamicResource SurfaceBrush}"
-                                                    BorderBrush="{DynamicResource BorderBrush}"
-                                                    ToolTip="Open Construct 25% faster settings"
-                                                    Click="ConstructFasterSettingsButton_Click" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <CheckBox x:Name="ConstructFasterCheckBox" Content="Construct 25% faster"
+                                                          Style="{StaticResource ToggleSwitchStyle}"
+                                                          Foreground="{DynamicResource TextSecondaryBrush}"
+                                                          VerticalAlignment="Center"
+                                                          Checked="ConstructFasterSetting_Changed" Unchecked="ConstructFasterSetting_Changed" />
+                                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                                Margin="4,0,0,0">
+                                                    <ContentControl.ToolTip>
+                                                        <ToolTip MaxWidth="320">
+                                                            <TextBlock TextWrapping="Wrap"
+                                                                       Text="For the selected village. Enables Official Travian construct-faster bonus videos. Open settings to choose villages, minimum build time, and random chance." />
+                                                        </ToolTip>
+                                                    </ContentControl.ToolTip>
+                                                </ContentControl>
+                                                <Button x:Name="ConstructFasterSettingsButton"
+                                                        Content="&#xE713;"
+                                                        FontFamily="Segoe MDL2 Assets"
+                                                        FontSize="13"
+                                                        Width="30"
+                                                        Height="24"
+                                                        Padding="0"
+                                                        Margin="8,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Background="{DynamicResource SurfaceBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        ToolTip="Open Construct 25% faster settings"
+                                                        Click="ConstructFasterSettingsButton_Click" />
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                <CheckBox x:Name="ProductionBonusVideoCheckBox" Content="15% production bonus"
+                                                          Style="{StaticResource ToggleSwitchStyle}"
+                                                          Foreground="{DynamicResource TextSecondaryBrush}"
+                                                          VerticalAlignment="Center"
+                                                          Checked="ProductionBonusVideoSetting_Changed" Unchecked="ProductionBonusVideoSetting_Changed" />
+                                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                                Margin="4,0,0,0">
+                                                    <ContentControl.ToolTip>
+                                                        <ToolTip MaxWidth="320">
+                                                            <TextBlock TextWrapping="Wrap"
+                                                                       Text="Account-wide. Watches the free Official bonus video to activate +15% production for 8h on every resource that allows it, retried about every 24h. Never spends gold. Open settings to see the per-resource timers." />
+                                                        </ToolTip>
+                                                    </ContentControl.ToolTip>
+                                                </ContentControl>
+                                                <Button x:Name="ProductionBonusSettingsButton"
+                                                        Content="&#xE713;"
+                                                        FontFamily="Segoe MDL2 Assets"
+                                                        FontSize="13"
+                                                        Width="30"
+                                                        Height="24"
+                                                        Padding="0"
+                                                        Margin="8,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Background="{DynamicResource SurfaceBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        ToolTip="Open 15% production bonus settings"
+                                                        Click="ProductionBonusSettingsButton_Click" />
+                                            </StackPanel>
                                         </StackPanel>
                                     </Grid>
                                 </StackPanel>

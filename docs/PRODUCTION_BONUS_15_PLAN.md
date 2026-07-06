@@ -117,11 +117,26 @@ New: `Worker/Services/Automation/Features/TravianClient.ProductionBonus.cs`, `Wo
 4. Negative check: with 25% active on a resource, confirm the log shows it skipped (no gold button ever clicked) and next attempt scheduled at 25% expiry.
 
 ## Status
-- [ ] Config chain (`production_bonus_video_enabled`)
-- [ ] Worker: `TravianClient.ProductionBonus.cs` + `ProductionBonusDomParser` + tests
-- [ ] Task registration + continuous-loop trigger
-- [ ] `ProductionBonusStateStore` + result-token parsing
-- [ ] Dashboard toggle + gear icon
-- [ ] `ProductionBonusSettingsWindow` popup + purple palette brushes
-- [ ] Build + tests green
+- [x] Config chain (`production_bonus_video_enabled`)
+- [x] Worker: `TravianClient.ProductionBonus.cs` + `ProductionBonusDomParser` + tests
+- [x] Task registration + continuous-loop trigger
+- [x] `ProductionBonusStateStore` + result-token parsing
+- [x] Dashboard toggle + gear icon
+- [x] `ProductionBonusSettingsWindow` popup + purple palette brushes
+- [x] Build + tests green (508 Worker + 264 Desktop)
 - [ ] Live smoke verified on Official
+
+## Implementation notes
+- The 120s isolated-bonus-video hard cap (`IsolatedBonusVideoMaxDuration`) time-boxes the WHOLE flow,
+  so each resource is watched in its OWN isolated browser launch (loop in
+  `ActivateProductionBonusVideosAsync`), not four videos in one session.
+- The video info dialog / player / completion polling reuse the construct-faster methods
+  (`ConfirmConstructFasterVideoDialogAsync`, `StartConstructFasterVideoAsync`,
+  `WaitForConstructFasterVideoCompletionAsync`) — same `#videoFeature`/`#videoArea` overlay.
+- Worker emits a `production_bonus=res:bonus:remaining:nextAttempt;...` token on `LastTask.Message`
+  (handler calls `RecordTaskResult`); Desktop parses it in `ApplyProductionBonusResult` and persists
+  absolute UTC times to `ProductionBonusStateStore`.
+- **Live-verify on Official (ENGINEERING_NOTES §7):** the Advantages wizard selectors
+  (`Travian.React.openPaymentWizard`, `.advantagesBonusBox.*ProductionBonus`, `.bonusVideo button.purple`)
+  and the assumption that the wizard video uses the shared `#videoFeature` overlay are from a captured
+  DOM dump and must be confirmed against a live run.

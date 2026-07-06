@@ -63,6 +63,8 @@ public sealed partial class BotTaskRunner
             ["collect_tasks"] = ExecuteCollectTasksAsync,
             // Official: collects claimable Daily Quests rewards from the topbar React dialog.
             ["collect_daily_quests"] = ExecuteCollectDailyQuestsAsync,
+            // Official: watches the free +15% production bonus videos on the payment wizard Advantages tab.
+            ["activate_production_bonus"] = ExecuteActivateProductionBonusAsync,
         };
 
     private readonly IAccountProvider _accountProvider;

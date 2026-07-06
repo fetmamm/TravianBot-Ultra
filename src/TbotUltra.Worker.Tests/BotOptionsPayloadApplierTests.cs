@@ -60,6 +60,7 @@ public sealed class BotOptionsPayloadApplierTests
             HeroAutoUseOintments = false,
             HeroStatPriority = "offense,resource,regeneration",
             AutoCollectDailyQuestsEnabled = false,
+            ProductionBonusVideoEnabled = false,
             UpgradeSelectorProfile = "auto",
             TroopTrainingBarracksEnabled = true,
             TroopTrainingBarracksTroopType = "Legionnaire",
@@ -100,6 +101,7 @@ public sealed class BotOptionsPayloadApplierTests
             [BotOptionPayloadKeys.HeroStatPriority] = "resource,offense",
             [BotOptionPayloadKeys.SmithyUpgradeTargets] = "u21=20;u24=10",
             [BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled] = "true",
+            [BotOptionPayloadKeys.ProductionBonusVideoEnabled] = "true",
             [BotOptionPayloadKeys.UpgradeSelectorProfile] = "strict_green",
             [BotOptionPayloadKeys.TroopTrainingBarracksEnabled] = "false",
             [BotOptionPayloadKeys.TroopTrainingBarracksTroopType] = "Praetorian",
@@ -145,6 +147,7 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.Equal("resource,offense", result.HeroStatPriority);
         Assert.Equal("u21=20;u24=10", result.SmithyUpgradeTargets);
         Assert.True(result.AutoCollectDailyQuestsEnabled);
+        Assert.True(result.ProductionBonusVideoEnabled);
         Assert.Equal("strict_green", result.UpgradeSelectorProfile);
         Assert.False(result.TroopTrainingBarracksEnabled);
         Assert.Equal("Praetorian", result.TroopTrainingBarracksTroopType);

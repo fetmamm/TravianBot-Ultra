@@ -703,6 +703,7 @@ public partial class MainWindow : Window
         ApplyAutoCollectTasksConfigToUi(options);
         ApplyAutoCollectDailyQuestsConfigToUi(options);
         ApplyConstructFasterConfigToUi(options);
+        ApplyProductionBonusVideoConfigToUi(options);
         ApplyHeroResourceTransferConfigToUi(options);
 
         // Account + runtime state below (account label, inbox counts, gold-club, hero snapshot) is

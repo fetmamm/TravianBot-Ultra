@@ -35,6 +35,7 @@ public static class BotOptionsPayloadApplier
         var reduceAdventureTime = source.ReduceAdventureTime;
         var autoCollectTasksEnabled = source.AutoCollectTasksEnabled;
         var autoCollectDailyQuestsEnabled = source.AutoCollectDailyQuestsEnabled;
+        var productionBonusVideoEnabled = source.ProductionBonusVideoEnabled;
         var collectStepDelayMinSeconds = source.CollectStepDelayMinSeconds;
         var collectStepDelayMaxSeconds = source.CollectStepDelayMaxSeconds;
         var heroResourceTransferEnabled = source.HeroResourceTransferEnabled;
@@ -345,6 +346,13 @@ public static class BotOptionsPayloadApplier
                     && bool.TryParse(value, out var autoCollectDailyQuests))
                 {
                     autoCollectDailyQuestsEnabled = autoCollectDailyQuests;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.ProductionBonusVideoEnabled, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var productionBonusVideo))
+                {
+                    productionBonusVideoEnabled = productionBonusVideo;
                     continue;
                 }
 
@@ -1228,6 +1236,7 @@ public static class BotOptionsPayloadApplier
             ReduceAdventureTime = reduceAdventureTime,
             AutoCollectTasksEnabled = autoCollectTasksEnabled,
             AutoCollectDailyQuestsEnabled = autoCollectDailyQuestsEnabled,
+            ProductionBonusVideoEnabled = productionBonusVideoEnabled,
             CollectStepDelayMinSeconds = collectStepDelayMinSeconds,
             CollectStepDelayMaxSeconds = collectStepDelayMaxSeconds,
             HeroResourceTransferEnabled = heroResourceTransferEnabled,

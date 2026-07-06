@@ -177,6 +177,31 @@ public sealed partial class BotTaskRunner
         return result;
     }
 
+    // Manual read-only scan of the Advantages timers, runnable on its own session even when the loop is
+    // idle/paused (used by the popup's "Scan timers" button).
+    public async Task<string> RunScanProductionBonusTimersAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = "Production bonus scan: no result.";
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                result = await client.ScanProductionBonusTimersAsync(cancellationToken);
+            });
+
+        log(result);
+        return result;
+    }
+
     public async Task<string> ReadSmithyQueueFromCurrentPageTestAsync(
         BotOptions options,
         Action<string> log,

@@ -443,6 +443,11 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled)]
     public bool AutoCollectDailyQuestsEnabled { get; init; }
 
+    /// <summary>Account-wide: auto-activate the free +15% production bonus video on the Advantages
+    /// tab for every resource that allows it, retried ~every 24h. Official Travian only.</summary>
+    [ConfigurationKeyName(BotOptionPayloadKeys.ProductionBonusVideoEnabled)]
+    public bool ProductionBonusVideoEnabled { get; init; }
+
     [ConfigurationKeyName(BotOptionPayloadKeys.CollectStepDelayMinSeconds)]
     public double CollectStepDelayMinSeconds { get; init; } = PacingDefaults.CollectStepDelayMinSeconds;
 

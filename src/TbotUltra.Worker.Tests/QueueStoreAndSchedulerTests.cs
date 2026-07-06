@@ -176,6 +176,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
                 "send_reinforcements_between_villages",
                 "collect_tasks",
                 "collect_daily_quests",
+                "activate_production_bonus",
             ],
             CoreTaskCatalog.AllowedTaskNames);
     }

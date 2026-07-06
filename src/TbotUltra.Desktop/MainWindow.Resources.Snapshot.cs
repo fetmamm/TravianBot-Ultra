@@ -486,6 +486,7 @@ public partial class MainWindow
         {
             await TryQueueAutoCollectTasksAsync(options, refreshedStatus);
             await TryQueueAutoCollectDailyQuestsAsync(options, refreshedStatus);
+            TryQueueActivateProductionBonus(options);
         }
         else
         {
