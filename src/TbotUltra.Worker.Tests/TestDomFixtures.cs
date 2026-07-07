@@ -12,6 +12,7 @@ internal static class TestDomFixtures
             "buildingpage_infrastructure.txt" => InfrastructureChoices,
             "buildingpage_military.txt" => MilitaryChoices,
             "buildingpage_resources.txt" => ResourceChoices,
+            "construct_stable_notavailable.txt" => StableSoonAvailableChoices,
             "TS50_Village - Buildings.txt" => BuildingOverview,
             "daily_quests.txt" => DailyQuests,
             "daily_quests_1.txt" => DailyQuestsAlternative,
@@ -91,6 +92,30 @@ internal static class TestDomFixtures
             <button value="Construct building" class="textButtonV1 green"
                     onclick="window.location.href='/build.php?id=23&amp;gid=6'">Construct building</button>
           </div></div>
+        </div>
+        """;
+
+    private const string StableSoonAvailableChoices = """
+        <div id="build_list_available" class="build">
+          <div id="contract_building37" data-gid="37" class="buildingWrapper">
+            <h2>Marketplace</h2>
+            <div class="upgradeButtonsContainer">
+              <div class="section1">
+                <button value="Construct building" class="textButtonV1 green"
+                        onclick="window.location.href='/build.php?id=31&amp;gid=37'">Construct building</button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <h4 class="round spacer">Soon available buildings</h4>
+        <div id="build_list_soon" class="build">
+          <div id="contract_building20" data-gid="20" class="buildingWrapper">
+            <h2>Stable</h2>
+            <div class="upgradeButtonsContainer">
+              <span class="buildingCondition">Smithy Level 3</span>
+              <span class="buildingCondition error">Academy Level 5</span>
+            </div>
+          </div>
         </div>
         """;
 

@@ -322,6 +322,18 @@ public sealed class TravianOfficialConstructionDomTests
         Assert.Null(BuildingDomParser.ReadConstructRequirementErrorFromHtmlForTests(html, gid: 10));
     }
 
+    [Fact]
+    public void OfficialConstructDom_DoesNotSelectOtherButtonForSoonAvailableBuilding()
+    {
+        var html = ReadDomFixture("construct_stable_notavailable.txt");
+
+        var requirements = BuildingDomParser.ReadConstructRequirementErrorFromHtmlForTests(html, gid: 20);
+
+        Assert.Contains("Academy Level 5", requirements, StringComparison.OrdinalIgnoreCase);
+        Assert.Null(BuildingDomParser.SelectConstructButtonCandidateFromHtmlForTests(html, gid: 20));
+        Assert.NotNull(BuildingDomParser.SelectConstructButtonCandidateFromHtmlForTests(html, gid: 37));
+    }
+
     private static string ReadDomFixture(string fileName)
     {
         return TestDomFixtures.Read(fileName);

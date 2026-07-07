@@ -1642,6 +1642,16 @@ public sealed partial class TravianClient : IBuildingClient
                     constructGid: gid);
                 var blockedByResources = pageAnalysis.LooksBlockedByResources;
                 var missingRequirements = pageAnalysis.ConstructRequirementError;
+                if (!string.IsNullOrWhiteSpace(missingRequirements))
+                {
+                    // Requirement errors are more specific than resource hints on Official construct
+                    // pages. A soon-available building can still show resource rows, but hero transfer/NPC
+                    // cannot make it buildable until the prerequisite exists.
+                    var waitSeconds = UpgradeMath.ClampResourceWaitSeconds(null);
+                    Notify($"Slot {slotId}: {buildingName} not buildable yet — missing {missingRequirements}.");
+                    return $"Slot {slotId}: {buildingName} cannot be built yet. Missing requirements: {missingRequirements}. Upgrades performed: 0. queue_wait_seconds={waitSeconds}";
+                }
+
                 if (blockedByResources)
                 {
                     if (!heroTransferAttempted)
@@ -1677,16 +1687,6 @@ public sealed partial class TravianClient : IBuildingClient
                     }
 
                     return BuildUpgradeResourceBlockedResultMessage(snapshot);
-                }
-
-                if (!string.IsNullOrWhiteSpace(missingRequirements))
-                {
-                    // Temporary block: the building becomes available once the prerequisites are built.
-                    // Defer with a wait hint so the task re-checks later instead of burning retries or
-                    // being marked permanently blocked.
-                    var waitSeconds = UpgradeMath.ClampResourceWaitSeconds(null);
-                    Notify($"Slot {slotId}: {buildingName} not buildable yet — missing {missingRequirements}.");
-                    return $"Slot {slotId}: {buildingName} cannot be built yet. Missing requirements: {missingRequirements}. Upgrades performed: 0. queue_wait_seconds={waitSeconds}";
                 }
 
                 var waitAfterBusy = await WaitForConstructionSlotIfBusyAsync(ConstructionKind.Building, cancellationToken);

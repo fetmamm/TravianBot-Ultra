@@ -23,6 +23,7 @@ public interface IDesktopBotService
     bool MarkQueueItemDeferred(Guid id, TimeSpan delay);
     bool UpdateDeferredQueueItem(Guid id, Dictionary<string, string>? payload, TimeSpan? delay = null);
     bool MarkQueueItemExecutionFailed(Guid id);
+    bool MarkQueueItemPermanentlyFailed(Guid id);
     int ResetOrphanedRunningQueueItems();
 
     Task<BotTaskExecutionResult> ExecuteQueueItemAsync(BotOptions options, QueueItem item, Action<string> log, CancellationToken cancellationToken);

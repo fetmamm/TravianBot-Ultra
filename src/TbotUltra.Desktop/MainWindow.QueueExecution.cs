@@ -35,6 +35,120 @@ public partial class MainWindow
             && ConstructionQueueState.ResolveCurrentActiveConstructions(status).Count > 0;
     }
 
+    private ConstructionRequirementGuardResult ResolveConstructRequirementGuardForQueueItem(
+        QueueItem item,
+        DateTimeOffset now)
+    {
+        var status = ResolveBuildingStatusForQueueItem(item);
+        if (status is null)
+        {
+            return ConstructionRequirementGuardResult.None;
+        }
+
+        var villageKey = GetQueueItemVillageKey(item);
+        var sameVillageFilter = BuildSameVillageQueueFilter(item);
+        var sameVillageItems = GetActiveQueueItems()
+            .Where(other => other.Id != item.Id)
+            .Where(other =>
+            {
+                if (villageKey is null)
+                {
+                    return sameVillageFilter(other);
+                }
+
+                var otherKey = GetQueueItemVillageKey(other);
+                return otherKey is null
+                    || string.Equals(otherKey, villageKey, StringComparison.OrdinalIgnoreCase);
+            })
+            .ToList();
+        return ConstructionDependencyGate.ResolveConstructRequirementGuard(item, status, sameVillageItems, now);
+    }
+
+    private bool ConstructHasQueuedOrActivePrerequisite(QueueItem item, DateTimeOffset now)
+    {
+        var result = ResolveConstructRequirementGuardForQueueItem(item, now);
+        if (result.Action is ConstructionRequirementGuardAction.DeferForActivePrerequisite
+            or ConstructionRequirementGuardAction.DeferForQueuedPrerequisite)
+        {
+            return true;
+        }
+
+        return result.Action == ConstructionRequirementGuardAction.None
+            ? VillageHasActiveConstruction(item)
+            : false;
+    }
+
+    private async Task<bool> TryHandleConstructRequirementPreRunGuardAsync(
+        QueueItem item,
+        string logPrefix,
+        Stopwatch timer)
+    {
+        var result = ResolveConstructRequirementGuardForQueueItem(item, DateTimeOffset.UtcNow);
+        if (result.Action == ConstructionRequirementGuardAction.None)
+        {
+            return false;
+        }
+
+        if (result.Action is ConstructionRequirementGuardAction.DeferForActivePrerequisite
+            or ConstructionRequirementGuardAction.DeferForQueuedPrerequisite)
+        {
+            var delay = result.Delay ?? TimeSpan.FromSeconds(60);
+            var payload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase)
+            {
+                [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonRequirements,
+                [BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
+                    ConstructionQueueState.CurrentDeferClassificationVersion,
+            };
+            payload.Remove(BotOptionPayloadKeys.RequirementDeferCount);
+
+            if (!_botService.MarkQueueItemDeferred(item.Id, delay))
+            {
+                AppendLog(
+                    $"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                    "construct prerequisite wait detected, but defer could not be persisted before worker execution");
+                return false;
+            }
+
+            if (_botService.UpdateDeferredQueueItem(item.Id, payload))
+            {
+                item.Payload = payload;
+            }
+            else
+            {
+                AppendLog(
+                    $"[construction-dependency] prerequisite defer payload persistence failed " +
+                    $"id={item.Id} task='{item.TaskName}'");
+            }
+
+            var source = result.Action == ConstructionRequirementGuardAction.DeferForActivePrerequisite
+                ? "active prerequisite"
+                : "queued prerequisite";
+            AppendLog(
+                $"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                $"construct requirements waiting for {source}: {result.Detail}. " +
+                $"Next try in {delay.TotalSeconds:F0}s; worker was not started.");
+            await Dispatcher.InvokeAsync(RefreshVillageActivityIndicatorsOnDashboard);
+            return true;
+        }
+
+        if (_botService.MarkQueueItemPermanentlyFailed(item.Id))
+        {
+            var message =
+                $"construct requirements missing with no same-village queued or active prerequisite: {result.Detail}";
+            AppendLog(
+                $"{logPrefix} ABANDONED {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                $"{message}. Removed from the active queue before worker execution.");
+            RaiseAlarmIfQueueItemPermanentlyFailed(item, message);
+            await Dispatcher.InvokeAsync(RefreshVillageActivityIndicatorsOnDashboard);
+            return true;
+        }
+
+        AppendLog(
+            $"{logPrefix} FAIL {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+            $"construct requirements missing ({result.Detail}) but terminal failure could not be persisted");
+        return false;
+    }
+
     private async Task<bool> ExecuteSingleQueueItemAsync(
         QueueItem item,
         BotOptions options,
@@ -60,6 +174,12 @@ public partial class MainWindow
 
         try
         {
+            if (await TryHandleConstructRequirementPreRunGuardAsync(item, logPrefix, tickSw))
+            {
+                freshBuildingsRefreshDone = true;
+                return true;
+            }
+
             var effectiveOptions = ApplyHeroResourceSettingsForQueueItem(options, item);
             var executionResult = await _botService.ExecuteQueueItemAsync(effectiveOptions, item, AppendLog, cancellationToken);
             freshBuildingsRefreshDone = await HandleQueueItemSucceededAsync(
@@ -376,17 +496,33 @@ public partial class MainWindow
                         // waits on). Only give up once the village build queue is idle and the requirement is
                         // still unmet, which means the prerequisite is genuinely not coming.
                         if (requirementDeferCount >= MaxConsecutiveRequirementDefers
-                            && !VillageHasActiveConstruction(item))
+                            && !ConstructHasQueuedOrActivePrerequisite(item, DateTimeOffset.UtcNow))
                         {
-                            _botService.MarkQueueItemExecutionFailed(item.Id);
+                            var payloadPersisted = _botService.UpdateDeferredQueueItem(item.Id, updatedPayload);
+                            item.Payload = updatedPayload;
+                            if (!payloadPersisted)
+                            {
+                                AppendLog(
+                                    $"[construction-queue] requirement-abandon payload persistence failed " +
+                                    $"id={item.Id} task='{item.TaskName}'");
+                            }
+
+                            if (_botService.MarkQueueItemPermanentlyFailed(item.Id))
+                            {
+                                AppendLog(
+                                    $"{logPrefix} ABANDONED {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                                    $"requirement still unmet after {requirementDeferCount} retries — the prerequisite " +
+                                    $"building is not built, queued or in progress. Removed from the active queue. " +
+                                    $"Source='{ex.Message.Replace(Environment.NewLine, " ")}'");
+                                RaiseAlarmIfQueueItemPermanentlyFailed(item, ex.Message);
+                                await Dispatcher.InvokeAsync(RefreshVillageActivityIndicatorsOnDashboard);
+                                return true;
+                            }
+
                             AppendLog(
-                                $"{logPrefix} ABANDONED {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
-                                $"requirement still unmet after {requirementDeferCount} retries — the prerequisite " +
-                                $"building is not built, queued or in progress. Removed from the active queue. " +
-                                $"Source='{ex.Message.Replace(Environment.NewLine, " ")}'");
-                            RaiseAlarmIfQueueItemPermanentlyFailed(item, ex.Message);
-                            await Dispatcher.InvokeAsync(RefreshVillageActivityIndicatorsOnDashboard);
-                            return true;
+                                $"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                                $"requirement abandon threshold reached but terminal failure could not be persisted; " +
+                                $"next try in {queueWaitDelay.TotalSeconds:F0}s");
                         }
                     }
                     else

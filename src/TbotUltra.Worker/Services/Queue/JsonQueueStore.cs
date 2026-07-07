@@ -362,6 +362,23 @@ public sealed class JsonQueueStore : IQueueStore
         });
     }
 
+    public bool MarkPermanentlyFailed(Guid id)
+    {
+        return Update(id, item =>
+        {
+            if (item.Status is not (QueueStatus.Running or QueueStatus.Pending))
+            {
+                return false;
+            }
+
+            item.Retries = Math.Max(item.Retries, item.MaxRetries + 1);
+            item.Status = QueueStatus.Failed;
+            item.NextAttemptAt = DateTimeOffset.UtcNow;
+            item.UpdatedAt = DateTimeOffset.UtcNow;
+            return true;
+        });
+    }
+
     // Recovered items are deferred briefly instead of retried immediately: the crash may have hit
     // AFTER the browser action (troops queued, attack sent) but BEFORE the defer was persisted, so a
     // state-changing task could otherwise run twice back-to-back. The delay lets the post-login

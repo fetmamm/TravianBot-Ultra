@@ -80,6 +80,23 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     }
 
     [Fact]
+    public void MarkPermanentlyFailed_FailsPendingAndRunningImmediately()
+    {
+        var store = new JsonQueueStore(_queuePath);
+        var pending = store.Add("status", null, priority: 1, maxRetries: 3);
+        var running = store.Add("scan_all_villages", null, priority: 1, maxRetries: 3);
+
+        Assert.True(store.MarkPermanentlyFailed(pending.Id));
+        Assert.True(store.MarkRunning(running.Id));
+        Assert.True(store.MarkPermanentlyFailed(running.Id));
+
+        var items = store.GetAll();
+        Assert.Equal(QueueStatus.Failed, items.Single(item => item.Id == pending.Id).Status);
+        Assert.Equal(QueueStatus.Failed, items.Single(item => item.Id == running.Id).Status);
+        Assert.Null(new PriorityFifoQueueScheduler().SelectNext(items));
+    }
+
+    [Fact]
     public void ResetOrphanedRunningItems_RestoresRunningToPending()
     {
         var store = new JsonQueueStore(_queuePath);
