@@ -5,9 +5,9 @@
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Proxy list"
         Height="500"
-        Width="820"
+        Width="1040"
         MinHeight="380"
-        MinWidth="700"
+        MinWidth="920"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner"
         Closing="ProxyLibraryWindow_Closing">

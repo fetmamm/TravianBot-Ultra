@@ -1,5 +1,18 @@
 [
   {
+    "id": "183dc5c56a4247b2b7a6344dfef4ae60",
+    "name": "194.58.57.52:1080",
+    "scheme": "socks5",
+    "host": "194.58.57.52",
+    "port": 1080,
+    "country": "",
+    "latencyMs": 246,
+    "isWorking": null,
+    "assignedAccount": null,
+    "usedByAccounts": [],
+    "createdAtUtc": "2026-07-07T21:29:06.5494869Z"
+  },
+  {
     "id": "850c8853e77b49e490c035cb0d7d2478",
     "name": "Finland 193.221.203.192",
     "scheme": "socks5",
@@ -7,6 +20,7 @@
     "port": 1080,
     "country": "Finland",
     "latencyMs": 189,
+    "isWorking": null,
     "assignedAccount": null,
     "usedByAccounts": [],
     "createdAtUtc": "2026-07-07T19:21:24.6323348Z"
@@ -19,9 +33,23 @@
     "port": 1088,
     "country": "",
     "latencyMs": null,
+    "isWorking": null,
     "assignedAccount": "fetmamm_hotmail_com_ts4_x1_international_travian_com",
     "usedByAccounts": [],
     "createdAtUtc": "2026-07-07T19:40:22.4314697Z"
+  },
+  {
+    "id": "7c742165c064460bafb85c086b7d52cb",
+    "name": "Germany 144.76.159.120",
+    "scheme": "socks5",
+    "host": "144.76.159.120",
+    "port": 1082,
+    "country": "Germany",
+    "latencyMs": 336,
+    "isWorking": null,
+    "assignedAccount": null,
+    "usedByAccounts": [],
+    "createdAtUtc": "2026-07-07T21:29:54.4134568Z"
   },
   {
     "id": "902c4bdf71a1444cb0a38e7a88bfce03",
@@ -31,6 +59,7 @@
     "port": 1080,
     "country": "Germany",
     "latencyMs": 222,
+    "isWorking": null,
     "assignedAccount": null,
     "usedByAccounts": [],
     "createdAtUtc": "2026-07-07T19:50:22.7958045Z"
@@ -43,6 +72,7 @@
     "port": 5555,
     "country": "Germany",
     "latencyMs": 237,
+    "isWorking": null,
     "assignedAccount": null,
     "usedByAccounts": [],
     "createdAtUtc": "2026-07-07T19:21:30.5339863Z"
@@ -55,6 +85,7 @@
     "port": 1080,
     "country": "Germany",
     "latencyMs": 216,
+    "isWorking": null,
     "assignedAccount": null,
     "usedByAccounts": [],
     "createdAtUtc": "2026-07-07T19:21:28.2242151Z"
@@ -67,6 +98,7 @@
     "port": 1080,
     "country": "Germany",
     "latencyMs": 209,
+    "isWorking": null,
     "assignedAccount": null,
     "usedByAccounts": [],
     "createdAtUtc": "2026-07-07T19:50:22.7802655Z"
@@ -79,6 +111,7 @@
     "port": 8089,
     "country": "Germany",
     "latencyMs": 219,
+    "isWorking": null,
     "assignedAccount": null,
     "usedByAccounts": [],
     "createdAtUtc": "2026-07-07T19:50:22.7876162Z"
@@ -91,9 +124,23 @@
     "port": 1080,
     "country": "Germany",
     "latencyMs": 229,
+    "isWorking": null,
     "assignedAccount": null,
     "usedByAccounts": [],
     "createdAtUtc": "2026-07-07T19:50:22.8030475Z"
+  },
+  {
+    "id": "0e754b6d095e4e73b60aae2636d4dfcd",
+    "name": "Italy 149.62.186.244",
+    "scheme": "socks5",
+    "host": "149.62.186.244",
+    "port": 1080,
+    "country": "Italy",
+    "latencyMs": 335,
+    "isWorking": null,
+    "assignedAccount": null,
+    "usedByAccounts": [],
+    "createdAtUtc": "2026-07-07T21:29:54.406733Z"
   },
   {
     "id": "65ac178f70e448bfa4258f21262d1cce",
@@ -103,9 +150,23 @@
     "port": 1080,
     "country": "Netherlands",
     "latencyMs": 193,
+    "isWorking": null,
     "assignedAccount": null,
     "usedByAccounts": [],
     "createdAtUtc": "2026-07-07T19:21:27.8802124Z"
+  },
+  {
+    "id": "07a6fd3fbc76427d9924b5e5a4fcc5b4",
+    "name": "Netherlands 144.76.159.120",
+    "scheme": "socks5",
+    "host": "144.76.159.120",
+    "port": 1085,
+    "country": "Netherlands",
+    "latencyMs": 285,
+    "isWorking": null,
+    "assignedAccount": null,
+    "usedByAccounts": [],
+    "createdAtUtc": "2026-07-07T21:29:10.9498597Z"
   },
   {
     "id": "283e13bf7b5048ce8e4e457cc028b3ba",
@@ -115,6 +176,7 @@
     "port": 7268,
     "country": "Netherlands",
     "latencyMs": 246,
+    "isWorking": null,
     "assignedAccount": null,
     "usedByAccounts": [],
     "createdAtUtc": "2026-07-07T19:50:22.8109566Z"
@@ -127,6 +189,7 @@
     "port": 1080,
     "country": "Netherlands",
     "latencyMs": 185,
+    "isWorking": null,
     "assignedAccount": null,
     "usedByAccounts": [],
     "createdAtUtc": "2026-07-07T19:50:22.7620312Z"
@@ -139,6 +202,7 @@
     "port": 1080,
     "country": "Netherlands",
     "latencyMs": 199,
+    "isWorking": null,
     "assignedAccount": null,
     "usedByAccounts": [],
     "createdAtUtc": "2026-07-07T19:50:22.7720436Z"
@@ -151,8 +215,22 @@
     "port": 8443,
     "country": "Netherlands",
     "latencyMs": 225,
+    "isWorking": null,
     "assignedAccount": null,
     "usedByAccounts": [],
     "createdAtUtc": "2026-07-07T19:21:28.5646245Z"
+  },
+  {
+    "id": "02ad34aa516d4680af3f7514c075f3db",
+    "name": "Russia 185.128.104.152",
+    "scheme": "socks5",
+    "host": "185.128.104.152",
+    "port": 8443,
+    "country": "Russia",
+    "latencyMs": 305,
+    "isWorking": null,
+    "assignedAccount": null,
+    "usedByAccounts": [],
+    "createdAtUtc": "2026-07-07T21:29:54.398624Z"
   }
 ]

@@ -185,11 +185,35 @@
                       GridLinesVisibility="Horizontal"
                       SelectionMode="Single"
                       RowHeight="28">
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource InfoBgBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
                 <DataGrid.CellStyle>
                     <Style TargetType="DataGridCell">
                         <Setter Property="Padding" Value="4,0" />
                         <Setter Property="VerticalContentAlignment" Value="Center" />
                         <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                <Setter Property="BorderThickness" Value="0" />
+                            </Trigger>
+                        </Style.Triggers>
                     </Style>
                 </DataGrid.CellStyle>
                 <DataGrid.Columns>
@@ -197,10 +221,10 @@
                     <DataGridTextColumn Header="Proxy" Binding="{Binding Proxy}" Width="*" />
                     <DataGridTextColumn Header="Latency" Binding="{Binding Latency}" Width="90" />
                     <DataGridTextColumn Header="Country" Binding="{Binding Country}" Width="130" />
-                    <DataGridTemplateColumn Width="88">
+                    <DataGridTemplateColumn Width="104">
                         <DataGridTemplateColumn.Header>
                             <Button Content="Add all"
-                                    Width="76"
+                                    Width="90"
                                     Height="22"
                                     Padding="0"
                                     Click="AddAllToLibraryButton_Click" />
@@ -219,6 +243,7 @@
                                             <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
                                             <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
                                             <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
+                                            <Setter Property="BorderThickness" Value="1" />
                                             <Setter Property="Template">
                                                 <Setter.Value>
                                                     <ControlTemplate TargetType="Button">
@@ -233,11 +258,35 @@
                                                 </Setter.Value>
                                             </Setter>
                                             <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#17351F" />
+                                                    <Setter Property="BorderBrush" Value="#56D364" />
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter Property="Background" Value="#0E2416" />
+                                                    <Setter Property="BorderBrush" Value="#3FB950" />
+                                                </Trigger>
                                                 <DataTrigger Binding="{Binding IsInLibrary}" Value="True">
                                                     <Setter Property="Background" Value="{DynamicResource WarningBgBrush}" />
                                                     <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
                                                     <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
                                                 </DataTrigger>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding IsInLibrary}" Value="True" />
+                                                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Background" Value="#3A2C08" />
+                                                    <Setter Property="BorderBrush" Value="#E3B341" />
+                                                </MultiDataTrigger>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding IsInLibrary}" Value="True" />
+                                                        <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Background" Value="#221A06" />
+                                                    <Setter Property="BorderBrush" Value="#D29922" />
+                                                </MultiDataTrigger>
                                             </Style.Triggers>
                                         </Style>
                                     </Button.Style>
