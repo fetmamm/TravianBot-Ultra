@@ -5,35 +5,39 @@
       "name": "Test",
       "createdByTribe": "Teutons",
       "createdAtUtc": "2026-07-07T07:19:07.9081978+00:00",
-      "updatedAtUtc": "2026-07-07T07:26:34.8124159+00:00",
+      "updatedAtUtc": "2026-07-07T08:19:47.9806208+00:00",
       "rows": [
         {
-          "id": "7d140121-11f9-44b6-8423-7b87d75c4b6c",
+          "id": "158228fe-1798-4589-bdc9-4aa7b97235fb",
           "kind": "Building",
-          "gid": 41,
-          "buildingName": "Horse Drinking Trough",
+          "gid": 15,
+          "buildingName": "Main Building",
           "preferredSlotId": null,
-          "targetLevel": 1,
+          "targetLevel": 3,
+          "resourceScope": "all",
           "resourceStrategy": "lowest"
         },
         {
-          "id": "afe30536-ef43-4b8a-a724-8bc5346d624b",
-          "kind": "AllResources",
-          "gid": null,
-          "buildingName": "",
-          "preferredSlotId": null,
+          "id": "dc8c131a-0813-4510-9d6e-cecd865d74b5",
+          "kind": "Building",
+          "gid": 32,
+          "buildingName": "Earth Wall",
+          "preferredSlotId": 40,
           "targetLevel": 1,
+          "resourceScope": "all",
+          "resourceStrategy": "lowest"
+        },
+        {
+          "id": "4a8509d5-7b0b-4671-9b63-51e984865980",
+          "kind": "Building",
+          "gid": 16,
+          "buildingName": "Rally Point",
+          "preferredSlotId": 39,
+          "targetLevel": 1,
+          "resourceScope": "all",
           "resourceStrategy": "lowest"
         }
       ]
-    },
-    {
-      "id": "63be216f-c1a2-4670-a7a8-9704675c3d9e",
-      "name": "kor",
-      "createdByTribe": "Teutons",
-      "createdAtUtc": "2026-07-07T07:26:43.3097854+00:00",
-      "updatedAtUtc": "2026-07-07T07:26:47.1909422+00:00",
-      "rows": []
     }
   ]
 }

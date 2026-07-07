@@ -167,7 +167,10 @@
                                 <DataTemplate>
                                     <ComboBox ItemsSource="{Binding TargetOptionsView}"
                                               SelectedItem="{Binding Target, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              DisplayMemberPath="Name">
+                                              DisplayMemberPath="Name"
+                                              ScrollViewer.CanContentScroll="False"
+                                              VirtualizingPanel.IsVirtualizing="False"
+                                              MaxDropDownHeight="360">
                                         <ComboBox.GroupStyle>
                                             <GroupStyle>
                                                 <GroupStyle.HeaderTemplate>

@@ -139,13 +139,13 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
         BuildingOptions.Clear();
         foreach (var item in BuildingCatalogService.GetFullCatalog(tribe)
                      .Where(item => item.Gid is not 38 and not 39 and not 40)
-                     .OrderBy(item => CategorySortOrder(item.Category))
+                     .OrderBy(item => CategorySortOrder(CategoryDisplayName(item.Gid, item.Category, item.IsSpecial)))
                      .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
         {
             BuildingOptions.Add(new BuildingTemplateTargetOption(
                 item.Gid,
                 item.Name,
-                CategoryDisplayName(item.Category),
+                CategoryDisplayName(item.Gid, item.Category, item.IsSpecial),
                 ResourceScope: null,
                 FixedSlotId: FixedSlotFor(item.Gid)));
         }
@@ -476,20 +476,34 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
     private static int CategorySortOrder(string? category)
         => category switch
         {
-            "infrastructure" => 0,
-            "army_buildings" => 1,
-            "resource_buildings" => 2,
-            _ => 3,
+            "Infrastructure" => 0,
+            "Military" => 1,
+            "Resources" => 2,
+            "Special buildings" => 3,
+            "Wall" => 4,
+            _ => 5,
         };
 
-    private static string CategoryDisplayName(string? category)
-        => category switch
+    private static string CategoryDisplayName(int gid, string? category, bool isSpecial)
+    {
+        if (IsWallGid(gid))
+        {
+            return "Wall";
+        }
+
+        if (isSpecial)
+        {
+            return "Special buildings";
+        }
+
+        return category switch
         {
             "infrastructure" => "Infrastructure",
             "army_buildings" => "Military",
             "resource_buildings" => "Resources",
             _ => "Other",
         };
+    }
 
     private static int? FixedSlotFor(int gid)
         => gid switch
@@ -498,6 +512,9 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
             31 or 32 or 33 or 42 or 43 => 40,
             _ => null,
         };
+
+    private static bool IsWallGid(int gid)
+        => gid is 31 or 32 or 33 or 42 or 43;
 }
 
 public sealed record BuildingTemplateTargetOption(
