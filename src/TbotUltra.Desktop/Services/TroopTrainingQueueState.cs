@@ -79,4 +79,44 @@ public static class TroopTrainingQueueState
 
         return status.RemainingSeconds is > 0;
     }
+
+    public static int? RemainingSecondsAt(TroopTrainingQueueStatus? status, DateTimeOffset now)
+    {
+        if (status is null)
+        {
+            return null;
+        }
+
+        if (status.Finish is not null)
+        {
+            var remaining = status.Finish.RemainingSecondsAt(now);
+            return remaining > 0 ? remaining : null;
+        }
+
+        return status.RemainingSeconds is > 0 ? status.RemainingSeconds.Value : null;
+    }
+
+    public static bool IsOverMaxQueue(int? remainingSeconds, string? maxQueueMode)
+    {
+        if (remainingSeconds is not > 0)
+        {
+            return false;
+        }
+
+        var maxQueueSeconds = ResolveMaxQueueSeconds(maxQueueMode);
+        return maxQueueSeconds.HasValue && remainingSeconds.Value > maxQueueSeconds.Value;
+    }
+
+    public static int? ResolveMaxQueueSeconds(string? maxQueueMode)
+    {
+        if (string.IsNullOrWhiteSpace(maxQueueMode)
+            || string.Equals(maxQueueMode, "no_limit", StringComparison.OrdinalIgnoreCase))
+        {
+            return null;
+        }
+
+        return int.TryParse(maxQueueMode, out var hours) && hours > 0
+            ? hours * 60 * 60
+            : null;
+    }
 }

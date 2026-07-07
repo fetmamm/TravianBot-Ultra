@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.Json;
 using System.Threading.Tasks;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Tasks;
 using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
@@ -151,7 +152,7 @@ public partial class MainWindow
 
             item.BuildingSlots = BuildBuildingActivitySlots(
                 status, buildingSlotCount, deferredGroups?.Contains(QueueGroup.Construction) == true);
-            item.TroopSlots = BuildTroopActivitySlots(status, deferredGroups?.Contains(QueueGroup.TroopTraining) == true);
+            item.TroopSlots = BuildTroopActivitySlots(status, ResolveTroopTrainingPayloadForVillage(item), GetServerNow());
             item.SmithySlots = BuildSmithyActivitySlots(name, deferredGroups?.Contains(QueueGroup.Troops) == true);
             item.HasQueue = name is not null && queuedVillages.Contains(name);
 
@@ -419,7 +420,10 @@ public partial class MainWindow
         return slots;
     }
 
-    private static IReadOnlyList<VillageActivitySlot> BuildTroopActivitySlots(VillageStatus? status, bool hasDeferredWork = false)
+    private IReadOnlyList<VillageActivitySlot> BuildTroopActivitySlots(
+        VillageStatus? status,
+        TroopTrainingPayload trainingSettings,
+        DateTimeOffset serverNow)
     {
         var defs = new (TroopTrainingBuildingType Type, string Letter, string Label)[]
         {
@@ -430,16 +434,16 @@ public partial class MainWindow
 
         var queues = status?.TroopTrainingQueues;
         var slots = new List<VillageActivitySlot>(defs.Length);
-        var now = DateTimeOffset.UtcNow;
         foreach (var (type, letter, label) in defs)
         {
             var queue = queues?.FirstOrDefault(q => q.BuildingType == type);
             // Judge by the absolute finish time so cached queues expire while the app is closed;
             // raw RemainingSeconds is only a fallback for legacy entries without a Finish snapshot.
-            var isActive = TroopTrainingQueueState.HasUnfinishedQueue(queue, now);
+            var remainingSeconds = TroopTrainingQueueState.RemainingSecondsAt(queue, serverNow);
+            var isActive = remainingSeconds is > 0;
             var exists = queue is { Exists: true };
-            // Amber waiting only on a built-but-idle building when a build_troops task is deferred here.
-            var isWaiting = exists && !isActive && hasDeferredWork;
+            var maxQueueMode = TroopTrainingQuickSettings.BuildingPayloadFor(trainingSettings, type).MaxQueueHours;
+            var isOverMaxQueue = TroopTrainingQueueState.IsOverMaxQueue(remainingSeconds, maxQueueMode);
             string tooltip;
             if (queue is null || !queue.Exists)
             {
@@ -447,17 +451,40 @@ public partial class MainWindow
             }
             else if (isActive)
             {
-                tooltip = $"{label}: training ({queue.RemainingText})";
+                var suffix = isOverMaxQueue ? ", over max queue" : string.Empty;
+                tooltip = $"{label}: training ({FormatTroopTrainingDuration(remainingSeconds!.Value)}{suffix})";
             }
             else
             {
-                tooltip = isWaiting ? $"{label}: waiting (deferred)" : $"{label}: idle";
+                tooltip = $"{label}: idle";
             }
 
-            slots.Add(new VillageActivitySlot { IsActive = isActive, IsWaiting = isWaiting, Label = letter, Tooltip = tooltip });
+            slots.Add(new VillageActivitySlot
+            {
+                IsActive = isActive && !isOverMaxQueue,
+                IsWaiting = isActive && isOverMaxQueue,
+                Label = letter,
+                Tooltip = tooltip,
+            });
         }
 
         return slots;
+    }
+
+    private TroopTrainingPayload ResolveTroopTrainingPayloadForVillage(VillageSelectionItem item)
+    {
+        var account = _accountStore.ActiveAccountName();
+        var key = GetVillageKey(item);
+        return TroopTrainingSettingsStore.Load(_projectRoot, account, key)
+            ?? TroopTrainingQuickSettings.FromOptions(LoadBotOptions());
+    }
+
+    private static string FormatTroopTrainingDuration(int seconds)
+    {
+        var span = TimeSpan.FromSeconds(Math.Max(0, seconds));
+        return span.TotalHours >= 1
+            ? $"{(int)span.TotalHours}:{span.Minutes:00}:{span.Seconds:00}"
+            : $"{span.Minutes}:{span.Seconds:00}";
     }
 
     // The village the bot is currently working in (browser's village). Shown with a colored border on
