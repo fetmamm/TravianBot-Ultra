@@ -1,8 +1,11 @@
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
+using System.Net.Http;
 using System.Windows;
 using System.Windows.Controls;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Worker;
 using TbotUltra.Worker.Infrastructure;
 
 namespace TbotUltra.Desktop;
@@ -142,6 +145,7 @@ public partial class ProxyFinderWindow : Window
 
             BusyOverlay.Hide();
             _lastRows = rows;
+            RefreshLibraryStateForRows();
             ResultsDataGrid.ItemsSource = rows;
             ResultsSummaryTextBlock.Text = $"Top {rows.Count} of {candidates.Count} tested";
             SaveState();
@@ -209,6 +213,7 @@ public partial class ProxyFinderWindow : Window
             .ToList();
 
         ResultsDataGrid.ItemsSource = _lastRows;
+        RefreshLibraryStateForRows();
         ResultsSummaryTextBlock.Text = $"Top {_lastRows.Count} (saved)";
     }
 
@@ -256,23 +261,10 @@ public partial class ProxyFinderWindow : Window
 
         try
         {
-            var alreadyExists = _proxyLibraryStore.FindByServer(row.Candidate.Server) is not null;
-            var country = row.Country == "-" ? string.Empty : row.Country;
-            var name = string.IsNullOrWhiteSpace(country)
-                ? row.Candidate.HostPort
-                : $"{country} {row.Candidate.Host}";
-            _proxyLibraryStore.Upsert(new ProxyLibraryEntry
-            {
-                Name = name,
-                Scheme = row.Candidate.Scheme,
-                Host = row.Candidate.Host,
-                Port = row.Candidate.Port,
-                Country = country,
-                LatencyMs = row.LatencyMs,
-                CreatedAtUtc = DateTime.UtcNow,
-            });
-
-            ValidationTextBlock.Text = alreadyExists
+            var added = AddMissingRowToLibrary(row);
+            row.IsInLibrary = true;
+            ResultsDataGrid.Items.Refresh();
+            ValidationTextBlock.Text = !added
                 ? $"Already in proxy list: {row.Candidate.HostPort}"
                 : $"Added to proxy list: {row.Candidate.HostPort}";
         }
@@ -282,18 +274,114 @@ public partial class ProxyFinderWindow : Window
         }
     }
 
+    private void AddAllToLibraryButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_lastRows.Count == 0)
+        {
+            ValidationTextBlock.Text = "No top proxies to add yet.";
+            return;
+        }
+
+        try
+        {
+            var added = 0;
+            foreach (var row in _lastRows)
+            {
+                if (AddMissingRowToLibrary(row))
+                {
+                    added++;
+                }
+
+                row.IsInLibrary = true;
+            }
+
+            ResultsDataGrid.Items.Refresh();
+            ValidationTextBlock.Text = added == 0
+                ? "All top proxies are already in the proxy list."
+                : $"Added {added} new proxy/proxies to the proxy list.";
+        }
+        catch (Exception ex)
+        {
+            ValidationTextBlock.Text = $"Could not add proxies: {ex.Message}";
+        }
+    }
+
+    private void ProxyListButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ProxyLibraryWindow(_proxyLibraryStore, LoadAccountNames())
+        {
+            Owner = this,
+        };
+        _ = dialog.ShowDialog();
+        RefreshLibraryStateForRows();
+        ResultsDataGrid.Items.Refresh();
+    }
+
+    private bool AddMissingRowToLibrary(ProxyResultRow row)
+    {
+        if (_proxyLibraryStore.FindByServer(row.Candidate.Server) is not null)
+        {
+            return false;
+        }
+
+        var country = row.Country == "-" ? string.Empty : row.Country;
+        var name = string.IsNullOrWhiteSpace(country)
+            ? row.Candidate.HostPort
+            : $"{country} {row.Candidate.Host}";
+        _proxyLibraryStore.Upsert(new ProxyLibraryEntry
+        {
+            Name = name,
+            Scheme = row.Candidate.Scheme,
+            Host = row.Candidate.Host,
+            Port = row.Candidate.Port,
+            Country = country,
+            LatencyMs = row.LatencyMs,
+            CreatedAtUtc = DateTime.UtcNow,
+        });
+        return true;
+    }
+
+    private void RefreshLibraryStateForRows()
+    {
+        if (_lastRows.Count == 0)
+        {
+            return;
+        }
+
+        var entries = _proxyLibraryStore.Load();
+        foreach (var row in _lastRows)
+        {
+            row.IsInLibrary = ProxyLibraryStore.FindByServer(entries, row.Candidate.Server) is not null;
+        }
+    }
+
+    private static IReadOnlyList<string> LoadAccountNames()
+    {
+        try
+        {
+            var envPath = Path.Combine(ProjectRootLocator.FindProjectRoot(), ".env");
+            return new EnvAccountStore(envPath).ListAccounts()
+                .Select(account => account.Name)
+                .Where(name => !string.IsNullOrWhiteSpace(name))
+                .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        catch
+        {
+            return Array.Empty<string>();
+        }
+    }
+
     private void GetListsButton_Click(object sender, RoutedEventArgs e)
         => OpenUrl(ProxyListRepoUrl);
 
-    // Quick-pick a list type: set the paste type to match, then open the raw list so it is ready to copy.
-    private void GetListButton_Click(object sender, RoutedEventArgs e)
+    // Quick-pick a list type: set the paste type to match, then download the raw list into the editor.
+    private async void GetListButton_Click(object sender, RoutedEventArgs e)
     {
         if (sender is not FrameworkElement { Tag: string tag } || string.IsNullOrWhiteSpace(tag))
         {
             return;
         }
-
-        SelectComboByTag(ProtocolComboBox, tag, "socks5");
 
         var url = tag.ToLowerInvariant() switch
         {
@@ -301,7 +389,59 @@ public partial class ProxyFinderWindow : Window
             "http" => "https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/http.txt",
             _ => "https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/socks5.txt",
         };
-        OpenUrl(url);
+        await AsyncUi.GuardAsync(() => LoadProxyListAsync(tag, url), LogUiGuardError);
+    }
+
+    private async Task LoadProxyListAsync(string scheme, string url)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        _busy = true;
+        ValidationTextBlock.Text = string.Empty;
+        ResultsSummaryTextBlock.Text = string.Empty;
+        ResultsDataGrid.ItemsSource = null;
+        _lastRows = [];
+        SelectedProxy = null;
+        SelectComboByTag(ProtocolComboBox, scheme, "socks5");
+
+        _operationCts?.Dispose();
+        _operationCts = new CancellationTokenSource();
+        var token = _operationCts.Token;
+
+        try
+        {
+            using var client = new HttpClient
+            {
+                Timeout = TimeSpan.FromSeconds(30),
+            };
+            client.DefaultRequestHeaders.UserAgent.ParseAdd("TbotUltra/1.0");
+            using var response = await client.GetAsync(url, token);
+            response.EnsureSuccessStatusCode();
+            var text = await response.Content.ReadAsStringAsync(token);
+            token.ThrowIfCancellationRequested();
+
+            ProxyListTextBox.Text = text.Replace("\r\n", "\n").Trim();
+            var parsed = ProxyListTester.ParseCandidates(ProxyListTextBox.Text, scheme, HardMaxProxies);
+            ValidationTextBlock.Text = parsed.Count == 0
+                ? $"Downloaded the {scheme.ToUpperInvariant()} list, but no valid host:port proxies were found."
+                : $"Loaded {parsed.Count} {scheme.ToUpperInvariant()} proxies. Click Test & rank to check them.";
+            SaveState();
+        }
+        catch (OperationCanceledException)
+        {
+            ValidationTextBlock.Text = "Proxy list download cancelled.";
+        }
+        catch (Exception ex)
+        {
+            ValidationTextBlock.Text = $"Could not load proxy list: {SummarizeError(ex.Message)}";
+        }
+        finally
+        {
+            _busy = false;
+        }
     }
 
     private void OpenUrl(string url)
@@ -351,6 +491,13 @@ public partial class ProxyFinderWindow : Window
         ValidationTextBlock.Text = message;
     }
 
+    private static string SummarizeError(string? message)
+    {
+        var value = message ?? string.Empty;
+        var firstLine = value.Replace("\r", string.Empty).Split('\n').FirstOrDefault() ?? string.Empty;
+        return firstLine.Length == 0 ? "Unknown error." : firstLine;
+    }
+
     private static int ReadIntTag(ComboBox comboBox, int fallback)
     {
         var tag = ReadComboTag(comboBox, fallback.ToString(CultureInfo.InvariantCulture));
@@ -393,5 +540,6 @@ public partial class ProxyFinderWindow : Window
         public string Latency { get; init; } = string.Empty;
         public string Country { get; init; } = string.Empty;
         public required ProxyCandidate Candidate { get; init; }
+        public bool IsInLibrary { get; set; }
     }
 }

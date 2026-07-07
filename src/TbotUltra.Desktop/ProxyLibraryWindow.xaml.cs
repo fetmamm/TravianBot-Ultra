@@ -2,24 +2,35 @@ using System.ComponentModel;
 using System.Windows;
 using System.Windows.Controls;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Worker.Infrastructure;
 
 namespace TbotUltra.Desktop;
 
 public partial class ProxyLibraryWindow : Window
 {
     private readonly ProxyLibraryStore _store;
+    private readonly ProxyListTester _tester = new(log: message => System.Diagnostics.Debug.WriteLine(message));
+    private readonly string _activeProxyServer;
+    private readonly string? _activeAccountName;
+    private CancellationTokenSource? _checkCts;
     private List<ProxyLibraryEntry> _workingProxies = [];
     private string _savedSnapshot = string.Empty;
     private bool _isClosing;
 
     public IReadOnlyList<string> AccountChoices { get; }
 
-    public ProxyLibraryWindow(ProxyLibraryStore store, IEnumerable<string> accountNames)
+    public ProxyLibraryWindow(
+        ProxyLibraryStore store,
+        IEnumerable<string> accountNames,
+        string? activeProxyServer = null,
+        string? activeAccountName = null)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
         DataContext = this;
         _store = store;
+        _activeProxyServer = activeProxyServer?.Trim() ?? string.Empty;
+        _activeAccountName = activeAccountName;
         AccountChoices = new[] { string.Empty }
             .Concat(accountNames.Where(item => !string.IsNullOrWhiteSpace(item)).Select(item => item.Trim()))
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -27,6 +38,7 @@ public partial class ProxyLibraryWindow : Window
             .ToList();
         ReloadWorkingCopy(_store.Load());
         _savedSnapshot = BuildSnapshot();
+        UpdateActiveProxyText(_activeAccountName);
     }
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
@@ -106,6 +118,112 @@ public partial class ProxyLibraryWindow : Window
         ProxyDataGrid.Items.Refresh();
     }
 
+    private void DeleteAllButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_workingProxies.Count == 0)
+        {
+            return;
+        }
+
+        var result = AppDialog.ShowCustom(
+            this,
+            $"Delete all {_workingProxies.Count} saved proxies? This cannot be undone after saving.",
+            "Delete all proxies",
+            [("Delete all", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.Cancel)],
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel,
+            MessageBoxResult.Cancel);
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _workingProxies.Clear();
+        ProxyDataGrid.Items.Refresh();
+        UpdateActiveProxyText(_activeAccountName);
+    }
+
+    private async void CheckProxiesButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (_workingProxies.Count == 0)
+        {
+            AppDialog.Show(this, "Proxy list is empty.", "Check proxies", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        _checkCts?.Dispose();
+        _checkCts = new CancellationTokenSource();
+        var token = _checkCts.Token;
+        BusyOverlay.ShowCancel = true;
+        BusyOverlay.Show("Checking proxies", $"Testing 0 / {_workingProxies.Count}...");
+
+        try
+        {
+            var candidates = _workingProxies
+                .Select(entry => new ProxyCandidate(entry.Scheme, entry.Host, entry.Port))
+                .ToList();
+            var progress = new Progress<ProxyTestProgress>(p =>
+                BusyOverlay.Text = $"Testing {p.Tested} / {p.Total} - {p.Found} working");
+            var results = await _tester.TestAsync(candidates, maxConcurrency: 100, topCount: candidates.Count, progress, token);
+            token.ThrowIfCancellationRequested();
+
+            var resultByServer = results.ToDictionary(item => item.Candidate.Server, StringComparer.OrdinalIgnoreCase);
+            foreach (var entry in _workingProxies)
+            {
+                if (resultByServer.TryGetValue(entry.Server, out var result))
+                {
+                    entry.IsWorking = true;
+                    entry.LatencyMs = result.LatencyMs;
+                }
+                else
+                {
+                    entry.IsWorking = false;
+                    entry.LatencyMs = null;
+                }
+            }
+
+            BusyOverlay.Show("Checking proxies", $"Updating locations for {results.Count} working proxies...");
+            var enrichTasks = _workingProxies
+                .Where(entry => entry.IsWorking == true)
+                .Select(async entry => (entry, info: await _tester.EnrichAsync(entry.Server, token)))
+                .ToList();
+            var enriched = await Task.WhenAll(enrichTasks);
+            foreach (var (entry, info) in enriched)
+            {
+                if (!string.IsNullOrWhiteSpace(info.Country))
+                {
+                    entry.Country = info.Country;
+                }
+            }
+
+            ApplyActiveState();
+            ProxyDataGrid.Items.Refresh();
+            _store.Save(_workingProxies);
+            _savedSnapshot = BuildSnapshot();
+            BusyOverlay.Hide();
+            AppDialog.Show(
+                this,
+                $"Checked {_workingProxies.Count} proxies. {results.Count} working.",
+                "Check proxies",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (OperationCanceledException)
+        {
+            BusyOverlay.Hide();
+            AppDialog.Show(this, "Proxy check cancelled.", "Check proxies", MessageBoxButton.OK, MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            BusyOverlay.Hide();
+            AppDialog.Show(this, $"Could not check proxies: {ex.Message}", "Check proxies", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+        finally
+        {
+            BusyOverlay.Hide();
+        }
+    }
+
     private void CloseButton_Click(object sender, RoutedEventArgs e)
     {
         if (!PromptToSaveUnsavedChanges())
@@ -132,6 +250,7 @@ public partial class ProxyLibraryWindow : Window
         }
 
         _isClosing = true;
+        _checkCts?.Cancel();
     }
 
     private void ReloadWorkingCopy(IEnumerable<ProxyLibraryEntry> source)
@@ -140,6 +259,7 @@ public partial class ProxyLibraryWindow : Window
             .Select(item => item.Clone())
             .OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+        ApplyActiveState();
         ProxyDataGrid.ItemsSource = _workingProxies;
     }
 
@@ -170,6 +290,7 @@ public partial class ProxyLibraryWindow : Window
                 Port = port,
                 Country = item.Country.Trim(),
                 LatencyMs = item.LatencyMs,
+                IsWorking = item.IsWorking,
                 AssignedAccount = item.AssignedAccount,
                 UsedByAccounts = item.UsedByAccounts.ToList(),
                 CreatedAtUtc = item.CreatedAtUtc,
@@ -177,6 +298,35 @@ public partial class ProxyLibraryWindow : Window
         }
 
         return true;
+    }
+
+    private void BusyOverlay_Cancelled(object sender, EventArgs e)
+    {
+        _checkCts?.Cancel();
+    }
+
+    private void ApplyActiveState()
+    {
+        foreach (var entry in _workingProxies)
+        {
+            entry.IsActive = !string.IsNullOrWhiteSpace(_activeProxyServer)
+                && ProxyLibraryStore.FindByServer(new[] { entry }, _activeProxyServer) is not null;
+        }
+    }
+
+    private void UpdateActiveProxyText(string? activeAccountName)
+    {
+        if (string.IsNullOrWhiteSpace(_activeProxyServer))
+        {
+            ActiveProxyTextBlock.Text = "Active proxy: none for this account.";
+            return;
+        }
+
+        var match = ProxyLibraryStore.FindByServer(_workingProxies, _activeProxyServer);
+        var accountText = string.IsNullOrWhiteSpace(activeAccountName) ? string.Empty : $" for {activeAccountName}";
+        ActiveProxyTextBlock.Text = match is null
+            ? $"Active proxy{accountText}: {ProxyParser.MaskForLog(_activeProxyServer)} (not in saved list)"
+            : $"Active proxy{accountText}: {match.DisplayName}";
     }
 
     private bool PromptToSaveUnsavedChanges()
@@ -237,6 +387,7 @@ public partial class ProxyLibraryWindow : Window
                     item.Server,
                     item.Country.Trim(),
                     item.LatencyMs?.ToString() ?? string.Empty,
+                    item.IsWorking?.ToString() ?? string.Empty,
                     item.AssignedAccount ?? string.Empty,
                     string.Join(",", item.UsedByAccounts.OrderBy(account => account, StringComparer.OrdinalIgnoreCase)))));
     }

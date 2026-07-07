@@ -1,6 +1,7 @@
 <Window x:Class="TbotUltra.Desktop.ProxyLibraryWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:TbotUltra.Desktop.Views"
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Proxy list"
         Height="500"
@@ -10,33 +11,53 @@
         ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner"
         Closing="ProxyLibraryWindow_Closing">
-    <Grid Margin="12">
-        <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
-            <RowDefinition Height="*" />
-            <RowDefinition Height="Auto" />
-        </Grid.RowDefinitions>
+    <Grid>
+        <Grid Margin="12">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
 
-        <TextBlock Grid.Row="0"
-                   Margin="0,0,0,8"
-                   TextWrapping="Wrap"
-                   Foreground="{DynamicResource SlateTextBrush}"
-                   Text="Saved proxies are global. Assigning a proxy locks it to one account; Used by tracks accounts that have saved it." />
+            <TextBlock Grid.Row="0"
+                       Margin="0,0,0,4"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource SlateTextBrush}"
+                       Text="Saved proxies are global. Assigning a proxy locks it to one account; Used by tracks accounts that have saved it." />
+            <TextBlock x:Name="ActiveProxyTextBlock"
+                       Grid.Row="1"
+                       Margin="0,0,0,8"
+                       TextWrapping="Wrap"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource InfoTextBrush}" />
 
-        <DataGrid x:Name="ProxyDataGrid"
-                  Grid.Row="1"
+            <DataGrid x:Name="ProxyDataGrid"
+                  Grid.Row="2"
                   AutoGenerateColumns="False"
                   IsReadOnly="False"
                   CanUserAddRows="False"
                   CanUserDeleteRows="False"
                   HeadersVisibility="Column"
                   SelectionMode="Single">
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource InfoBgBrush}" />
+                                <Setter Property="FontWeight" Value="SemiBold" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
             <DataGrid.Columns>
+                <DataGridTextColumn Header="Active" Binding="{Binding ActiveText}" IsReadOnly="True" Width="70" />
                 <DataGridTextColumn Header="Name" Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Width="180" />
                 <DataGridTextColumn Header="Proxy" Binding="{Binding HostPort}" IsReadOnly="True" Width="150" />
                 <DataGridTextColumn Header="Type" Binding="{Binding Scheme}" IsReadOnly="True" Width="80" />
                 <DataGridTextColumn Header="Country" Binding="{Binding Country}" IsReadOnly="True" Width="110" />
                 <DataGridTextColumn Header="Latency" Binding="{Binding LatencyText}" IsReadOnly="True" Width="80" />
+                <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" IsReadOnly="True" Width="90" />
                 <DataGridTemplateColumn Header="Assigned to" Width="150">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -47,7 +68,17 @@
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
                 <DataGridTextColumn Header="Used by" Binding="{Binding UsedByText}" IsReadOnly="True" Width="*" />
-                <DataGridTemplateColumn Header="" Width="90">
+                <DataGridTemplateColumn Width="90">
+                    <DataGridTemplateColumn.Header>
+                        <Button Content="Delete all"
+                                Width="78"
+                                Height="22"
+                                Padding="0"
+                                Background="{DynamicResource DangerBgBrush}"
+                                BorderBrush="{DynamicResource DangerBorderBrush}"
+                                Foreground="{DynamicResource DangerTextBrush}"
+                                Click="DeleteAllButton_Click" />
+                    </DataGridTemplateColumn.Header>
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <Button Content="Delete"
@@ -56,6 +87,9 @@
                                     Margin="0"
                                     VerticalAlignment="Center"
                                     HorizontalAlignment="Center"
+                                    Background="{DynamicResource DangerBgBrush}"
+                                    BorderBrush="{DynamicResource DangerBorderBrush}"
+                                    Foreground="{DynamicResource DangerTextBrush}"
                                     Click="DeleteRowButton_Click" />
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
@@ -63,10 +97,22 @@
             </DataGrid.Columns>
         </DataGrid>
 
-        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button Width="100" Margin="0,0,8,0" Content="Add proxy" Click="AddProxyButton_Click" />
-            <Button Width="100" Margin="0,0,8,0" Content="Save" Click="SaveButton_Click" />
-            <Button Width="100" Content="Close" Click="CloseButton_Click" />
-        </StackPanel>
+            <DockPanel Grid.Row="3" Margin="0,12,0,0">
+                <Button DockPanel.Dock="Left"
+                        Width="110"
+                        Content="Check proxies"
+                        Click="CheckProxiesButton_Click" />
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button Width="100" Margin="0,0,8,0" Content="Add proxy" Click="AddProxyButton_Click" />
+                    <Button Width="100" Margin="0,0,8,0" Content="Save" Click="SaveButton_Click" />
+                    <Button Width="100" Content="Close" Click="CloseButton_Click" />
+                </StackPanel>
+            </DockPanel>
+        </Grid>
+
+        <views:BusyOverlayControl x:Name="BusyOverlay"
+                                  Title="Checking proxies"
+                                  Text="Preparing..."
+                                  Cancelled="BusyOverlay_Cancelled" />
     </Grid>
 </Window>

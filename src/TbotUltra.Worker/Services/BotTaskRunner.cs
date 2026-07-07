@@ -331,6 +331,13 @@ public sealed partial class BotTaskRunner
     {
         var desiredBaseUrl = options.BaseUrl.TrimEnd('/');
         var desiredProxyFingerprint = account.ProxyEnabled ? $"on|{account.ProxyServer.Trim()}" : "off";
+        if (account.NeverUseOwnIp
+            && (!account.ProxyEnabled || !ProxyParser.TryBuild(account.ProxyServer, out _, out _)))
+        {
+            throw new InvalidOperationException(
+                $"Account '{account.Name}' has 'Never use own IP address' enabled, but no valid proxy is configured. Browser startup blocked.");
+        }
+
         var replaceReasons = new List<string>();
         if (_sharedVisibleSession is null)
         {

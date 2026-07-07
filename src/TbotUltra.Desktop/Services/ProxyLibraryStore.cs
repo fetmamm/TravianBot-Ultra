@@ -28,6 +28,7 @@ public sealed class ProxyLibraryEntry : INotifyPropertyChanged
     private int _port;
     private string _country = string.Empty;
     private long? _latencyMs;
+    private bool? _isWorking;
     private string? _assignedAccount;
     private List<string> _usedByAccounts = new();
     private DateTime _createdAtUtc;
@@ -105,6 +106,18 @@ public sealed class ProxyLibraryEntry : INotifyPropertyChanged
         }
     }
 
+    public bool? IsWorking
+    {
+        get => _isWorking;
+        set
+        {
+            if (SetField(ref _isWorking, value, nameof(IsWorking)))
+            {
+                OnPropertyChanged(nameof(StatusText));
+            }
+        }
+    }
+
     public string? AssignedAccount
     {
         get => _assignedAccount;
@@ -143,6 +156,20 @@ public sealed class ProxyLibraryEntry : INotifyPropertyChanged
     [JsonIgnore]
     public string LatencyText => LatencyMs is > 0 ? $"{LatencyMs} ms" : string.Empty;
 
+    [JsonIgnore]
+    public string StatusText => IsWorking switch
+    {
+        true => "Working",
+        false => "Failed",
+        _ => "Not checked",
+    };
+
+    [JsonIgnore]
+    public bool IsActive { get; set; }
+
+    [JsonIgnore]
+    public string ActiveText => IsActive ? "Active" : string.Empty;
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     internal static string NormalizeScheme(string? scheme)
@@ -168,6 +195,7 @@ public sealed class ProxyLibraryEntry : INotifyPropertyChanged
             Port = Port,
             Country = Country,
             LatencyMs = LatencyMs,
+            IsWorking = IsWorking,
             AssignedAccount = AssignedAccount,
             UsedByAccounts = UsedByAccounts.ToList(),
             CreatedAtUtc = CreatedAtUtc,
@@ -300,6 +328,11 @@ public sealed class ProxyLibraryStore
             if (entry.LatencyMs is > 0)
             {
                 existing.LatencyMs = entry.LatencyMs;
+            }
+
+            if (entry.IsWorking is not null)
+            {
+                existing.IsWorking = entry.IsWorking;
             }
 
             return existing;

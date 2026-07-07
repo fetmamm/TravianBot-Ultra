@@ -4,9 +4,9 @@
         xmlns:views="clr-namespace:TbotUltra.Desktop.Views"
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Find best proxy"
-        Height="704"
+        Height="820"
         Width="674"
-        MinHeight="616"
+        MinHeight="720"
         MinWidth="594"
         WindowStartupLocation="CenterOwner">
     <Grid>
@@ -42,11 +42,11 @@
                                Margin="0,0,0,8" />
                     <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource IronTextBrush}" Margin="0,0,0,4">
                         <Run Text="1." FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                        <Run Text="  Click &quot;Get proxy list (Github)&quot; and copy one list — free proxies come in separate files per type." />
+                        <Run Text="  Click SOCKS5, SOCKS4, or HTTP to load that proxy list directly into the box below." />
                     </TextBlock>
                     <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource IronTextBrush}" Margin="0,0,0,4">
                         <Run Text="2." FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-                        <Run Text="  Pick the matching TYPE, then paste the list below (one host:port per line)." />
+                        <Run Text="  Or paste your own list manually (one host:port per line) and pick the matching TYPE." />
                     </TextBlock>
                     <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource IronTextBrush}" Margin="0,0,0,4">
                         <Run Text="3." FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
@@ -197,7 +197,14 @@
                     <DataGridTextColumn Header="Proxy" Binding="{Binding Proxy}" Width="*" />
                     <DataGridTextColumn Header="Latency" Binding="{Binding Latency}" Width="90" />
                     <DataGridTextColumn Header="Country" Binding="{Binding Country}" Width="130" />
-                    <DataGridTemplateColumn Header="" Width="76">
+                    <DataGridTemplateColumn Width="88">
+                        <DataGridTemplateColumn.Header>
+                            <Button Content="Add all"
+                                    Width="76"
+                                    Height="22"
+                                    Padding="0"
+                                    Click="AddAllToLibraryButton_Click" />
+                        </DataGridTemplateColumn.Header>
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <Button Content="Add"
@@ -206,7 +213,35 @@
                                         Padding="0"
                                         VerticalAlignment="Center"
                                         HorizontalAlignment="Center"
-                                        Click="AddToLibraryButton_Click" />
+                                        Click="AddToLibraryButton_Click">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border Background="{TemplateBinding Background}"
+                                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                                CornerRadius="3">
+                                                            <ContentPresenter HorizontalAlignment="Center"
+                                                                              VerticalAlignment="Center" />
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsInLibrary}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource WarningBgBrush}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
                             </DataTemplate>
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
@@ -226,13 +261,23 @@
                 </DataGrid.Columns>
             </DataGrid>
 
-            <DockPanel Grid.Row="7" Margin="0,14,0,0">
+            <Grid Grid.Row="7" Margin="0,10,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
                 <TextBlock x:Name="ValidationTextBlock"
-                           DockPanel.Dock="Left"
+                           Grid.Row="0"
+                           Margin="0,0,0,8"
                            VerticalAlignment="Center"
                            TextWrapping="Wrap"
                            Foreground="{DynamicResource WarningTextBrush}" />
-                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="ProxyListButton"
+                            Content="Proxy list"
+                            MinWidth="100"
+                            Margin="0,0,8,0"
+                            Click="ProxyListButton_Click" />
                     <Button x:Name="TestButton"
                             Content="Test &amp; rank"
                             MinWidth="130"
@@ -247,7 +292,7 @@
                             Width="100"
                             Click="CloseButton_Click" />
                 </StackPanel>
-            </DockPanel>
+            </Grid>
         </Grid>
 
         <views:BusyOverlayControl x:Name="BusyOverlay"

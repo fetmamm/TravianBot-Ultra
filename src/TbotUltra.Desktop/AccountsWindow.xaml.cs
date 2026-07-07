@@ -39,6 +39,7 @@ public partial class AccountsWindow : Window
     private string _baselineServerUrl = string.Empty;
     private bool _baselineProxyEnabled;
     private string _baselineProxyServer = string.Empty;
+    private bool _baselineNeverUseOwnIp;
     private bool _suppressSelectionChanged;
     private bool _suppressSavedProxySelection;
     private bool _isClosing;
@@ -139,6 +140,7 @@ public partial class AccountsWindow : Window
         // Set the proxy fields before the InfoTextBlock assignment below so the checkbox handler's
         // hint does not overwrite the "Editing existing account" message.
         UseProxyCheckBox.IsChecked = selected.ProxyEnabled;
+        NeverUseOwnIpCheckBox.IsChecked = selected.NeverUseOwnIp;
         SafeRunAccountEditorAction(() =>
         {
             LoadProxyFields(selected.ProxyServer);
@@ -412,12 +414,29 @@ public partial class AccountsWindow : Window
 
     private void UseProxyCheckBox_Changed(object sender, RoutedEventArgs e)
     {
+        if (UseProxyCheckBox.IsChecked != true && NeverUseOwnIpCheckBox.IsChecked == true)
+        {
+            UseProxyCheckBox.IsChecked = true;
+            return;
+        }
+
         var enabled = UseProxyCheckBox.IsChecked == true;
         SafeRunAccountEditorAction(() => SetProxyFieldsEnabled(enabled), "toggle proxy fields");
         if (enabled)
         {
             InfoTextBlock.Text = "Proxy applies on next bot start. Enabling a proxy on an already "
                 + "logged-in account may require a fresh login.";
+        }
+
+        UpdateActionButtons();
+    }
+
+    private void NeverUseOwnIpCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (NeverUseOwnIpCheckBox.IsChecked == true && UseProxyCheckBox.IsChecked != true)
+        {
+            UseProxyCheckBox.IsChecked = true;
+            SafeRunAccountEditorAction(() => SetProxyFieldsEnabled(true), "enable proxy fields");
         }
 
         UpdateActionButtons();
@@ -548,7 +567,8 @@ public partial class AccountsWindow : Window
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .ToList();
-        var dialog = new ProxyLibraryWindow(_proxyLibraryStore, accountNames)
+        var activeProxyServer = UseProxyCheckBox.IsChecked == true ? BuildProxyServerString() : string.Empty;
+        var dialog = new ProxyLibraryWindow(_proxyLibraryStore, accountNames, activeProxyServer, ResolveCurrentEditorAccountName())
         {
             Owner = this,
         };
@@ -851,14 +871,15 @@ public partial class AccountsWindow : Window
         var serverUrl = selectedServer?.BaseUrl ?? _defaultServerUrl;
 
         var proxyEnabled = UseProxyCheckBox.IsChecked == true;
+        var neverUseOwnIp = NeverUseOwnIpCheckBox.IsChecked == true;
         var proxyServer = BuildProxyServerString();
-        if (proxyEnabled)
+        if (proxyEnabled || neverUseOwnIp)
         {
             var proxyHost = ProxyHostTextBox.Text.Trim();
             var proxyPort = ProxyPortTextBox.Text.Trim();
             if (proxyHost.Length == 0 || proxyPort.Length == 0)
             {
-                throw new InvalidOperationException("Proxy host/IP and port are required when 'Use proxy' is on.");
+                throw new InvalidOperationException("Proxy host/IP and port are required when proxy protection is on.");
             }
 
             if (proxyHost.Any(char.IsWhiteSpace) || proxyHost.Contains("://", StringComparison.Ordinal) || proxyHost.Contains(':'))
@@ -869,6 +890,15 @@ public partial class AccountsWindow : Window
             if (!int.TryParse(proxyPort, out var parsedPort) || parsedPort is < 1 or > 65535)
             {
                 throw new InvalidOperationException("Proxy port must be a number between 1 and 65535.");
+            }
+
+            if (neverUseOwnIp)
+            {
+                proxyEnabled = true;
+                if (!ProxyParser.TryBuild(proxyServer, out _, out _))
+                {
+                    throw new InvalidOperationException("Never use own IP address requires a valid proxy.");
+                }
             }
         }
 
@@ -885,6 +915,7 @@ public partial class AccountsWindow : Window
             ServerUrl = serverUrl,
             ProxyEnabled = proxyEnabled,
             ProxyServer = proxyServer,
+            NeverUseOwnIp = neverUseOwnIp,
         };
     }
 
@@ -910,6 +941,7 @@ public partial class AccountsWindow : Window
         PasswordTextBox.Visibility = Visibility.Collapsed;
         TogglePasswordButton.Content = "Show";
         UseProxyCheckBox.IsChecked = false;
+        NeverUseOwnIpCheckBox.IsChecked = false;
         SafeRunAccountEditorAction(() =>
         {
             LoadProxyFields(string.Empty);
@@ -989,6 +1021,7 @@ public partial class AccountsWindow : Window
         _baselineServerUrl = (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl?.Trim() ?? string.Empty;
         _baselineProxyEnabled = UseProxyCheckBox.IsChecked == true;
         _baselineProxyServer = BuildProxyServerString();
+        _baselineNeverUseOwnIp = NeverUseOwnIpCheckBox.IsChecked == true;
     }
 
     private bool HasUnsavedChanges()
@@ -998,12 +1031,14 @@ public partial class AccountsWindow : Window
         var currentServerUrl = (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl?.Trim() ?? string.Empty;
         var currentProxyEnabled = UseProxyCheckBox.IsChecked == true;
         var currentProxyServer = BuildProxyServerString();
+        var currentNeverUseOwnIp = NeverUseOwnIpCheckBox.IsChecked == true;
 
         return !string.Equals(currentUsername, _baselineUsername, StringComparison.Ordinal)
             || !string.Equals(currentPassword, _baselinePassword, StringComparison.Ordinal)
             || !string.Equals(currentServerUrl, _baselineServerUrl, StringComparison.OrdinalIgnoreCase)
             || currentProxyEnabled != _baselineProxyEnabled
-            || !string.Equals(currentProxyServer, _baselineProxyServer, StringComparison.Ordinal);
+            || !string.Equals(currentProxyServer, _baselineProxyServer, StringComparison.Ordinal)
+            || currentNeverUseOwnIp != _baselineNeverUseOwnIp;
     }
 
     private void SetProxyFieldsEnabled(bool enabled)

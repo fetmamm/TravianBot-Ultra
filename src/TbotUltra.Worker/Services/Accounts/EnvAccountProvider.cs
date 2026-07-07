@@ -48,6 +48,10 @@ public sealed class EnvAccountProvider : IAccountProvider
             "true",
             StringComparison.OrdinalIgnoreCase);
         var proxyServer = (GetValue($"{envPrefix}PROXY_SERVER", envValues) ?? string.Empty).Trim();
+        var neverUseOwnIp = string.Equals(
+            (GetValue($"{envPrefix}NEVER_USE_OWN_IP", envValues) ?? string.Empty).Trim(),
+            "true",
+            StringComparison.OrdinalIgnoreCase);
 
         if (string.IsNullOrWhiteSpace(username) || string.IsNullOrWhiteSpace(password))
         {
@@ -72,6 +76,7 @@ public sealed class EnvAccountProvider : IAccountProvider
             ServerUrl = serverUrl,
             ProxyEnabled = proxyEnabled,
             ProxyServer = proxyServer,
+            NeverUseOwnIp = neverUseOwnIp,
         };
     }
 
