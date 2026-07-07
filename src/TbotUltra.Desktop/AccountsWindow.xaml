@@ -183,27 +183,53 @@
                         <ColumnDefinition Width="105" />
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="90" />
+                        <ColumnDefinition Width="120" />
                     </Grid.ColumnDefinitions>
                     <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
                     <TextBlock Grid.Row="0"
                                Grid.Column="0"
+                               Grid.ColumnSpan="3"
+                               Text="SAVED PROXIES"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource SlateTextBrush}"
+                               Margin="0,0,8,2" />
+                    <ComboBox x:Name="SavedProxyComboBox"
+                              Grid.Row="1"
+                              Grid.Column="0"
+                              Grid.ColumnSpan="3"
+                              Margin="0,0,8,8"
+                              DisplayMemberPath="DisplayText"
+                              IsEnabled="False"
+                              SelectionChanged="SavedProxyComboBox_SelectionChanged" />
+                    <Button x:Name="ProxyLibraryButton"
+                            Grid.Row="1"
+                            Grid.Column="3"
+                            Content="Proxy list…"
+                            Margin="0,0,0,8"
+                            Click="ProxyLibraryButton_Click" />
+
+                    <TextBlock Grid.Row="2"
+                               Grid.Column="0"
                                Text="TYPE"
                                FontSize="10"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource SlateTextBrush}"
                                Margin="0,0,8,2" />
-                    <TextBlock Grid.Row="0"
+                    <TextBlock Grid.Row="2"
                                Grid.Column="1"
                                Text="IP"
                                FontSize="10"
                                FontWeight="SemiBold"
                                Foreground="{DynamicResource SlateTextBrush}"
                                Margin="0,0,8,2" />
-                    <TextBlock Grid.Row="0"
+                    <TextBlock Grid.Row="2"
                                Grid.Column="2"
                                Text="PORT"
                                FontSize="10"
@@ -212,7 +238,7 @@
                                Margin="0,0,0,2" />
 
                     <ComboBox x:Name="ProxySchemeComboBox"
-                              Grid.Row="1"
+                              Grid.Row="3"
                               Grid.Column="0"
                               Margin="0,0,8,0"
                               IsEnabled="False"
@@ -223,14 +249,14 @@
                         <ComboBoxItem Content="HTTP" Tag="http" />
                     </ComboBox>
                     <TextBox x:Name="ProxyHostTextBox"
-                             Grid.Row="1"
+                             Grid.Row="3"
                              Grid.Column="1"
                              Margin="0,0,8,0"
                              IsEnabled="False"
                              TextChanged="EditorField_Changed"
                              ToolTip="Proxy host or IP, for example 45.61.129.165" />
                     <TextBox x:Name="ProxyPortTextBox"
-                             Grid.Row="1"
+                             Grid.Row="3"
                              Grid.Column="2"
                              IsEnabled="False"
                              TextChanged="EditorField_Changed"

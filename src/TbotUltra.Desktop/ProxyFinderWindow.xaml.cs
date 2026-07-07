@@ -25,6 +25,7 @@ public partial class ProxyFinderWindow : Window
     private const int HardMaxProxies = 20000;
 
     private readonly ProxyListTester _tester = new(log: message => Debug.WriteLine(message));
+    private readonly ProxyLibraryStore _proxyLibraryStore = new();
     private CancellationTokenSource? _operationCts;
     private bool _busy;
     // The rows currently shown; persisted on close so a re-open restores the last results.
@@ -244,6 +245,41 @@ public partial class ProxyFinderWindow : Window
         SelectedProxy = row.Candidate;
         DialogResult = true;
         Close();
+    }
+
+    private void AddToLibraryButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not FrameworkElement { DataContext: ProxyResultRow row })
+        {
+            return;
+        }
+
+        try
+        {
+            var alreadyExists = _proxyLibraryStore.FindByServer(row.Candidate.Server) is not null;
+            var country = row.Country == "-" ? string.Empty : row.Country;
+            var name = string.IsNullOrWhiteSpace(country)
+                ? row.Candidate.HostPort
+                : $"{country} {row.Candidate.Host}";
+            _proxyLibraryStore.Upsert(new ProxyLibraryEntry
+            {
+                Name = name,
+                Scheme = row.Candidate.Scheme,
+                Host = row.Candidate.Host,
+                Port = row.Candidate.Port,
+                Country = country,
+                LatencyMs = row.LatencyMs,
+                CreatedAtUtc = DateTime.UtcNow,
+            });
+
+            ValidationTextBlock.Text = alreadyExists
+                ? $"Already in proxy list: {row.Candidate.HostPort}"
+                : $"Added to proxy list: {row.Candidate.HostPort}";
+        }
+        catch (Exception ex)
+        {
+            ValidationTextBlock.Text = $"Could not add proxy: {ex.Message}";
+        }
     }
 
     private void GetListsButton_Click(object sender, RoutedEventArgs e)

@@ -200,6 +200,19 @@
                     <DataGridTemplateColumn Header="" Width="76">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
+                                <Button Content="Add"
+                                        Width="56"
+                                        Height="22"
+                                        Padding="0"
+                                        VerticalAlignment="Center"
+                                        HorizontalAlignment="Center"
+                                        Click="AddToLibraryButton_Click" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="" Width="76">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
                                 <Button Content="Use"
                                         Width="56"
                                         Height="22"

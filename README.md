@@ -56,7 +56,6 @@ folder per account (e.g. `Tbot-account1\`, `Tbot-account2\`) and run them at the
 time — each copy keeps its own config, account, browser session and logs. Don't run two
 instances from the same folder.
 
-
 ## What can this program do?
 
 TravianBot Ultra is an automation tool for Travian. It helps players automate repetitive tasks such as village management, resource handling, farming, troops, construction and so much more.
@@ -67,8 +66,6 @@ Compatible with:
 - `Official Travian` — Travian Legends 4.6+ — Official servers
 
 `NOTE:` It is important that the language is set to `English` in the travian browser settings page.
-
-`Way forward:` new development targets official servers only.
 
 ## Features:
 
@@ -94,25 +91,26 @@ Compatible with:
 - Increase adventure to hard button / video watch
 - Auto town hall celebrations
 - Construct 25% faster with button / video watch
-
-
-- Read ingame status
-- Read village data
+- Watch video to get 15% resource bonus production
+- Save reports as PNG to the program folder and blur out attacker, defender and alliance
+- Support to use Proxy per account, manage proxy lists and more (Using: https://github.com/TheSpeedX/PROXY-List)
+- Make building templates that is reusable for different villages
+-----------------------------------------------------------------------------------
+- Read account/village data
 - Clean dark mode UI
 - Multi-village support
 - Calculate building time and resource cost for buildings + resourcefields
 - Easy update to new version via the app (checks at startup and hourly while open)
-- Support to use Proxy per account
+
 
 ## Future functions:
 
-- +15% resource production for 8h automatic watch video
-- Detect incomming attacks and send notification
+- Detect incoming attacks and send notification
 - Auto scout players and farms
 - Auto bid on auctions
-- Auction hustle to gain silver (buy cheap, sell expensive)
 
 All features is configurable to all the players villages. So different villages can use different settings (ex. only build troops in one village and only buildings in another etc.)
+Most functions is possible to configure as you like
 
 ## Known bugs:
 
