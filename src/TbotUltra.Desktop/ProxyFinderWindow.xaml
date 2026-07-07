@@ -4,10 +4,10 @@
         xmlns:views="clr-namespace:TbotUltra.Desktop.Views"
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Find best proxy"
-        Height="640"
-        Width="660"
-        MinHeight="560"
-        MinWidth="580"
+        Height="704"
+        Width="674"
+        MinHeight="616"
+        MinWidth="594"
         WindowStartupLocation="CenterOwner">
     <Grid>
         <Grid Margin="16">
@@ -89,10 +89,9 @@
                                         ToolTip="How many proxies are tested at the same time.&#10;Higher is faster but uses more bandwidth; 100 is a good default." />
                     </StackPanel>
                     <ComboBox x:Name="ParallelComboBox" Width="80" SelectedValuePath="Tag">
-                        <ComboBoxItem Content="10" Tag="10" />
-                        <ComboBoxItem Content="20" Tag="20" />
-                        <ComboBoxItem Content="50" Tag="50" />
                         <ComboBoxItem Content="100" Tag="100" />
+                        <ComboBoxItem Content="200" Tag="200" />
+                        <ComboBoxItem Content="500" Tag="500" />
                     </ComboBox>
                 </StackPanel>
 
@@ -124,12 +123,29 @@
                     </ComboBox>
                 </StackPanel>
 
-                <Button x:Name="GetListsButton"
-                        Grid.Column="5"
-                        Content="Get proxy list (Github)"
-                        MinWidth="150"
-                        VerticalAlignment="Bottom"
-                        Click="GetListsButton_Click" />
+                <StackPanel Grid.Column="5" VerticalAlignment="Bottom">
+                    <Button x:Name="GetListsButton"
+                            Content="Get proxy list (Github)"
+                            MinWidth="150"
+                            Click="GetListsButton_Click" />
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0" HorizontalAlignment="Right">
+                        <Button x:Name="GetSocks5Button" Content="SOCKS5" Width="66" Margin="0,0,6,0" Tag="socks5" Click="GetListButton_Click"
+                                Background="{DynamicResource InfoBgBrush}"
+                                BorderBrush="{DynamicResource InfoBrush}"
+                                Foreground="{DynamicResource InfoTextBrush}"
+                                ToolTip="Set type to SOCKS5 and open the SOCKS5 list to copy." />
+                        <Button x:Name="GetSocks4Button" Content="SOCKS4" Width="66" Margin="0,0,6,0" Tag="socks4" Click="GetListButton_Click"
+                                Background="{DynamicResource PurpleBgBrush}"
+                                BorderBrush="{DynamicResource PurpleBorderBrush}"
+                                Foreground="{DynamicResource PurpleTextBrush}"
+                                ToolTip="Set type to SOCKS4 and open the SOCKS4 list to copy." />
+                        <Button x:Name="GetHttpButton" Content="HTTP" Width="56" Tag="http" Click="GetListButton_Click"
+                                Background="{DynamicResource WarningBgBrush}"
+                                BorderBrush="{DynamicResource WarningBorderBrush}"
+                                Foreground="{DynamicResource WarningTextBrush}"
+                                ToolTip="Set type to HTTP and open the HTTP list to copy." />
+                    </StackPanel>
+                </StackPanel>
             </Grid>
 
             <TextBlock Grid.Row="3"

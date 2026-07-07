@@ -31,6 +31,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
@@ -100,6 +101,32 @@
 
                 <Border Grid.Row="3" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
                     <StackPanel>
+                        <TextBlock Text="Proxy" Foreground="{DynamicResource TextSubtleBrush}" Margin="0,0,0,5" />
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse x:Name="ProxyStatusIndicator"
+                                     Width="10"
+                                     Height="10"
+                                     Fill="{DynamicResource TextMutedBrush}"
+                                     VerticalAlignment="Center"
+                                     Margin="0,0,7,0" />
+                            <TextBlock x:Name="ProxyStatusTextBlock"
+                                       Text="No proxy is used"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="ProxyStatusDetailTextBlock"
+                                       Margin="8,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       FontSize="11"
+                                       TextTrimming="CharacterEllipsis"
+                                       Visibility="Collapsed" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="4" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
+                    <StackPanel>
                         <DockPanel Margin="0,0,0,5" LastChildFill="False">
                             <TextBlock DockPanel.Dock="Left" Text="Village" Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
                             <!-- Switch village lives here (next to the dropdown) so the bot's working village can be
@@ -128,7 +155,7 @@
                     </StackPanel>
                 </Border>
 
-                <StackPanel Grid.Row="4">
+                <StackPanel Grid.Row="5">
                     <!-- Monochrome line icons (Segoe MDL2 Assets) per the reference; tinted with the
                          button's own foreground. Glyph codepoints can be swapped freely if one looks off. -->
                     <StackPanel.Resources>
@@ -188,7 +215,7 @@
                     </Button>
                 </StackPanel>
 
-                <Border Grid.Row="5" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7">
+                <Border Grid.Row="6" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7">
                     <StackPanel>
                         <Border x:Name="LoopStateBadge"
                                 Background="{DynamicResource StateIdleBrush}"

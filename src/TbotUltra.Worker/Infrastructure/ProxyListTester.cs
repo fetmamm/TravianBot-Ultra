@@ -32,7 +32,9 @@ public sealed record ProxyEnrichment(string Ip, string Country);
 /// Tests a pasted list of proxies (potentially thousands) with lightweight <see cref="HttpClient"/>
 /// requests instead of a full browser, so it stays fast and low on resources. Parsing, ranking and
 /// concurrency limiting are pure and unit-testable; the actual network probe is injectable so tests
-/// never touch the network. Ranks survivors by latency and returns the fastest few.
+/// never touch the network. Each proxy is probed twice back-to-back and only kept if both succeed,
+/// which filters out the many free proxies that answer once then die. Ranks survivors by latency and
+/// returns the fastest few.
 /// </summary>
 public sealed class ProxyListTester
 {
@@ -42,16 +44,17 @@ public sealed class ProxyListTester
     private const string IpLookupUrl = "https://ipwho.is/";
     private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(6);
 
-    private readonly Func<string, CancellationToken, Task<ProxyProbeResult>> _probe;
+    private readonly Func<string, string, CancellationToken, Task<ProxyProbeResult>> _probe;
     private readonly Action<string>? _log;
 
     /// <param name="probe">
     /// Override the network probe (mainly for tests). Receives a <see cref="ProxyCandidate.Server"/>
-    /// string and returns success + latency. Defaults to a real HttpClient-through-proxy probe.
+    /// string plus the target URL to fetch through it, and returns success + latency. Defaults to a
+    /// real HttpClient-through-proxy probe.
     /// </param>
     /// <param name="log">Optional log sink for diagnostics.</param>
     public ProxyListTester(
-        Func<string, CancellationToken, Task<ProxyProbeResult>>? probe = null,
+        Func<string, string, CancellationToken, Task<ProxyProbeResult>>? probe = null,
         Action<string>? log = null)
     {
         _probe = probe ?? DefaultProbeAsync;
@@ -105,7 +108,8 @@ public sealed class ProxyListTester
     /// <summary>
     /// Tests every candidate with at most <paramref name="maxConcurrency"/> probes in flight, reports
     /// progress, and returns the <paramref name="topCount"/> fastest working proxies (0 = keep all).
-    /// On cancellation it returns whatever passed before the cancel.
+    /// Each proxy must pass two consecutive probes to count as working. On cancellation it returns
+    /// whatever passed before the cancel.
     /// </summary>
     public async Task<IReadOnlyList<ProxyTestResult>> TestAsync(
         IReadOnlyList<ProxyCandidate> candidates,
@@ -130,7 +134,7 @@ public sealed class ProxyListTester
             await throttle.WaitAsync(cancellationToken).ConfigureAwait(false);
             try
             {
-                var probe = await _probe(candidate.Server, cancellationToken).ConfigureAwait(false);
+                var probe = await ProbeStableAsync(candidate.Server, cancellationToken).ConfigureAwait(false);
                 if (probe.Success)
                 {
                     working.Add(new ProxyTestResult(candidate, probe.LatencyMs));
@@ -172,6 +176,78 @@ public sealed class ProxyListTester
     }
 
     /// <summary>
+    /// Second stage: from an already-live <paramref name="pool"/> (from <see cref="TestAsync"/>), keeps
+    /// only proxies that can actually reach <paramref name="targetUrl"/>. A proxy may answer a generic
+    /// liveness probe yet fail to connect onward to the real target (e.g. its exit IP is blocked by the
+    /// site's CDN) — that is exactly what makes a "green" proxy fail in the bot's browser. Any HTTP
+    /// response counts as reachable (even a 403/503 means the connection got through). Keeps stage-1
+    /// latency for ranking and returns the <paramref name="topCount"/> fastest (0 = keep all).
+    /// </summary>
+    public async Task<IReadOnlyList<ProxyTestResult>> FilterReachableAsync(
+        IReadOnlyList<ProxyTestResult> pool,
+        string targetUrl,
+        int maxConcurrency,
+        int topCount,
+        IProgress<ProxyTestProgress>? progress,
+        CancellationToken cancellationToken)
+    {
+        if (pool.Count == 0)
+        {
+            return Array.Empty<ProxyTestResult>();
+        }
+
+        _log?.Invoke($"[proxytest] reachability check against {targetUrl}: {pool.Count} proxies.");
+        var reachable = new ConcurrentBag<ProxyTestResult>();
+        var tested = 0;
+        var found = 0;
+        using var throttle = new SemaphoreSlim(Math.Max(1, maxConcurrency));
+
+        var tasks = pool.Select(async item =>
+        {
+            await throttle.WaitAsync(cancellationToken).ConfigureAwait(false);
+            try
+            {
+                var probe = await _probe(item.Candidate.Server, targetUrl, cancellationToken).ConfigureAwait(false);
+                if (probe.Success)
+                {
+                    reachable.Add(item); // keep the stage-1 latency so ranking stays consistent
+                    Interlocked.Increment(ref found);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                _log?.Invoke($"[proxytest] reachability error for {item.Candidate.HostPort}: {ex.Message}");
+            }
+            finally
+            {
+                var doneCount = Interlocked.Increment(ref tested);
+                progress?.Report(new ProxyTestProgress(doneCount, pool.Count, Volatile.Read(ref found)));
+                throttle.Release();
+            }
+        }).ToList();
+
+        try
+        {
+            await Task.WhenAll(tasks).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException)
+        {
+            _log?.Invoke("[proxytest] reachability cancelled; returning proxies checked so far.");
+        }
+
+        var ranked = reachable
+            .OrderBy(item => item.LatencyMs)
+            .Take(topCount <= 0 ? reachable.Count : topCount)
+            .ToList();
+        _log?.Invoke($"[proxytest] reachable: {reachable.Count}, returning top {ranked.Count}.");
+        return ranked;
+    }
+
+    /// <summary>
     /// Best-effort IP/country lookup through the proxy, used only to enrich the handful of top
     /// results. Never throws for a bad proxy — returns empty fields instead.
     /// </summary>
@@ -206,7 +282,28 @@ public sealed class ProxyListTester
         }
     }
 
-    private static async Task<ProxyProbeResult> DefaultProbeAsync(string server, CancellationToken cancellationToken)
+    // Probe twice back-to-back over fresh connections; keep the proxy only if both succeed. This
+    // filters out the many free proxies that answer a single request then die or refuse the next
+    // connection — the main reason a "green" proxy fails once the bot actually uses it. Latency is
+    // the average of the two successful probes. Short-circuits when the first probe already fails.
+    private async Task<ProxyProbeResult> ProbeStableAsync(string server, CancellationToken cancellationToken)
+    {
+        var first = await _probe(server, LatencyProbeUrl, cancellationToken).ConfigureAwait(false);
+        if (!first.Success)
+        {
+            return new ProxyProbeResult(false, 0);
+        }
+
+        var second = await _probe(server, LatencyProbeUrl, cancellationToken).ConfigureAwait(false);
+        if (!second.Success)
+        {
+            return new ProxyProbeResult(false, 0);
+        }
+
+        return new ProxyProbeResult(true, (first.LatencyMs + second.LatencyMs) / 2);
+    }
+
+    private static async Task<ProxyProbeResult> DefaultProbeAsync(string server, string url, CancellationToken cancellationToken)
     {
         var handler = new SocketsHttpHandler
         {
@@ -222,7 +319,7 @@ public sealed class ProxyListTester
         {
             // Any HTTP response means the proxy relayed the request, so it is reachable/usable.
             using var response = await client.GetAsync(
-                LatencyProbeUrl,
+                url,
                 HttpCompletionOption.ResponseHeadersRead,
                 cancellationToken).ConfigureAwait(false);
             stopwatch.Stop();

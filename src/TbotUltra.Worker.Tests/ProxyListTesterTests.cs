@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using TbotUltra.Worker.Infrastructure;
 using Xunit;
 
@@ -61,7 +62,7 @@ public sealed class ProxyListTesterTests
         var candidates = ProxyListTester.ParseCandidates("1.1.1.1:1\n2.2.2.2:2\n3.3.3.3:3\n4.4.4.4:4", "socks5", 0);
 
         // Fake probe: latency decreases with the last IP octet; the ".3" proxy is dead.
-        var tester = new ProxyListTester(probe: (server, _) =>
+        var tester = new ProxyListTester(probe: (server, _, _) =>
         {
             var latency = server.Contains(":4", StringComparison.Ordinal) ? 10
                 : server.Contains(":2", StringComparison.Ordinal) ? 20
@@ -88,7 +89,7 @@ public sealed class ProxyListTesterTests
         var current = 0;
         var peak = 0;
         var gate = new object();
-        var tester = new ProxyListTester(probe: async (_, ct) =>
+        var tester = new ProxyListTester(probe: async (_, _, ct) =>
         {
             lock (gate)
             {
@@ -122,7 +123,7 @@ public sealed class ProxyListTesterTests
                 ticks.Add(p);
             }
         });
-        var tester = new ProxyListTester(probe: (_, _) => Task.FromResult(new ProxyProbeResult(true, 1)));
+        var tester = new ProxyListTester(probe: (_, _, _) => Task.FromResult(new ProxyProbeResult(true, 1)));
 
         await tester.TestAsync(candidates, maxConcurrency: 1, topCount: 10, progress, CancellationToken.None);
 
@@ -136,12 +137,69 @@ public sealed class ProxyListTesterTests
     }
 
     [Fact]
+    public async Task TestAsync_DropsProxiesThatFailTheSecondProbe()
+    {
+        var candidates = ProxyListTester.ParseCandidates("1.1.1.1:1\n2.2.2.2:2", "socks5", 0);
+        var calls = new ConcurrentDictionary<string, int>();
+        var tester = new ProxyListTester(probe: (server, _, _) =>
+        {
+            var attempt = calls.AddOrUpdate(server, 1, (_, count) => count + 1);
+
+            // 1.1.1.1 is a one-hit wonder: passes the first probe, fails the second.
+            if (server.Contains("1.1.1.1", StringComparison.Ordinal))
+            {
+                return Task.FromResult(new ProxyProbeResult(attempt == 1, 10));
+            }
+
+            // 2.2.2.2 is stable: passes both probes with latencies 20 and 40 -> average 30.
+            return Task.FromResult(new ProxyProbeResult(true, attempt == 1 ? 20 : 40));
+        });
+
+        var results = await tester.TestAsync(candidates, maxConcurrency: 2, topCount: 10, progress: null, CancellationToken.None);
+
+        Assert.Single(results);
+        Assert.Equal("2.2.2.2:2", results[0].Candidate.HostPort);
+        Assert.Equal(30, results[0].LatencyMs);
+    }
+
+    [Fact]
     public async Task TestAsync_ReturnsEmptyForNoCandidates()
     {
-        var tester = new ProxyListTester(probe: (_, _) => Task.FromResult(new ProxyProbeResult(true, 1)));
+        var tester = new ProxyListTester(probe: (_, _, _) => Task.FromResult(new ProxyProbeResult(true, 1)));
 
         var results = await tester.TestAsync(Array.Empty<ProxyCandidate>(), 10, 10, null, CancellationToken.None);
 
         Assert.Empty(results);
+    }
+
+    [Fact]
+    public async Task FilterReachableAsync_KeepsOnlyProxiesThatReachTargetAndRanksByLatency()
+    {
+        var candidates = ProxyListTester.ParseCandidates("1.1.1.1:1\n2.2.2.2:2\n3.3.3.3:3", "socks5", 0);
+
+        // Liveness (gstatic) passes for all with latency by octet; reachability (travian) passes only
+        // for 1.1.1.1 and 3.3.3.3 — 2.2.2.2 is alive but cannot reach the real target.
+        var tester = new ProxyListTester(probe: (server, url, _) =>
+        {
+            if (url.Contains("gstatic", StringComparison.Ordinal))
+            {
+                var latency = server.Contains("1.1.1.1", StringComparison.Ordinal) ? 10
+                    : server.Contains("2.2.2.2", StringComparison.Ordinal) ? 20
+                    : 30;
+                return Task.FromResult(new ProxyProbeResult(true, latency));
+            }
+
+            var reachable = server.Contains("1.1.1.1", StringComparison.Ordinal)
+                || server.Contains("3.3.3.3", StringComparison.Ordinal);
+            return Task.FromResult(new ProxyProbeResult(reachable, 0));
+        });
+
+        var live = await tester.TestAsync(candidates, maxConcurrency: 3, topCount: 0, progress: null, CancellationToken.None);
+        var reachable = await tester.FilterReachableAsync(live, "https://www.travian.com/", maxConcurrency: 3, topCount: 10, progress: null, CancellationToken.None);
+
+        Assert.Equal(2, reachable.Count);
+        Assert.Equal("1.1.1.1:1", reachable[0].Candidate.HostPort);
+        Assert.Equal("3.3.3.3:3", reachable[1].Candidate.HostPort);
+        Assert.DoesNotContain(reachable, item => item.Candidate.HostPort == "2.2.2.2:2");
     }
 }

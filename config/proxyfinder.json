@@ -1,0 +1,8 @@
+{
+  "proxyList": "",
+  "protocol": "socks5",
+  "parallel": "200",
+  "maxProxies": "2000",
+  "top": "10",
+  "results": []
+}
