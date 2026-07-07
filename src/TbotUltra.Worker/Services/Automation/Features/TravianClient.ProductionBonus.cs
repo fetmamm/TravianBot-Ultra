@@ -88,6 +88,16 @@ public sealed partial class TravianClient
         }
         """;
 
+    private const string ReadProductionBonusServerUtcOffsetScript =
+        """
+        () => {
+          const raw = window.Travian && Travian.Game ? Travian.Game.timezoneOffsetToUTC : null;
+          const secondsToUtc = Number(raw);
+          if (!Number.isFinite(secondsToUtc)) return '';
+          return String(-secondsToUtc);
+        }
+        """;
+
     private const string ClickProductionBonusVideoButtonScript =
         """
         (cls) => {
@@ -117,17 +127,17 @@ public sealed partial class TravianClient
         {
             await EnsureLoggedInAsync();
 
-            var initialBoxes = await ReadProductionBonusBoxesInMainBrowserAsync(cancellationToken);
-            var activatable = initialBoxes
+            var initialState = await ReadProductionBonusPageStateInMainBrowserAsync(cancellationToken);
+            var activatable = initialState.Boxes
                 .Where(box => box.PurplePresent && box.PurpleEnabled && !box.Active)
                 .Select(box => box.Resource)
                 .ToList();
 
             if (activatable.Count == 0)
             {
-                var stateOnly = ProductionBonusDomParser.Classify(initialBoxes);
+                var stateOnly = ProductionBonusDomParser.Classify(initialState.Boxes);
                 Notify($"[production-bonus] nothing to activate — {FormatProductionBonusLog(stateOnly)}.");
-                return $"Production bonus: nothing to activate. {ProductionBonusDomParser.BuildResultToken(stateOnly)}";
+                return $"Production bonus: nothing to activate. {ProductionBonusDomParser.BuildResultToken(stateOnly)}{FormatProductionBonusOffsetToken(initialState.ServerUtcOffset)}";
             }
 
             Notify($"[production-bonus] activatable resources: {string.Join(", ", activatable)}.");
@@ -169,11 +179,11 @@ public sealed partial class TravianClient
             }
 
             // Verify and collect the resulting timers from the main browser.
-            var finalBoxes = await ReadProductionBonusBoxesInMainBrowserAsync(cancellationToken);
-            var finalStates = ProductionBonusDomParser.Classify(finalBoxes);
+            var finalPageState = await ReadProductionBonusPageStateInMainBrowserAsync(cancellationToken);
+            var finalStates = ProductionBonusDomParser.Classify(finalPageState.Boxes);
             var token = ProductionBonusDomParser.BuildResultToken(finalStates);
             Notify($"[production-bonus] done — {FormatProductionBonusLog(finalStates)}.");
-            return $"Production bonus: processed {activatable.Count} resource(s). {token}";
+            return $"Production bonus: processed {activatable.Count} resource(s). {token}{FormatProductionBonusOffsetToken(finalPageState.ServerUtcOffset)}";
         }
         catch (OperationCanceledException)
         {
@@ -197,10 +207,10 @@ public sealed partial class TravianClient
         try
         {
             await EnsureLoggedInAsync();
-            var boxes = await ReadProductionBonusBoxesInMainBrowserAsync(cancellationToken);
-            var states = ProductionBonusDomParser.Classify(boxes, afterActivationAttempt: false);
+            var pageState = await ReadProductionBonusPageStateInMainBrowserAsync(cancellationToken);
+            var states = ProductionBonusDomParser.Classify(pageState.Boxes, afterActivationAttempt: false);
             Notify($"[production-bonus] scan done — {FormatProductionBonusLog(states)}.");
-            return $"Production bonus: scanned. {ProductionBonusDomParser.BuildResultToken(states)}";
+            return $"Production bonus: scanned. {ProductionBonusDomParser.BuildResultToken(states)}{FormatProductionBonusOffsetToken(pageState.ServerUtcOffset)}";
         }
         catch (OperationCanceledException)
         {
@@ -215,19 +225,24 @@ public sealed partial class TravianClient
 
     // Opens the Advantages tab in the main browser, reads the boxes, then returns to dorf1 so no ad/video
     // iframe is left loaded in the main context.
-    private async Task<IReadOnlyList<ProductionBonusDomParser.ProductionBonusBox>> ReadProductionBonusBoxesInMainBrowserAsync(
+    private sealed record ProductionBonusPageState(
+        IReadOnlyList<ProductionBonusDomParser.ProductionBonusBox> Boxes,
+        TimeSpan? ServerUtcOffset);
+
+    private async Task<ProductionBonusPageState> ReadProductionBonusPageStateInMainBrowserAsync(
         CancellationToken cancellationToken)
     {
         await GotoAsync(Paths.Resources, cancellationToken);
         if (!await OpenAdvantagesTabAsync(cancellationToken))
         {
             Notify("[production-bonus:verbose] could not open the Advantages tab to read bonus state.");
-            return Array.Empty<ProductionBonusDomParser.ProductionBonusBox>();
+            return new ProductionBonusPageState(Array.Empty<ProductionBonusDomParser.ProductionBonusBox>(), null);
         }
 
         var boxes = ProductionBonusDomParser.ParseBoxesJson(await ReadProductionBonusBoxesRawAsync(cancellationToken));
+        var serverUtcOffset = await ReadProductionBonusServerUtcOffsetAsync(cancellationToken);
         await GotoAsync(Paths.Resources, cancellationToken);
-        return boxes;
+        return new ProductionBonusPageState(boxes, serverUtcOffset);
     }
 
     // Isolated browser: activate exactly one resource's +15% video.
@@ -473,6 +488,20 @@ public sealed partial class TravianClient
         }
     }
 
+    private async Task<TimeSpan?> ReadProductionBonusServerUtcOffsetAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            var raw = await _page.EvaluateAsync<string>(ReadProductionBonusServerUtcOffsetScript);
+            return int.TryParse(raw, out var seconds) ? TimeSpan.FromSeconds(seconds) : null;
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return null;
+        }
+    }
+
     private static string ResourceBonusBoxClass(string resource) => resource switch
     {
         "lumber" => "lumberProductionBonus",
@@ -492,4 +521,9 @@ public sealed partial class TravianClient
                 return $"{state.Resource}={bonus}({state.RemainingSeconds}s)";
             }));
     }
+
+    private static string FormatProductionBonusOffsetToken(TimeSpan? serverUtcOffset)
+        => serverUtcOffset.HasValue
+            ? " " + ProductionBonusDomParser.BuildServerUtcOffsetToken(serverUtcOffset.Value)
+            : string.Empty;
 }

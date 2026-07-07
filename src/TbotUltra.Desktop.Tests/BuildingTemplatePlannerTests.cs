@@ -63,6 +63,40 @@ public sealed class BuildingTemplatePlannerTests
     }
 
     [Fact]
+    public void Plan_ResourceScopeWood_QueuesOnlyWoodcutters()
+    {
+        var status = Status("Teutons");
+        var result = _planner.Plan(
+            [AllResources(3, "wood")],
+            status,
+            serverSpeed: 1,
+            mainBuildingLevel: 1);
+
+        Assert.Empty(result.Errors);
+        Assert.All(result.Actions, action => Assert.Equal("upgrade_resource_to_level", action.TaskName));
+        Assert.All(result.Actions, action => Assert.Contains("Woodcutter", action.DisplayName, StringComparison.OrdinalIgnoreCase));
+        Assert.DoesNotContain(result.Actions, action => action.DisplayName.Contains("Clay", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Plan_ResourceScopeWood_SatisfiesWoodRequirementOnly()
+    {
+        var status = Status("Teutons", Building(19, "Main Building", 5, 15));
+        var result = _planner.Plan(
+            [
+                AllResources(10, "wood"),
+                Row(5, "Sawmill", 1),
+                Row(6, "Brickyard", 1),
+            ],
+            status,
+            serverSpeed: 1,
+            mainBuildingLevel: 5);
+
+        Assert.Contains(result.Actions, item => item.DisplayName.Contains("Sawmill", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(result.Errors, item => item.Contains("Clay Pit", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Plan_ExistingBuildingOnDifferentSlot_ReusesExistingSlot()
     {
         var status = Status(
@@ -147,11 +181,12 @@ public sealed class BuildingTemplatePlannerTests
             PreferredSlotId = preferredSlot,
         };
 
-    private static BuildingTemplateRow AllResources(int level)
+    private static BuildingTemplateRow AllResources(int level, string scope = "all")
         => new()
         {
             Kind = BuildingTemplateRowKind.AllResources,
             TargetLevel = level,
+            ResourceScope = scope,
         };
 
     private static Building Building(int slot, string name, int level, int gid)

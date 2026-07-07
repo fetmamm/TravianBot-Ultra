@@ -117,7 +117,7 @@ public partial class MainWindow
         config[BotOptionPayloadKeys.ProductionBonusVideoEnabled] = ProductionBonusVideoCheckBox.IsChecked == true;
         _botConfigStore.Save(config);
 
-        // Enabled while the loop is already running → try to queue immediately (subject to the 24h gate).
+        // Enabled while the loop is already running -> try to queue immediately (subject to the 09:00 reset gate).
         if (ProductionBonusVideoCheckBox.IsChecked == true)
         {
             TriggerImmediateIfLoopRunning(options =>

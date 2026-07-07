@@ -48,7 +48,7 @@ public sealed class ProductionBonusDomParserTests
         var clay = states.Single(s => s.Resource == "clay");
         Assert.Equal(15, clay.Bonus);
         Assert.Equal(28793, clay.RemainingSeconds);
-        Assert.Equal(ProductionBonusDomParser.NextAttemptAfter15Seconds, clay.NextAttemptSeconds);
+        Assert.Equal(ProductionBonusDomParser.NextAttemptAfterDailyResetSeconds, clay.NextAttemptSeconds);
 
         var iron = states.Single(s => s.Resource == "iron");
         Assert.Equal(0, iron.Bonus);
@@ -58,6 +58,22 @@ public sealed class ProductionBonusDomParserTests
         Assert.Equal(0, crop.Bonus);
         Assert.False(crop.CanActivate);
         Assert.Equal(ProductionBonusDomParser.CooldownRetrySeconds, crop.NextAttemptSeconds);
+    }
+
+    [Fact]
+    public void Classify_DisabledPurpleVideo_WaitsForDailyReset()
+    {
+        var boxes = new[]
+        {
+            new ProductionBonusDomParser.ProductionBonusBox("iron", false, 0, "", true, false),
+        };
+
+        var states = ProductionBonusDomParser.Classify(boxes);
+
+        var iron = states.Single(s => s.Resource == "iron");
+        Assert.Equal(0, iron.Bonus);
+        Assert.False(iron.CanActivate);
+        Assert.Equal(ProductionBonusDomParser.NextAttemptAfterDailyResetSeconds, iron.NextAttemptSeconds);
     }
 
     [Fact]
@@ -91,7 +107,7 @@ public sealed class ProductionBonusDomParserTests
         var states = new[]
         {
             new ProductionBonusDomParser.ProductionBonusResourceState("lumber", 25, 13935, 14235, false),
-            new ProductionBonusDomParser.ProductionBonusResourceState("clay", 15, 28793, 86400, false),
+            new ProductionBonusDomParser.ProductionBonusResourceState("clay", 15, 28793, ProductionBonusDomParser.NextAttemptAfterDailyResetSeconds, false),
             new ProductionBonusDomParser.ProductionBonusResourceState("iron", 0, 0, 14400, false),
             new ProductionBonusDomParser.ProductionBonusResourceState("crop", 25, 9942, 10242, false),
         };
@@ -105,8 +121,17 @@ public sealed class ProductionBonusDomParserTests
         Assert.Equal(4, parsed.Count);
         Assert.Equal(15, parsed.Single(s => s.Resource == "clay").Bonus);
         Assert.Equal(28793, parsed.Single(s => s.Resource == "clay").RemainingSeconds);
-        Assert.Equal(86400, parsed.Single(s => s.Resource == "clay").NextAttemptSeconds);
+        Assert.Equal(ProductionBonusDomParser.NextAttemptAfterDailyResetSeconds, parsed.Single(s => s.Resource == "clay").NextAttemptSeconds);
         Assert.Equal(0, parsed.Single(s => s.Resource == "iron").Bonus);
+    }
+
+    [Fact]
+    public void BuildAndParseServerUtcOffsetToken_RoundTrips()
+    {
+        var token = ProductionBonusDomParser.BuildServerUtcOffsetToken(TimeSpan.FromHours(1));
+
+        Assert.Equal(TimeSpan.FromHours(1), ProductionBonusDomParser.ParseServerUtcOffsetToken($"x {token}"));
+        Assert.Null(ProductionBonusDomParser.ParseServerUtcOffsetToken("x"));
     }
 
     [Fact]

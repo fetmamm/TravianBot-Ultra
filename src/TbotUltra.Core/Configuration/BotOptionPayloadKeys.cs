@@ -68,7 +68,7 @@ public static class BotOptionPayloadKeys
     public const string ConstructFasterRandomEnabled = "construct_faster_random_enabled";
     public const string ConstructFasterRandomChancePercent = "construct_faster_random_chance_percent";
     // Account-wide toggle: watch the free +15% production bonus video on the payment wizard's
-    // Advantages tab for every resource that allows it, re-attempting ~every 24h. Never spends gold.
+    // Advantages tab for every resource that allows it after the daily 09:00 server-time reset. Never spends gold.
     public const string ProductionBonusVideoEnabled = "production_bonus_video_enabled";
     public const string TargetBuildingSlotOrName = "target_building_slot_or_name";
     public const string TargetLevel = "target_level";

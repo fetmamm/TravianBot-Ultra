@@ -52,5 +52,6 @@ public sealed class BuildingTemplateRow
     public string BuildingName { get; set; } = string.Empty;
     public int? PreferredSlotId { get; set; }
     public int TargetLevel { get; set; } = 1;
+    public string ResourceScope { get; set; } = "all";
     public string ResourceStrategy { get; set; } = "lowest";
 }

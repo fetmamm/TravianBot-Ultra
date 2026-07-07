@@ -91,7 +91,7 @@
             <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
                             Margin="8,0,0,0"
                             VerticalAlignment="Center"
-                            ToolTip="When a bonus timer runs out, the bot waits a random time within this range before watching the videos again, so it doesn't act the exact second a timer expires.&#10;&#10;Example: the 24h timer ends and 40 min is picked at random — the bot runs about 40 min later, then watches every available video in a row." />
+                            ToolTip="After the daily 09:00 server-time reset, the bot waits a random time within this range before watching the videos again.&#10;&#10;Example: reset is 09:00 and 40 min is picked at random — the bot runs about 09:40 server time, then watches every available video in a row." />
         </StackPanel>
 
         <DockPanel Grid.Row="3"

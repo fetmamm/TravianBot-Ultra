@@ -164,6 +164,8 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   Mode ar account-default `small`/`big` med per-by override; UI visar `big` som "Great" enligt Travian.
   `big` faller tillbaka till `small` under Town Hall level 10. Start-/resource-scope ska ligga i
   `.build_details` och matcha small- eller Great-celebration-raden.
+- +15% production bonus-video aterforsok styrs av daglig reset 09:00 server time + anvandarens delay,
+  inte 24h efter aktivering. Disabled purple video-knapp betyder vanta till nasta 09:00-reset.
 
 ### Desktop
 

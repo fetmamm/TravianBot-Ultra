@@ -32,7 +32,10 @@ public partial class MainWindow
             return;
         }
 
-        if (!ProductionBonusStateStore.ShouldAttemptNow(_projectRoot, _accountStore.ActiveAccountName(), DateTimeOffset.UtcNow))
+        var account = _accountStore.ActiveAccountName();
+        NormalizeStoredProductionBonus15Timers(account);
+
+        if (!ProductionBonusStateStore.ShouldAttemptNow(_projectRoot, account, DateTimeOffset.UtcNow))
         {
             return;
         }
@@ -57,34 +60,100 @@ public partial class MainWindow
         }
 
         var now = DateTimeOffset.UtcNow;
+        var serverUtcOffset = ProductionBonusDomParser.ParseServerUtcOffsetToken(message) ?? _queueServerTimeOffset;
 
-        // Human-like: never fire at the exact moment a cooldown timer expires (24h re-activation, 25%
-        // expiry, or the failed-video retry) — add one random delay (min..max minutes) on top. Only
-        // "available now" (next attempt = 0, e.g. from a scan) and empty state run promptly. Bonus-end
-        // times are never jittered (real expiry shown in the popup).
+        // Human-like: never fire at the exact moment a cooldown/reset expires. For +15%, Travian resets
+        // availability daily at 09:00 server time; for +25% and failed-video retries, use the reported
+        // relative wait. Bonus-end times are never jittered (real expiry shown in the popup).
         var settings = ProductionBonusStateStore.LoadSettings(_projectRoot, account);
-        var jitter = TimeSpan.FromMinutes(Random.Shared.Next(settings.DelayMinMinutes, settings.DelayMaxMinutes + 1));
+        var delay = ResolveProductionBonusRandomDelay(settings);
 
         var timers = states
             .Select(state =>
             {
-                var nextAttempt = now.AddSeconds(state.NextAttemptSeconds);
-                if (state.NextAttemptSeconds > 0)
-                {
-                    nextAttempt = nextAttempt.Add(jitter);
-                }
-
                 return new ProductionBonusResourceTimer(
                     state.Resource,
                     state.Bonus,
                     now.AddSeconds(state.RemainingSeconds),
-                    nextAttempt);
+                    ProductionBonusScheduleCalculator.ResolveNextAttemptUtc(state, now, serverUtcOffset, delay));
             })
             .ToList();
 
         ProductionBonusStateStore.Save(_projectRoot, account, timers);
-        AppendLog($"Production bonus: saved timers ({FormatProductionBonusStates(states)}); next-run jitter +{jitter.TotalMinutes:0} min.");
+        AppendLog($"Production bonus: saved timers ({FormatProductionBonusStates(states)}); next-run delay +{delay.TotalMinutes:0} min.");
     }
+
+    private void NormalizeStoredProductionBonus15Timers(string? account)
+    {
+        if (string.IsNullOrWhiteSpace(account))
+        {
+            return;
+        }
+
+        var timers = ProductionBonusStateStore.Load(_projectRoot, account);
+        if (timers.Count == 0 || timers.All(timer => timer.Bonus != 15))
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var settings = ProductionBonusStateStore.LoadSettings(_projectRoot, account);
+        var maxDelay = TimeSpan.FromMinutes(settings.DelayMaxMinutes);
+        var serverUtcOffset = _queueServerTimeOffset;
+        var changed = false;
+        var normalized = timers
+            .Select(timer =>
+            {
+                if (timer.Bonus != 15 || timer.NextAttemptAtUtc <= now)
+                {
+                    return timer;
+                }
+
+                var capUtc = ResolveStoredProductionBonus15CapUtc(timer, now, serverUtcOffset, maxDelay);
+                if (timer.NextAttemptAtUtc <= capUtc)
+                {
+                    return timer;
+                }
+
+                changed = true;
+                return timer with { NextAttemptAtUtc = capUtc };
+            })
+            .ToList();
+
+        if (!changed)
+        {
+            return;
+        }
+
+        ProductionBonusStateStore.Save(_projectRoot, account, normalized);
+        AppendLog("Production bonus: normalized old +15% timers to the daily 09:00 server-time reset.");
+    }
+
+    private static DateTimeOffset ResolveStoredProductionBonus15CapUtc(
+        ProductionBonusResourceTimer timer,
+        DateTimeOffset nowUtc,
+        TimeSpan serverUtcOffset,
+        TimeSpan maxDelay)
+    {
+        var now = nowUtc.ToUniversalTime();
+        var serverNow = now.ToOffset(serverUtcOffset);
+        if (timer.BonusEndsAtUtc <= now && serverNow.TimeOfDay >= TimeSpan.FromHours(9))
+        {
+            return now;
+        }
+
+        var remainingSeconds = Math.Max(0, (int)Math.Ceiling((timer.BonusEndsAtUtc - now).TotalSeconds));
+        var state = new ProductionBonusDomParser.ProductionBonusResourceState(
+            timer.Resource,
+            15,
+            remainingSeconds,
+            ProductionBonusDomParser.NextAttemptAfterDailyResetSeconds,
+            false);
+        return ProductionBonusScheduleCalculator.ResolveNextAttemptUtc(state, now, serverUtcOffset, maxDelay);
+    }
+
+    private static TimeSpan ResolveProductionBonusRandomDelay(ProductionBonusSettings settings)
+        => TimeSpan.FromMinutes(Random.Shared.Next(settings.DelayMinMinutes, settings.DelayMaxMinutes + 1));
 
     private void StampProductionBonusBackoffIfEmpty(string? account)
     {

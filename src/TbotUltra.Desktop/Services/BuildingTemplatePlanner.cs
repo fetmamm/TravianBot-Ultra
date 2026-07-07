@@ -60,10 +60,13 @@ public sealed class BuildingTemplatePlanner
             if (row.Kind == BuildingTemplateRowKind.AllResources)
             {
                 var target = Math.Max(1, row.TargetLevel);
-                var resourceAction = PlanAllResources(row, status, state, target, serverSpeed, mainBuildingLevel, warnings);
-                actions.Add(resourceAction);
-                state.ApplyAllResources(target);
-                AddTotals(resourceAction);
+                var resourceActions = PlanResources(row, status, state, target, serverSpeed, mainBuildingLevel, warnings);
+                actions.AddRange(resourceActions);
+                state.ApplyResources(ResourceScope(row), target);
+                foreach (var resourceAction in resourceActions)
+                {
+                    AddTotals(resourceAction);
+                }
                 continue;
             }
 
@@ -141,6 +144,21 @@ public sealed class BuildingTemplatePlanner
         }
     }
 
+    private static IReadOnlyList<BuildingTemplatePlanAction> PlanResources(
+        BuildingTemplateRow row,
+        VillageStatus status,
+        ProjectedVillageState state,
+        int targetLevel,
+        double serverSpeed,
+        int mainBuildingLevel,
+        List<string> warnings)
+    {
+        var scope = ResourceScope(row);
+        return scope == "all"
+            ? [PlanAllResources(row, status, state, targetLevel, serverSpeed, mainBuildingLevel, warnings)]
+            : PlanResourceGroup(status, state, scope, targetLevel, serverSpeed, mainBuildingLevel, warnings);
+    }
+
     private static BuildingTemplatePlanAction PlanAllResources(
         BuildingTemplateRow row,
         VillageStatus status,
@@ -199,6 +217,78 @@ public sealed class BuildingTemplatePlanner
             clay,
             iron,
             crop);
+    }
+
+    private static IReadOnlyList<BuildingTemplatePlanAction> PlanResourceGroup(
+        VillageStatus status,
+        ProjectedVillageState state,
+        string scope,
+        int targetLevel,
+        double serverSpeed,
+        int mainBuildingLevel,
+        List<string> warnings)
+    {
+        var actions = new List<BuildingTemplatePlanAction>();
+        foreach (var field in status.ResourceFields
+                     .Where(field => field.SlotId is >= 1 and <= 18)
+                     .Where(field => string.Equals(ResourceScope(field.Name, field.FieldType), scope, StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(field => field.SlotId))
+        {
+            var slotId = field.SlotId!.Value;
+            var currentLevel = state.ResourceLevel(field.Name, field.FieldType, field.Level ?? 0);
+            if (currentLevel >= targetLevel)
+            {
+                continue;
+            }
+
+            var gid = BuildingCatalogService.GidForName(field.Name)
+                ?? BuildingCatalogService.GidForName(field.FieldType);
+            if (gid is null)
+            {
+                warnings.Add($"Missing resource estimate for slot {slotId}.");
+                continue;
+            }
+
+            var name = string.IsNullOrWhiteSpace(field.Name) ? field.FieldType : field.Name;
+            double seconds = 0;
+            long wood = 0, clay = 0, iron = 0, crop = 0;
+            for (var level = currentLevel + 1; level <= targetLevel; level++)
+            {
+                var stats = BuildingCatalogService.CostFor(gid.Value, level);
+                if (stats is null)
+                {
+                    warnings.Add($"Missing resource estimate for {name} level {level}.");
+                    continue;
+                }
+
+                seconds += BuildingCatalogService.BuildSecondsFor(gid.Value, level, serverSpeed, mainBuildingLevel);
+                wood += stats.Wood;
+                clay += stats.Clay;
+                iron += stats.Iron;
+                crop += stats.Crop;
+            }
+
+            var payload = new ResourceUpgradePayload(slotId, targetLevel, name).ToDictionary();
+            actions.Add(new BuildingTemplatePlanAction(
+                "upgrade_resource_to_level",
+                payload,
+                $"Upgrade {name} to level {targetLevel} (slot {slotId})",
+                slotId,
+                gid,
+                targetLevel,
+                seconds,
+                wood,
+                clay,
+                iron,
+                crop));
+        }
+
+        if (actions.Count == 0)
+        {
+            warnings.Add($"{ResourceScopeDisplayName(scope)} already meets level {targetLevel} or no matching fields were found.");
+        }
+
+        return actions;
     }
 
     private static BuildingTemplatePlanAction PlanConstruct(
@@ -434,6 +524,17 @@ public sealed class BuildingTemplatePlanner
             ApplyRequirementLevel("Cropland", targetLevel);
         }
 
+        public void ApplyResources(string scope, int targetLevel)
+        {
+            if (scope == "all")
+            {
+                ApplyAllResources(targetLevel);
+                return;
+            }
+
+            ApplyRequirementLevel(ResourceScopeDisplayName(scope), targetLevel);
+        }
+
         public void ApplyBuilding(int slotId, int gid, string name, int level)
         {
             _slots[slotId] = (gid, name, Math.Max(0, level));
@@ -527,4 +628,34 @@ public sealed class BuildingTemplatePlanner
             return null;
         }
     }
+
+    private static string ResourceScope(BuildingTemplateRow row)
+        => NormalizeResourceScope(row.ResourceScope);
+
+    private static string ResourceScope(string? name, string? fieldType)
+        => NormalizeResourceScope(!string.IsNullOrWhiteSpace(fieldType) ? fieldType : name);
+
+    private static string NormalizeResourceScope(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "all";
+        }
+
+        if (value.Contains("Wood", StringComparison.OrdinalIgnoreCase)) return "wood";
+        if (value.Contains("Clay", StringComparison.OrdinalIgnoreCase)) return "clay";
+        if (value.Contains("Iron", StringComparison.OrdinalIgnoreCase)) return "iron";
+        if (value.Contains("Crop", StringComparison.OrdinalIgnoreCase)) return "crop";
+        return string.Equals(value, "all", StringComparison.OrdinalIgnoreCase) ? "all" : value.Trim().ToLowerInvariant();
+    }
+
+    private static string ResourceScopeDisplayName(string scope)
+        => scope switch
+        {
+            "wood" => "Woodcutter",
+            "clay" => "Clay Pit",
+            "iron" => "Iron Mine",
+            "crop" => "Cropland",
+            _ => "All resources",
+        };
 }

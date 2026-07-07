@@ -69,7 +69,7 @@ public sealed partial class TravianClient
     private async Task WaitForPageReadyAsync(CancellationToken cancellationToken = default)
     {
         const int attempts = 3;
-        const int timeoutMs = 10000;
+        const int timeoutMs = 15000;
 
         Exception? lastFailure = null;
         for (var attempt = 1; attempt <= attempts; attempt++)

@@ -3,6 +3,7 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Data;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
@@ -20,17 +21,23 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
     private BuildingTemplate? _selectedTemplate;
     private BuildingTemplateRowView? _selectedRow;
     private string _statusText = string.Empty;
-    private string _totalCostText = "Cost -";
+    private string _totalWoodText = "-";
+    private string _totalClayText = "-";
+    private string _totalIronText = "-";
+    private string _totalCropText = "-";
     private string _totalTimeText = "Time -";
     private string _totalConstructFasterTimeText = "Time (25%) -";
     private string _validationSummaryText = string.Empty;
 
     public ObservableCollection<BuildingTemplate> Templates { get; } = [];
     public ObservableCollection<BuildingTemplateRowView> Rows { get; } = [];
-    public ObservableCollection<BuildingTemplateBuildingOption> BuildingOptions { get; } = [];
-    public IReadOnlyList<string> RowKinds { get; } = ["Building", "All resources"];
+    public ObservableCollection<BuildingTemplateTargetOption> BuildingOptions { get; } = [];
+    public ObservableCollection<BuildingTemplateTargetOption> ResourceOptions { get; } = [];
+    public IReadOnlyList<string> RowKinds { get; } = ["Building", "Add resources"];
     public IReadOnlyList<string> SlotOptions { get; } =
         ["Auto", .. Enumerable.Range(19, 22).Select(item => item.ToString())];
+    public IReadOnlyList<string> LevelOptions { get; } =
+        Enumerable.Range(1, 20).Select(item => item.ToString()).ToList();
 
     public BuildingTemplatePlanResult? QueuePlan { get; private set; }
 
@@ -64,10 +71,28 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
         private set => SetProperty(ref _statusText, value);
     }
 
-    public string TotalCostText
+    public string TotalWoodText
     {
-        get => _totalCostText;
-        private set => SetProperty(ref _totalCostText, value);
+        get => _totalWoodText;
+        private set => SetProperty(ref _totalWoodText, value);
+    }
+
+    public string TotalClayText
+    {
+        get => _totalClayText;
+        private set => SetProperty(ref _totalClayText, value);
+    }
+
+    public string TotalIronText
+    {
+        get => _totalIronText;
+        private set => SetProperty(ref _totalIronText, value);
+    }
+
+    public string TotalCropText
+    {
+        get => _totalCropText;
+        private set => SetProperty(ref _totalCropText, value);
     }
 
     public string TotalTimeText
@@ -114,11 +139,23 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
         BuildingOptions.Clear();
         foreach (var item in BuildingCatalogService.GetFullCatalog(tribe)
                      .Where(item => item.Gid is not 38 and not 39 and not 40)
-                     .OrderBy(item => item.Category, StringComparer.OrdinalIgnoreCase)
+                     .OrderBy(item => CategorySortOrder(item.Category))
                      .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
         {
-            BuildingOptions.Add(new BuildingTemplateBuildingOption(item.Gid, item.Name));
+            BuildingOptions.Add(new BuildingTemplateTargetOption(
+                item.Gid,
+                item.Name,
+                CategoryDisplayName(item.Category),
+                ResourceScope: null,
+                FixedSlotId: FixedSlotFor(item.Gid)));
         }
+
+        ResourceOptions.Clear();
+        ResourceOptions.Add(new BuildingTemplateTargetOption(null, "All resources", "Resources", "all", null));
+        ResourceOptions.Add(new BuildingTemplateTargetOption(null, "All Woodcutters", "Resources", "wood", null));
+        ResourceOptions.Add(new BuildingTemplateTargetOption(null, "All Clay Pits", "Resources", "clay", null));
+        ResourceOptions.Add(new BuildingTemplateTargetOption(null, "All Iron Mines", "Resources", "iron", null));
+        ResourceOptions.Add(new BuildingTemplateTargetOption(null, "All Croplands", "Resources", "crop", null));
     }
 
     private void LoadTemplates()
@@ -161,7 +198,7 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
         {
             foreach (var row in SelectedTemplate.Rows)
             {
-                AddRowView(BuildingTemplateRowView.From(row, BuildingOptions));
+                AddRowView(BuildingTemplateRowView.From(row, BuildingOptions, ResourceOptions));
             }
         }
 
@@ -193,6 +230,7 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
 
     private void AddRowView(BuildingTemplateRowView row)
     {
+        row.SetOptionSources(BuildingOptions, ResourceOptions);
         row.PropertyChanged += Row_PropertyChanged;
         Rows.Add(row);
     }
@@ -247,7 +285,7 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
         AddRowView(new BuildingTemplateRowView
         {
             Kind = "Building",
-            Building = building,
+            Target = building,
             SlotText = "Auto",
             TargetLevel = "1",
         });
@@ -257,7 +295,8 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
     {
         AddRowView(new BuildingTemplateRowView
         {
-            Kind = "All resources",
+            Kind = "Add resources",
+            Target = ResourceOptions.FirstOrDefault(),
             SlotText = "Auto",
             TargetLevel = "1",
         });
@@ -389,9 +428,10 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
             // Errors are also shown in the summary; keep row status lightweight.
         }
 
-        TotalCostText = plan.Actions.Count > 0
-            ? $"Cost {QueueItemRowFactory.FormatResourceAmount(plan.Wood)} | {QueueItemRowFactory.FormatResourceAmount(plan.Clay)} | {QueueItemRowFactory.FormatResourceAmount(plan.Iron)} | {QueueItemRowFactory.FormatResourceAmount(plan.Crop)}"
-            : "Cost -";
+        TotalWoodText = plan.Actions.Count > 0 ? QueueItemRowFactory.FormatResourceAmount(plan.Wood) : "-";
+        TotalClayText = plan.Actions.Count > 0 ? QueueItemRowFactory.FormatResourceAmount(plan.Clay) : "-";
+        TotalIronText = plan.Actions.Count > 0 ? QueueItemRowFactory.FormatResourceAmount(plan.Iron) : "-";
+        TotalCropText = plan.Actions.Count > 0 ? QueueItemRowFactory.FormatResourceAmount(plan.Crop) : "-";
         TotalTimeText = plan.Actions.Count > 0
             ? $"Time {QueueItemRowFactory.FormatBuildDuration(plan.Seconds)}"
             : "Time -";
@@ -402,7 +442,7 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
             ? $"{plan.Errors.Count} error(s)"
             : plan.Warnings.Count > 0
                 ? $"{plan.Warnings.Count} warning(s)"
-                : $"{plan.Actions.Count} queue item(s)";
+                : string.Empty;
         StatusText = plan.Errors.Count > 0
             ? plan.Errors[0]
             : plan.Warnings.Count > 0
@@ -432,18 +472,52 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
 
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
         => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+
+    private static int CategorySortOrder(string? category)
+        => category switch
+        {
+            "infrastructure" => 0,
+            "army_buildings" => 1,
+            "resource_buildings" => 2,
+            _ => 3,
+        };
+
+    private static string CategoryDisplayName(string? category)
+        => category switch
+        {
+            "infrastructure" => "Infrastructure",
+            "army_buildings" => "Military",
+            "resource_buildings" => "Resources",
+            _ => "Other",
+        };
+
+    private static int? FixedSlotFor(int gid)
+        => gid switch
+        {
+            16 => 39,
+            31 or 32 or 33 or 42 or 43 => 40,
+            _ => null,
+        };
 }
 
-public sealed record BuildingTemplateBuildingOption(int Gid, string Name);
+public sealed record BuildingTemplateTargetOption(
+    int? Gid,
+    string Name,
+    string Category,
+    string? ResourceScope,
+    int? FixedSlotId);
 
 public sealed class BuildingTemplateRowView : INotifyPropertyChanged
 {
     private int _index;
     private string _kind = "Building";
-    private BuildingTemplateBuildingOption? _building;
+    private BuildingTemplateTargetOption? _target;
     private string _slotText = "Auto";
     private string _targetLevel = "1";
     private string _status = string.Empty;
+    private IReadOnlyList<BuildingTemplateTargetOption> _buildingOptions = [];
+    private IReadOnlyList<BuildingTemplateTargetOption> _resourceOptions = [];
+    private ICollectionView _targetOptionsView = CollectionViewSource.GetDefaultView(Array.Empty<BuildingTemplateTargetOption>());
 
     public Guid Id { get; init; } = Guid.NewGuid();
 
@@ -461,14 +535,28 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
             if (SetProperty(ref _kind, value))
             {
                 OnPropertyChanged(nameof(IsBuildingRow));
+                OnPropertyChanged(nameof(IsSlotSelectable));
+                RefreshTargetOptionsView();
+                EnsureTargetMatchesKind();
             }
         }
     }
 
-    public BuildingTemplateBuildingOption? Building
+    public BuildingTemplateTargetOption? Target
     {
-        get => _building;
-        set => SetProperty(ref _building, value);
+        get => _target;
+        set
+        {
+            if (SetProperty(ref _target, value))
+            {
+                if (value?.FixedSlotId is int fixedSlot)
+                {
+                    SlotText = fixedSlot.ToString();
+                }
+
+                OnPropertyChanged(nameof(IsSlotSelectable));
+            }
+        }
     }
 
     public string SlotText
@@ -489,36 +577,58 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
         set => SetProperty(ref _status, value);
     }
 
+    public ICollectionView TargetOptionsView
+    {
+        get => _targetOptionsView;
+        private set => SetProperty(ref _targetOptionsView, value);
+    }
+
     public bool IsBuildingRow => string.Equals(Kind, "Building", StringComparison.OrdinalIgnoreCase);
+    public bool IsSlotSelectable => IsBuildingRow && Target?.FixedSlotId is null;
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
+    public void SetOptionSources(
+        IReadOnlyList<BuildingTemplateTargetOption> buildingOptions,
+        IReadOnlyList<BuildingTemplateTargetOption> resourceOptions)
+    {
+        _buildingOptions = buildingOptions;
+        _resourceOptions = resourceOptions;
+        RefreshTargetOptionsView();
+        EnsureTargetMatchesKind();
+    }
+
     public static BuildingTemplateRowView From(
         BuildingTemplateRow row,
-        IReadOnlyList<BuildingTemplateBuildingOption> buildingOptions)
+        IReadOnlyList<BuildingTemplateTargetOption> buildingOptions,
+        IReadOnlyList<BuildingTemplateTargetOption> resourceOptions)
     {
-        var building = row.Gid.HasValue
+        var target = row.Kind == BuildingTemplateRowKind.AllResources
+            ? resourceOptions.FirstOrDefault(item => string.Equals(item.ResourceScope, NormalizeResourceScope(row.ResourceScope), StringComparison.OrdinalIgnoreCase))
+                ?? resourceOptions.FirstOrDefault()
+            : null;
+        target ??= row.Gid.HasValue
             ? buildingOptions.FirstOrDefault(item => item.Gid == row.Gid.Value)
             : null;
-        building ??= !string.IsNullOrWhiteSpace(row.BuildingName)
+        target ??= !string.IsNullOrWhiteSpace(row.BuildingName)
             ? buildingOptions.FirstOrDefault(item => string.Equals(item.Name, row.BuildingName, StringComparison.OrdinalIgnoreCase))
             : null;
-        building ??= row.Gid.HasValue
-            ? new BuildingTemplateBuildingOption(row.Gid.Value, row.BuildingName)
+        target ??= row.Gid.HasValue
+            ? new BuildingTemplateTargetOption(row.Gid.Value, row.BuildingName, "Other", null, FixedSlotFor(row.Gid.Value))
             : null;
 
         return new BuildingTemplateRowView
         {
-            Kind = row.Kind == BuildingTemplateRowKind.AllResources ? "All resources" : "Building",
-            Building = building,
-            SlotText = row.PreferredSlotId?.ToString() ?? "Auto",
+            Kind = row.Kind == BuildingTemplateRowKind.AllResources ? "Add resources" : "Building",
+            Target = target,
+            SlotText = target?.FixedSlotId?.ToString() ?? row.PreferredSlotId?.ToString() ?? "Auto",
             TargetLevel = Math.Max(1, row.TargetLevel).ToString(),
         };
     }
 
     public BuildingTemplateRow ToTemplateRow()
     {
-        var isAllResources = string.Equals(Kind, "All resources", StringComparison.OrdinalIgnoreCase);
+        var isAllResources = !IsBuildingRow;
         _ = int.TryParse(TargetLevel, out var targetLevel);
         int? slotId = int.TryParse(SlotText, out var parsedSlot) && parsedSlot is >= 19 and <= 40
             ? parsedSlot
@@ -527,12 +637,52 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
         {
             Id = Id,
             Kind = isAllResources ? BuildingTemplateRowKind.AllResources : BuildingTemplateRowKind.Building,
-            Gid = isAllResources ? null : Building?.Gid,
-            BuildingName = isAllResources ? string.Empty : Building?.Name ?? string.Empty,
+            Gid = isAllResources ? null : Target?.Gid,
+            BuildingName = isAllResources ? Target?.Name ?? string.Empty : Target?.Name ?? string.Empty,
             PreferredSlotId = isAllResources ? null : slotId,
             TargetLevel = Math.Max(1, targetLevel),
+            ResourceScope = isAllResources ? Target?.ResourceScope ?? "all" : "all",
             ResourceStrategy = "lowest",
         };
+    }
+
+    private void RefreshTargetOptionsView()
+    {
+        var options = IsBuildingRow ? _buildingOptions : _resourceOptions;
+        var view = new ListCollectionView(options.ToList());
+        view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(BuildingTemplateTargetOption.Category)));
+        TargetOptionsView = view;
+    }
+
+    private void EnsureTargetMatchesKind()
+    {
+        var options = IsBuildingRow ? _buildingOptions : _resourceOptions;
+        if (Target is null || !options.Any(item => Equals(item, Target)))
+        {
+            Target = options.FirstOrDefault();
+        }
+    }
+
+    private static int? FixedSlotFor(int gid)
+        => gid switch
+        {
+            16 => 39,
+            31 or 32 or 33 or 42 or 43 => 40,
+            _ => null,
+        };
+
+    private static string NormalizeResourceScope(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "all";
+        }
+
+        if (value.Contains("Wood", StringComparison.OrdinalIgnoreCase)) return "wood";
+        if (value.Contains("Clay", StringComparison.OrdinalIgnoreCase)) return "clay";
+        if (value.Contains("Iron", StringComparison.OrdinalIgnoreCase)) return "iron";
+        if (value.Contains("Crop", StringComparison.OrdinalIgnoreCase)) return "crop";
+        return string.Equals(value, "all", StringComparison.OrdinalIgnoreCase) ? "all" : value.Trim().ToLowerInvariant();
     }
 
     private bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)

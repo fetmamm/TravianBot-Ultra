@@ -1,0 +1,39 @@
+{
+  "templates": [
+    {
+      "id": "56bfb87d-6a87-4bf6-a969-94bc7e5b213a",
+      "name": "Test",
+      "createdByTribe": "Teutons",
+      "createdAtUtc": "2026-07-07T07:19:07.9081978+00:00",
+      "updatedAtUtc": "2026-07-07T07:26:34.8124159+00:00",
+      "rows": [
+        {
+          "id": "7d140121-11f9-44b6-8423-7b87d75c4b6c",
+          "kind": "Building",
+          "gid": 41,
+          "buildingName": "Horse Drinking Trough",
+          "preferredSlotId": null,
+          "targetLevel": 1,
+          "resourceStrategy": "lowest"
+        },
+        {
+          "id": "afe30536-ef43-4b8a-a724-8bc5346d624b",
+          "kind": "AllResources",
+          "gid": null,
+          "buildingName": "",
+          "preferredSlotId": null,
+          "targetLevel": 1,
+          "resourceStrategy": "lowest"
+        }
+      ]
+    },
+    {
+      "id": "63be216f-c1a2-4670-a7a8-9704675c3d9e",
+      "name": "kor",
+      "createdByTribe": "Teutons",
+      "createdAtUtc": "2026-07-07T07:26:43.3097854+00:00",
+      "updatedAtUtc": "2026-07-07T07:26:47.1909422+00:00",
+      "rows": []
+    }
+  ]
+}

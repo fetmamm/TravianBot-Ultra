@@ -188,7 +188,7 @@ public sealed partial class TravianClient
                 .WaitForAsync(new LocatorWaitForOptions
                 {
                     State = WaitForSelectorState.Visible,
-                    Timeout = Math.Min(_config.TimeoutMs, 10000),
+                    Timeout = Math.Min(_config.TimeoutMs, 15000),
                 })
                 .WaitAsync(cancellationToken);
         }

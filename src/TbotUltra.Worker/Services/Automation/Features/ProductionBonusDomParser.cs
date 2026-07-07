@@ -20,9 +20,10 @@ public static class ProductionBonusDomParser
     // Ordered so the result string is deterministic (matches the on-screen Wood/Clay/Iron/Crop order).
     public static readonly IReadOnlyList<string> Resources = new[] { "lumber", "clay", "iron", "crop" };
 
-    // +15% can be re-activated ~every 24h even though it only lasts 8h, so a freshly-activated (or
-    // already-running) 15% resource is not retried before 24h.
-    public const int NextAttemptAfter15Seconds = 24 * 60 * 60;
+    // +15% re-activates after Travian's daily 09:00 server-time reset, not 24h after activation.
+    // Desktop turns this marker into an absolute UTC next-attempt time because it owns server-time offset
+    // and user-configured delay settings.
+    public const int NextAttemptAfterDailyResetSeconds = -1;
 
     // While +25% (gold) runs there is no free video, so the next free attempt is when it expires (+buffer).
     public const int NextAttemptAfter25BufferSeconds = 5 * 60;
@@ -133,13 +134,18 @@ public static class ProductionBonusDomParser
         if (box.Active && box.Percent == 15)
         {
             var remaining = ParseTimerToSeconds(box.Timer);
-            return new ProductionBonusResourceState(box.Resource, 15, remaining, NextAttemptAfter15Seconds, false);
+            return new ProductionBonusResourceState(box.Resource, 15, remaining, NextAttemptAfterDailyResetSeconds, false);
         }
 
         // Nothing active. A video that is offered is due now on a scan, but after a just-failed activation
-        // attempt we back off so the loop does not spin. Truly unavailable (missing/disabled) always backs off.
+        // attempt we back off so the loop does not spin. A present but disabled free-video button means the
+        // daily 09:00 server-time reset has not happened yet.
         var canActivate = box.PurplePresent && box.PurpleEnabled;
-        var nextAttempt = canActivate && !afterActivationAttempt ? 0 : CooldownRetrySeconds;
+        var nextAttempt = box.PurplePresent && !box.PurpleEnabled
+            ? NextAttemptAfterDailyResetSeconds
+            : canActivate && !afterActivationAttempt
+                ? 0
+                : CooldownRetrySeconds;
         return new ProductionBonusResourceState(box.Resource, 0, 0, nextAttempt, canActivate);
     }
 
@@ -257,6 +263,36 @@ public static class ProductionBonusDomParser
         }
 
         return states;
+    }
+
+    public static string BuildServerUtcOffsetToken(TimeSpan serverUtcOffset)
+        => "production_bonus_server_utc_offset_seconds="
+           + ((int)serverUtcOffset.TotalSeconds).ToString(CultureInfo.InvariantCulture);
+
+    public static TimeSpan? ParseServerUtcOffsetToken(string? result)
+    {
+        if (string.IsNullOrWhiteSpace(result))
+        {
+            return null;
+        }
+
+        var marker = "production_bonus_server_utc_offset_seconds=";
+        var start = result.IndexOf(marker, StringComparison.Ordinal);
+        if (start < 0)
+        {
+            return null;
+        }
+
+        var payload = result[(start + marker.Length)..];
+        var end = payload.IndexOf(' ');
+        if (end >= 0)
+        {
+            payload = payload[..end];
+        }
+
+        return int.TryParse(payload, NumberStyles.Integer, CultureInfo.InvariantCulture, out var seconds)
+            ? TimeSpan.FromSeconds(seconds)
+            : null;
     }
 
     private static string StripBidi(string value)

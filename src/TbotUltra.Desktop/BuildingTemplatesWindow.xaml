@@ -39,18 +39,23 @@
                          DisplayMemberPath="Name"
                          Background="{DynamicResource SurfaceAltBrush}"
                          BorderBrush="{DynamicResource BorderBrush}" />
-                <StackPanel Grid.Row="2" Margin="0,10,0,0">
+                <StackPanel Grid.Row="2"
+                            Orientation="Horizontal"
+                            HorizontalAlignment="Center"
+                            Margin="0,10,0,0">
                     <Button Content="New"
+                            Width="76"
                             Height="28"
-                            Margin="0,0,0,6"
+                            Margin="0,0,6,0"
                             Background="{DynamicResource AccentBrush}"
                             Foreground="White"
                             BorderBrush="{DynamicResource AccentBrush}"
                             Click="NewTemplateButton_Click" />
                     <Button Content="Delete"
+                            Width="76"
                             Height="28"
                             Background="{DynamicResource DangerBgBrush}"
-                            Foreground="{DynamicResource TextPrimaryBrush}"
+                            Foreground="{DynamicResource DangerTextBrush}"
                             BorderBrush="{DynamicResource DangerBorderBrush}"
                             Click="DeleteTemplateButton_Click" />
                 </StackPanel>
@@ -104,16 +109,11 @@
                             Height="28"
                             Margin="0,0,6,0"
                             Click="AddBuildingRowButton_Click" />
-                    <Button Content="Add all res"
+                    <Button Content="Add resources"
                             Width="96"
                             Height="28"
                             Margin="0,0,6,0"
                             Click="AddAllResourcesRowButton_Click" />
-                    <Button Content="Remove"
-                            Width="78"
-                            Height="28"
-                            Margin="0,0,6,0"
-                            Click="RemoveRowButton_Click" />
                     <Button Content="Up"
                             Width="54"
                             Height="28"
@@ -122,7 +122,15 @@
                     <Button Content="Down"
                             Width="62"
                             Height="28"
+                            Margin="0,0,6,0"
                             Click="MoveRowDownButton_Click" />
+                    <Button Content="Remove"
+                            Width="78"
+                            Height="28"
+                            Background="{DynamicResource DangerBgBrush}"
+                            Foreground="{DynamicResource DangerTextBrush}"
+                            BorderBrush="{DynamicResource DangerBorderBrush}"
+                            Click="RemoveRowButton_Click" />
                 </StackPanel>
 
                 <DataGrid Grid.Row="2"
@@ -157,10 +165,22 @@
                         <DataGridTemplateColumn Header="Building" Width="220">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <ComboBox ItemsSource="{Binding DataContext.BuildingOptions, RelativeSource={RelativeSource AncestorType=Window}}"
-                                              SelectedItem="{Binding Building, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              DisplayMemberPath="Name"
-                                              IsEnabled="{Binding IsBuildingRow}" />
+                                    <ComboBox ItemsSource="{Binding TargetOptionsView}"
+                                              SelectedItem="{Binding Target, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                              DisplayMemberPath="Name">
+                                        <ComboBox.GroupStyle>
+                                            <GroupStyle>
+                                                <GroupStyle.HeaderTemplate>
+                                                    <DataTemplate>
+                                                        <TextBlock Text="{Binding Name}"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource TextSubtleBrush}"
+                                                                   Padding="6,6,6,2" />
+                                                    </DataTemplate>
+                                                </GroupStyle.HeaderTemplate>
+                                            </GroupStyle>
+                                        </ComboBox.GroupStyle>
+                                    </ComboBox>
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
@@ -169,11 +189,18 @@
                                 <DataTemplate>
                                     <ComboBox ItemsSource="{Binding DataContext.SlotOptions, RelativeSource={RelativeSource AncestorType=Window}}"
                                               SelectedItem="{Binding SlotText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              IsEnabled="{Binding IsBuildingRow}" />
+                                              IsEnabled="{Binding IsSlotSelectable}" />
                                 </DataTemplate>
                             </DataGridTemplateColumn.CellTemplate>
                         </DataGridTemplateColumn>
-                        <DataGridTextColumn Header="Level" Width="70" Binding="{Binding TargetLevel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                        <DataGridTemplateColumn Header="Level" Width="70">
+                            <DataGridTemplateColumn.CellTemplate>
+                                <DataTemplate>
+                                    <ComboBox ItemsSource="{Binding DataContext.LevelOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                                              SelectedItem="{Binding TargetLevel, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                </DataTemplate>
+                            </DataGridTemplateColumn.CellTemplate>
+                        </DataGridTemplateColumn>
                         <DataGridTextColumn Header="Status" Width="*" Binding="{Binding Status}" IsReadOnly="True" />
                     </DataGrid.Columns>
                 </DataGrid>
@@ -188,6 +215,14 @@
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="*" />
                             <ColumnDefinition Width="Auto" />
                             <ColumnDefinition Width="Auto" />
@@ -197,15 +232,30 @@
                                    Text="Totals:"
                                    FontWeight="SemiBold"
                                    Margin="0,0,10,0" />
-                        <TextBlock Grid.Column="1" Text="{Binding TotalCostText}" />
+                        <TextBlock Grid.Column="1" Text="Cost" Margin="0,0,5,0" />
                         <TextBlock Grid.Column="2"
+                                   Text="{Binding TotalWoodText}"
+                                   Foreground="{DynamicResource WoodTextBrush}" />
+                        <TextBlock Grid.Column="3" Text=" | " Foreground="{DynamicResource TextSubtleBrush}" />
+                        <TextBlock Grid.Column="4"
+                                   Text="{Binding TotalClayText}"
+                                   Foreground="{DynamicResource ClayTextBrush}" />
+                        <TextBlock Grid.Column="5" Text=" | " Foreground="{DynamicResource TextSubtleBrush}" />
+                        <TextBlock Grid.Column="6"
+                                   Text="{Binding TotalIronText}"
+                                   Foreground="{DynamicResource IronTextBrush}" />
+                        <TextBlock Grid.Column="7" Text=" | " Foreground="{DynamicResource TextSubtleBrush}" />
+                        <TextBlock Grid.Column="8"
+                                   Text="{Binding TotalCropText}"
+                                   Foreground="{DynamicResource CropTextBrush}" />
+                        <TextBlock Grid.Column="10"
                                    Text="{Binding TotalTimeText}"
                                    Margin="12,0,0,0" />
-                        <TextBlock Grid.Column="3"
+                        <TextBlock Grid.Column="11"
                                    Text="{Binding TotalConstructFasterTimeText}"
                                    Foreground="{DynamicResource ConstructFasterBrush}"
                                    Margin="12,0,0,0" />
-                        <TextBlock Grid.Column="4"
+                        <TextBlock Grid.Column="12"
                                    Text="{Binding ValidationSummaryText}"
                                    Foreground="{DynamicResource WarningBrush}"
                                    Margin="12,0,0,0" />

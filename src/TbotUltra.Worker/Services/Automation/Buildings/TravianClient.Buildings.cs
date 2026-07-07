@@ -1831,7 +1831,7 @@ public sealed partial class TravianClient : IBuildingClient
             await _page.WaitForFunctionAsync(
                 "() => /\\bconstruct(?:\\s+building)?\\b|\\bbuild(?:\\s+building)?\\b|\\bbauen\\b|\\bbygg\\b|\\bcostruisci\\b/i.test(document.body.innerText || '')",
                 null,
-                new PageWaitForFunctionOptions { Timeout = 10000 });
+                new PageWaitForFunctionOptions { Timeout = 15000 });
         }
         catch (Exception ex)
         {

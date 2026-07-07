@@ -987,7 +987,7 @@
                                                     <ContentControl.ToolTip>
                                                         <ToolTip MaxWidth="320">
                                                             <TextBlock TextWrapping="Wrap"
-                                                                       Text="Account-wide. Watches the free Official bonus video to activate +15% production for 8h on every resource that allows it, retried about every 24h. Never spends gold. Open settings to see the per-resource timers." />
+                                                                       Text="Account-wide. Watches the free Official bonus video to activate +15% production for 8h on every resource that allows it, retried after the daily 09:00 server-time reset. Never spends gold. Open settings to see the per-resource timers." />
                                                         </ToolTip>
                                                     </ContentControl.ToolTip>
                                                 </ContentControl>
