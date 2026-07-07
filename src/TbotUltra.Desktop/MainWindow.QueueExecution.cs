@@ -174,7 +174,10 @@ public partial class MainWindow
 
         try
         {
-            if (await TryHandleConstructRequirementPreRunGuardAsync(item, logPrefix, tickSw))
+            var constructGuardCanUseCache =
+                await TryRefreshConstructTargetVillageStatusBeforeGuardAsync(item, options, cancellationToken);
+            if (constructGuardCanUseCache
+                && await TryHandleConstructRequirementPreRunGuardAsync(item, logPrefix, tickSw))
             {
                 freshBuildingsRefreshDone = true;
                 return true;
@@ -232,6 +235,53 @@ public partial class MainWindow
                     // Ignore snapshot reload errors in finally; the UI keeps the previous state.
                 }
             }
+        }
+    }
+
+    private async Task<bool> TryRefreshConstructTargetVillageStatusBeforeGuardAsync(
+        QueueItem item,
+        BotOptions options,
+        CancellationToken cancellationToken)
+    {
+        if (!string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        var targetVillageName = NormalizeVillageName(GetQueueItemVillageName(item));
+        var targetVillageUrl = GetQueueItemPayloadValue(item, BotOptionPayloadKeys.TargetVillageUrl);
+        if (targetVillageName is null && string.IsNullOrWhiteSpace(targetVillageUrl))
+        {
+            return true;
+        }
+
+        try
+        {
+            AppendLog(
+                $"[construction-preflight] reading live dorf1/dorf2 for construct target village " +
+                $"'{targetVillageName ?? targetVillageUrl}' before requirement guard.");
+            var status = await _botService.ReadVillageStatusAsync(
+                options,
+                AppendLog,
+                targetVillageName,
+                targetVillageUrl,
+                cancellationToken);
+            await Dispatcher.InvokeAsync(() => CacheVillageStatus(status, targetVillageName));
+            AppendLog(
+                $"[construction-preflight] cached live target village '{targetVillageName ?? status.ActiveVillage}': " +
+                $"fields={status.ResourceFields.Count}, buildings={status.Buildings.Count}.");
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            AppendLog(
+                $"[construction-preflight] live target village read failed before construct guard: {ex.Message}. " +
+                "Skipping cached requirement guard; worker will validate the live construct page.");
+            return false;
         }
     }
 

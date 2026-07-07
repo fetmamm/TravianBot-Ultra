@@ -189,6 +189,8 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   `FinishUtc` passerat (plus liten buffer), sa andra byar/tasks kan koras i stallet.
 - Construct-tasks vars krav saknas och inte matchar same-village queued/active prerequisite ska terminal-failas
   fore Worker. Worker-sidans missing requirements ska vinna over resursbrist/hero-transfer pa construct-sidan.
+- Innan Desktop-guarden defer:ar/failar ett `construct_building` ska target-byn live-lasas (dorf1/dorf2)
+  och cacheas; cached status far inte ensam avgora nybyggnation nar browsern star i annan by.
 - Smithy-upgrade och trupptraning (DOM, per-by-payloads, automation groups):
   [ADR 2026-06-20 smithy-troop-training](adr/2026-06-20-smithy-troop-training.md).
 - Village Overview och byval visar kapitalen forst; ovriga byar behaller Travian-listans DOM/sidebar-ordning.
