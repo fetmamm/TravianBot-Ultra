@@ -21,6 +21,13 @@ public static class QueueItemRowFactory
         Func<QueueItem, string> resolveDisplayName,
         Func<DateTimeOffset, string> formatServerTime)
     {
+        var isAutomaticRepair = IsAutomaticRepairItem(item);
+        var displayName = resolveDisplayName(item);
+        if (isAutomaticRepair && !displayName.StartsWith("[AUTO FIX]", StringComparison.OrdinalIgnoreCase))
+        {
+            displayName = $"[AUTO FIX] {displayName}";
+        }
+
         return new QueueItemRow
         {
             Id = item.Id,
@@ -28,12 +35,14 @@ public static class QueueItemRowFactory
             GroupName = QueueGroupCatalog.GetTitle(item.Group),
             VillageName = resolveVillageName(item) ?? "-",
             VillageKey = resolveVillageKey(item) ?? string.Empty,
-            DisplayName = resolveDisplayName(item),
+            DisplayName = displayName,
             TaskName = item.TaskName,
             Status = item.Id == displayRunningId ? QueueStatus.Running : item.Status,
             Retries = item.Retries,
             MaxRetries = item.MaxRetries,
             IsRuntimeOnly = item.IsRuntimeOnly,
+            IsAutomaticRepair = isAutomaticRepair,
+            AutomaticRepairReason = ResolveAutomaticRepairReason(item),
             CreatedAt = item.CreatedAt,
             NextAttemptAtServer = formatServerTime(item.NextAttemptAt),
             CreatedAtServer = formatServerTime(item.CreatedAt),
@@ -79,4 +88,26 @@ public static class QueueItemRowFactory
 
     public static string FormatResourceAmount(long amount)
         => amount.ToString("N0", CultureInfo.InvariantCulture);
+
+    private static bool IsAutomaticRepairItem(QueueItem item)
+    {
+        return item.Payload.TryGetValue(TbotUltra.Core.Configuration.BotOptionPayloadKeys.AutoAddedBy, out var source)
+            && string.Equals(
+                source,
+                TbotUltra.Core.Configuration.BotOptionPayloadKeys.AutoAddedByConstructionRequirementRepair,
+                StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ResolveAutomaticRepairReason(QueueItem item)
+    {
+        if (!IsAutomaticRepairItem(item))
+        {
+            return string.Empty;
+        }
+
+        return item.Payload.TryGetValue(TbotUltra.Core.Configuration.BotOptionPayloadKeys.AutoAddedReason, out var reason)
+            && !string.IsNullOrWhiteSpace(reason)
+                ? reason.Trim()
+                : "Automatically added to repair missing construction requirements.";
+    }
 }

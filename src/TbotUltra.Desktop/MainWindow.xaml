@@ -3135,6 +3135,17 @@
                                           ColumnHeaderHeight="32"
                                           RowHeight="30"
                                           FontSize="12">
+                                    <DataGrid.RowStyle>
+                                        <Style TargetType="DataGridRow">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsAutomaticRepair}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource DangerBgBrush}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource DangerBorderBrush}" />
+                                                    <Setter Property="ToolTip" Value="{Binding AutomaticRepairReason}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGrid.RowStyle>
                                     <DataGrid.ColumnHeaderStyle>
                                         <Style TargetType="DataGridColumnHeader">
                                             <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />

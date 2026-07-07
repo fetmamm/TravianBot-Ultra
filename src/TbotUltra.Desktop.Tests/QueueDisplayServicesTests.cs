@@ -96,6 +96,31 @@ public sealed class QueueDisplayServicesTests
         Assert.Equal("1,234 | 5,678 | 90 | 12", row.CostText);
     }
 
+    [Fact]
+    public void Create_Row_MarksAutomaticConstructionRepair()
+    {
+        var item = Item(
+            "construct_building",
+            new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.AutoAddedBy] = BotOptionPayloadKeys.AutoAddedByConstructionRequirementRepair,
+                [BotOptionPayloadKeys.AutoAddedReason] = "construct missing prerequisite Academy",
+            });
+
+        var row = QueueItemRowFactory.Create(
+            item,
+            QueueItemEstimate.None,
+            displayRunningId: null,
+            resolveVillageName: _ => "1660",
+            resolveVillageKey: _ => "xy:1|2",
+            resolveDisplayName: _ => "Construct Academy to level 1 (slot 30)",
+            formatServerTime: _ => "-");
+
+        Assert.True(row.IsAutomaticRepair);
+        Assert.Equal("construct missing prerequisite Academy", row.AutomaticRepairReason);
+        Assert.Equal("[AUTO FIX] Construct Academy to level 1 (slot 30)", row.DisplayName);
+    }
+
     private static QueueItem Item(string taskName, Dictionary<string, string> payload, string? displayName = null)
         => new()
         {

@@ -17,6 +17,8 @@ public sealed class QueueItemRow
     public int MaxRetries { get; init; }
     public string RetriesText => $"{Retries}/{MaxRetries}";
     public bool IsRuntimeOnly { get; init; }
+    public bool IsAutomaticRepair { get; init; }
+    public string AutomaticRepairReason { get; init; } = string.Empty;
     public DateTimeOffset CreatedAt { get; init; }
     public string CreatedAtServer { get; init; } = string.Empty;
     public string NextAttemptAtServer { get; init; } = string.Empty;

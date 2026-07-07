@@ -39,10 +39,26 @@ public partial class MainWindow
         QueueItem item,
         DateTimeOffset now)
     {
+        var context = ResolveConstructRequirementContextForQueueItem(item);
+        if (context.Status is null)
+        {
+            return ConstructionRequirementGuardResult.None;
+        }
+
+        return ConstructionDependencyGate.ResolveConstructRequirementGuard(
+            item,
+            context.Status,
+            context.SameVillageItems,
+            now);
+    }
+
+    private (VillageStatus? Status, IReadOnlyList<QueueItem> SameVillageItems) ResolveConstructRequirementContextForQueueItem(
+        QueueItem item)
+    {
         var status = ResolveBuildingStatusForQueueItem(item);
         if (status is null)
         {
-            return ConstructionRequirementGuardResult.None;
+            return (null, []);
         }
 
         var villageKey = GetQueueItemVillageKey(item);
@@ -61,7 +77,7 @@ public partial class MainWindow
                     || string.Equals(otherKey, villageKey, StringComparison.OrdinalIgnoreCase);
             })
             .ToList();
-        return ConstructionDependencyGate.ResolveConstructRequirementGuard(item, status, sameVillageItems, now);
+        return (status, sameVillageItems);
     }
 
     private bool ConstructHasQueuedOrActivePrerequisite(QueueItem item, DateTimeOffset now)
@@ -87,6 +103,15 @@ public partial class MainWindow
         if (result.Action == ConstructionRequirementGuardAction.None)
         {
             return false;
+        }
+
+        if (result.Action is ConstructionRequirementGuardAction.DeferForQueuedPrerequisite
+            or ConstructionRequirementGuardAction.FailMissingPrerequisite)
+        {
+            if (await TryHandleConstructRequirementRepairAsync(item, result, logPrefix, timer))
+            {
+                return true;
+            }
         }
 
         if (result.Action is ConstructionRequirementGuardAction.DeferForActivePrerequisite
@@ -147,6 +172,162 @@ public partial class MainWindow
             $"{logPrefix} FAIL {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
             $"construct requirements missing ({result.Detail}) but terminal failure could not be persisted");
         return false;
+    }
+
+    private async Task<bool> TryHandleConstructRequirementRepairAsync(
+        QueueItem item,
+        ConstructionRequirementGuardResult guardResult,
+        string logPrefix,
+        Stopwatch timer)
+    {
+        var context = ResolveConstructRequirementContextForQueueItem(item);
+        if (context.Status is null)
+        {
+            return false;
+        }
+
+        var plan = ConstructionRequirementRepairPlanner.Plan(
+            item,
+            context.Status,
+            context.SameVillageItems,
+            DateTimeOffset.UtcNow);
+        if (plan.HasBlockers)
+        {
+            AppendLog(
+                $"[construction-repair] cannot repair construct requirements for id={item.Id}: {plan.Detail}");
+            return false;
+        }
+
+        if (!plan.HasSteps)
+        {
+            return false;
+        }
+
+        var queueItems = _botService.GetQueueItemsForDisplay();
+        var maxPriority = queueItems.Select(entry => entry.Priority).DefaultIfEmpty(item.Priority).Max();
+        var firstPriority = maxPriority > int.MaxValue - plan.Steps.Count
+            ? int.MaxValue
+            : maxPriority + plan.Steps.Count;
+        var changedIds = new List<Guid>();
+        var created = 0;
+        var promoted = 0;
+
+        for (var index = 0; index < plan.Steps.Count; index++)
+        {
+            var step = plan.Steps[index];
+            var priority = firstPriority == int.MaxValue
+                ? int.MaxValue - index
+                : firstPriority - index;
+            var payload = BuildConstructionRequirementRepairPayload(item, step);
+
+            if (step.Kind == ConstructionRequirementRepairStepKind.Promote
+                && step.ExistingQueueItemId is Guid existingId)
+            {
+                var existing = queueItems.FirstOrDefault(entry => entry.Id == existingId);
+                if (existing?.Status != QueueStatus.Pending)
+                {
+                    AppendLog(
+                        $"[construction-repair] skipped promote id={existingId}: item is {existing?.Status.ToString() ?? "missing"}.");
+                    continue;
+                }
+
+                if (_botService.UpdatePendingQueueItem(existingId, payload, priority, TimeSpan.Zero))
+                {
+                    changedIds.Add(existingId);
+                    promoted++;
+                    AppendLog(
+                        $"[construction-repair] promoted queued repair id={existingId} priority={priority}: {step.Reason}.");
+                }
+                else
+                {
+                    AppendLog(
+                        $"[construction-repair] failed to promote queued repair id={existingId}: {step.Reason}.");
+                }
+
+                continue;
+            }
+
+            var repairItem = _botService.Enqueue(step.TaskName, payload, priority, maxRetries: 3);
+            changedIds.Add(repairItem.Id);
+            created++;
+            AppendLog(
+                $"[construction-repair] queued automatic repair id={repairItem.Id} priority={priority}: {step.Reason}.");
+        }
+
+        if (changedIds.Count == 0)
+        {
+            return false;
+        }
+
+        var parentPayload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonRequirements,
+            [BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
+                ConstructionQueueState.CurrentDeferClassificationVersion,
+        };
+        parentPayload.Remove(BotOptionPayloadKeys.RequirementDeferCount);
+
+        var parentDelay = guardResult.Delay ?? TimeSpan.FromSeconds(60);
+        if (!_botService.MarkQueueItemDeferred(item.Id, parentDelay))
+        {
+            AppendLog(
+                $"{logPrefix} FAIL {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                "automatic construct requirement repair was queued, but parent defer could not be persisted");
+            return false;
+        }
+
+        if (_botService.UpdateDeferredQueueItem(item.Id, parentPayload))
+        {
+            item.Payload = parentPayload;
+        }
+        else
+        {
+            AppendLog(
+                $"[construction-repair] parent defer payload persistence failed id={item.Id} task='{item.TaskName}'.");
+        }
+
+        RequestQueueUiRefresh(selectId: changedIds[0]);
+        await Dispatcher.InvokeAsync(RefreshVillageActivityIndicatorsOnDashboard);
+        AppendLog(
+            $"{logPrefix} REPAIR {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+            $"requirements '{guardResult.Detail}' missing; automatic repair queued/promoted " +
+            $"created={created}, promoted={promoted}. Parent retries in {parentDelay.TotalSeconds:F0}s.");
+        return true;
+    }
+
+    private static Dictionary<string, string> BuildConstructionRequirementRepairPayload(
+        QueueItem parent,
+        ConstructionRequirementRepairStep step)
+    {
+        var payload = new Dictionary<string, string>(step.Payload, StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.AutoAddedBy] = BotOptionPayloadKeys.AutoAddedByConstructionRequirementRepair,
+            [BotOptionPayloadKeys.AutoAddedParentId] = parent.Id.ToString(),
+            [BotOptionPayloadKeys.AutoAddedReason] = step.Reason,
+            [BotOptionPayloadKeys.AutoAddedRequirement] = step.RequirementText,
+        };
+
+        CopyIfPresent(parent.Payload, payload, BotOptionPayloadKeys.TargetVillageName);
+        CopyIfPresent(parent.Payload, payload, BotOptionPayloadKeys.TargetVillageUrl);
+        CopyIfPresent(parent.Payload, payload, BotOptionPayloadKeys.TargetVillageKey);
+        CopyIfPresent(parent.Payload, payload, BotOptionPayloadKeys.NpcTradeEnabled);
+        CopyIfPresent(parent.Payload, payload, BotOptionPayloadKeys.ConstructFasterEnabled);
+        CopyIfPresent(parent.Payload, payload, BotOptionPayloadKeys.ConstructFasterMinBuildTimeEnabled);
+        CopyIfPresent(parent.Payload, payload, BotOptionPayloadKeys.ConstructFasterMinBuildMinutes);
+        CopyIfPresent(parent.Payload, payload, BotOptionPayloadKeys.ConstructFasterRandomEnabled);
+        CopyIfPresent(parent.Payload, payload, BotOptionPayloadKeys.ConstructFasterRandomChancePercent);
+        return payload;
+    }
+
+    private static void CopyIfPresent(
+        IReadOnlyDictionary<string, string> source,
+        IDictionary<string, string> target,
+        string key)
+    {
+        if (source.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+        {
+            target[key] = value;
+        }
     }
 
     private async Task<bool> ExecuteSingleQueueItemAsync(

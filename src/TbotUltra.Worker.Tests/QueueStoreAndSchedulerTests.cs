@@ -43,6 +43,25 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     }
 
     [Fact]
+    public void UpdatePending_ChangesPayloadPriorityAndDueTime()
+    {
+        var store = new JsonQueueStore(_queuePath);
+        var scheduler = new PriorityFifoQueueScheduler();
+        var first = store.Add("status", null, priority: 0, maxRetries: 3);
+        var promoted = store.Add("scan_all_villages", null, priority: 0, maxRetries: 3);
+        var payload = new Dictionary<string, string> { ["auto_added_by"] = "construction_requirement_repair" };
+
+        Assert.True(store.UpdatePending(promoted.Id, payload, priority: 5, delay: TimeSpan.Zero));
+
+        var updated = store.GetAll().Single(item => item.Id == promoted.Id);
+        Assert.Equal(5, updated.Priority);
+        Assert.Equal("construction_requirement_repair", updated.Payload["auto_added_by"]);
+        Assert.True(updated.NextAttemptAt <= DateTimeOffset.UtcNow.AddSeconds(2));
+        Assert.Equal(promoted.Id, scheduler.SelectNext(store.GetAll())!.Id);
+        Assert.Equal(QueueStatus.Pending, store.GetAll().Single(item => item.Id == first.Id).Status);
+    }
+
+    [Fact]
     public void PauseAndResume_ChangesEligibility()
     {
         var store = new JsonQueueStore(_queuePath);

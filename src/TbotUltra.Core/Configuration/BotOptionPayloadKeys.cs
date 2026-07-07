@@ -49,6 +49,11 @@ public static class BotOptionPayloadKeys
     public const string StorageDependencyParentId = "storage_dependency_parent_id";
     public const string StorageDependencyItemId = "storage_dependency_item_id";
     public const string StorageDependencyKind = "storage_dependency_kind";
+    public const string AutoAddedBy = "auto_added_by";
+    public const string AutoAddedReason = "auto_added_reason";
+    public const string AutoAddedParentId = "auto_added_parent_id";
+    public const string AutoAddedRequirement = "auto_added_requirement";
+    public const string AutoAddedByConstructionRequirementRepair = "construction_requirement_repair";
 
     public const string BuildingUpgradeSlotId = "building_upgrade_slot_id";
     public const string BuildingUpgradeTargetLevel = "building_upgrade_target_level";
