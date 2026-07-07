@@ -171,6 +171,12 @@
                             MinWidth="130"
                             HorizontalAlignment="Left"
                             Click="CheckMyIpButton_Click" />
+                    <Button x:Name="FindBestProxyButton"
+                            Content="Find best proxy…"
+                            Margin="0,6,0,0"
+                            MinWidth="130"
+                            HorizontalAlignment="Left"
+                            Click="FindBestProxyButton_Click" />
                 </StackPanel>
                 <Grid Grid.Row="4" Grid.Column="1" Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>

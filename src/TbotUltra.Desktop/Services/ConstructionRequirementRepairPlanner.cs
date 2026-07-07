@@ -286,12 +286,12 @@ internal static class ConstructionRequirementRepairPlanner
         var queuedUpgrade = FindPendingResourceUpgrade(queueItems, requirement.Name, requirement.Level);
         if (queuedUpgrade is not null)
         {
-            var payload = new Dictionary<string, string>(queuedUpgrade.Payload, StringComparer.OrdinalIgnoreCase);
+            var queuedPayload = new Dictionary<string, string>(queuedUpgrade.Payload, StringComparer.OrdinalIgnoreCase);
             steps.Add(new ConstructionRequirementRepairStep(
                 ConstructionRequirementRepairStepKind.Promote,
                 queuedUpgrade.Id,
                 queuedUpgrade.TaskName,
-                payload,
+                queuedPayload,
                 $"Promote queued {requirement.Name} upgrade",
                 $"promote queued {FormatRequirement(requirement)} upgrade",
                 FormatRequirement(requirement)));
@@ -306,14 +306,14 @@ internal static class ConstructionRequirementRepairPlanner
             return;
         }
 
-        var fieldName = string.IsNullOrWhiteSpace(field.Value.Name) ? requirement.Name : field.Value.Name;
-        var payload = new ResourceUpgradePayload(field.Value.SlotId, requirement.Level, fieldName).ToDictionary();
+        var fieldName = string.IsNullOrWhiteSpace(field.Name) ? requirement.Name : field.Name;
+        var payload = new ResourceUpgradePayload(field.SlotId, requirement.Level, fieldName).ToDictionary();
         steps.Add(new ConstructionRequirementRepairStep(
             ConstructionRequirementRepairStepKind.Enqueue,
             null,
             "upgrade_resource_to_level",
             payload,
-            $"Upgrade {fieldName} slot {field.Value.SlotId} to level {requirement.Level}",
+            $"Upgrade {fieldName} slot {field.SlotId} to level {requirement.Level}",
             $"upgrade prerequisite {FormatRequirement(requirement)}",
             FormatRequirement(requirement)));
         state.ApplyResource(requirement.Name, requirement.Level);

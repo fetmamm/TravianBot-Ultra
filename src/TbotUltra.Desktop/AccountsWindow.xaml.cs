@@ -508,6 +508,26 @@ public partial class AccountsWindow : Window
         _proxyCheckCts?.Cancel();
     }
 
+    private void FindBestProxyButton_Click(object sender, RoutedEventArgs e)
+    {
+        var initialScheme = (ProxySchemeComboBox?.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString();
+        var finder = new ProxyFinderWindow(initialScheme) { Owner = this };
+        if (finder.ShowDialog() != true || finder.SelectedProxy is not { } pick)
+        {
+            return;
+        }
+
+        // Apply the chosen proxy to this account's fields and turn the proxy on.
+        UseProxyCheckBox.IsChecked = true;
+        SafeRunAccountEditorAction(() =>
+        {
+            SelectProxyScheme(pick.Scheme);
+            ProxyHostTextBox.Text = pick.Host;
+            ProxyPortTextBox.Text = pick.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }, "apply selected proxy");
+        UpdateActionButtons();
+    }
+
     private void ServerListButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new ServerListWindow(_serverOptions, _defaultServerOptions, _serverCatalogStore)
