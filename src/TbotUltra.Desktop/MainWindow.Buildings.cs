@@ -157,6 +157,65 @@ public partial class MainWindow
         AppendLog($"Upgrade-all-to-max: queued load_buildings_snapshot + {queued} upgrade_building_to_max task(s).");
     }
 
+    internal void OnBuildingTemplatesClicked()
+    {
+        var status = ResolveSelectedVillageBuildingStatus();
+        if (status is null || status.Buildings.Count == 0)
+        {
+            BuildingsInfoTextBlock.Text = "Load buildings for the selected village first.";
+            return;
+        }
+
+        var window = new BuildingTemplatesWindow(
+            _projectRoot,
+            status,
+            ResolveServerSpeed(),
+            ResolveMainBuildingLevel())
+        {
+            Owner = this,
+        };
+
+        if (window.ShowDialog() != true || window.QueuePlan is null)
+        {
+            return;
+        }
+
+        QueueBuildingTemplatePlan(window.QueuePlan);
+    }
+
+    private void QueueBuildingTemplatePlan(BuildingTemplatePlanResult plan)
+    {
+        var queued = 0;
+        QueueItem? lastItem = null;
+        foreach (var action in plan.Actions)
+        {
+            var payload = new Dictionary<string, string>(action.Payload, StringComparer.OrdinalIgnoreCase);
+            ApplySelectedVillageToPayload(payload);
+            lastItem = _botService.Enqueue(action.TaskName, payload, priority: 0, maxRetries: 3);
+            queued++;
+
+            if (string.Equals(action.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+                && action.Gid is int constructGid)
+            {
+                SetPendingBuildingConstruct(action.SlotId, action.Payload.GetValueOrDefault(BotOptionPayloadKeys.BuildingConstructName, action.DisplayName), constructGid);
+            }
+            else if (string.Equals(action.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+                && action.TargetLevel is int targetLevel
+                && action.SlotId > 0)
+            {
+                SetPendingBuildingUpgrade(action.SlotId, targetLevel);
+            }
+        }
+
+        RequestQueueUiRefresh(selectId: lastItem?.Id);
+        TriggerQueueAutoRunFromEnqueue();
+        var warningSuffix = plan.Warnings.Count > 0
+            ? $" Warnings: {string.Join(" ", plan.Warnings.Take(2))}"
+            : string.Empty;
+        BuildingsInfoTextBlock.Text = $"Queued building template: {queued} item(s).{warningSuffix}";
+        AppendLog($"Building template queued {queued} item(s).{warningSuffix}");
+    }
+
     internal void BuildingSlotCircleButton_Click(object sender, RoutedEventArgs e)
     {
         if (ResolveSelectedVillageBuildingStatus() is null)
