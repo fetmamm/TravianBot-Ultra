@@ -247,10 +247,10 @@ public sealed partial class TravianClient
                     return $"Resource slot {slotId} is level {currentLevel}. Target {targetLevel} reached after {upgrades} upgrades.";
                 }
 
-                var highestKnownLevel = await ReadHighestKnownQueuedResourceLevelAsync(resourceName, currentLevel.Value, cancellationToken);
+                var highestKnownLevel = await ReadHighestKnownQueuedResourceLevelAsync(slotId, resourceName, currentLevel.Value, cancellationToken);
                 if (highestKnownLevel >= targetLevel)
                 {
-                    var queuedWaitSeconds = await ReadQueuedResourceWaitSecondsAsync(resourceName, null, cancellationToken);
+                    var queuedWaitSeconds = await ReadQueuedResourceWaitSecondsAsync(resourceName, slotId, null, cancellationToken);
                     return $"Resource slot {slotId}: queued upgrade toward level {targetLevel}. queue_wait_seconds={queuedWaitSeconds}";
                 }
 
@@ -281,7 +281,7 @@ public sealed partial class TravianClient
 
                 if (highestKnownLevel >= effectiveTarget)
                 {
-                    var queuedWaitSeconds = await ReadQueuedResourceWaitSecondsAsync(resourceName, null, cancellationToken);
+                    var queuedWaitSeconds = await ReadQueuedResourceWaitSecondsAsync(resourceName, slotId, null, cancellationToken);
                     return $"Resource slot {slotId}: queued upgrade toward level {effectiveTarget}. queue_wait_seconds={queuedWaitSeconds}";
                 }
 
@@ -362,7 +362,7 @@ public sealed partial class TravianClient
 
                 if (progress.QueuedOrInProgress)
                 {
-                    var queuedWaitSeconds = await ReadQueuedResourceWaitSecondsAsync(resourceName, expectedWaitSeconds, cancellationToken);
+                    var queuedWaitSeconds = await ReadQueuedResourceWaitSecondsAsync(resourceName, slotId, expectedWaitSeconds, cancellationToken);
                     if (highestKnownLevel + 1 < effectiveTarget)
                     {
                         transientRetries = 0;
@@ -506,13 +506,12 @@ public sealed partial class TravianClient
                     }
 
                     // Over-build guard (matches the single-slot UpgradeResourceToLevelAsync): if this resource
-                    // type already has a queued/in-progress upgrade that reaches the target, do NOT click again.
+                    // slot already has a queued/in-progress upgrade that reaches the target, do NOT click again.
                     // The build page of a slot with a pending upgrade offers the NEXT level (target+1), so a
                     // second click would overshoot the requested target. This fires on Plus/Roman accounts where
-                    // a second queue slot is free while one upgrade is already in flight. Active constructions are
-                    // name-keyed (no slot id), so same-named fields are treated conservatively: a sibling's queued
-                    // upgrade defers this one until the queue clears (self-corrects next scan, never over-builds).
-                    var highestQueuedLevel = await ReadHighestKnownQueuedResourceLevelAsync(resourceName, level, cancellationToken);
+                    // a second queue slot is free while one upgrade is already in flight. If Travian does not
+                    // expose a slot id for the queued resource, fall back to same-name matching conservatively.
+                    var highestQueuedLevel = await ReadHighestKnownQueuedResourceLevelAsync(slot, resourceName, level, cancellationToken);
                     if (highestQueuedLevel >= preliminaryTarget)
                     {
                         anyQueuedTowardTarget = true;
@@ -661,7 +660,7 @@ public sealed partial class TravianClient
                     {
                         // Nothing left to click, but at least one field still has a queued upgrade reaching the
                         // target. Defer (re-check after it finishes) instead of declaring "all done" prematurely.
-                        var queuedWait = await ReadQueuedResourceWaitSecondsAsync(string.Empty, null, cancellationToken);
+                        var queuedWait = await ReadQueuedResourceWaitSecondsAsync(string.Empty, null, null, cancellationToken);
                         return $"Resource fields: queued upgrade(s) already reaching target level {targetLevel}. Upgrades made: {upgrades}. queue_wait_seconds={queuedWait}";
                     }
 
@@ -2145,6 +2144,7 @@ public sealed partial class TravianClient
 
     private async Task<int> ReadQueuedResourceWaitSecondsAsync(
         string resourceName,
+        int? slotId,
         int? fallbackSeconds,
         CancellationToken cancellationToken)
     {
@@ -2177,8 +2177,7 @@ public sealed partial class TravianClient
                 return hadStaleResourceTimer ? 1 : Math.Max(1, ComputeResourceUpgradeWaitSeconds(fallbackSeconds));
             }
 
-            var matchingTimers = resourceTimers
-                .Where(item => BuildingNames.Same(item.Name, resourceName))
+            var matchingTimers = ResourceConstructionQueueMatcher.MatchForResourceSlot(resourceTimers, slotId, resourceName)
                 .Select(item => item.TimeLeftSeconds!.Value)
                 .ToList();
             if (matchingTimers.Count > 0)
@@ -2195,6 +2194,7 @@ public sealed partial class TravianClient
     }
 
     private async Task<int> ReadHighestKnownQueuedResourceLevelAsync(
+        int slotId,
         string resourceName,
         int currentLevel,
         CancellationToken cancellationToken)
@@ -2202,12 +2202,7 @@ public sealed partial class TravianClient
         try
         {
             var active = await ReadActiveConstructionsAsync(cancellationToken);
-            var highestQueuedLevel = active
-                .Where(item => item.Kind == ConstructionKind.Resource && BuildingNames.Same(item.Name, resourceName))
-                .Select(item => item.Level ?? 0)
-                .DefaultIfEmpty(0)
-                .Max();
-            return Math.Max(currentLevel, highestQueuedLevel);
+            return ResourceConstructionQueueMatcher.HighestQueuedLevelForSlot(active, slotId, resourceName, currentLevel);
         }
         catch
         {

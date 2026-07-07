@@ -176,6 +176,14 @@ public partial class MainWindow
 
     private void ApplyStorageStatusToUi(VillageStatus status, string source)
     {
+        SetActiveWorkingVillageFromStatus(status);
+        CacheVillageStatus(status);
+        if (!IsStatusForSelectedVillage(status))
+        {
+            AppendLog($"[storage-refresh] skipped UI update from {source}: data is for '{status.ActiveVillage}', another village is selected. Cache updated.");
+            return;
+        }
+
         status = MergeResourceStatusForUi(status);
         AppendLog($"[storage-refresh] applied from {source}: {BuildResourceLogSummary(status)}");
         ApplyResourceTransferVillageResourceStatus(status);

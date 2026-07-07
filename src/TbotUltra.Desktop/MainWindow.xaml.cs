@@ -953,6 +953,9 @@ public partial class MainWindow : Window
     private void ApplyPostLoginSnapshot(PostLoginSnapshot snapshot)
     {
         var status = snapshot.VillageStatus;
+        // Select the village the browser actually landed in (active village), not a stale prior selection,
+        // before painting so the selected-village guards let the landing village repaint through.
+        SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage, status.ActiveVillage);
         var rows = ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
         TriggerDeferredConstructionWaitRefresh(status, "post_login");
 
@@ -962,9 +965,6 @@ public partial class MainWindow : Window
         BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{status.ActiveVillage}'");
         SetTribeText(status.Tribe);
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
-        // Select the village the browser actually landed in (active village), not a stale prior selection,
-        // so the dropdown matches the browser and Start bot works in the landing village.
-        SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage, status.ActiveVillage);
         ReconcileConfirmedVillageList(status.Villages, "post_login");
         // Apply the landing village's per-village automation-group override to the dashboard cards. Without
         // this the cards keep the global default loaded by LoadAutomationLoopTasks, so on login they could

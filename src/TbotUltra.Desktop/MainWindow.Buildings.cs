@@ -72,8 +72,17 @@ public partial class MainWindow
 
             SetActiveWorkingVillageFromStatus(status);
             CacheVillageStatus(status);
+            var statusForSelectedVillage = IsStatusForSelectedVillage(status);
             ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
-            _resourcesViewModel.ApplyStorageForecasts(status);
+            if (statusForSelectedVillage)
+            {
+                _resourcesViewModel.ApplyStorageForecasts(status);
+            }
+            else
+            {
+                AppendLog($"[storage-refresh] skipped Load buildings storage repaint: data is for '{status.ActiveVillage}', another village is selected.");
+            }
+
             _lastBuildingStatus = status;
             PopulateBuildingsTab(status);
             ApplyConstructionTimerFromStatus(status);

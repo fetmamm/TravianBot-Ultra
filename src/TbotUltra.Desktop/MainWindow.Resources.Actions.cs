@@ -35,6 +35,8 @@ public partial class MainWindow
             AppendLog($"[{operationId}] INFO server={options.ServerName}");
             await EnsureChromiumInstalledAsync();
             var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: true, forceCurrentVillage: true);
+            SetActiveWorkingVillageFromStatus(status);
+            CacheVillageStatus(status);
             _resourcesViewModel.ClearPendingTargets();
             var rows = ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: false);
             _inboxAutoEnabled = true;

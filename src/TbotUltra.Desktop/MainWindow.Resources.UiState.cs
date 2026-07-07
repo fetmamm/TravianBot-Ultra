@@ -132,6 +132,12 @@ public partial class MainWindow
 
     private List<ResourceFieldRow> ApplyResourceRowsAndVillageStatus(VillageStatus status, bool includeQueuedTargets)
     {
+        if (!IsStatusForSelectedVillage(status))
+        {
+            AppendLog($"[resource-ui] skipped repaint: status is for '{status.ActiveVillage}', another village is selected.");
+            return BuildResourceRows(status, includeQueuedTargets);
+        }
+
         var rows = BuildResourceRows(status, includeQueuedTargets);
         SetResourceRows(rows);
         ApplyVillageStatusToUi(status);

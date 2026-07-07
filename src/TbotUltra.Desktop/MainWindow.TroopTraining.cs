@@ -1192,8 +1192,10 @@ public partial class MainWindow
                 await Dispatcher.InvokeAsync(() =>
                 {
                     var troopTrainingQueues = ResolveTroopTrainingQueuesForStatus(refreshedStatus);
+                    var refreshedStatusWithQueues = refreshedStatus with { TroopTrainingQueues = troopTrainingQueues };
+                    CacheVillageStatus(refreshedStatusWithQueues);
                     _lastBuildingStatus = _lastBuildingStatus is null
-                        ? refreshedStatus with { TroopTrainingQueues = troopTrainingQueues }
+                        ? refreshedStatusWithQueues
                         : _lastBuildingStatus with
                         {
                             ActiveVillage = refreshedStatus.ActiveVillage,
@@ -1204,7 +1206,14 @@ public partial class MainWindow
                             TroopTrainingQueues = troopTrainingQueues,
                         };
 
-                    _troopTrainingViewModel.ApplyStatus(_lastBuildingStatus, troopTrainingQueues);
+                    if (IsStatusForSelectedVillage(_lastBuildingStatus))
+                    {
+                        _troopTrainingViewModel.ApplyStatus(_lastBuildingStatus, troopTrainingQueues);
+                    }
+                    else
+                    {
+                        AppendLog($"[troop-training-ui] skipped queue repaint: status is for '{_lastBuildingStatus.ActiveVillage}', another village is selected. Cache updated.");
+                    }
                 });
                 await RefreshBreweryCelebrationStatusAsync(options, refreshedStatus, cancellationToken);
             }
@@ -1239,10 +1248,38 @@ public partial class MainWindow
             var effectiveStatus = _lastBuildingStatus is null
                 ? null
                 : _lastBuildingStatus with { TroopTrainingQueues = queueStatuses };
+            if (queueVillageName is not null
+                && (effectiveStatus is null
+                    || !string.Equals(
+                        NormalizeVillageName(effectiveStatus.ActiveVillage),
+                        queueVillageName,
+                        StringComparison.OrdinalIgnoreCase)))
+            {
+                effectiveStatus = _villageStatusCacheByName.TryGetValue(queueVillageName, out var queueVillageStatus)
+                    ? queueVillageStatus with { TroopTrainingQueues = queueStatuses }
+                    : new VillageStatus(
+                        ActiveVillage: queueVillageName,
+                        Villages: [],
+                        Resources: new Dictionary<string, string>(),
+                        ResourceFields: [],
+                        Buildings: effectiveBuildings?.ToList() ?? [],
+                        BuildQueue: [],
+                        TroopTrainingQueues: queueStatuses);
+            }
+
             if (effectiveStatus is not null)
             {
                 _lastBuildingStatus = effectiveStatus;
-                _troopTrainingViewModel.ApplyStatus(effectiveStatus, queueStatuses);
+                CacheVillageStatus(effectiveStatus);
+                if (IsStatusForSelectedVillage(effectiveStatus))
+                {
+                    _troopTrainingViewModel.ApplyStatus(effectiveStatus, queueStatuses);
+                }
+                else
+                {
+                    AppendLog($"[troop-training-ui] skipped queue repaint: status is for '{effectiveStatus.ActiveVillage}', another village is selected. Cache updated.");
+                }
+
                 UpdateCachedTimerStatus(effectiveStatus.ActiveVillage, cached => cached with
                 {
                     TroopTrainingQueues = queueStatuses,
@@ -1251,14 +1288,22 @@ public partial class MainWindow
             }
             else
             {
-                _troopTrainingViewModel.ApplyStatus(new VillageStatus(
+                var statusWithoutVillage = new VillageStatus(
                     ActiveVillage: string.Empty,
                     Villages: [],
                     Resources: new Dictionary<string, string>(),
                     ResourceFields: [],
                     Buildings: effectiveBuildings?.ToList() ?? [],
                     BuildQueue: [],
-                    TroopTrainingQueues: queueStatuses), queueStatuses);
+                    TroopTrainingQueues: queueStatuses);
+                if (IsStatusForSelectedVillage(statusWithoutVillage))
+                {
+                    _troopTrainingViewModel.ApplyStatus(statusWithoutVillage, queueStatuses);
+                }
+                else
+                {
+                    AppendLog("[troop-training-ui] skipped queue repaint: village could not be matched to the selected village.");
+                }
             }
 
             if (smithyStatus is not null)

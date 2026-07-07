@@ -325,6 +325,8 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 
 - Per-slot state fran kon maste alltid filtreras per vald by. Partiella resurslasningar utan bygg-DOM far
   inte nollstalla en cachad aktiv byggko. `load_buildings_snapshot` ar en lasning, inte ett bygge.
+- Resource-field queue-dedupe maste matcha `ActiveConstruction.SlotId` nar Travian exponerar slot-id;
+  samma namn (t.ex. flera Cropland) far bara vara fallback nar queued slot-id saknas.
 - `ActiveConstructions` (browserbekraftad) ar SOT for aktiv byggko; defer-poster och lokala timers ar
   harledd vantan, inte bevis. Endast en bekraftad tom dorf1/dorf2-lasning far rensa snapshoten/frigora
   en `queue_full`-blockerare (undantag: manuell `Clear timers`).
