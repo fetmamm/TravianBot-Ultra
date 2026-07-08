@@ -16,6 +16,9 @@ public sealed class AccountEntry
     public string ProxyServer { get; set; } = string.Empty;
     public bool NeverUseOwnIp { get; set; }
     public bool IsActive { get; set; }
+    public string ServerDisplayName => string.IsNullOrWhiteSpace(ServerName)
+        ? (string.IsNullOrWhiteSpace(ServerUrl) ? "-" : ServerUrl)
+        : ServerName.Trim();
     public string ServerSpeedLabel => ExtractServerSpeedLabel(ServerName);
 
     public string PickerName =>

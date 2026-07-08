@@ -143,10 +143,11 @@ public sealed partial class TravianClient
             await RetryAsync($"navigate to {pathOrUrl}", async () =>
             {
                 var response = await _page.GotoAsync(url, new PageGotoOptions
-                {
-                    WaitUntil = WaitUntilState.DOMContentLoaded,
-                    Timeout = _config.TimeoutMs,
-                });
+                    {
+                        WaitUntil = WaitUntilState.DOMContentLoaded,
+                        Timeout = _config.TimeoutMs,
+                    })
+                    .WaitAsync(cancellationToken);
                 if (response is not null && response.Headers.TryGetValue("date", out var dateHeader))
                 {
                     RecordServerTime(dateHeader);
@@ -180,7 +181,8 @@ public sealed partial class TravianClient
         {
             RecordConstructionNavigation("reload", pathOrUrl);
             Notify($"[nav] RELOAD start target='{pathOrUrl}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
-            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
+                .WaitAsync(cancellationToken);
             Notify($"[nav] RELOAD done target='{pathOrUrl}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
             // A reload replaces page content just like a navigation, so any page-derived cache must
             // be dropped here too (the GotoAsync branch already does this). Without this the longer

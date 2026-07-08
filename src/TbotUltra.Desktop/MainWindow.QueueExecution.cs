@@ -390,6 +390,7 @@ public partial class MainWindow
         catch (OperationCanceledException)
         {
             _botService.MarkQueueItemDeferred(item.Id, TimeSpan.Zero);
+            AppendLog($"{logPrefix} PAUSED {tickSw.Elapsed.TotalSeconds:F1}s task={item.TaskName} | queued item kept for retry");
             return false;
         }
         catch (Exception ex)
@@ -401,7 +402,8 @@ public partial class MainWindow
             SetActiveAutomationTask(null);
             SetActiveFunctionExecution(null);
             RefreshQueueUiOnUiThread(item.Id);
-            if (mode == QueueExecutionMode.AutoQueue
+            if (!cancellationToken.IsCancellationRequested
+                && mode == QueueExecutionMode.AutoQueue
                 && IsBuildingMutationTask(item.TaskName)
                 && !freshBuildingsRefreshDone)
             {

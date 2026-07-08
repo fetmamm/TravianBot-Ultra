@@ -373,7 +373,8 @@ public sealed partial class TravianClient
             }
 
             Notify("[daily-quests] topbar signal still claimable after collect; reloading current page once");
-            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
+                .WaitAsync(cancellationToken);
             await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))

@@ -63,7 +63,7 @@
                                     </TextBlock.Style>
                                 </TextBlock>
                                 <TextBlock Grid.Column="1"
-                                           Text="{Binding ServerSpeedLabel}"
+                                           Text="{Binding ServerDisplayName}"
                                            Foreground="{DynamicResource SlateTextBrush}"
                                            TextTrimming="CharacterEllipsis"
                                            Margin="8,0,0,0" />

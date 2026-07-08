@@ -525,7 +525,7 @@ public partial class MainWindow
             hasLevelUpIndicator = await _botService.HasHeroLevelUpIndicatorOnCurrentPageAsync(
                 options,
                 AppendLog,
-                CancellationToken.None);
+                _loopController.AcquireSessionScopeToken());
         }
         catch (Exception ex)
         {
@@ -625,7 +625,7 @@ public partial class MainWindow
 
         try
         {
-            if (await _botService.HasClaimableTasksOnCurrentPageAsync(options, AppendLog, CancellationToken.None))
+            if (await _botService.HasClaimableTasksOnCurrentPageAsync(options, AppendLog, _loopController.AcquireSessionScopeToken()))
             {
                 _botService.EnqueueRuntime("collect_tasks", "Collect tasks", payload, priority: -40, maxRetries: 1);
                 if (villageCooldownKey is not null)
@@ -670,7 +670,7 @@ public partial class MainWindow
 
         try
         {
-            if (await _botService.HasClaimableDailyQuestsOnCurrentPageAsync(options, AppendLog, CancellationToken.None))
+            if (await _botService.HasClaimableDailyQuestsOnCurrentPageAsync(options, AppendLog, _loopController.AcquireSessionScopeToken()))
             {
                 _botService.EnqueueRuntime("collect_daily_quests", "Collect daily quests", payload, priority: -40, maxRetries: 1);
                 AppendLog("Daily quests: claimable rewards detected - queued collect_daily_quests.");
@@ -912,7 +912,7 @@ public partial class MainWindow
         _heroReviveCheckRunning = true;
         try
         {
-            stillReviving = await _botService.IsHeroRevivingOnCurrentPageAsync(options, AppendLog, CancellationToken.None);
+            stillReviving = await _botService.IsHeroRevivingOnCurrentPageAsync(options, AppendLog, _loopController.AcquireSessionScopeToken());
         }
         catch (Exception ex)
         {
@@ -978,7 +978,7 @@ public partial class MainWindow
         _heroReviveCheckRunning = true;
         try
         {
-            await _botService.CheckAndReviveDeadHeroAsync(options, true, AppendLog, CancellationToken.None);
+            await _botService.CheckAndReviveDeadHeroAsync(options, true, AppendLog, _loopController.AcquireSessionScopeToken());
         }
         catch (Exception ex)
         {

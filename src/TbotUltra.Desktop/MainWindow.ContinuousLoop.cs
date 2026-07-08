@@ -186,8 +186,9 @@ public partial class MainWindow
         return ordered;
     }
 
-    private async Task EnsureContinuousLoopRuntimeItemsAsync(BotOptions options)
+    private async Task EnsureContinuousLoopRuntimeItemsAsync(BotOptions options, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var enabledGroups = GetContinuousLoopEnabledGroupsInOrder();
         // Troop-training, smithy, brewery and farming are generated PER VILLAGE (see below), so the loop
         // must keep running when only a non-selected village has those groups on. Hero/transfer/
@@ -227,7 +228,7 @@ public partial class MainWindow
 
         if (heroPollingEnabled && !HasActiveTask("hero_manage"))
         {
-            var adventureCount = await _botService.RefreshAdventureCountAsync(options, AppendLog, CancellationToken.None);
+            var adventureCount = await _botService.RefreshAdventureCountAsync(options, AppendLog, cancellationToken);
             await Dispatcher.InvokeAsync(() => ApplyHeroAdventureAvailability(adventureCount));
             if (adventureCount is > 0)
             {
@@ -395,11 +396,11 @@ public partial class MainWindow
 
         if (consideredGroups.Contains(QueueGroup.Farming) && !IsFarmingGroupBlocked())
         {
-            var goldClubEnabled = await _botService.ReadAndPersistGoldClubStatusAsync(options, AppendLog, CancellationToken.None);
+            var goldClubEnabled = await _botService.ReadAndPersistGoldClubStatusAsync(options, AppendLog, cancellationToken);
             UpdateGoldClubInfo(goldClubEnabled);
             if (goldClubEnabled)
             {
-                await EnsureContinuousFarmListsReadyAsync(options);
+                await EnsureContinuousFarmListsReadyAsync(options, cancellationToken);
                 (List<string> Names, List<string> Ids) GatherSelectedFarmLists()
                 {
                     var enabled = _farmLists.Where(item => IsRealFarmListRow(item) && item.IsEnabled).ToList();
@@ -736,8 +737,9 @@ public partial class MainWindow
         }
     }
 
-    private async Task EnsureContinuousFarmListsReadyAsync(BotOptions options)
+    private async Task EnsureContinuousFarmListsReadyAsync(BotOptions options, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var farmingEnabled = GetContinuousLoopEnabledGroupsInOrder().Contains(QueueGroup.Farming);
         if (!farmingEnabled || _farmingOperationBusy)
         {
@@ -771,7 +773,11 @@ public partial class MainWindow
         AppendLog("Continuous farming: analyzing farmlists before runtime send.");
         try
         {
-            await RefreshFarmListsFromServerAsync(options, CancellationToken.None);
+            await RefreshFarmListsFromServerAsync(options, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -1478,8 +1484,9 @@ public partial class MainWindow
         return skipReason;
     }
 
-    private async Task MaybeCheckInboxDuringContinuousLoopAsync()
+    private async Task MaybeCheckInboxDuringContinuousLoopAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!_inboxAutoEnabled)
         {
             return;
@@ -1498,7 +1505,7 @@ public partial class MainWindow
         // RefreshInboxIndicatorsAsync — that guard exists to avoid touching the browser while a
         // task runs, but here the continuous loop owns the browser serially and calls this only
         // between task executions, so the access is safe.
-        await RefreshInboxIndicatorsAsync(logErrors: false, force: true);
+        await RefreshInboxIndicatorsAsync(logErrors: false, force: true, cancellationToken);
     }
 
     private void MarkContinuousBrowserActivity()
@@ -1629,8 +1636,8 @@ public partial class MainWindow
                 await HonorPendingVillageSwitchAsync(options, token);
                 await EnsureContinuousLoopConstructionStatusAsync(options, token);
                 await MaybeAnalyzeNewVillageDuringContinuousLoopAsync(options, token);
-                await EnsureContinuousLoopRuntimeItemsAsync(options);
-                await MaybeCheckInboxDuringContinuousLoopAsync();
+                await EnsureContinuousLoopRuntimeItemsAsync(options, token);
+                await MaybeCheckInboxDuringContinuousLoopAsync(token);
 
                 var next = SelectNextQueueItemForContinuousLoop();
                 if (next is not null)

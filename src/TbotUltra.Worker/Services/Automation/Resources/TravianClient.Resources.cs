@@ -1855,7 +1855,8 @@ public sealed partial class TravianClient
             Notify("Resource field scan returned 0 link elements. Reloading dorf1 once and retrying.");
             try
             {
-                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
+                    .WaitAsync(cancellationToken);
                 await WaitForResourceFieldsHydratedAsync(cancellationToken);
 
                 await RetryAsync("read resource fields snapshot (retry)", async () =>

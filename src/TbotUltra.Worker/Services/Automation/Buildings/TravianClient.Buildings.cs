@@ -124,7 +124,12 @@ public sealed partial class TravianClient : IBuildingClient
 
             try
             {
-                await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+                await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded)
+                    .WaitAsync(cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch
             {
@@ -1818,7 +1823,12 @@ public sealed partial class TravianClient : IBuildingClient
     {
         try
         {
-            await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+            await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded)
+                .WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -1831,7 +1841,8 @@ public sealed partial class TravianClient : IBuildingClient
             await _page.WaitForFunctionAsync(
                 "() => /\\bconstruct(?:\\s+building)?\\b|\\bbuild(?:\\s+building)?\\b|\\bbauen\\b|\\bbygg\\b|\\bcostruisci\\b/i.test(document.body.innerText || '')",
                 null,
-                new PageWaitForFunctionOptions { Timeout = 15000 });
+                new PageWaitForFunctionOptions { Timeout = 15000 })
+                .WaitAsync(cancellationToken);
         }
         catch (Exception ex)
         {
@@ -2700,7 +2711,8 @@ public sealed partial class TravianClient : IBuildingClient
     {
         try
         {
-            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
+                .WaitAsync(cancellationToken);
         }
         catch (Exception ex) when (IsTransientExecutionContextException(ex))
         {
@@ -4479,7 +4491,8 @@ public sealed partial class TravianClient : IBuildingClient
 
                 await RetryAsync("wait for page load", async () =>
                 {
-                    await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+                    await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded)
+                        .WaitAsync(cancellationToken);
                 }, cancellationToken: cancellationToken);
                 await PauseForManualStepIfVisibleAsync("Manual verification appeared after upgrade actionability analysis.", cancellationToken);
 
@@ -4568,7 +4581,8 @@ public sealed partial class TravianClient : IBuildingClient
                 {
                     stalePageReloads += 1;
                     Notify($"Build queue page is stale (Travian auto-reload failed); reloading (attempt {stalePageReloads}/2).");
-                    await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+                    await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
+                        .WaitAsync(cancellationToken);
                     InvalidateActiveConstructionsCache();
                     i--; // re-run this iteration after the reload
                     continue;

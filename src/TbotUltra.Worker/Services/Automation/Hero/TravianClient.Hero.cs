@@ -389,7 +389,8 @@ public sealed partial class TravianClient : IHeroClient
         }
 
         Notify("[hero:verbose] reloading dorf1 to refresh hero sidebar");
-        await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+        await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
+            .WaitAsync(cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while refreshing dorf1 for hero check.", cancellationToken);
     }

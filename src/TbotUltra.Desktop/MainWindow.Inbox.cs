@@ -116,8 +116,9 @@ public partial class MainWindow
         }
     }
 
-    private async Task RefreshInboxIndicatorsAsync(bool logErrors, bool force = false)
+    private async Task RefreshInboxIndicatorsAsync(bool logErrors, bool force = false, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (_loopController.IsClosing || IsSessionSleeping)
         {
             return;
@@ -141,9 +142,13 @@ public partial class MainWindow
             }
 
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            var status = await _botService.ReadInboxStatusAsync(options, _ => { }, CancellationToken.None);
+            var status = await _botService.ReadInboxStatusAsync(options, _ => { }, cancellationToken);
             UpdateInboxButtons(status.UnreadMessages, status.UnreadReports);
-            await AutoReadInboxItemsAsync(options, status);
+            await AutoReadInboxItemsAsync(options, status, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -182,8 +187,12 @@ public partial class MainWindow
         try
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            var status = await _botService.ReadInboxStatusAsync(options, _ => { }, CancellationToken.None);
+            var status = await _botService.ReadInboxStatusAsync(options, _ => { }, _loopController.AcquireSessionScopeToken());
             UpdateInboxButtons(status.UnreadMessages, status.UnreadReports);
+        }
+        catch (OperationCanceledException)
+        {
+            // Stop/Pause cancels session-scoped background reads.
         }
         catch (Exception ex)
         {
@@ -195,8 +204,9 @@ public partial class MainWindow
         }
     }
 
-    private async Task AutoReadInboxItemsAsync(BotOptions options, InboxStatus status)
+    private async Task AutoReadInboxItemsAsync(BotOptions options, InboxStatus status, CancellationToken cancellationToken = default)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (IsSessionSleeping)
         {
             return;
@@ -215,8 +225,12 @@ public partial class MainWindow
         {
             try
             {
-                await _botService.MarkMessagesAsReadAsync(options, AppendLog, selection.Name, selection.Url, CancellationToken.None);
+                await _botService.MarkMessagesAsReadAsync(options, AppendLog, selection.Name, selection.Url, cancellationToken);
                 changed = true;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -228,8 +242,12 @@ public partial class MainWindow
         {
             try
             {
-                await _botService.MarkReportsAsReadAsync(options, AppendLog, selection.Name, selection.Url, CancellationToken.None);
+                await _botService.MarkReportsAsReadAsync(options, AppendLog, selection.Name, selection.Url, cancellationToken);
                 changed = true;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
             }
             catch (Exception ex)
             {
@@ -242,7 +260,7 @@ public partial class MainWindow
             return;
         }
 
-        var refreshed = await _botService.ReadInboxStatusAsync(options, _ => { }, CancellationToken.None);
+        var refreshed = await _botService.ReadInboxStatusAsync(options, _ => { }, cancellationToken);
         UpdateInboxButtons(refreshed.UnreadMessages, refreshed.UnreadReports);
     }
 
