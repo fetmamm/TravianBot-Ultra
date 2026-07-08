@@ -82,6 +82,21 @@ public sealed class DesktopBotService : IDesktopBotService
         return _taskRunner.IsLoggedInAsync(options, log, null, cancellationToken);
     }
 
+    public Task<string?> ReadCurrentLanguageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadCurrentLanguageAsync(options, log, null, cancellationToken);
+    }
+
+    public Task EnsureExpectedLanguageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.EnsureExpectedLanguageAsync(options, log, null, cancellationToken);
+    }
+
+    public Task<string?> SetLanguageToEnglishAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.SetLanguageToEnglishAsync(options, log, null, cancellationToken);
+    }
+
     public Task<bool> ReadAndPersistGoldClubStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.ReadAndPersistGoldClubStatusAsync(options, log, null, cancellationToken);

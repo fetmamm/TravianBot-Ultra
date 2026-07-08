@@ -265,6 +265,7 @@ public partial class MainWindow : Window
     private string? _lastConservativeAutomationWarningSignature;
     private volatile bool _isLoggedIn;
     private volatile bool _browserSessionLikelyOpen;
+    private volatile bool _travianLanguageGateActive;
     // True only while a visible (non-headless) login is running. Lets the captcha/manual-verification
     // popup know the browser window is already open WITHOUT enabling background/village-selection ops
     // (which gate on _browserSessionLikelyOpen) to race the login on the shared page.
@@ -1041,7 +1042,7 @@ public partial class MainWindow : Window
 
             if (StartLoopButton is not null)
             {
-                StartLoopButton.IsEnabled = _isLoggedIn && !sleeping;
+                StartLoopButton.IsEnabled = _isLoggedIn && !sleeping && !_travianLanguageGateActive;
                 StartLoopButton.Content = (busy || _autoQueueRunning || !string.IsNullOrWhiteSpace(_activeFunctionDisplayName) || (_loopTask is not null && !_loopTask.IsCompleted))
                     ? "Pause bot"
                     : "Start bot";

@@ -32,7 +32,7 @@ public sealed partial class TravianClient : ISessionClient
         if (state == "logged_in")
         {
             Notify($"[login] already logged in as '{_account.Name}'");
-            await RefreshAccountFeatureSignalsAsync(cancellationToken);
+            await ConfirmExpectedLanguageAndRefreshAccountSignalsAsync(cancellationToken);
             return;
         }
 
@@ -43,7 +43,7 @@ public sealed partial class TravianClient : ISessionClient
             if (await IsLoggedInAsync())
             {
                 Notify($"[login] already logged in as '{_account.Name}' after dorf1 recheck");
-                await RefreshAccountFeatureSignalsAsync(cancellationToken);
+                await ConfirmExpectedLanguageAndRefreshAccountSignalsAsync(cancellationToken);
                 return;
             }
         }
@@ -63,7 +63,7 @@ public sealed partial class TravianClient : ISessionClient
         if (await IsLoggedInAsync())
         {
             Notify($"[login] success ({_account.Name}) — already authenticated after opening login page");
-            await RefreshAccountFeatureSignalsAsync(cancellationToken);
+            await ConfirmExpectedLanguageAndRefreshAccountSignalsAsync(cancellationToken);
             return;
         }
 
@@ -73,7 +73,7 @@ public sealed partial class TravianClient : ISessionClient
             // Maybe a redirect logged us in, or a captcha/manual step is blocking the form.
             if (await IsLoggedInAsync())
             {
-                await RefreshAccountFeatureSignalsAsync(cancellationToken);
+                await ConfirmExpectedLanguageAndRefreshAccountSignalsAsync(cancellationToken);
                 return;
             }
 
@@ -109,6 +109,8 @@ public sealed partial class TravianClient : ISessionClient
         {
             throw new InvalidOperationException("Login did not complete successfully.");
         }
+        await EnsureExpectedLanguageAsync(cancellationToken);
+
         // Settle the post-login landing page (dorf1) before any task navigates away. DOMContentLoaded
         // fires before stylesheets/scripts finish, which made the bot switch pages half-loaded and
         // produced transient 'unknown' login-state reads; wait for it first (fast and reliable), then
@@ -154,6 +156,12 @@ public sealed partial class TravianClient : ISessionClient
         await RefreshAccountFeatureSignalsAsync(cancellationToken);
     }
 
+    private async Task ConfirmExpectedLanguageAndRefreshAccountSignalsAsync(CancellationToken cancellationToken)
+    {
+        await EnsureExpectedLanguageAsync(cancellationToken);
+        await RefreshAccountFeatureSignalsAsync(cancellationToken);
+    }
+
     private async Task<bool> TryLoginUsingCurrentPageAsync(CancellationToken cancellationToken)
     {
         var hasUsernameField = await HasAnySelectorAsync(Selectors.LoginUsernameField);
@@ -186,6 +194,7 @@ public sealed partial class TravianClient : ISessionClient
         var loggedIn = await WaitUntilLoggedInAsync(cancellationToken);
         if (loggedIn)
         {
+            await EnsureExpectedLanguageAsync(cancellationToken);
             Notify($"[login] success ({_account.Name}) — inline form submitted");
         }
 

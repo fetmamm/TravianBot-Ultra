@@ -21,6 +21,12 @@ public interface ISessionClient
 
     Task<bool> CheckLoggedInAsync(CancellationToken cancellationToken = default);
 
+    Task<string?> ReadCurrentLanguageAsync(CancellationToken cancellationToken = default);
+
+    Task EnsureExpectedLanguageAsync(CancellationToken cancellationToken = default);
+
+    Task<string?> SetLanguageToEnglishAsync(CancellationToken cancellationToken = default);
+
     Task SwitchToVillageAsync(
         string villageName = "",
         string? villageUrl = null,

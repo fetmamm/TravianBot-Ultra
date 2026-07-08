@@ -375,6 +375,11 @@ public partial class MainWindow
             var effectiveOptions = forceCurrentVillage || currentPageOnly
                 ? LoadBotOptions()
                 : (options is null ? ApplySelectedVillageToOptions(LoadBotOptions()) : ApplySelectedVillageToOptions(options));
+            if (IsOfficialTravianServer(effectiveOptions))
+            {
+                await EnsureTravianLanguageForCurrentPageAsync(effectiveOptions, cancellationToken);
+            }
+
             var status = currentPageOnly && IsOfficialTravianServer(effectiveOptions)
                 ? await _botService.ReadCurrentPageResourceStatusQuickAsync(effectiveOptions, AppendLog, cancellationToken)
                 : await ReadVillageStatusWithRetryAsync(
@@ -399,6 +404,10 @@ public partial class MainWindow
             });
             return status;
         }
+        catch (UnexpectedTravianLanguageException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             // A page caught mid-navigation reports login state 'unknown' and self-heals on the next
@@ -418,6 +427,15 @@ public partial class MainWindow
         finally
         {
             _resourceSnapshotRefreshRunning = false;
+        }
+    }
+
+    private async Task EnsureTravianLanguageForCurrentPageAsync(BotOptions options, CancellationToken cancellationToken)
+    {
+        var language = await _botService.ReadCurrentLanguageAsync(options, AppendLog, cancellationToken);
+        if (!string.Equals(language?.Trim(), "en-US", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new UnexpectedTravianLanguageException(language);
         }
     }
 
@@ -476,6 +494,12 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
+            if (ex is UnexpectedTravianLanguageException languageException)
+            {
+                await HandleUnexpectedTravianLanguageAsync(languageException);
+                return;
+            }
+
             if (IsTransientPageReadFailure(ex))
             {
                 AppendLog($"[resource-refresh:verbose] background refresh skipped after transient page failure ({ex.Message})");

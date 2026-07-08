@@ -22,6 +22,12 @@ public partial class MainWindow
             return;
         }
 
+        if (_travianLanguageGateActive)
+        {
+            AppendLog("Start bot blocked until Travian language is verified as English.");
+            return;
+        }
+
         if (_autoQueueRunning)
         {
             _startContinuousLoopAfterQueueStop = false;

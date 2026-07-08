@@ -1,0 +1,50 @@
+<Window x:Class="TbotUltra.Desktop.TravianLanguageGateWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Travian language required"
+        Height="250"
+        Width="460"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner"
+        Closing="Window_Closing">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Travian must be set to English"
+                   FontSize="18"
+                   FontWeight="SemiBold"
+                   TextWrapping="Wrap" />
+
+        <StackPanel Grid.Row="1" Margin="0,14,0,16">
+            <TextBlock Text="The bot is paused because this account is not using English in Travian. Change the Travian language to English before continuing."
+                       TextWrapping="Wrap" />
+            <TextBlock x:Name="CurrentLanguageTextBlock"
+                       Margin="0,12,0,0"
+                       Foreground="{DynamicResource MutedTextBrush}"
+                       TextWrapping="Wrap" />
+            <TextBlock x:Name="StatusTextBlock"
+                       Margin="0,12,0,0"
+                       TextWrapping="Wrap" />
+        </StackPanel>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right">
+            <Button x:Name="AutoButton"
+                    Content="Set language automatically"
+                    MinWidth="170"
+                    Height="32"
+                    Margin="0,0,8,0"
+                    Click="AutoButton_Click" />
+            <Button x:Name="ManualButton"
+                    Content="I changed it manually"
+                    MinWidth="150"
+                    Height="32"
+                    Click="ManualButton_Click" />
+        </StackPanel>
+    </Grid>
+</Window>

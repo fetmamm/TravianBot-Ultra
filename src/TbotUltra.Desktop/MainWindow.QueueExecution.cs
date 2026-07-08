@@ -610,6 +610,16 @@ public partial class MainWindow
             }
         }
 
+        if (ex is UnexpectedTravianLanguageException languageException)
+        {
+            _botService.MarkQueueItemDeferred(item.Id, TimeSpan.Zero);
+            AppendLog(
+                $"{logPrefix} PAUSED {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                "Travian language must be English before automation can continue.");
+            await HandleUnexpectedTravianLanguageAsync(languageException);
+            return false;
+        }
+
         if (await TryHandleTroopsBlockedExecutionAsync(item, ex, logPrefix))
         {
             return true;

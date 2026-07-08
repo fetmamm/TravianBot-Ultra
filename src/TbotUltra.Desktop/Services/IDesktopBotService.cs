@@ -31,6 +31,9 @@ public interface IDesktopBotService
     Task ExecuteFallbackTasksAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
 
     Task<bool> IsLoggedInAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<string?> ReadCurrentLanguageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task EnsureExpectedLanguageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<string?> SetLanguageToEnglishAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<bool> ReadAndPersistGoldClubStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<IReadOnlyList<FarmListOverview>> ReadFarmListsOverviewAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<int?> SendFarmListNowAsync(BotOptions options, string farmListName, Action<string> log, CancellationToken cancellationToken);
