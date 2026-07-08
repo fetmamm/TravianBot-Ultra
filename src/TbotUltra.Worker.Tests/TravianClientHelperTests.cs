@@ -711,6 +711,28 @@ public sealed class TravianClientHelperTests
         InvokeEnsureBuildingCanBeConstructed(status, 10, "Warehouse");
     }
 
+    [Theory]
+    [InlineData(25, "Residence", 26, "Palace")]
+    [InlineData(26, "Palace", 25, "Residence")]
+    [InlineData(44, "Command Center", 25, "Residence")]
+    public void EnsureBuildingCanBeConstructed_BlocksResidenceFamilyConflictAtLevel0(
+        int existingGid,
+        string existingName,
+        int targetGid,
+        string targetName)
+    {
+        var status = new VillageStatus(
+            ActiveVillage: "Capital",
+            Villages: [],
+            Resources: new Dictionary<string, string>(),
+            ResourceFields: [],
+            Buildings: [new Building(19, existingName, 0, null, existingGid)],
+            BuildQueue: []);
+
+        var ex = Assert.Throws<TargetInvocationException>(() => InvokeEnsureBuildingCanBeConstructed(status, targetGid, targetName));
+        Assert.Equal($"{targetName} conflicts with {existingName} already in this village.", ex.InnerException?.Message);
+    }
+
     private static void InvokeEnsureBuildingCanBeConstructed(VillageStatus status, int gid, string name)
     {
         var method = typeof(TravianClient).GetMethod("EnsureBuildingCanBeConstructed", BindingFlags.NonPublic | BindingFlags.Static);

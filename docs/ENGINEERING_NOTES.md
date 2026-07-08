@@ -365,6 +365,8 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
   build-sida live (`TryReadExistingBuildingOnSlotBuildPageAsync`); bekraftad befintlig byggnad (level >= 1, ingen
   `#contract_building*`) -> returnera "already exists at slot" som klassas `ConstructionTaskOutcome.AlreadyExists`
   och desktop TAR BORT posten ur kon (`HandleQueueItemSucceededAsync`). Maste vara live-bekraftat fore borttagning.
+- Palace/Residence/Command Center ar mutual-exclusive per by; level 0/queued construct raknas som narvaro och ska
+  blocka de andra redan i Desktop enqueue-gate, planners och Worker-sista skydd.
 - Official appendar `&gid=<befintlig byggnad>` till `build.php?id=N` nar sloten ar UPPTAGEN (boten skickar aldrig
   `gid=` sjalv i construct-url:en). Matchar server-gid det efterfragade gid:et men level >= 1 inte kan bekraftas
   (nykonstruktion pagar, level 0), ska `ConstructBuildingAsync` defer:a med `queue_wait_seconds` tills bygget ar

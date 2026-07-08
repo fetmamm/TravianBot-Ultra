@@ -598,30 +598,11 @@ public partial class MainWindow
                 continue;
             }
 
-            // Palace (26) conflicts with Residence (25) and Command Center (44) — only one allowed per village.
-            if (entry.Gid == 26 && (existingGids.Contains(25) || existingGids.Contains(44)))
+            var conflictingResidenceFamilyGid = FindResidenceFamilyConflictGid(status.Buildings, entry.Gid);
+            if (conflictingResidenceFamilyGid is int conflictGid)
             {
-                var conflicting = existingGids.Contains(25) ? "Residence" : "Command Center";
                 option.Availability = BuildingConstructAvailability.AlreadyBuilt;
-                option.UnavailableReason = $"{conflicting} already exists in this village";
-                result.Add(option);
-                continue;
-            }
-            // Residence (25) conflicts with Palace (26) and Command Center (44) symmetrically.
-            if (entry.Gid == 25 && (existingGids.Contains(26) || existingGids.Contains(44)))
-            {
-                var conflicting = existingGids.Contains(26) ? "Palace" : "Command Center";
-                option.Availability = BuildingConstructAvailability.AlreadyBuilt;
-                option.UnavailableReason = $"{conflicting} already exists in this village";
-                result.Add(option);
-                continue;
-            }
-            // Command Center (44) conflicts with Palace (26) and Residence (25).
-            if (entry.Gid == 44 && (existingGids.Contains(25) || existingGids.Contains(26)))
-            {
-                var conflicting = existingGids.Contains(25) ? "Residence" : "Palace";
-                option.Availability = BuildingConstructAvailability.AlreadyBuilt;
-                option.UnavailableReason = $"{conflicting} already exists in this village";
+                option.UnavailableReason = $"{BuildingCatalogService.NameForGid(conflictGid)} already exists or is queued in this village";
                 result.Add(option);
                 continue;
             }
@@ -755,6 +736,12 @@ public partial class MainWindow
             return false;
         }
 
+        if (FindResidenceFamilyConflictGid(projectedStatus.Buildings, selectedBuilding.Gid) is int conflictingResidenceFamilyGid)
+        {
+            reason = $"{selectedBuilding.Name} conflicts with {BuildingCatalogService.NameForGid(conflictingResidenceFamilyGid)} already in this village.";
+            return false;
+        }
+
         if (BuildingCatalogService.DuplicateRequiredExistingLevelFor(selectedBuilding.Gid) is int duplicateRequiredLevel)
         {
             if (sameGidAlreadyPresent)
@@ -781,6 +768,26 @@ public partial class MainWindow
         }
 
         return true;
+    }
+
+    private static int? FindResidenceFamilyConflictGid(IEnumerable<Building> buildings, int targetGid)
+    {
+        var conflictGids = BuildingCatalogService.ResidenceFamilyConflictGidsFor(targetGid);
+        if (conflictGids.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var building in buildings)
+        {
+            var gid = building.Gid ?? BuildingCatalogService.GidForName(building.Name);
+            if (gid is int value && conflictGids.Contains(value))
+            {
+                return value;
+            }
+        }
+
+        return null;
     }
 
     private static bool IsUnbuiltFixedSpecialSlot(int slotId, Building building, int selectedGid)

@@ -4857,6 +4857,14 @@ public sealed partial class TravianClient : IBuildingClient
             throw new InvalidOperationException($"{name} cannot be built in the capital.");
         }
 
+        var conflictingResidenceFamilyGid = BuildingCatalogService.ResidenceFamilyConflictGidsFor(gid)
+            .FirstOrDefault(conflictGid => status.Buildings.Any(building =>
+                (building.Gid ?? BuildingCatalogService.GidForName(building.Name)) == conflictGid));
+        if (conflictingResidenceFamilyGid > 0)
+        {
+            throw new InvalidOperationException($"{name} conflicts with {BuildingCatalogService.NameForGid(conflictingResidenceFamilyGid)} already in this village.");
+        }
+
         if (BuildingCatalogService.DuplicateRequiredExistingLevelFor(gid) is int duplicateRequiredLevel)
         {
             if (existing.Count > 0)

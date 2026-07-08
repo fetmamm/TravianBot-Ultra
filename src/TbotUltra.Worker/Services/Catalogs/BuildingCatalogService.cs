@@ -286,6 +286,37 @@ public static class BuildingCatalogService
         };
     }
 
+    public static IReadOnlyList<int> ResidenceFamilyConflictGidsFor(int gid)
+    {
+        return gid switch
+        {
+            25 => [26, 44],
+            26 => [25, 44],
+            44 => [25, 26],
+            _ => [],
+        };
+    }
+
+    public static string NameForGid(int gid)
+    {
+        if (BaseBuildings.TryGetValue(gid, out var baseBuilding))
+        {
+            return baseBuilding.Name;
+        }
+
+        if (TribeSpecialBuildings.TryGetValue(gid, out var tribeSpecialBuilding))
+        {
+            return tribeSpecialBuilding.Name;
+        }
+
+        if (ResourceFieldNames.TryGetValue(gid, out var resourceFieldName))
+        {
+            return resourceFieldName;
+        }
+
+        return $"gid {gid}";
+    }
+
     /// <summary>
     /// Returns the in-game category index for a building gid, used by Travian's
     /// <c>/build.php?id={slot}&amp;category={N}</c> URL filter.

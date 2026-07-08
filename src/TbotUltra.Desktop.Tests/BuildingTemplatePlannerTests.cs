@@ -154,6 +154,23 @@ public sealed class BuildingTemplatePlannerTests
     }
 
     [Fact]
+    public void Plan_ResidenceQueuedAtLevel0_BlocksPalace()
+    {
+        var status = Status(
+            "Teutons",
+            Building(19, "Residence", 0, 25),
+            Building(20, "Main Building", 5, 15),
+            Building(21, "Embassy", 1, 18));
+        var result = _planner.Plan(
+            [Row(26, "Palace", 1, preferredSlot: 22)],
+            status,
+            serverSpeed: 1,
+            mainBuildingLevel: 5);
+
+        Assert.Contains(result.Errors, item => item.Contains("conflicts with Residence", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Plan_WallRow_MapsToTargetTribeWall()
     {
         var status = Status("Teutons");

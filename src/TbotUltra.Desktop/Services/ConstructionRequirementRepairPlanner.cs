@@ -429,21 +429,11 @@ internal static class ConstructionRequirementRepairPlanner
             return false;
         }
 
-        if (gid == 26 && (state.HasGid(25) || state.HasGid(44)))
+        var conflictingResidenceFamilyGid = BuildingCatalogService.ResidenceFamilyConflictGidsFor(gid)
+            .FirstOrDefault(state.HasGidPresence);
+        if (conflictingResidenceFamilyGid > 0)
         {
-            reason = "Palace conflicts with Residence or Command Center";
-            return false;
-        }
-
-        if (gid == 25 && (state.HasGid(26) || state.HasGid(44)))
-        {
-            reason = "Residence conflicts with Palace or Command Center";
-            return false;
-        }
-
-        if (gid == 44 && (state.HasGid(25) || state.HasGid(26)))
-        {
-            reason = "Command Center conflicts with Palace or Residence";
+            reason = $"{name} conflicts with {BuildingCatalogService.NameForGid(conflictingResidenceFamilyGid)}";
             return false;
         }
 
