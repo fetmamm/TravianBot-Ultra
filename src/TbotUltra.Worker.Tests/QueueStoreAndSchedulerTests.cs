@@ -371,6 +371,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         Assert.Equal("60", serialized[BotOptionPayloadKeys.HeroMinHpForAdventure]);
         Assert.Equal("true", serialized[BotOptionPayloadKeys.HeroAutoRevive]);
         Assert.Equal("false", serialized[BotOptionPayloadKeys.HeroAutoAssignPoints]);
+        Assert.Equal("resources,fighting_strength", serialized[BotOptionPayloadKeys.HeroStatPriority]);
         Assert.Equal("top", serialized[BotOptionPayloadKeys.HeroAdventurePickOrder]);
     }
 

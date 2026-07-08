@@ -581,8 +581,9 @@ public partial class MainWindow
             return;
         }
 
-        _botService.EnqueueRuntime("spend_hero_attribute_points", "Hero attribute points", null, priority: -50, maxRetries: 0);
-        AppendLog("Hero attributes: queued spend_hero_attribute_points because levelUp indicator is visible.");
+        var payload = BuildHeroRuntimePayload();
+        _botService.EnqueueRuntime("spend_hero_attribute_points", "Hero attribute points", payload, priority: -50, maxRetries: 0);
+        AppendLog($"Hero attributes: queued spend_hero_attribute_points because levelUp indicator is visible. priority={payload[BotOptionPayloadKeys.HeroStatPriority]}");
         WakeContinuousLoopForHeroAttributePoints();
     }
 

@@ -84,6 +84,24 @@ public partial class MainWindow
         }
     }
 
+    private Dictionary<string, string> BuildHeroRuntimePayload()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            return Dispatcher.Invoke(BuildHeroRuntimePayload);
+        }
+
+        return new HeroPayload(
+            MinHpForAdventure: _heroViewModel.MinHpForAdventure,
+            AutoRevive: _heroViewModel.AutoRevive,
+            AutoAssignPoints: _heroViewModel.AutoAssignPoints,
+            AutoUseOintments: _heroViewModel.AutoUseOintments,
+            StatPriority: _heroViewModel.BuildPriorityPayload(),
+            AdventurePickOrder: _heroViewModel.AdventurePickOrder,
+            ContinuousAdventures: _heroViewModel.ContinuousAdventures)
+            .ToDictionary();
+    }
+
     /// <summary>
     /// Updates the adventure-count badge. A zero count should not disable the Hero group:
     /// if the user left it enabled, the continuous loop keeps polling and only queues work

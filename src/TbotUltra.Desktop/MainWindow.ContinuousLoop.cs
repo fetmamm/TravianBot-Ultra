@@ -232,8 +232,9 @@ public partial class MainWindow
             await Dispatcher.InvokeAsync(() => ApplyHeroAdventureAvailability(adventureCount));
             if (adventureCount is > 0)
             {
-                _botService.EnqueueRuntime("hero_manage", "Hero adventure", null, priority: -50, maxRetries: 0);
-                AppendLog($"Hero group: queued hero_manage because adventures available={adventureCount.Value}.");
+                var payload = BuildHeroRuntimePayload();
+                _botService.EnqueueRuntime("hero_manage", "Hero adventure", payload, priority: -50, maxRetries: 0);
+                AppendLog($"Hero group: queued hero_manage because adventures available={adventureCount.Value}. priority={payload[BotOptionPayloadKeys.HeroStatPriority]}");
             }
         }
 
