@@ -276,6 +276,16 @@ public static class BuildingCatalogService
         return SingleInstanceGids.Contains(gid);
     }
 
+    public static int? DuplicateRequiredExistingLevelFor(int gid)
+    {
+        return gid switch
+        {
+            10 or 11 => 20,
+            23 => 10,
+            _ => null,
+        };
+    }
+
     /// <summary>
     /// Returns the in-game category index for a building gid, used by Travian's
     /// <c>/build.php?id={slot}&amp;category={N}</c> URL filter.

@@ -755,26 +755,14 @@ public partial class MainWindow
             return false;
         }
 
-        if (selectedBuilding.Gid is 10 or 11)
+        if (BuildingCatalogService.DuplicateRequiredExistingLevelFor(selectedBuilding.Gid) is int duplicateRequiredLevel)
         {
-            if (existingSameGidLevels.Count > 0)
+            if (sameGidAlreadyPresent)
             {
-                var currentHighest = existingSameGidLevels.Max();
-                if (currentHighest < 20)
+                var currentHighest = existingSameGidLevels.DefaultIfEmpty(0).Max();
+                if (currentHighest < duplicateRequiredLevel)
                 {
-                    reason = $"{selectedBuilding.Name} can only be duplicated after an existing one reaches level 20.";
-                    return false;
-                }
-            }
-        }
-        else if (selectedBuilding.Gid == 23)
-        {
-            if (existingSameGidLevels.Count > 0)
-            {
-                var currentHighest = existingSameGidLevels.Max();
-                if (currentHighest < 10)
-                {
-                    reason = $"{selectedBuilding.Name} can only be duplicated after an existing one reaches level 10.";
+                    reason = $"{selectedBuilding.Name} can only be duplicated after an existing one reaches level {duplicateRequiredLevel}.";
                     return false;
                 }
             }

@@ -680,6 +680,37 @@ public sealed class TravianClientHelperTests
         Assert.Equal("Great Warehouse requires building plans and is not supported yet.", ex.InnerException?.Message);
     }
 
+    [Theory]
+    [InlineData(0)]
+    [InlineData(19)]
+    public void EnsureBuildingCanBeConstructed_BlocksWarehouseDuplicateBeforeLevel20(int existingLevel)
+    {
+        var status = new VillageStatus(
+            ActiveVillage: "Capital",
+            Villages: [],
+            Resources: new Dictionary<string, string>(),
+            ResourceFields: [],
+            Buildings: [new Building(19, "Warehouse", existingLevel, null, 10)],
+            BuildQueue: []);
+
+        var ex = Assert.Throws<TargetInvocationException>(() => InvokeEnsureBuildingCanBeConstructed(status, 10, "Warehouse"));
+        Assert.Equal("Warehouse can only be duplicated after an existing one reaches level 20.", ex.InnerException?.Message);
+    }
+
+    [Fact]
+    public void EnsureBuildingCanBeConstructed_AllowsWarehouseDuplicateAtLevel20()
+    {
+        var status = new VillageStatus(
+            ActiveVillage: "Capital",
+            Villages: [],
+            Resources: new Dictionary<string, string>(),
+            ResourceFields: [],
+            Buildings: [new Building(19, "Warehouse", 20, null, 10)],
+            BuildQueue: []);
+
+        InvokeEnsureBuildingCanBeConstructed(status, 10, "Warehouse");
+    }
+
     private static void InvokeEnsureBuildingCanBeConstructed(VillageStatus status, int gid, string name)
     {
         var method = typeof(TravianClient).GetMethod("EnsureBuildingCanBeConstructed", BindingFlags.NonPublic | BindingFlags.Static);

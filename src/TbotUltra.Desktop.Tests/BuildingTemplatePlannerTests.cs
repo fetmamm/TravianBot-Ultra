@@ -141,6 +141,19 @@ public sealed class BuildingTemplatePlannerTests
     }
 
     [Fact]
+    public void Plan_WarehouseQueuedAtLevel0_ReturnsDuplicateError()
+    {
+        var status = Status("Teutons", Building(19, "Warehouse", 0, 10));
+        var result = _planner.Plan(
+            [Row(10, "Warehouse", 1, preferredSlot: 20)],
+            status,
+            serverSpeed: 1,
+            mainBuildingLevel: 1);
+
+        Assert.Contains(result.Errors, item => item.Contains("level 20", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
     public void Plan_WallRow_MapsToTargetTribeWall()
     {
         var status = Status("Teutons");

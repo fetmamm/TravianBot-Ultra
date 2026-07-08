@@ -461,6 +461,14 @@ public sealed class BuildingTemplatePlanner
             return false;
         }
 
+        if (BuildingCatalogService.DuplicateRequiredExistingLevelFor(gid) is int duplicateRequiredLevel
+            && state.HasGidPresence(gid)
+            && state.HighestLevelForGid(gid) < duplicateRequiredLevel)
+        {
+            reason = $"{name} can only be duplicated after an existing one reaches level {duplicateRequiredLevel}.";
+            return false;
+        }
+
         if (BuildingCatalogService.IsSingleInstance(gid) && !DuplicateAllowedGids.Contains(gid) && !FixedSlotGids.Contains(gid))
         {
             reason = $"{name} already exists in this village.";
@@ -557,6 +565,16 @@ public sealed class BuildingTemplatePlanner
 
         public bool HasGid(int gid)
             => _slots.Values.Any(item => item.Gid == gid && item.Level > 0);
+
+        public bool HasGidPresence(int gid)
+            => _slots.Values.Any(item => item.Gid == gid);
+
+        public int HighestLevelForGid(int gid)
+            => _slots.Values
+                .Where(item => item.Gid == gid)
+                .Select(item => item.Level)
+                .DefaultIfEmpty(0)
+                .Max();
 
         public (int SlotId, int Level)? FindExistingBuilding(int gid, string name)
         {

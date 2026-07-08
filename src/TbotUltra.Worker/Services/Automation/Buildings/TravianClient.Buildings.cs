@@ -4857,7 +4857,7 @@ public sealed partial class TravianClient : IBuildingClient
             throw new InvalidOperationException($"{name} cannot be built in the capital.");
         }
 
-        if (gid is 10 or 11)
+        if (BuildingCatalogService.DuplicateRequiredExistingLevelFor(gid) is int duplicateRequiredLevel)
         {
             if (existing.Count > 0)
             {
@@ -4866,9 +4866,9 @@ public sealed partial class TravianClient : IBuildingClient
                     .Select(building => building.Level!.Value)
                     .DefaultIfEmpty(0)
                     .Max();
-                if (highest < 40)
+                if (highest < duplicateRequiredLevel)
                 {
-                    throw new InvalidOperationException($"{name} can only be duplicated after an existing one reaches level 40.");
+                    throw new InvalidOperationException($"{name} can only be duplicated after an existing one reaches level {duplicateRequiredLevel}.");
                 }
             }
         }

@@ -24,6 +24,16 @@ public sealed class BuildingCatalogServiceTests
         Assert.Contains(requirements, item => item.Name == "Main Building" && item.Level == 3);
     }
 
+    [Theory]
+    [InlineData(10, 20)]
+    [InlineData(11, 20)]
+    [InlineData(23, 10)]
+    [InlineData(19, null)]
+    public void DuplicateRequiredExistingLevelFor_ReturnsTravianThresholds(int gid, int? expected)
+    {
+        Assert.Equal(expected, BuildingCatalogService.DuplicateRequiredExistingLevelFor(gid));
+    }
+
     [Fact]
     public void FullCatalog_ContainsSmithyAndTournamentSquare()
     {
