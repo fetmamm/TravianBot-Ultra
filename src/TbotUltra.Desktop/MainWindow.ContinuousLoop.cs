@@ -2003,7 +2003,7 @@ public partial class MainWindow
                 24);
             if (dailyMaxHours <= 0)
             {
-                warnings.Add("[conservative] session daily max is disabled; default is 18h.");
+                warnings.Add("[conservative] session daily max is disabled; default is 16h.");
             }
         }
         catch (Exception ex)

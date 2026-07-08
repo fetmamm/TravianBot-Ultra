@@ -415,7 +415,7 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 - Pause bevarar sessionens aterstaende pacing; endast Stop/reset nollstaller den. `Start bot` kor alltid
   continuous loop; manuella knappfloden far fortsatt kunna koras nar loopen ar idle.
 - Conservative automation defaults ska vara styrande for nya/reset-installningar: session pacing pa
-  (run 40-100 min, sleep 20-60 min, 18h daily max), action pacing pa
+  (run 40-100 min, sleep 20-60 min, 16h daily max), action pacing pa
   (task 0.8-2s, page load 0.6-1.6s, click 0.4-1.4s, loop 4-25s),
   farm-list step 1.5-4s, collect tasks/daily step 0.6-2s.
   High-volume scans och keep-alive ska ha jitter/pacing och far inte infora zero-delay bursts.
