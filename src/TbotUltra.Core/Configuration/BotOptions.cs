@@ -76,6 +76,9 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginAnalyzeNewVillages)]
     public bool PostLoginAnalyzeNewVillages { get; init; } = true;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.AutomaticallyCheckLanguage)]
+    public bool AutomaticallyCheckLanguage { get; init; } = true;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksEnabled)]
     public bool TroopTrainingBarracksEnabled { get; init; }
 

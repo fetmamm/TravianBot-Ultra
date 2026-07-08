@@ -21,6 +21,35 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
+    public void FromConfiguration_AutomaticallyCheckLanguage_DefaultsEnabled()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["server_name"] = "srv",
+                ["base_url"] = "https://example.com",
+            })
+            .Build();
+
+        Assert.True(BotOptionsFactory.FromConfiguration(configuration).AutomaticallyCheckLanguage);
+    }
+
+    [Fact]
+    public void FromConfiguration_AutomaticallyCheckLanguage_CanDisable()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["server_name"] = "srv",
+                ["base_url"] = "https://example.com",
+                [BotOptionPayloadKeys.AutomaticallyCheckLanguage] = "false",
+            })
+            .Build();
+
+        Assert.False(BotOptionsFactory.FromConfiguration(configuration).AutomaticallyCheckLanguage);
+    }
+
+    [Fact]
     public void Apply_OverridesNewVillageStartupAnalysis()
     {
         var source = new BotOptions { PostLoginAnalyzeNewVillages = true };
@@ -31,6 +60,19 @@ public sealed class BotOptionsPayloadApplierTests
         });
 
         Assert.False(result.PostLoginAnalyzeNewVillages);
+    }
+
+    [Fact]
+    public void Apply_OverridesAutomaticallyCheckLanguage()
+    {
+        var source = new BotOptions { AutomaticallyCheckLanguage = true };
+
+        var result = BotOptionsPayloadApplier.Apply(source, new Dictionary<string, string>
+        {
+            [BotOptionPayloadKeys.AutomaticallyCheckLanguage] = "false",
+        });
+
+        Assert.False(result.AutomaticallyCheckLanguage);
     }
 
     [Fact]

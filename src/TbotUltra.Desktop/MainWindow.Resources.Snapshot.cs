@@ -432,8 +432,19 @@ public partial class MainWindow
 
     private async Task EnsureTravianLanguageForCurrentPageAsync(BotOptions options, CancellationToken cancellationToken)
     {
+        if (!options.AutomaticallyCheckLanguage)
+        {
+            return;
+        }
+
         var language = await _botService.ReadCurrentLanguageAsync(options, AppendLog, cancellationToken);
-        if (!string.Equals(language?.Trim(), "en-US", StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(language))
+        {
+            AppendLog("[language:verbose] current-page language unknown during background refresh; skipping this tick.");
+            return;
+        }
+
+        if (!string.Equals(language?.Trim(), TravianClient.ExpectedLanguage, StringComparison.OrdinalIgnoreCase))
         {
             throw new UnexpectedTravianLanguageException(language);
         }

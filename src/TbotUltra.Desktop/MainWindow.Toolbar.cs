@@ -98,6 +98,7 @@ public partial class MainWindow
         _loopController.CancelAutoQueueRun();
         _loopController.RequestLoopStop();
         _loopController.CancelLoop();
+        _loopController.CancelSessionScope();
 
         EndInlineWait();
         ClearPendingResourceLevelsFromUi();
@@ -185,6 +186,7 @@ public partial class MainWindow
             _loopController.CancelLoop();
             _loopController.CancelVillageSwitch();
             _loopController.CancelQueueAutoRunRoot();
+            _loopController.CancelSessionScope();
             ClosePopupWindows();
 
             var backgroundTasksStopped = await _backgroundTasks.StopAsync(TimeSpan.FromSeconds(10));

@@ -204,6 +204,48 @@ public partial class MainWindow
         _logsPopupAlarmList?.Items.Refresh();
     }
 
+    private void AcknowledgeLanguageAlarmEntries()
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(AcknowledgeLanguageAlarmEntries);
+            return;
+        }
+
+        FlushPendingLogsToUi();
+
+        var changed = false;
+        foreach (var entry in _alarmEntries)
+        {
+            if (entry.IsAcknowledged || !IsLanguageAlarmMessage(entry.Text))
+            {
+                continue;
+            }
+
+            entry.IsAcknowledged = true;
+            changed = true;
+        }
+
+        if (!changed)
+        {
+            return;
+        }
+
+        _unacknowledgedAlarmCount = _alarmEntries.Count(entry => !entry.IsAcknowledged);
+        AlarmListBox.Items.Refresh();
+        _logsPopupAlarmList?.Items.Refresh();
+        UpdateTerminalAlarmUi();
+        AppendLog("[language] language alarm acknowledged after automatic language update.");
+    }
+
+    private static bool IsLanguageAlarmMessage(string message)
+    {
+        return !string.IsNullOrWhiteSpace(message)
+            && message.Contains("[language]", StringComparison.OrdinalIgnoreCase)
+            && message.Contains("ALARM:", StringComparison.OrdinalIgnoreCase)
+            && message.Contains("Travian language", StringComparison.OrdinalIgnoreCase);
+    }
+
     private void MainWindow_PreviewMouseDown(object sender, MouseButtonEventArgs e)
     {
         if (e.OriginalSource is not DependencyObject source)

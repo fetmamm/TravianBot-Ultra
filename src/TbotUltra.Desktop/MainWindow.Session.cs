@@ -271,7 +271,17 @@ public partial class MainWindow
         if (retryAfterLanguageFix)
         {
             AppendLog("[language] Travian language verified. Restarting login flow.");
-            await ExecuteLoginFlowAsync();
+            _ = Dispatcher.BeginInvoke(async () =>
+            {
+                try
+                {
+                    await ExecuteLoginFlowAsync();
+                }
+                catch (Exception ex)
+                {
+                    AppendLog($"[language] Login retry failed: {ex.Message}");
+                }
+            });
         }
     }
 

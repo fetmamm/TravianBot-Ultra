@@ -1,24 +1,31 @@
 using System.ComponentModel;
 using System.Windows;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
 
 public partial class TravianLanguageGateWindow : Window
 {
-    private const string ExpectedLanguage = "en-US";
+    private const string ExpectedLanguage = TravianClient.ExpectedLanguage;
     private readonly Func<Task<string?>> _setAutomatically;
     private readonly Func<Task<string?>> _readCurrentLanguage;
+    private readonly Func<bool> _allowUnverifiedClose;
     private bool _verified;
+    private bool _forceClosed;
+
+    public bool ForceClosed => _forceClosed;
 
     public TravianLanguageGateWindow(
         string? currentLanguage,
         Func<Task<string?>> setAutomatically,
-        Func<Task<string?>> readCurrentLanguage)
+        Func<Task<string?>> readCurrentLanguage,
+        Func<bool>? allowUnverifiedClose = null)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
         _setAutomatically = setAutomatically;
         _readCurrentLanguage = readCurrentLanguage;
+        _allowUnverifiedClose = allowUnverifiedClose ?? (() => false);
         SetCurrentLanguage(currentLanguage);
         StatusTextBlock.Text = "Set the Travian language to English, then verify it here.";
     }
@@ -33,12 +40,24 @@ public partial class TravianLanguageGateWindow : Window
         await RunLanguageActionAsync("Checking current language...", _readCurrentLanguage);
     }
 
+    private void ForceCloseButton_Click(object sender, RoutedEventArgs e)
+    {
+        _forceClosed = true;
+        DialogResult = false;
+        Close();
+    }
+
     private async Task RunLanguageActionAsync(string busyText, Func<Task<string?>> action)
     {
         SetBusy(true, busyText);
         try
         {
             var language = await action();
+            if (_forceClosed)
+            {
+                return;
+            }
+
             SetCurrentLanguage(language);
             if (IsExpectedLanguage(language))
             {
@@ -67,6 +86,7 @@ public partial class TravianLanguageGateWindow : Window
     {
         AutoButton.IsEnabled = !busy;
         ManualButton.IsEnabled = !busy;
+        ForceCloseButton.IsEnabled = true;
         StatusTextBlock.Text = status;
     }
 
@@ -81,7 +101,7 @@ public partial class TravianLanguageGateWindow : Window
 
     private void Window_Closing(object? sender, CancelEventArgs e)
     {
-        if (!_verified)
+        if (!_verified && !_forceClosed && !_allowUnverifiedClose())
         {
             e.Cancel = true;
             StatusTextBlock.Text = "This popup stays open until Travian language is verified as English.";

@@ -61,6 +61,7 @@ public static class BotOptionsPayloadApplier
         var postLoginReadTroopTrainingQueue = source.PostLoginReadTroopTrainingQueue;
         var postLoginAnalyzeBrewery = source.PostLoginAnalyzeBrewery;
         var postLoginAnalyzeNewVillages = source.PostLoginAnalyzeNewVillages;
+        var automaticallyCheckLanguage = source.AutomaticallyCheckLanguage;
         var troopTrainingBarracksEnabled = source.TroopTrainingBarracksEnabled;
         var troopTrainingBarracksTroopType = source.TroopTrainingBarracksTroopType;
         var troopTrainingBarracksMaxQueueHours = source.TroopTrainingBarracksMaxQueueHours;
@@ -531,6 +532,13 @@ public static class BotOptionsPayloadApplier
                     && bool.TryParse(value, out var analyzeNewVillages))
                 {
                     postLoginAnalyzeNewVillages = analyzeNewVillages;
+                    continue;
+                }
+
+                if (key.Equals(BotOptionPayloadKeys.AutomaticallyCheckLanguage, StringComparison.OrdinalIgnoreCase)
+                    && bool.TryParse(value, out var checkLanguage))
+                {
+                    automaticallyCheckLanguage = checkLanguage;
                     continue;
                 }
 
@@ -1118,6 +1126,7 @@ public static class BotOptionsPayloadApplier
             PostLoginReadTroopTrainingQueue = postLoginReadTroopTrainingQueue,
             PostLoginAnalyzeBrewery = postLoginAnalyzeBrewery,
             PostLoginAnalyzeNewVillages = postLoginAnalyzeNewVillages,
+            AutomaticallyCheckLanguage = automaticallyCheckLanguage,
             TroopTrainingBarracksEnabled = troopTrainingBarracksEnabled,
             TroopTrainingBarracksTroopType = troopTrainingBarracksTroopType,
             TroopTrainingBarracksMaxQueueHours = troopTrainingBarracksMaxQueueHours,

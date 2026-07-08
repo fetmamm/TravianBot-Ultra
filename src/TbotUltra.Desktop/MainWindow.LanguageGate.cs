@@ -1,5 +1,6 @@
 using System.Windows;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
 
@@ -48,14 +49,31 @@ public partial class MainWindow
     private bool ShowTravianLanguageGateCore(string? currentLanguage)
     {
         var options = LoadBotOptions();
+        var token = _loopController.AcquireSessionScopeToken();
         var window = new TravianLanguageGateWindow(
             currentLanguage,
-            async () => await _botService.SetLanguageToEnglishAsync(options, AppendLog, CancellationToken.None),
-            async () => await _botService.ReadCurrentLanguageAsync(options, AppendLog, CancellationToken.None))
+            async () =>
+            {
+                var language = await _botService.SetLanguageToEnglishAsync(options, AppendLog, token);
+                if (string.Equals(language?.Trim(), TravianClient.ExpectedLanguage, StringComparison.OrdinalIgnoreCase))
+                {
+                    AcknowledgeLanguageAlarmEntries();
+                }
+
+                return language;
+            },
+            async () => await _botService.ReadCurrentLanguageAsync(options, AppendLog, token),
+            () => _loopController.IsClosing)
         {
             Owner = this,
         };
 
-        return window.ShowDialog() == true;
+        var verified = window.ShowDialog() == true;
+        if (window.ForceClosed)
+        {
+            AppendLog("[language] Language popup force-closed. Automation remains stopped; next login/start will check language again.");
+        }
+
+        return verified;
     }
 }

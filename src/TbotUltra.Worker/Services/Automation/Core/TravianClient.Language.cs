@@ -5,6 +5,8 @@ namespace TbotUltra.Worker.Services;
 
 public sealed partial class TravianClient
 {
+    public const string ExpectedLanguage = TravianLanguageDetector.ExpectedLanguage;
+
     public async Task<string?> ReadCurrentLanguageAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -83,10 +85,37 @@ public sealed partial class TravianClient
                 "form => form.requestSubmit ? form.requestSubmit() : form.submit()");
         }
 
-        await WaitForPageReadyAsync(cancellationToken);
+        await WaitForExpectedLanguageAfterSaveAsync(cancellationToken);
         await EnsureExpectedLanguageAsync(cancellationToken);
         Notify("[language] Travian language changed to English.");
         return await ReadCurrentLanguageAsync(cancellationToken);
+    }
+
+    private async Task WaitForExpectedLanguageAfterSaveAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """
+                expected => {
+                    const gameLanguage = window.Travian?.Game?.language;
+                    const bodyLanguage = document.body?.getAttribute('data-language');
+                    const htmlLanguage = document.documentElement?.getAttribute('lang');
+                    const current = gameLanguage || bodyLanguage || htmlLanguage || '';
+                    return String(current).trim().toLowerCase() === String(expected).toLowerCase();
+                }
+                """,
+                TravianLanguageDetector.ExpectedLanguage,
+                new PageWaitForFunctionOptions { Timeout = _config.TimeoutMs }).WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
+        {
+            Notify($"[language] language save did not verify before timeout: {ex.Message}");
+        }
     }
 
     internal static string? ExtractLanguageFromHtmlForTests(string? html)

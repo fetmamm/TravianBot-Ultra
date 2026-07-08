@@ -33,6 +33,7 @@ public partial class SettingsWindow : Window
         _config = _store.Load();
         DontNotifyNewVersionCheckBox.IsChecked = _config[BotOptionPayloadKeys.DontNotifyNewVersion]?.GetValue<bool>() ?? false;
         QuickReloginCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginQuickReloginEnabled]?.GetValue<bool>() ?? true;
+        AutomaticallyCheckLanguageCheckBox.IsChecked = _config[BotOptionPayloadKeys.AutomaticallyCheckLanguage]?.GetValue<bool>() ?? true;
         AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
         LoadPacingConfigToUi();
         PostLoginAnalyzeFarmlistsCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists]?.GetValue<bool>() ?? false;
@@ -67,6 +68,7 @@ public partial class SettingsWindow : Window
             _config.Remove("headless");
             _config[BotOptionPayloadKeys.DontNotifyNewVersion] = DontNotifyNewVersionCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginQuickReloginEnabled] = QuickReloginCheckBox.IsChecked == true;
+            _config[BotOptionPayloadKeys.AutomaticallyCheckLanguage] = AutomaticallyCheckLanguageCheckBox.IsChecked == true;
             _config["allow_silver_spending"] = AllowSilverSpendingCheckBox.IsChecked == true;
             SavePacingConfigFromUi();
             // Queue-wait handling is always "smart" (defer); drop the removed threshold key.
