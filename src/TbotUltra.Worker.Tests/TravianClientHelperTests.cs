@@ -951,6 +951,24 @@ public sealed class TravianClientHelperTests
         Assert.Null(TravianClient.ReconcileRenamedActiveVillageByCoords(cached, "1440", (99, 99)));
     }
 
+    [Fact]
+    public void IsAcceptedVillageSwitchName_AcceptsCoordinateResolvedRename()
+    {
+        Assert.True(TravianClient.IsAcceptedVillageSwitchNameForTests(
+            activeVillageName: "SLANGENS",
+            requestedVillageName: "slangen`s by",
+            resolvedVillageName: "SLANGENS"));
+    }
+
+    [Fact]
+    public void IsAcceptedVillageSwitchName_RejectsDifferentVillageWhenResolvedNameDoesNotMatch()
+    {
+        Assert.False(TravianClient.IsAcceptedVillageSwitchNameForTests(
+            activeVillageName: "Other village",
+            requestedVillageName: "slangen`s by",
+            resolvedVillageName: "SLANGENS"));
+    }
+
     private static VillageStatus MakeStatusWithBuildings(params Building[] buildings) =>
         new(
             ActiveVillage: "Test",

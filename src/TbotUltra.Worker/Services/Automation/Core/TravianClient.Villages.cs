@@ -86,14 +86,24 @@ public sealed partial class TravianClient
         var requestedVillage = !string.IsNullOrWhiteSpace(villageName)
             ? await TryResolveVillageForSwitchAsync(villageName, cancellationToken)
             : null;
+        var resolvedVillageName = string.IsNullOrWhiteSpace(requestedVillage?.Name) ? villageName : requestedVillage!.Name;
         var requestedCoords = ResolveVillageCoords(villageName, requestedVillage);
 
         // If we are already on the requested village, no navigation is needed.
         if (!string.IsNullOrWhiteSpace(villageName)
             && !string.IsNullOrWhiteSpace(activeVillageBeforeSwitch)
-            && IsSameVillageName(activeVillageBeforeSwitch, villageName))
+            && IsAcceptedVillageSwitchName(activeVillageBeforeSwitch, villageName, resolvedVillageName))
         {
-            Notify($"[village-switch] already on '{villageName}' — no navigation needed");
+            if (!IsSameVillageName(activeVillageBeforeSwitch, villageName))
+            {
+                Notify($"[village-switch] already on renamed village '{activeVillageBeforeSwitch}' for requested '{villageName}' — no navigation needed");
+                RememberRenamedVillage(villageName, activeVillageBeforeSwitch, requestedVillage, requestedCoords);
+            }
+            else
+            {
+                Notify($"[village-switch] already on '{villageName}' — no navigation needed");
+            }
+
             return;
         }
 
@@ -157,7 +167,16 @@ public sealed partial class TravianClient
         await EnsureLoggedInAsync();
         var activeVillageAfterSwitch = await TryReadActiveVillageNameSafeAsync(cancellationToken);
         var activeMatchesRequested = string.IsNullOrWhiteSpace(villageName)
-            || IsSameVillageName(activeVillageAfterSwitch, villageName);
+            || IsAcceptedVillageSwitchName(activeVillageAfterSwitch, villageName, resolvedVillageName);
+        if (activeMatchesRequested
+            && !string.IsNullOrWhiteSpace(villageName)
+            && !IsSameVillageName(activeVillageAfterSwitch, villageName)
+            && IsSameVillageName(activeVillageAfterSwitch, resolvedVillageName))
+        {
+            Notify($"[village-switch] accepted resolved renamed village: requested '{villageName}' but active village is '{activeVillageAfterSwitch ?? "(unknown)"}'.");
+            RememberRenamedVillage(villageName, activeVillageAfterSwitch, requestedVillage, requestedCoords);
+        }
+
         if (!activeMatchesRequested && HasVillageCoords(requestedCoords))
         {
             var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
@@ -193,7 +212,15 @@ public sealed partial class TravianClient
                     await GotoAsync(canonicalSidebar, cancellationToken);
                     await EnsureLoggedInAsync();
                     activeVillageAfterSwitch = await TryReadActiveVillageNameSafeAsync(cancellationToken);
-                    activeMatchesRequested = IsSameVillageName(activeVillageAfterSwitch, villageName);
+                    activeMatchesRequested = IsAcceptedVillageSwitchName(activeVillageAfterSwitch, villageName, resolvedVillageName);
+                    if (activeMatchesRequested
+                        && !IsSameVillageName(activeVillageAfterSwitch, villageName)
+                        && IsSameVillageName(activeVillageAfterSwitch, resolvedVillageName))
+                    {
+                        Notify($"[village-switch] accepted resolved renamed village after retry: requested '{villageName}' but active village is '{activeVillageAfterSwitch ?? "(unknown)"}'.");
+                        RememberRenamedVillage(villageName, activeVillageAfterSwitch, requestedVillage, requestedCoords);
+                    }
+
                     if (!activeMatchesRequested && HasVillageCoords(requestedCoords))
                     {
                         var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
@@ -248,6 +275,16 @@ public sealed partial class TravianClient
             // Re-emit account signals so UI refreshes after a village switch (Plus/Gold can be unchanged but UI may not have them yet).
             await RefreshAccountFeatureSignalsAsync(cancellationToken);
         }
+    }
+
+    internal static bool IsAcceptedVillageSwitchNameForTests(string? activeVillageName, string? requestedVillageName, string? resolvedVillageName)
+        => IsAcceptedVillageSwitchName(activeVillageName, requestedVillageName, resolvedVillageName);
+
+    private static bool IsAcceptedVillageSwitchName(string? activeVillageName, string? requestedVillageName, string? resolvedVillageName)
+    {
+        return IsSameVillageName(activeVillageName, requestedVillageName)
+            || (!string.IsNullOrWhiteSpace(resolvedVillageName)
+                && IsSameVillageName(activeVillageName, resolvedVillageName));
     }
 
     private static bool IsSameVillageName(string? left, string? right)
