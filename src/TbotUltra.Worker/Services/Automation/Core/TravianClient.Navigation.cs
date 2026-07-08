@@ -68,7 +68,7 @@ public sealed partial class TravianClient
 // Helper function for waiting on a page to fully load with retries, to mitigate transient timeouts on slow-loading pages.
     private async Task WaitForPageReadyAsync(CancellationToken cancellationToken = default)
     {
-        const int attempts = 3;
+        const int attempts = 4;
         const int timeoutMs = 15000;
 
         Exception? lastFailure = null;
@@ -97,13 +97,13 @@ public sealed partial class TravianClient
             {
                 lastFailure = ex;
                 if (attempt < attempts)
-                    Notify($"[WaitForPageReadyAsync] Page did not load, retry {attempt + 1}/{attempts}. Timeout: {timeoutMs} ms. Url='{_page.Url}'. {ex.Message}");
+                    Notify($"[WaitForPageReadyAsync:verbose] Page did not load, retry {attempt + 1}/{attempts}. Timeout: {timeoutMs} ms. Url='{_page.Url}'. {ex.Message}");
             }
             catch (TimeoutException ex)
             {
                 lastFailure = ex;
                 if (attempt < attempts)
-                    Notify($"[WaitForPageReadyAsync] Page did not load, retry {attempt + 1}/{attempts}. Timeout: {timeoutMs} ms. Url='{_page.Url}'. {ex.Message}");
+                    Notify($"[WaitForPageReadyAsync:verbose] Page did not load, retry {attempt + 1}/{attempts}. Timeout: {timeoutMs} ms. Url='{_page.Url}'. {ex.Message}");
             }
         }
 
