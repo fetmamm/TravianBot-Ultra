@@ -116,7 +116,8 @@ public partial class DailyPacingDetailsWindow : Window
         var yMax = Math.Max(Math.Max(maxOnline, maxLimit), 1.0);
         yMax = Math.Max(2.0, Math.Ceiling(yMax / 2.0) * 2.0);
 
-        double X(int index) => leftPad + plotW * (index + 0.5) / _chartPoints.Count;
+        var daySlot = Math.Min(52.0, plotW / _chartPoints.Count);
+        double X(int index) => leftPad + daySlot * index + daySlot / 2.0;
         double Y(double hours) => topPad + plotH * (1 - Math.Clamp(hours, 0, yMax) / yMax);
 
         // Horizontal gridlines + Y-axis hour labels.
@@ -139,8 +140,7 @@ public partial class DailyPacingDetailsWindow : Window
         }
 
         // Bars (online time per day).
-        var slot = plotW / _chartPoints.Count;
-        var barWidth = Math.Max(2, Math.Min(26, slot * 0.62));
+        var barWidth = Math.Max(2, Math.Min(26, daySlot * 0.62));
         for (var i = 0; i < _chartPoints.Count; i++)
         {
             var top = Y(_chartPoints[i].OnlineHours);
