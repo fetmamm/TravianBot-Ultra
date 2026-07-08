@@ -161,7 +161,7 @@ public sealed class ProxyLibraryEntry : INotifyPropertyChanged
     {
         true => "Working",
         false => "Failed",
-        _ => "Not checked",
+        _ => "Unknown",
     };
 
     [JsonIgnore]

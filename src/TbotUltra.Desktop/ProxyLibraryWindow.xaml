@@ -40,24 +40,55 @@
                   CanUserDeleteRows="False"
                   HeadersVisibility="Column"
                   SelectionMode="Single">
-                <DataGrid.RowStyle>
-                    <Style TargetType="DataGridRow">
-                        <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                <Setter Property="Background" Value="{DynamicResource InfoBgBrush}" />
-                                <Setter Property="FontWeight" Value="SemiBold" />
-                            </DataTrigger>
-                        </Style.Triggers>
-                    </Style>
-                </DataGrid.RowStyle>
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Active" Binding="{Binding ActiveText}" IsReadOnly="True" Width="70" />
-                <DataGridTextColumn Header="Name" Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Width="180" />
+                <DataGridTextColumn Header="Name" Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Width="230">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                    <DataGridTextColumn.EditingElementStyle>
+                        <Style TargetType="TextBox">
+                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGridTextColumn.EditingElementStyle>
+                </DataGridTextColumn>
                 <DataGridTextColumn Header="Proxy" Binding="{Binding HostPort}" IsReadOnly="True" Width="150" />
                 <DataGridTextColumn Header="Type" Binding="{Binding Scheme}" IsReadOnly="True" Width="80" />
                 <DataGridTextColumn Header="Country" Binding="{Binding Country}" IsReadOnly="True" Width="110" />
                 <DataGridTextColumn Header="Latency" Binding="{Binding LatencyText}" IsReadOnly="True" Width="80" />
-                <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" IsReadOnly="True" Width="90" />
+                <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" IsReadOnly="True" Width="90">
+                    <DataGridTextColumn.ElementStyle>
+                        <Style TargetType="TextBlock">
+                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsWorking}" Value="True">
+                                    <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsWorking}" Value="False">
+                                    <Setter Property="Foreground" Value="{DynamicResource DangerTextBrush}" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding IsWorking}" Value="{x:Null}">
+                                    <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
+                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </DataGridTextColumn.ElementStyle>
+                </DataGridTextColumn>
                 <DataGridTemplateColumn Header="Assigned to" Width="150">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>

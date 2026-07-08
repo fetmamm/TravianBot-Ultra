@@ -160,7 +160,7 @@
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                         <CheckBox x:Name="NeverUseOwnIpCheckBox"
-                                  Content="Never use own IP address"
+                                  Content="Never use own IP"
                                   VerticalAlignment="Center"
                                   Checked="NeverUseOwnIpCheckBox_Changed"
                                   Unchecked="NeverUseOwnIpCheckBox_Changed" />
