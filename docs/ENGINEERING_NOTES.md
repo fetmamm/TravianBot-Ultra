@@ -56,6 +56,7 @@ Runtime-path helpers i `TravianClient.Selectors.cs` ar Official-only. Anropa hel
   den kastar (TimeoutException, sista felet som inner) efter uttomda retries; anropare ska defer:a/retry:a.
 - Official `/messages/write` ar klassiskt form-DOM: recipient `#receiver`/`name=an`, subject `name=be`, body `textarea#message`.
 - Official automation kraver normalt Travian UI-language `en-US`; gate:a direkt efter login-confirm pa `html[lang]`/`body[data-language]`/`Travian.Game.language` fore feature-signals, lokaliserad DOM-parsing eller tasks kors. Settings > General `Automatically check language` ar default true och ar enda avstangningsbrytaren.
+- Auto-language via `/options` ska ocksa satta `hideContextualHelp=true` och `option_night_mode=false` fore language-select + save; varje state-andrande steg ska ha click action pacing.
 - Report PNG-capture ar Official `/report*` + oppnad rapport `#reportWrapper .role.attacker`; blur scope:as till
   `.role.attacker/.role.defender .troopHeadline` och `.header .subject`, aldrig rapportlistan.
 - Bulk messages far aldrig skriva till systemspelarna `Multihunter`, `Natar` eller `Natars`; filtrera bade vid analys och direkt fore send.

@@ -63,12 +63,24 @@ public sealed partial class TravianClient
         Notify("[language] setting Travian language to English.");
         await GotoAsync(Paths.Options, cancellationToken);
 
+        await SetOptionsCheckboxStateAsync(
+            "input#hideContextualHelp[name='hideContextualHelp']",
+            shouldBeChecked: true,
+            "hide contextual help",
+            cancellationToken);
+        await SetOptionsCheckboxStateAsync(
+            "input#option_night_mode[name='option_night_mode']",
+            shouldBeChecked: false,
+            "disable night mood images",
+            cancellationToken);
+
         var languageSelect = _page.Locator("form#settings select[name='language']").First;
         if (await languageSelect.CountAsync() == 0)
         {
             throw new InvalidOperationException("Could not find Travian language dropdown on the options page.");
         }
 
+        await DelayBeforeClickAsync(cancellationToken, "set language dropdown");
         await languageSelect.SelectOptionAsync(
             [new SelectOptionValue { Value = TravianLanguageDetector.ExpectedLanguage }],
             new LocatorSelectOptionOptions { Timeout = _config.TimeoutMs });
@@ -89,6 +101,31 @@ public sealed partial class TravianClient
         await EnsureExpectedLanguageAsync(cancellationToken);
         Notify("[language] Travian language changed to English.");
         return await ReadCurrentLanguageAsync(cancellationToken);
+    }
+
+    private async Task SetOptionsCheckboxStateAsync(
+        string selector,
+        bool shouldBeChecked,
+        string label,
+        CancellationToken cancellationToken)
+    {
+        var checkbox = _page.Locator($"form#settings {selector}").First;
+        if (await checkbox.CountAsync() == 0)
+        {
+            throw new InvalidOperationException($"Could not find Travian options checkbox '{label}' on the options page.");
+        }
+
+        var isChecked = await checkbox.IsCheckedAsync(new LocatorIsCheckedOptions { Timeout = _config.TimeoutMs });
+        if (isChecked == shouldBeChecked)
+        {
+            Notify($"[language] options checkbox '{label}' already {(shouldBeChecked ? "checked" : "unchecked")}.");
+            return;
+        }
+
+        await checkbox.ScrollIntoViewIfNeededAsync(new LocatorScrollIntoViewIfNeededOptions { Timeout = _config.TimeoutMs });
+        await DelayBeforeClickAsync(cancellationToken, label);
+        await checkbox.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
+        Notify($"[language] options checkbox '{label}' set to {(shouldBeChecked ? "checked" : "unchecked")}.");
     }
 
     private async Task WaitForExpectedLanguageAfterSaveAsync(CancellationToken cancellationToken)
