@@ -404,7 +404,7 @@ public sealed class BotOptions
     public int? TargetLevel { get; init; }
 
     [ConfigurationKeyName("hero_min_hp_for_adventure")]
-    public int HeroMinHpForAdventure { get; init; } = 40;
+    public int HeroMinHpForAdventure { get; init; } = 50;
 
     /// <summary>How much hero HP regenerates per day, in percent (20–100). Used to compute how long
     /// to defer the hero group when HP is below the adventure threshold.</summary>

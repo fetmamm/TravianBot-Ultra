@@ -50,6 +50,20 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
+    public void FromConfiguration_HeroMinHpForAdventure_DefaultsTo50()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["server_name"] = "srv",
+                ["base_url"] = "https://example.com",
+            })
+            .Build();
+
+        Assert.Equal(50, BotOptionsFactory.FromConfiguration(configuration).HeroMinHpForAdventure);
+    }
+
+    [Fact]
     public void Apply_OverridesNewVillageStartupAnalysis()
     {
         var source = new BotOptions { PostLoginAnalyzeNewVillages = true };
