@@ -95,6 +95,7 @@ Compatible with:
 - Save reports as PNG to the program folder and blur out attacker, defender and alliance
 - Support to use Proxy per account, manage proxy lists and more (Using: https://github.com/TheSpeedX/PROXY-List)
 - Make building templates that is reusable for different villages
+- Language detection if wrong (Must be in English) + auto change language
 -----------------------------------------------------------------------------------
 - Read account/village data
 - Clean dark mode UI
