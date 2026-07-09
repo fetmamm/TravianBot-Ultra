@@ -246,7 +246,7 @@ public sealed partial class TravianClient
                     }
                     """,
                     null,
-                    new PageWaitForFunctionOptions { Timeout = 10000 });
+                    new PageWaitForFunctionOptions { Timeout = 15000 });
                 formRendered = true;
                 break;
             }

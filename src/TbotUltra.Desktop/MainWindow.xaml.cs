@@ -167,6 +167,7 @@ public partial class MainWindow : Window
     private readonly Dictionary<int, (int Target, DateTimeOffset At)> _resourceLastQueuedTargetBySlot = new();
     private FunctionTestWindow? _resourceTestFunctionsWindow;
     private SavePageHtmlWindow? _savePageHtmlWindow;
+    private SaveReportPngWindow? _saveReportPngWindow;
     private BulkSavePageHtmlWindow? _bulkSavePageHtmlWindow;
     private BulkMessagesWindow? _bulkMessagesWindow;
     private bool _serverSpeedAlarmRaised;
@@ -264,6 +265,7 @@ public partial class MainWindow : Window
     private string? _lastConservativeAutomationWarningSignature;
     private volatile bool _isLoggedIn;
     private volatile bool _browserSessionLikelyOpen;
+    private volatile bool _travianLanguageGateActive;
     // True only while a visible (non-headless) login is running. Lets the captcha/manual-verification
     // popup know the browser window is already open WITHOUT enabling background/village-selection ops
     // (which gate on _browserSessionLikelyOpen) to race the login on the shared page.
@@ -703,6 +705,7 @@ public partial class MainWindow : Window
         ApplyAutoCollectTasksConfigToUi(options);
         ApplyAutoCollectDailyQuestsConfigToUi(options);
         ApplyConstructFasterConfigToUi(options);
+        ApplyProductionBonusVideoConfigToUi(options);
         ApplyHeroResourceTransferConfigToUi(options);
 
         // Account + runtime state below (account label, inbox counts, gold-club, hero snapshot) is
@@ -911,12 +914,49 @@ public partial class MainWindow : Window
         await Dispatcher.InvokeAsync(() =>
         {
             ApplyStorageStatusToUi(status, source);
+            if (source.Contains("construction", StringComparison.OrdinalIgnoreCase))
+            {
+                UpdateCachedTimerStatus(status.ActiveVillage, cached => cached with
+                {
+                    BuildQueue = status.BuildQueue,
+                    IsBuildingInProgress = status.IsBuildingInProgress,
+                    ActiveBuildCount = status.ActiveBuildCount,
+                    BuildQueueRemainingSeconds = status.BuildQueueRemainingSeconds,
+                    BuildQueueRemainingText = status.BuildQueueRemainingText,
+                    BuildQueueFinish = status.BuildQueueFinish,
+                    ActiveConstructions = status.ActiveConstructions,
+                    ActiveConstructionsFromOverview = status.ActiveConstructionsFromOverview,
+                });
+
+                if (_lastBuildingStatus is not null && IsStatusForSelectedVillage(status))
+                {
+                    var updatedBuildingStatus = _lastBuildingStatus with
+                    {
+                        BuildQueue = status.BuildQueue,
+                        IsBuildingInProgress = status.IsBuildingInProgress,
+                        ActiveBuildCount = status.ActiveBuildCount,
+                        BuildQueueRemainingSeconds = status.BuildQueueRemainingSeconds,
+                        BuildQueueRemainingText = status.BuildQueueRemainingText,
+                        BuildQueueFinish = status.BuildQueueFinish,
+                        ActiveConstructions = status.ActiveConstructions,
+                        ActiveConstructionsFromOverview = status.ActiveConstructionsFromOverview,
+                    };
+                    _lastBuildingStatus = ConstructionQueueState.PreserveKnownConstructionState(
+                        updatedBuildingStatus,
+                        _lastBuildingStatus);
+                }
+
+                RefreshVillageActivityIndicatorsOnDashboard();
+            }
         });
     }
 
     private void ApplyPostLoginSnapshot(PostLoginSnapshot snapshot)
     {
         var status = snapshot.VillageStatus;
+        // Select the village the browser actually landed in (active village), not a stale prior selection,
+        // before painting so the selected-village guards let the landing village repaint through.
+        SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage, status.ActiveVillage);
         var rows = ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
         TriggerDeferredConstructionWaitRefresh(status, "post_login");
 
@@ -926,9 +966,6 @@ public partial class MainWindow : Window
         BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{status.ActiveVillage}'");
         SetTribeText(status.Tribe);
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
-        // Select the village the browser actually landed in (active village), not a stale prior selection,
-        // so the dropdown matches the browser and Start bot works in the landing village.
-        SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage, status.ActiveVillage);
         ReconcileConfirmedVillageList(status.Villages, "post_login");
         // Apply the landing village's per-village automation-group override to the dashboard cards. Without
         // this the cards keep the global default loaded by LoadAutomationLoopTasks, so on login they could
@@ -1005,7 +1042,7 @@ public partial class MainWindow : Window
 
             if (StartLoopButton is not null)
             {
-                StartLoopButton.IsEnabled = _isLoggedIn && !sleeping;
+                StartLoopButton.IsEnabled = _isLoggedIn && !sleeping && !_travianLanguageGateActive;
                 StartLoopButton.Content = (busy || _autoQueueRunning || !string.IsNullOrWhiteSpace(_activeFunctionDisplayName) || (_loopTask is not null && !_loopTask.IsCompleted))
                     ? "Pause bot"
                     : "Start bot";

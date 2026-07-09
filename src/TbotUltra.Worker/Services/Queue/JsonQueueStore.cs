@@ -331,6 +331,36 @@ public sealed class JsonQueueStore : IQueueStore
         });
     }
 
+    public bool UpdatePending(Guid id, Dictionary<string, string>? payload, int? priority, TimeSpan? delay = null)
+    {
+        return Update(id, item =>
+        {
+            if (item.Status != QueueStatus.Pending)
+            {
+                return false;
+            }
+
+            if (payload is not null)
+            {
+                item.Payload = new Dictionary<string, string>(payload, StringComparer.OrdinalIgnoreCase);
+            }
+
+            if (priority.HasValue)
+            {
+                item.Priority = priority.Value;
+            }
+
+            if (delay.HasValue)
+            {
+                var effectiveDelay = delay.Value < TimeSpan.Zero ? TimeSpan.Zero : delay.Value;
+                item.NextAttemptAt = DateTimeOffset.UtcNow.Add(effectiveDelay);
+            }
+
+            item.UpdatedAt = DateTimeOffset.UtcNow;
+            return true;
+        });
+    }
+
     public bool MarkExecutionFailed(Guid id)
     {
         return Update(id, item =>
@@ -357,6 +387,23 @@ public sealed class JsonQueueStore : IQueueStore
             item.NextAttemptAt = failedPermanently
                 ? DateTimeOffset.UtcNow
                 : DateTimeOffset.UtcNow.Add(ComputeRetryBackoff(item.Retries));
+            item.UpdatedAt = DateTimeOffset.UtcNow;
+            return true;
+        });
+    }
+
+    public bool MarkPermanentlyFailed(Guid id)
+    {
+        return Update(id, item =>
+        {
+            if (item.Status is not (QueueStatus.Running or QueueStatus.Pending))
+            {
+                return false;
+            }
+
+            item.Retries = Math.Max(item.Retries, item.MaxRetries + 1);
+            item.Status = QueueStatus.Failed;
+            item.NextAttemptAt = DateTimeOffset.UtcNow;
             item.UpdatedAt = DateTimeOffset.UtcNow;
             return true;
         });

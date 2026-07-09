@@ -13,7 +13,7 @@ namespace TbotUltra.Desktop;
 public partial class SupportWindow : Window
 {
     private const string DiscordUrl = "https://discord.gg/7bgzKy9sHK";
-    private const string GithubUrl = "https://github.com/fetmamm/Tbot_ultra_new";
+    private const string GithubUrl = "https://github.com/fetmamm/TravianBot-Ultra";
 
     private readonly string _projectRoot;
     private readonly IReadOnlyList<string> _terminalEntries;

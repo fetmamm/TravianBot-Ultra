@@ -17,9 +17,12 @@ Djupa mekanismdetaljer ligger i `docs/adr/` och historiken i `docs/history/`.
 Beroenden: `Desktop` -> `Worker` -> `Core`.
 
 ```powershell
-dotnet build TbotUltra.sln
+.\scripts\Build-Check.ps1
 .\scripts\Run-Tests.ps1
 ```
+
+Lokala verifieringskommandon ska anvanda isolerad output i `temp_build_out/` sa de kan koras medan
+Desktop-appen ar oppen. Kor inte raw `dotnet build TbotUltra.sln` for Codex/local verify nar appen kan vara igang.
 
 ## 2. Official-only
 
@@ -52,6 +55,10 @@ Runtime-path helpers i `TravianClient.Selectors.cs` ar Official-only. Anropa hel
   racker inte for klick. Anvand `await WaitForPageReadyAsync(ct)` nar hela sidan maste vara laddad —
   den kastar (TimeoutException, sista felet som inner) efter uttomda retries; anropare ska defer:a/retry:a.
 - Official `/messages/write` ar klassiskt form-DOM: recipient `#receiver`/`name=an`, subject `name=be`, body `textarea#message`.
+- Official automation kraver normalt Travian UI-language `en-US`; gate:a direkt efter login-confirm pa `html[lang]`/`body[data-language]`/`Travian.Game.language` fore feature-signals, lokaliserad DOM-parsing eller tasks kors. Settings > General `Automatically check language` ar default true och ar enda avstangningsbrytaren.
+- Auto-language via `/options` ska ocksa satta `hideContextualHelp=true` och `option_night_mode=false` fore language-select + save; varje state-andrande steg ska ha click action pacing.
+- Report PNG-capture ar Official `/report*` + oppnad rapport `#reportWrapper .role.attacker`; blur scope:as till
+  `.role.attacker/.role.defender .troopHeadline` och `.header .subject`, aldrig rapportlistan.
 - Bulk messages far aldrig skriva till systemspelarna `Multihunter`, `Natar` eller `Natars`; filtrera bade vid analys och direkt fore send.
 - Bulk messages ska hantera Official-dialogen `The name X does not exist.` genom att klicka OK, rensa recipient-faltet, ta bort X ur aktuell batch och forsoka igen utan att cacha X som skickad.
 - Bulk messages UI satter `Max recipients` fran senaste `map.sql`-analysens spelarantal; fallback/default ar 5000.
@@ -159,6 +166,8 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   Mode ar account-default `small`/`big` med per-by override; UI visar `big` som "Great" enligt Travian.
   `big` faller tillbaka till `small` under Town Hall level 10. Start-/resource-scope ska ligga i
   `.build_details` och matcha small- eller Great-celebration-raden.
+- +15% production bonus-video aterforsok styrs av daglig reset 09:00 server time + anvandarens delay,
+  inte 24h efter aktivering. Disabled purple video-knapp betyder vanta till nasta 09:00-reset.
 
 ### Desktop
 
@@ -178,6 +187,15 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   nollstaller deferred construction-retries sa ett fastnat "waiting" utan faktiskt bygge kan brytas.
 - Construction- och byggkologik (ActiveConstructions som SOT, queue-full-defer, storage-capacity, estimat):
   [ADR 2026-06-20 construction-queue](adr/2026-06-20-construction-queue.md).
+- Construct-tasks vars krav matchar en aktiv `ActiveConstructions`-prereq ska defer:as tills prereqens
+  `FinishUtc` passerat (plus liten buffer), sa andra byar/tasks kan koras i stallet.
+- Construct-tasks vars krav saknas och inte matchar same-village queued/active prerequisite ska terminal-failas
+  fore Worker. Worker-sidans missing requirements ska vinna over resursbrist/hero-transfer pa construct-sidan.
+- Innan Desktop-guarden defer:ar/failar ett `construct_building` ska target-byn live-lasas (dorf1/dorf2)
+  och cacheas; cached status far inte ensam avgora nybyggnation nar browsern star i annan by.
+- Om live-lasningen visar att ett `construct_building` saknar krav efter t.ex. katapultskada ska Desktop
+  forsoka auto-reparera kravet fore terminal fail: promota befintlig same-village prereq-ko, annars ko:a
+  saknad kravbyggnad/uppgradering overst och tagga posten `auto_added_by=construction_requirement_repair`.
 - Smithy-upgrade och trupptraning (DOM, per-by-payloads, automation groups):
   [ADR 2026-06-20 smithy-troop-training](adr/2026-06-20-smithy-troop-training.md).
 - Village Overview och byval visar kapitalen forst; ovriga byar behaller Travian-listans DOM/sidebar-ordning.
@@ -318,6 +336,8 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 
 - Per-slot state fran kon maste alltid filtreras per vald by. Partiella resurslasningar utan bygg-DOM far
   inte nollstalla en cachad aktiv byggko. `load_buildings_snapshot` ar en lasning, inte ett bygge.
+- Resource-field queue-dedupe maste matcha `ActiveConstruction.SlotId` nar Travian exponerar slot-id;
+  samma namn (t.ex. flera Cropland) far bara vara fallback nar queued slot-id saknas.
 - `ActiveConstructions` (browserbekraftad) ar SOT for aktiv byggko; defer-poster och lokala timers ar
   harledd vantan, inte bevis. Endast en bekraftad tom dorf1/dorf2-lasning far rensa snapshoten/frigora
   en `queue_full`-blockerare (undantag: manuell `Clear timers`).
@@ -338,11 +358,16 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
   direkt (`#videoFeature.showVideo` / `#videoArea`) — da ska confirm returnera direkt utan att leta efter OK-knappen.
 - Byggnadsuppgradering far ateranvanda aktuell `build.php?id=N` for slot snapshot endast nar sidan ar ratt slot,
   inte stale och kan lasa niva + namn/gid; annars ska flodet falla tillbaka till `dorf2`.
+- Build-page header/dorf1/dorf2-level kan vara stale nar en tidigare niva ligger i byggkon; for fortsatt
+  upgrade pa samma slot ar Official-knapptexten (`Upgrade to level N`) och cost/transfer-payload sann aktuell
+  upgrade-offer. Hero-transfer-dedupe ska darfor nycklas pa offer (slot+niva/cost), inte bara slot.
 - Construct mot en slot som redan har byggnaden (stale construct-task, eller fast specialslot RP=39/Wall=40 som
   finns fran grundning) far INTE ALARM:a pa saknad construct-choice-DOM. `ConstructBuildingAsync` lasar slotens
   build-sida live (`TryReadExistingBuildingOnSlotBuildPageAsync`); bekraftad befintlig byggnad (level >= 1, ingen
   `#contract_building*`) -> returnera "already exists at slot" som klassas `ConstructionTaskOutcome.AlreadyExists`
   och desktop TAR BORT posten ur kon (`HandleQueueItemSucceededAsync`). Maste vara live-bekraftat fore borttagning.
+- Palace/Residence/Command Center ar mutual-exclusive per by; level 0/queued construct raknas som narvaro och ska
+  blocka de andra redan i Desktop enqueue-gate, planners och Worker-sista skydd.
 - Official appendar `&gid=<befintlig byggnad>` till `build.php?id=N` nar sloten ar UPPTAGEN (boten skickar aldrig
   `gid=` sjalv i construct-url:en). Matchar server-gid det efterfragade gid:et men level >= 1 inte kan bekraftas
   (nykonstruktion pagar, level 0), ska `ConstructBuildingAsync` defer:a med `queue_wait_seconds` tills bygget ar
@@ -391,8 +416,9 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 - Pause bevarar sessionens aterstaende pacing; endast Stop/reset nollstaller den. `Start bot` kor alltid
   continuous loop; manuella knappfloden far fortsatt kunna koras nar loopen ar idle.
 - Conservative automation defaults ska vara styrande for nya/reset-installningar: session pacing pa
-  (90 min run, 45 min sleep, 40% variation, 18h daily max), action pacing pa
-  (task 1-6s, page load 1-3s, loop 6-30s), farming dispatch 20m/20%.
+  (run 40-100 min, sleep 20-60 min, 16h daily max), action pacing pa
+  (task 0.8-2s, page load 0.6-1.6s, click 0.4-1.4s, loop 4-25s),
+  farm-list step 1.5-4s, collect tasks/daily step 0.6-2s.
   High-volume scans och keep-alive ska ha jitter/pacing och far inte infora zero-delay bursts.
 - State-changing JS/Evaluate-klick i build/hero/celebration-floden ska foregas av `DelayBeforeClickAsync`;
   reload-grenar ska anvanda samma page-load pacing som navigation.

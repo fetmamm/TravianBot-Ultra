@@ -118,6 +118,11 @@ public static class ConstructionQueueState
         return ResolveDeferReason(item) == ConstructionDeferReason.StorageCapacity;
     }
 
+    public static bool IsConstructionRequirementDeferred(QueueItem item)
+    {
+        return ResolveDeferReason(item) == ConstructionDeferReason.Requirements;
+    }
+
     public static bool BlocksAdditionalConstruction(QueueItem queueOccupancyDeferredItem)
     {
         return IsQueueOccupancyDeferred(queueOccupancyDeferredItem);

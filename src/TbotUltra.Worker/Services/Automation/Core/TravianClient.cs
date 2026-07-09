@@ -373,6 +373,9 @@ public sealed partial class TravianClient
         [JsonPropertyName("queueWaitSeconds")]
         public int? QueueWaitSeconds { get; init; }
 
+        [JsonPropertyName("detectedTargetLevel")]
+        public int? DetectedTargetLevel { get; init; }
+
         [JsonPropertyName("candidateIndex")]
         public int? CandidateIndex { get; init; }
 

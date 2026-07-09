@@ -42,6 +42,11 @@ public partial class InboxPanel : UserControl
         Host?.OnInboxMarkReportsReadClicked();
     }
 
+    private void SaveReportPngButton_Click(object sender, RoutedEventArgs e)
+    {
+        Host?.OnInboxSaveReportPngClicked();
+    }
+
     private void AutoReadCheckBox_Click(object sender, RoutedEventArgs e)
     {
         Host?.OnInboxAutoReadChanged();

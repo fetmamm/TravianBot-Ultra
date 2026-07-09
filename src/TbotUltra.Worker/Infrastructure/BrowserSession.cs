@@ -300,6 +300,13 @@ public sealed partial class BrowserSession : IAsyncDisposable
             Headless = false,
         };
 
+        if (_account.NeverUseOwnIp
+            && (!_account.ProxyEnabled || !ProxyParser.TryBuild(_account.ProxyServer, out _, out _)))
+        {
+            throw new InvalidOperationException(
+                $"Account '{_account.Name}' has 'Never use own IP address' enabled, but no valid proxy is configured. Browser startup blocked.");
+        }
+
         // Per-account proxy. Set on launch so every context of this browser (main, bonus-video,
         // isolated external) routes through it — traffic cannot leak past the proxy. OFF by default.
         if (_account.ProxyEnabled && ProxyParser.TryBuild(_account.ProxyServer, out var proxy, out var proxyWarning))

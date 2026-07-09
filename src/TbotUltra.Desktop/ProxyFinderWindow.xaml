@@ -1,0 +1,352 @@
+<Window x:Class="TbotUltra.Desktop.ProxyFinderWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:views="clr-namespace:TbotUltra.Desktop.Views"
+        Background="{DynamicResource AppBackgroundBrush}"
+        Title="Find best proxy"
+        Height="820"
+        Width="674"
+        MinHeight="720"
+        MinWidth="594"
+        WindowStartupLocation="CenterOwner">
+    <Grid>
+        <Grid Margin="16">
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="140" />
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <TextBlock Grid.Row="0"
+                       Text="Find best proxy"
+                       FontSize="18"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimaryBrush}" />
+
+            <Border Grid.Row="1"
+                    Margin="0,10,0,0"
+                    Padding="14,12"
+                    Background="{DynamicResource ControlBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                <StackPanel>
+                    <TextBlock Text="How it works"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               Margin="0,0,0,8" />
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource IronTextBrush}" Margin="0,0,0,4">
+                        <Run Text="1." FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <Run Text="  Click SOCKS5, SOCKS4, or HTTP to load that proxy list directly into the box below." />
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource IronTextBrush}" Margin="0,0,0,4">
+                        <Run Text="2." FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <Run Text="  Or paste your own list manually (one host:port per line) and pick the matching TYPE." />
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource IronTextBrush}" Margin="0,0,0,4">
+                        <Run Text="3." FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <Run Text="  Click Test &amp; rank to test them all and list the fastest." />
+                    </TextBlock>
+                    <TextBlock TextWrapping="Wrap" Foreground="{DynamicResource IronTextBrush}">
+                        <Run Text="4." FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <Run Text="  Click Use on a proxy to apply it to this account." />
+                    </TextBlock>
+                </StackPanel>
+            </Border>
+
+            <Grid Grid.Row="2" Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+
+                <StackPanel Grid.Column="0" Margin="0,0,16,0">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                        <TextBlock Text="TYPE" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource SlateTextBrush}" VerticalAlignment="Center" />
+                        <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="4,0,0,0"
+                                        ToolTip="The proxy protocol of the list you pasted.&#10;Free proxy lists are split by type (SOCKS5 / SOCKS4 / HTTP) — pick the one matching the file you copied." />
+                    </StackPanel>
+                    <ComboBox x:Name="ProtocolComboBox" Width="110" SelectedValuePath="Tag">
+                        <ComboBoxItem Content="SOCKS5" Tag="socks5" />
+                        <ComboBoxItem Content="SOCKS4" Tag="socks4" />
+                        <ComboBoxItem Content="HTTP" Tag="http" />
+                    </ComboBox>
+                </StackPanel>
+
+                <StackPanel Grid.Column="1" Margin="0,0,16,0">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                        <TextBlock Text="PARALLEL" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource SlateTextBrush}" VerticalAlignment="Center" />
+                        <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="4,0,0,0"
+                                        ToolTip="How many proxies are tested at the same time.&#10;Higher is faster but uses more bandwidth; 100 is a good default." />
+                    </StackPanel>
+                    <ComboBox x:Name="ParallelComboBox" Width="80" SelectedValuePath="Tag">
+                        <ComboBoxItem Content="100" Tag="100" />
+                        <ComboBoxItem Content="200" Tag="200" />
+                        <ComboBoxItem Content="500" Tag="500" />
+                    </ComboBox>
+                </StackPanel>
+
+                <StackPanel Grid.Column="2" Margin="0,0,16,0">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                        <TextBlock Text="MAX PROXIES" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource SlateTextBrush}" VerticalAlignment="Center" />
+                        <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="4,0,0,0"
+                                        ToolTip="How many proxies from the list to test.&#10;ALL tests the whole list (slower); higher = more thorough." />
+                    </StackPanel>
+                    <ComboBox x:Name="MaxProxiesComboBox" Width="90" SelectedValuePath="Tag">
+                        <ComboBoxItem Content="100" Tag="100" />
+                        <ComboBoxItem Content="500" Tag="500" />
+                        <ComboBoxItem Content="1000" Tag="1000" />
+                        <ComboBoxItem Content="2000" Tag="2000" />
+                        <ComboBoxItem Content="ALL" Tag="all" />
+                    </ComboBox>
+                </StackPanel>
+
+                <StackPanel Grid.Column="3" Margin="0,0,16,0">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,2">
+                        <TextBlock Text="TOP" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource SlateTextBrush}" VerticalAlignment="Center" />
+                        <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="4,0,0,0"
+                                        ToolTip="How many of the fastest working proxies to show.&#10;If fewer proxies work than this, all working ones are shown." />
+                    </StackPanel>
+                    <ComboBox x:Name="TopComboBox" Width="70" SelectedValuePath="Tag">
+                        <ComboBoxItem Content="10" Tag="10" />
+                        <ComboBoxItem Content="20" Tag="20" />
+                        <ComboBoxItem Content="50" Tag="50" />
+                    </ComboBox>
+                </StackPanel>
+
+                <StackPanel Grid.Column="5" VerticalAlignment="Bottom">
+                    <Button x:Name="GetListsButton"
+                            Content="Get proxy list (Github)"
+                            MinWidth="150"
+                            Click="GetListsButton_Click" />
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0" HorizontalAlignment="Right">
+                        <Button x:Name="GetSocks5Button" Content="SOCKS5" Width="66" Margin="0,0,6,0" Tag="socks5" Click="GetListButton_Click"
+                                Background="{DynamicResource InfoBgBrush}"
+                                BorderBrush="{DynamicResource InfoBrush}"
+                                Foreground="{DynamicResource InfoTextBrush}"
+                                ToolTip="Set type to SOCKS5 and open the SOCKS5 list to copy." />
+                        <Button x:Name="GetSocks4Button" Content="SOCKS4" Width="66" Margin="0,0,6,0" Tag="socks4" Click="GetListButton_Click"
+                                Background="{DynamicResource PurpleBgBrush}"
+                                BorderBrush="{DynamicResource PurpleBorderBrush}"
+                                Foreground="{DynamicResource PurpleTextBrush}"
+                                ToolTip="Set type to SOCKS4 and open the SOCKS4 list to copy." />
+                        <Button x:Name="GetHttpButton" Content="HTTP" Width="56" Tag="http" Click="GetListButton_Click"
+                                Background="{DynamicResource WarningBgBrush}"
+                                BorderBrush="{DynamicResource WarningBorderBrush}"
+                                Foreground="{DynamicResource WarningTextBrush}"
+                                ToolTip="Set type to HTTP and open the HTTP list to copy." />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+
+            <TextBlock Grid.Row="3"
+                       Margin="0,12,0,4"
+                       Text="Proxy list"
+                       FontSize="11"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource SlateTextBrush}" />
+
+            <TextBox x:Name="ProxyListTextBox"
+                     Grid.Row="4"
+                     AcceptsReturn="True"
+                     AcceptsTab="False"
+                     TextWrapping="NoWrap"
+                     VerticalScrollBarVisibility="Auto"
+                     HorizontalScrollBarVisibility="Auto"
+                     FontFamily="Consolas"
+                     TextChanged="ProxyListTextBox_TextChanged" />
+
+            <Grid Grid.Row="5" Margin="0,12,0,4">
+                <TextBlock Text="Results (fastest first)"
+                           FontSize="11"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource SlateTextBrush}" />
+                <TextBlock x:Name="ResultsSummaryTextBlock"
+                           HorizontalAlignment="Right"
+                           Foreground="{DynamicResource SlateTextBrush}" />
+            </Grid>
+
+            <DataGrid x:Name="ResultsDataGrid"
+                      Grid.Row="6"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      HeadersVisibility="Column"
+                      GridLinesVisibility="Horizontal"
+                      SelectionMode="Single"
+                      RowHeight="28">
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                        <Style.Triggers>
+                            <Trigger Property="IsMouseOver" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                            </Trigger>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource InfoBgBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
+                <DataGrid.CellStyle>
+                    <Style TargetType="DataGridCell">
+                        <Setter Property="Padding" Value="4,0" />
+                        <Setter Property="VerticalContentAlignment" Value="Center" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Background" Value="Transparent" />
+                        <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="Transparent" />
+                                <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                <Setter Property="BorderThickness" Value="0" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.CellStyle>
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="#" Binding="{Binding Rank}" Width="40" />
+                    <DataGridTextColumn Header="Proxy" Binding="{Binding Proxy}" Width="*" />
+                    <DataGridTextColumn Header="Latency" Binding="{Binding Latency}" Width="90" />
+                    <DataGridTextColumn Header="Country" Binding="{Binding Country}" Width="130" />
+                    <DataGridTemplateColumn Width="104">
+                        <DataGridTemplateColumn.Header>
+                            <Button Content="Add all"
+                                    Width="90"
+                                    Height="22"
+                                    Padding="0"
+                                    Click="AddAllToLibraryButton_Click" />
+                        </DataGridTemplateColumn.Header>
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="Add"
+                                        Width="56"
+                                        Height="22"
+                                        Padding="0"
+                                        VerticalAlignment="Center"
+                                        HorizontalAlignment="Center"
+                                        Click="AddToLibraryButton_Click">
+                                    <Button.Style>
+                                        <Style TargetType="Button">
+                                            <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
+                                            <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
+                                            <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
+                                            <Setter Property="BorderThickness" Value="1" />
+                                            <Setter Property="Template">
+                                                <Setter.Value>
+                                                    <ControlTemplate TargetType="Button">
+                                                        <Border Background="{TemplateBinding Background}"
+                                                                BorderBrush="{TemplateBinding BorderBrush}"
+                                                                BorderThickness="{TemplateBinding BorderThickness}"
+                                                                CornerRadius="3">
+                                                            <ContentPresenter HorizontalAlignment="Center"
+                                                                              VerticalAlignment="Center" />
+                                                        </Border>
+                                                    </ControlTemplate>
+                                                </Setter.Value>
+                                            </Setter>
+                                            <Style.Triggers>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter Property="Background" Value="#17351F" />
+                                                    <Setter Property="BorderBrush" Value="#56D364" />
+                                                </Trigger>
+                                                <Trigger Property="IsPressed" Value="True">
+                                                    <Setter Property="Background" Value="#0E2416" />
+                                                    <Setter Property="BorderBrush" Value="#3FB950" />
+                                                </Trigger>
+                                                <DataTrigger Binding="{Binding IsInLibrary}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource WarningBgBrush}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
+                                                    <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
+                                                </DataTrigger>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding IsInLibrary}" Value="True" />
+                                                        <Condition Binding="{Binding IsMouseOver, RelativeSource={RelativeSource Self}}" Value="True" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Background" Value="#3A2C08" />
+                                                    <Setter Property="BorderBrush" Value="#E3B341" />
+                                                </MultiDataTrigger>
+                                                <MultiDataTrigger>
+                                                    <MultiDataTrigger.Conditions>
+                                                        <Condition Binding="{Binding IsInLibrary}" Value="True" />
+                                                        <Condition Binding="{Binding IsPressed, RelativeSource={RelativeSource Self}}" Value="True" />
+                                                    </MultiDataTrigger.Conditions>
+                                                    <Setter Property="Background" Value="#221A06" />
+                                                    <Setter Property="BorderBrush" Value="#D29922" />
+                                                </MultiDataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </Button.Style>
+                                </Button>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTemplateColumn Header="" Width="76">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <Button Content="Use"
+                                        Width="56"
+                                        Height="22"
+                                        Padding="0"
+                                        VerticalAlignment="Center"
+                                        HorizontalAlignment="Center"
+                                        Click="UseProxyButton_Click" />
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <Grid Grid.Row="7" Margin="0,10,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock x:Name="ValidationTextBlock"
+                           Grid.Row="0"
+                           Margin="0,0,0,8"
+                           VerticalAlignment="Center"
+                           TextWrapping="Wrap"
+                           Foreground="{DynamicResource WarningTextBrush}" />
+                <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="ProxyListButton"
+                            Content="Proxy list"
+                            MinWidth="100"
+                            Margin="0,0,8,0"
+                            Click="ProxyListButton_Click" />
+                    <Button x:Name="TestButton"
+                            Content="Test &amp; rank"
+                            MinWidth="130"
+                            Margin="0,0,8,0"
+                            Background="{DynamicResource PrimaryButtonBrush}"
+                            BorderBrush="{DynamicResource PrimaryButtonBrush}"
+                            Foreground="{DynamicResource TooltipForegroundBrush}"
+                            FontWeight="SemiBold"
+                            Click="TestButton_Click" />
+                    <Button x:Name="CloseButtonControl"
+                            Content="Close"
+                            Width="100"
+                            Click="CloseButton_Click" />
+                </StackPanel>
+            </Grid>
+        </Grid>
+
+        <views:BusyOverlayControl x:Name="BusyOverlay"
+                                  Title="Testing proxies"
+                                  Text="Preparing..."
+                                  Cancelled="BusyOverlay_Cancelled" />
+    </Grid>
+</Window>

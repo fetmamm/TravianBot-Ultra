@@ -216,6 +216,14 @@
                            FontSize="12"
                            TextWrapping="Wrap"
                            Margin="0,0,0,10" />
+                <Button Content="Building templates"
+                        Height="30"
+                        Margin="0,4,0,0"
+                        Background="{DynamicResource AccentBrush}"
+                        Foreground="White"
+                        BorderBrush="{DynamicResource AccentBrush}"
+                        ToolTip="Create, save, and queue reusable building templates for the selected village."
+                        Click="BuildingTemplatesButton_Click" />
             </StackPanel>
         </Border>
     </Grid>

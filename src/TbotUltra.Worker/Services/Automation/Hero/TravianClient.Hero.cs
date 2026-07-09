@@ -389,7 +389,8 @@ public sealed partial class TravianClient : IHeroClient
         }
 
         Notify("[hero:verbose] reloading dorf1 to refresh hero sidebar");
-        await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+        await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
+            .WaitAsync(cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while refreshing dorf1 for hero check.", cancellationToken);
     }
@@ -2089,25 +2090,26 @@ public sealed partial class TravianClient : IHeroClient
 
                 const selector = 'button.plus, button.textButtonV2.plus';
                 const attributeInputSelector = 'input[name="power"], input[name="offBonus"], input[name="defBonus"], input[name="productionPoints"]';
-                let row = input.parentElement;
-                while (row && row !== document.body) {
-                  const attributeInputs = row.querySelectorAll(attributeInputSelector);
-                  if (attributeInputs.length === 1) {
-                    const btn = row.querySelector(selector);
+                const inputRatio = input.closest('.inputRatio, .pointsRatio');
+                if (inputRatio) {
+                  let sibling = inputRatio.previousElementSibling;
+                  while (sibling) {
+                    const btn = sibling.querySelector(selector);
                     if (btn) return btn;
+                    if (sibling.matches?.('.name')) break;
+                    sibling = sibling.previousElementSibling;
                   }
-
-                  row = row.parentElement;
                 }
 
                 const attributeInputs = Array.from(document.querySelectorAll(attributeInputSelector));
-                const nextInput = attributeInputs
-                  .filter(other => other !== input && (input.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING))
-                  .at(0);
+                const previousInput = attributeInputs
+                  .filter(other => other !== input && (input.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_PRECEDING))
+                  .at(-1);
                 return Array.from(document.querySelectorAll(selector))
-                  .find(btn =>
-                    (input.compareDocumentPosition(btn) & Node.DOCUMENT_POSITION_FOLLOWING)
-                    && (!nextInput || (btn.compareDocumentPosition(nextInput) & Node.DOCUMENT_POSITION_FOLLOWING)))
+                  .filter(btn =>
+                    (btn.compareDocumentPosition(input) & Node.DOCUMENT_POSITION_FOLLOWING)
+                    && (!previousInput || (previousInput.compareDocumentPosition(btn) & Node.DOCUMENT_POSITION_FOLLOWING)))
+                  .at(-1)
                   || null;
               };
 

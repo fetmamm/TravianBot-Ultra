@@ -72,8 +72,17 @@ public partial class MainWindow
 
             SetActiveWorkingVillageFromStatus(status);
             CacheVillageStatus(status);
+            var statusForSelectedVillage = IsStatusForSelectedVillage(status);
             ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
-            _resourcesViewModel.ApplyStorageForecasts(status);
+            if (statusForSelectedVillage)
+            {
+                _resourcesViewModel.ApplyStorageForecasts(status);
+            }
+            else
+            {
+                AppendLog($"[storage-refresh] skipped Load buildings storage repaint: data is for '{status.ActiveVillage}', another village is selected.");
+            }
+
             _lastBuildingStatus = status;
             PopulateBuildingsTab(status);
             ApplyConstructionTimerFromStatus(status);
@@ -146,6 +155,65 @@ public partial class MainWindow
 
         BuildingsInfoTextBlock.Text = $"Queued load + upgrade-to-max for {queued} slot(s).";
         AppendLog($"Upgrade-all-to-max: queued load_buildings_snapshot + {queued} upgrade_building_to_max task(s).");
+    }
+
+    internal void OnBuildingTemplatesClicked()
+    {
+        var status = ResolveSelectedVillageBuildingStatus();
+        if (status is null || status.Buildings.Count == 0)
+        {
+            BuildingsInfoTextBlock.Text = "Load buildings for the selected village first.";
+            return;
+        }
+
+        var window = new BuildingTemplatesWindow(
+            _projectRoot,
+            status,
+            ResolveServerSpeed(),
+            ResolveMainBuildingLevel())
+        {
+            Owner = this,
+        };
+
+        if (window.ShowDialog() != true || window.QueuePlan is null)
+        {
+            return;
+        }
+
+        QueueBuildingTemplatePlan(window.QueuePlan);
+    }
+
+    private void QueueBuildingTemplatePlan(BuildingTemplatePlanResult plan)
+    {
+        var queued = 0;
+        QueueItem? lastItem = null;
+        foreach (var action in plan.Actions)
+        {
+            var payload = new Dictionary<string, string>(action.Payload, StringComparer.OrdinalIgnoreCase);
+            ApplySelectedVillageToPayload(payload);
+            lastItem = _botService.Enqueue(action.TaskName, payload, priority: 0, maxRetries: 3);
+            queued++;
+
+            if (string.Equals(action.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+                && action.Gid is int constructGid)
+            {
+                SetPendingBuildingConstruct(action.SlotId, action.Payload.GetValueOrDefault(BotOptionPayloadKeys.BuildingConstructName, action.DisplayName), constructGid);
+            }
+            else if (string.Equals(action.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+                && action.TargetLevel is int targetLevel
+                && action.SlotId > 0)
+            {
+                SetPendingBuildingUpgrade(action.SlotId, targetLevel);
+            }
+        }
+
+        RequestQueueUiRefresh(selectId: lastItem?.Id);
+        TriggerQueueAutoRunFromEnqueue();
+        var warningSuffix = plan.Warnings.Count > 0
+            ? $" Warnings: {string.Join(" ", plan.Warnings.Take(2))}"
+            : string.Empty;
+        BuildingsInfoTextBlock.Text = $"Queued building template: {queued} item(s).{warningSuffix}";
+        AppendLog($"Building template queued {queued} item(s).{warningSuffix}");
     }
 
     internal void BuildingSlotCircleButton_Click(object sender, RoutedEventArgs e)
@@ -530,30 +598,11 @@ public partial class MainWindow
                 continue;
             }
 
-            // Palace (26) conflicts with Residence (25) and Command Center (44) — only one allowed per village.
-            if (entry.Gid == 26 && (existingGids.Contains(25) || existingGids.Contains(44)))
+            var conflictingResidenceFamilyGid = FindResidenceFamilyConflictGid(status.Buildings, entry.Gid);
+            if (conflictingResidenceFamilyGid is int conflictGid)
             {
-                var conflicting = existingGids.Contains(25) ? "Residence" : "Command Center";
                 option.Availability = BuildingConstructAvailability.AlreadyBuilt;
-                option.UnavailableReason = $"{conflicting} already exists in this village";
-                result.Add(option);
-                continue;
-            }
-            // Residence (25) conflicts with Palace (26) and Command Center (44) symmetrically.
-            if (entry.Gid == 25 && (existingGids.Contains(26) || existingGids.Contains(44)))
-            {
-                var conflicting = existingGids.Contains(26) ? "Palace" : "Command Center";
-                option.Availability = BuildingConstructAvailability.AlreadyBuilt;
-                option.UnavailableReason = $"{conflicting} already exists in this village";
-                result.Add(option);
-                continue;
-            }
-            // Command Center (44) conflicts with Palace (26) and Residence (25).
-            if (entry.Gid == 44 && (existingGids.Contains(25) || existingGids.Contains(26)))
-            {
-                var conflicting = existingGids.Contains(25) ? "Residence" : "Palace";
-                option.Availability = BuildingConstructAvailability.AlreadyBuilt;
-                option.UnavailableReason = $"{conflicting} already exists in this village";
+                option.UnavailableReason = $"{BuildingCatalogService.NameForGid(conflictGid)} already exists or is queued in this village";
                 result.Add(option);
                 continue;
             }
@@ -687,26 +736,20 @@ public partial class MainWindow
             return false;
         }
 
-        if (selectedBuilding.Gid is 10 or 11)
+        if (FindResidenceFamilyConflictGid(projectedStatus.Buildings, selectedBuilding.Gid) is int conflictingResidenceFamilyGid)
         {
-            if (existingSameGidLevels.Count > 0)
-            {
-                var currentHighest = existingSameGidLevels.Max();
-                if (currentHighest < 20)
-                {
-                    reason = $"{selectedBuilding.Name} can only be duplicated after an existing one reaches level 20.";
-                    return false;
-                }
-            }
+            reason = $"{selectedBuilding.Name} conflicts with {BuildingCatalogService.NameForGid(conflictingResidenceFamilyGid)} already in this village.";
+            return false;
         }
-        else if (selectedBuilding.Gid == 23)
+
+        if (BuildingCatalogService.DuplicateRequiredExistingLevelFor(selectedBuilding.Gid) is int duplicateRequiredLevel)
         {
-            if (existingSameGidLevels.Count > 0)
+            if (sameGidAlreadyPresent)
             {
-                var currentHighest = existingSameGidLevels.Max();
-                if (currentHighest < 10)
+                var currentHighest = existingSameGidLevels.DefaultIfEmpty(0).Max();
+                if (currentHighest < duplicateRequiredLevel)
                 {
-                    reason = $"{selectedBuilding.Name} can only be duplicated after an existing one reaches level 10.";
+                    reason = $"{selectedBuilding.Name} can only be duplicated after an existing one reaches level {duplicateRequiredLevel}.";
                     return false;
                 }
             }
@@ -725,6 +768,26 @@ public partial class MainWindow
         }
 
         return true;
+    }
+
+    private static int? FindResidenceFamilyConflictGid(IEnumerable<Building> buildings, int targetGid)
+    {
+        var conflictGids = BuildingCatalogService.ResidenceFamilyConflictGidsFor(targetGid);
+        if (conflictGids.Count == 0)
+        {
+            return null;
+        }
+
+        foreach (var building in buildings)
+        {
+            var gid = building.Gid ?? BuildingCatalogService.GidForName(building.Name);
+            if (gid is int value && conflictGids.Contains(value))
+            {
+                return value;
+            }
+        }
+
+        return null;
     }
 
     private static bool IsUnbuiltFixedSpecialSlot(int slotId, Building building, int selectedGid)

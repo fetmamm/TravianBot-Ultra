@@ -186,8 +186,9 @@ public partial class MainWindow
         return ordered;
     }
 
-    private async Task EnsureContinuousLoopRuntimeItemsAsync(BotOptions options)
+    private async Task EnsureContinuousLoopRuntimeItemsAsync(BotOptions options, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var enabledGroups = GetContinuousLoopEnabledGroupsInOrder();
         // Troop-training, smithy, brewery and farming are generated PER VILLAGE (see below), so the loop
         // must keep running when only a non-selected village has those groups on. Hero/transfer/
@@ -227,12 +228,13 @@ public partial class MainWindow
 
         if (heroPollingEnabled && !HasActiveTask("hero_manage"))
         {
-            var adventureCount = await _botService.RefreshAdventureCountAsync(options, AppendLog, CancellationToken.None);
+            var adventureCount = await _botService.RefreshAdventureCountAsync(options, AppendLog, cancellationToken);
             await Dispatcher.InvokeAsync(() => ApplyHeroAdventureAvailability(adventureCount));
             if (adventureCount is > 0)
             {
-                _botService.EnqueueRuntime("hero_manage", "Hero adventure", null, priority: -50, maxRetries: 0);
-                AppendLog($"Hero group: queued hero_manage because adventures available={adventureCount.Value}.");
+                var payload = BuildHeroRuntimePayload();
+                _botService.EnqueueRuntime("hero_manage", "Hero adventure", payload, priority: -50, maxRetries: 0);
+                AppendLog($"Hero group: queued hero_manage because adventures available={adventureCount.Value}. priority={payload[BotOptionPayloadKeys.HeroStatPriority]}");
             }
         }
 
@@ -395,11 +397,11 @@ public partial class MainWindow
 
         if (consideredGroups.Contains(QueueGroup.Farming) && !IsFarmingGroupBlocked())
         {
-            var goldClubEnabled = await _botService.ReadAndPersistGoldClubStatusAsync(options, AppendLog, CancellationToken.None);
+            var goldClubEnabled = await _botService.ReadAndPersistGoldClubStatusAsync(options, AppendLog, cancellationToken);
             UpdateGoldClubInfo(goldClubEnabled);
             if (goldClubEnabled)
             {
-                await EnsureContinuousFarmListsReadyAsync(options);
+                await EnsureContinuousFarmListsReadyAsync(options, cancellationToken);
                 (List<string> Names, List<string> Ids) GatherSelectedFarmLists()
                 {
                     var enabled = _farmLists.Where(item => IsRealFarmListRow(item) && item.IsEnabled).ToList();
@@ -736,8 +738,9 @@ public partial class MainWindow
         }
     }
 
-    private async Task EnsureContinuousFarmListsReadyAsync(BotOptions options)
+    private async Task EnsureContinuousFarmListsReadyAsync(BotOptions options, CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         var farmingEnabled = GetContinuousLoopEnabledGroupsInOrder().Contains(QueueGroup.Farming);
         if (!farmingEnabled || _farmingOperationBusy)
         {
@@ -771,7 +774,11 @@ public partial class MainWindow
         AppendLog("Continuous farming: analyzing farmlists before runtime send.");
         try
         {
-            await RefreshFarmListsFromServerAsync(options, CancellationToken.None);
+            await RefreshFarmListsFromServerAsync(options, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
         }
         catch (Exception ex)
         {
@@ -1233,6 +1240,12 @@ public partial class MainWindow
             return null;
         }
 
+        if (TryDeferConstructUntilActivePrerequisiteFinishes(selection.Item, now, preview, out var dependencySkipReason))
+        {
+            skipReason = dependencySkipReason;
+            return null;
+        }
+
         if (selection.ForcedLiveValidation && !preview)
         {
             var villageName = NormalizeVillageName(GetQueueItemVillageName(selection.Item)) ?? "-";
@@ -1249,6 +1262,77 @@ public partial class MainWindow
         }
 
         return selection.Item;
+    }
+
+    private bool TryDeferConstructUntilActivePrerequisiteFinishes(
+        QueueItem item,
+        DateTimeOffset now,
+        bool preview,
+        out string skipReason)
+    {
+        skipReason = string.Empty;
+        if (!TryResolveConstructActivePrerequisiteDelay(item, now, out var dependencyDelay))
+        {
+            return false;
+        }
+
+        skipReason =
+            $"group=Construction task='{item.TaskName}' waiting for active prerequisite {dependencyDelay.Detail}";
+        if (preview)
+        {
+            return true;
+        }
+
+        var payload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonRequirements,
+            [BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
+                ConstructionQueueState.CurrentDeferClassificationVersion,
+        };
+        payload.Remove(BotOptionPayloadKeys.RequirementDeferCount);
+
+        if (_botService.UpdateDeferredQueueItem(item.Id, payload, dependencyDelay.Delay))
+        {
+            item.Payload = payload;
+            var villageName = NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-";
+            AppendLoopPickVerbose(
+                $"[construction-dependency:verbose] deferred construct until prerequisite finishes " +
+                $"id={item.Id} village='{villageName}' waitSeconds={dependencyDelay.Delay.TotalSeconds:F0} " +
+                $"requirements='{dependencyDelay.Detail}'",
+                $"construction-dependency:{item.Id}:{dependencyDelay.Detail}");
+            RequestQueueUiRefresh(item.Id);
+        }
+        else
+        {
+            AppendLoopPickVerbose(
+                $"[construction-dependency:verbose] could not persist prerequisite defer id={item.Id}; " +
+                "skipping this loop pass.",
+                $"construction-dependency-persist:{item.Id}");
+        }
+
+        return true;
+    }
+
+    private bool TryResolveConstructActivePrerequisiteDelay(
+        QueueItem item,
+        DateTimeOffset now,
+        out ConstructionDependencyDelay dependencyDelay)
+    {
+        dependencyDelay = null!;
+        var status = ResolveBuildingStatusForQueueItem(item);
+        if (status is null)
+        {
+            return false;
+        }
+
+        var result = ConstructionDependencyGate.ResolveConstructDelay(item, status, now);
+        if (result is null)
+        {
+            return false;
+        }
+
+        dependencyDelay = result;
+        return true;
     }
 
     private ConstructionQueueAvailability ResolveConstructionQueueAvailability(
@@ -1401,8 +1485,9 @@ public partial class MainWindow
         return skipReason;
     }
 
-    private async Task MaybeCheckInboxDuringContinuousLoopAsync()
+    private async Task MaybeCheckInboxDuringContinuousLoopAsync(CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         if (!_inboxAutoEnabled)
         {
             return;
@@ -1421,7 +1506,7 @@ public partial class MainWindow
         // RefreshInboxIndicatorsAsync — that guard exists to avoid touching the browser while a
         // task runs, but here the continuous loop owns the browser serially and calls this only
         // between task executions, so the access is safe.
-        await RefreshInboxIndicatorsAsync(logErrors: false, force: true);
+        await RefreshInboxIndicatorsAsync(logErrors: false, force: true, cancellationToken);
     }
 
     private void MarkContinuousBrowserActivity()
@@ -1543,18 +1628,17 @@ public partial class MainWindow
             }
 
             var options = AutomationExecutionOptions.WithoutImplicitVillageTarget(LoadBotOptions());
-            var loopDelaySeconds = Math.Max(5, options.LoopIntervalSeconds);
             var tickId = Interlocked.Increment(ref _loopTickCounter);
             var tickSw = Stopwatch.StartNew();
             try
             {
-                AppendLog($"[LOOP {tickId}] START interval={loopDelaySeconds}s");
+                AppendLog($"[LOOP {tickId}] START");
                 await EnsureChromiumInstalledAsync();
                 await HonorPendingVillageSwitchAsync(options, token);
                 await EnsureContinuousLoopConstructionStatusAsync(options, token);
                 await MaybeAnalyzeNewVillageDuringContinuousLoopAsync(options, token);
-                await EnsureContinuousLoopRuntimeItemsAsync(options);
-                await MaybeCheckInboxDuringContinuousLoopAsync();
+                await EnsureContinuousLoopRuntimeItemsAsync(options, token);
+                await MaybeCheckInboxDuringContinuousLoopAsync(token);
 
                 var next = SelectNextQueueItemForContinuousLoop();
                 if (next is not null)
@@ -1596,7 +1680,7 @@ public partial class MainWindow
                 }
                 else
                 {
-                    var waitDelay = ResolveContinuousLoopWaitDelay(loopDelaySeconds);
+                    var waitDelay = ResolveContinuousLoopWaitDelay();
                     await WaitForNextContinuousLoopPassAsync(tickId, waitDelay, options, token);
                 }
             }
@@ -1607,18 +1691,18 @@ public partial class MainWindow
             catch (Exception ex)
             {
                 AppendLog($"[LOOP {tickId}] FAIL {tickSw.Elapsed.TotalSeconds:F1}s | {FormatExceptionForLog(ex)}");
-                await Task.Delay(TimeSpan.FromSeconds(loopDelaySeconds), token);
+                await WaitForNextContinuousLoopPassAsync(tickId, null, options, token);
             }
         }
     }
 
-    private TimeSpan ResolveContinuousLoopWaitDelay(int fallbackSeconds)
+    private TimeSpan? ResolveContinuousLoopWaitDelay()
     {
         try
         {
             if (GetContinuousLoopConsideredGroupsInOrder().Count <= 0)
             {
-                return TimeSpan.FromSeconds(Math.Max(5, fallbackSeconds));
+                return null;
             }
 
             var now = DateTimeOffset.UtcNow;
@@ -1628,7 +1712,7 @@ public partial class MainWindow
                 .FirstOrDefault();
             if (nextDeferred is null)
             {
-                return TimeSpan.FromSeconds(Math.Max(5, fallbackSeconds));
+                return null;
             }
 
             var delay = nextDeferred.NextAttemptAt - now;
@@ -1637,25 +1721,28 @@ public partial class MainWindow
                 return TimeSpan.FromSeconds(1);
             }
 
-            return delay <= TimeSpan.FromSeconds(fallbackSeconds)
-                ? delay
-                : TimeSpan.FromSeconds(Math.Max(5, fallbackSeconds));
+            return delay;
         }
         catch
         {
-            return TimeSpan.FromSeconds(Math.Max(5, fallbackSeconds));
+            return null;
         }
     }
 
-    private async Task WaitForNextContinuousLoopPassAsync(long tickId, TimeSpan waitDelay, BotOptions options, CancellationToken token)
+    private async Task WaitForNextContinuousLoopPassAsync(long tickId, TimeSpan? waitDelay, BotOptions options, CancellationToken token)
     {
-        var totalSeconds = Math.Max(1, (int)Math.Ceiling(waitDelay.TotalSeconds));
+        var totalSeconds = waitDelay is null
+            ? Math.Max(1, options.LoopIntervalSeconds)
+            : Math.Max(1, (int)Math.Ceiling(waitDelay.Value.TotalSeconds));
         if (options.ActionPacingEnabled)
         {
             var minMs = (int)Math.Round(Math.Max(0, options.ActionPacingLoopMinSeconds) * 1000);
             var maxMs = (int)Math.Round(Math.Max(options.ActionPacingLoopMinSeconds, options.ActionPacingLoopMaxSeconds) * 1000);
             var pacingSeconds = Random.Shared.Next(minMs, maxMs + 1) / 1000.0;
-            totalSeconds = Math.Max(totalSeconds, (int)Math.Ceiling(pacingSeconds));
+            var pacingTotalSeconds = Math.Max(1, (int)Math.Ceiling(pacingSeconds));
+            totalSeconds = waitDelay is null
+                ? pacingTotalSeconds
+                : Math.Min(totalSeconds, pacingTotalSeconds);
         }
 
         AppendLog($"[LOOP {tickId}] WAIT {totalSeconds}s");
@@ -1917,7 +2004,7 @@ public partial class MainWindow
                 24);
             if (dailyMaxHours <= 0)
             {
-                warnings.Add("[conservative] session daily max is disabled; default is 18h.");
+                warnings.Add("[conservative] session daily max is disabled; default is 16h.");
             }
         }
         catch (Exception ex)

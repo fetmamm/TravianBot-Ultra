@@ -44,7 +44,9 @@ public sealed class DesktopBotService : IDesktopBotService
     public bool MarkQueueItemCanceled(Guid id) => _queueStore.MarkCanceled(id);
     public bool MarkQueueItemDeferred(Guid id, TimeSpan delay) => _queueStore.MarkDeferred(id, delay);
     public bool UpdateDeferredQueueItem(Guid id, Dictionary<string, string>? payload, TimeSpan? delay = null) => _queueStore.UpdateDeferred(id, payload, delay);
+    public bool UpdatePendingQueueItem(Guid id, Dictionary<string, string>? payload, int? priority, TimeSpan? delay = null) => _queueStore.UpdatePending(id, payload, priority, delay);
     public bool MarkQueueItemExecutionFailed(Guid id) => _queueStore.MarkExecutionFailed(id);
+    public bool MarkQueueItemPermanentlyFailed(Guid id) => _queueStore.MarkPermanentlyFailed(id);
     public int ResetOrphanedRunningQueueItems() => _queueStore.ResetOrphanedRunningItems();
 
     public Task<BotTaskExecutionResult> ExecuteQueueItemAsync(BotOptions options, QueueItem item, Action<string> log, CancellationToken cancellationToken)
@@ -78,6 +80,21 @@ public sealed class DesktopBotService : IDesktopBotService
     public Task<bool> IsLoggedInAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.IsLoggedInAsync(options, log, null, cancellationToken);
+    }
+
+    public Task<string?> ReadCurrentLanguageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadCurrentLanguageAsync(options, log, null, cancellationToken);
+    }
+
+    public Task EnsureExpectedLanguageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.EnsureExpectedLanguageAsync(options, log, null, cancellationToken);
+    }
+
+    public Task<string?> SetLanguageToEnglishAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.SetLanguageToEnglishAsync(options, log, null, cancellationToken);
     }
 
     public Task<bool> ReadAndPersistGoldClubStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
@@ -222,6 +239,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.RunReduceAdventuresTimeAsync(options, log, null, cancellationToken);
     }
 
+    public Task<string> RunScanProductionBonusTimersAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.RunScanProductionBonusTimersAsync(options, log, null, cancellationToken);
+    }
+
     public Task<string> ReadSmithyQueueFromCurrentPageTestAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.ReadSmithyQueueFromCurrentPageTestAsync(options, log, null, cancellationToken);
@@ -300,6 +322,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
     public Task<PageHtmlCapture> ReadCurrentPageHtmlAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.ReadCurrentPageHtmlAsync(options, log, null, cancellationToken);
+    }
+
+    public Task<ReportPngResult> SaveReportScreenshotAsync(BotOptions options, string filePath, bool hideAttacker, bool hideDefender, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.SaveReportScreenshotAsync(options, filePath, hideAttacker, hideDefender, log, null, cancellationToken);
     }
 
     public Task<PageHtmlCapture> NavigateToPageAndReadHtmlAsync(BotOptions options, string pagePath, Action<string> log, CancellationToken cancellationToken)

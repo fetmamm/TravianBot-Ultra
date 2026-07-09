@@ -308,7 +308,8 @@ public sealed partial class TravianClient : IFarmingClient
             await _page.WaitForFunctionAsync(
                 "() => !!document.querySelector('#rallyPointFarmList')",
                 null,
-                new PageWaitForFunctionOptions { Timeout = 5000 });
+                new PageWaitForFunctionOptions { Timeout = 5000 })
+                .WaitAsync(cancellationToken);
         }
         catch (TimeoutException)
         {
@@ -374,7 +375,8 @@ public sealed partial class TravianClient : IFarmingClient
                 await _page.WaitForFunctionAsync(
                     FarmListsFullyRenderedScript,
                     null,
-                    new PageWaitForFunctionOptions { Timeout = 6000 });
+                    new PageWaitForFunctionOptions { Timeout = 6000 })
+                    .WaitAsync(cancellationToken);
                 if (round > 1)
                 {
                     Notify($"[farm-list] all farm lists fully expanded after {round} round(s)");

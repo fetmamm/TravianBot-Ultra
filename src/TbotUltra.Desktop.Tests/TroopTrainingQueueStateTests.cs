@@ -47,6 +47,19 @@ public sealed class TroopTrainingQueueStateTests
         Assert.Null(row.RemainingSeconds);
     }
 
+    [Theory]
+    [InlineData(7200, "1", true)]
+    [InlineData(3600, "1", false)]
+    [InlineData(7200, "no_limit", false)]
+    [InlineData(7200, null, false)]
+    public void IsOverMaxQueue_OnlyTrueWhenRemainingExceedsFiniteLimit(
+        int remainingSeconds,
+        string? maxQueueMode,
+        bool expected)
+    {
+        Assert.Equal(expected, TroopTrainingQueueState.IsOverMaxQueue(remainingSeconds, maxQueueMode));
+    }
+
     private static TroopTrainingQueueStatus Barracks(int remaining, TimerSnapshot finish) =>
         new(
             TroopTrainingBuildingType.Barracks,

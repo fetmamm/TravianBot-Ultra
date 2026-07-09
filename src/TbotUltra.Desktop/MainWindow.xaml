@@ -31,6 +31,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
@@ -100,6 +101,32 @@
 
                 <Border Grid.Row="3" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
                     <StackPanel>
+                        <TextBlock Text="Proxy" Foreground="{DynamicResource TextSubtleBrush}" Margin="0,0,0,5" />
+                        <StackPanel Orientation="Horizontal">
+                            <Ellipse x:Name="ProxyStatusIndicator"
+                                     Width="10"
+                                     Height="10"
+                                     Fill="{DynamicResource TextMutedBrush}"
+                                     VerticalAlignment="Center"
+                                     Margin="0,0,7,0" />
+                            <TextBlock x:Name="ProxyStatusTextBlock"
+                                       Text="No proxy is used"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       VerticalAlignment="Center"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock x:Name="ProxyStatusDetailTextBlock"
+                                       Margin="8,0,0,0"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextMutedBrush}"
+                                       FontSize="11"
+                                       TextTrimming="CharacterEllipsis"
+                                       Visibility="Collapsed" />
+                        </StackPanel>
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="4" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
+                    <StackPanel>
                         <DockPanel Margin="0,0,0,5" LastChildFill="False">
                             <TextBlock DockPanel.Dock="Left" Text="Village" Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
                             <!-- Switch village lives here (next to the dropdown) so the bot's working village can be
@@ -128,7 +155,7 @@
                     </StackPanel>
                 </Border>
 
-                <StackPanel Grid.Row="4">
+                <StackPanel Grid.Row="5">
                     <!-- Monochrome line icons (Segoe MDL2 Assets) per the reference; tinted with the
                          button's own foreground. Glyph codepoints can be swapped freely if one looks off. -->
                     <StackPanel.Resources>
@@ -188,7 +215,7 @@
                     </Button>
                 </StackPanel>
 
-                <Border Grid.Row="5" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7">
+                <Border Grid.Row="6" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7">
                     <StackPanel>
                         <Border x:Name="LoopStateBadge"
                                 Background="{DynamicResource StateIdleBrush}"
@@ -943,37 +970,68 @@
                                             </StackPanel>
                                         </StackPanel>
                                         <StackPanel Grid.Column="1"
-                                                    Orientation="Horizontal"
+                                                    Orientation="Vertical"
                                                     Margin="28,0,0,0"
                                                     HorizontalAlignment="Left"
                                                     VerticalAlignment="Top">
-                                            <CheckBox x:Name="ConstructFasterCheckBox" Content="Construct 25% faster"
-                                                      Style="{StaticResource ToggleSwitchStyle}"
-                                                      Foreground="{DynamicResource TextSecondaryBrush}"
-                                                      VerticalAlignment="Center"
-                                                      Checked="ConstructFasterSetting_Changed" Unchecked="ConstructFasterSetting_Changed" />
-                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}"
-                                                            Margin="4,0,0,0">
-                                                <ContentControl.ToolTip>
-                                                    <ToolTip MaxWidth="320">
-                                                        <TextBlock TextWrapping="Wrap"
-                                                                   Text="For the selected village. Enables Official Travian construct-faster bonus videos. Open settings to choose villages, minimum build time, and random chance." />
-                                                    </ToolTip>
-                                                </ContentControl.ToolTip>
-                                            </ContentControl>
-                                            <Button x:Name="ConstructFasterSettingsButton"
-                                                    Content="&#xE713;"
-                                                    FontFamily="Segoe MDL2 Assets"
-                                                    FontSize="13"
-                                                    Width="30"
-                                                    Height="24"
-                                                    Padding="0"
-                                                    Margin="8,0,0,0"
-                                                    VerticalAlignment="Center"
-                                                    Background="{DynamicResource SurfaceBrush}"
-                                                    BorderBrush="{DynamicResource BorderBrush}"
-                                                    ToolTip="Open Construct 25% faster settings"
-                                                    Click="ConstructFasterSettingsButton_Click" />
+                                            <StackPanel Orientation="Horizontal">
+                                                <CheckBox x:Name="ConstructFasterCheckBox" Content="Construct 25% faster"
+                                                          Style="{StaticResource ToggleSwitchStyle}"
+                                                          Foreground="{DynamicResource TextSecondaryBrush}"
+                                                          VerticalAlignment="Center"
+                                                          Checked="ConstructFasterSetting_Changed" Unchecked="ConstructFasterSetting_Changed" />
+                                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                                Margin="4,0,0,0">
+                                                    <ContentControl.ToolTip>
+                                                        <ToolTip MaxWidth="320">
+                                                            <TextBlock TextWrapping="Wrap"
+                                                                       Text="For the selected village. Enables Official Travian construct-faster bonus videos. Open settings to choose villages, minimum build time, and random chance." />
+                                                        </ToolTip>
+                                                    </ContentControl.ToolTip>
+                                                </ContentControl>
+                                                <Button x:Name="ConstructFasterSettingsButton"
+                                                        Content="&#xE713;"
+                                                        FontFamily="Segoe MDL2 Assets"
+                                                        FontSize="13"
+                                                        Width="30"
+                                                        Height="24"
+                                                        Padding="0"
+                                                        Margin="8,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Background="{DynamicResource SurfaceBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        ToolTip="Open Construct 25% faster settings"
+                                                        Click="ConstructFasterSettingsButton_Click" />
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
+                                                <CheckBox x:Name="ProductionBonusVideoCheckBox" Content="15% production bonus"
+                                                          Style="{StaticResource ToggleSwitchStyle}"
+                                                          Foreground="{DynamicResource TextSecondaryBrush}"
+                                                          VerticalAlignment="Center"
+                                                          Checked="ProductionBonusVideoSetting_Changed" Unchecked="ProductionBonusVideoSetting_Changed" />
+                                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                                Margin="4,0,0,0">
+                                                    <ContentControl.ToolTip>
+                                                        <ToolTip MaxWidth="320">
+                                                            <TextBlock TextWrapping="Wrap"
+                                                                       Text="Account-wide. Watches the free Official bonus video to activate +15% production for 8h on every resource that allows it, retried after the daily 09:00 server-time reset. Never spends gold. Open settings to see the per-resource timers." />
+                                                        </ToolTip>
+                                                    </ContentControl.ToolTip>
+                                                </ContentControl>
+                                                <Button x:Name="ProductionBonusSettingsButton"
+                                                        Content="&#xE713;"
+                                                        FontFamily="Segoe MDL2 Assets"
+                                                        FontSize="13"
+                                                        Width="30"
+                                                        Height="24"
+                                                        Padding="0"
+                                                        Margin="8,0,0,0"
+                                                        VerticalAlignment="Center"
+                                                        Background="{DynamicResource SurfaceBrush}"
+                                                        BorderBrush="{DynamicResource BorderBrush}"
+                                                        ToolTip="Open 15% production bonus settings"
+                                                        Click="ProductionBonusSettingsButton_Click" />
+                                            </StackPanel>
                                         </StackPanel>
                                     </Grid>
                                 </StackPanel>
@@ -3104,6 +3162,17 @@
                                           ColumnHeaderHeight="32"
                                           RowHeight="30"
                                           FontSize="12">
+                                    <DataGrid.RowStyle>
+                                        <Style TargetType="DataGridRow">
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsAutomaticRepair}" Value="True">
+                                                    <Setter Property="Background" Value="{DynamicResource DangerBgBrush}" />
+                                                    <Setter Property="BorderBrush" Value="{DynamicResource DangerBorderBrush}" />
+                                                    <Setter Property="ToolTip" Value="{Binding AutomaticRepairReason}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </DataGrid.RowStyle>
                                     <DataGrid.ColumnHeaderStyle>
                                         <Style TargetType="DataGridColumnHeader">
                                             <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />

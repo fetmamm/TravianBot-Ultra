@@ -72,7 +72,7 @@ public partial class MainWindow
         StartLoopButton.Content = "Pause bot";
         StartLoopButton.IsEnabled = true;
         SetLoopIndicator(true);
-        AppendLog($"Loop started. Interval={initialOptions.LoopIntervalSeconds}s");
+        AppendLog($"Loop started. Loop pacing={initialOptions.ActionPacingLoopMinSeconds:0.#}-{initialOptions.ActionPacingLoopMaxSeconds:0.#}s");
         LogConservativeAutomationWarnings(initialOptions);
         NotifySessionPacingAutomationStarted();
 

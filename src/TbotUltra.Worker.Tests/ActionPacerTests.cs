@@ -62,4 +62,20 @@ public sealed class ActionPacerTests
         stopwatch.Stop();
         Assert.True(stopwatch.ElapsedMilliseconds >= 25, $"enabled pacer only waited {stopwatch.ElapsedMilliseconds}ms");
     }
+
+    [Theory]
+    [InlineData("Action pacing \"Click\" delay", "[pacing] Click: waiting")]
+    [InlineData("after page load", "[pacing] Page load: after page load: waiting")]
+    [InlineData("before task", "[pacing] Task: before task: waiting")]
+    [InlineData("Farm list: step", "[pacing] Farm list: step: waiting")]
+    public async Task DelayMillisecondsAsync_LogsPacingCategoryFirst(string reason, string expectedPrefix)
+    {
+        var logs = new List<string>();
+        var pacer = new ActionPacer(enabled: true, logs.Add);
+
+        await pacer.DelayMillisecondsAsync(1, 1, CancellationToken.None, reason);
+
+        var log = Assert.Single(logs);
+        Assert.StartsWith(expectedPrefix, log);
+    }
 }

@@ -12,4 +12,8 @@ public sealed class AccountOptions
     // different accounts can present different egress IPs. OFF by default.
     public bool ProxyEnabled { get; init; }
     public string ProxyServer { get; init; } = string.Empty;
+
+    // When true, browser startup is blocked unless a valid proxy is configured. This is enforced in
+    // Worker before Playwright launches so Travian cannot be opened through the local IP by accident.
+    public bool NeverUseOwnIp { get; init; }
 }

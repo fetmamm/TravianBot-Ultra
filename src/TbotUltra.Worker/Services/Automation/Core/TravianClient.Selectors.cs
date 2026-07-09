@@ -7,6 +7,7 @@ public sealed partial class TravianClient
         public const string Resources = "/dorf1.php";
         public const string Login = "/login.php";
         public const string Buildings = "/dorf2.php";
+        public const string Options = "/options";
         public const string PlayerProfile = "/spieler.php";
         public const string Statistics100 = "/statistiken.php?id=100";
         // Questmaster task overview.

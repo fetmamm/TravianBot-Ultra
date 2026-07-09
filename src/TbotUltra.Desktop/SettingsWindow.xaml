@@ -50,6 +50,12 @@
                                 <ContentControl Style="{StaticResource SettingInfoIconStyle}"
                                                 ToolTip="When logging in less than 10 minutes after the last full login, skip the post-login analyzes (villages, hero, farm lists, brewery) and only confirm the session. Saved per account." />
                             </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <CheckBox x:Name="AutomaticallyCheckLanguageCheckBox"
+                                          Content="Automatically check language" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="Checks that Travian is set to English before automation parses pages. Turn off only if the language guard itself causes problems." />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
 

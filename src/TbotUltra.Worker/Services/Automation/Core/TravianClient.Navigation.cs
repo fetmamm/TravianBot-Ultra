@@ -25,13 +25,13 @@ public sealed partial class TravianClient
             return Task.CompletedTask;
         }
 
-        // Default reason so the click-pacing delay is always logged (e.g. [pacing] Action pacing "Click" delay: waiting 2.3s),
+        // Default reason so the click-pacing delay is always logged (e.g. [pacing] Click: waiting 2.3s),
         // while callers that pass their own reason keep it.
         return ActionPacer.FromOptions(_config, Notify).DelayAsync(
             _config.ActionPacingClickMinSeconds,
             _config.ActionPacingClickMaxSeconds,
             cancellationToken,
-            string.IsNullOrWhiteSpace(reason) ? "Action pacing \"Click\" delay" : reason);
+            string.IsNullOrWhiteSpace(reason) ? "Click" : $"Click: {reason}");
     }
 
     private Task DelayFarmListStepAsync(CancellationToken cancellationToken)
@@ -39,7 +39,8 @@ public sealed partial class TravianClient
         return new ActionPacer(enabled: true, Notify).DelayAsync(
             _config.FarmListStepDelayMinSeconds,
             _config.FarmListStepDelayMaxSeconds,
-            cancellationToken);
+            cancellationToken,
+            "Farm list: step");
     }
 
     // Types a value into an input the way a person would: focus (real mouse click), clear, then enter the
@@ -67,8 +68,8 @@ public sealed partial class TravianClient
 // Helper function for waiting on a page to fully load with retries, to mitigate transient timeouts on slow-loading pages.
     private async Task WaitForPageReadyAsync(CancellationToken cancellationToken = default)
     {
-        const int attempts = 3;
-        const int timeoutMs = 10000;
+        const int attempts = 4;
+        const int timeoutMs = 15000;
 
         Exception? lastFailure = null;
         for (var attempt = 1; attempt <= attempts; attempt++)
@@ -96,13 +97,13 @@ public sealed partial class TravianClient
             {
                 lastFailure = ex;
                 if (attempt < attempts)
-                    Notify($"[WaitForPageReadyAsync] Page did not load, retry {attempt + 1}/{attempts}. Timeout: {timeoutMs} ms. Url='{_page.Url}'. {ex.Message}");
+                    Notify($"[WaitForPageReadyAsync:verbose] Page did not load, retry {attempt + 1}/{attempts}. Timeout: {timeoutMs} ms. Url='{_page.Url}'. {ex.Message}");
             }
             catch (TimeoutException ex)
             {
                 lastFailure = ex;
                 if (attempt < attempts)
-                    Notify($"[WaitForPageReadyAsync] Page did not load, retry {attempt + 1}/{attempts}. Timeout: {timeoutMs} ms. Url='{_page.Url}'. {ex.Message}");
+                    Notify($"[WaitForPageReadyAsync:verbose] Page did not load, retry {attempt + 1}/{attempts}. Timeout: {timeoutMs} ms. Url='{_page.Url}'. {ex.Message}");
             }
         }
 
@@ -142,10 +143,11 @@ public sealed partial class TravianClient
             await RetryAsync($"navigate to {pathOrUrl}", async () =>
             {
                 var response = await _page.GotoAsync(url, new PageGotoOptions
-                {
-                    WaitUntil = WaitUntilState.DOMContentLoaded,
-                    Timeout = _config.TimeoutMs,
-                });
+                    {
+                        WaitUntil = WaitUntilState.DOMContentLoaded,
+                        Timeout = _config.TimeoutMs,
+                    })
+                    .WaitAsync(cancellationToken);
                 if (response is not null && response.Headers.TryGetValue("date", out var dateHeader))
                 {
                     RecordServerTime(dateHeader);
@@ -179,7 +181,8 @@ public sealed partial class TravianClient
         {
             RecordConstructionNavigation("reload", pathOrUrl);
             Notify($"[nav] RELOAD start target='{pathOrUrl}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
-            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
+                .WaitAsync(cancellationToken);
             Notify($"[nav] RELOAD done target='{pathOrUrl}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
             // A reload replaces page content just like a navigation, so any page-derived cache must
             // be dropped here too (the GotoAsync branch already does this). Without this the longer

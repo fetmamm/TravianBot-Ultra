@@ -47,9 +47,60 @@ public sealed class ActionPacer
 
         if (!string.IsNullOrWhiteSpace(reason))
         {
-            _logger?.Invoke($"[pacing] {reason}: waiting {delayMs / 1000.0:F1}s");
+            _logger?.Invoke($"[pacing] {FormatReasonForLog(reason)}: waiting {delayMs / 1000.0:F1}s");
         }
 
         return Task.Delay(delayMs, cancellationToken);
+    }
+
+    private static string FormatReasonForLog(string reason)
+    {
+        var trimmed = reason.Trim();
+        if (trimmed.Length == 0)
+        {
+            return trimmed;
+        }
+
+        if (HasCategoryPrefix(trimmed))
+        {
+            return trimmed;
+        }
+
+        var lower = trimmed.ToLowerInvariant();
+        if (lower.Contains("click", StringComparison.Ordinal))
+        {
+            return lower == "action pacing \"click\" delay"
+                ? "Click"
+                : $"Click: {trimmed}";
+        }
+
+        if (lower.Contains("page load", StringComparison.Ordinal)
+            || lower.Contains("page reload", StringComparison.Ordinal))
+        {
+            return $"Page load: {trimmed}";
+        }
+
+        if (lower.Contains("farm list", StringComparison.Ordinal))
+        {
+            return $"Farm list: {trimmed}";
+        }
+
+        if (lower.Contains("before task", StringComparison.Ordinal)
+            || lower.Contains("state-changing task", StringComparison.Ordinal)
+            || lower.Contains("between actions", StringComparison.Ordinal))
+        {
+            return $"Task: {trimmed}";
+        }
+
+        return trimmed;
+    }
+
+    private static bool HasCategoryPrefix(string value)
+    {
+        return value.StartsWith("Click:", StringComparison.OrdinalIgnoreCase)
+            || value.Equals("Click", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("Page load:", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("Task:", StringComparison.OrdinalIgnoreCase)
+            || value.StartsWith("Farm list:", StringComparison.OrdinalIgnoreCase);
     }
 }

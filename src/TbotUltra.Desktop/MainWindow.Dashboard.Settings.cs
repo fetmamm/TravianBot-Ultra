@@ -13,6 +13,7 @@ public partial class MainWindow
     private bool _suppressAutoCollectDailyQuestsConfigWrite;
     private bool _suppressConstructFasterConfigWrite;
     private bool _suppressHeroResourceTransferConfigWrite;
+    private bool _suppressProductionBonusVideoConfigWrite;
 
     private void ApplyAutoCollectTasksConfigToUi(BotOptions options)
     {
@@ -84,6 +85,46 @@ public partial class MainWindow
         if (AutoCollectDailyQuestsCheckBox.IsChecked == true)
         {
             TriggerImmediateIfLoopRunning(options => TryQueueAutoCollectDailyQuestsAsync(options));
+        }
+    }
+
+    private void ApplyProductionBonusVideoConfigToUi(BotOptions options)
+    {
+        if (ProductionBonusVideoCheckBox is null)
+        {
+            return;
+        }
+
+        _suppressProductionBonusVideoConfigWrite = true;
+        try
+        {
+            ProductionBonusVideoCheckBox.IsChecked = options.ProductionBonusVideoEnabled;
+        }
+        finally
+        {
+            _suppressProductionBonusVideoConfigWrite = false;
+        }
+    }
+
+    private void ProductionBonusVideoSetting_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressProductionBonusVideoConfigWrite || _botConfigStore is null)
+        {
+            return;
+        }
+
+        var config = _botConfigStore.Load();
+        config[BotOptionPayloadKeys.ProductionBonusVideoEnabled] = ProductionBonusVideoCheckBox.IsChecked == true;
+        _botConfigStore.Save(config);
+
+        // Enabled while the loop is already running -> try to queue immediately (subject to the 09:00 reset gate).
+        if (ProductionBonusVideoCheckBox.IsChecked == true)
+        {
+            TriggerImmediateIfLoopRunning(options =>
+            {
+                TryQueueActivateProductionBonus(options);
+                return Task.CompletedTask;
+            });
         }
     }
 

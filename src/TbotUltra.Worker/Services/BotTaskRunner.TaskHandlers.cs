@@ -459,6 +459,14 @@ public sealed partial class BotTaskRunner
         context.Log(result);
     }
 
+    private static async Task ExecuteActivateProductionBonusAsync(TaskExecutionContext context)
+    {
+        var result = await context.Client.ActivateProductionBonusVideosAsync(context.CancellationToken);
+        context.Log(result);
+        // Record so the desktop can read the production_bonus=... state token off LastTask.Message.
+        context.RecordTaskResult("activate_production_bonus", result);
+    }
+
     private static void ThrowIfTaskBlocked(string taskName, string result)
     {
         if (!IsBlockedTaskResult(result))

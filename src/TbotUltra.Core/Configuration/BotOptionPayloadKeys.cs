@@ -49,6 +49,11 @@ public static class BotOptionPayloadKeys
     public const string StorageDependencyParentId = "storage_dependency_parent_id";
     public const string StorageDependencyItemId = "storage_dependency_item_id";
     public const string StorageDependencyKind = "storage_dependency_kind";
+    public const string AutoAddedBy = "auto_added_by";
+    public const string AutoAddedReason = "auto_added_reason";
+    public const string AutoAddedParentId = "auto_added_parent_id";
+    public const string AutoAddedRequirement = "auto_added_requirement";
+    public const string AutoAddedByConstructionRequirementRepair = "construction_requirement_repair";
 
     public const string BuildingUpgradeSlotId = "building_upgrade_slot_id";
     public const string BuildingUpgradeTargetLevel = "building_upgrade_target_level";
@@ -67,9 +72,13 @@ public static class BotOptionPayloadKeys
     public const string ConstructFasterMinBuildMinutes = "construct_faster_min_build_minutes";
     public const string ConstructFasterRandomEnabled = "construct_faster_random_enabled";
     public const string ConstructFasterRandomChancePercent = "construct_faster_random_chance_percent";
+    // Account-wide toggle: watch the free +15% production bonus video on the payment wizard's
+    // Advantages tab for every resource that allows it after the daily 09:00 server-time reset. Never spends gold.
+    public const string ProductionBonusVideoEnabled = "production_bonus_video_enabled";
     public const string TargetBuildingSlotOrName = "target_building_slot_or_name";
     public const string TargetLevel = "target_level";
     public const string DontNotifyNewVersion = "dont_notify_new_version";
+    public const string AutomaticallyCheckLanguage = "automatically_check_language";
     public const string HeroMinHpForAdventure = "hero_min_hp_for_adventure";
     public const string HeroHpRegenPerDayPercent = "hero_hp_regen_per_day_percent";
     public const string HeroAutoRevive = "hero_auto_revive";

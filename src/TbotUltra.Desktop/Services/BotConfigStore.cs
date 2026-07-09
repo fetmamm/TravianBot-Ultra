@@ -48,6 +48,7 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.ReduceAdventureTime,
         BotOptionPayloadKeys.AutoCollectTasksEnabled,
         BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled,
+        BotOptionPayloadKeys.ProductionBonusVideoEnabled,
         BotOptionPayloadKeys.CollectStepDelayMinSeconds,
         BotOptionPayloadKeys.CollectStepDelayMaxSeconds,
         BotOptionPayloadKeys.HeroResourceTransferEnabled,

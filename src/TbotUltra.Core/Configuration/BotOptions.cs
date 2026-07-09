@@ -76,6 +76,9 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.PostLoginAnalyzeNewVillages)]
     public bool PostLoginAnalyzeNewVillages { get; init; } = true;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.AutomaticallyCheckLanguage)]
+    public bool AutomaticallyCheckLanguage { get; init; } = true;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksEnabled)]
     public bool TroopTrainingBarracksEnabled { get; init; }
 
@@ -401,7 +404,7 @@ public sealed class BotOptions
     public int? TargetLevel { get; init; }
 
     [ConfigurationKeyName("hero_min_hp_for_adventure")]
-    public int HeroMinHpForAdventure { get; init; } = 40;
+    public int HeroMinHpForAdventure { get; init; } = 50;
 
     /// <summary>How much hero HP regenerates per day, in percent (20–100). Used to compute how long
     /// to defer the hero group when HP is below the adventure threshold.</summary>
@@ -442,6 +445,11 @@ public sealed class BotOptions
 
     [ConfigurationKeyName(BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled)]
     public bool AutoCollectDailyQuestsEnabled { get; init; }
+
+    /// <summary>Account-wide: auto-activate the free +15% production bonus video on the Advantages
+    /// tab for every resource that allows it after the daily 09:00 server-time reset. Official Travian only.</summary>
+    [ConfigurationKeyName(BotOptionPayloadKeys.ProductionBonusVideoEnabled)]
+    public bool ProductionBonusVideoEnabled { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.CollectStepDelayMinSeconds)]
     public double CollectStepDelayMinSeconds { get; init; } = PacingDefaults.CollectStepDelayMinSeconds;

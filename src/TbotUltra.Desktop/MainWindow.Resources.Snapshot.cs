@@ -176,6 +176,14 @@ public partial class MainWindow
 
     private void ApplyStorageStatusToUi(VillageStatus status, string source)
     {
+        SetActiveWorkingVillageFromStatus(status);
+        CacheVillageStatus(status);
+        if (!IsStatusForSelectedVillage(status))
+        {
+            AppendLog($"[storage-refresh] skipped UI update from {source}: data is for '{status.ActiveVillage}', another village is selected. Cache updated.");
+            return;
+        }
+
         status = MergeResourceStatusForUi(status);
         AppendLog($"[storage-refresh] applied from {source}: {BuildResourceLogSummary(status)}");
         ApplyResourceTransferVillageResourceStatus(status);
@@ -367,6 +375,11 @@ public partial class MainWindow
             var effectiveOptions = forceCurrentVillage || currentPageOnly
                 ? LoadBotOptions()
                 : (options is null ? ApplySelectedVillageToOptions(LoadBotOptions()) : ApplySelectedVillageToOptions(options));
+            if (IsOfficialTravianServer(effectiveOptions))
+            {
+                await EnsureTravianLanguageForCurrentPageAsync(effectiveOptions, cancellationToken);
+            }
+
             var status = currentPageOnly && IsOfficialTravianServer(effectiveOptions)
                 ? await _botService.ReadCurrentPageResourceStatusQuickAsync(effectiveOptions, AppendLog, cancellationToken)
                 : await ReadVillageStatusWithRetryAsync(
@@ -391,6 +404,10 @@ public partial class MainWindow
             });
             return status;
         }
+        catch (UnexpectedTravianLanguageException)
+        {
+            throw;
+        }
         catch (Exception ex)
         {
             // A page caught mid-navigation reports login state 'unknown' and self-heals on the next
@@ -410,6 +427,26 @@ public partial class MainWindow
         finally
         {
             _resourceSnapshotRefreshRunning = false;
+        }
+    }
+
+    private async Task EnsureTravianLanguageForCurrentPageAsync(BotOptions options, CancellationToken cancellationToken)
+    {
+        if (!options.AutomaticallyCheckLanguage)
+        {
+            return;
+        }
+
+        var language = await _botService.ReadCurrentLanguageAsync(options, AppendLog, cancellationToken);
+        if (string.IsNullOrWhiteSpace(language))
+        {
+            AppendLog("[language:verbose] current-page language unknown during background refresh; skipping this tick.");
+            return;
+        }
+
+        if (!string.Equals(language?.Trim(), TravianClient.ExpectedLanguage, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new UnexpectedTravianLanguageException(language);
         }
     }
 
@@ -468,6 +505,12 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
+            if (ex is UnexpectedTravianLanguageException languageException)
+            {
+                await HandleUnexpectedTravianLanguageAsync(languageException);
+                return;
+            }
+
             if (IsTransientPageReadFailure(ex))
             {
                 AppendLog($"[resource-refresh:verbose] background refresh skipped after transient page failure ({ex.Message})");
@@ -486,6 +529,7 @@ public partial class MainWindow
         {
             await TryQueueAutoCollectTasksAsync(options, refreshedStatus);
             await TryQueueAutoCollectDailyQuestsAsync(options, refreshedStatus);
+            TryQueueActivateProductionBonus(options);
         }
         else
         {
@@ -516,7 +560,7 @@ public partial class MainWindow
             hasLevelUpIndicator = await _botService.HasHeroLevelUpIndicatorOnCurrentPageAsync(
                 options,
                 AppendLog,
-                CancellationToken.None);
+                _loopController.AcquireSessionScopeToken());
         }
         catch (Exception ex)
         {
@@ -537,8 +581,9 @@ public partial class MainWindow
             return;
         }
 
-        _botService.EnqueueRuntime("spend_hero_attribute_points", "Hero attribute points", null, priority: -50, maxRetries: 0);
-        AppendLog("Hero attributes: queued spend_hero_attribute_points because levelUp indicator is visible.");
+        var payload = BuildHeroRuntimePayload();
+        _botService.EnqueueRuntime("spend_hero_attribute_points", "Hero attribute points", payload, priority: -50, maxRetries: 0);
+        AppendLog($"Hero attributes: queued spend_hero_attribute_points because levelUp indicator is visible. priority={payload[BotOptionPayloadKeys.HeroStatPriority]}");
         WakeContinuousLoopForHeroAttributePoints();
     }
 
@@ -616,7 +661,7 @@ public partial class MainWindow
 
         try
         {
-            if (await _botService.HasClaimableTasksOnCurrentPageAsync(options, AppendLog, CancellationToken.None))
+            if (await _botService.HasClaimableTasksOnCurrentPageAsync(options, AppendLog, _loopController.AcquireSessionScopeToken()))
             {
                 _botService.EnqueueRuntime("collect_tasks", "Collect tasks", payload, priority: -40, maxRetries: 1);
                 if (villageCooldownKey is not null)
@@ -661,7 +706,7 @@ public partial class MainWindow
 
         try
         {
-            if (await _botService.HasClaimableDailyQuestsOnCurrentPageAsync(options, AppendLog, CancellationToken.None))
+            if (await _botService.HasClaimableDailyQuestsOnCurrentPageAsync(options, AppendLog, _loopController.AcquireSessionScopeToken()))
             {
                 _botService.EnqueueRuntime("collect_daily_quests", "Collect daily quests", payload, priority: -40, maxRetries: 1);
                 AppendLog("Daily quests: claimable rewards detected - queued collect_daily_quests.");
@@ -903,7 +948,7 @@ public partial class MainWindow
         _heroReviveCheckRunning = true;
         try
         {
-            stillReviving = await _botService.IsHeroRevivingOnCurrentPageAsync(options, AppendLog, CancellationToken.None);
+            stillReviving = await _botService.IsHeroRevivingOnCurrentPageAsync(options, AppendLog, _loopController.AcquireSessionScopeToken());
         }
         catch (Exception ex)
         {
@@ -969,7 +1014,7 @@ public partial class MainWindow
         _heroReviveCheckRunning = true;
         try
         {
-            await _botService.CheckAndReviveDeadHeroAsync(options, true, AppendLog, CancellationToken.None);
+            await _botService.CheckAndReviveDeadHeroAsync(options, true, AppendLog, _loopController.AcquireSessionScopeToken());
         }
         catch (Exception ex)
         {

@@ -3,6 +3,7 @@ using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows.Media;
 using TbotUltra.Core.Travian;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop.Models;
@@ -487,6 +488,11 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
         if (remaining <= 0)
         {
             QueueFinish = null;
+            QueueStatusText = Exists ? "Queue: Ready" : "Building not found";
+        }
+        else
+        {
+            QueueStatusText = $"Queue: {FormatTimerText(remaining)}";
         }
     }
 
@@ -507,15 +513,13 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
     }
 
     private int? ResolveMaxQueueSeconds()
-    {
-        if (string.IsNullOrWhiteSpace(MaxQueueMode)
-            || string.Equals(MaxQueueMode, "no_limit", StringComparison.OrdinalIgnoreCase))
-        {
-            return null;
-        }
+        => TroopTrainingQueueState.ResolveMaxQueueSeconds(MaxQueueMode);
 
-        return int.TryParse(MaxQueueMode, out var hours) && hours > 0
-            ? hours * 60 * 60
-            : null;
+    private static string FormatTimerText(int seconds)
+    {
+        var time = TimeSpan.FromSeconds(Math.Max(0, seconds));
+        return time.TotalHours >= 1
+            ? $"{(int)time.TotalHours}:{time.Minutes:00}:{time.Seconds:00}"
+            : $"{time.Minutes}:{time.Seconds:00}";
     }
 }

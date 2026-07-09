@@ -35,6 +35,8 @@ public partial class MainWindow
             AppendLog($"[{operationId}] INFO server={options.ServerName}");
             await EnsureChromiumInstalledAsync();
             var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: true, forceCurrentVillage: true);
+            SetActiveWorkingVillageFromStatus(status);
+            CacheVillageStatus(status);
             _resourcesViewModel.ClearPendingTargets();
             var rows = ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: false);
             _inboxAutoEnabled = true;
@@ -259,7 +261,7 @@ public partial class MainWindow
         return Task.CompletedTask;
     }
 
-    private const string SavePageHtmlDirectory = @"C:\Users\jespe\Documents\GitHub\Tbot_ultra_new\temp_build_out\DOM";
+    private string SavePageHtmlDirectory => Path.Combine(_projectRoot, "temp_build_out", "DOM");
 
     private void SavePageHtmlButton_Click(object sender, RoutedEventArgs e)
     {

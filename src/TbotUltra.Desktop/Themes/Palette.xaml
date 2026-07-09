@@ -74,6 +74,12 @@
     <SolidColorBrush x:Key="WarningTextBrush" Color="#E3B341" />
     <SolidColorBrush x:Key="OnWarningBrush" Color="#0D1117" />            <!-- dark text on amber controls -->
 
+    <!-- ===== Purple (parallel to Warning) — +15% production bonus timers on the Advantages popup ===== -->
+    <SolidColorBrush x:Key="PurpleBrush" Color="#8957E5" />
+    <SolidColorBrush x:Key="PurpleBorderBrush" Color="#8957E5" />
+    <SolidColorBrush x:Key="PurpleBgBrush" Color="#211632" />
+    <SolidColorBrush x:Key="PurpleTextBrush" Color="#A371F7" />
+
     <!-- ===== Status: reviving (orange) — hero icon while reviving, between away and dead ===== -->
     <SolidColorBrush x:Key="RevivingBrush" Color="#DB6D28" />
     <SolidColorBrush x:Key="RevivingBorderBrush" Color="#BD561D" />

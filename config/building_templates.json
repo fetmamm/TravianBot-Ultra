@@ -1,0 +1,43 @@
+{
+  "templates": [
+    {
+      "id": "56bfb87d-6a87-4bf6-a969-94bc7e5b213a",
+      "name": "Test",
+      "createdByTribe": "Teutons",
+      "createdAtUtc": "2026-07-07T07:19:07.9081978+00:00",
+      "updatedAtUtc": "2026-07-07T08:19:47.9806208+00:00",
+      "rows": [
+        {
+          "id": "158228fe-1798-4589-bdc9-4aa7b97235fb",
+          "kind": "Building",
+          "gid": 15,
+          "buildingName": "Main Building",
+          "preferredSlotId": null,
+          "targetLevel": 3,
+          "resourceScope": "all",
+          "resourceStrategy": "lowest"
+        },
+        {
+          "id": "dc8c131a-0813-4510-9d6e-cecd865d74b5",
+          "kind": "Building",
+          "gid": 32,
+          "buildingName": "Earth Wall",
+          "preferredSlotId": 40,
+          "targetLevel": 1,
+          "resourceScope": "all",
+          "resourceStrategy": "lowest"
+        },
+        {
+          "id": "4a8509d5-7b0b-4671-9b63-51e984865980",
+          "kind": "Building",
+          "gid": 16,
+          "buildingName": "Rally Point",
+          "preferredSlotId": 39,
+          "targetLevel": 1,
+          "resourceScope": "all",
+          "resourceStrategy": "lowest"
+        }
+      ]
+    }
+  ]
+}

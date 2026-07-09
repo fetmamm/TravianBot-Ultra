@@ -2,10 +2,12 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading;
 using System.Threading.Tasks;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Worker.Infrastructure;
 
 namespace TbotUltra.Desktop;
 
@@ -140,9 +142,10 @@ public partial class MainWindow
         // Show the server name the user entered for the active account (e.g. "X5 Asia"), not the username.
         var username = accountName;
         string? serverName = null;
+        AccountEntry? account = null;
         try
         {
-            var account = _accountStore
+            account = _accountStore
                 .ListAccounts()
                 .FirstOrDefault(item => string.Equals(item.Name, accountName, StringComparison.OrdinalIgnoreCase));
             if (account is not null)
@@ -169,6 +172,113 @@ public partial class MainWindow
         ActiveAccountInfoTextBlock.Text = string.IsNullOrWhiteSpace(serverName)
             ? username
             : serverName.Trim();
+
+        UpdateProxyStatus(account);
+    }
+
+    // Sidebar proxy indicator: grey/"No proxy is used" when off, green + country when on. The country
+    // is looked up once through the proxy (and cached per server) so the user can tell at a glance that
+    // the proxy is active, where it exits, and whether it actually responds.
+    private string _proxyStatusServer = string.Empty;
+    private string _proxyStatusCountry = string.Empty;
+    private CancellationTokenSource? _proxyStatusCts;
+
+    private void UpdateProxyStatus(AccountEntry? account)
+    {
+        var enabled = account?.ProxyEnabled == true && !string.IsNullOrWhiteSpace(account.ProxyServer);
+        if (!enabled)
+        {
+            _proxyStatusServer = string.Empty;
+            _proxyStatusCountry = string.Empty;
+            _proxyStatusCts?.Cancel();
+            SetProxyStatusVisual("TextMutedBrush", "No proxy is used", detail: null);
+            return;
+        }
+
+        var server = account!.ProxyServer.Trim();
+
+        // Reuse the cached country when the proxy has not changed since the last lookup.
+        if (string.Equals(server, _proxyStatusServer, StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(_proxyStatusCountry))
+        {
+            SetProxyStatusVisual("SuccessBrush", _proxyStatusCountry, $"IP: {ProxyHostPortForDisplay(server)}");
+            return;
+        }
+
+        _proxyStatusServer = server;
+        _proxyStatusCountry = string.Empty;
+        SetProxyStatusVisual("WarningTextBrush", "Checking…", $"IP: {ProxyHostPortForDisplay(server)}");
+        _ = RefreshProxyCountryAsync(server);
+    }
+
+    private async Task RefreshProxyCountryAsync(string server)
+    {
+        _proxyStatusCts?.Cancel();
+        _proxyStatusCts?.Dispose();
+        _proxyStatusCts = new CancellationTokenSource(TimeSpan.FromSeconds(8));
+        var token = _proxyStatusCts.Token;
+
+        ProxyEnrichment info;
+        try
+        {
+            info = await new ProxyListTester().EnrichAsync(server, token);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[proxy-status] country lookup failed: {ex.Message}");
+            info = new ProxyEnrichment(string.Empty, string.Empty);
+        }
+
+        // Ignore a stale result if the active proxy changed while we were looking it up.
+        if (!string.Equals(server, _proxyStatusServer, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        if (!string.IsNullOrWhiteSpace(info.Country))
+        {
+            _proxyStatusCountry = info.Country;
+            SetProxyStatusVisual("SuccessBrush", info.Country, $"IP: {ProxyHostPortForDisplay(server)}");
+        }
+        else
+        {
+            // Reached nothing through the proxy — surface it so the user knows it is not working.
+            SetProxyStatusVisual("DangerTextBrush", "Not responding", $"IP: {ProxyHostPortForDisplay(server)}");
+        }
+    }
+
+    // Proxy host:port for the sidebar, with the scheme (and any credentials) stripped, e.g.
+    // "socks5://144.91.111.48:1088" -> "144.91.111.48:1088".
+    private static string ProxyHostPortForDisplay(string server)
+    {
+        var value = (server ?? string.Empty).Trim();
+        var schemeIndex = value.IndexOf("://", StringComparison.Ordinal);
+        var rest = schemeIndex >= 0 ? value[(schemeIndex + 3)..] : value;
+        var atIndex = rest.LastIndexOf('@');
+        if (atIndex >= 0)
+        {
+            rest = rest[(atIndex + 1)..];
+        }
+
+        return rest;
+    }
+
+    private void SetProxyStatusVisual(string brushKey, string text, string? detail)
+    {
+        var brush = FindResource(brushKey) as System.Windows.Media.Brush;
+        ProxyStatusIndicator.Fill = brush;
+        ProxyStatusTextBlock.Text = text;
+        ProxyStatusTextBlock.Foreground = brush;
+
+        if (string.IsNullOrWhiteSpace(detail))
+        {
+            ProxyStatusDetailTextBlock.Visibility = System.Windows.Visibility.Collapsed;
+        }
+        else
+        {
+            ProxyStatusDetailTextBlock.Text = detail;
+            ProxyStatusDetailTextBlock.Visibility = System.Windows.Visibility.Visible;
+        }
     }
 
     // Resolves the server speed multiplier (1x/3x/10x...) used to scale catalog build times. First tries

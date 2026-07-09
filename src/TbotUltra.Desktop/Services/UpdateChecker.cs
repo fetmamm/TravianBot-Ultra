@@ -14,7 +14,7 @@ namespace TbotUltra.Desktop.Services;
 public static class UpdateChecker
 {
     public const string RepoOwner = "fetmamm";
-    public const string RepoName = "Tbot_ultra_new";
+    public const string RepoName = "TravianBot-Ultra";
     public const string ReleasesPageUrl = $"https://github.com/{RepoOwner}/{RepoName}/releases";
     private const string LatestReleaseApiUrl = $"https://api.github.com/repos/{RepoOwner}/{RepoName}/releases/latest";
 

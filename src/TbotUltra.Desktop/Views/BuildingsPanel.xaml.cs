@@ -47,6 +47,11 @@ public partial class BuildingsPanel : UserControl
         Host?.OnUpgradeAllBuildingsToMaxClicked();
     }
 
+    private void BuildingTemplatesButton_Click(object sender, RoutedEventArgs e)
+    {
+        Host?.OnBuildingTemplatesClicked();
+    }
+
     private void BuildingTopSlotsView_Filter(object sender, FilterEventArgs e)
     {
         e.Accepted = e.Item is BuildingSlotRow row && BuildingsViewModel.IsPinnedBuildingTopSlot(row.SlotId);

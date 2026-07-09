@@ -160,7 +160,8 @@ public sealed partial class TravianClient : ICombatClient
     private async Task RefreshCatapultSendTroopsPageAsync(CancellationToken cancellationToken)
     {
         await EnsureRallyPointAndOpenSendTroopsPageAsync(cancellationToken, allowReuseCurrentPage: true);
-        await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+        await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
+            .WaitAsync(cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while refreshing send troops.", cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
@@ -408,10 +409,11 @@ public sealed partial class TravianClient : ICombatClient
             : $"{_config.BaseUrl.TrimEnd('/')}/{pathOrUrl.TrimStart('/')}";
 
         var response = await page.GotoAsync(url, new PageGotoOptions
-        {
-            WaitUntil = WaitUntilState.DOMContentLoaded,
-            Timeout = _config.TimeoutMs,
-        });
+            {
+                WaitUntil = WaitUntilState.DOMContentLoaded,
+                Timeout = _config.TimeoutMs,
+            })
+            .WaitAsync(cancellationToken);
         if (response is not null && response.Headers.TryGetValue("date", out var dateHeader))
         {
             RecordServerTime(dateHeader);
@@ -550,7 +552,8 @@ public sealed partial class TravianClient : ICombatClient
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+                await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded)
+                    .WaitAsync(cancellationToken);
             }
             catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
             {

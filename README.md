@@ -1,4 +1,4 @@
-# Tbot Ultra
+# TravianBot Ultra
 
 `Preview` of the program
 
@@ -21,7 +21,7 @@ Here you can ask questions, report bugs and come with suggestions for new featur
 
 ---
 
-## TBot Ultra - Advanced Travian Bot
+## TravianBot Ultra - Advanced Travian Bot
 Advanced open-source `Travian Bot` for official Travian Legends servers with automation, farming, building management, resource optimization and `multi-village support`.
 
 The project target is official Travian Legends servers.
@@ -56,10 +56,9 @@ folder per account (e.g. `Tbot-account1\`, `Tbot-account2\`) and run them at the
 time — each copy keeps its own config, account, browser session and logs. Don't run two
 instances from the same folder.
 
-
 ## What can this program do?
 
-Tbot Ultra is an automation tool for Travian. It helps players automate repetitive tasks such as village management, resource handling, farming, troops, construction and so much more.
+TravianBot Ultra is an automation tool for Travian. It helps players automate repetitive tasks such as village management, resource handling, farming, troops, construction and so much more.
 It is made to be realistic and human, and to reduce the boring tasks of travian.
 
 Compatible with:
@@ -67,8 +66,6 @@ Compatible with:
 - `Official Travian` — Travian Legends 4.6+ — Official servers
 
 `NOTE:` It is important that the language is set to `English` in the travian browser settings page.
-
-`Way forward:` new development targets official servers only.
 
 ## Features:
 
@@ -94,29 +91,31 @@ Compatible with:
 - Increase adventure to hard button / video watch
 - Auto town hall celebrations
 - Construct 25% faster with button / video watch
-
-
-- Read ingame status
-- Read village data
+- Watch video to get 15% resource bonus production
+- Save reports as PNG to the program folder and blur out attacker, defender and alliance
+- Support to use Proxy per account, manage proxy lists and more (Using: https://github.com/TheSpeedX/PROXY-List)
+- Make building templates that is reusable for different villages
+- Language detection if wrong (Must be in English) + auto change language
+-----------------------------------------------------------------------------------
+- Read account/village data
 - Clean dark mode UI
 - Multi-village support
 - Calculate building time and resource cost for buildings + resourcefields
 - Easy update to new version via the app (checks at startup and hourly while open)
-- Support to use Proxy per account
+
 
 ## Future functions:
 
-- +15% resource production for 8h automatic watch video
-- Detect incomming attacks and send notification
+- Detect incoming attacks and send notification
 - Auto scout players and farms
 - Auto bid on auctions
-- Auction hustle to gain silver (buy cheap, sell expensive)
 
 All features is configurable to all the players villages. So different villages can use different settings (ex. only build troops in one village and only buildings in another etc.)
+Most functions is possible to configure as you like
 
 ## Known bugs:
 
-Please visit the [issues page](https://github.com/fetmamm/Tbot_ultra_new/issues) for known bugs or the [Discord channel](https://discord.gg/7bgzKy9sHK).
+Please visit the [issues page](https://github.com/fetmamm/TravianBot-Ultra/issues) for known bugs or the [Discord channel](https://discord.gg/7bgzKy9sHK).
 
 ---
 
@@ -156,7 +155,7 @@ Top-level files worth knowing:
 
 - `AGENTS.md` — coding rules for AI assistants working in this repo.
 - `VERSION` — current version string, consumed by CI.
-- `Start_Tbot.bat` / `Start_Tbot_UI.vbs` — launchers.
+- `Start_Tbot.bat` / `Start_Tbot_UI.vbs` — launchers that build/run from `temp_build_out/dev-app/`.
 - `Smoke_Check.bat` — build + run worker tests.
 
 ---
@@ -244,8 +243,8 @@ xUnit. Each test file targets one class (e.g.
 `QueueStoreAndSchedulerTests`, `BuildingCatalogServiceTests`,
 `HeroViewModelTests`, `ServerOptionTests`).
 
-Run all tests with `.\scripts\Run-Tests.ps1`. It builds into `temp_build_out/test-bin/`
-so tests can run while the desktop app is open.
+Run local verification with `.\scripts\Build-Check.ps1` and `.\scripts\Run-Tests.ps1`.
+Both use isolated output under `temp_build_out/` so they can run while the desktop app is open.
 
 ---
 

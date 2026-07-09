@@ -22,33 +22,46 @@ public partial class MainWindow
             return;
         }
 
+        if (_travianLanguageGateActive)
+        {
+            AppendLog("Start bot blocked until Travian language is verified as English.");
+            return;
+        }
+
         if (_autoQueueRunning)
         {
-            _startContinuousLoopAfterQueueStop = true;
-            _loopController.RequestQueueStop();
-            UpdateExecutionStateIndicator();
-            AppendLog("Continuous loop requested. Letting current queue task finish before switching.");
+            _startContinuousLoopAfterQueueStop = false;
+            RequestImmediatePauseAutomation("Pause requested. Cancelling current task...");
             return;
         }
 
         if (_uiBusy && (_loopTask is null || _loopTask.IsCompleted))
         {
-            _loopController.RequestQueueStop();
-            UpdateExecutionStateIndicator();
-            AppendLog("Pause requested. Letting current function finish before stopping.");
+            RequestImmediatePauseAutomation("Pause requested. Cancelling current task...");
             return;
         }
 
         if (_loopTask is not null && !_loopTask.IsCompleted)
         {
-            // Pause the loop gracefully too — flag stop, let current iteration finish.
-            _loopController.RequestLoopStop();
-            UpdateExecutionStateIndicator();
-            AppendLog("Pause requested. Loop will stop after the current iteration.");
+            RequestImmediatePauseAutomation("Pause requested. Cancelling current task...");
             return;
         }
 
         StartContinuousLoopRunner();
+    }
+
+    private void RequestImmediatePauseAutomation(string message)
+    {
+        _loopController.RequestLoopStop();
+        _loopController.RequestQueueStop();
+        _loopController.CancelLoop();
+        _loopController.CancelAutoQueueRun();
+        _loopController.CancelOperation();
+        _loopController.CancelSessionScope();
+
+        EndInlineWait();
+        UpdateExecutionStateIndicator();
+        AppendLog(message);
     }
 
     private void StopBotButton_Click(object sender, RoutedEventArgs e)
@@ -85,6 +98,7 @@ public partial class MainWindow
         _loopController.CancelAutoQueueRun();
         _loopController.RequestLoopStop();
         _loopController.CancelLoop();
+        _loopController.CancelSessionScope();
 
         EndInlineWait();
         ClearPendingResourceLevelsFromUi();
@@ -172,6 +186,7 @@ public partial class MainWindow
             _loopController.CancelLoop();
             _loopController.CancelVillageSwitch();
             _loopController.CancelQueueAutoRunRoot();
+            _loopController.CancelSessionScope();
             ClosePopupWindows();
 
             var backgroundTasksStopped = await _backgroundTasks.StopAsync(TimeSpan.FromSeconds(10));
@@ -221,6 +236,7 @@ public partial class MainWindow
             _queuePopupWindow?.Close();
             _resourceTestFunctionsWindow?.Close();
             _savePageHtmlWindow?.Close();
+            _saveReportPngWindow?.Close();
             _bulkSavePageHtmlWindow?.Close();
             _bulkMessagesWindow?.Close();
         }

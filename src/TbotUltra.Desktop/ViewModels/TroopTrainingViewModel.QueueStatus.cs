@@ -10,6 +10,7 @@ using TbotUltra.Core.Tasks;
 using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Common;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop.ViewModels;
@@ -43,11 +44,12 @@ public sealed partial class TroopTrainingViewModel
             var queueStatus = queueStatuses?.FirstOrDefault(item => item.BuildingType == option.BuildingType);
             if (queueStatus is not null)
             {
+                var remainingSeconds = TroopTrainingQueueState.RemainingSecondsAt(queueStatus, DateTimeOffset.UtcNow);
                 option.Exists = queueStatus.Exists;
-                option.QueueRemainingSeconds = queueStatus.RemainingSeconds;
+                option.QueueRemainingSeconds = remainingSeconds;
                 option.QueueFinish = queueStatus.Finish;
                 option.QueueStatusText = queueStatus.Exists
-                    ? $"Queue: {queueStatus.RemainingText}"
+                    ? remainingSeconds is > 0 ? $"Queue: {FormatQueueDuration(remainingSeconds.Value)}" : "Queue: Ready"
                     : "Building not found";
                 continue;
             }
@@ -176,6 +178,14 @@ public sealed partial class TroopTrainingViewModel
             _breweryLoopWaitSeconds = _breweryLoopWaitSeconds.Value > 1 ? _breweryLoopWaitSeconds.Value - 1 : null;
             RaiseCelebrationTimerChanged();
         }
+    }
+
+    private static string FormatQueueDuration(int seconds)
+    {
+        var time = TimeSpan.FromSeconds(Math.Max(0, seconds));
+        return time.TotalHours >= 1
+            ? $"{(int)time.TotalHours}:{time.Minutes:00}:{time.Seconds:00}"
+            : $"{time.Minutes}:{time.Seconds:00}";
     }
 
 }

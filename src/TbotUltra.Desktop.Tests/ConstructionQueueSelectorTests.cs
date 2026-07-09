@@ -85,6 +85,20 @@ public sealed class ConstructionQueueSelectorTests
     }
 
     [Fact]
+    public void SelectNext_RequirementDependencyAllowsLaterConstruction()
+    {
+        var requirementWait = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonRequirements);
+        var dependency = CreateReadyItem();
+
+        var result = ConstructionQueueSelector.SelectNext(
+            [requirementWait, dependency],
+            Now,
+            ConstructionQueueAvailability.Available);
+
+        Assert.Same(dependency, result.Item);
+    }
+
+    [Fact]
     public void SelectNext_UnknownQueueValidatesOnlyLegacyQueueFullImmediately()
     {
         var legacy = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonQueueFull);

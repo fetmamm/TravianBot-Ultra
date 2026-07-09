@@ -288,7 +288,7 @@ jobs:
           if ([string]::IsNullOrWhiteSpace($commitMessage)) {
             $commitMessage = "No commit message."
           }
-          $commitMessage = $commitMessage -replace "```", "'''"
+          $commitMessage = $commitMessage -replace '```', "'''"
           if ($commitMessage.Length -gt 900) {
             $commitMessage = $commitMessage.Substring(0, 897) + "..."
           }
@@ -299,9 +299,9 @@ jobs:
             "Commit: ``$shortSha``",
             "",
             "**Version notes**",
-            "```text",
+            '```text',
             $commitMessage,
-            "```",
+            '```',
             "Download: <$env:RELEASE_URL>"
           ) -join "`n"
 

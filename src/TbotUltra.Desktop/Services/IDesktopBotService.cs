@@ -22,13 +22,18 @@ public interface IDesktopBotService
     bool MarkQueueItemCanceled(Guid id);
     bool MarkQueueItemDeferred(Guid id, TimeSpan delay);
     bool UpdateDeferredQueueItem(Guid id, Dictionary<string, string>? payload, TimeSpan? delay = null);
+    bool UpdatePendingQueueItem(Guid id, Dictionary<string, string>? payload, int? priority, TimeSpan? delay = null);
     bool MarkQueueItemExecutionFailed(Guid id);
+    bool MarkQueueItemPermanentlyFailed(Guid id);
     int ResetOrphanedRunningQueueItems();
 
     Task<BotTaskExecutionResult> ExecuteQueueItemAsync(BotOptions options, QueueItem item, Action<string> log, CancellationToken cancellationToken);
     Task ExecuteFallbackTasksAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
 
     Task<bool> IsLoggedInAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<string?> ReadCurrentLanguageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task EnsureExpectedLanguageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<string?> SetLanguageToEnglishAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<bool> ReadAndPersistGoldClubStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<IReadOnlyList<FarmListOverview>> ReadFarmListsOverviewAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<int?> SendFarmListNowAsync(BotOptions options, string farmListName, Action<string> log, CancellationToken cancellationToken);
@@ -57,6 +62,7 @@ public interface IDesktopBotService
     Task<string> RunReinforcementsTestAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<string> RunIncreaseAdventuresToHardAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<string> RunReduceAdventuresTimeAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<string> RunScanProductionBonusTimersAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<AccountSnapshot> ReadAccountSnapshotForScanAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<VillageStatus> ReadVillageStatusWithSmithyAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken);
     Task<VillageStatus> ReadVillageStatusAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken);
@@ -66,6 +72,7 @@ public interface IDesktopBotService
     Task<VillageStatus> ReadCurrentPageStorageStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<IReadOnlyDictionary<string, double?>> ReadCurrentPageResourceProductionPerHourAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<PageHtmlCapture> ReadCurrentPageHtmlAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<ReportPngResult> SaveReportScreenshotAsync(BotOptions options, string filePath, bool hideAttacker, bool hideDefender, Action<string> log, CancellationToken cancellationToken);
     Task<PageHtmlCapture> NavigateToPageAndReadHtmlAsync(BotOptions options, string pagePath, Action<string> log, CancellationToken cancellationToken);
     Task NavigateToVillageResourceFieldsAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken);
     Task RefreshCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);

@@ -24,6 +24,35 @@ public sealed class BuildingCatalogServiceTests
         Assert.Contains(requirements, item => item.Name == "Main Building" && item.Level == 3);
     }
 
+    [Theory]
+    [InlineData(10, 20)]
+    [InlineData(11, 20)]
+    [InlineData(23, 10)]
+    [InlineData(19, null)]
+    public void DuplicateRequiredExistingLevelFor_ReturnsTravianThresholds(int gid, int? expected)
+    {
+        Assert.Equal(expected, BuildingCatalogService.DuplicateRequiredExistingLevelFor(gid));
+    }
+
+    [Theory]
+    [InlineData(25, new[] { 26, 44 })]
+    [InlineData(26, new[] { 25, 44 })]
+    [InlineData(44, new[] { 25, 26 })]
+    [InlineData(10, new int[0])]
+    public void ResidenceFamilyConflictGidsFor_ReturnsMutualExclusions(int gid, int[] expected)
+    {
+        Assert.Equal(expected, BuildingCatalogService.ResidenceFamilyConflictGidsFor(gid));
+    }
+
+    [Theory]
+    [InlineData(25, "Residence")]
+    [InlineData(26, "Palace")]
+    [InlineData(44, "Command Center")]
+    public void NameForGid_ReturnsCatalogName(int gid, string expected)
+    {
+        Assert.Equal(expected, BuildingCatalogService.NameForGid(gid));
+    }
+
     [Fact]
     public void FullCatalog_ContainsSmithyAndTournamentSquare()
     {

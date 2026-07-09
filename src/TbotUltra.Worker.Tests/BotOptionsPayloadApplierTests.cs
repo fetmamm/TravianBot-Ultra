@@ -21,6 +21,49 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
+    public void FromConfiguration_AutomaticallyCheckLanguage_DefaultsEnabled()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["server_name"] = "srv",
+                ["base_url"] = "https://example.com",
+            })
+            .Build();
+
+        Assert.True(BotOptionsFactory.FromConfiguration(configuration).AutomaticallyCheckLanguage);
+    }
+
+    [Fact]
+    public void FromConfiguration_AutomaticallyCheckLanguage_CanDisable()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["server_name"] = "srv",
+                ["base_url"] = "https://example.com",
+                [BotOptionPayloadKeys.AutomaticallyCheckLanguage] = "false",
+            })
+            .Build();
+
+        Assert.False(BotOptionsFactory.FromConfiguration(configuration).AutomaticallyCheckLanguage);
+    }
+
+    [Fact]
+    public void FromConfiguration_HeroMinHpForAdventure_DefaultsTo50()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["server_name"] = "srv",
+                ["base_url"] = "https://example.com",
+            })
+            .Build();
+
+        Assert.Equal(50, BotOptionsFactory.FromConfiguration(configuration).HeroMinHpForAdventure);
+    }
+
+    [Fact]
     public void Apply_OverridesNewVillageStartupAnalysis()
     {
         var source = new BotOptions { PostLoginAnalyzeNewVillages = true };
@@ -31,6 +74,19 @@ public sealed class BotOptionsPayloadApplierTests
         });
 
         Assert.False(result.PostLoginAnalyzeNewVillages);
+    }
+
+    [Fact]
+    public void Apply_OverridesAutomaticallyCheckLanguage()
+    {
+        var source = new BotOptions { AutomaticallyCheckLanguage = true };
+
+        var result = BotOptionsPayloadApplier.Apply(source, new Dictionary<string, string>
+        {
+            [BotOptionPayloadKeys.AutomaticallyCheckLanguage] = "false",
+        });
+
+        Assert.False(result.AutomaticallyCheckLanguage);
     }
 
     [Fact]
@@ -60,6 +116,7 @@ public sealed class BotOptionsPayloadApplierTests
             HeroAutoUseOintments = false,
             HeroStatPriority = "offense,resource,regeneration",
             AutoCollectDailyQuestsEnabled = false,
+            ProductionBonusVideoEnabled = false,
             UpgradeSelectorProfile = "auto",
             TroopTrainingBarracksEnabled = true,
             TroopTrainingBarracksTroopType = "Legionnaire",
@@ -100,6 +157,7 @@ public sealed class BotOptionsPayloadApplierTests
             [BotOptionPayloadKeys.HeroStatPriority] = "resource,offense",
             [BotOptionPayloadKeys.SmithyUpgradeTargets] = "u21=20;u24=10",
             [BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled] = "true",
+            [BotOptionPayloadKeys.ProductionBonusVideoEnabled] = "true",
             [BotOptionPayloadKeys.UpgradeSelectorProfile] = "strict_green",
             [BotOptionPayloadKeys.TroopTrainingBarracksEnabled] = "false",
             [BotOptionPayloadKeys.TroopTrainingBarracksTroopType] = "Praetorian",
@@ -145,6 +203,7 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.Equal("resource,offense", result.HeroStatPriority);
         Assert.Equal("u21=20;u24=10", result.SmithyUpgradeTargets);
         Assert.True(result.AutoCollectDailyQuestsEnabled);
+        Assert.True(result.ProductionBonusVideoEnabled);
         Assert.Equal("strict_green", result.UpgradeSelectorProfile);
         Assert.False(result.TroopTrainingBarracksEnabled);
         Assert.Equal("Praetorian", result.TroopTrainingBarracksTroopType);
@@ -507,17 +566,17 @@ public sealed class BotOptionsPayloadApplierTests
 
         Assert.True(options.ActionPacingEnabled);
         Assert.Equal(0.8, options.ActionPacingTaskMinSeconds);
-        Assert.Equal(3.0, options.ActionPacingTaskMaxSeconds);
-        Assert.Equal(0.8, options.ActionPacingPageLoadMinSeconds);
-        Assert.Equal(1.8, options.ActionPacingPageLoadMaxSeconds);
-        Assert.Equal(0.6, options.ActionPacingClickMinSeconds);
-        Assert.Equal(1.8, options.ActionPacingClickMaxSeconds);
+        Assert.Equal(2.0, options.ActionPacingTaskMaxSeconds);
+        Assert.Equal(0.6, options.ActionPacingPageLoadMinSeconds);
+        Assert.Equal(1.6, options.ActionPacingPageLoadMaxSeconds);
+        Assert.Equal(0.4, options.ActionPacingClickMinSeconds);
+        Assert.Equal(1.4, options.ActionPacingClickMaxSeconds);
         Assert.Equal(4.0, options.ActionPacingLoopMinSeconds);
         Assert.Equal(25.0, options.ActionPacingLoopMaxSeconds);
         Assert.Equal(1.5, options.FarmListStepDelayMinSeconds);
         Assert.Equal(4.0, options.FarmListStepDelayMaxSeconds);
-        Assert.Equal(0.8, options.CollectStepDelayMinSeconds);
-        Assert.Equal(2.5, options.CollectStepDelayMaxSeconds);
+        Assert.Equal(0.6, options.CollectStepDelayMinSeconds);
+        Assert.Equal(2.0, options.CollectStepDelayMaxSeconds);
         Assert.False(options.IncreaseAdventuresToHard);
     }
 

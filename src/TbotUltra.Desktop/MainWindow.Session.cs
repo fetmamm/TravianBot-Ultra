@@ -6,6 +6,7 @@ using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
 
@@ -48,6 +49,7 @@ public partial class MainWindow
         var operationId = BeginOperation("Login");
         var operationSw = Stopwatch.StartNew();
         var operationToken = _loopController.StartOperation("operation");
+        var retryAfterLanguageFix = false;
         ToggleUiBusy(true);
         ShowBusyOverlay("Logging in", "Logging in and loading account data…");
         try
@@ -98,6 +100,10 @@ public partial class MainWindow
                         currentPageOnly: quickOfficialServer);
                 }
                 catch (OperationCanceledException)
+                {
+                    throw;
+                }
+                catch (UnexpectedTravianLanguageException)
                 {
                     throw;
                 }
@@ -237,6 +243,15 @@ public partial class MainWindow
             StatusTextBlock.Text = "Login paused.";
             AppendLog("Login paused.");
         }
+        catch (UnexpectedTravianLanguageException ex)
+        {
+            BrowserInfoTextBlock.Text = "Browser: language required";
+            StatusTextBlock.Text = "Travian language must be set to English.";
+            CompleteOperation(operationId, operationSw, "Login paused until Travian language is English.");
+            HideBusyOverlay();
+            ToggleUiBusy(false);
+            retryAfterLanguageFix = await HandleUnexpectedTravianLanguageAsync(ex);
+        }
         catch (Exception ex)
         {
             BrowserInfoTextBlock.Text = "Browser: error";
@@ -253,6 +268,21 @@ public partial class MainWindow
             _loginInProgress = false;
         }
         AppendLog("[login] ***** Login finished. *****");
+        if (retryAfterLanguageFix)
+        {
+            AppendLog("[language] Travian language verified. Restarting login flow.");
+            _ = Dispatcher.BeginInvoke(async () =>
+            {
+                try
+                {
+                    await ExecuteLoginFlowAsync();
+                }
+                catch (Exception ex)
+                {
+                    AppendLog($"[language] Login retry failed: {ex.Message}");
+                }
+            });
+        }
     }
 
     // Full-window modal overlay shown while a login/logout runs (incl. account-switch auto-login). It

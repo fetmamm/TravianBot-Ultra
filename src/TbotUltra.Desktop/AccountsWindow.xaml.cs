@@ -16,12 +16,15 @@ public partial class AccountsWindow : Window
     private readonly EnvAccountStore _store;
     private readonly AccountDeletionService _deletionService;
     private readonly ServerCatalogStore _serverCatalogStore;
+    private readonly ProxyLibraryStore _proxyLibraryStore = new();
     private readonly string _defaultServerName;
     private readonly string _defaultServerUrl;
     private readonly List<ServerOption> _serverOptions;
     private readonly List<ServerOption> _defaultServerOptions;
 
     private List<AccountEntry> _accounts = [];
+    private List<ProxyLibraryEntry> _proxyLibraryEntries = [];
+    private List<SavedProxyOption> _savedProxyOptions = [];
     // Custom servers + built-in official servers, in combo display order. The combo's
     // ItemsSource is a grouped view over this list, so selection lookups go through it.
     private List<ServerOption> _comboServers = [];
@@ -36,7 +39,9 @@ public partial class AccountsWindow : Window
     private string _baselineServerUrl = string.Empty;
     private bool _baselineProxyEnabled;
     private string _baselineProxyServer = string.Empty;
+    private bool _baselineNeverUseOwnIp;
     private bool _suppressSelectionChanged;
+    private bool _suppressSavedProxySelection;
     private bool _isClosing;
     private CancellationTokenSource? _proxyCheckCts;
     private bool _proxyCheckCompleted;
@@ -77,6 +82,7 @@ public partial class AccountsWindow : Window
         }
 
         EnsureServerListContainsDefaults();
+        ReloadProxyLibraryEntries();
 
         AccountsListBox.ItemsSource = null;
         AccountsListBox.ItemsSource = _accounts;
@@ -134,9 +140,11 @@ public partial class AccountsWindow : Window
         // Set the proxy fields before the InfoTextBlock assignment below so the checkbox handler's
         // hint does not overwrite the "Editing existing account" message.
         UseProxyCheckBox.IsChecked = selected.ProxyEnabled;
+        NeverUseOwnIpCheckBox.IsChecked = selected.NeverUseOwnIp;
         SafeRunAccountEditorAction(() =>
         {
             LoadProxyFields(selected.ProxyServer);
+            RefreshSavedProxySelection();
             SetProxyFieldsEnabled(selected.ProxyEnabled);
         }, "load proxy fields");
         var serverName = string.IsNullOrWhiteSpace(selected.ServerName) ? _defaultServerName : selected.ServerName;
@@ -228,8 +236,14 @@ public partial class AccountsWindow : Window
                 }
             }
 
+            if (entry.ProxyEnabled && !ConfirmProxyReuseForSave(entry.ProxyServer, entry.Name))
+            {
+                return false;
+            }
+
             var setActiveForSave = !_editingExistingAccount && _accounts.Count == 0;
             _store.SaveAccount(entry, setActive: setActiveForSave);
+            MarkSavedProxyUsed(entry);
             Reload();
             SelectByName(entry.Name);
             InfoTextBlock.Text = isUpdate
@@ -400,12 +414,29 @@ public partial class AccountsWindow : Window
 
     private void UseProxyCheckBox_Changed(object sender, RoutedEventArgs e)
     {
+        if (UseProxyCheckBox.IsChecked != true && NeverUseOwnIpCheckBox.IsChecked == true)
+        {
+            UseProxyCheckBox.IsChecked = true;
+            return;
+        }
+
         var enabled = UseProxyCheckBox.IsChecked == true;
         SafeRunAccountEditorAction(() => SetProxyFieldsEnabled(enabled), "toggle proxy fields");
         if (enabled)
         {
             InfoTextBlock.Text = "Proxy applies on next bot start. Enabling a proxy on an already "
                 + "logged-in account may require a fresh login.";
+        }
+
+        UpdateActionButtons();
+    }
+
+    private void NeverUseOwnIpCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (NeverUseOwnIpCheckBox.IsChecked == true && UseProxyCheckBox.IsChecked != true)
+        {
+            UseProxyCheckBox.IsChecked = true;
+            SafeRunAccountEditorAction(() => SetProxyFieldsEnabled(true), "enable proxy fields");
         }
 
         UpdateActionButtons();
@@ -508,6 +539,85 @@ public partial class AccountsWindow : Window
         _proxyCheckCts?.Cancel();
     }
 
+    private void FindBestProxyButton_Click(object sender, RoutedEventArgs e)
+    {
+        var initialScheme = (ProxySchemeComboBox?.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString();
+        var finder = new ProxyFinderWindow(initialScheme) { Owner = this };
+        if (finder.ShowDialog() != true || finder.SelectedProxy is not { } pick)
+        {
+            return;
+        }
+
+        // Apply the chosen proxy to this account's fields and turn the proxy on.
+        UseProxyCheckBox.IsChecked = true;
+        SafeRunAccountEditorAction(() =>
+        {
+            SelectProxyScheme(pick.Scheme);
+            ProxyHostTextBox.Text = pick.Host;
+            ProxyPortTextBox.Text = pick.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            RefreshSavedProxySelection();
+        }, "apply selected proxy");
+        UpdateActionButtons();
+    }
+
+    private void ProxyLibraryButton_Click(object sender, RoutedEventArgs e)
+    {
+        var accountNames = _store.ListAccounts()
+            .Select(account => account.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var activeProxyServer = UseProxyCheckBox.IsChecked == true ? BuildProxyServerString() : string.Empty;
+        var dialog = new ProxyLibraryWindow(_proxyLibraryStore, accountNames, activeProxyServer, ResolveCurrentEditorAccountName())
+        {
+            Owner = this,
+        };
+
+        if (dialog.ShowDialog() == true)
+        {
+            ReloadProxyLibraryEntries();
+            RefreshSavedProxySelection();
+            InfoTextBlock.Text = "Proxy list updated.";
+        }
+    }
+
+    private void SavedProxyComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
+    {
+        if (_suppressSavedProxySelection || SavedProxyComboBox.SelectedItem is not SavedProxyOption { Entry: { } entry })
+        {
+            return;
+        }
+
+        var currentAccountName = ResolveCurrentEditorAccountName();
+        var reuse = _proxyLibraryStore.ClassifyReuse(entry.Server, currentAccountName);
+        if (reuse.Reuse == ProxyReuse.LockedToOther)
+        {
+            AppDialog.Show(
+                this,
+                $"Proxy is locked to account '{string.Join(", ", reuse.Accounts)}'.",
+                "Saved proxy",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            RefreshSavedProxySelection();
+            return;
+        }
+
+        if (reuse.Reuse == ProxyReuse.UsedByOthers && !ConfirmProxyReuse(reuse))
+        {
+            RefreshSavedProxySelection();
+            return;
+        }
+
+        UseProxyCheckBox.IsChecked = true;
+        SafeRunAccountEditorAction(() =>
+        {
+            SelectProxyScheme(entry.Scheme);
+            ProxyHostTextBox.Text = entry.Host;
+            ProxyPortTextBox.Text = entry.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }, "apply saved proxy");
+        UpdateActionButtons();
+    }
+
     private void ServerListButton_Click(object sender, RoutedEventArgs e)
     {
         var dialog = new ServerListWindow(_serverOptions, _defaultServerOptions, _serverCatalogStore)
@@ -595,6 +705,142 @@ public partial class AccountsWindow : Window
         InfoTextBlock.Text = $"Could not reload server list: {ex.Message}";
     }
 
+    private void ReloadProxyLibraryEntries()
+    {
+        try
+        {
+            _proxyLibraryEntries = _proxyLibraryStore.Load();
+        }
+        catch (Exception ex)
+        {
+            _proxyLibraryEntries = [];
+            InfoTextBlock.Text = $"Could not reload proxy list: {ex.Message}";
+        }
+
+        _savedProxyOptions = new List<SavedProxyOption>
+        {
+            new(null, "Select saved proxy..."),
+        };
+        _savedProxyOptions.AddRange(_proxyLibraryEntries.Select(entry => new SavedProxyOption(entry, BuildSavedProxyDisplay(entry))));
+
+        _suppressSavedProxySelection = true;
+        SavedProxyComboBox.ItemsSource = null;
+        SavedProxyComboBox.ItemsSource = _savedProxyOptions;
+        SavedProxyComboBox.SelectedIndex = 0;
+        _suppressSavedProxySelection = false;
+        SetProxyFieldsEnabled(UseProxyCheckBox.IsChecked == true);
+    }
+
+    private void RefreshSavedProxySelection()
+    {
+        if (SavedProxyComboBox is null)
+        {
+            return;
+        }
+
+        var proxyServer = BuildProxyServerString();
+        var match = _proxyLibraryEntries.Count == 0
+            ? null
+            : ProxyLibraryStore.FindByServer(_proxyLibraryEntries, proxyServer);
+        var option = match is null
+            ? _savedProxyOptions.FirstOrDefault(item => item.Entry is null)
+            : _savedProxyOptions.FirstOrDefault(item => item.Entry is not null
+                && string.Equals(item.Entry.Id, match.Id, StringComparison.OrdinalIgnoreCase));
+
+        _suppressSavedProxySelection = true;
+        SavedProxyComboBox.SelectedItem = option ?? _savedProxyOptions.FirstOrDefault();
+        _suppressSavedProxySelection = false;
+    }
+
+    private bool ConfirmProxyReuseForSave(string proxyServer, string accountName)
+    {
+        var reuse = _proxyLibraryStore.ClassifyReuse(proxyServer, accountName);
+        return reuse.Reuse switch
+        {
+            ProxyReuse.LockedToOther => ShowProxyLocked(reuse),
+            ProxyReuse.UsedByOthers => ConfirmProxyReuse(reuse),
+            _ => true,
+        };
+    }
+
+    private bool ShowProxyLocked(ProxyReuseClassification reuse)
+    {
+        AppDialog.Show(
+            this,
+            $"Proxy is locked to account '{string.Join(", ", reuse.Accounts)}'.",
+            "Save account",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
+        return false;
+    }
+
+    private bool ConfirmProxyReuse(ProxyReuseClassification reuse)
+    {
+        var accounts = string.Join(", ", reuse.Accounts);
+        var result = AppDialog.ShowCustom(
+            this,
+            $"This proxy has been used by: {accounts}.\n\nUse it anyway?",
+            "Proxy reuse warning",
+            [("Use anyway", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.Cancel)],
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel,
+            MessageBoxResult.Cancel);
+        return result == MessageBoxResult.Yes;
+    }
+
+    private void MarkSavedProxyUsed(AccountEntry entry)
+    {
+        if (!entry.ProxyEnabled || string.IsNullOrWhiteSpace(entry.ProxyServer))
+        {
+            return;
+        }
+
+        try
+        {
+            var match = _proxyLibraryStore.FindByServer(entry.ProxyServer);
+            if (match is null)
+            {
+                return;
+            }
+
+            _proxyLibraryStore.AddUsage(match.Id, entry.Name);
+        }
+        catch (Exception ex)
+        {
+            InfoTextBlock.Text = $"Account saved, but proxy usage could not be updated: {ex.Message}";
+        }
+    }
+
+    private string ResolveCurrentEditorAccountName()
+    {
+        if (_editingExistingAccount)
+        {
+            return _editingOriginalName;
+        }
+
+        var username = UsernameTextBox.Text.Trim();
+        if (username.Length == 0)
+        {
+            return string.Empty;
+        }
+
+        var selectedServer = ServerComboBox.SelectedItem as ServerOption;
+        var serverUrl = selectedServer?.BaseUrl ?? _defaultServerUrl;
+        return AccountKeyNormalizer.MakeKey(username, serverUrl);
+    }
+
+    private static string BuildSavedProxyDisplay(ProxyLibraryEntry entry)
+    {
+        var display = entry.DisplayName;
+        if (!string.IsNullOrWhiteSpace(entry.AssignedAccount))
+        {
+            return $"{display} [locked: {entry.AssignedAccount}]";
+        }
+
+        var usedCount = entry.UsedByAccounts.Count(item => !string.IsNullOrWhiteSpace(item));
+        return usedCount > 0 ? $"{display} [used: {usedCount}]" : display;
+    }
+
     private void AccountsWindow_Closing(object? sender, CancelEventArgs e)
     {
         if (_isClosing)
@@ -625,14 +871,15 @@ public partial class AccountsWindow : Window
         var serverUrl = selectedServer?.BaseUrl ?? _defaultServerUrl;
 
         var proxyEnabled = UseProxyCheckBox.IsChecked == true;
+        var neverUseOwnIp = NeverUseOwnIpCheckBox.IsChecked == true;
         var proxyServer = BuildProxyServerString();
-        if (proxyEnabled)
+        if (proxyEnabled || neverUseOwnIp)
         {
             var proxyHost = ProxyHostTextBox.Text.Trim();
             var proxyPort = ProxyPortTextBox.Text.Trim();
             if (proxyHost.Length == 0 || proxyPort.Length == 0)
             {
-                throw new InvalidOperationException("Proxy host/IP and port are required when 'Use proxy' is on.");
+                throw new InvalidOperationException("Proxy host/IP and port are required when proxy protection is on.");
             }
 
             if (proxyHost.Any(char.IsWhiteSpace) || proxyHost.Contains("://", StringComparison.Ordinal) || proxyHost.Contains(':'))
@@ -643,6 +890,15 @@ public partial class AccountsWindow : Window
             if (!int.TryParse(proxyPort, out var parsedPort) || parsedPort is < 1 or > 65535)
             {
                 throw new InvalidOperationException("Proxy port must be a number between 1 and 65535.");
+            }
+
+            if (neverUseOwnIp)
+            {
+                proxyEnabled = true;
+                if (!ProxyParser.TryBuild(proxyServer, out _, out _))
+                {
+                    throw new InvalidOperationException("Never use own IP address requires a valid proxy.");
+                }
             }
         }
 
@@ -659,6 +915,7 @@ public partial class AccountsWindow : Window
             ServerUrl = serverUrl,
             ProxyEnabled = proxyEnabled,
             ProxyServer = proxyServer,
+            NeverUseOwnIp = neverUseOwnIp,
         };
     }
 
@@ -684,9 +941,11 @@ public partial class AccountsWindow : Window
         PasswordTextBox.Visibility = Visibility.Collapsed;
         TogglePasswordButton.Content = "Show";
         UseProxyCheckBox.IsChecked = false;
+        NeverUseOwnIpCheckBox.IsChecked = false;
         SafeRunAccountEditorAction(() =>
         {
             LoadProxyFields(string.Empty);
+            RefreshSavedProxySelection();
             SetProxyFieldsEnabled(false);
         }, "clear proxy fields");
         SelectServer(_defaultServerName, _defaultServerUrl);
@@ -762,6 +1021,7 @@ public partial class AccountsWindow : Window
         _baselineServerUrl = (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl?.Trim() ?? string.Empty;
         _baselineProxyEnabled = UseProxyCheckBox.IsChecked == true;
         _baselineProxyServer = BuildProxyServerString();
+        _baselineNeverUseOwnIp = NeverUseOwnIpCheckBox.IsChecked == true;
     }
 
     private bool HasUnsavedChanges()
@@ -771,12 +1031,14 @@ public partial class AccountsWindow : Window
         var currentServerUrl = (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl?.Trim() ?? string.Empty;
         var currentProxyEnabled = UseProxyCheckBox.IsChecked == true;
         var currentProxyServer = BuildProxyServerString();
+        var currentNeverUseOwnIp = NeverUseOwnIpCheckBox.IsChecked == true;
 
         return !string.Equals(currentUsername, _baselineUsername, StringComparison.Ordinal)
             || !string.Equals(currentPassword, _baselinePassword, StringComparison.Ordinal)
             || !string.Equals(currentServerUrl, _baselineServerUrl, StringComparison.OrdinalIgnoreCase)
             || currentProxyEnabled != _baselineProxyEnabled
-            || !string.Equals(currentProxyServer, _baselineProxyServer, StringComparison.Ordinal);
+            || !string.Equals(currentProxyServer, _baselineProxyServer, StringComparison.Ordinal)
+            || currentNeverUseOwnIp != _baselineNeverUseOwnIp;
     }
 
     private void SetProxyFieldsEnabled(bool enabled)
@@ -784,6 +1046,11 @@ public partial class AccountsWindow : Window
         if (ProxySchemeComboBox is not null)
         {
             ProxySchemeComboBox.IsEnabled = enabled;
+        }
+
+        if (SavedProxyComboBox is not null)
+        {
+            SavedProxyComboBox.IsEnabled = enabled && _savedProxyOptions.Count > 1;
         }
 
         if (ProxyHostTextBox is not null)
@@ -1143,6 +1410,7 @@ public partial class AccountsWindow : Window
     private sealed record ProxyCheckInfo(string Ip, string Location, string Isp);
     private sealed record ProxyCheckResult(string Ip, string Location, string Isp, string Route, string Latency);
     private sealed record ProxyCheckFailure(string Error, string Route, string Target);
+    private sealed record SavedProxyOption(ProxyLibraryEntry? Entry, string DisplayText);
 
     private void SafeRunAccountEditorAction(Action action, string actionName)
     {

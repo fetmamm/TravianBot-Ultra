@@ -58,6 +58,7 @@ public sealed class EnvAccountStore
                 ServerUrl = values.GetValueOrDefault($"{prefix}SERVER_URL", string.Empty),
                 ProxyEnabled = ParseBool(values.GetValueOrDefault($"{prefix}PROXY_ENABLED", string.Empty)),
                 ProxyServer = values.GetValueOrDefault($"{prefix}PROXY_SERVER", string.Empty),
+                NeverUseOwnIp = ParseBool(values.GetValueOrDefault($"{prefix}NEVER_USE_OWN_IP", string.Empty)),
                 IsActive = string.Equals(name, active, StringComparison.OrdinalIgnoreCase),
             };
         }).ToList();
@@ -92,6 +93,7 @@ public sealed class EnvAccountStore
         values[$"{prefix}SERVER_URL"] = account.ServerUrl.Trim().TrimEnd('/');
         values[$"{prefix}PROXY_ENABLED"] = account.ProxyEnabled ? "true" : "false";
         values[$"{prefix}PROXY_SERVER"] = account.ProxyServer.Trim();
+        values[$"{prefix}NEVER_USE_OWN_IP"] = account.NeverUseOwnIp ? "true" : "false";
 
         WriteValues(values);
     }
@@ -110,6 +112,7 @@ public sealed class EnvAccountStore
             values.Remove($"{prefix}SERVER_URL");
             values.Remove($"{prefix}PROXY_ENABLED");
             values.Remove($"{prefix}PROXY_SERVER");
+            values.Remove($"{prefix}NEVER_USE_OWN_IP");
             values["TBOT_ACCOUNTS"] = string.Join(",", names);
 
             if (string.Equals(values.GetValueOrDefault("TBOT_ACTIVE_ACCOUNT", string.Empty), normalized, StringComparison.OrdinalIgnoreCase))
@@ -192,6 +195,8 @@ public sealed class EnvAccountStore
             var proxyEnabled = ParseBool(values.GetValueOrDefault($"{prefix}PROXY_ENABLED", string.Empty));
             lines.Add($"{prefix}PROXY_ENABLED={(proxyEnabled ? "true" : "false")}");
             lines.Add($"{prefix}PROXY_SERVER={values.GetValueOrDefault($"{prefix}PROXY_SERVER", string.Empty)}");
+            var neverUseOwnIp = ParseBool(values.GetValueOrDefault($"{prefix}NEVER_USE_OWN_IP", string.Empty));
+            lines.Add($"{prefix}NEVER_USE_OWN_IP={(neverUseOwnIp ? "true" : "false")}");
             lines.Add(string.Empty);
         }
 

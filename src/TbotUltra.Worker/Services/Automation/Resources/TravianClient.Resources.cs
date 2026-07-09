@@ -226,7 +226,7 @@ public sealed partial class TravianClient
         var safetyCap = UpgradeMath.ComputeResourceUpgradeSafetyCap(targetLevel);
         int? lastKnownLevel = null;
         var constructionNpcTradeAttempted = false;
-        var heroTransferAttempted = false;
+        var heroTransferAttemptedOffers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         for (var iteration = 0; iteration < safetyCap; iteration++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -247,10 +247,10 @@ public sealed partial class TravianClient
                     return $"Resource slot {slotId} is level {currentLevel}. Target {targetLevel} reached after {upgrades} upgrades.";
                 }
 
-                var highestKnownLevel = await ReadHighestKnownQueuedResourceLevelAsync(resourceName, currentLevel.Value, cancellationToken);
+                var highestKnownLevel = await ReadHighestKnownQueuedResourceLevelAsync(slotId, resourceName, currentLevel.Value, cancellationToken);
                 if (highestKnownLevel >= targetLevel)
                 {
-                    var queuedWaitSeconds = await ReadQueuedResourceWaitSecondsAsync(resourceName, null, cancellationToken);
+                    var queuedWaitSeconds = await ReadQueuedResourceWaitSecondsAsync(resourceName, slotId, null, cancellationToken);
                     return $"Resource slot {slotId}: queued upgrade toward level {targetLevel}. queue_wait_seconds={queuedWaitSeconds}";
                 }
 
@@ -281,7 +281,7 @@ public sealed partial class TravianClient
 
                 if (highestKnownLevel >= effectiveTarget)
                 {
-                    var queuedWaitSeconds = await ReadQueuedResourceWaitSecondsAsync(resourceName, null, cancellationToken);
+                    var queuedWaitSeconds = await ReadQueuedResourceWaitSecondsAsync(resourceName, slotId, null, cancellationToken);
                     return $"Resource slot {slotId}: queued upgrade toward level {effectiveTarget}. queue_wait_seconds={queuedWaitSeconds}";
                 }
 
@@ -292,18 +292,27 @@ public sealed partial class TravianClient
                 }
 
                 var blockedByResources = actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources;
-                if (!heroTransferAttempted && (blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken)))
+                var pageLooksBlockedByResources = blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken);
+                if (pageLooksBlockedByResources)
                 {
-                    heroTransferAttempted = true;
-                    if (await TryHeroResourceTransferForConstructionAsync($"Resource slot {slotId} ({resourceName}) upgrade to level {effectiveTarget}", cancellationToken))
+                    var offerLevel = ResolveResourceUpgradeOfferLevel(currentLevel.Value, effectiveTarget, highestKnownLevel, actionability);
+                    var offerCost = await TryReadLiveResourceUpgradeCostOnCurrentPageAsync(cancellationToken);
+                    var offerKey = BuildConstructionHeroTransferOfferKey(slotId, offerLevel, offerCost);
+                    if (heroTransferAttemptedOffers.Add(offerKey))
                     {
-                        continue;
+                        var label = $"Resource slot {slotId} ({resourceName}) upgrade to level {offerLevel ?? effectiveTarget}";
+                        Notify($"[resources] hero-transfer offer key={offerKey} label='{label}'.");
+                        if (await TryHeroResourceTransferForConstructionAsync(label, cancellationToken))
+                        {
+                            continue;
+                        }
                     }
                 }
-                if (!constructionNpcTradeAttempted && (blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken)))
+                if (!constructionNpcTradeAttempted && pageLooksBlockedByResources)
                 {
                     constructionNpcTradeAttempted = true;
-                    if (await TryNpcTradeForConstructionAsync($"Resource slot {slotId} ({resourceName}) upgrade to level {effectiveTarget}", cancellationToken))
+                    var offerLevel = ResolveResourceUpgradeOfferLevel(currentLevel.Value, effectiveTarget, highestKnownLevel, actionability);
+                    if (await TryNpcTradeForConstructionAsync($"Resource slot {slotId} ({resourceName}) upgrade to level {offerLevel ?? effectiveTarget}", cancellationToken))
                     {
                         continue;
                     }
@@ -353,7 +362,7 @@ public sealed partial class TravianClient
 
                 if (progress.QueuedOrInProgress)
                 {
-                    var queuedWaitSeconds = await ReadQueuedResourceWaitSecondsAsync(resourceName, expectedWaitSeconds, cancellationToken);
+                    var queuedWaitSeconds = await ReadQueuedResourceWaitSecondsAsync(resourceName, slotId, expectedWaitSeconds, cancellationToken);
                     if (highestKnownLevel + 1 < effectiveTarget)
                     {
                         transientRetries = 0;
@@ -402,7 +411,7 @@ public sealed partial class TravianClient
         var transientRetries = 0;
         int? currentTransientSlot = null;
         var constructionNpcTradeAttempted = false;
-        var heroTransferAttemptedSlots = new HashSet<int>();
+        var heroTransferAttemptedOffers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -497,13 +506,12 @@ public sealed partial class TravianClient
                     }
 
                     // Over-build guard (matches the single-slot UpgradeResourceToLevelAsync): if this resource
-                    // type already has a queued/in-progress upgrade that reaches the target, do NOT click again.
+                    // slot already has a queued/in-progress upgrade that reaches the target, do NOT click again.
                     // The build page of a slot with a pending upgrade offers the NEXT level (target+1), so a
                     // second click would overshoot the requested target. This fires on Plus/Roman accounts where
-                    // a second queue slot is free while one upgrade is already in flight. Active constructions are
-                    // name-keyed (no slot id), so same-named fields are treated conservatively: a sibling's queued
-                    // upgrade defers this one until the queue clears (self-corrects next scan, never over-builds).
-                    var highestQueuedLevel = await ReadHighestKnownQueuedResourceLevelAsync(resourceName, level, cancellationToken);
+                    // a second queue slot is free while one upgrade is already in flight. If Travian does not
+                    // expose a slot id for the queued resource, fall back to same-name matching conservatively.
+                    var highestQueuedLevel = await ReadHighestKnownQueuedResourceLevelAsync(slot, resourceName, level, cancellationToken);
                     if (highestQueuedLevel >= preliminaryTarget)
                     {
                         anyQueuedTowardTarget = true;
@@ -532,7 +540,7 @@ public sealed partial class TravianClient
                         skipNavigationIfOnExpectedSlot: true);
                     var cap = actionability.DetectedMaxLevel ?? fallbackMax;
                     var effectiveTarget = Math.Min(targetLevel, cap);
-                    Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} actionability={actionability.Outcome} effectiveTarget={effectiveTarget} max={actionability.DetectedMaxLevel?.ToString() ?? "unknown"} candidateIndex={actionability.CandidateIndex?.ToString() ?? "-"} reason={actionability.Reason}");
+                    Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} actionability={actionability.Outcome} effectiveTarget={effectiveTarget} detectedTarget={actionability.DetectedTargetLevel?.ToString() ?? "unknown"} max={actionability.DetectedMaxLevel?.ToString() ?? "unknown"} candidateIndex={actionability.CandidateIndex?.ToString() ?? "-"} reason={actionability.Reason}");
                     if (level >= effectiveTarget)
                     {
                         Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} level={level} already meets effective target {effectiveTarget}. Skipping.");
@@ -602,20 +610,27 @@ public sealed partial class TravianClient
                         goto NextLoopTick;
                     }
 
+                    var offerLevel = ResolveResourceUpgradeOfferLevel(level, effectiveTarget, highestQueuedLevel, actionability);
                     var label = string.IsNullOrWhiteSpace(candidate.Name)
-                        ? $"Resource slot {slot} upgrade to level {effectiveTarget}"
-                        : $"Resource slot {slot} ({candidate.Name}) upgrade to level {effectiveTarget}";
+                        ? $"Resource slot {slot} upgrade to level {offerLevel ?? effectiveTarget}"
+                        : $"Resource slot {slot} ({candidate.Name}) upgrade to level {offerLevel ?? effectiveTarget}";
                     var blockedByResources = actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources;
-                    if (!heroTransferAttemptedSlots.Contains(slot) && (blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken)))
+                    var pageLooksBlockedByResources = blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken);
+                    if (pageLooksBlockedByResources)
                     {
-                        heroTransferAttemptedSlots.Add(slot);
-                        if (await TryHeroResourceTransferForConstructionAsync(label, cancellationToken))
+                        var offerCost = await TryReadLiveResourceUpgradeCostOnCurrentPageAsync(cancellationToken);
+                        var offerKey = BuildConstructionHeroTransferOfferKey(slot, offerLevel, offerCost);
+                        if (heroTransferAttemptedOffers.Add(offerKey))
                         {
-                            Notify($"[UpgradeAllResourcesToLevelAsync] hero transfer completed for slot={slot}; rechecking same build page before navigating away.");
-                            goto ReevaluateCurrentSlot;
+                            Notify($"[UpgradeAllResourcesToLevelAsync] hero-transfer offer key={offerKey} label='{label}'.");
+                            if (await TryHeroResourceTransferForConstructionAsync(label, cancellationToken))
+                            {
+                                Notify($"[UpgradeAllResourcesToLevelAsync] hero transfer completed for slot={slot}; rechecking same build page before navigating away.");
+                                goto ReevaluateCurrentSlot;
+                            }
                         }
                     }
-                    if (!constructionNpcTradeAttempted && (blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken)))
+                    if (!constructionNpcTradeAttempted && pageLooksBlockedByResources)
                     {
                         constructionNpcTradeAttempted = true;
                         if (await TryNpcTradeForConstructionAsync(label, cancellationToken))
@@ -645,7 +660,7 @@ public sealed partial class TravianClient
                     {
                         // Nothing left to click, but at least one field still has a queued upgrade reaching the
                         // target. Defer (re-check after it finishes) instead of declaring "all done" prematurely.
-                        var queuedWait = await ReadQueuedResourceWaitSecondsAsync(string.Empty, null, cancellationToken);
+                        var queuedWait = await ReadQueuedResourceWaitSecondsAsync(string.Empty, null, null, cancellationToken);
                         return $"Resource fields: queued upgrade(s) already reaching target level {targetLevel}. Upgrades made: {upgrades}. queue_wait_seconds={queuedWait}";
                     }
 
@@ -1840,7 +1855,8 @@ public sealed partial class TravianClient
             Notify("Resource field scan returned 0 link elements. Reloading dorf1 once and retrying.");
             try
             {
-                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
+                    .WaitAsync(cancellationToken);
                 await WaitForResourceFieldsHydratedAsync(cancellationToken);
 
                 await RetryAsync("read resource fields snapshot (retry)", async () =>
@@ -2129,6 +2145,7 @@ public sealed partial class TravianClient
 
     private async Task<int> ReadQueuedResourceWaitSecondsAsync(
         string resourceName,
+        int? slotId,
         int? fallbackSeconds,
         CancellationToken cancellationToken)
     {
@@ -2161,8 +2178,7 @@ public sealed partial class TravianClient
                 return hadStaleResourceTimer ? 1 : Math.Max(1, ComputeResourceUpgradeWaitSeconds(fallbackSeconds));
             }
 
-            var matchingTimers = resourceTimers
-                .Where(item => BuildingNames.Same(item.Name, resourceName))
+            var matchingTimers = ResourceConstructionQueueMatcher.MatchForResourceSlot(resourceTimers, slotId, resourceName)
                 .Select(item => item.TimeLeftSeconds!.Value)
                 .ToList();
             if (matchingTimers.Count > 0)
@@ -2179,6 +2195,7 @@ public sealed partial class TravianClient
     }
 
     private async Task<int> ReadHighestKnownQueuedResourceLevelAsync(
+        int slotId,
         string resourceName,
         int currentLevel,
         CancellationToken cancellationToken)
@@ -2186,12 +2203,7 @@ public sealed partial class TravianClient
         try
         {
             var active = await ReadActiveConstructionsAsync(cancellationToken);
-            var highestQueuedLevel = active
-                .Where(item => item.Kind == ConstructionKind.Resource && BuildingNames.Same(item.Name, resourceName))
-                .Select(item => item.Level ?? 0)
-                .DefaultIfEmpty(0)
-                .Max();
-            return Math.Max(currentLevel, highestQueuedLevel);
+            return ResourceConstructionQueueMatcher.HighestQueuedLevelForSlot(active, slotId, resourceName, currentLevel);
         }
         catch
         {
@@ -2436,6 +2448,47 @@ public sealed partial class TravianClient
         bool HasReadableCost);
 
     private sealed record ResourceUpgradeCostSnapshot(long Wood, long Clay, long Iron, long Crop);
+
+    internal static string BuildConstructionHeroTransferOfferKeyForTests(
+        int slotId,
+        int? detectedTargetLevel,
+        long? wood,
+        long? clay,
+        long? iron,
+        long? crop)
+    {
+        var cost = wood is long w && clay is long c && iron is long i && crop is long cr
+            ? new ResourceUpgradeCostSnapshot(w, c, i, cr)
+            : null;
+        return BuildConstructionHeroTransferOfferKey(slotId, detectedTargetLevel, cost);
+    }
+
+    private static string BuildConstructionHeroTransferOfferKey(int slotId, int? detectedTargetLevel, ResourceUpgradeCostSnapshot? cost)
+    {
+        var levelPart = detectedTargetLevel is int level ? $"level:{level}" : "level:unknown";
+        var costPart = cost is null
+            ? "cost:unknown"
+            : $"cost:{cost.Wood}:{cost.Clay}:{cost.Iron}:{cost.Crop}";
+        return $"slot:{slotId}|{levelPart}|{costPart}";
+    }
+
+    private static int? ResolveResourceUpgradeOfferLevel(
+        int currentLevel,
+        int effectiveTarget,
+        int highestKnownQueuedLevel,
+        UpgradeAttemptResult actionability)
+    {
+        if (actionability.DetectedTargetLevel is int detectedTargetLevel)
+        {
+            return detectedTargetLevel;
+        }
+
+        var nextKnownLevel = highestKnownQueuedLevel > currentLevel
+            ? highestKnownQueuedLevel + 1
+            : currentLevel + 1;
+
+        return Math.Min(effectiveTarget, nextKnownLevel);
+    }
 
     private sealed record ResourceUpgradeAffordability(long TimeUntilAffordableSeconds, bool HasUnknownWait, long TotalCost);
 

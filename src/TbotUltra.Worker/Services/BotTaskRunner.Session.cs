@@ -56,6 +56,71 @@ public sealed partial class BotTaskRunner
             });
     }
 
+    public async Task<string?> ReadCurrentLanguageAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        string? language = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                language = await client.ReadCurrentLanguageAsync(cancellationToken);
+                if (!string.Equals(language?.Trim(), "en-US", StringComparison.OrdinalIgnoreCase))
+                {
+                    log($"[language] current Travian language: {language ?? "unknown"}.");
+                }
+            });
+
+        return language;
+    }
+
+    public async Task EnsureExpectedLanguageAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                await client.EnsureExpectedLanguageAsync(cancellationToken);
+            });
+    }
+
+    public async Task<string?> SetLanguageToEnglishAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        string? language = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                language = await client.SetLanguageToEnglishAsync(cancellationToken);
+                log("[language] Travian language set to English.");
+            });
+
+        return language;
+    }
+
     public async Task<PostLoginSnapshot> ExecuteLoginAndLoadPostLoginSnapshotAsync(
         BotOptions options,
         Action<string> log,
@@ -121,7 +186,21 @@ public sealed partial class BotTaskRunner
         if (options.PostLoginAnalyzeHeroInventory)
         {
             // Suppress the village/profile UI-sync so the inventory is read before the profile nav.
-            heroInventory = await client.ReadHeroInventoryResourcesAsync(cancellationToken, suppressUiSync: true);
+            // Non-fatal: a transient nav timeout here must NOT abort the whole login (it once left the bot
+            // parked idle overnight). Continue with heroInventory=null so skipOverviewNavigation stays false
+            // and ReadAccountSnapshotAsync does its normal dorf1 hop; the rest of the snapshot proceeds.
+            try
+            {
+                heroInventory = await client.ReadHeroInventoryResourcesAsync(cancellationToken, suppressUiSync: true);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                log($"[hero-inventory] post-login read failed (continuing without it): {ex.Message}");
+            }
         }
 
         var accountSnapshot = await client.ReadAccountSnapshotAsync(

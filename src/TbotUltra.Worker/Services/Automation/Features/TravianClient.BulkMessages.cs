@@ -129,11 +129,11 @@ public sealed partial class TravianClient
 
         var currentPlayerNames = safePlayerNames.ToList();
         var recipientText = string.Join(';', currentPlayerNames);
-        await DelayBeforeClickAsync(cancellationToken, "bulk messages focus recipients");
+        await DelayBeforeBulkFieldAsync(cancellationToken, "recipients");
         await FillBulkMessageFieldAsync(recipients, recipientText, "recipients", cancellationToken);
-        await DelayBeforeClickAsync(cancellationToken, "bulk messages focus subject");
+        await DelayBeforeBulkFieldAsync(cancellationToken, "subject");
         await FillBulkMessageFieldAsync(subjectInput, subject, "subject", cancellationToken);
-        await DelayBeforeClickAsync(cancellationToken, "bulk messages focus message");
+        await DelayBeforeBulkFieldAsync(cancellationToken, "message");
         await FillBulkMessageFieldAsync(body, message, "message body", cancellationToken);
 
         var sendButton = await FindVisibleBulkMessageFieldAsync(BulkMessageSendButtonSelectors, "send button");
@@ -188,7 +188,7 @@ public sealed partial class TravianClient
                 .WaitForAsync(new LocatorWaitForOptions
                 {
                     State = WaitForSelectorState.Visible,
-                    Timeout = Math.Min(_config.TimeoutMs, 10000),
+                    Timeout = Math.Min(_config.TimeoutMs, 15000),
                 })
                 .WaitAsync(cancellationToken);
         }
@@ -246,6 +246,20 @@ public sealed partial class TravianClient
         }
 
         return null;
+    }
+
+    // Shorter randomized pause used only between the recipient/subject/message fields so filling the
+    // message writer is noticeably faster than the standard click pacing, while still not being
+    // robot-instant. Kept modest (0.15-0.45s) so the React form stays stable between fields. Respects
+    // the global action-pacing on/off switch (no delay when pacing is disabled).
+    private Task DelayBeforeBulkFieldAsync(CancellationToken cancellationToken, string reason)
+    {
+        if (!_config.ActionPacingEnabled)
+        {
+            return Task.CompletedTask;
+        }
+
+        return ActionPacer.FromOptions(_config, Notify).DelayAsync(0.15, 0.45, cancellationToken, $"Bulk field: {reason}");
     }
 
     private async Task FillBulkMessageFieldAsync(ILocator field, string value, string label, CancellationToken cancellationToken)

@@ -243,7 +243,7 @@ servervarianter är borttaget ur aktiv kod och ska inte återinföras.
 
 - **2026-06-23** — **Uppdateringskoll mot GitHub (Fas 1: upptäck + ladda ner).** Ny `UpdateChecker`
   (`Services/UpdateChecker.cs`) läser nuvarande version ur `VERSION`-filen bredvid exe:n (fallback "dev")
-  och frågar `api.github.com/repos/fetmamm/Tbot_ultra_new/releases/latest` (kräver User-Agent-header).
+  och frågar `api.github.com/repos/fetmamm/TravianBot-Ultra/releases/latest` (kräver User-Agent-header).
   Jämför semver, plockar portable-asseten (`*-portable.zip` → `browser_download_url`). Allt fail-soft
   (offline/rate-limit → "ingen ny version känd", inget larm). Körs fire-and-forget vid appstart efter
   `LoadVersionToUi`; vid ny version tintas Support-knappen amber (`Warning*`-brushar) + tooltip. Contact-

@@ -434,10 +434,11 @@ public partial class MainWindow
                     BuildQueueRemainingText = status.BuildQueueRemainingText,
                     BuildQueueFinish = status.BuildQueueFinish,
                     ActiveConstructions = status.ActiveConstructions,
+                    ActiveConstructionsFromOverview = status.ActiveConstructionsFromOverview,
                 });
                 if (_lastBuildingStatus is not null && IsStatusForSelectedVillage(status))
                 {
-                    _lastBuildingStatus = _lastBuildingStatus with
+                    var updatedBuildingStatus = _lastBuildingStatus with
                     {
                         BuildQueue = status.BuildQueue,
                         IsBuildingInProgress = status.IsBuildingInProgress,
@@ -446,7 +447,11 @@ public partial class MainWindow
                         BuildQueueRemainingText = status.BuildQueueRemainingText,
                         BuildQueueFinish = status.BuildQueueFinish,
                         ActiveConstructions = status.ActiveConstructions,
+                        ActiveConstructionsFromOverview = status.ActiveConstructionsFromOverview,
                     };
+                    _lastBuildingStatus = ConstructionQueueState.PreserveKnownConstructionState(
+                        updatedBuildingStatus,
+                        _lastBuildingStatus);
                 }
 
                 RefreshVillageActivityIndicatorsOnDashboard();

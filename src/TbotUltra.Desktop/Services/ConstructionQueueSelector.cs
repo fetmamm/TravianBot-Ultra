@@ -65,6 +65,11 @@ public static class ConstructionQueueSelector
                     continue;
                 }
 
+                if (ConstructionQueueState.IsConstructionRequirementDeferred(item))
+                {
+                    continue;
+                }
+
                 var waitSeconds = Math.Max(0, (item.NextAttemptAt - now).TotalSeconds);
                 return new ConstructionQueueSelection(
                     null,

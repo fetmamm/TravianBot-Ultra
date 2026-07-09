@@ -319,7 +319,8 @@ public sealed partial class TravianClient
             // would re-read the old (zero) troop count. Reload so returning troops are picked up.
             try
             {
-                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded });
+                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
+                    .WaitAsync(cancellationToken);
                 await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             }
             catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
@@ -418,7 +419,8 @@ public sealed partial class TravianClient
 
             try
             {
-                await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+                await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded)
+                    .WaitAsync(cancellationToken);
             }
             catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
             {
