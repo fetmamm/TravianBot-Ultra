@@ -272,6 +272,10 @@ public partial class MainWindow
             lock (_sessionLogWriteSync)
             {
                 File.WriteAllLines(_sessionLogPath, header);
+                // Both section markers are already present in the header above; do not
+                // re-emit them on every append (that produced tens of thousands of duplicates).
+                _sessionLogAlarmsHeaderWritten = true;
+                _sessionLogLogsHeaderWritten = true;
             }
         }
         catch (Exception ex)
@@ -384,19 +388,27 @@ public partial class MainWindow
         {
             lock (_sessionLogWriteSync)
             {
-                var content = new List<string>(alarmLines.Count + logLines.Count + 4);
+                var content = new List<string>(alarmLines.Count + logLines.Count + 2);
                 if (alarmLines.Count > 0)
                 {
-                    content.Add("=== ALARMS ===");
+                    if (!_sessionLogAlarmsHeaderWritten)
+                    {
+                        content.Add("=== ALARMS ===");
+                        _sessionLogAlarmsHeaderWritten = true;
+                    }
+
                     content.AddRange(alarmLines);
-                    content.Add(string.Empty);
                 }
 
                 if (logLines.Count > 0)
                 {
-                    content.Add("=== LOGS ===");
+                    if (!_sessionLogLogsHeaderWritten)
+                    {
+                        content.Add("=== LOGS ===");
+                        _sessionLogLogsHeaderWritten = true;
+                    }
+
                     content.AddRange(logLines);
-                    content.Add(string.Empty);
                 }
 
                 File.AppendAllLines(_sessionLogPath, content);

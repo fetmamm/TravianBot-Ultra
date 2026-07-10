@@ -232,7 +232,8 @@ public sealed partial class TravianClient
     private async Task<ProductionBonusPageState> ReadProductionBonusPageStateInMainBrowserAsync(
         CancellationToken cancellationToken)
     {
-        await GotoAsync(Paths.Resources, cancellationToken);
+        // Reload in place when already on dorf1 instead of a redundant same-URL GOTO.
+        await ReloadOrGotoAsync(Paths.Resources, cancellationToken);
         if (!await OpenAdvantagesTabAsync(cancellationToken))
         {
             Notify("[production-bonus:verbose] could not open the Advantages tab to read bonus state.");
@@ -241,7 +242,8 @@ public sealed partial class TravianClient
 
         var boxes = ProductionBonusDomParser.ParseBoxesJson(await ReadProductionBonusBoxesRawAsync(cancellationToken));
         var serverUtcOffset = await ReadProductionBonusServerUtcOffsetAsync(cancellationToken);
-        await GotoAsync(Paths.Resources, cancellationToken);
+        // Reload in place when already on dorf1 instead of a redundant same-URL GOTO.
+        await ReloadOrGotoAsync(Paths.Resources, cancellationToken);
         return new ProductionBonusPageState(boxes, serverUtcOffset);
     }
 
