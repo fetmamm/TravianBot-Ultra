@@ -24,7 +24,7 @@ Beroenden: `Desktop` -> `Worker` -> `Core`.
 Lokala verifieringskommandon ska anvanda isolerad output i `temp_build_out/` sa de kan koras medan
 Desktop-appen ar oppen. Kor inte raw `dotnet build TbotUltra.sln` for Codex/local verify nar appen kan vara igang.
 `Directory.Build.props` styr vanlig `bin`/`obj`-output till `temp_build_out/dotnet/`. Build- och testskripten
-ateranvander normalt sina `latest`-mappar; anvand `scripts/Clean-Generated.ps1` for central rensning.
+ateranvander normalt sina `latest`-mappar; anvand `scripts/Clean-tbot-temp.ps1` for central rensning.
 Rensningsskriptet ska alltid bevara `temp_build_out/DOM/`, som innehaller manuellt sparade sidunderlag.
 
 ## 2. Official-only
