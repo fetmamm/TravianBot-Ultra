@@ -227,4 +227,11 @@ public static class BotOptionPayloadKeys
     public const string ActionPacingLoopMaxSeconds = "action_pacing_loop_max_seconds";
     public const string FarmListStepDelayMinSeconds = "farm_list_step_delay_min_seconds";
     public const string FarmListStepDelayMaxSeconds = "farm_list_step_delay_max_seconds";
+
+    public const string ConstructionHumanizeDelayEnabled = "construction_humanize_delay_enabled";
+    public const string ConstructionHumanizeQueuePercentMin = "construction_humanize_queue_percent_min";
+    public const string ConstructionHumanizeQueuePercentMax = "construction_humanize_queue_percent_max";
+    public const string ConstructionHumanizeMaxDelayMinutes = "construction_humanize_max_delay_minutes";
+    public const string ConstructionHumanizeNoPlusMinMinutes = "construction_humanize_no_plus_min_minutes";
+    public const string ConstructionHumanizeNoPlusMaxMinutes = "construction_humanize_no_plus_max_minutes";
 }

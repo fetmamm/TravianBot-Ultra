@@ -33,4 +33,10 @@ public sealed class TravianSessionCache
     public string? TroopQueueSnapshotVillage { get; set; }
     public System.Collections.Generic.Dictionary<TbotUltra.Core.Travian.TroopTrainingBuildingType, Domain.TroopTrainingQueueStatus>? TroopQueueSnapshotByBuilding { get; set; }
     public System.DateTimeOffset TroopQueueSnapshotAt { get; set; } = System.DateTimeOffset.MinValue;
+
+    // Ongoing-construction count seen at the previous construction start-gate check, keyed by
+    // "{villageNewdid}:{slotCategory}". Lets the humanized start delay tell "a build just finished,
+    // slot freed" (previous>0, current==0) from a genuinely idle start. Survives the per-operation
+    // TravianClient instances so the deferred attempts and the eventual start share the same memory.
+    public System.Collections.Generic.Dictionary<string, int> ConstructionOngoingByKey { get; } = new();
 }

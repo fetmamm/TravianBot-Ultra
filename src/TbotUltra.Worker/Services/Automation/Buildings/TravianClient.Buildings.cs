@@ -206,6 +206,9 @@ public sealed partial class TravianClient : IBuildingClient
                 return deferMessage;
             }
 
+            // Human-like pause before starting the next build (see MaybeApplyConstructionStartDelayAsync).
+            await MaybeApplyConstructionStartDelayAsync(ConstructionKind.Building, slotId, cancellationToken);
+
             // Step 3: open or reuse the slot's build page.
             await EnsureCurrentBuildPageForActionAsync(slotId, "upgrade", cancellationToken);
             // Wait for the build slot controls to render before reading/clicking. GotoAsync only waits
@@ -1296,6 +1299,9 @@ public sealed partial class TravianClient : IBuildingClient
             {
                 return deferMessage;
             }
+
+            // Human-like pause before starting the next build (see MaybeApplyConstructionStartDelayAsync).
+            await MaybeApplyConstructionStartDelayAsync(ConstructionKind.Building, slotId, cancellationToken);
 
             // Step 3: open or reuse the slot's build page.
             await EnsureCurrentBuildPageForActionAsync(slotId, "upgrade-to-max", cancellationToken);
@@ -3938,6 +3944,109 @@ public sealed partial class TravianClient : IBuildingClient
         var wait = relevantWait > 0 ? relevantWait + 1 : 5;
         var label = kind == ConstructionKind.Resource ? "Resource slot" : "Slot";
         return $"{label} {slotId}: build queue full ({status.ResourceSlotsUsed}/{status.ResourceSlotsMax} resource, {status.BuildingSlotsUsed}/{status.BuildingSlotsMax} building, plus={plusActive}). Deferring upgrade. Upgrades performed: {upgrades}. queue_wait_seconds={wait}";
+    }
+
+    // Human-like pause before starting the next construction, so the bot does not react to a freed
+    // build slot faster than a person would. Called at the real start gates only (right before the
+    // upgrade click), after CheckQueueOrDeferAsync has confirmed a slot is free. Two cases
+    // (see PacingDefaults.ConstructionHumanize*):
+    //  - A build is already running in this slot's category (with Plus the next one is placed in the
+    //    Travian queue): wait a random 5-20% of the running build's remaining time, capped. The queued
+    //    build still starts only when the current one finishes, so a sub-100% delay loses no progress.
+    //  - Only one slot and it just freed (a build finished): percentage has nothing to measure against,
+    //    so wait a random value in the no-Plus minute range instead.
+    // A genuinely idle first build (nothing was running here) starts immediately, exactly as before.
+    private async Task MaybeApplyConstructionStartDelayAsync(
+        ConstructionKind kind,
+        int slotId,
+        CancellationToken cancellationToken)
+    {
+        if (!_config.ConstructionHumanizeDelayEnabled)
+        {
+            return;
+        }
+
+        try
+        {
+            var (tribe, plusActive) = await GetCachedTribeAndPlusAsync(cancellationToken);
+            var status = await EvaluateConstructionSlotsAsync(tribe, plusActive, cancellationToken);
+            var isRomans = string.Equals(tribe, "Romans", StringComparison.OrdinalIgnoreCase);
+
+            // Remaining timers of constructions competing for the same slot category as this start.
+            // Mirror the exact isRomans filter used above: Romans have separate resource/building
+            // slots, every other tribe shares one build pool for fields and buildings.
+            var ongoingRemaining = (isRomans
+                    ? status.Active.Where(a => kind == ConstructionKind.Resource
+                        ? a.Kind == ConstructionKind.Resource
+                        : a.Kind != ConstructionKind.Resource)
+                    : status.Active)
+                .Where(a => a.TimeLeftSeconds is int v && v > 0)
+                .Select(a => a.TimeLeftSeconds!.Value)
+                .ToList();
+            var ongoingCount = ongoingRemaining.Count;
+
+            // Per (village, category) transition memory so we can tell "a build just finished, slot
+            // freed" from a genuinely idle start. Non-Romans share one build slot, Romans separate —
+            // key mirrors that so the two categories don't clobber each other.
+            var category = isRomans
+                ? (kind == ConstructionKind.Resource ? "resource" : "building")
+                : "shared";
+            var villageToken = TravianUrls.TryParseNewdid(_page.Url)?.ToString() ?? "current";
+            var stateKey = $"{villageToken}:{category}";
+            var previousOngoingCount = _session.ConstructionOngoingByKey.GetValueOrDefault(stateKey, 0);
+            _session.ConstructionOngoingByKey[stateKey] = ongoingCount;
+
+            double delaySeconds;
+            string reason;
+            if (ongoingCount >= 1)
+            {
+                // Placing behind a running build (Plus queue). Use the shortest remaining timer so the
+                // delay stays below every ongoing build → the queued one is placed before any finish.
+                var refRemaining = ongoingRemaining.Min();
+                var pct = RandomInRange(
+                    _config.ConstructionHumanizeQueuePercentMin,
+                    _config.ConstructionHumanizeQueuePercentMax) / 100.0;
+                var capSeconds = Math.Max(0, _config.ConstructionHumanizeMaxDelayMinutes) * 60.0;
+                delaySeconds = Math.Min(refRemaining * pct, capSeconds);
+                reason = $"percent {pct * 100:F0}% of {refRemaining}s remaining, cap {_config.ConstructionHumanizeMaxDelayMinutes:F0}m";
+            }
+            else if (previousOngoingCount > 0)
+            {
+                // Single-slot category that just freed (a build finished). No percentage reference.
+                var minutes = RandomInRange(
+                    _config.ConstructionHumanizeNoPlusMinMinutes,
+                    _config.ConstructionHumanizeNoPlusMaxMinutes);
+                delaySeconds = minutes * 60.0;
+                reason = $"no-plus {minutes:F1}m after slot freed";
+            }
+            else
+            {
+                // Nothing was building here → start immediately, as before.
+                return;
+            }
+
+            if (delaySeconds < 1)
+            {
+                return;
+            }
+
+            Notify($"[construction-humanize] waiting {delaySeconds:F0}s before starting slot {slotId} ({reason}).");
+            await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // A humanization delay must never break the actual build — log and proceed.
+            Notify($"[construction-humanize] skipped due to error: {ex.Message}");
+        }
+    }
+
+    private static double RandomInRange(double min, double max)
+    {
+        return max <= min ? Math.Max(0, min) : min + (Random.Shared.NextDouble() * (max - min));
     }
 
     public async Task<int> WaitForConstructionSlotIfBusyAsync(

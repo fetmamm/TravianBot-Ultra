@@ -27,4 +27,17 @@ public static class PacingDefaults
     // Delay (seconds) between internal clicks/steps in the auto-collect tasks/daily-quests flows only.
     public const double CollectStepDelayMinSeconds = 0.6;
     public const double CollectStepDelayMaxSeconds = 2.0;
+
+    // Human-like pause before starting the next construction.
+    // Enabled by default. Queue case (a build is already running and the next is placed in the
+    // Travian queue): wait a random percentage of the running build's remaining time — well under
+    // 100%, so the queued build is still placed before the current one finishes (no lost progress).
+    // Capped at MaxDelayMinutes. No-Plus case (only one slot; next build starts only once the
+    // current finishes): a random value in the [NoPlusMin, NoPlusMax] minute range instead.
+    public const bool ConstructionHumanizeDelayEnabled = true;
+    public const double ConstructionHumanizeQueuePercentMin = 5.0;
+    public const double ConstructionHumanizeQueuePercentMax = 20.0;
+    public const double ConstructionHumanizeMaxDelayMinutes = 3.0;
+    public const double ConstructionHumanizeNoPlusMinMinutes = 1.0;
+    public const double ConstructionHumanizeNoPlusMaxMinutes = 2.0;
 }

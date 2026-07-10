@@ -332,6 +332,9 @@ public sealed partial class TravianClient
                     return $"Resource slot {slotId} blocked ({actionability.Outcome}): {actionability.Reason}";
                 }
 
+                // Human-like pause before starting the next construction (see MaybeApplyConstructionStartDelayAsync).
+                await MaybeApplyConstructionStartDelayAsync(ConstructionKind.Resource, slotId, cancellationToken);
+
                 var pageAnalysis = await ReadConstructionPageAnalysisAsync(
                     slotId,
                     "resource upgrade pre-click",
@@ -551,6 +554,8 @@ public sealed partial class TravianClient
                     {
                         attemptedAny = true;
                         Notify($"[UpgradeAllResourcesToLevelAsync] clicking upgrade for slot={slot} from level={level} toward target={effectiveTarget}.");
+                        // Human-like pause before starting the next construction (see MaybeApplyConstructionStartDelayAsync).
+                        await MaybeApplyConstructionStartDelayAsync(ConstructionKind.Resource, slot, cancellationToken);
                         var queueFingerprintBefore = BuildQueueFingerprints.Identity(await ReadBuildQueueAsync(cancellationToken));
                         var pageAnalysis = await ReadConstructionPageAnalysisAsync(
                             slot,

@@ -328,6 +328,24 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.FarmListStepDelayMaxSeconds)]
     public double FarmListStepDelayMaxSeconds { get; init; } = PacingDefaults.FarmListStepDelayMaxSeconds;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled)]
+    public bool ConstructionHumanizeDelayEnabled { get; init; } = PacingDefaults.ConstructionHumanizeDelayEnabled;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMin)]
+    public double ConstructionHumanizeQueuePercentMin { get; init; } = PacingDefaults.ConstructionHumanizeQueuePercentMin;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMax)]
+    public double ConstructionHumanizeQueuePercentMax { get; init; } = PacingDefaults.ConstructionHumanizeQueuePercentMax;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionHumanizeMaxDelayMinutes)]
+    public double ConstructionHumanizeMaxDelayMinutes { get; init; } = PacingDefaults.ConstructionHumanizeMaxDelayMinutes;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionHumanizeNoPlusMinMinutes)]
+    public double ConstructionHumanizeNoPlusMinMinutes { get; init; } = PacingDefaults.ConstructionHumanizeNoPlusMinMinutes;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionHumanizeNoPlusMaxMinutes)]
+    public double ConstructionHumanizeNoPlusMaxMinutes { get; init; } = PacingDefaults.ConstructionHumanizeNoPlusMaxMinutes;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.TargetVillageName)]
     public string TargetVillageName { get; init; } = string.Empty;
 

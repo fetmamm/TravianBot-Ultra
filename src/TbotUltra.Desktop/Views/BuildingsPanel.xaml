@@ -224,6 +224,60 @@
                         BorderBrush="{DynamicResource AccentBrush}"
                         ToolTip="Create, save, and queue reusable building templates for the selected village."
                         Click="BuildingTemplatesButton_Click" />
+
+                <!-- Human-like pause before starting the next construction. -->
+                <Separator Margin="0,14,0,10" Background="{DynamicResource BorderBrush}" />
+                <CheckBox x:Name="ConstructionHumanizeCheckBox"
+                          Content="Humanize construction start delay"
+                          Foreground="{DynamicResource TextPrimaryBrush}"
+                          FontWeight="SemiBold"
+                          Checked="ConstructionHumanizeSetting_Changed"
+                          Unchecked="ConstructionHumanizeSetting_Changed"
+                          Margin="0,0,0,6" />
+                <TextBlock Text="Wait a bit before starting the next construction instead of reacting the instant a slot frees."
+                           Foreground="{DynamicResource TextSubtleBrush}"
+                           FontSize="11"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,8" />
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="58" />
+                        <ColumnDefinition Width="58" />
+                    </Grid.ColumnDefinitions>
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                    </Grid.RowDefinitions>
+                    <TextBlock Grid.Row="0" Grid.Column="1" Text="Min" FontWeight="SemiBold" FontSize="11"
+                               Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" />
+                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Max" FontWeight="SemiBold" FontSize="11"
+                               Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" Margin="6,0,0,0" />
+
+                    <TextBlock Grid.Row="1" Grid.Column="0" Text="Queue delay (% of build left)" VerticalAlignment="Center"
+                               FontSize="11" Foreground="{DynamicResource TextSubtleBrush}" Margin="0,2"
+                               ToolTip="When a build is already running (Plus queue), wait this % of its remaining time." />
+                    <TextBox x:Name="ConstructionHumanizeQueuePercentMinTextBox" Grid.Row="1" Grid.Column="1" Height="24"
+                             Margin="0,2" LostFocus="ConstructionHumanizeSetting_Changed" />
+                    <TextBox x:Name="ConstructionHumanizeQueuePercentMaxTextBox" Grid.Row="1" Grid.Column="2" Height="24"
+                             Margin="6,2,0,2" LostFocus="ConstructionHumanizeSetting_Changed" />
+
+                    <TextBlock Grid.Row="2" Grid.Column="0" Text="Max delay (min)" VerticalAlignment="Center"
+                               FontSize="11" Foreground="{DynamicResource TextSubtleBrush}" Margin="0,2"
+                               ToolTip="Absolute cap on the percentage delay." />
+                    <TextBox x:Name="ConstructionHumanizeMaxDelayTextBox" Grid.Row="2" Grid.Column="1" Height="24"
+                             Margin="0,2" LostFocus="ConstructionHumanizeSetting_Changed" />
+
+                    <TextBlock Grid.Row="3" Grid.Column="0" Text="No-Plus delay (min)" VerticalAlignment="Center"
+                               FontSize="11" Foreground="{DynamicResource TextSubtleBrush}" Margin="0,2"
+                               ToolTip="Used when only one slot exists (no Plus): wait this many minutes after a build finishes before starting the next." />
+                    <TextBox x:Name="ConstructionHumanizeNoPlusMinTextBox" Grid.Row="3" Grid.Column="1" Height="24"
+                             Margin="0,2" LostFocus="ConstructionHumanizeSetting_Changed" />
+                    <TextBox x:Name="ConstructionHumanizeNoPlusMaxTextBox" Grid.Row="3" Grid.Column="2" Height="24"
+                             Margin="6,2,0,2" LostFocus="ConstructionHumanizeSetting_Changed" />
+                </Grid>
             </StackPanel>
         </Border>
     </Grid>
