@@ -67,10 +67,14 @@ function ConvertTo-CommandLineArgument {
 }
 
 if ([string]::IsNullOrWhiteSpace($RunName)) {
-    $RunName = Get-Date -Format "yyyyMMdd-HHmmss"
+    $RunName = "latest"
 }
 
 $runRoot = Join-Path $repoRoot "temp_build_out\test-runs\$RunName"
+if (Test-Path -LiteralPath $runRoot) {
+    Write-Host "Removing previous test output: $runRoot"
+    Remove-Item -LiteralPath $runRoot -Recurse -Force
+}
 New-Item -ItemType Directory -Force -Path $runRoot | Out-Null
 
 if ($Project.Count -gt 0) {

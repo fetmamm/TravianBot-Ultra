@@ -1,0 +1,10 @@
+<Project>
+  <PropertyGroup>
+    <!-- Keep all default .NET build output in one disposable directory. -->
+    <BaseOutputPath>$(MSBuildThisFileDirectory)temp_build_out\dotnet\bin\$(MSBuildProjectName)\</BaseOutputPath>
+    <BaseIntermediateOutputPath>$(MSBuildThisFileDirectory)temp_build_out\dotnet\obj\$(MSBuildProjectName)\</BaseIntermediateOutputPath>
+
+    <!-- Never let generated output become an input to a later build. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);**\temp_build_out\**</DefaultItemExcludes>
+  </PropertyGroup>
+</Project>

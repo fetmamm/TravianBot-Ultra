@@ -149,7 +149,7 @@ the others.
 | `.github/workflows/` | CI: `build-exe-on-version.yml`, `discord-push.yml`. |
 | `artifacts/` | Local verification artifacts (gitignored). |
 | `logs/` | Runtime logs from the desktop app (gitignored). |
-| `temp_build_out/` | Scratch space for ad-hoc local builds (gitignored). |
+| `temp_build_out/` | All disposable .NET build, test, diagnostic, and scratch output (gitignored). |
 
 Top-level files worth knowing:
 
@@ -245,6 +245,11 @@ xUnit. Each test file targets one class (e.g.
 
 Run local verification with `.\scripts\Build-Check.ps1` and `.\scripts\Run-Tests.ps1`.
 Both use isolated output under `temp_build_out/` so they can run while the desktop app is open.
+Their default `latest` directories are replaced on every run instead of accumulating timestamped copies.
+Run `./scripts/Clean-Generated.ps1` after closing Tbot Ultra to remove central generated output;
+saved files under `temp_build_out/DOM/` are always preserved.
+For the one-time removal of old `bin`, `obj`, and nested `temp_build_out` directories under `src`, run
+`./scripts/Clean-Generated.ps1 -IncludeLegacyOutput`.
 
 ---
 

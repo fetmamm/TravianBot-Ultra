@@ -65,11 +65,15 @@ function ConvertTo-CommandLineArgument {
 }
 
 if ([string]::IsNullOrWhiteSpace($RunName)) {
-    $RunName = Get-Date -Format "yyyyMMdd-HHmmss"
+    $RunName = "latest"
 }
 
 $projectPath = if ([System.IO.Path]::IsPathRooted($Project)) { $Project } else { Join-Path $repoRoot $Project }
 $artifactsDir = Join-Path $repoRoot "temp_build_out\build-check\$RunName\artifacts"
+if (Test-Path -LiteralPath $artifactsDir) {
+    Write-Host "Removing previous build-check output: $artifactsDir"
+    Remove-Item -LiteralPath $artifactsDir -Recurse -Force
+}
 New-Item -ItemType Directory -Force -Path $artifactsDir | Out-Null
 
 $arguments = @(
