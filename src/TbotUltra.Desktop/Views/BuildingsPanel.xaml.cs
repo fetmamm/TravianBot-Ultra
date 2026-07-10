@@ -23,6 +23,9 @@ public partial class BuildingsPanel : UserControl
     {
         InitializeComponent();
         Loaded += BuildingsPanel_Loaded;
+        // Re-seed whenever the tab becomes visible too: at first Loaded the host window / config may
+        // not be ready yet, which would otherwise leave the checkbox showing its XAML default.
+        IsVisibleChanged += BuildingsPanel_IsVisibleChanged;
     }
 
     private MainWindow? Host
@@ -77,6 +80,14 @@ public partial class BuildingsPanel : UserControl
         LoadConstructionHumanizeSettings();
     }
 
+    private void BuildingsPanel_IsVisibleChanged(object sender, DependencyPropertyChangedEventArgs e)
+    {
+        if (e.NewValue is true)
+        {
+            LoadConstructionHumanizeSettings();
+        }
+    }
+
     private void LoadConstructionHumanizeSettings()
     {
         if (ConstructionHumanizeCheckBox is null || Host is not { } host)
@@ -84,16 +95,20 @@ public partial class BuildingsPanel : UserControl
             return;
         }
 
-        var settings = host.GetConstructionHumanizeSettings();
         _suppressHumanizeWrite = true;
         try
         {
+            var settings = host.GetConstructionHumanizeSettings();
             ConstructionHumanizeCheckBox.IsChecked = settings.Enabled;
             ConstructionHumanizeQueuePercentMinTextBox.Text = FormatHumanizeNumber(settings.QueuePercentMin);
             ConstructionHumanizeQueuePercentMaxTextBox.Text = FormatHumanizeNumber(settings.QueuePercentMax);
             ConstructionHumanizeMaxDelayTextBox.Text = FormatHumanizeNumber(settings.MaxDelayMinutes);
             ConstructionHumanizeNoPlusMinTextBox.Text = FormatHumanizeNumber(settings.NoPlusMinMinutes);
             ConstructionHumanizeNoPlusMaxTextBox.Text = FormatHumanizeNumber(settings.NoPlusMaxMinutes);
+        }
+        catch
+        {
+            // Never let seeding throw out of a Loaded/visibility handler; the XAML defaults stand in.
         }
         finally
         {

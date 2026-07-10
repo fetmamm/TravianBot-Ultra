@@ -39,4 +39,10 @@ public sealed class TravianSessionCache
     // slot freed" (previous>0, current==0) from a genuinely idle start. Survives the per-operation
     // TravianClient instances so the deferred attempts and the eventual start share the same memory.
     public System.Collections.Generic.Dictionary<string, int> ConstructionOngoingByKey { get; } = new();
+
+    // When the humanized construction delay defers a specific build, the computed "start no earlier
+    // than" deadline is stored here keyed by "{villageNewdid}:{kind}:{slotId}". On the retry after
+    // the wait the gate finds now>=deadline and lets the build proceed instead of re-computing (which
+    // would defer forever). Survives per-operation TravianClient instances like the other caches.
+    public System.Collections.Generic.Dictionary<string, System.DateTimeOffset> ConstructionHumanizeUntilBySlot { get; } = new();
 }

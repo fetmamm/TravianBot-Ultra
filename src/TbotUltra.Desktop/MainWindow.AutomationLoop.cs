@@ -363,10 +363,18 @@ public partial class MainWindow
     }
 
     // A construction task just deferred. Refresh the selected village's indicators; the card resolves
-    // the Travian queue and the task's defer reason separately.
-    private void ApplyConstructionInlineWait(TimeSpan waitDelay)
+    // the Travian queue and the task's defer reason separately. When the defer is the humanized start
+    // delay, remember its village + next-attempt time so the build-queue timer shows that countdown.
+    private void ApplyConstructionInlineWait(TimeSpan waitDelay, string? humanizeVillage, TimeSpan? humanizeWait)
     {
         _ = waitDelay;
+        if (humanizeWait is { } wait)
+        {
+            _constructionHumanizeWaitUntilUtc = DateTimeOffset.UtcNow + wait;
+            _constructionHumanizeWaitVillage = humanizeVillage;
+            UpdateBuildQueueStatusText();
+        }
+
         UpdateAutomationLoopRunningIndicators();
     }
 

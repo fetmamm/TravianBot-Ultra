@@ -277,6 +277,10 @@ public partial class MainWindow : Window
     private int _activeVillageResourceMaxLevel = NonCapitalResourceMaxLevel;
     private int _buildQueueRemainingSeconds = -1;
     private int _buildQueueActiveCount;
+    // When the humanized construction delay defers the next build, this holds when the next attempt is
+    // due plus which village it belongs to, so the build-queue timer shows that village's countdown.
+    private DateTimeOffset _constructionHumanizeWaitUntilUtc = DateTimeOffset.MinValue;
+    private string? _constructionHumanizeWaitVillage;
     private bool? _travianPlusActive;
     private List<int> _smithyUpgradeRemainingSeconds = [];
     private bool _smithyUpgradeStatusRefreshRunning;

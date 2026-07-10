@@ -198,6 +198,15 @@ public partial class MainWindow
 
     private void UpdateBuildQueueStatusText()
     {
+        // A pending humanized start delay for the selected village takes precedence: show when the next
+        // construction attempt is due. Kept as a display override so it never overwrites the real
+        // status-derived build-queue remaining (which stays correct for when the current build finishes).
+        if (TryGetSelectedVillageConstructionHumanizeWaitSeconds(out var humanizeWaitSeconds))
+        {
+            BuildQueueStatusTextBlock.Text = $"Build queue: next attempt in {FormatCountdown(humanizeWaitSeconds)}";
+            return;
+        }
+
         if (_buildQueueActiveCount <= 0)
         {
             BuildQueueStatusTextBlock.Text = "Build queue: idle";
@@ -217,6 +226,30 @@ public partial class MainWindow
         }
 
         BuildQueueStatusTextBlock.Text = $"Build queue: active={_buildQueueActiveCount}, remaining=-";
+    }
+
+    // True when the humanized construction start delay is still pending for the currently-selected
+    // village. Clears itself once the wait elapses so the timer reverts to the real build-queue status.
+    private bool TryGetSelectedVillageConstructionHumanizeWaitSeconds(out int seconds)
+    {
+        seconds = 0;
+        if (_constructionHumanizeWaitUntilUtc <= DateTimeOffset.UtcNow)
+        {
+            _constructionHumanizeWaitUntilUtc = DateTimeOffset.MinValue;
+            _constructionHumanizeWaitVillage = null;
+            return false;
+        }
+
+        if (!string.Equals(
+                _constructionHumanizeWaitVillage,
+                NormalizeVillageName(GetSelectedVillageName()),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        seconds = (int)Math.Ceiling((_constructionHumanizeWaitUntilUtc - DateTimeOffset.UtcNow).TotalSeconds);
+        return seconds > 0;
     }
 
     private void TickBuildQueueCountdown()

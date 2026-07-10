@@ -206,8 +206,12 @@ public sealed partial class TravianClient : IBuildingClient
                 return deferMessage;
             }
 
-            // Human-like pause before starting the next build (see MaybeApplyConstructionStartDelayAsync).
-            await MaybeApplyConstructionStartDelayAsync(ConstructionKind.Building, slotId, cancellationToken);
+            // Human-like defer before starting the next build (see MaybeGetConstructionHumanizeDeferAsync).
+            var humanizeDefer = await MaybeGetConstructionHumanizeDeferAsync(ConstructionKind.Building, slotId, cancellationToken);
+            if (humanizeDefer is not null)
+            {
+                return humanizeDefer;
+            }
 
             // Step 3: open or reuse the slot's build page.
             await EnsureCurrentBuildPageForActionAsync(slotId, "upgrade", cancellationToken);
@@ -1300,8 +1304,12 @@ public sealed partial class TravianClient : IBuildingClient
                 return deferMessage;
             }
 
-            // Human-like pause before starting the next build (see MaybeApplyConstructionStartDelayAsync).
-            await MaybeApplyConstructionStartDelayAsync(ConstructionKind.Building, slotId, cancellationToken);
+            // Human-like defer before starting the next build (see MaybeGetConstructionHumanizeDeferAsync).
+            var humanizeDefer = await MaybeGetConstructionHumanizeDeferAsync(ConstructionKind.Building, slotId, cancellationToken);
+            if (humanizeDefer is not null)
+            {
+                return humanizeDefer;
+            }
 
             // Step 3: open or reuse the slot's build page.
             await EnsureCurrentBuildPageForActionAsync(slotId, "upgrade-to-max", cancellationToken);
@@ -3929,6 +3937,22 @@ public sealed partial class TravianClient : IBuildingClient
         }
 
         var isRomans = string.Equals(tribe, "Romans", StringComparison.OrdinalIgnoreCase);
+
+        // Keep the humanize transition memory fresh while the slot is full. This records the category
+        // as "occupied" during the queue-full wait, so when the slot finally frees the humanize gate
+        // sees previous>0 and applies the no-Plus delay (the gate itself only runs once the slot is free).
+        if (_config.ConstructionHumanizeDelayEnabled)
+        {
+            var villageToken = TravianUrls.TryParseNewdid(_page.Url)?.ToString() ?? "current";
+            var ongoingInCategory = (isRomans
+                    ? status.Active.Where(a => kind == ConstructionKind.Resource
+                        ? a.Kind == ConstructionKind.Resource
+                        : a.Kind != ConstructionKind.Resource)
+                    : status.Active)
+                .Count(a => a.TimeLeftSeconds is int v && v > 0);
+            _session.ConstructionOngoingByKey[ConstructionCategoryKey(kind, isRomans, villageToken)] = ongoingInCategory;
+        }
+
         var relevantWait = (isRomans
                 ? status.Active.Where(a => kind == ConstructionKind.Resource
                     ? a.Kind == ConstructionKind.Resource
@@ -3947,33 +3971,56 @@ public sealed partial class TravianClient : IBuildingClient
     }
 
     // Human-like pause before starting the next construction, so the bot does not react to a freed
-    // build slot faster than a person would. Called at the real start gates only (right before the
-    // upgrade click), after CheckQueueOrDeferAsync has confirmed a slot is free. Two cases
-    // (see PacingDefaults.ConstructionHumanize*):
+    // build slot faster than a person would. Called at the real start gates only, after
+    // CheckQueueOrDeferAsync has confirmed a slot is free. Returns a defer message
+    // (queue_wait_seconds=N) so the desktop re-queues the task and shows a per-village "next attempt"
+    // countdown — the loop keeps working on other groups meanwhile (non-blocking). Returns null to
+    // build immediately. Two cases (see PacingDefaults.ConstructionHumanize*):
     //  - A build is already running in this slot's category (with Plus the next one is placed in the
-    //    Travian queue): wait a random 5-20% of the running build's remaining time, capped. The queued
-    //    build still starts only when the current one finishes, so a sub-100% delay loses no progress.
+    //    Travian queue): defer a random 5-20% of the running build's remaining time, capped. The
+    //    queued build still starts only when the current finishes, so a sub-100% delay loses no progress.
     //  - Only one slot and it just freed (a build finished): percentage has nothing to measure against,
-    //    so wait a random value in the no-Plus minute range instead.
+    //    so defer a random value in the no-Plus minute range instead.
     // A genuinely idle first build (nothing was running here) starts immediately, exactly as before.
-    private async Task MaybeApplyConstructionStartDelayAsync(
+    private async Task<string?> MaybeGetConstructionHumanizeDeferAsync(
         ConstructionKind kind,
         int slotId,
         CancellationToken cancellationToken)
     {
         if (!_config.ConstructionHumanizeDelayEnabled)
         {
-            return;
+            return null;
         }
 
         try
         {
+            var villageToken = TravianUrls.TryParseNewdid(_page.Url)?.ToString() ?? "current";
+            var slotKey = $"{villageToken}:{kind}:{slotId}";
+            var now = DateTimeOffset.UtcNow;
+
+            // Retry after a delay we already scheduled for THIS build: let it proceed (or wait out the
+            // small remainder). Without this the % case would recompute and defer forever behind a live
+            // build, since the slot is still free each retry.
+            if (_session.ConstructionHumanizeUntilBySlot.TryGetValue(slotKey, out var scheduledUntil))
+            {
+                var remainingSeconds = (scheduledUntil - now).TotalSeconds;
+                if (remainingSeconds <= 1)
+                {
+                    _session.ConstructionHumanizeUntilBySlot.Remove(slotKey);
+                    return null;
+                }
+
+                var remainingWait = (int)Math.Ceiling(remainingSeconds);
+                Notify($"[construction-humanize] slot {slotId}: {remainingWait}s left before start. queue_wait_seconds={remainingWait}");
+                return $"Slot {slotId}: humanized construction start delay. queue_wait_seconds={remainingWait}";
+            }
+
             var (tribe, plusActive) = await GetCachedTribeAndPlusAsync(cancellationToken);
             var status = await EvaluateConstructionSlotsAsync(tribe, plusActive, cancellationToken);
             var isRomans = string.Equals(tribe, "Romans", StringComparison.OrdinalIgnoreCase);
 
             // Remaining timers of constructions competing for the same slot category as this start.
-            // Mirror the exact isRomans filter used above: Romans have separate resource/building
+            // Mirror the exact isRomans filter used elsewhere: Romans have separate resource/building
             // slots, every other tribe shares one build pool for fields and buildings.
             var ongoingRemaining = (isRomans
                     ? status.Active.Where(a => kind == ConstructionKind.Resource
@@ -3986,15 +4033,11 @@ public sealed partial class TravianClient : IBuildingClient
             var ongoingCount = ongoingRemaining.Count;
 
             // Per (village, category) transition memory so we can tell "a build just finished, slot
-            // freed" from a genuinely idle start. Non-Romans share one build slot, Romans separate —
-            // key mirrors that so the two categories don't clobber each other.
-            var category = isRomans
-                ? (kind == ConstructionKind.Resource ? "resource" : "building")
-                : "shared";
-            var villageToken = TravianUrls.TryParseNewdid(_page.Url)?.ToString() ?? "current";
-            var stateKey = $"{villageToken}:{category}";
-            var previousOngoingCount = _session.ConstructionOngoingByKey.GetValueOrDefault(stateKey, 0);
-            _session.ConstructionOngoingByKey[stateKey] = ongoingCount;
+            // freed" from a genuinely idle start. CheckQueueOrDeferAsync keeps this fresh on its
+            // queue-full defers too, so the previous>0 signal survives the wait for the slot.
+            var categoryKey = ConstructionCategoryKey(kind, isRomans, villageToken);
+            var previousOngoingCount = _session.ConstructionOngoingByKey.GetValueOrDefault(categoryKey, 0);
+            _session.ConstructionOngoingByKey[categoryKey] = ongoingCount;
 
             double delaySeconds;
             string reason;
@@ -4022,16 +4065,18 @@ public sealed partial class TravianClient : IBuildingClient
             else
             {
                 // Nothing was building here → start immediately, as before.
-                return;
+                return null;
             }
 
             if (delaySeconds < 1)
             {
-                return;
+                return null;
             }
 
-            Notify($"[construction-humanize] waiting {delaySeconds:F0}s before starting slot {slotId} ({reason}).");
-            await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
+            var waitSeconds = (int)Math.Ceiling(delaySeconds);
+            _session.ConstructionHumanizeUntilBySlot[slotKey] = now.AddSeconds(waitSeconds);
+            Notify($"[construction-humanize] slot {slotId}: waiting {waitSeconds}s before start ({reason}). queue_wait_seconds={waitSeconds}");
+            return $"Slot {slotId}: humanized construction start delay ({reason}). queue_wait_seconds={waitSeconds}";
         }
         catch (OperationCanceledException)
         {
@@ -4039,9 +4084,20 @@ public sealed partial class TravianClient : IBuildingClient
         }
         catch (Exception ex)
         {
-            // A humanization delay must never break the actual build — log and proceed.
+            // A humanization delay must never block the actual build — log and proceed.
             Notify($"[construction-humanize] skipped due to error: {ex.Message}");
+            return null;
         }
+    }
+
+    // Key for the per-village humanize transition memory. Non-Romans share one build slot for fields
+    // and buildings; Romans have separate resource/building slots — mirror that so the categories
+    // don't clobber each other.
+    private static string ConstructionCategoryKey(ConstructionKind kind, bool isRomans, string villageToken)
+    {
+        return isRomans
+            ? $"{villageToken}:{(kind == ConstructionKind.Resource ? "resource" : "building")}"
+            : $"{villageToken}:shared";
     }
 
     private static double RandomInRange(double min, double max)

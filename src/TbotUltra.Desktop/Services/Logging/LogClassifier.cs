@@ -60,6 +60,7 @@ public static class LogClassifier
         // bot is waiting — action pacing before a click/page load, loop/auto-queue idle waits, and session
         // sleep/wake. Matched ahead of Loop/Login because several of these also contain "[loop "/"session".
         if (value.Contains("[pacing]")
+            || value.Contains("[construction-humanize]")
             || value.Contains("[keep-alive")
             || value.Contains("sleep starting")
             || value.Contains("session waking")

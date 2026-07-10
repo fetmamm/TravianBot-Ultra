@@ -667,7 +667,10 @@ public partial class MainWindow
 
             if (IsConstructionQueueTask(item.TaskName))
             {
-                await Dispatcher.InvokeAsync(() => ApplyConstructionInlineWait(queueWaitDelay));
+                var isHumanizeDefer = ex.Message.Contains("humanized construction start delay", StringComparison.OrdinalIgnoreCase);
+                var humanizeVillage = isHumanizeDefer ? NormalizeVillageName(GetQueueItemVillageName(item)) : null;
+                TimeSpan? humanizeWait = isHumanizeDefer ? queueWaitDelay : null;
+                await Dispatcher.InvokeAsync(() => ApplyConstructionInlineWait(queueWaitDelay, humanizeVillage, humanizeWait));
             }
 
             if (IsHeroLowHpCooldown(item, ex))
