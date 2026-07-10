@@ -24,6 +24,15 @@ public static class PacingDefaults
     public const double FarmListStepDelayMinSeconds = 1.5;
     public const double FarmListStepDelayMaxSeconds = 4.0;
 
+    // Occasional "step away from the computer" idle pause inserted between loop passes. Sometime within
+    // the interval range a random pause of the duration range fires, then the interval reschedules.
+    // Enabled by default. Values are minutes (duration min is fractional, so doubles).
+    public const bool ActionPacingIdleBreakEnabled = true;
+    public const double ActionPacingIdleBreakIntervalMinMinutes = 20.0;
+    public const double ActionPacingIdleBreakIntervalMaxMinutes = 75.0;
+    public const double ActionPacingIdleBreakDurationMinMinutes = 0.5;
+    public const double ActionPacingIdleBreakDurationMaxMinutes = 3.0;
+
     // Delay (seconds) between internal clicks/steps in the auto-collect tasks/daily-quests flows only.
     public const double CollectStepDelayMinSeconds = 0.6;
     public const double CollectStepDelayMaxSeconds = 2.0;
@@ -37,7 +46,7 @@ public static class PacingDefaults
     public const bool ConstructionHumanizeDelayEnabled = true;
     public const double ConstructionHumanizeQueuePercentMin = 5.0;
     public const double ConstructionHumanizeQueuePercentMax = 20.0;
-    public const double ConstructionHumanizeMaxDelayMinutes = 3.0;
-    public const double ConstructionHumanizeNoPlusMinMinutes = 1.0;
-    public const double ConstructionHumanizeNoPlusMaxMinutes = 2.0;
+    public const double ConstructionHumanizeMaxDelayMinutes = 25.0;
+    public const double ConstructionHumanizeNoPlusMinMinutes = 0.5;
+    public const double ConstructionHumanizeNoPlusMaxMinutes = 3.0;
 }

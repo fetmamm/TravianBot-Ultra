@@ -228,6 +228,12 @@ public static class BotOptionPayloadKeys
     public const string FarmListStepDelayMinSeconds = "farm_list_step_delay_min_seconds";
     public const string FarmListStepDelayMaxSeconds = "farm_list_step_delay_max_seconds";
 
+    public const string ActionPacingIdleBreakEnabled = "action_pacing_idle_break_enabled";
+    public const string ActionPacingIdleBreakIntervalMinMinutes = "action_pacing_idle_break_interval_min_minutes";
+    public const string ActionPacingIdleBreakIntervalMaxMinutes = "action_pacing_idle_break_interval_max_minutes";
+    public const string ActionPacingIdleBreakDurationMinMinutes = "action_pacing_idle_break_duration_min_minutes";
+    public const string ActionPacingIdleBreakDurationMaxMinutes = "action_pacing_idle_break_duration_max_minutes";
+
     public const string ConstructionHumanizeDelayEnabled = "construction_humanize_delay_enabled";
     public const string ConstructionHumanizeQueuePercentMin = "construction_humanize_queue_percent_min";
     public const string ConstructionHumanizeQueuePercentMax = "construction_humanize_queue_percent_max";

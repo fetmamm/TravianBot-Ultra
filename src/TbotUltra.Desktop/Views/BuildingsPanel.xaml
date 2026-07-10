@@ -229,7 +229,7 @@
                 <Separator Margin="0,14,0,10" Background="{DynamicResource BorderBrush}" />
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                     <CheckBox x:Name="ConstructionHumanizeCheckBox"
-                              Content="Humanize construction start delay"
+                              Content="Construction start delay"
                               Foreground="{DynamicResource TextPrimaryBrush}"
                               FontWeight="SemiBold"
                               VerticalAlignment="Center"

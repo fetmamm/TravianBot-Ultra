@@ -193,6 +193,12 @@ public partial class SettingsWindow : Window
         FarmListStepDelayMinTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.FarmListStepDelayMinSeconds, PacingDefaults.FarmListStepDelayMinSeconds));
         FarmListStepDelayMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.FarmListStepDelayMaxSeconds, PacingDefaults.FarmListStepDelayMaxSeconds));
 
+        IdleBreakEnabledCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBreakEnabled, PacingDefaults.ActionPacingIdleBreakEnabled);
+        IdleBreakIntervalMinTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingIdleBreakIntervalMinMinutes, PacingDefaults.ActionPacingIdleBreakIntervalMinMinutes));
+        IdleBreakIntervalMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingIdleBreakIntervalMaxMinutes, PacingDefaults.ActionPacingIdleBreakIntervalMaxMinutes));
+        IdleBreakDurationMinTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingIdleBreakDurationMinMinutes, PacingDefaults.ActionPacingIdleBreakDurationMinMinutes));
+        IdleBreakDurationMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingIdleBreakDurationMaxMinutes, PacingDefaults.ActionPacingIdleBreakDurationMaxMinutes));
+
         CollectStepDelayMinTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.CollectStepDelayMinSeconds, PacingDefaults.CollectStepDelayMinSeconds));
         CollectStepDelayMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.CollectStepDelayMaxSeconds, PacingDefaults.CollectStepDelayMaxSeconds));
     }
@@ -224,6 +230,23 @@ public partial class SettingsWindow : Window
             FarmListStepDelayMaxTextBox,
             PacingDefaults.FarmListStepDelayMinSeconds,
             PacingDefaults.FarmListStepDelayMaxSeconds);
+
+        // Idle "step away" break (minutes). WriteDelayRange clamps and keeps max >= min.
+        _config[BotOptionPayloadKeys.ActionPacingIdleBreakEnabled] = IdleBreakEnabledCheckBox.IsChecked == true;
+        WriteDelayRange(
+            BotOptionPayloadKeys.ActionPacingIdleBreakIntervalMinMinutes,
+            BotOptionPayloadKeys.ActionPacingIdleBreakIntervalMaxMinutes,
+            IdleBreakIntervalMinTextBox,
+            IdleBreakIntervalMaxTextBox,
+            PacingDefaults.ActionPacingIdleBreakIntervalMinMinutes,
+            PacingDefaults.ActionPacingIdleBreakIntervalMaxMinutes);
+        WriteDelayRange(
+            BotOptionPayloadKeys.ActionPacingIdleBreakDurationMinMinutes,
+            BotOptionPayloadKeys.ActionPacingIdleBreakDurationMaxMinutes,
+            IdleBreakDurationMinTextBox,
+            IdleBreakDurationMaxTextBox,
+            PacingDefaults.ActionPacingIdleBreakDurationMinMinutes,
+            PacingDefaults.ActionPacingIdleBreakDurationMaxMinutes);
 
         // Collect step delay (seconds). WriteDelayRange clamps and keeps max >= min.
         WriteDelayRange(
@@ -259,6 +282,11 @@ public partial class SettingsWindow : Window
         ActionLoopMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingLoopMaxSeconds);
         FarmListStepDelayMinTextBox.Text = FormatDelay(PacingDefaults.FarmListStepDelayMinSeconds);
         FarmListStepDelayMaxTextBox.Text = FormatDelay(PacingDefaults.FarmListStepDelayMaxSeconds);
+        IdleBreakEnabledCheckBox.IsChecked = PacingDefaults.ActionPacingIdleBreakEnabled;
+        IdleBreakIntervalMinTextBox.Text = FormatDelay(PacingDefaults.ActionPacingIdleBreakIntervalMinMinutes);
+        IdleBreakIntervalMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingIdleBreakIntervalMaxMinutes);
+        IdleBreakDurationMinTextBox.Text = FormatDelay(PacingDefaults.ActionPacingIdleBreakDurationMinMinutes);
+        IdleBreakDurationMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingIdleBreakDurationMaxMinutes);
         CollectStepDelayMinTextBox.Text = FormatDelay(PacingDefaults.CollectStepDelayMinSeconds);
         CollectStepDelayMaxTextBox.Text = FormatDelay(PacingDefaults.CollectStepDelayMaxSeconds);
     }

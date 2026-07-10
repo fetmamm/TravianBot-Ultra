@@ -1619,6 +1619,8 @@ public partial class MainWindow
         // Start a fresh construction village rotation each time the loop starts.
         _continuousConstructionRotationVillageKey = null;
         _continuousGroupRotationVillageKeys.Clear();
+        // Reschedule the first idle "step away" break relative to this run's start.
+        _nextIdleBreakDueUtc = DateTimeOffset.MinValue;
         while (!token.IsCancellationRequested)
         {
             if (_loopController.LoopStopRequested)
@@ -1633,6 +1635,9 @@ public partial class MainWindow
             try
             {
                 AppendLog($"[LOOP {tickId}] START");
+                // Occasional human-like "stepped away from the computer" pause. Between tasks only, so it
+                // never interrupts a build/click.
+                await MaybeTakeIdleBreakAsync(options, token);
                 await EnsureChromiumInstalledAsync();
                 await HonorPendingVillageSwitchAsync(options, token);
                 await EnsureContinuousLoopConstructionStatusAsync(options, token);
@@ -1789,6 +1794,93 @@ public partial class MainWindow
                 : TimeSpan.FromSeconds(ContinuousLoopMaxSleepSliceSeconds);
             await Task.Delay(slice, token);
         }
+    }
+
+    // Occasional human-like "stepped away from the computer" pause. Called at the top of a loop
+    // iteration (between tasks only, never mid-action). Somewhere within the interval range a random
+    // pause of the duration range fires; when it ends the interval reschedules. Logged under Pacing.
+    private async Task MaybeTakeIdleBreakAsync(BotOptions options, CancellationToken token)
+    {
+        if (!options.ActionPacingIdleBreakEnabled)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (_nextIdleBreakDueUtc == DateTimeOffset.MinValue)
+        {
+            // First pass of this run: schedule the first break, don't fire immediately.
+            _nextIdleBreakDueUtc = now.Add(RandomIdleBreakInterval(options));
+            return;
+        }
+
+        if (now < _nextIdleBreakDueUtc)
+        {
+            return;
+        }
+
+        // Only "step away" during normal, logged-in operation. Never while the session is sleeping
+        // (the loop is stopped then anyway) or mid login/recovery — and if a break came due during such
+        // a window, reschedule instead of firing the instant work resumes.
+        if (IsSessionSleeping || !_isLoggedIn || !_browserSessionLikelyOpen)
+        {
+            _nextIdleBreakDueUtc = now.Add(RandomIdleBreakInterval(options));
+            return;
+        }
+
+        var durationMinutes = RandomInRangeMinutes(
+            options.ActionPacingIdleBreakDurationMinMinutes,
+            options.ActionPacingIdleBreakDurationMaxMinutes);
+        var totalSeconds = Math.Max(1, (int)Math.Round(durationMinutes * 60));
+        AppendLog($"[pacing] idle break: stepping away for {totalSeconds}s.");
+
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(totalSeconds);
+        var stopped = false;
+        while (DateTimeOffset.UtcNow < deadline)
+        {
+            token.ThrowIfCancellationRequested();
+            if (_loopController.LoopStopRequested)
+            {
+                stopped = true;
+                break;
+            }
+
+            var remaining = deadline - DateTimeOffset.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                break;
+            }
+
+            var slice = remaining < TimeSpan.FromSeconds(ContinuousLoopMaxSleepSliceSeconds)
+                ? remaining
+                : TimeSpan.FromSeconds(ContinuousLoopMaxSleepSliceSeconds);
+            await Task.Delay(slice, token);
+        }
+
+        if (stopped)
+        {
+            AppendLog("[pacing] idle break canceled by stop.");
+            return;
+        }
+
+        AppendLog("[pacing] idle break over; resuming.");
+        _nextIdleBreakDueUtc = DateTimeOffset.UtcNow.Add(RandomIdleBreakInterval(options));
+    }
+
+    private static TimeSpan RandomIdleBreakInterval(BotOptions options)
+    {
+        var minutes = RandomInRangeMinutes(
+            options.ActionPacingIdleBreakIntervalMinMinutes,
+            options.ActionPacingIdleBreakIntervalMaxMinutes);
+        // Floor so a mis-set 0/tiny interval can't turn the loop into a constant-break busy loop.
+        return TimeSpan.FromSeconds(Math.Max(5.0, minutes * 60.0));
+    }
+
+    private static double RandomInRangeMinutes(double min, double max)
+    {
+        var lo = Math.Max(0, min);
+        var hi = Math.Max(lo, max);
+        return lo + (Random.Shared.NextDouble() * (hi - lo));
     }
 
     private static bool IsHeroLowHpCooldown(QueueItem item, Exception ex)

@@ -293,6 +293,9 @@ public partial class MainWindow : Window
     private int _npcTradeBuildingSessionCount;
     private DateTimeOffset _lastVerificationPopupAt = DateTimeOffset.MinValue;
     private DateTimeOffset _inlineWaitUntilUtc = DateTimeOffset.MinValue;
+    // When the next "step away" idle break is due. MinValue = not scheduled yet (rescheduled fresh on
+    // each continuous-loop start). See MaybeTakeIdleBreakAsync.
+    private DateTimeOffset _nextIdleBreakDueUtc = DateTimeOffset.MinValue;
     private int _manualFarmSessionExecutionCount;
     private string? _activeAutomationTaskName;
     private string? _activeFunctionDisplayName;

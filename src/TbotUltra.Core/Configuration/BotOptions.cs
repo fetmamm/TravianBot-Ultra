@@ -328,6 +328,21 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.FarmListStepDelayMaxSeconds)]
     public double FarmListStepDelayMaxSeconds { get; init; } = PacingDefaults.FarmListStepDelayMaxSeconds;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBreakEnabled)]
+    public bool ActionPacingIdleBreakEnabled { get; init; } = PacingDefaults.ActionPacingIdleBreakEnabled;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBreakIntervalMinMinutes)]
+    public double ActionPacingIdleBreakIntervalMinMinutes { get; init; } = PacingDefaults.ActionPacingIdleBreakIntervalMinMinutes;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBreakIntervalMaxMinutes)]
+    public double ActionPacingIdleBreakIntervalMaxMinutes { get; init; } = PacingDefaults.ActionPacingIdleBreakIntervalMaxMinutes;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBreakDurationMinMinutes)]
+    public double ActionPacingIdleBreakDurationMinMinutes { get; init; } = PacingDefaults.ActionPacingIdleBreakDurationMinMinutes;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBreakDurationMaxMinutes)]
+    public double ActionPacingIdleBreakDurationMaxMinutes { get; init; } = PacingDefaults.ActionPacingIdleBreakDurationMaxMinutes;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled)]
     public bool ConstructionHumanizeDelayEnabled { get; init; } = PacingDefaults.ConstructionHumanizeDelayEnabled;
 

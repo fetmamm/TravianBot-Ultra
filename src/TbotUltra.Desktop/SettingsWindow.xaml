@@ -179,6 +179,40 @@
                                 <TextBox x:Name="CollectStepDelayMinTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2,6,2" />
                                 <TextBox x:Name="CollectStepDelayMaxTextBox" Grid.Row="1" Grid.Column="2" Height="24" Margin="0,2,0,2" />
                             </Grid>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,12,0,8">
+                                <CheckBox x:Name="IdleBreakEnabledCheckBox"
+                                          Content="Idle break"
+                                          VerticalAlignment="Center" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                    <ContentControl.ToolTip>
+                                        <ToolTip MaxWidth="320">
+                                            <TextBlock TextWrapping="Wrap"
+                                                       Text="Occasionally pauses the loop as if you stepped away from the computer. Somewhere within the Every range a random pause of the Length range fires between tasks (never mid-action); when it ends the timer restarts. Shown in the log under the Pacing filter." />
+                                        </ToolTip>
+                                    </ContentControl.ToolTip>
+                                </ContentControl>
+                            </StackPanel>
+                            <Grid Margin="18,0,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="70" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Min" FontWeight="SemiBold" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Max" FontWeight="SemiBold" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Every (min)" VerticalAlignment="Center" Margin="0,4" />
+                                <TextBox x:Name="IdleBreakIntervalMinTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2,6,2" />
+                                <TextBox x:Name="IdleBreakIntervalMaxTextBox" Grid.Row="1" Grid.Column="2" Height="24" Margin="0,2,0,2" />
+                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Length (min)" VerticalAlignment="Center" Margin="0,4" />
+                                <TextBox x:Name="IdleBreakDurationMinTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2,6,2" />
+                                <TextBox x:Name="IdleBreakDurationMaxTextBox" Grid.Row="2" Grid.Column="2" Height="24" Margin="0,2,0,2" />
+                            </Grid>
                         </StackPanel>
                     </Border>
 
