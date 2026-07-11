@@ -296,6 +296,9 @@ public partial class MainWindow : Window
     // When the next "step away" idle break is due. MinValue = not scheduled yet (rescheduled fresh on
     // each continuous-loop start). See MaybeTakeIdleBreakAsync.
     private DateTimeOffset _nextIdleBreakDueUtc = DateTimeOffset.MinValue;
+    // When the next "idle browse" (open a non-functional page) is due. Same lifecycle as the idle
+    // break. See MaybeDoIdleBrowseAsync.
+    private DateTimeOffset _nextIdleBrowseDueUtc = DateTimeOffset.MinValue;
     private int _manualFarmSessionExecutionCount;
     private string? _activeAutomationTaskName;
     private string? _activeFunctionDisplayName;
@@ -506,8 +509,13 @@ public partial class MainWindow : Window
         _buildQueueCountdownTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _buildQueueCountdownTimer.Tick += (_, _) => TickBuildQueueCountdown();
         _buildQueueCountdownTimer.Start();
-        _resourceSnapshotRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(20) };
-        _resourceSnapshotRefreshTimer.Tick += async (_, _) => await HandleResourceSnapshotRefreshTickAsync();
+        _resourceSnapshotRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(Random.Shared.Next(15, 36)) };
+        _resourceSnapshotRefreshTimer.Tick += async (_, _) =>
+        {
+            await HandleResourceSnapshotRefreshTickAsync();
+            // Jitter the next tick (15–35s) so the dashboard refresh isn't a perfectly periodic 20s heartbeat.
+            _resourceSnapshotRefreshTimer.Interval = TimeSpan.FromSeconds(Random.Shared.Next(15, 36));
+        };
         _resourceSnapshotRefreshTimer.Start();
         _troopTrainingDeferredRefreshDebounceTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         _troopTrainingDeferredRefreshDebounceTimer.Tick += (_, _) =>

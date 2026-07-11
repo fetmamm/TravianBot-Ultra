@@ -33,6 +33,18 @@ public static class PacingDefaults
     public const double ActionPacingIdleBreakDurationMinMinutes = 0.5;
     public const double ActionPacingIdleBreakDurationMaxMinutes = 3.0;
 
+    // Occasional "idle browse": between loop passes, at a random interval, open a non-functional page
+    // (map/statistics/reports/messages) and read nothing, so the server-visible page mix looks like a
+    // real player poking around instead of only visiting build pages. Enabled by default; interval in
+    // minutes. Each page can be toggled independently (all on by default); no enabled page => no browse.
+    public const bool ActionPacingIdleBrowseEnabled = true;
+    public const double ActionPacingIdleBrowseIntervalMinMinutes = 15.0;
+    public const double ActionPacingIdleBrowseIntervalMaxMinutes = 60.0;
+    public const bool ActionPacingIdleBrowsePageMap = true;
+    public const bool ActionPacingIdleBrowsePageStatistics = true;
+    public const bool ActionPacingIdleBrowsePageReports = true;
+    public const bool ActionPacingIdleBrowsePageMessages = true;
+
     // Delay (seconds) between internal clicks/steps in the auto-collect tasks/daily-quests flows only.
     public const double CollectStepDelayMinSeconds = 0.6;
     public const double CollectStepDelayMaxSeconds = 2.0;

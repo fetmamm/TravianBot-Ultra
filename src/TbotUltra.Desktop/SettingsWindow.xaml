@@ -213,6 +213,67 @@
                                 <TextBox x:Name="IdleBreakDurationMinTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2,6,2" />
                                 <TextBox x:Name="IdleBreakDurationMaxTextBox" Grid.Row="2" Grid.Column="2" Height="24" Margin="0,2,0,2" />
                             </Grid>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,12,0,8">
+                                <CheckBox x:Name="IdleBrowseEnabledCheckBox"
+                                          Content="Idle browse"
+                                          VerticalAlignment="Center" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                    <ContentControl.ToolTip>
+                                        <ToolTip MaxWidth="320">
+                                            <TextBlock TextWrapping="Wrap"
+                                                       Text="Occasionally opens a non-functional page (map, statistics, reports, messages) and reads nothing, as if you were browsing around. Somewhere within the Every range one page is opened between tasks (never mid-action); then the timer restarts. Pick which pages may be visited below. Shown in the log under the Pacing filter." />
+                                        </ToolTip>
+                                    </ContentControl.ToolTip>
+                                </ContentControl>
+                            </StackPanel>
+                            <Grid Margin="18,0,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="70" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Min" FontWeight="SemiBold" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Max" FontWeight="SemiBold" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Every (min)" VerticalAlignment="Center" Margin="0,4" />
+                                <TextBox x:Name="IdleBrowseIntervalMinTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2,6,2" />
+                                <TextBox x:Name="IdleBrowseIntervalMaxTextBox" Grid.Row="1" Grid.Column="2" Height="24" Margin="0,2,0,2" />
+                            </Grid>
+                            <Expander Header="Pages to visit" Margin="18,6,0,0" Foreground="{DynamicResource TextPrimaryBrush}">
+                                <StackPanel Margin="4,4,0,0">
+                                    <CheckBox x:Name="IdleBrowsePageMapCheckBox" Content="Map" Margin="0,2" />
+                                    <CheckBox x:Name="IdleBrowsePageStatisticsCheckBox" Content="Statistics" Margin="0,2" />
+                                    <CheckBox x:Name="IdleBrowsePageReportsCheckBox" Content="Reports" Margin="0,2" />
+                                    <CheckBox x:Name="IdleBrowsePageMessagesCheckBox" Content="Messages" Margin="0,2" />
+                                </StackPanel>
+                            </Expander>
+
+                            <StackPanel Orientation="Horizontal" Margin="0,12,0,8">
+                                <TextBlock Text="Resource refresh jitter" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="Always on. The background dashboard resource refresh fires at a random interval in this range instead of a fixed 20s heartbeat. Fixed values, shown for reference." />
+                            </StackPanel>
+                            <Grid Margin="18,0,0,0">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="110" />
+                                    <ColumnDefinition Width="70" />
+                                    <ColumnDefinition Width="70" />
+                                </Grid.ColumnDefinitions>
+                                <Grid.RowDefinitions>
+                                    <RowDefinition Height="Auto" />
+                                    <RowDefinition Height="Auto" />
+                                </Grid.RowDefinitions>
+                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Min s" FontWeight="SemiBold" />
+                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Max s" FontWeight="SemiBold" />
+                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Interval (s)" VerticalAlignment="Center" Margin="0,4" />
+                                <!-- Fixed, non-editable. Mirrors the jitter range in MainWindow's resource-refresh timer (15–35s). -->
+                                <TextBox Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2,6,2" Text="15" IsReadOnly="True" Focusable="False" Foreground="{DynamicResource TextMutedBrush}" />
+                                <TextBox Grid.Row="1" Grid.Column="2" Height="24" Margin="0,2,0,2" Text="35" IsReadOnly="True" Focusable="False" Foreground="{DynamicResource TextMutedBrush}" />
+                            </Grid>
                         </StackPanel>
                     </Border>
 

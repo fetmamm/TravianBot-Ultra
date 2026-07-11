@@ -343,6 +343,27 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBreakDurationMaxMinutes)]
     public double ActionPacingIdleBreakDurationMaxMinutes { get; init; } = PacingDefaults.ActionPacingIdleBreakDurationMaxMinutes;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBrowseEnabled)]
+    public bool ActionPacingIdleBrowseEnabled { get; init; } = PacingDefaults.ActionPacingIdleBrowseEnabled;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMinMinutes)]
+    public double ActionPacingIdleBrowseIntervalMinMinutes { get; init; } = PacingDefaults.ActionPacingIdleBrowseIntervalMinMinutes;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMaxMinutes)]
+    public double ActionPacingIdleBrowseIntervalMaxMinutes { get; init; } = PacingDefaults.ActionPacingIdleBrowseIntervalMaxMinutes;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBrowsePageMap)]
+    public bool ActionPacingIdleBrowsePageMap { get; init; } = PacingDefaults.ActionPacingIdleBrowsePageMap;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatistics)]
+    public bool ActionPacingIdleBrowsePageStatistics { get; init; } = PacingDefaults.ActionPacingIdleBrowsePageStatistics;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBrowsePageReports)]
+    public bool ActionPacingIdleBrowsePageReports { get; init; } = PacingDefaults.ActionPacingIdleBrowsePageReports;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBrowsePageMessages)]
+    public bool ActionPacingIdleBrowsePageMessages { get; init; } = PacingDefaults.ActionPacingIdleBrowsePageMessages;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled)]
     public bool ConstructionHumanizeDelayEnabled { get; init; } = PacingDefaults.ConstructionHumanizeDelayEnabled;
 

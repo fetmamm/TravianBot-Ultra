@@ -1619,8 +1619,9 @@ public partial class MainWindow
         // Start a fresh construction village rotation each time the loop starts.
         _continuousConstructionRotationVillageKey = null;
         _continuousGroupRotationVillageKeys.Clear();
-        // Reschedule the first idle "step away" break relative to this run's start.
+        // Reschedule the first idle "step away" break and idle browse relative to this run's start.
         _nextIdleBreakDueUtc = DateTimeOffset.MinValue;
+        _nextIdleBrowseDueUtc = DateTimeOffset.MinValue;
         while (!token.IsCancellationRequested)
         {
             if (_loopController.LoopStopRequested)
@@ -1638,6 +1639,9 @@ public partial class MainWindow
                 // Occasional human-like "stepped away from the computer" pause. Between tasks only, so it
                 // never interrupts a build/click.
                 await MaybeTakeIdleBreakAsync(options, token);
+                // Occasional human-like "look around" — open a non-functional page (map/reports/etc.)
+                // and read nothing. Between tasks only, same as the idle break.
+                await MaybeDoIdleBrowseAsync(options, token);
                 await EnsureChromiumInstalledAsync();
                 await HonorPendingVillageSwitchAsync(options, token);
                 await EnsureContinuousLoopConstructionStatusAsync(options, token);
@@ -1873,6 +1877,87 @@ public partial class MainWindow
             options.ActionPacingIdleBreakIntervalMinMinutes,
             options.ActionPacingIdleBreakIntervalMaxMinutes);
         // Floor so a mis-set 0/tiny interval can't turn the loop into a constant-break busy loop.
+        return TimeSpan.FromSeconds(Math.Max(5.0, minutes * 60.0));
+    }
+
+    // Occasional "idle browse": open a random enabled non-functional page (map/statistics/reports/
+    // messages) and read nothing, so the server-visible page mix looks like a real player browsing
+    // instead of only build pages. Between loop passes only — mirrors MaybeTakeIdleBreakAsync.
+    private async Task MaybeDoIdleBrowseAsync(BotOptions options, CancellationToken token)
+    {
+        if (!options.ActionPacingIdleBrowseEnabled)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (_nextIdleBrowseDueUtc == DateTimeOffset.MinValue)
+        {
+            // First pass of this run: schedule the first browse, don't fire immediately.
+            _nextIdleBrowseDueUtc = now.Add(RandomIdleBrowseInterval(options));
+            return;
+        }
+
+        if (now < _nextIdleBrowseDueUtc)
+        {
+            return;
+        }
+
+        // Only browse during normal, logged-in operation. Never while the session is sleeping or mid
+        // login/recovery — and if a browse came due during such a window, reschedule instead of firing
+        // the instant work resumes (same rule as the idle break).
+        if (IsSessionSleeping || !_isLoggedIn || !_browserSessionLikelyOpen)
+        {
+            _nextIdleBrowseDueUtc = now.Add(RandomIdleBrowseInterval(options));
+            return;
+        }
+
+        var pages = GetEnabledIdleBrowsePages(options);
+        if (pages.Count == 0)
+        {
+            // No page selected: treat as off, but keep rescheduling cheaply so re-enabling one works.
+            AppendLog("[pacing:verbose] idle browse skipped: no pages selected.");
+            _nextIdleBrowseDueUtc = now.Add(RandomIdleBrowseInterval(options));
+            return;
+        }
+
+        var page = pages[Random.Shared.Next(pages.Count)];
+        AppendLog($"[pacing] idle browse: viewing {page}.");
+        try
+        {
+            await _botService.NavigateToPageAndReadHtmlAsync(
+                options, page, AppendLog, _loopController.AcquireSessionScopeToken());
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            // A transient nav/read failure here is cosmetic — log and move on, like the background refresh.
+            AppendLog($"[pacing:verbose] idle browse skipped after page failure ({ex.Message}).");
+        }
+
+        _nextIdleBrowseDueUtc = DateTimeOffset.UtcNow.Add(RandomIdleBrowseInterval(options));
+    }
+
+    // Official page paths for the idle-browse whitelist, filtered to the ones toggled on in settings.
+    private static List<string> GetEnabledIdleBrowsePages(BotOptions options)
+    {
+        var pages = new List<string>(4);
+        if (options.ActionPacingIdleBrowsePageMap) pages.Add("karte.php");
+        if (options.ActionPacingIdleBrowsePageStatistics) pages.Add("statistiken.php");
+        if (options.ActionPacingIdleBrowsePageReports) pages.Add("berichte.php");
+        if (options.ActionPacingIdleBrowsePageMessages) pages.Add("nachrichten.php");
+        return pages;
+    }
+
+    private static TimeSpan RandomIdleBrowseInterval(BotOptions options)
+    {
+        var minutes = RandomInRangeMinutes(
+            options.ActionPacingIdleBrowseIntervalMinMinutes,
+            options.ActionPacingIdleBrowseIntervalMaxMinutes);
+        // Floor so a mis-set 0/tiny interval can't turn the loop into a constant-browse busy loop.
         return TimeSpan.FromSeconds(Math.Max(5.0, minutes * 60.0));
     }
 

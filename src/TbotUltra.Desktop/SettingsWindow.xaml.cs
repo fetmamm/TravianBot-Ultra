@@ -199,6 +199,14 @@ public partial class SettingsWindow : Window
         IdleBreakDurationMinTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingIdleBreakDurationMinMinutes, PacingDefaults.ActionPacingIdleBreakDurationMinMinutes));
         IdleBreakDurationMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingIdleBreakDurationMaxMinutes, PacingDefaults.ActionPacingIdleBreakDurationMaxMinutes));
 
+        IdleBrowseEnabledCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowseEnabled, PacingDefaults.ActionPacingIdleBrowseEnabled);
+        IdleBrowseIntervalMinTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMinMinutes, PacingDefaults.ActionPacingIdleBrowseIntervalMinMinutes));
+        IdleBrowseIntervalMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMaxMinutes, PacingDefaults.ActionPacingIdleBrowseIntervalMaxMinutes));
+        IdleBrowsePageMapCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageMap, PacingDefaults.ActionPacingIdleBrowsePageMap);
+        IdleBrowsePageStatisticsCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatistics, PacingDefaults.ActionPacingIdleBrowsePageStatistics);
+        IdleBrowsePageReportsCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageReports, PacingDefaults.ActionPacingIdleBrowsePageReports);
+        IdleBrowsePageMessagesCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageMessages, PacingDefaults.ActionPacingIdleBrowsePageMessages);
+
         CollectStepDelayMinTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.CollectStepDelayMinSeconds, PacingDefaults.CollectStepDelayMinSeconds));
         CollectStepDelayMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.CollectStepDelayMaxSeconds, PacingDefaults.CollectStepDelayMaxSeconds));
     }
@@ -248,6 +256,20 @@ public partial class SettingsWindow : Window
             PacingDefaults.ActionPacingIdleBreakDurationMinMinutes,
             PacingDefaults.ActionPacingIdleBreakDurationMaxMinutes);
 
+        // Idle browse (interval minutes + per-page toggles). WriteDelayRange clamps and keeps max >= min.
+        _config[BotOptionPayloadKeys.ActionPacingIdleBrowseEnabled] = IdleBrowseEnabledCheckBox.IsChecked == true;
+        WriteDelayRange(
+            BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMinMinutes,
+            BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMaxMinutes,
+            IdleBrowseIntervalMinTextBox,
+            IdleBrowseIntervalMaxTextBox,
+            PacingDefaults.ActionPacingIdleBrowseIntervalMinMinutes,
+            PacingDefaults.ActionPacingIdleBrowseIntervalMaxMinutes);
+        _config[BotOptionPayloadKeys.ActionPacingIdleBrowsePageMap] = IdleBrowsePageMapCheckBox.IsChecked == true;
+        _config[BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatistics] = IdleBrowsePageStatisticsCheckBox.IsChecked == true;
+        _config[BotOptionPayloadKeys.ActionPacingIdleBrowsePageReports] = IdleBrowsePageReportsCheckBox.IsChecked == true;
+        _config[BotOptionPayloadKeys.ActionPacingIdleBrowsePageMessages] = IdleBrowsePageMessagesCheckBox.IsChecked == true;
+
         // Collect step delay (seconds). WriteDelayRange clamps and keeps max >= min.
         WriteDelayRange(
             BotOptionPayloadKeys.CollectStepDelayMinSeconds,
@@ -287,6 +309,13 @@ public partial class SettingsWindow : Window
         IdleBreakIntervalMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingIdleBreakIntervalMaxMinutes);
         IdleBreakDurationMinTextBox.Text = FormatDelay(PacingDefaults.ActionPacingIdleBreakDurationMinMinutes);
         IdleBreakDurationMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingIdleBreakDurationMaxMinutes);
+        IdleBrowseEnabledCheckBox.IsChecked = PacingDefaults.ActionPacingIdleBrowseEnabled;
+        IdleBrowseIntervalMinTextBox.Text = FormatDelay(PacingDefaults.ActionPacingIdleBrowseIntervalMinMinutes);
+        IdleBrowseIntervalMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingIdleBrowseIntervalMaxMinutes);
+        IdleBrowsePageMapCheckBox.IsChecked = PacingDefaults.ActionPacingIdleBrowsePageMap;
+        IdleBrowsePageStatisticsCheckBox.IsChecked = PacingDefaults.ActionPacingIdleBrowsePageStatistics;
+        IdleBrowsePageReportsCheckBox.IsChecked = PacingDefaults.ActionPacingIdleBrowsePageReports;
+        IdleBrowsePageMessagesCheckBox.IsChecked = PacingDefaults.ActionPacingIdleBrowsePageMessages;
         CollectStepDelayMinTextBox.Text = FormatDelay(PacingDefaults.CollectStepDelayMinSeconds);
         CollectStepDelayMaxTextBox.Text = FormatDelay(PacingDefaults.CollectStepDelayMaxSeconds);
     }

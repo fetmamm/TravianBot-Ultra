@@ -234,6 +234,14 @@ public static class BotOptionPayloadKeys
     public const string ActionPacingIdleBreakDurationMinMinutes = "action_pacing_idle_break_duration_min_minutes";
     public const string ActionPacingIdleBreakDurationMaxMinutes = "action_pacing_idle_break_duration_max_minutes";
 
+    public const string ActionPacingIdleBrowseEnabled = "action_pacing_idle_browse_enabled";
+    public const string ActionPacingIdleBrowseIntervalMinMinutes = "action_pacing_idle_browse_interval_min_minutes";
+    public const string ActionPacingIdleBrowseIntervalMaxMinutes = "action_pacing_idle_browse_interval_max_minutes";
+    public const string ActionPacingIdleBrowsePageMap = "action_pacing_idle_browse_page_map";
+    public const string ActionPacingIdleBrowsePageStatistics = "action_pacing_idle_browse_page_statistics";
+    public const string ActionPacingIdleBrowsePageReports = "action_pacing_idle_browse_page_reports";
+    public const string ActionPacingIdleBrowsePageMessages = "action_pacing_idle_browse_page_messages";
+
     public const string ConstructionHumanizeDelayEnabled = "construction_humanize_delay_enabled";
     public const string ConstructionHumanizeQueuePercentMin = "construction_humanize_queue_percent_min";
     public const string ConstructionHumanizeQueuePercentMax = "construction_humanize_queue_percent_max";
