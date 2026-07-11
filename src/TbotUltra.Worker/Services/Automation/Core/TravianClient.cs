@@ -323,12 +323,10 @@ public sealed partial class TravianClient
 
     private void LogFunctionStarted([CallerMemberName] string? memberName = null)
     {
-        if (string.IsNullOrWhiteSpace(memberName))
-        {
-            return;
-        }
-
-        Notify($"[{memberName}] started");
+        // Intentionally a no-op. The per-function "[X] started" entry markers were pure noise — one
+        // contentless line per call, emitted every loop/refresh tick. Decisions, results and errors are
+        // logged explicitly where they happen. Kept as a no-op so existing call sites need no change.
+        _ = memberName;
     }
 
     private static string NormalizeStartedMessage(string message)

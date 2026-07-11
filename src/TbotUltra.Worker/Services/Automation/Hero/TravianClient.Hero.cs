@@ -147,7 +147,6 @@ public sealed partial class TravianClient : IHeroClient
 
     public async Task<int?> RefreshAdventureCountAsync(bool forceReload = true, CancellationToken cancellationToken = default)
     {
-        Notify("[hero:verbose] RefreshAdventureCountAsync started");
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var sidebar = await ReadHeroSidebarStatusAsync(cancellationToken);
@@ -171,7 +170,10 @@ public sealed partial class TravianClient : IHeroClient
             return null;
         }
 
-        Notify($"Adventures on current page: {sidebar.AdventureCount}.");
+        if (_session.LogValueChanged("adv-page", sidebar.AdventureCount.ToString()))
+        {
+            Notify($"Adventures on current page: {sidebar.AdventureCount}.");
+        }
         // We're on dorf1 here; cheaply read the hero home village + state from the hero widget. If a
         // dead/reviving icon no longer exposes the home-village link, fall back to attributes once so the
         // dashboard can still mark the correct village.

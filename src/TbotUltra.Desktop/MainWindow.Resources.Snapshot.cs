@@ -167,7 +167,16 @@ public partial class MainWindow
         }
 
         status = MergeResourceStatusForUi(status);
-        AppendLog($"[resource-ui] village='{status.ActiveVillage}' | {BuildResourceLogSummary(status)}");
+        var resourceUiVillage = status.ActiveVillage ?? string.Empty;
+        // Only re-log when storage capacity or production/h changes (a real event) — not merely because
+        // current stock ticked up between reads, which would re-log the echo on every background refresh.
+        var resourceUiSignature = BuildResourceUiChangeSignature(status);
+        if (!_lastLoggedResourceUiSummaryByVillage.TryGetValue(resourceUiVillage, out var lastResourceUiSignature)
+            || lastResourceUiSignature != resourceUiSignature)
+        {
+            _lastLoggedResourceUiSummaryByVillage[resourceUiVillage] = resourceUiSignature;
+            AppendLog($"[resource-ui] village='{status.ActiveVillage}' | {BuildResourceLogSummary(status)}");
+        }
         ApplyResourceTransferVillageResourceStatus(status);
         ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
         TriggerDeferredConstructionWaitRefresh(status, "resource_status_refresh");
@@ -484,10 +493,13 @@ public partial class MainWindow
 
     private bool _heroReviveCheckRunning;
 
-    // 20s refresher function
+    // Last "[resource-ui]" summary logged per village, so that echo prints once and then only again
+    // when storage/production actually changes instead of on every background refresh.
+    private readonly System.Collections.Generic.Dictionary<string, string> _lastLoggedResourceUiSummaryByVillage = new();
+
+    // Background resource-snapshot refresher (fires on the jittered dashboard timer).
     private async Task HandleResourceSnapshotRefreshTickAsync()
     {
-        AppendLog("[HandleResourceSnapshotRefreshTickAsync] 20s tick");
         if (!ShouldRunBackgroundResourceSnapshotRefresh())
         {
             return;
@@ -1114,6 +1126,24 @@ public partial class MainWindow
         var warehouse = FormatResourceLogNumber(status.WarehouseCapacity);
         var granary = FormatResourceLogNumber(status.GranaryCapacity);
         return $"Warehouse={warehouse}, Granary={granary}. {string.Join(" | ", parts)}";
+    }
+
+    // Signature of the "meaningful" resource-UI fields (storage capacity + production/h) used to decide
+    // whether to re-log the [resource-ui] echo. Excludes current stock, which changes on every read.
+    private static string BuildResourceUiChangeSignature(VillageStatus status)
+    {
+        var forecasts = status.ResourceStorageForecasts?
+            .ToDictionary(item => item.ResourceKey, item => item, StringComparer.OrdinalIgnoreCase)
+            ?? new Dictionary<string, ResourceStorageForecast>(StringComparer.OrdinalIgnoreCase);
+
+        string Prod(string key)
+        {
+            forecasts.TryGetValue(key, out var forecast);
+            return FormatResourceLogNumber(forecast?.ProductionPerHour);
+        }
+
+        return $"{FormatResourceLogNumber(status.WarehouseCapacity)}/{FormatResourceLogNumber(status.GranaryCapacity)}"
+            + $"|{Prod("wood")}|{Prod("clay")}|{Prod("iron")}|{Prod("crop")}";
     }
 
     private static string BuildResourceLogSummary(VillageStatus status)

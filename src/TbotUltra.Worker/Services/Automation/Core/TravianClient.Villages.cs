@@ -937,7 +937,10 @@ public sealed partial class TravianClient
                 if (item.IsActive && item.Population is int pop)
                 {
                     sidebarPopulation = pop;
-                    Notify($"[population] active village '{item.Name}' from sidebar = {pop}");
+                    if (_session.LogValueChanged($"pop:{item.Name}", pop.ToString()))
+                    {
+                        Notify($"[population] active village '{item.Name}' from sidebar = {pop}");
+                    }
                 }
                 return new Village(
                     Name: item.Name!,

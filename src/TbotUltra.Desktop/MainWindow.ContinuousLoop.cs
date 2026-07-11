@@ -18,6 +18,11 @@ namespace TbotUltra.Desktop;
 public partial class MainWindow
 {
     private static readonly TimeSpan LoopPickVerboseThrottle = TimeSpan.FromSeconds(30);
+    // Idle loop passes no longer log "[LOOP n] START" + "WAIT" every few seconds. Instead a single
+    // "[LOOP n] idle" heartbeat is logged at most this often while nothing is ready, so the log shows the
+    // loop is alive without the per-pass spine. Active passes (a PICK) and failures still log in full.
+    private static readonly TimeSpan LoopIdleHeartbeatInterval = TimeSpan.FromMinutes(2);
+    private DateTimeOffset _lastLoopIdleHeartbeatUtc = DateTimeOffset.MinValue;
     private readonly object _loopPickVerboseLogGate = new();
     private readonly Dictionary<string, DateTimeOffset> _loopPickVerboseLogAtByKey = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _constructionQueueSummaryByVillage = new(StringComparer.OrdinalIgnoreCase);
@@ -1635,7 +1640,6 @@ public partial class MainWindow
             var tickSw = Stopwatch.StartNew();
             try
             {
-                AppendLog($"[LOOP {tickId}] START");
                 // Occasional human-like "stepped away from the computer" pause. Between tasks only, so it
                 // never interrupts a build/click.
                 await MaybeTakeIdleBreakAsync(options, token);
@@ -1653,6 +1657,9 @@ public partial class MainWindow
                 if (next is not null)
                 {
                     AppendLog($"[LOOP {tickId}] PICK group={next.Group}, task={next.TaskName}, retries={next.Retries}/{next.MaxRetries}");
+                    // Real activity is its own liveness signal — reset the idle heartbeat so it only fires
+                    // after the loop has genuinely gone quiet.
+                    _lastLoopIdleHeartbeatUtc = DateTimeOffset.UtcNow;
                     // Pause pressed while picking: exit before sitting out the pre-task pacing delay. The
                     // item stays pending and runs on resume — nothing is in flight yet, so this is safe and
                     // makes Pause react immediately instead of waiting out a few seconds of pacing.
@@ -1690,7 +1697,7 @@ public partial class MainWindow
                 else
                 {
                     var waitDelay = ResolveContinuousLoopWaitDelay();
-                    await WaitForNextContinuousLoopPassAsync(tickId, waitDelay, options, token);
+                    await WaitForNextContinuousLoopPassAsync(tickId, waitDelay, options, token, routineIdleWait: true);
                 }
             }
             catch (OperationCanceledException)
@@ -1700,7 +1707,7 @@ public partial class MainWindow
             catch (Exception ex)
             {
                 AppendLog($"[LOOP {tickId}] FAIL {tickSw.Elapsed.TotalSeconds:F1}s | {FormatExceptionForLog(ex)}");
-                await WaitForNextContinuousLoopPassAsync(tickId, null, options, token);
+                await WaitForNextContinuousLoopPassAsync(tickId, null, options, token, routineIdleWait: false);
             }
         }
     }
@@ -1738,7 +1745,7 @@ public partial class MainWindow
         }
     }
 
-    private async Task WaitForNextContinuousLoopPassAsync(long tickId, TimeSpan? waitDelay, BotOptions options, CancellationToken token)
+    private async Task WaitForNextContinuousLoopPassAsync(long tickId, TimeSpan? waitDelay, BotOptions options, CancellationToken token, bool routineIdleWait = false)
     {
         var totalSeconds = waitDelay is null
             ? Math.Max(1, options.LoopIntervalSeconds)
@@ -1754,7 +1761,18 @@ public partial class MainWindow
                 : Math.Min(totalSeconds, pacingTotalSeconds);
         }
 
-        AppendLog($"[LOOP {tickId}] WAIT {totalSeconds}s");
+        // Routine idle waits are throttled to a single "[LOOP n] idle" heartbeat every couple of minutes
+        // so the loop spine no longer fills the log; the FAIL path (and any non-idle caller) still logs
+        // its wait every time. Logging-only — the wait below is unchanged.
+        if (!routineIdleWait)
+        {
+            AppendLog($"[LOOP {tickId}] WAIT {totalSeconds}s");
+        }
+        else if (DateTimeOffset.UtcNow - _lastLoopIdleHeartbeatUtc >= LoopIdleHeartbeatInterval)
+        {
+            _lastLoopIdleHeartbeatUtc = DateTimeOffset.UtcNow;
+            AppendLog($"[LOOP {tickId}] idle — nothing ready, waiting {totalSeconds}s");
+        }
 
         var deadline = DateTimeOffset.UtcNow.AddSeconds(totalSeconds);
         while (DateTimeOffset.UtcNow < deadline)

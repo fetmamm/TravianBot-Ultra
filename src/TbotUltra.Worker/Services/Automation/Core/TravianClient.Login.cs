@@ -25,7 +25,6 @@ public sealed partial class TravianClient : ISessionClient
     // Login function
     public async Task LoginAsync(CancellationToken cancellationToken = default)
     {
-        Notify("[LoginAsync started]");
         Notify($"[login] Account='{_account.Name}' server='{ServerUrl}' — starting");
         await PauseForManualStepIfVisibleAsync("Manual verification appeared before login.", cancellationToken);
         var state = await LoginStateAsync();
@@ -355,11 +354,11 @@ public sealed partial class TravianClient : ISessionClient
             return;
         }
 
-        Notify($"[ensure-logged-in] start force={force} url='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
+        // Routine "already logged in" is silent — only abnormal states (recovery/relogin/failure) below
+        // log, so ensure-logged-in doesn't emit 3 lines on every background tick.
         var loggedIn = await IsLoggedInAsync();
         _lastEnsureLoggedInAt = now;
         _lastEnsureLoggedInSucceeded = loggedIn;
-        Notify($"[ensure-logged-in] state loggedIn={loggedIn} url='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
         if (!loggedIn)
         {
             // Session may have expired during a long idle wait (Travian logs the user out and
@@ -416,7 +415,6 @@ public sealed partial class TravianClient : ISessionClient
 
             throw new InvalidOperationException($"Not logged in. Current page state is '{state}'.");
         }
-        Notify($"[ensure-logged-in] confirmed url='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
         if (_suppressEnsureUiSyncDepth <= 0)
         {
             await TryEmitUiSyncSnapshotAsync(cancellationToken);

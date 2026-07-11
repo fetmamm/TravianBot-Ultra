@@ -40,6 +40,43 @@ public partial class MainWindow
         }
     }
 
+    private string? _lastSessionLogUiSyncPayload;
+    private string? _lastSessionLogHeroHomePayload;
+
+    // File-only dedup for the two load-bearing per-tick echoes. [ui-sync]/[herohome] must keep being
+    // emitted (parsed above to drive the dashboard/hero icon, which still runs for every line), but
+    // writing an identical consecutive payload to the .txt is pure noise. This skips ONLY the redundant
+    // file append — it never affects parsing or any behavior.
+    private bool ShouldWriteLineToSessionLog(string part)
+    {
+        var uiSync = UiSyncRegex.Match(part);
+        if (uiSync.Success)
+        {
+            var payload = uiSync.Groups[1].Value;
+            if (payload == _lastSessionLogUiSyncPayload)
+            {
+                return false;
+            }
+
+            _lastSessionLogUiSyncPayload = payload;
+            return true;
+        }
+
+        var heroHome = HeroHomeRegex.Match(part);
+        if (heroHome.Success)
+        {
+            if (heroHome.Value == _lastSessionLogHeroHomePayload)
+            {
+                return false;
+            }
+
+            _lastSessionLogHeroHomePayload = heroHome.Value;
+            return true;
+        }
+
+        return true;
+    }
+
     private void FlushPendingLogsToUi()
     {
         try
@@ -97,7 +134,10 @@ public partial class MainWindow
                         Category = isAlarm ? LogCategory.Errors : LogClassifier.Classify(part),
                         IsVerbose = LogClassifier.IsVerbose(part),
                     });
-                    logLinesForSessionLog.Add(line);
+                    if (isAlarm || ShouldWriteLineToSessionLog(part))
+                    {
+                        logLinesForSessionLog.Add(line);
+                    }
                     TryApplyInlineResourceLevelUpdateFromLog(part);
                     TryApplyInlineResourceProductionUpdateFromLog(part);
                     TryApplyPlusStatusFromLog(part);

@@ -38,7 +38,10 @@ public sealed partial class TravianClient
             language = await ReadCurrentLanguageAsync(cancellationToken);
             if (TravianLanguageDetector.IsExpected(language))
             {
-                Notify($"[language] Travian language confirmed: {TravianLanguageDetector.ExpectedLanguage}.");
+                if (_session.LogValueChanged("language", TravianLanguageDetector.ExpectedLanguage))
+                {
+                    Notify($"[language] Travian language confirmed: {TravianLanguageDetector.ExpectedLanguage}.");
+                }
                 return;
             }
 

@@ -8,7 +8,6 @@ public sealed partial class TravianClient
 {
     public async Task<VillageStatus> ReadVillageResourceStatusAsync(CancellationToken cancellationToken = default, bool allowNavigationToResourcePage = true)
     {
-        Notify("[resources:verbose] ReadVillageResourceStatusAsync started");
         if (allowNavigationToResourcePage && !IsCurrentUrlForPath(Paths.Resources))
         {
             await GotoAsync(Paths.Resources, cancellationToken);
@@ -508,7 +507,8 @@ public sealed partial class TravianClient
 
                     if (level >= preliminaryTarget)
                     {
-                        Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} level={level} already meets preliminary target {preliminaryTarget}. Skipping.");
+                        // Already at target — the per-slot skip line was pure per-tick noise; the final
+                        // "All resource fields are at or above target" return already summarizes this.
                         continue;
                     }
 
@@ -550,7 +550,6 @@ public sealed partial class TravianClient
                     Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} actionability={actionability.Outcome} effectiveTarget={effectiveTarget} detectedTarget={actionability.DetectedTargetLevel?.ToString() ?? "unknown"} max={actionability.DetectedMaxLevel?.ToString() ?? "unknown"} candidateIndex={actionability.CandidateIndex?.ToString() ?? "-"} reason={actionability.Reason}");
                     if (level >= effectiveTarget)
                     {
-                        Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} level={level} already meets effective target {effectiveTarget}. Skipping.");
                         continue;
                     }
 
@@ -759,13 +758,6 @@ public sealed partial class TravianClient
 
         var liveResourceFields = await ReadResourceFieldsAsync(cancellationToken);
         var liveResourceFieldsComplete = HasCompleteResourceFieldSnapshot(liveResourceFields);
-        if (!liveResourceFieldsComplete)
-        {
-            Notify(
-                $"[resources:verbose] partial resource field snapshot ignored for cache " +
-                $"village='{activeVillage}' fields={liveResourceFields.Count} " +
-                $"knownLevels={liveResourceFields.Count(field => field.Level is >= 0)}.");
-        }
 
         var resourceFields = liveResourceFieldsComplete
             ? liveResourceFields

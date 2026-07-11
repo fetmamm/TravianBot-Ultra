@@ -15,6 +15,15 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Themes/Badges.xaml" />
             </ResourceDictionary.MergedDictionaries>
+            <!-- Recessed sub-card used to visually group each Bot behavior setting with its inputs. -->
+            <Style x:Key="SettingsGroupBox" TargetType="Border">
+                <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}" />
+                <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
+                <Setter Property="BorderThickness" Value="1" />
+                <Setter Property="CornerRadius" Value="6" />
+                <Setter Property="Padding" Value="10" />
+                <Setter Property="Margin" Value="0,0,0,8" />
+            </Style>
         </ResourceDictionary>
     </Window.Resources>
     <Grid Margin="12">
@@ -78,202 +87,216 @@
                                         Click="ResetPacingButton_Click" />
                             </StackPanel>
 
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <CheckBox x:Name="SessionPacingEnabledCheckBox"
-                                          Content="Session pacing" />
-                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
-                                                ToolTip="Limits how long the bot runs before it logs out, sleeps, and resumes automatically." />
-                            </StackPanel>
-                            <Grid Margin="18,0,0,12">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="140" />
-                                    <ColumnDefinition Width="80" />
-                                    <ColumnDefinition Width="90" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Min" FontWeight="SemiBold" Margin="0,2" />
-                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Max" FontWeight="SemiBold" Margin="6,2,0,2" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Run (min)" VerticalAlignment="Center" Margin="0,2" />
-                                <TextBox x:Name="SessionRunMinMinutesTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2" />
-                                <TextBox x:Name="SessionRunMaxMinutesTextBox" Grid.Row="1" Grid.Column="2" Height="24" Margin="6,2,0,2" />
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Sleep (min)" VerticalAlignment="Center" Margin="0,2" />
-                                <TextBox x:Name="SessionSleepMinMinutesTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2" />
-                                <TextBox x:Name="SessionSleepMaxMinutesTextBox" Grid.Row="2" Grid.Column="2" Height="24" Margin="6,2,0,2" />
-                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Daily max" VerticalAlignment="Center" Margin="0,2" />
-                                <ComboBox x:Name="SessionDailyMaxHoursComboBox" Grid.Row="3" Grid.Column="1" Height="24" Margin="0,2" />
-                                <ComboBox x:Name="SessionDailyMaxVariationComboBox" Grid.Row="3" Grid.Column="2" Height="24" Margin="6,2,0,2"
-                                          ToolTip="Daily max variation: randomizes the daily limit by this much each day (applies only to Daily max)." />
-                            </Grid>
-
-                            <StackPanel Orientation="Horizontal" Margin="18,0,0,6">
-                                <TextBlock Text="Allowed hours" FontWeight="SemiBold" VerticalAlignment="Center" />
-                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
-                                                ToolTip="Checked hours may run. Unchecked hours log out and stay stopped until the next checked hour." />
-                            </StackPanel>
-                            <local:VerticalFirstUniformGrid x:Name="SessionAllowedHoursGrid"
-                                                            Columns="6"
-                                                            Margin="18,0,0,12" />
-
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                                <CheckBox x:Name="ActionPacingEnabledCheckBox"
-                                          Content="Action pacing" />
-                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
-                                                ToolTip="Adds small randomized pauses around central bot actions such as tasks, page loads, farm sends, and loop passes." />
-                            </StackPanel>
-                            <Grid Margin="18,0,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="110" />
-                                    <ColumnDefinition Width="70" />
-                                    <ColumnDefinition Width="70" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Min s" FontWeight="SemiBold" />
-                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Max s" FontWeight="SemiBold" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Task" VerticalAlignment="Center" Margin="0,4" />
-                                <TextBox x:Name="ActionTaskMinTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2,6,2" />
-                                <TextBox x:Name="ActionTaskMaxTextBox" Grid.Row="1" Grid.Column="2" Height="24" Margin="0,2,0,2" />
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Page load" VerticalAlignment="Center" Margin="0,4" />
-                                <TextBox x:Name="ActionPageLoadMinTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2,6,2" />
-                                <TextBox x:Name="ActionPageLoadMaxTextBox" Grid.Row="2" Grid.Column="2" Height="24" Margin="0,2,0,2" />
-                                <TextBlock Grid.Row="3" Grid.Column="0" Text="Click" VerticalAlignment="Center" Margin="0,4" />
-                                <TextBox x:Name="ActionClickMinTextBox" Grid.Row="3" Grid.Column="1" Height="24" Margin="0,2,6,2" />
-                                <TextBox x:Name="ActionClickMaxTextBox" Grid.Row="3" Grid.Column="2" Height="24" Margin="0,2,0,2" />
-                                <TextBlock Grid.Row="4" Grid.Column="0" Text="Loop" VerticalAlignment="Center" Margin="0,4" />
-                                <TextBox x:Name="ActionLoopMinTextBox" Grid.Row="4" Grid.Column="1" Height="24" Margin="0,2,6,2" />
-                                <TextBox x:Name="ActionLoopMaxTextBox" Grid.Row="4" Grid.Column="2" Height="24" Margin="0,2,0,2" />
-                                <TextBlock Grid.Row="5" Grid.Column="0" Text="Farmlist" VerticalAlignment="Center" Margin="0,4" />
-                                <TextBox x:Name="FarmListStepDelayMinTextBox" Grid.Row="5" Grid.Column="1" Height="24" Margin="0,2,6,2" />
-                                <TextBox x:Name="FarmListStepDelayMaxTextBox" Grid.Row="5" Grid.Column="2" Height="24" Margin="0,2,0,2" />
-                            </Grid>
-
-                            <StackPanel Orientation="Horizontal" Margin="0,12,0,8">
-                                <TextBlock Text="Collect tasks/daily delay" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
-                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
-                                                ToolTip="Randomized delay between internal clicks/steps in the Auto collect tasks and Auto collect daily quests flows only. Keeps these fast bursts from looking robotic. Set both to 0 to disable." />
-                            </StackPanel>
-                            <Grid Margin="18,0,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="110" />
-                                    <ColumnDefinition Width="70" />
-                                    <ColumnDefinition Width="70" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Min s" FontWeight="SemiBold" />
-                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Max s" FontWeight="SemiBold" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Click/step" VerticalAlignment="Center" Margin="0,4" />
-                                <TextBox x:Name="CollectStepDelayMinTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2,6,2" />
-                                <TextBox x:Name="CollectStepDelayMaxTextBox" Grid.Row="1" Grid.Column="2" Height="24" Margin="0,2,0,2" />
-                            </Grid>
-
-                            <StackPanel Orientation="Horizontal" Margin="0,12,0,8">
-                                <CheckBox x:Name="IdleBreakEnabledCheckBox"
-                                          Content="Idle break"
-                                          VerticalAlignment="Center" />
-                                <ContentControl Style="{StaticResource SettingInfoIconStyle}">
-                                    <ContentControl.ToolTip>
-                                        <ToolTip MaxWidth="320">
-                                            <TextBlock TextWrapping="Wrap"
-                                                       Text="Occasionally pauses the loop as if you stepped away from the computer. Somewhere within the Every range a random pause of the Length range fires between tasks (never mid-action); when it ends the timer restarts. Shown in the log under the Pacing filter." />
-                                        </ToolTip>
-                                    </ContentControl.ToolTip>
-                                </ContentControl>
-                            </StackPanel>
-                            <Grid Margin="18,0,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="110" />
-                                    <ColumnDefinition Width="70" />
-                                    <ColumnDefinition Width="70" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Min" FontWeight="SemiBold" />
-                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Max" FontWeight="SemiBold" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Every (min)" VerticalAlignment="Center" Margin="0,4" />
-                                <TextBox x:Name="IdleBreakIntervalMinTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2,6,2" />
-                                <TextBox x:Name="IdleBreakIntervalMaxTextBox" Grid.Row="1" Grid.Column="2" Height="24" Margin="0,2,0,2" />
-                                <TextBlock Grid.Row="2" Grid.Column="0" Text="Length (min)" VerticalAlignment="Center" Margin="0,4" />
-                                <TextBox x:Name="IdleBreakDurationMinTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2,6,2" />
-                                <TextBox x:Name="IdleBreakDurationMaxTextBox" Grid.Row="2" Grid.Column="2" Height="24" Margin="0,2,0,2" />
-                            </Grid>
-
-                            <StackPanel Orientation="Horizontal" Margin="0,12,0,8">
-                                <CheckBox x:Name="IdleBrowseEnabledCheckBox"
-                                          Content="Idle browse"
-                                          VerticalAlignment="Center" />
-                                <ContentControl Style="{StaticResource SettingInfoIconStyle}">
-                                    <ContentControl.ToolTip>
-                                        <ToolTip MaxWidth="320">
-                                            <TextBlock TextWrapping="Wrap"
-                                                       Text="Occasionally opens a non-functional page (map, statistics, reports, messages) and reads nothing, as if you were browsing around. Somewhere within the Every range one page is opened between tasks (never mid-action); then the timer restarts. Pick which pages may be visited below. Shown in the log under the Pacing filter." />
-                                        </ToolTip>
-                                    </ContentControl.ToolTip>
-                                </ContentControl>
-                            </StackPanel>
-                            <Grid Margin="18,0,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="110" />
-                                    <ColumnDefinition Width="70" />
-                                    <ColumnDefinition Width="70" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Min" FontWeight="SemiBold" />
-                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Max" FontWeight="SemiBold" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Every (min)" VerticalAlignment="Center" Margin="0,4" />
-                                <TextBox x:Name="IdleBrowseIntervalMinTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2,6,2" />
-                                <TextBox x:Name="IdleBrowseIntervalMaxTextBox" Grid.Row="1" Grid.Column="2" Height="24" Margin="0,2,0,2" />
-                            </Grid>
-                            <Expander Header="Pages to visit" Margin="18,6,0,0" Foreground="{DynamicResource TextPrimaryBrush}">
-                                <StackPanel Margin="4,4,0,0">
-                                    <CheckBox x:Name="IdleBrowsePageMapCheckBox" Content="Map" Margin="0,2" />
-                                    <CheckBox x:Name="IdleBrowsePageStatisticsCheckBox" Content="Statistics" Margin="0,2" />
-                                    <CheckBox x:Name="IdleBrowsePageReportsCheckBox" Content="Reports" Margin="0,2" />
-                                    <CheckBox x:Name="IdleBrowsePageMessagesCheckBox" Content="Messages" Margin="0,2" />
+                            <Border Style="{StaticResource SettingsGroupBox}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <CheckBox x:Name="SessionPacingEnabledCheckBox"
+                                                  Content="Session pacing" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                        ToolTip="Limits how long the bot runs before it logs out, sleeps, and resumes automatically." />
+                                    </StackPanel>
+                                    <Grid Margin="18,0,0,12">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="140" />
+                                            <ColumnDefinition Width="80" />
+                                            <ColumnDefinition Width="90" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="Min" FontWeight="SemiBold" Margin="0,2" />
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Max" FontWeight="SemiBold" Margin="6,2,0,2" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Run (min)" VerticalAlignment="Center" Margin="0,2" />
+                                        <TextBox x:Name="SessionRunMinMinutesTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2" />
+                                        <TextBox x:Name="SessionRunMaxMinutesTextBox" Grid.Row="1" Grid.Column="2" Height="24" Margin="6,2,0,2" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Sleep (min)" VerticalAlignment="Center" Margin="0,2" />
+                                        <TextBox x:Name="SessionSleepMinMinutesTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2" />
+                                        <TextBox x:Name="SessionSleepMaxMinutesTextBox" Grid.Row="2" Grid.Column="2" Height="24" Margin="6,2,0,2" />
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Daily max" VerticalAlignment="Center" Margin="0,2" />
+                                        <ComboBox x:Name="SessionDailyMaxHoursComboBox" Grid.Row="3" Grid.Column="1" Height="24" Margin="0,2" />
+                                        <ComboBox x:Name="SessionDailyMaxVariationComboBox" Grid.Row="3" Grid.Column="2" Height="24" Margin="6,2,0,2"
+                                                  ToolTip="Daily max variation: randomizes the daily limit by this much each day (applies only to Daily max)." />
+                                    </Grid>
+                                    <StackPanel Orientation="Horizontal" Margin="18,0,0,6">
+                                        <TextBlock Text="Allowed hours" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                        ToolTip="Checked hours may run. Unchecked hours log out and stay stopped until the next checked hour." />
+                                    </StackPanel>
+                                    <local:VerticalFirstUniformGrid x:Name="SessionAllowedHoursGrid"
+                                                                    Columns="6"
+                                                                    Margin="18,0,0,0" />
                                 </StackPanel>
-                            </Expander>
+                            </Border>
 
-                            <StackPanel Orientation="Horizontal" Margin="0,12,0,8">
-                                <TextBlock Text="Resource refresh jitter" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
-                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
-                                                ToolTip="Always on. The background dashboard resource refresh fires at a random interval in this range instead of a fixed 20s heartbeat. Fixed values, shown for reference." />
-                            </StackPanel>
-                            <Grid Margin="18,0,0,0">
-                                <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="110" />
-                                    <ColumnDefinition Width="70" />
-                                    <ColumnDefinition Width="70" />
-                                </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Grid.Row="0" Grid.Column="1" Text="Min s" FontWeight="SemiBold" />
-                                <TextBlock Grid.Row="0" Grid.Column="2" Text="Max s" FontWeight="SemiBold" />
-                                <TextBlock Grid.Row="1" Grid.Column="0" Text="Interval (s)" VerticalAlignment="Center" Margin="0,4" />
-                                <!-- Fixed, non-editable. Mirrors the jitter range in MainWindow's resource-refresh timer (15–35s). -->
-                                <TextBox Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2,6,2" Text="15" IsReadOnly="True" Focusable="False" Foreground="{DynamicResource TextMutedBrush}" />
-                                <TextBox Grid.Row="1" Grid.Column="2" Height="24" Margin="0,2,0,2" Text="35" IsReadOnly="True" Focusable="False" Foreground="{DynamicResource TextMutedBrush}" />
-                            </Grid>
+                            <Border Style="{StaticResource SettingsGroupBox}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <CheckBox x:Name="ActionPacingEnabledCheckBox"
+                                                  Content="Action pacing" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                        ToolTip="Adds small randomized pauses around central bot actions such as tasks, page loads, farm sends, and loop passes." />
+                                    </StackPanel>
+                                    <Grid Margin="18,0,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="110" />
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="70" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="Min s" FontWeight="SemiBold" />
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Max s" FontWeight="SemiBold" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Task" VerticalAlignment="Center" Margin="0,4" />
+                                        <TextBox x:Name="ActionTaskMinTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2,6,2" />
+                                        <TextBox x:Name="ActionTaskMaxTextBox" Grid.Row="1" Grid.Column="2" Height="24" Margin="0,2,0,2" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Page load" VerticalAlignment="Center" Margin="0,4" />
+                                        <TextBox x:Name="ActionPageLoadMinTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2,6,2" />
+                                        <TextBox x:Name="ActionPageLoadMaxTextBox" Grid.Row="2" Grid.Column="2" Height="24" Margin="0,2,0,2" />
+                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Click" VerticalAlignment="Center" Margin="0,4" />
+                                        <TextBox x:Name="ActionClickMinTextBox" Grid.Row="3" Grid.Column="1" Height="24" Margin="0,2,6,2" />
+                                        <TextBox x:Name="ActionClickMaxTextBox" Grid.Row="3" Grid.Column="2" Height="24" Margin="0,2,0,2" />
+                                        <TextBlock Grid.Row="4" Grid.Column="0" Text="Loop" VerticalAlignment="Center" Margin="0,4" />
+                                        <TextBox x:Name="ActionLoopMinTextBox" Grid.Row="4" Grid.Column="1" Height="24" Margin="0,2,6,2" />
+                                        <TextBox x:Name="ActionLoopMaxTextBox" Grid.Row="4" Grid.Column="2" Height="24" Margin="0,2,0,2" />
+                                        <TextBlock Grid.Row="5" Grid.Column="0" Text="Farmlist" VerticalAlignment="Center" Margin="0,4" />
+                                        <TextBox x:Name="FarmListStepDelayMinTextBox" Grid.Row="5" Grid.Column="1" Height="24" Margin="0,2,6,2" />
+                                        <TextBox x:Name="FarmListStepDelayMaxTextBox" Grid.Row="5" Grid.Column="2" Height="24" Margin="0,2,0,2" />
+                                    </Grid>
+
+                                    <StackPanel Orientation="Horizontal" Margin="0,14,0,8">
+                                        <TextBlock Text="Collect tasks/daily delay" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                        ToolTip="Randomized delay between internal clicks/steps in the Auto collect tasks and Auto collect daily quests flows only. Keeps these fast bursts from looking robotic. Set both to 0 to disable." />
+                                    </StackPanel>
+                                    <Grid Margin="18,0,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="110" />
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="70" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="Min s" FontWeight="SemiBold" />
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Max s" FontWeight="SemiBold" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Click/step" VerticalAlignment="Center" Margin="0,4" />
+                                        <TextBox x:Name="CollectStepDelayMinTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2,6,2" />
+                                        <TextBox x:Name="CollectStepDelayMaxTextBox" Grid.Row="1" Grid.Column="2" Height="24" Margin="0,2,0,2" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingsGroupBox}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                        <CheckBox x:Name="IdleBreakEnabledCheckBox"
+                                                  Content="Idle break"
+                                                  VerticalAlignment="Center" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                            <ContentControl.ToolTip>
+                                                <ToolTip MaxWidth="320">
+                                                    <TextBlock TextWrapping="Wrap"
+                                                               Text="Occasionally pauses the loop as if you stepped away from the computer. Somewhere within the Every range a random pause of the Length range fires between tasks (never mid-action); when it ends the timer restarts. Shown in the log under the Pacing filter." />
+                                                </ToolTip>
+                                            </ContentControl.ToolTip>
+                                        </ContentControl>
+                                    </StackPanel>
+                                    <Grid Margin="18,0,0,0">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="110" />
+                                            <ColumnDefinition Width="70" />
+                                            <ColumnDefinition Width="70" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="Min" FontWeight="SemiBold" />
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Max" FontWeight="SemiBold" />
+                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Every (min)" VerticalAlignment="Center" Margin="0,4" />
+                                        <TextBox x:Name="IdleBreakIntervalMinTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2,6,2" />
+                                        <TextBox x:Name="IdleBreakIntervalMaxTextBox" Grid.Row="1" Grid.Column="2" Height="24" Margin="0,2,0,2" />
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Length (min)" VerticalAlignment="Center" Margin="0,4" />
+                                        <TextBox x:Name="IdleBreakDurationMinTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2,6,2" />
+                                        <TextBox x:Name="IdleBreakDurationMaxTextBox" Grid.Row="2" Grid.Column="2" Height="24" Margin="0,2,0,2" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingsGroupBox}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="70" />
+                                        <ColumnDefinition Width="70" />
+                                        <ColumnDefinition Width="*" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <CheckBox x:Name="IdleBrowseEnabledCheckBox"
+                                                  Content="Idle browse"
+                                                  VerticalAlignment="Center" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                            <ContentControl.ToolTip>
+                                                <ToolTip MaxWidth="320">
+                                                    <TextBlock TextWrapping="Wrap"
+                                                               Text="Occasionally opens a non-functional page (map, statistics, reports, messages) and reads nothing, as if you were browsing around. Somewhere within the Every range one page is opened between tasks (never mid-action); then the timer restarts. Pick which pages may be visited on the right. Shown in the log under the Pacing filter." />
+                                                </ToolTip>
+                                            </ContentControl.ToolTip>
+                                        </ContentControl>
+                                    </StackPanel>
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="Min" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Max" FontWeight="SemiBold" />
+                                    <TextBox x:Name="IdleBrowseIntervalMinTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2,6,2" />
+                                    <TextBox x:Name="IdleBrowseIntervalMaxTextBox" Grid.Row="1" Grid.Column="2" Height="24" Margin="0,2,0,2" />
+                                    <Expander Grid.Row="1" Grid.Column="3" Header="Pages to visit" Margin="12,0,0,0" VerticalAlignment="Center" Foreground="{DynamicResource TextPrimaryBrush}">
+                                        <StackPanel Margin="4,4,0,0">
+                                            <CheckBox x:Name="IdleBrowsePageMapCheckBox" Content="Map" Margin="0,2" />
+                                            <CheckBox x:Name="IdleBrowsePageStatisticsCheckBox" Content="Statistics" Margin="0,2" />
+                                            <CheckBox x:Name="IdleBrowsePageReportsCheckBox" Content="Reports" Margin="0,2" />
+                                            <CheckBox x:Name="IdleBrowsePageMessagesCheckBox" Content="Messages" Margin="0,2" />
+                                        </StackPanel>
+                                    </Expander>
+                                </Grid>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingsGroupBox}">
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150" />
+                                        <ColumnDefinition Width="70" />
+                                        <ColumnDefinition Width="70" />
+                                    </Grid.ColumnDefinitions>
+                                    <Grid.RowDefinitions>
+                                        <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
+                                    </Grid.RowDefinitions>
+                                    <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="Refresh jitter" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                        ToolTip="Always on. The background dashboard resource refresh fires at a random interval in this range instead of a fixed 20s heartbeat. Fixed values, shown for reference." />
+                                    </StackPanel>
+                                    <TextBlock Grid.Row="0" Grid.Column="1" Text="Min s" FontWeight="SemiBold" />
+                                    <TextBlock Grid.Row="0" Grid.Column="2" Text="Max s" FontWeight="SemiBold" />
+                                    <!-- Fixed, non-editable. Mirrors the jitter range in MainWindow's resource-refresh timer (15–35s). -->
+                                    <TextBox Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2,6,2" Text="15" IsReadOnly="True" Focusable="False" Foreground="{DynamicResource TextMutedBrush}" />
+                                    <TextBox Grid.Row="1" Grid.Column="2" Height="24" Margin="0,2,0,2" Text="35" IsReadOnly="True" Focusable="False" Foreground="{DynamicResource TextMutedBrush}" />
+                                </Grid>
+                            </Border>
                         </StackPanel>
                     </Border>
 

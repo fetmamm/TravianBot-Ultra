@@ -45,4 +45,24 @@ public sealed class TravianSessionCache
     // the wait the gate finds now>=deadline and lets the build proceed instead of re-computing (which
     // would defer forever). Survives per-operation TravianClient instances like the other caches.
     public System.Collections.Generic.Dictionary<string, System.DateTimeOffset> ConstructionHumanizeUntilBySlot { get; } = new();
+
+    // Last value logged per key, so repeated per-tick status echoes (population, adventure counts,
+    // language, …) are only re-logged when the value actually changes instead of every refresh.
+    private readonly System.Collections.Generic.Dictionary<string, string> _lastLoggedValueByKey = new();
+
+    /// <summary>
+    /// Returns true (and stores the value) when <paramref name="value"/> differs from the last value
+    /// logged for <paramref name="key"/>; false when unchanged. Gates high-frequency status logs so
+    /// they print once and then only again on change. Logging-only — never gate behavior on this.
+    /// </summary>
+    public bool LogValueChanged(string key, string value)
+    {
+        if (_lastLoggedValueByKey.TryGetValue(key, out var last) && last == value)
+        {
+            return false;
+        }
+
+        _lastLoggedValueByKey[key] = value;
+        return true;
+    }
 }

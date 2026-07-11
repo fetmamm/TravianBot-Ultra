@@ -58,6 +58,10 @@ public sealed partial class BotTaskRunner
         return revived;
     }
 
+    // Last adventure count echoed to the log, so "Adventures available: N" prints once and then only
+    // again when the count changes (logging-only — the returned count is unaffected).
+    private int? _lastLoggedAdventuresAvailable;
+
     public async Task<int?> RefreshAdventureCountAsync(
         BotOptions options,
         Action<string> log,
@@ -82,8 +86,9 @@ public sealed partial class BotTaskRunner
         {
             log("Adventures not found on current page.");
         }
-        else
+        else if (count != _lastLoggedAdventuresAvailable)
         {
+            _lastLoggedAdventuresAvailable = count;
             log($"Adventures available: {count}.");
         }
 
