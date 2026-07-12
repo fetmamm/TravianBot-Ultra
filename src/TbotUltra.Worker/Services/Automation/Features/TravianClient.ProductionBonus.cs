@@ -137,7 +137,7 @@ public sealed partial class TravianClient
             {
                 var stateOnly = ProductionBonusDomParser.Classify(initialState.Boxes);
                 Notify($"[production-bonus] nothing to activate — {FormatProductionBonusLog(stateOnly)}.");
-                return $"Production bonus: nothing to activate. {ProductionBonusDomParser.BuildResultToken(stateOnly)}{FormatProductionBonusOffsetToken(initialState.ServerUtcOffset)}";
+                return $"Production bonus: nothing to activate. {ProductionBonusDomParser.BuildResultToken(stateOnly)}{FormatProductionBonusOffsetToken(initialState.ServerUtcOffset)}{FormatProductionBonusFreeAvailableToken(false)}";
             }
 
             Notify($"[production-bonus] activatable resources: {string.Join(", ", activatable)}.");
@@ -183,7 +183,7 @@ public sealed partial class TravianClient
             var finalStates = ProductionBonusDomParser.Classify(finalPageState.Boxes);
             var token = ProductionBonusDomParser.BuildResultToken(finalStates);
             Notify($"[production-bonus] done — {FormatProductionBonusLog(finalStates)}.");
-            return $"Production bonus: processed {activatable.Count} resource(s). {token}{FormatProductionBonusOffsetToken(finalPageState.ServerUtcOffset)}";
+            return $"Production bonus: processed {activatable.Count} resource(s). {token}{FormatProductionBonusOffsetToken(finalPageState.ServerUtcOffset)}{FormatProductionBonusFreeAvailableToken(activatable.Count > 0)}";
         }
         catch (OperationCanceledException)
         {
@@ -209,8 +209,9 @@ public sealed partial class TravianClient
             await EnsureLoggedInAsync();
             var pageState = await ReadProductionBonusPageStateInMainBrowserAsync(cancellationToken);
             var states = ProductionBonusDomParser.Classify(pageState.Boxes, afterActivationAttempt: false);
+            var freeAvailable = ProductionBonusDomParser.AnyActivatable(pageState.Boxes);
             Notify($"[production-bonus] scan done — {FormatProductionBonusLog(states)}.");
-            return $"Production bonus: scanned. {ProductionBonusDomParser.BuildResultToken(states)}{FormatProductionBonusOffsetToken(pageState.ServerUtcOffset)}";
+            return $"Production bonus: scanned. {ProductionBonusDomParser.BuildResultToken(states)}{FormatProductionBonusOffsetToken(pageState.ServerUtcOffset)}{FormatProductionBonusFreeAvailableToken(freeAvailable)}";
         }
         catch (OperationCanceledException)
         {
@@ -528,4 +529,7 @@ public sealed partial class TravianClient
         => serverUtcOffset.HasValue
             ? " " + ProductionBonusDomParser.BuildServerUtcOffsetToken(serverUtcOffset.Value)
             : string.Empty;
+
+    private static string FormatProductionBonusFreeAvailableToken(bool available)
+        => " " + ProductionBonusDomParser.BuildFreeVideoAvailableToken(available);
 }

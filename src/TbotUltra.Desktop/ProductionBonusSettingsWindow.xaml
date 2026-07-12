@@ -13,6 +13,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
@@ -94,7 +95,45 @@
                             ToolTip="After the daily 09:00 server-time reset, the bot waits a random time within this range before watching the videos again.&#10;&#10;Example: reset is 09:00 and 40 min is picked at random — the bot runs about 09:40 server time, then watches every available video in a row." />
         </StackPanel>
 
-        <DockPanel Grid.Row="3"
+        <StackPanel Grid.Row="3" Margin="0,14,0,0">
+            <TextBlock Text="Daily reset time (server)"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextSecondaryBrush}" />
+            <StackPanel Orientation="Horizontal" Margin="0,6,0,0" VerticalAlignment="Center">
+                <RadioButton x:Name="ResetAutoRadio"
+                             GroupName="ProductionBonusReset"
+                             Content="Auto-learn"
+                             VerticalAlignment="Center"
+                             Checked="ResetMode_Changed" />
+                <TextBlock x:Name="LearnedResetTextBlock"
+                           VerticalAlignment="Center"
+                           Margin="8,0,0,0"
+                           Foreground="{DynamicResource TextMutedBrush}" />
+                <RadioButton x:Name="ResetManualRadio"
+                             GroupName="ProductionBonusReset"
+                             Content="Manual"
+                             VerticalAlignment="Center"
+                             Margin="24,0,0,0"
+                             Checked="ResetMode_Changed" />
+                <TextBox x:Name="ManualResetHourTextBox"
+                         Width="44"
+                         Margin="8,0,0,0"
+                         Padding="6,3"
+                         VerticalAlignment="Center"
+                         BorderBrush="{DynamicResource BorderSubtleBrush}"
+                         LostFocus="ResetMode_Changed" />
+                <TextBlock Text=":00"
+                           VerticalAlignment="Center"
+                           Margin="2,0,0,0"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                ToolTip="When the free +15% video re-enables each day (server time). Auto-learn watches when the video becomes available and remembers the hour, per account. Manual: set the whole hour yourself." />
+            </StackPanel>
+        </StackPanel>
+
+        <DockPanel Grid.Row="4"
                    LastChildFill="False"
                    Margin="0,16,0,0">
             <Button x:Name="ClearTimersButton"

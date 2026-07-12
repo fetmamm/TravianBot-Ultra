@@ -35,6 +35,8 @@ public partial class ProductionBonusSettingsWindow : Window
     private int _tickCount;
 
     private Dictionary<string, ProductionBonusResourceTimer> _timersByResource = new(StringComparer.OrdinalIgnoreCase);
+    // Guards the reset radios/textbox while loading so programmatic changes don't trigger a save.
+    private bool _suppressResetSave;
 
     // Badge cells keyed by "<bonus>:<resource>" (e.g. "25:lumber"), so the tick can update them in place.
     private readonly Dictionary<string, Border> _badgeBorders = new();
@@ -55,6 +57,7 @@ public partial class ProductionBonusSettingsWindow : Window
 
         BuildGrid();
         LoadDelaySettings();
+        LoadResetSettings();
         ReloadTimersFromStore();
         UpdateTimers();
 
@@ -68,6 +71,7 @@ public partial class ProductionBonusSettingsWindow : Window
             if (_tickCount % StoreReloadEveryTicks == 0)
             {
                 ReloadTimersFromStore();
+                RefreshLearnedResetLabel();
             }
 
             UpdateTimers();
@@ -281,6 +285,65 @@ public partial class ProductionBonusSettingsWindow : Window
 
     private static int ParseDelayBox(TextBox box, int fallback)
         => int.TryParse(box.Text?.Trim(), out var value) ? value : fallback;
+
+    private void LoadResetSettings()
+    {
+        var settings = ProductionBonusStateStore.LoadSettings(_projectRoot, _accountName);
+        var manual = string.Equals(settings.ResetMode, ProductionBonusStateStore.ResetModeManual, StringComparison.OrdinalIgnoreCase);
+        _suppressResetSave = true;
+        try
+        {
+            ResetManualRadio.IsChecked = manual;
+            ResetAutoRadio.IsChecked = !manual;
+            ManualResetHourTextBox.Text = settings.ManualResetHour.ToString();
+        }
+        finally
+        {
+            _suppressResetSave = false;
+        }
+
+        ManualResetHourTextBox.IsEnabled = manual;
+        RefreshLearnedResetLabel();
+    }
+
+    private void ResetMode_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressResetSave)
+        {
+            return;
+        }
+
+        var manual = ResetManualRadio.IsChecked == true;
+        var mode = manual ? ProductionBonusStateStore.ResetModeManual : ProductionBonusStateStore.ResetModeAuto;
+        var hour = ParseHourBox(ManualResetHourTextBox, ProductionBonusStateStore.DefaultManualResetHour);
+        ManualResetHourTextBox.Text = hour.ToString();
+        ManualResetHourTextBox.IsEnabled = manual;
+        ProductionBonusStateStore.SaveResetSettings(_projectRoot, _accountName, mode, hour);
+        RefreshLearnedResetLabel();
+    }
+
+    // Shows the auto-learned reset hour (or "learning…") next to the Auto radio; blank in manual mode.
+    private void RefreshLearnedResetLabel()
+    {
+        if (LearnedResetTextBlock is null)
+        {
+            return;
+        }
+
+        if (ResetManualRadio.IsChecked == true)
+        {
+            LearnedResetTextBlock.Text = string.Empty;
+            return;
+        }
+
+        var settings = ProductionBonusStateStore.LoadSettings(_projectRoot, _accountName);
+        LearnedResetTextBlock.Text = settings.LearnedResetHour is int hour
+            ? $"learned: {hour:00}:00"
+            : "learning…";
+    }
+
+    private static int ParseHourBox(TextBox box, int fallback)
+        => int.TryParse(box.Text?.Trim(), out var value) ? Math.Clamp(value, 0, 23) : fallback;
 
     private void ScanTimersButton_Click(object sender, RoutedEventArgs e)
     {

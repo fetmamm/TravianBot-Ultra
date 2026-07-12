@@ -265,6 +265,35 @@ public static class ProductionBonusDomParser
         return states;
     }
 
+    // Whether at least one resource offered a clickable free +15% video during the run. The Desktop uses
+    // this to auto-learn the daily reset hour: the unavailable→available transition is the reset moment.
+    public static string BuildFreeVideoAvailableToken(bool available)
+        => "production_bonus_free_video_available=" + (available ? "1" : "0");
+
+    public static bool? ParseFreeVideoAvailableToken(string? result)
+    {
+        if (string.IsNullOrWhiteSpace(result))
+        {
+            return null;
+        }
+
+        var marker = "production_bonus_free_video_available=";
+        var start = result.IndexOf(marker, StringComparison.Ordinal);
+        if (start < 0)
+        {
+            return null;
+        }
+
+        var payload = result[(start + marker.Length)..];
+        var end = payload.IndexOf(' ');
+        if (end >= 0)
+        {
+            payload = payload[..end];
+        }
+
+        return payload.Trim() == "1";
+    }
+
     public static string BuildServerUtcOffsetToken(TimeSpan serverUtcOffset)
         => "production_bonus_server_utc_offset_seconds="
            + ((int)serverUtcOffset.TotalSeconds).ToString(CultureInfo.InvariantCulture);

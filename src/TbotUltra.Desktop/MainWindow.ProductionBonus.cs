@@ -62,11 +62,14 @@ public partial class MainWindow
         var now = DateTimeOffset.UtcNow;
         var serverUtcOffset = ProductionBonusDomParser.ParseServerUtcOffsetToken(message) ?? _queueServerTimeOffset;
 
-        // Human-like: never fire at the exact moment a cooldown/reset expires. For +15%, Travian resets
-        // availability daily at 09:00 server time; for +25% and failed-video retries, use the reported
-        // relative wait. Bonus-end times are never jittered (real expiry shown in the popup).
+        // Human-like: never fire at the exact moment a cooldown/reset expires. For +15% the retry is
+        // scheduled at the daily reset (server-local hour, resolved per account below); for +25% and
+        // failed-video retries the reported relative wait is used. Bonus-end times are never jittered.
         var settings = ProductionBonusStateStore.LoadSettings(_projectRoot, account);
         var delay = ResolveProductionBonusRandomDelay(settings);
+
+        // Resolve (and, in auto mode, learn) the daily reset hour. Null => still learning => poll hourly.
+        var resetHour = ResolveProductionBonusResetHour(account, settings, message, now, serverUtcOffset);
 
         var timers = states
             .Select(state =>
@@ -75,12 +78,66 @@ public partial class MainWindow
                     state.Resource,
                     state.Bonus,
                     now.AddSeconds(state.RemainingSeconds),
-                    ProductionBonusScheduleCalculator.ResolveNextAttemptUtc(state, now, serverUtcOffset, delay));
+                    ProductionBonusScheduleCalculator.ResolveNextAttemptUtc(state, now, serverUtcOffset, delay, resetHour));
             })
             .ToList();
 
         ProductionBonusStateStore.Save(_projectRoot, account, timers);
         AppendLog($"Production bonus: saved timers ({FormatProductionBonusStates(states)}); next-run delay +{delay.TotalMinutes:0} min.");
+    }
+
+    // Resolves the daily reset hour (server-local, whole hour) used to schedule +15% retries. In manual
+    // mode returns the user's hour. In auto mode returns the learned hour, or — while still learning —
+    // null (which makes the scheduler poll hourly) and, on each run, records the free-video availability so
+    // the unavailable→available transition (= the reset moment) can be detected and locked in.
+    private int? ResolveProductionBonusResetHour(
+        string? account,
+        ProductionBonusSettings settings,
+        string? message,
+        DateTimeOffset nowUtc,
+        TimeSpan serverUtcOffset)
+    {
+        if (string.Equals(settings.ResetMode, ProductionBonusStateStore.ResetModeManual, StringComparison.OrdinalIgnoreCase))
+        {
+            return Math.Clamp(settings.ManualResetHour, 0, 23);
+        }
+
+        // Auto mode.
+        if (settings.LearnedResetHour is int learned)
+        {
+            return learned;
+        }
+
+        var availableNow = ProductionBonusDomParser.ParseFreeVideoAvailableToken(message);
+        if (availableNow is null || string.IsNullOrWhiteSpace(account))
+        {
+            return null; // can't tell — keep polling hourly
+        }
+
+        var currentServerHour = nowUtc.ToOffset(serverUtcOffset).Hour;
+        if (availableNow.Value && settings.LastPollServerHour is not null && !settings.LastPollFreeVideoAvailable)
+        {
+            // Free video just went unavailable→available: this hour is the daily reset. Lock it in.
+            ProductionBonusStateStore.SaveLearnState(_projectRoot, account, currentServerHour, currentServerHour, true);
+            AppendLog($"Production bonus: learned daily reset hour = {currentServerHour:00}:00 server time (auto).");
+            return currentServerHour;
+        }
+
+        // No transition yet — remember this poll so the next hourly run can detect the flip.
+        ProductionBonusStateStore.SaveLearnState(_projectRoot, account, null, currentServerHour, availableNow.Value);
+        return null;
+    }
+
+    // Reset hour for the pre-run timer normalization: manual hour, or learned hour in auto mode. Null while
+    // auto-learning (no capping then — the next hourly run re-evaluates).
+    private static int? ResolveProductionBonusResetHourFromSettings(ProductionBonusSettings settings)
+    {
+        if (string.Equals(settings.ResetMode, ProductionBonusStateStore.ResetModeManual, StringComparison.OrdinalIgnoreCase))
+        {
+            return Math.Clamp(settings.ManualResetHour, 0, 23);
+        }
+
+        return settings.LearnedResetHour;
     }
 
     private void NormalizeStoredProductionBonus15Timers(string? account)
@@ -98,6 +155,12 @@ public partial class MainWindow
 
         var now = DateTimeOffset.UtcNow;
         var settings = ProductionBonusStateStore.LoadSettings(_projectRoot, account);
+        // While auto-learning (reset hour unknown) there is nothing to cap to — the next hourly run resolves it.
+        if (ResolveProductionBonusResetHourFromSettings(settings) is not int resetHour)
+        {
+            return;
+        }
+
         var maxDelay = TimeSpan.FromMinutes(settings.DelayMaxMinutes);
         var serverUtcOffset = _queueServerTimeOffset;
         var changed = false;
@@ -109,7 +172,7 @@ public partial class MainWindow
                     return timer;
                 }
 
-                var capUtc = ResolveStoredProductionBonus15CapUtc(timer, now, serverUtcOffset, maxDelay);
+                var capUtc = ResolveStoredProductionBonus15CapUtc(timer, now, serverUtcOffset, maxDelay, resetHour);
                 if (timer.NextAttemptAtUtc <= capUtc)
                 {
                     return timer;
@@ -126,18 +189,19 @@ public partial class MainWindow
         }
 
         ProductionBonusStateStore.Save(_projectRoot, account, normalized);
-        AppendLog("Production bonus: normalized old +15% timers to the daily 09:00 server-time reset.");
+        AppendLog($"Production bonus: normalized old +15% timers to the daily {resetHour:00}:00 server-time reset.");
     }
 
     private static DateTimeOffset ResolveStoredProductionBonus15CapUtc(
         ProductionBonusResourceTimer timer,
         DateTimeOffset nowUtc,
         TimeSpan serverUtcOffset,
-        TimeSpan maxDelay)
+        TimeSpan maxDelay,
+        int resetHour)
     {
         var now = nowUtc.ToUniversalTime();
         var serverNow = now.ToOffset(serverUtcOffset);
-        if (timer.BonusEndsAtUtc <= now && serverNow.TimeOfDay >= TimeSpan.FromHours(9))
+        if (timer.BonusEndsAtUtc <= now && serverNow.TimeOfDay >= TimeSpan.FromHours(resetHour))
         {
             return now;
         }
@@ -149,7 +213,7 @@ public partial class MainWindow
             remainingSeconds,
             ProductionBonusDomParser.NextAttemptAfterDailyResetSeconds,
             false);
-        return ProductionBonusScheduleCalculator.ResolveNextAttemptUtc(state, now, serverUtcOffset, maxDelay);
+        return ProductionBonusScheduleCalculator.ResolveNextAttemptUtc(state, now, serverUtcOffset, maxDelay, resetHour);
     }
 
     private static TimeSpan ResolveProductionBonusRandomDelay(ProductionBonusSettings settings)
