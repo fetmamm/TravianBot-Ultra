@@ -181,6 +181,8 @@ public partial class SettingsWindow : Window
             checkBox.IsChecked = int.TryParse(checkBox.Tag?.ToString(), out var hour) && allowedHours.Contains(hour);
         }
 
+        SessionHoursVariationTextBox.Text = ReadInt(BotOptionPayloadKeys.SessionPacingHoursVariationPercent, PacingDefaults.SessionPacingHoursVariationPercent).ToString();
+
         ActionPacingEnabledCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingEnabled, PacingDefaults.ActionPacingEnabled);
         ActionTaskMinTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingTaskMinSeconds, PacingDefaults.ActionPacingTaskMinSeconds));
         ActionTaskMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingTaskMaxSeconds, PacingDefaults.ActionPacingTaskMaxSeconds));
@@ -225,6 +227,8 @@ public partial class SettingsWindow : Window
                 .Where(checkBox => checkBox.IsChecked == true)
                 .Select(checkBox => JsonValue.Create(int.Parse(checkBox.Tag!.ToString()!)))
                 .ToArray());
+        _config[BotOptionPayloadKeys.SessionPacingHoursVariationPercent] =
+            ReadIntText(SessionHoursVariationTextBox, PacingDefaults.SessionPacingHoursVariationPercent, 0, 49);
 
         _config[BotOptionPayloadKeys.ActionPacingEnabled] = ActionPacingEnabledCheckBox.IsChecked == true;
         WriteDelayRange(BotOptionPayloadKeys.ActionPacingTaskMinSeconds, BotOptionPayloadKeys.ActionPacingTaskMaxSeconds, ActionTaskMinTextBox, ActionTaskMaxTextBox, PacingDefaults.ActionPacingTaskMinSeconds, PacingDefaults.ActionPacingTaskMaxSeconds);
@@ -293,6 +297,7 @@ public partial class SettingsWindow : Window
         {
             checkBox.IsChecked = true;
         }
+        SessionHoursVariationTextBox.Text = PacingDefaults.SessionPacingHoursVariationPercent.ToString();
         ActionPacingEnabledCheckBox.IsChecked = PacingDefaults.ActionPacingEnabled;
         ActionTaskMinTextBox.Text = FormatDelay(PacingDefaults.ActionPacingTaskMinSeconds);
         ActionTaskMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingTaskMaxSeconds);

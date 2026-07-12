@@ -947,7 +947,8 @@ public partial class MainWindow
         SetEnabled(FarmListSendAllNowButton, farmControlsEnabled && _farmLists.Any(IsRealFarmListRow));
         SetEnabled(AnalyzeFarmListsButton, sleepAllowsActions && !_farmingOperationBusy);
         SetEnabled(StartManualFarmingButton, false);
-        SetEnabled(StartCatapultWavesButton, farmControlsEnabled);
+        // Catapult waves temporarily disabled — feature under review.
+        SetEnabled(StartCatapultWavesButton, false);
         UpdateManualFarmingRunningState();
     }
 

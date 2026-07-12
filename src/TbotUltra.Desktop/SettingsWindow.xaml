@@ -128,6 +128,13 @@
                                     <local:VerticalFirstUniformGrid x:Name="SessionAllowedHoursGrid"
                                                                     Columns="6"
                                                                     Margin="18,0,0,0" />
+                                    <StackPanel Orientation="Horizontal" Margin="18,12,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="Daily variation" FontWeight="SemiBold" VerticalAlignment="Center" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                        ToolTip="Shifts each allowed-hours on/off boundary by ± this percent of an hour (e.g. 20% = ±12 min), so the bot does not start or stop at the exact same clock time every day. Set to 0 to keep exact hours." />
+                                        <TextBox x:Name="SessionHoursVariationTextBox" Width="56" Height="24" Margin="8,0,0,0" VerticalContentAlignment="Center" />
+                                        <TextBlock Text="%" VerticalAlignment="Center" Margin="4,0,0,0" />
+                                    </StackPanel>
                                 </StackPanel>
                             </Border>
 

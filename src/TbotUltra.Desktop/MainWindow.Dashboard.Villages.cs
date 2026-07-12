@@ -190,6 +190,41 @@ public partial class MainWindow
     private static string? GetQueueItemVillageName(QueueItem item)
         => GetQueueItemPayloadValue(item, BotOptionPayloadKeys.TargetVillageName);
 
+    // Current display name for a queue item's village, resolved through the stable coordinate key so a
+    // renamed village shows its NEW name in the queue rather than the name stamped into the payload at
+    // enqueue time. Falls back to the payload name when the village is not in the current list yet.
+    private string? GetQueueItemCurrentVillageName(QueueItem item)
+    {
+        var key = GetQueueItemVillageKey(item);
+        var current = key is null ? null : ResolveCurrentVillageNameForKey(key);
+        return current ?? GetQueueItemVillageName(item);
+    }
+
+    private string? ResolveCurrentVillageNameForKey(string canonicalKey)
+    {
+        if (string.IsNullOrWhiteSpace(canonicalKey)
+            || VillageComboBox?.ItemsSource is not IEnumerable<VillageSelectionItem> villages)
+        {
+            return null;
+        }
+
+        foreach (var village in villages)
+        {
+            if (string.IsNullOrWhiteSpace(village.Name) || string.Equals(village.Name, "-", StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            var key = _villageSettingsStore.ResolveCanonicalKey(BuildVillageKeyInfo(village).Key);
+            if (string.Equals(key, canonicalKey, StringComparison.OrdinalIgnoreCase))
+            {
+                return village.Name;
+            }
+        }
+
+        return null;
+    }
+
     // Whether a queue item's target village is enabled for automation. Items without a village pass the
     // village gate here; their group is still gated separately. Unknown villages default to allowed so a
     // not-yet-discovered legacy queue item is not silently blocked.

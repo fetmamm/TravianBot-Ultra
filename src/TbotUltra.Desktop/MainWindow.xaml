@@ -2275,6 +2275,8 @@
                                                     Content="Start catapult waves"
                                                     Width="180"
                                                     HorizontalAlignment="Left"
+                                                    IsEnabled="False"
+                                                    ToolTip="Temporarily disabled — feature under review."
                                                     Background="{DynamicResource AccentBrush}"
                                                     Foreground="White"
                                                     BorderBrush="{DynamicResource AccentBrush}"

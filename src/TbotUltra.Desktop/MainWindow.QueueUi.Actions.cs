@@ -246,19 +246,23 @@ public partial class MainWindow
         _ = e;
         try
         {
-            var villageName = NormalizeVillageName(GetSelectedVillageName());
-            if (villageName is null)
+            // Match by the stable coordinate KEY, not the name. This clears the selected village's queue
+            // AND any stale/duplicate queue left under a previous name for the same coordinates (e.g. after
+            // the village was renamed) — same village, one clear.
+            var villageKey = GetSelectedVillageKey();
+            if (string.IsNullOrWhiteSpace(villageKey))
             {
                 AppendLog("Clear village queue: no village selected.");
                 return;
             }
 
+            var villageName = NormalizeVillageName(GetSelectedVillageName()) ?? "selected village";
             var villageItems = _botService
                 .GetQueueItemsForDisplay()
                 .Where(IsActiveQueueItem)
                 .Where(item => string.Equals(
-                    NormalizeVillageName(GetQueueItemVillageName(item)),
-                    villageName,
+                    GetQueueItemVillageKey(item) ?? string.Empty,
+                    villageKey,
                     StringComparison.OrdinalIgnoreCase))
                 .ToList();
             if (villageItems.Count == 0)

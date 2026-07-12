@@ -565,16 +565,17 @@ public partial class MainWindow
     // Village-less (global) rows are always shown; when no village is selected, nothing is filtered.
     private List<QueueItemRow> FilterQueueRowsForSelectedVillage(IReadOnlyList<QueueItemRow> rows)
     {
-        var selectedName = NormalizeVillageName(GetSelectedVillageName());
-        if (selectedName is null)
+        // Match by the stable coordinate key, not the name — a renamed village keeps the same key, so its
+        // queue follows the rename instead of disappearing when the display name changes.
+        var selectedKey = GetSelectedVillageKey();
+        if (string.IsNullOrWhiteSpace(selectedKey))
         {
             return rows.ToList();
         }
 
         return rows
-            .Where(row => string.IsNullOrWhiteSpace(row.VillageName)
-                || string.Equals(row.VillageName, "-", StringComparison.Ordinal)
-                || string.Equals(row.VillageName.Trim(), selectedName, StringComparison.OrdinalIgnoreCase))
+            .Where(row => string.IsNullOrWhiteSpace(row.VillageKey) // village-less/global tasks: always shown
+                || string.Equals(row.VillageKey, selectedKey, StringComparison.OrdinalIgnoreCase))
             .ToList();
     }
 
@@ -613,6 +614,16 @@ public partial class MainWindow
 
     private VillageSettingsStore.VillageKeyInfo? GetSelectedVillageKeyInfoOrNull()
     {
+        // Reads VillageComboBox (a WPF control), so it must run on the UI thread. The continuous loop calls
+        // this on a background thread (via IsQueueItemForSelectedVillageOrGlobal during the queue guard);
+        // without this marshal that read throws "the calling thread cannot access this object", which failed
+        // every village-less runtime task (hero_manage, activate_production_bonus) instantly and spammed the
+        // loop. Mirrors GetSelectedVillageSelectionSnapshot's dispatcher guard.
+        if (!Dispatcher.CheckAccess())
+        {
+            return Dispatcher.Invoke(GetSelectedVillageKeyInfoOrNull);
+        }
+
         if (VillageComboBox.SelectedItem is not VillageSelectionItem selected
             || string.IsNullOrWhiteSpace(selected.Name)
             || string.Equals(selected.Name, "-", StringComparison.Ordinal))
@@ -627,15 +638,16 @@ public partial class MainWindow
     // every village). Used to make the auto-loop group cards (timer/queued count/state) per village.
     private bool IsQueueItemForSelectedVillageOrGlobal(QueueItem item)
     {
-        var selectedName = NormalizeVillageName(GetSelectedVillageName());
-        if (selectedName is null)
+        // Key-based so it survives a village rename (same coordinates → same key → same identity).
+        var selectedKey = GetSelectedVillageKey();
+        if (string.IsNullOrWhiteSpace(selectedKey))
         {
             return true;
         }
 
-        var villageName = NormalizeVillageName(GetQueueItemVillageName(item));
-        return villageName is null
-            || string.Equals(villageName, selectedName, StringComparison.OrdinalIgnoreCase);
+        var itemKey = GetQueueItemVillageKey(item);
+        return itemKey is null
+            || string.Equals(itemKey, selectedKey, StringComparison.OrdinalIgnoreCase);
     }
 
     // Updates the auto-loop construction timer (build-queue remaining) to reflect a specific village's

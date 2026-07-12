@@ -11,6 +11,10 @@ public static class PacingDefaults
     public const int SessionPacingDailyMaxHours = 16;
     // Daily-max has its own variation, independent of the run/sleep/schedule "Variation" above.
     public const int SessionPacingDailyMaxVariationPercent = 10;
+    // Allowed-hours ("Daily hours") boundary jitter: shifts each on/off hour boundary by ±this% of an
+    // hour, deterministically per day, so the bot doesn't start/stop at the exact same clock time daily.
+    // 0 disables (exact boundaries). Capped at 49% so adjacent boundaries never reorder.
+    public const int SessionPacingHoursVariationPercent = 20;
 
     public const bool ActionPacingEnabled = true;
     public const double ActionPacingTaskMinSeconds = 0.8;

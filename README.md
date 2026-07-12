@@ -90,6 +90,7 @@ Compatible with:
 - Reduce adventure duration 25% button / video watch
 - Increase adventure to hard button / video watch
 - Auto town hall celebrations
+- Auto brewery celebration for Teutons
 - Construct 25% faster with button / video watch
 - Watch video to get 15% resource bonus production
 - Save reports as PNG to the program folder and blur out attacker, defender and alliance

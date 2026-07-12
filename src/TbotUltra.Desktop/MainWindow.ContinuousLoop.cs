@@ -221,12 +221,14 @@ public partial class MainWindow
         }
 
         // Per-village variant: an item only counts as active for a village when its payload targets that
-        // same village (by name). Lets each enabled village get its own troop-training/smithy/farming task.
-        bool HasActiveTaskForVillage(string taskName, string villageName)
+        // same village. Matched by the stable coordinate KEY, not the name — otherwise a renamed village
+        // would fail to find its existing runtime task and enqueue a duplicate under the new name.
+        bool HasActiveTaskForVillage(string taskName, VillageSelectionItem village)
         {
+            var villageKey = _villageSettingsStore.ResolveCanonicalKey(GetVillageKey(village)) ?? string.Empty;
             return activeItems.Any(item =>
                 string.Equals(item.TaskName, taskName, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(GetQueueItemVillageName(item) ?? string.Empty, villageName, StringComparison.OrdinalIgnoreCase));
+                && string.Equals(GetQueueItemVillageKey(item) ?? string.Empty, villageKey, StringComparison.OrdinalIgnoreCase));
         }
 
         var automationVillages = GetEnabledAutomationVillages();
@@ -255,7 +257,7 @@ public partial class MainWindow
             {
                 var villageKey = GetVillageKey(village);
                 if (!IsGroupEnabledForVillage(villageKey, QueueGroup.Troops)
-                    || HasActiveTaskForVillage("upgrade_troops_at_smithy", village.Name))
+                    || HasActiveTaskForVillage("upgrade_troops_at_smithy", village))
                 {
                     continue;
                 }
@@ -302,15 +304,16 @@ public partial class MainWindow
                 }
             }
 
-            if (HasActiveTaskForVillage("build_troops", village.Name))
+            if (HasActiveTaskForVillage("build_troops", village))
             {
                 // The runtime item can stay deferred for hours between runs. Keep its payload snapshot
                 // in sync with the village's current troop settings — otherwise edits (e.g. a new timed
                 // range) never take effect because the item is recreated only after it disappears.
+                var buildTroopsVillageKey = _villageSettingsStore.ResolveCanonicalKey(GetVillageKey(village)) ?? string.Empty;
                 var existingPending = activeItems.FirstOrDefault(existing =>
                     string.Equals(existing.TaskName, "build_troops", StringComparison.OrdinalIgnoreCase)
                     && existing.Status == QueueStatus.Pending
-                    && string.Equals(GetQueueItemVillageName(existing) ?? string.Empty, village.Name, StringComparison.OrdinalIgnoreCase));
+                    && string.Equals(GetQueueItemVillageKey(existing) ?? string.Empty, buildTroopsVillageKey, StringComparison.OrdinalIgnoreCase));
                 if (existingPending is not null
                     && !QueuePayloadEquals(existingPending.Payload, trainingPayload)
                     && _botService.UpdateDeferredQueueItem(existingPending.Id, trainingPayload))
@@ -357,7 +360,7 @@ public partial class MainWindow
             var capital = automationVillages.FirstOrDefault(v => v.IsCapital);
             if (capital is not null
                 && IsGroupEnabledForVillage(GetVillageKey(capital), QueueGroup.BreweryCelebration)
-                && !HasActiveTaskForVillage("run_brewery_celebration", capital.Name))
+                && !HasActiveTaskForVillage("run_brewery_celebration", capital))
             {
                 _botService.EnqueueRuntime("run_brewery_celebration", "Auto celebration", BuildVillageRuntimePayload(capital), priority: -50, maxRetries: 0);
             }
@@ -371,7 +374,7 @@ public partial class MainWindow
         {
             var villageKey = GetVillageKey(village);
             if (!IsGroupEnabledForVillage(villageKey, QueueGroup.TownHallCelebration)
-                || HasActiveTaskForVillage("run_town_hall_celebration", village.Name))
+                || HasActiveTaskForVillage("run_town_hall_celebration", village))
             {
                 continue;
             }
@@ -451,7 +454,7 @@ public partial class MainWindow
                     foreach (var farmingVillage in automationVillages)
                     {
                         if (!IsGroupEnabledForVillage(GetVillageKey(farmingVillage), QueueGroup.Farming)
-                            || HasActiveTaskForVillage("send_farmlists", farmingVillage.Name))
+                            || HasActiveTaskForVillage("send_farmlists", farmingVillage))
                         {
                             continue;
                         }

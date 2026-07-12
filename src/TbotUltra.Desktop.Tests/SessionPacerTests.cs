@@ -113,7 +113,8 @@ public sealed class SessionPacerTests
             120,
             30,
             30,
-            Enumerable.Range(0, 24).Except([2, 3, 4]).ToArray()));
+            Enumerable.Range(0, 24).Except([2, 3, 4]).ToArray(),
+            HoursVariationPercent: 0));
         pacer.SleepStarting += (_, _) => pacer.BeginSleep();
 
         pacer.NotifyAutomationStarted();
@@ -136,7 +137,8 @@ public sealed class SessionPacerTests
             120,
             30,
             30,
-            Enumerable.Range(0, 24).Except([2, 3, 4]).ToArray()));
+            Enumerable.Range(0, 24).Except([2, 3, 4]).ToArray(),
+            HoursVariationPercent: 0));
         pacer.SleepStarting += (_, _) => pacer.BeginSleep();
 
         pacer.NotifyAutomationStarted();
@@ -163,7 +165,8 @@ public sealed class SessionPacerTests
             120,
             30,
             30,
-            Enumerable.Range(0, 24).Except([2]).ToArray()));
+            Enumerable.Range(0, 24).Except([2]).ToArray(),
+            HoursVariationPercent: 0));
 
         pacer.NotifyAutomationStarted();
 

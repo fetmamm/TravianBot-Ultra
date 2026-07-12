@@ -50,6 +50,13 @@ public partial class MainWindow
         {
             var ordered = _botService.GetQueueItemsForDisplay().ToList();
             ClearStaleBuildingPendingCaches(ordered);
+            // Drop construction upgrades whose target level is already reached (built manually or covered
+            // by an earlier queued step) so the queue only shows real remaining work. Re-fetch after a prune.
+            if (PruneCompletedConstructionQueueItems(ordered))
+            {
+                ordered = _botService.GetQueueItemsForDisplay().ToList();
+            }
+
             _queueServerTimeOffset = ResolveQueueServerTimeOffset();
             var displayRunningId = ResolveDisplayRunningQueueItemId(ordered);
             var serverSpeed = ResolveServerSpeed();
@@ -65,7 +72,7 @@ public partial class MainWindow
                         item,
                         estimate,
                         displayRunningId,
-                        GetQueueItemVillageName,
+                        GetQueueItemCurrentVillageName,
                         GetQueueItemVillageKey,
                         BuildQueueDisplayName,
                         FormatQueueServerTime);

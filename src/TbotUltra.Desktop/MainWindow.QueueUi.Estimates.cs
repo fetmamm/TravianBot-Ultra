@@ -16,6 +16,46 @@ public partial class MainWindow
 {
     private readonly HashSet<string> _estimateAlarmedKeys = new(StringComparer.OrdinalIgnoreCase);
 
+    // Specific slot/level construction upgrades that can be auto-removed once their target level is
+    // already reached. Aggregate resource tasks and constructs are left to self-clear at runtime.
+    private static readonly HashSet<string> AutoPrunableCompletedTasks = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "upgrade_building_to_level",
+        "upgrade_building_to_max",
+        "upgrade_resource_to_level",
+    };
+
+    // Removes Pending construction upgrades whose target level is already met — the user may have built
+    // the level manually, or an earlier queued step already covers it, so the estimate resolves to
+    // 0 cost / 0 time and the task can never build anything. Returns true when something was removed.
+    // Estimates every item in queue order first so per-slot coverage is accumulated correctly.
+    private bool PruneCompletedConstructionQueueItems(IReadOnlyList<QueueItem> ordered)
+    {
+        var serverSpeed = ResolveServerSpeed();
+        var mainBuildingLevel = ResolveMainBuildingLevel();
+        var coverage = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var removedAny = false;
+        foreach (var item in ordered)
+        {
+            var estimate = EstimateForQueueItem(item, serverSpeed, mainBuildingLevel, coverage);
+            if (item.Status != QueueStatus.Pending
+                || !AutoPrunableCompletedTasks.Contains(item.TaskName ?? string.Empty)
+                || !estimate.HasData
+                || estimate.Seconds > 0)
+            {
+                continue;
+            }
+
+            if (_botService.RemoveQueueItem(item.Id))
+            {
+                removedAny = true;
+                AppendLog($"[queue] removed already-completed construction '{BuildQueueDisplayName(item)}' — target level already reached, nothing left to build.");
+            }
+        }
+
+        return removedAny;
+    }
+
     // Main Building level of the currently loaded village (gid 15), used to discount build time.
     // Defaults to 1 (no discount) until the village's buildings have been scanned.
     private int ResolveMainBuildingLevel()
@@ -274,14 +314,17 @@ public partial class MainWindow
 
     private bool IsQueueItemForLoadedVillage(QueueItem item)
     {
-        var itemVillage = NormalizeVillageName(GetQueueItemVillageName(item));
-        if (string.IsNullOrEmpty(itemVillage))
+        // Key-based: a renamed village keeps its coordinate key, so its buildings/resource rows (loaded
+        // for the selected village) are correctly matched to its queue items for cost/time estimates.
+        var itemKey = GetQueueItemVillageKey(item);
+        if (string.IsNullOrEmpty(itemKey))
         {
             return true;
         }
 
-        var selected = NormalizeVillageName(GetSelectedVillageName());
-        return string.Equals(itemVillage, selected, StringComparison.OrdinalIgnoreCase);
+        var selectedKey = GetSelectedVillageKey();
+        return !string.IsNullOrEmpty(selectedKey)
+            && string.Equals(itemKey, selectedKey, StringComparison.OrdinalIgnoreCase);
     }
 
     private void RaiseEstimateAlarm(QueueItem item, string reason)

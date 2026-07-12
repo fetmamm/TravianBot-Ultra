@@ -30,7 +30,8 @@ public sealed record SessionPacerSettings(
     int DailyMaxHours = 0,
     DateOnly? RuntimeDate = null,
     double RuntimeSeconds = 0,
-    int DailyMaxVariationPercent = PacingDefaults.SessionPacingDailyMaxVariationPercent);
+    int DailyMaxVariationPercent = PacingDefaults.SessionPacingDailyMaxVariationPercent,
+    int HoursVariationPercent = PacingDefaults.SessionPacingHoursVariationPercent);
 
 public sealed record SessionPacerRuntimeState(DateOnly Date, double RuntimeSeconds);
 
@@ -552,10 +553,15 @@ public sealed class SessionPacer
                     continue;
                 }
 
-                // Exact hour boundaries: the old run/sleep variation percent (which also jittered these)
-                // is gone — the randomized run/sleep durations already vary when the bot goes on/offline.
+                // Jitter each on/off boundary by ±HoursVariationPercent of an hour so the bot doesn't
+                // start/stop at the exact same clock time every day (more human). Deterministic per
+                // day+hour so the boundary stays stable within a day (this runs repeatedly), but varies
+                // across days. 0% => exact boundaries.
                 var boundary = WallTime(day, hour, from.Offset);
-                transitions.Add(new ScheduleTransition(boundary, allowed));
+                var offsetMinutes = _settings.HoursVariationPercent <= 0
+                    ? 0
+                    : DeterministicHourFraction(day, hour) * _settings.HoursVariationPercent / 100.0 * 60;
+                transitions.Add(new ScheduleTransition(boundary.AddMinutes(offsetMinutes), allowed));
             }
         }
 
@@ -654,6 +660,18 @@ public sealed class SessionPacer
         return (z / (double)ulong.MaxValue * 2) - 1;
     }
 
+    // Signed fraction in [-1, 1] for a specific day+hour boundary, used to jitter the allowed-hours
+    // schedule. Same splitmix64 finalizer as above but seeded per (day, hour) so each boundary gets its
+    // own stable offset within the day; distinct hours on the same day get uncorrelated values.
+    private static double DeterministicHourFraction(DateOnly date, int hour)
+    {
+        var z = unchecked(((ulong)date.DayNumber * 24UL) + (ulong)hour + 0x9E3779B97F4A7C15UL);
+        z = (z ^ (z >> 30)) * 0xBF58476D1CE4E5B9UL;
+        z = (z ^ (z >> 27)) * 0x94D049BB133111EBUL;
+        z ^= z >> 31;
+        return (z / (double)ulong.MaxValue * 2) - 1;
+    }
+
     // Start of the wall-clock day in the clock source's own offset (not the machine timezone), so the
     // pacer stays consistent with the injected clock. With the default clock (DateTimeOffset.Now) the
     // offset is the local one, so production behavior is unchanged.
@@ -693,6 +711,8 @@ public sealed class SessionPacer
             SleepMaxMinutes = Math.Max(Math.Max(5, settings.SleepMinMinutes), settings.SleepMaxMinutes),
             DailyMaxHours = Math.Clamp(settings.DailyMaxHours, 0, 24),
             DailyMaxVariationPercent = Math.Clamp(settings.DailyMaxVariationPercent, 0, 50),
+            // Capped at 49% so a ±jitter can never push adjacent hour boundaries past each other.
+            HoursVariationPercent = Math.Clamp(settings.HoursVariationPercent, 0, 49),
             RuntimeSeconds = Math.Max(0, settings.RuntimeSeconds),
         };
     }

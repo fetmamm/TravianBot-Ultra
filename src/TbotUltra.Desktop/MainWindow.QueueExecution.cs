@@ -625,14 +625,27 @@ public partial class MainWindow
             return true;
         }
 
-        if (mode == QueueExecutionMode.AutoQueue
-            && ex is InvalidOperationException ioe
+        // Cross-thread UI access (a background runner touching a WPF control) fails a task instantly and,
+        // for maxRetries=0 runtime items, would re-queue it every tick — spamming the loop. Don't stop the
+        // runner: defer the offending task for 30 min so it retries later, and raise an alarm so the user
+        // sees something is wrong. NOTE: the raw "the calling thread cannot access this object..." text is
+        // deliberately kept OUT of the alarm line — IsAlarmMessage auto-acknowledges that phrase, which
+        // would hide it from the (red) alarm list.
+        if (ex is InvalidOperationException ioe
             && ioe.Message.Contains("different thread owns it", StringComparison.OrdinalIgnoreCase))
         {
-            _botService.MarkQueueItemExecutionFailed(item.Id);
-            _loopController.RequestQueueStop();
-            AppendLog($"{logPrefix} FAIL {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | UI thread access error detected. Auto-queue paused to prevent spam.");
-            return false;
+            var uiThreadRetryDelay = TimeSpan.FromMinutes(30);
+            if (_botService.MarkQueueItemDeferred(item.Id, uiThreadRetryDelay))
+            {
+                AppendLog(
+                    $"ALARM: task '{item.TaskName}' hit a UI-thread access error " +
+                    $"({logPrefix}, {timer.Elapsed.TotalSeconds:F1}s). Deferred " +
+                    $"{uiThreadRetryDelay.TotalMinutes:F0} min and will retry — something is wrong, please check.");
+                return true;
+            }
+
+            // Defer could not be persisted: fall through to the normal failure handling below rather than
+            // silently swallowing the error.
         }
 
         // Prefer the typed defer signal (TaskWaitException.DelaySeconds) over parsing the message;
