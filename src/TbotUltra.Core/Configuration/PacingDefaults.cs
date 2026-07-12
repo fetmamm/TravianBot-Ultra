@@ -14,7 +14,7 @@ public static class PacingDefaults
     // Allowed-hours ("Daily hours") boundary jitter: shifts each on/off hour boundary by ±this% of an
     // hour, deterministically per day, so the bot doesn't start/stop at the exact same clock time daily.
     // 0 disables (exact boundaries). Capped at 49% so adjacent boundaries never reorder.
-    public const int SessionPacingHoursVariationPercent = 20;
+    public const int SessionPacingHoursVariationPercent = 30;
 
     public const bool ActionPacingEnabled = true;
     public const double ActionPacingTaskMinSeconds = 0.8;

@@ -181,7 +181,7 @@ public partial class SettingsWindow : Window
             checkBox.IsChecked = int.TryParse(checkBox.Tag?.ToString(), out var hour) && allowedHours.Contains(hour);
         }
 
-        SessionHoursVariationTextBox.Text = ReadInt(BotOptionPayloadKeys.SessionPacingHoursVariationPercent, PacingDefaults.SessionPacingHoursVariationPercent).ToString();
+        SelectHoursVariationPercent(ReadInt(BotOptionPayloadKeys.SessionPacingHoursVariationPercent, PacingDefaults.SessionPacingHoursVariationPercent));
 
         ActionPacingEnabledCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingEnabled, PacingDefaults.ActionPacingEnabled);
         ActionTaskMinTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingTaskMinSeconds, PacingDefaults.ActionPacingTaskMinSeconds));
@@ -227,8 +227,7 @@ public partial class SettingsWindow : Window
                 .Where(checkBox => checkBox.IsChecked == true)
                 .Select(checkBox => JsonValue.Create(int.Parse(checkBox.Tag!.ToString()!)))
                 .ToArray());
-        _config[BotOptionPayloadKeys.SessionPacingHoursVariationPercent] =
-            ReadIntText(SessionHoursVariationTextBox, PacingDefaults.SessionPacingHoursVariationPercent, 0, 49);
+        _config[BotOptionPayloadKeys.SessionPacingHoursVariationPercent] = GetSelectedHoursVariationPercent();
 
         _config[BotOptionPayloadKeys.ActionPacingEnabled] = ActionPacingEnabledCheckBox.IsChecked == true;
         WriteDelayRange(BotOptionPayloadKeys.ActionPacingTaskMinSeconds, BotOptionPayloadKeys.ActionPacingTaskMaxSeconds, ActionTaskMinTextBox, ActionTaskMaxTextBox, PacingDefaults.ActionPacingTaskMinSeconds, PacingDefaults.ActionPacingTaskMaxSeconds);
@@ -297,7 +296,7 @@ public partial class SettingsWindow : Window
         {
             checkBox.IsChecked = true;
         }
-        SessionHoursVariationTextBox.Text = PacingDefaults.SessionPacingHoursVariationPercent.ToString();
+        SelectHoursVariationPercent(PacingDefaults.SessionPacingHoursVariationPercent);
         ActionPacingEnabledCheckBox.IsChecked = PacingDefaults.ActionPacingEnabled;
         ActionTaskMinTextBox.Text = FormatDelay(PacingDefaults.ActionPacingTaskMinSeconds);
         ActionTaskMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingTaskMaxSeconds);
@@ -347,6 +346,16 @@ public partial class SettingsWindow : Window
         for (var percent = 0; percent <= 50; percent += 10)
         {
             SessionDailyMaxVariationComboBox.Items.Add(new ComboBoxItem
+            {
+                Content = percent == 0 ? "No variation" : $"±{percent}%",
+                Tag = percent.ToString(CultureInfo.InvariantCulture),
+            });
+        }
+
+        // Daily hours variation: 0..30% in 10% steps. Jitters the allowed-hours boundaries.
+        for (var percent = 0; percent <= 30; percent += 10)
+        {
+            SessionHoursVariationComboBox.Items.Add(new ComboBoxItem
             {
                 Content = percent == 0 ? "No variation" : $"±{percent}%",
                 Tag = percent.ToString(CultureInfo.InvariantCulture),
@@ -412,6 +421,23 @@ public partial class SettingsWindow : Window
             && int.TryParse(item.Tag?.ToString(), out var percent)
                 ? Math.Clamp(percent, 0, 50)
                 : PacingDefaults.SessionPacingDailyMaxVariationPercent;
+    }
+
+    private void SelectHoursVariationPercent(int percent)
+    {
+        var items = SessionHoursVariationComboBox.Items.OfType<ComboBoxItem>().ToList();
+        var match = items.FirstOrDefault(item =>
+                string.Equals(item.Tag?.ToString(), percent.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal))
+            ?? items.OrderBy(item => Math.Abs(ParseTag(item) - percent)).FirstOrDefault();
+        SessionHoursVariationComboBox.SelectedItem = match;
+    }
+
+    private int GetSelectedHoursVariationPercent()
+    {
+        return SessionHoursVariationComboBox.SelectedItem is ComboBoxItem item
+            && int.TryParse(item.Tag?.ToString(), out var percent)
+                ? Math.Clamp(percent, 0, 49)
+                : PacingDefaults.SessionPacingHoursVariationPercent;
     }
 
     private static int ReadIntText(TextBox textBox, int defaultValue, int min, int max)
