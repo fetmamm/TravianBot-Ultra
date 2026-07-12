@@ -1108,11 +1108,10 @@ public sealed partial class TravianClient : IHeroClient
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         UpdateHeroOintmentAutoUseState(autoUseOintments);
 
-        // Force a fresh dorf1 reload before reading hero status. When the continuous loop only runs
-        // the hero function it sits idle until the hero-return timer expires; without this reload the
-        // page can be stale and falsely report the hero as still away.
-        await EnsureFreshDorf1ForHeroAsync(forceReload: true, cancellationToken);
-
+        // Hero/adventure/status signals live in the global sidebar on normal Travian pages, including
+        // dorf2 and build pages. Read the current page first so a no-action result does not cause an
+        // artificial dorf2 -> dorf1 navigation. ReadHeroQuickStatusAsync keeps dorf1 as a fallback when
+        // the current page has no trustworthy hero signals (login/interstitial/incomplete page).
         var quick = await ReadHeroQuickStatusAsync(allowDorf1Fallback: true, forceDorf1Reload: false, cancellationToken);
         var status = quick.Status;
         var inVillage = quick.IsInVillage;

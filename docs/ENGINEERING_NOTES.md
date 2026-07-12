@@ -63,6 +63,9 @@ Runtime-path helpers i `TravianClient.Selectors.cs` ar Official-only. Anropa hel
 - Language-gaten ska ignorera Chromiums lokaliserade natverks-/proxyfelsidor (`body.neterror`,
   `#main-frame-error`, `ERR_*`). Deras `html[lang]` ar browserns UI-sprak, inte Travian-sprak;
   saknad Travian-spraksignal ar ett transient sidfel och far aldrig oppna language-dialogen.
+- `hero_manage` laser forst global sidebar/status pa aktuell Travian-sida (dorf1, dorf2 eller build).
+  Navigera inte till dorf1 nar adventure-count/state redan ar beslutskomplett; dorf1 ar endast fallback
+  vid saknade/otillforlitliga hero-signaler. Faktiska actions gar direkt till attributes/inventory/adventures.
 - Sakra GET/reload-navigationer far retry:a adaptivt vid segt nat (ordinarie timeout, sedan 30s/45s).
   Om URL + laddad nyckel-DOM redan ar korrekt efter timeout ska sidan accepteras. Uttomd saker navigation
   kastar `TransientNavigationException`; Desktop defer:ar 15-30s utan retry-burn. State-changing klick far
