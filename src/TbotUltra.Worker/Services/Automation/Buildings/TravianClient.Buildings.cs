@@ -3937,13 +3937,13 @@ public sealed partial class TravianClient : IBuildingClient
         }
 
         var isRomans = string.Equals(tribe, "Romans", StringComparison.OrdinalIgnoreCase);
+        var villageToken = await ResolveConstructionHumanizeVillageTokenAsync(cancellationToken);
 
         // Keep the humanize transition memory fresh while the slot is full. This records the category
         // as "occupied" during the queue-full wait, so when the slot finally frees the humanize gate
         // sees previous>0 and applies the no-Plus delay (the gate itself only runs once the slot is free).
         if (_config.ConstructionHumanizeDelayEnabled)
         {
-            var villageToken = TravianUrls.TryParseNewdid(_page.Url)?.ToString() ?? "current";
             var ongoingInCategory = (isRomans
                     ? status.Active.Where(a => kind == ConstructionKind.Resource
                         ? a.Kind == ConstructionKind.Resource
@@ -3953,21 +3953,104 @@ public sealed partial class TravianClient : IBuildingClient
             _session.ConstructionOngoingByKey[ConstructionCategoryKey(kind, isRomans, villageToken)] = ongoingInCategory;
         }
 
-        var relevantWait = (isRomans
+        var relevantActive = (isRomans
                 ? status.Active.Where(a => kind == ConstructionKind.Resource
                     ? a.Kind == ConstructionKind.Resource
                     : a.Kind != ConstructionKind.Resource)
                 : status.Active)
             .Where(a => a.TimeLeftSeconds is int v && v > 0)
+            .ToList();
+        var relevantWait = relevantActive
             .Select(a => a.TimeLeftSeconds!.Value)
             .DefaultIfEmpty(status.ShortestWaitSeconds ?? 0)
             .Min();
+
+        // Schedule the humanized start from the same authoritative snapshot that proved the slot is
+        // full. With two queued constructions we already know both absolute finishes, so waiting until
+        // the first finishes merely to navigate back and calculate a percentage of the second is wasteful.
+        // Persisting the combined wait in the session also makes the later retry proceed without
+        // recomputing a new random delay.
+        var humanizedWait = TryScheduleHumanizedStartAfterFullQueue(
+            kind,
+            slotId,
+            relevantActive,
+            relevantWait,
+            isRomans,
+            villageToken);
+        if (humanizedWait is int scheduledWait)
+        {
+            relevantWait = scheduledWait;
+        }
         // When the page gave us an actual timer, trust it (+1s race buffer so we don't poll
         // before the slot frees). The 5s floor only matters when we had no live timer at all —
         // without it we'd thrash polling if relevantWait==0.
         var wait = relevantWait > 0 ? relevantWait + 1 : 5;
         var label = kind == ConstructionKind.Resource ? "Resource slot" : "Slot";
         return $"{label} {slotId}: build queue full ({status.ResourceSlotsUsed}/{status.ResourceSlotsMax} resource, {status.BuildingSlotsUsed}/{status.BuildingSlotsMax} building, plus={plusActive}). Deferring upgrade. Upgrades performed: {upgrades}. queue_wait_seconds={wait}";
+    }
+
+    private int? TryScheduleHumanizedStartAfterFullQueue(
+        ConstructionKind kind,
+        int slotId,
+        IReadOnlyList<ActiveConstruction> relevantActive,
+        int slotFreeWaitSeconds,
+        bool isRomans,
+        string villageToken)
+    {
+        if (!_config.ConstructionHumanizeDelayEnabled || slotFreeWaitSeconds <= 0)
+        {
+            return null;
+        }
+
+        var slotKey = $"{villageToken}:{kind}:{slotId}";
+        var now = DateTimeOffset.UtcNow;
+        if (_session.ConstructionHumanizeUntilBySlot.TryGetValue(slotKey, out var existingUntil))
+        {
+            var existingWait = (int)Math.Ceiling((existingUntil - now).TotalSeconds);
+            return existingWait > 0 ? existingWait : null;
+        }
+
+        var remainingAfterSlotFrees = relevantActive
+            .Select(item => item.TimeLeftSeconds!.Value - slotFreeWaitSeconds)
+            .Where(seconds => seconds > 0)
+            .OrderBy(seconds => seconds)
+            .ToList();
+
+        double delaySeconds;
+        string reason;
+        if (remainingAfterSlotFrees.Count > 0)
+        {
+            var referenceSeconds = remainingAfterSlotFrees[0];
+            var percent = RandomInRange(
+                _config.ConstructionHumanizeQueuePercentMin,
+                _config.ConstructionHumanizeQueuePercentMax) / 100.0;
+            delaySeconds = Math.Min(
+                referenceSeconds * percent,
+                Math.Max(0, _config.ConstructionHumanizeMaxDelayMinutes) * 60.0);
+            reason = $"after slot opens, percent {percent * 100:F0}% of {referenceSeconds}s remaining";
+        }
+        else
+        {
+            var minutes = RandomInRange(
+                _config.ConstructionHumanizeNoPlusMinMinutes,
+                _config.ConstructionHumanizeNoPlusMaxMinutes);
+            delaySeconds = minutes * 60.0;
+            reason = $"after slot opens, no-plus {minutes:F1}m";
+        }
+
+        if (delaySeconds < 1)
+        {
+            return null;
+        }
+
+        var combinedWait = slotFreeWaitSeconds + (int)Math.Ceiling(delaySeconds);
+        _session.ConstructionHumanizeUntilBySlot[slotKey] = now.AddSeconds(combinedWait);
+        _session.ConstructionOngoingByKey[ConstructionCategoryKey(kind, isRomans, villageToken)] = relevantActive.Count;
+        Notify(
+            $"[construction-humanize] slot {slotId}: scheduled from queue overview; " +
+            $"slotFree={slotFreeWaitSeconds}s delay={Math.Ceiling(delaySeconds):F0}s total={combinedWait}s ({reason}). " +
+            $"queue_wait_seconds={combinedWait}");
+        return combinedWait;
     }
 
     // Human-like pause before starting the next construction, so the bot does not react to a freed
@@ -3985,7 +4068,8 @@ public sealed partial class TravianClient : IBuildingClient
     private async Task<string?> MaybeGetConstructionHumanizeDeferAsync(
         ConstructionKind kind,
         int slotId,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool allowNavigationToBuildings = true)
     {
         if (!_config.ConstructionHumanizeDelayEnabled)
         {
@@ -3994,7 +4078,7 @@ public sealed partial class TravianClient : IBuildingClient
 
         try
         {
-            var villageToken = TravianUrls.TryParseNewdid(_page.Url)?.ToString() ?? "current";
+            var villageToken = await ResolveConstructionHumanizeVillageTokenAsync(cancellationToken);
             var slotKey = $"{villageToken}:{kind}:{slotId}";
             var now = DateTimeOffset.UtcNow;
 
@@ -4016,7 +4100,11 @@ public sealed partial class TravianClient : IBuildingClient
             }
 
             var (tribe, plusActive) = await GetCachedTribeAndPlusAsync(cancellationToken);
-            var status = await EvaluateConstructionSlotsAsync(tribe, plusActive, cancellationToken);
+            var status = await EvaluateConstructionSlotsAsync(
+                tribe,
+                plusActive,
+                cancellationToken,
+                allowNavigationToBuildings);
             var isRomans = string.Equals(tribe, "Romans", StringComparison.OrdinalIgnoreCase);
 
             // Remaining timers of constructions competing for the same slot category as this start.
@@ -4098,6 +4186,17 @@ public sealed partial class TravianClient : IBuildingClient
         return isRomans
             ? $"{villageToken}:{(kind == ConstructionKind.Resource ? "resource" : "building")}"
             : $"{villageToken}:shared";
+    }
+
+    private async Task<string> ResolveConstructionHumanizeVillageTokenAsync(CancellationToken cancellationToken)
+    {
+        if (TravianUrls.TryParseNewdid(_page.Url) is int newdid)
+        {
+            return newdid.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
+        return string.IsNullOrWhiteSpace(activeVillage) ? "current" : activeVillage.Trim();
     }
 
     private static double RandomInRange(double min, double max)

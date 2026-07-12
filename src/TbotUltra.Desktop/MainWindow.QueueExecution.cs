@@ -684,9 +684,10 @@ public partial class MainWindow
                     $"requirements='{dependencyDelay.Detail}'");
             }
 
+            var isHumanizeDefer = IsConstructionQueueTask(item.TaskName)
+                && ex.Message.Contains("humanized construction start delay", StringComparison.OrdinalIgnoreCase);
             if (IsConstructionQueueTask(item.TaskName))
             {
-                var isHumanizeDefer = ex.Message.Contains("humanized construction start delay", StringComparison.OrdinalIgnoreCase);
                 var humanizeVillage = isHumanizeDefer ? NormalizeVillageName(GetQueueItemVillageName(item)) : null;
                 TimeSpan? humanizeWait = isHumanizeDefer ? queueWaitDelay : null;
                 await Dispatcher.InvokeAsync(() => ApplyConstructionInlineWait(queueWaitDelay, humanizeVillage, humanizeWait));
@@ -853,7 +854,7 @@ public partial class MainWindow
                 // idle build slot amber instead of the just-started one green. Re-read the current village's
                 // construction status (the browser is already on it) so the freshly started build is cached
                 // before the icons repaint below.
-                if (IsBuildingMutationTask(item.TaskName))
+                if (IsBuildingMutationTask(item.TaskName) && !isHumanizeDefer)
                 {
                     try
                     {

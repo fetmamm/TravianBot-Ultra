@@ -1358,7 +1358,10 @@ public partial class MainWindow
             _villageStatusCacheByName.TryGetValue(villageName, out status);
         }
 
-        return ConstructionQueueState.ResolveAvailability(status, _travianPlusActive, now);
+        var item = villageItems.FirstOrDefault();
+        return item is null
+            ? ConstructionQueueState.ResolveAvailability(status, _travianPlusActive, now)
+            : ConstructionQueueState.ResolveAvailabilityForItem(status, _travianPlusActive, item, now);
     }
 
     private QueueItem? SelectNextQueueItemForAutoQueue(

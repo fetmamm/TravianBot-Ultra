@@ -10,18 +10,20 @@ public sealed class ConstructionQueueSelectorTests
     private static readonly DateTimeOffset Now = new(2026, 6, 15, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
-    public void SelectNext_AvailableQueueValidatesFutureQueueFullItemImmediately()
+    public void SelectNext_AvailableQueueKeepsClassifiedFutureQueueFullItemDeferred()
     {
         var blocker = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonQueueFull);
+        blocker.Payload[BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
+            ConstructionQueueState.CurrentDeferClassificationVersion;
 
         var result = ConstructionQueueSelector.SelectNext(
             [blocker],
             Now,
             ConstructionQueueAvailability.Available);
 
-        Assert.Same(blocker, result.Item);
-        Assert.True(result.ForcedLiveValidation);
-        Assert.Null(result.QueueFullBlocker);
+        Assert.Null(result.Item);
+        Assert.False(result.ForcedLiveValidation);
+        Assert.Same(blocker, result.QueueFullBlocker);
     }
 
     [Fact]

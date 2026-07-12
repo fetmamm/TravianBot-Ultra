@@ -42,10 +42,14 @@ public static class ConstructionQueueSelector
             {
                 if (ConstructionQueueState.IsQueueOccupancyDeferred(item))
                 {
-                    var shouldValidateNow = availability == ConstructionQueueAvailability.Available
-                        || (availability == ConstructionQueueAvailability.Unknown
-                            && ConstructionQueueState.IsLegacyQueueOccupancyDeferred(item)
-                            && queueFullBlocker is null);
+                    // Current queue-full defers already contain an authoritative retry time from the
+                    // worker's live slot read. Do not override that time from a ticking desktop cache:
+                    // Romans have separate resource/building capacity, which a village-wide active count
+                    // cannot distinguish. Only legacy items without the current classification may need
+                    // one early live validation to migrate them onto the reliable path.
+                    var shouldValidateNow = ConstructionQueueState.IsLegacyQueueOccupancyDeferred(item)
+                        && availability != ConstructionQueueAvailability.Full
+                        && queueFullBlocker is null;
                     if (shouldValidateNow)
                     {
                         return new ConstructionQueueSelection(item, null, null, true);

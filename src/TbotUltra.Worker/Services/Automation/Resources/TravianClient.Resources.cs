@@ -263,6 +263,19 @@ public sealed partial class TravianClient
                     return deferMessage;
                 }
 
+                // Decide the humanized start time while the resource overview and its construction
+                // snapshot are still current. Opening build.php before this decision produces an
+                // unnatural build-page -> overview -> build-page round trip on a deferred start.
+                var humanizeDefer = await MaybeGetConstructionHumanizeDeferAsync(
+                    ConstructionKind.Resource,
+                    slotId,
+                    cancellationToken,
+                    allowNavigationToBuildings: false);
+                if (humanizeDefer is not null)
+                {
+                    return humanizeDefer;
+                }
+
                 var queueFingerprintBefore = BuildQueueFingerprints.Identity(snapshot.BuildQueue);
                 var actionability = await AnalyzeUpgradeActionabilityAsync(
                     slotId,
@@ -329,13 +342,6 @@ public sealed partial class TravianClient
                 if (actionability.Outcome != UpgradeAttemptOutcome.CanUpgrade)
                 {
                     return $"Resource slot {slotId} blocked ({actionability.Outcome}): {actionability.Reason}";
-                }
-
-                // Human-like defer before starting the next construction (see MaybeGetConstructionHumanizeDeferAsync).
-                var humanizeDefer = await MaybeGetConstructionHumanizeDeferAsync(ConstructionKind.Resource, slotId, cancellationToken);
-                if (humanizeDefer is not null)
-                {
-                    return humanizeDefer;
                 }
 
                 var pageAnalysis = await ReadConstructionPageAnalysisAsync(
@@ -538,6 +544,18 @@ public sealed partial class TravianClient
                         return preflightQueueDeferMessage;
                     }
 
+                    // Keep the delay decision on dorf1. If a delay is due, never visit the upgrade
+                    // page until the retry that can actually click it.
+                    var humanizeDefer = await MaybeGetConstructionHumanizeDeferAsync(
+                        ConstructionKind.Resource,
+                        slot,
+                        cancellationToken,
+                        allowNavigationToBuildings: false);
+                    if (humanizeDefer is not null)
+                    {
+                        return humanizeDefer;
+                    }
+
                 ReevaluateCurrentSlot:
                     Notify($"[UpgradeAllResourcesToLevelAsync] evaluating slot={slot} name='{resourceName}' level={level} target={targetLevel}.");
                     var actionability = await AnalyzeUpgradeActionabilityAsync(
@@ -555,13 +573,6 @@ public sealed partial class TravianClient
 
                     if (actionability.Outcome == UpgradeAttemptOutcome.CanUpgrade)
                     {
-                        // Human-like defer before starting the next construction (see MaybeGetConstructionHumanizeDeferAsync).
-                        var humanizeDefer = await MaybeGetConstructionHumanizeDeferAsync(ConstructionKind.Resource, slot, cancellationToken);
-                        if (humanizeDefer is not null)
-                        {
-                            return humanizeDefer;
-                        }
-
                         attemptedAny = true;
                         Notify($"[UpgradeAllResourcesToLevelAsync] clicking upgrade for slot={slot} from level={level} toward target={effectiveTarget}.");
                         var queueFingerprintBefore = BuildQueueFingerprints.Identity(await ReadBuildQueueAsync(cancellationToken));

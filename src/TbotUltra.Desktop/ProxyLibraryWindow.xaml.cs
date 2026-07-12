@@ -143,6 +143,37 @@ public partial class ProxyLibraryWindow : Window
         UpdateActiveProxyText(_activeAccountName);
     }
 
+    private void DeleteFailedProxiesButton_Click(object sender, RoutedEventArgs e)
+    {
+        var failed = _workingProxies.Where(entry => entry.IsWorking == false).ToList();
+        if (failed.Count == 0)
+        {
+            AppDialog.Show(this, "No failed proxies to delete.", "Delete failed proxies", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var result = AppDialog.ShowCustom(
+            this,
+            $"Delete all {failed.Count} failed proxies? This cannot be undone after saving.",
+            "Delete failed proxies",
+            [("Delete failed", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.Cancel)],
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel,
+            MessageBoxResult.Cancel);
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        foreach (var entry in failed)
+        {
+            _workingProxies.Remove(entry);
+        }
+
+        ProxyDataGrid.Items.Refresh();
+        UpdateActiveProxyText(_activeAccountName);
+    }
+
     private async void CheckProxiesButton_Click(object sender, RoutedEventArgs e)
     {
         if (_workingProxies.Count == 0)

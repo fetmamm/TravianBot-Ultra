@@ -717,17 +717,7 @@ public partial class AccountsWindow : Window
             InfoTextBlock.Text = $"Could not reload proxy list: {ex.Message}";
         }
 
-        _savedProxyOptions = new List<SavedProxyOption>
-        {
-            new(null, "Select saved proxy..."),
-        };
-        _savedProxyOptions.AddRange(_proxyLibraryEntries.Select(entry => new SavedProxyOption(entry, BuildSavedProxyDisplay(entry))));
-
-        _suppressSavedProxySelection = true;
-        SavedProxyComboBox.ItemsSource = null;
-        SavedProxyComboBox.ItemsSource = _savedProxyOptions;
-        SavedProxyComboBox.SelectedIndex = 0;
-        _suppressSavedProxySelection = false;
+        RebuildSavedProxyOptions(ResolveCurrentEditorAccountName());
         SetProxyFieldsEnabled(UseProxyCheckBox.IsChecked == true);
     }
 
@@ -738,6 +728,7 @@ public partial class AccountsWindow : Window
             return;
         }
 
+        RebuildSavedProxyOptions(ResolveCurrentEditorAccountName());
         var proxyServer = BuildProxyServerString();
         var match = _proxyLibraryEntries.Count == 0
             ? null
@@ -749,6 +740,25 @@ public partial class AccountsWindow : Window
 
         _suppressSavedProxySelection = true;
         SavedProxyComboBox.SelectedItem = option ?? _savedProxyOptions.FirstOrDefault();
+        _suppressSavedProxySelection = false;
+    }
+
+    private void RebuildSavedProxyOptions(string? accountName)
+    {
+        var normalizedAccount = accountName?.Trim() ?? string.Empty;
+        var orderedEntries = _proxyLibraryEntries
+            .OrderByDescending(entry => normalizedAccount.Length > 0
+                && string.Equals(entry.AssignedAccount, normalizedAccount, StringComparison.OrdinalIgnoreCase))
+            .ThenBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(entry => entry.HostPort, StringComparer.OrdinalIgnoreCase);
+
+        _savedProxyOptions = [new SavedProxyOption(null, "Select saved proxy...")];
+        _savedProxyOptions.AddRange(orderedEntries.Select(entry => new SavedProxyOption(entry, BuildSavedProxyDisplay(entry))));
+
+        _suppressSavedProxySelection = true;
+        SavedProxyComboBox.ItemsSource = null;
+        SavedProxyComboBox.ItemsSource = _savedProxyOptions;
+        SavedProxyComboBox.SelectedIndex = 0;
         _suppressSavedProxySelection = false;
     }
 

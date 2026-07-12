@@ -224,10 +224,42 @@
                     <DataGridTemplateColumn Width="104">
                         <DataGridTemplateColumn.Header>
                             <Button Content="Add all"
-                                    Width="90"
+                                    Width="64"
                                     Height="22"
                                     Padding="0"
-                                    Click="AddAllToLibraryButton_Click" />
+                                    Click="AddAllToLibraryButton_Click">
+                                <Button.Style>
+                                    <Style TargetType="Button">
+                                        <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
+                                        <Setter Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
+                                        <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
+                                        <Setter Property="BorderThickness" Value="1" />
+                                        <Setter Property="Template">
+                                            <Setter.Value>
+                                                <ControlTemplate TargetType="Button">
+                                                    <Border Background="{TemplateBinding Background}"
+                                                            BorderBrush="{TemplateBinding BorderBrush}"
+                                                            BorderThickness="{TemplateBinding BorderThickness}"
+                                                            CornerRadius="3">
+                                                        <ContentPresenter HorizontalAlignment="Center"
+                                                                          VerticalAlignment="Center" />
+                                                    </Border>
+                                                </ControlTemplate>
+                                            </Setter.Value>
+                                        </Setter>
+                                        <Style.Triggers>
+                                            <Trigger Property="IsMouseOver" Value="True">
+                                                <Setter Property="Background" Value="#17351F" />
+                                                <Setter Property="BorderBrush" Value="#56D364" />
+                                            </Trigger>
+                                            <Trigger Property="IsPressed" Value="True">
+                                                <Setter Property="Background" Value="#0E2416" />
+                                                <Setter Property="BorderBrush" Value="#3FB950" />
+                                            </Trigger>
+                                        </Style.Triggers>
+                                    </Style>
+                                </Button.Style>
+                            </Button>
                         </DataGridTemplateColumn.Header>
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>

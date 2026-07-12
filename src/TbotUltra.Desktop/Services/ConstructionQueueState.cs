@@ -250,6 +250,36 @@ public static class ConstructionQueueState
         };
     }
 
+    public static ConstructionQueueAvailability ResolveAvailabilityForItem(
+        VillageStatus? status,
+        bool? travianPlusActive,
+        QueueItem item,
+        DateTimeOffset? now = null)
+    {
+        if (status is null
+            || !string.Equals(status.Tribe, "Romans", StringComparison.OrdinalIgnoreCase))
+        {
+            return ResolveAvailability(status, travianPlusActive, now);
+        }
+
+        var snapshot = ResolveSnapshot(status, now);
+        if (snapshot.Knowledge == ConstructionQueueKnowledge.Unknown)
+        {
+            return ConstructionQueueAvailability.Unknown;
+        }
+
+        var isResourceTask = string.Equals(item.TaskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(item.TaskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase);
+        var active = ResolveCurrentActiveConstructions(status, now);
+        var relevantCount = isResourceTask
+            ? active.Count(construction => construction.Kind == ConstructionKind.Resource)
+            : active.Count(construction => construction.Kind != ConstructionKind.Resource);
+        var capacity = isResourceTask ? 1 : travianPlusActive == true ? 2 : 1;
+        return relevantCount < capacity
+            ? ConstructionQueueAvailability.Available
+            : ConstructionQueueAvailability.Full;
+    }
+
     public static TimeSpan? ResolveQueueFullRetryDelay(VillageStatus status, bool? travianPlusActive)
     {
         var availability = ResolveAvailability(status, travianPlusActive);

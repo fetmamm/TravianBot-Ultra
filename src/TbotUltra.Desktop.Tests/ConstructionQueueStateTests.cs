@@ -363,6 +363,44 @@ public sealed class ConstructionQueueStateTests
         Assert.True(result.ActiveConstructionsFromOverview);
     }
 
+    [Fact]
+    public void ResolveAvailabilityForItem_RomansKeepsFullResourceQueueBlockedWhenBuildingSlotIsFree()
+    {
+        var status = CreateStatus([], [], 1, 600) with
+        {
+            Tribe = "Romans",
+            ActiveConstructions =
+            [
+                new ActiveConstruction(ConstructionKind.Resource, "Cropland", 5, 600, "00:10:00"),
+            ],
+            ActiveConstructionsFromOverview = true,
+        };
+        var resourceItem = new QueueItem { TaskName = "upgrade_all_resources_to_level" };
+
+        var result = ConstructionQueueState.ResolveAvailabilityForItem(status, true, resourceItem);
+
+        Assert.Equal(ConstructionQueueAvailability.Full, result);
+    }
+
+    [Fact]
+    public void ResolveAvailabilityForItem_RomansAllowsBuildingWhenOnlyResourceQueueIsOccupied()
+    {
+        var status = CreateStatus([], [], 1, 600) with
+        {
+            Tribe = "Romans",
+            ActiveConstructions =
+            [
+                new ActiveConstruction(ConstructionKind.Resource, "Cropland", 5, 600, "00:10:00"),
+            ],
+            ActiveConstructionsFromOverview = true,
+        };
+        var buildingItem = new QueueItem { TaskName = "upgrade_building_to_level" };
+
+        var result = ConstructionQueueState.ResolveAvailabilityForItem(status, true, buildingItem);
+
+        Assert.Equal(ConstructionQueueAvailability.Available, result);
+    }
+
     private static VillageStatus CreateStatus(
         IReadOnlyList<Building> buildings,
         IReadOnlyList<BuildQueueItem> buildQueue,

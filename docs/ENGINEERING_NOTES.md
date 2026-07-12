@@ -195,6 +195,10 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   nollstaller deferred construction-retries sa ett fastnat "waiting" utan faktiskt bygge kan brytas.
 - Construction- och byggkologik (ActiveConstructions som SOT, queue-full-defer, storage-capacity, estimat):
   [ADR 2026-06-20 construction-queue](adr/2026-06-20-construction-queue.md).
+- Klassificerad queue-full-defer behaller Worker-lasningens `NextAttemptAt`; Desktop far inte ateraktivera
+  posten tidigt fran en tickande generell active-count. For romare bedoms resource/building-kapacitet separat.
+  Construction-humanize beraknas fran aktuell overview fore navigation till build-sidan; vid full ko kombineras
+  slotens finish med delay fran redan kanda `ActiveConstructions`, sa ingen kontrollnavigation behovs nar timern gar ut.
 - Construct-tasks vars krav matchar en aktiv `ActiveConstructions`-prereq ska defer:as tills prereqens
   `FinishUtc` passerat (plus liten buffer), sa andra byar/tasks kan koras i stallet.
 - Construct-tasks vars krav saknas och inte matchar same-village queued/active prerequisite ska terminal-failas
