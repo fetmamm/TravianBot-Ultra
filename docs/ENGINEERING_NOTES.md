@@ -125,6 +125,9 @@ document.querySelector('.warehouse .capacity .value')
 - Post-defer construction-refresh (`RefreshConstructionStatusAfterDeferAsync`) laser byggko+storage fran
   AKTUELL sida (tasken har precis reload:at dorf2) och merge:ar in i village-cachen — ingen dorf1+dorf2-runda.
   Full lasning (`RefreshConstructionStatusAsync`) ar bara fallback vid fel.
+- En auktoritativ dorf2-snapshot (`ActiveConstructionsFromOverview`) far rensa pending byggnadsupgrades for
+  samma by+slot vars target redan tacks av Travian-kons hogsta target. Osaker snapshot eller saknad slot/niva
+  ska behalla live-valideringen; byggnadsnamn far inte ensamt anvandas for rensning.
 - Anvand aldrig `CancellationToken.None` for operationer som tar worker-session-gaten (post-task/manuella
   refreshes): ta token fran metodens parameter eller `LoopController.AcquireSessionScopeToken()` (cancellas
   av stop/kontobyte, ater-armas lazily for nasta operation).

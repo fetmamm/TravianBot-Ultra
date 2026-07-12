@@ -37,6 +37,20 @@ public partial class MainWindow
         var removedAny = false;
         foreach (var item in ordered)
         {
+            var activeCoveredLevel = ConstructionQueueCoverage.ResolveActiveCoveredLevel(
+                item,
+                ResolveBuildingStatusForQueueItem(item));
+            if (activeCoveredLevel is int coveredLevel)
+            {
+                if (_botService.RemoveQueueItem(item.Id))
+                {
+                    removedAny = true;
+                    AppendLog($"[queue] removed covered construction '{BuildQueueDisplayName(item)}' — " +
+                        $"Travian queue already covers slot through level {coveredLevel}.");
+                }
+                continue;
+            }
+
             var estimate = EstimateForQueueItem(item, serverSpeed, mainBuildingLevel, coverage);
             if (item.Status != QueueStatus.Pending
                 || !AutoPrunableCompletedTasks.Contains(item.TaskName ?? string.Empty)
