@@ -269,6 +269,33 @@ public sealed partial class TravianClient
 
     private async Task<string> RunAdventureVideoBonusCoreAsync(string boxClass, string label, CancellationToken cancellationToken)
     {
+        var maxAttempts = boxClass == AdventureDifficultyBoxClass ? 2 : 1;
+        string? lastResult = null;
+        for (var attempt = 1; attempt <= maxAttempts; attempt++)
+        {
+            Notify($"[adventure-video] {label}: video attempt {attempt}/{maxAttempts}.");
+            lastResult = await RunAdventureVideoBonusAttemptAsync(boxClass, label, cancellationToken);
+
+            await OpenHeroAdventuresPageAsync(cancellationToken);
+            var state = await ReadAdventureVideoStateAsync(boxClass, cancellationToken);
+            Notify($"[adventure-video] {label}: state after attempt {attempt}/{maxAttempts}: {state}.");
+            if (state == "active")
+            {
+                return $"{label} activated; the bonus is now active for the next adventure.";
+            }
+
+            if (attempt < maxAttempts)
+            {
+                Notify($"[adventure-video] {label}: activation was not confirmed; retrying the complete video flow once.");
+            }
+        }
+
+        Notify($"[adventure-video:verbose] {label}: activation was not confirmed after {maxAttempts} video attempt(s); continuing without the bonus.");
+        return lastResult ?? $"{label}: bonus video could not run and was skipped.";
+    }
+
+    private async Task<string> RunAdventureVideoBonusAttemptAsync(string boxClass, string label, CancellationToken cancellationToken)
+    {
         await OpenHeroAdventuresPageAsync(cancellationToken);
 
         // The isolated video browser is seeded without consent (FilterForeignSubdomainState strips it), so
@@ -405,21 +432,31 @@ public sealed partial class TravianClient
         for (var attempt = 1; attempt <= 12; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var ready = await _page.EvaluateAsync<bool>(
+            var status = await _page.EvaluateAsync<string>(
                 """
                 () => {
                   const dlg = document.querySelector('#videoFeature');
-                  if (!dlg) return false;
-                  return !!(dlg.querySelector('.dialogButtonOk')
-                    || Array.from(dlg.querySelectorAll('button')).find(b => /watch video/i.test(b.textContent || '')));
+                  const player = document.querySelector('#videoArea, #videoFeature iframe');
+                  if ((dlg && String(dlg.className || '').includes('showVideo')) || player) return 'video';
+                  if (!dlg) return 'none';
+                  const ok = dlg.querySelector('.dialogButtonOk')
+                    || Array.from(dlg.querySelectorAll('button')).find(b => /watch video/i.test(b.textContent || ''));
+                  return ok ? 'ready' : 'pending';
                 }
                 """);
-            if (!ready)
+            if (status == "video")
+            {
+                Notify($"[adventure-video] {label}: info dialog skipped ('don't show it again' already set); video opened directly.");
+                return true;
+            }
+
+            if (status != "ready")
             {
                 await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
                 continue;
             }
 
+            await TickBonusVideoDontShowAgainAsync(cancellationToken, "[adventure-video]");
             await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
             var clicked = await _page.EvaluateAsync<bool>(
                 """
@@ -454,6 +491,12 @@ public sealed partial class TravianClient
     /// player never appears (ad blocked / no inventory).
     /// </summary>
     private async Task<bool> StartAdventureVideoAsync(string label, CancellationToken cancellationToken)
+        => await StartBonusVideoPlayerAsync(label, "[adventure-video:verbose]", cancellationToken);
+
+    private async Task<bool> StartBonusVideoPlayerAsync(
+        string label,
+        string logPrefix,
+        CancellationToken cancellationToken)
     {
         var playerReady = false;
         for (var attempt = 1; attempt <= 16; attempt++)
@@ -461,7 +504,7 @@ public sealed partial class TravianClient
             cancellationToken.ThrowIfCancellationRequested();
             // Consent can appear late (when the ad is first requested), so keep accepting it while we wait
             // for the player — without consent the ad iframe never renders in consent regions.
-            await AcceptConsentManagerIfPresentAsync(cancellationToken);
+            await AcceptConsentManagerIfPresentAsync(cancellationToken, logPrefix);
             playerReady = await _page.EvaluateAsync<bool>(
                 """
                 () => {
@@ -481,14 +524,16 @@ public sealed partial class TravianClient
 
         if (!playerReady)
         {
-            Notify($"[adventure-video:verbose] {label}: video player iframe did not appear.");
+            Notify($"{logPrefix} {label}: video player iframe did not appear.");
             return false;
         }
 
         // Let the ad frame load its player (the centered play button) before clicking it.
         await Task.Delay(1500, cancellationToken);
 
-        // Up to two trusted clicks. The first can be swallowed by a consentmanager overlay that pops with
+        // Up to two trusted clicks. Prefer the actual ad-player play control in any frame; cross-origin
+        // frames remain queryable through Playwright. The iframe-center click is retained as fallback.
+        // The first click can be swallowed by a consentmanager overlay that pops with
         // the ad request; we only re-click when such an overlay was found and accepted between attempts, so
         // a click is never sent into an already-playing ad (which could toggle pause).
         for (var clickAttempt = 1; clickAttempt <= 2; clickAttempt++)
@@ -496,40 +541,112 @@ public sealed partial class TravianClient
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
-                var area = _page.Locator("#videoArea, #videoFeature iframe").First;
-                // Scroll the player into view first: a click at a bounding-box center that sits below the
-                // fold lands nowhere, which was one way the play button "wasn't clicked".
-                await area.ScrollIntoViewIfNeededAsync(new LocatorScrollIntoViewIfNeededOptions { Timeout = 3000 });
-                var box = await area.BoundingBoxAsync();
-                if (box is null)
+                var clickedPlayControl = false;
+                for (var findAttempt = 1; findAttempt <= 8 && !clickedPlayControl; findAttempt++)
                 {
-                    Notify($"[adventure-video:verbose] {label}: could not locate the video area to click play.");
-                    return false;
+                    foreach (var frame in _page.Frames)
+                    {
+                        var play = frame.Locator(".atg-gima-big-play-button-outer, .atg-gima-big-play-button").First;
+                        if (await play.CountAsync() == 0 || !await play.IsVisibleAsync())
+                        {
+                            continue;
+                        }
+
+                        await play.ClickAsync(new LocatorClickOptions { Timeout = 3000 });
+                        clickedPlayControl = true;
+                        Notify($"{logPrefix} {label}: clicked the visible ad-player play button attempt={clickAttempt}.");
+                        break;
+                    }
+
+                    if (!clickedPlayControl)
+                    {
+                        await Task.Delay(250, cancellationToken);
+                    }
                 }
 
-                var x = box.X + box.Width / 2;
-                var y = box.Y + box.Height / 2;
-                await _page.Mouse.ClickAsync(x, y);
-                Notify($"[adventure-video:verbose] {label}: clicked play (trusted) at video area center ({x:0},{y:0}) attempt={clickAttempt}; waiting for playthrough.");
+                if (clickedPlayControl)
+                {
+                    await MuteBonusVideoAsync(label, logPrefix, cancellationToken);
+                }
+                else
+                {
+                    var area = _page.Locator("#videoArea, #videoFeature iframe").First;
+                    // Scroll the player into view first: a click at a bounding-box center that sits below the
+                    // fold lands nowhere, which was one way the play button "wasn't clicked".
+                    await area.ScrollIntoViewIfNeededAsync(new LocatorScrollIntoViewIfNeededOptions { Timeout = 3000 });
+                    var box = await area.BoundingBoxAsync();
+                    if (box is null)
+                    {
+                        Notify($"{logPrefix} {label}: could not locate the video area to click play.");
+                        return false;
+                    }
+
+                    var x = box.X + box.Width / 2;
+                    var y = box.Y + box.Height / 2;
+                    await _page.Mouse.ClickAsync(x, y);
+                    Notify($"{logPrefix} {label}: actual play control was not found; clicked the video-area center fallback ({x:0},{y:0}) attempt={clickAttempt}.");
+                    await MuteBonusVideoAsync(label, logPrefix, cancellationToken);
+                }
             }
             catch (PlaywrightException ex)
             {
-                Notify($"[adventure-video:verbose] {label}: could not click the play button: {ex.Message}");
+                Notify($"{logPrefix} {label}: could not click the play button: {ex.Message}");
                 return false;
             }
 
             // If a consent overlay intercepted the click, accept it and click once more; otherwise the click
             // reached the player and we are done (no blind re-click into a playing ad).
             await Task.Delay(1000, cancellationToken);
-            if (!await AcceptConsentManagerIfPresentAsync(cancellationToken))
+            if (!await AcceptConsentManagerIfPresentAsync(cancellationToken, logPrefix))
             {
                 break;
             }
 
-            Notify($"[adventure-video:verbose] {label}: consent dialog intercepted the click; accepted and retrying.");
+            Notify($"{logPrefix} {label}: consent dialog intercepted the click; accepted and retrying.");
         }
 
         return true;
+    }
+
+    private async Task MuteBonusVideoAsync(string label, string logPrefix, CancellationToken cancellationToken)
+    {
+        for (var attempt = 1; attempt <= 10; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            foreach (var frame in _page.Frames)
+            {
+                var disabled = frame.Locator(".atg-gima-audio-button-disabled:not(.atg-gima-hidden)").First;
+                if (await disabled.CountAsync() > 0 && await disabled.IsVisibleAsync())
+                {
+                    Notify($"{logPrefix} {label}: video audio is muted.");
+                    return;
+                }
+
+                var enabled = frame.Locator(".atg-gima-audio-button:has(.atg-gima-audio-button-enabled:not(.atg-gima-hidden))").First;
+                if (await enabled.CountAsync() == 0 || !await enabled.IsVisibleAsync())
+                {
+                    continue;
+                }
+
+                await enabled.ClickAsync(new LocatorClickOptions { Timeout = 3000 });
+                for (var verifyAttempt = 1; verifyAttempt <= 4; verifyAttempt++)
+                {
+                    await Task.Delay(250, cancellationToken);
+                    if (await disabled.CountAsync() > 0 && await disabled.IsVisibleAsync())
+                    {
+                        Notify($"{logPrefix} {label}: clicked the audio control and confirmed the video is muted.");
+                        return;
+                    }
+                }
+
+                Notify($"{logPrefix} {label}: clicked the audio control, but muted state was not confirmed.");
+                return;
+            }
+
+            await Task.Delay(300, cancellationToken);
+        }
+
+        Notify($"{logPrefix} {label}: audio control was not found; continuing the video.");
     }
 
     /// <summary>

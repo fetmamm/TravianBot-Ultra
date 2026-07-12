@@ -385,9 +385,12 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
   till farsk `dorf2.php` och verifiera ko/slot; saknas bevis forsoks video en gang till, sedan ALARM + vanlig build.
   `construct_faster_min_build_time_enabled=false` betyder att duration-gaten ar av och alla kvalificerade byggen provas.
 - `#videoFeature` info-dialogen (25%-popup) har en `input[name="preference"]` "Don't show it again"-checkbox.
-  `ConfirmConstructFasterVideoDialogAsync` kryssar i den fore "Watch video" (`.dialogButtonOk`) sa Official slutar
+  Alla bonusvideofloden kryssar i den fore "Watch video" (`.dialogButtonOk`) sa Official slutar
   visa popupen for kontot. Nar preferensen redan ar satt hoppar Official over info-skarmen och oppnar spelaren
   direkt (`#videoFeature.showVideo` / `#videoArea`) — da ska confirm returnera direkt utan att leta efter OK-knappen.
+- Bonusvideospelaren ska i alla floden klicka den synliga `.atg-gima-big-play-button*` i ratt frame (centerklick
+  endast fallback) och darefter klicka `.atg-gima-audio-button` om enabled-laget ar synligt. Adventure-hard
+  verifierar `bonusReady` efter varje video och gor hogst tva kompletta forsok; duration gor ett forsok.
 - Byggnadsuppgradering far ateranvanda aktuell `build.php?id=N` for slot snapshot endast nar sidan ar ratt slot,
   inte stale och kan lasa niva + namn/gid; annars ska flodet falla tillbaka till `dorf2`.
 - Build-page header/dorf1/dorf2-level kan vara stale nar en tidigare niva ligger i byggkon; for fortsatt

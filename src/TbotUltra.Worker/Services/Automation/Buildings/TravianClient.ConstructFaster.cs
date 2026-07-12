@@ -375,7 +375,7 @@ public sealed partial class TravianClient
             }
 
             // Tick 'Don't show it again' so future runs skip this info screen (see 'video' branch above).
-            await TickConstructFasterDontShowAgainAsync(cancellationToken);
+            await TickBonusVideoDontShowAgainAsync(cancellationToken, "[construct-faster]");
             await DelayBeforeClickAsync(cancellationToken);
             var clicked = await _page.EvaluateAsync<bool>(
                 """
@@ -404,7 +404,7 @@ public sealed partial class TravianClient
 
     // Checks the info dialog's 'Don't show it again' box so Travian skips the popup on later
     // runs and jumps straight to the video. Best-effort: a failure here must not abort the flow.
-    private async Task TickConstructFasterDontShowAgainAsync(CancellationToken cancellationToken)
+    private async Task TickBonusVideoDontShowAgainAsync(CancellationToken cancellationToken, string logPrefix)
     {
         cancellationToken.ThrowIfCancellationRequested();
         try
@@ -422,82 +422,16 @@ public sealed partial class TravianClient
                   return cb.checked ? 'set' : 'unchanged';
                 }
                 """);
-            Notify($"[construct-faster] 'don't show it again' checkbox -> {result}.");
+            Notify($"{logPrefix} 'don't show it again' checkbox -> {result}.");
         }
         catch (PlaywrightException ex)
         {
-            Notify($"[construct-faster:verbose] could not tick 'don't show it again' checkbox: {ex.Message}");
+            Notify($"{logPrefix}:verbose could not tick 'don't show it again' checkbox: {ex.Message}");
         }
     }
 
     private async Task<bool> StartConstructFasterVideoAsync(CancellationToken cancellationToken)
-    {
-        var playerReady = false;
-        for (var attempt = 1; attempt <= 16; attempt++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await AcceptConsentManagerIfPresentAsync(cancellationToken, "[construct-faster:verbose]");
-            playerReady = await _page.EvaluateAsync<bool>(
-                """
-                () => {
-                  const dlg = document.querySelector('#videoFeature');
-                  const showing = dlg && String(dlg.className || '').includes('showVideo');
-                  const iframe = document.querySelector('#videoArea, #videoFeature iframe');
-                  return !!(showing && iframe);
-                }
-                """);
-            if (playerReady)
-            {
-                break;
-            }
-
-            await Task.Delay(500, cancellationToken);
-        }
-
-        if (!playerReady)
-        {
-            Notify("[construct-faster:verbose] video player iframe did not appear.");
-            return false;
-        }
-
-        await Task.Delay(1500, cancellationToken);
-
-        for (var clickAttempt = 1; clickAttempt <= 2; clickAttempt++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            try
-            {
-                var area = _page.Locator("#videoArea, #videoFeature iframe").First;
-                await area.ScrollIntoViewIfNeededAsync(new LocatorScrollIntoViewIfNeededOptions { Timeout = 3000 });
-                var box = await area.BoundingBoxAsync();
-                if (box is null)
-                {
-                    Notify("[construct-faster:verbose] could not locate video area to click play.");
-                    return false;
-                }
-
-                var x = box.X + box.Width / 2;
-                var y = box.Y + box.Height / 2;
-                await _page.Mouse.ClickAsync(x, y);
-                Notify($"[construct-faster:verbose] clicked play at video area center ({x:0},{y:0}) attempt={clickAttempt}; waiting for playthrough.");
-            }
-            catch (PlaywrightException ex)
-            {
-                Notify($"[construct-faster:verbose] could not click play: {ex.Message}");
-                return false;
-            }
-
-            await Task.Delay(1000, cancellationToken);
-            if (!await AcceptConsentManagerIfPresentAsync(cancellationToken, "[construct-faster:verbose]"))
-            {
-                break;
-            }
-
-            Notify("[construct-faster:verbose] consent dialog intercepted play click; accepted and retrying.");
-        }
-
-        return true;
-    }
+        => await StartBonusVideoPlayerAsync("construct-faster", "[construct-faster:verbose]", cancellationToken);
 
     private async Task<bool> WaitForConstructFasterVideoCompletionAsync(CancellationToken cancellationToken)
     {
