@@ -40,7 +40,8 @@ public partial class MainWindow
             return;
         }
 
-        var globalMode = TownHallCelebrationDefaults.NormalizeMode(LoadBotOptions().TownHallCelebrationMode);
+        var options = LoadBotOptions();
+        var globalMode = TownHallCelebrationDefaults.NormalizeMode(options.TownHallCelebrationMode);
         var townHallGroupKey = QueueGroupCatalog.GetKey(QueueGroup.TownHallCelebration);
         var rows = villages
             .Select(village =>
@@ -54,11 +55,20 @@ public partial class MainWindow
             })
             .ToList();
 
-        var window = new TownHallOverviewWindow(rows) { Owner = this };
+        var window = new TownHallOverviewWindow(
+            rows,
+            options.TownHallCelebrationCount,
+            options.TownHallCelebrationRestartDelayMinMinutes,
+            options.TownHallCelebrationRestartDelayMaxMinutes)
+        {
+            Owner = this,
+        };
         if (window.ShowDialog() != true)
         {
             return;
         }
+
+        SaveTownHallQueueSettings(account, window.Queue);
 
         foreach (var result in window.Results)
         {
@@ -82,6 +92,25 @@ public partial class MainWindow
         var removed = RemoveTownHallQueueItemsForVillage(null);
         RefreshAutomationLoopDashboardUi();
         AppendLog($"Saved Town Hall settings for {window.Results.Count} village(s). Cleared {removed} queued Town Hall task(s).");
+    }
+
+    // Persists the account-wide celebration-queue settings (one vs two celebrations + restart delay) from
+    // the popup's bottom box. Stored account-scoped in bot.json, mirroring TownHallCelebrationMode.
+    private void SaveTownHallQueueSettings(string account, TownHallQueueSettings queue)
+    {
+        try
+        {
+            var config = _botConfigStore.LoadForAccount(account);
+            config[BotOptionPayloadKeys.TownHallCelebrationCount] = TownHallCelebrationDefaults.NormalizeCount(queue.Count);
+            config[BotOptionPayloadKeys.TownHallCelebrationRestartDelayMinMinutes] = queue.ResolvedDelayMinMinutes;
+            config[BotOptionPayloadKeys.TownHallCelebrationRestartDelayMaxMinutes] = queue.ResolvedDelayMaxMinutes;
+            _botConfigStore.SaveForAccount(account, config);
+            AppendLog($"[town-hall] queue settings saved: count={queue.Count}, restart delay {queue.ResolvedDelayMinMinutes:0.##}-{queue.ResolvedDelayMaxMinutes:0.##} min.");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[town-hall] could not save queue settings: {ex.Message}");
+        }
     }
 
     private bool ResolveTownHallEnabledForVillage(

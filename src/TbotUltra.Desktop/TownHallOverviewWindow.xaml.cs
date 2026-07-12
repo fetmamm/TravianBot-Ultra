@@ -1,6 +1,7 @@
 using System;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Globalization;
 using System.Linq;
 using System.Runtime.CompilerServices;
 using System.Windows;
@@ -93,19 +94,100 @@ public sealed class TownHallOverviewRow : INotifyPropertyChanged
     }
 }
 
+// Account-wide celebration-queue settings shown in the box at the bottom of the popup: how many
+// celebrations to keep active (one, or two with one queued via Plus) and the random restart delay applied
+// after a celebration frees a slot. Global — not per village.
+public sealed class TownHallQueueSettings : INotifyPropertyChanged
+{
+    private bool _isTwo;
+    private string _delayMinMinutes;
+    private string _delayMaxMinutes;
+
+    public TownHallQueueSettings(int count, double delayMinMinutes, double delayMaxMinutes)
+    {
+        _isTwo = TownHallCelebrationDefaults.NormalizeCount(count) >= TownHallCelebrationDefaults.MaxCount;
+        _delayMinMinutes = FormatMinutes(delayMinMinutes);
+        _delayMaxMinutes = FormatMinutes(delayMaxMinutes);
+    }
+
+    public bool IsOne
+    {
+        get => !_isTwo;
+        set { if (value) { SetTwo(false); } }
+    }
+
+    public bool IsTwo
+    {
+        get => _isTwo;
+        set { if (value) { SetTwo(true); } }
+    }
+
+    public string DelayMinMinutes
+    {
+        get => _delayMinMinutes;
+        set { _delayMinMinutes = value ?? string.Empty; OnPropertyChanged(); }
+    }
+
+    public string DelayMaxMinutes
+    {
+        get => _delayMaxMinutes;
+        set { _delayMaxMinutes = value ?? string.Empty; OnPropertyChanged(); }
+    }
+
+    public int Count => _isTwo ? TownHallCelebrationDefaults.MaxCount : TownHallCelebrationDefaults.MinCount;
+
+    public double ResolvedDelayMinMinutes =>
+        Math.Max(0, ParseMinutes(_delayMinMinutes, TownHallCelebrationDefaults.DefaultRestartDelayMinMinutes));
+
+    public double ResolvedDelayMaxMinutes =>
+        Math.Max(ResolvedDelayMinMinutes, ParseMinutes(_delayMaxMinutes, TownHallCelebrationDefaults.DefaultRestartDelayMaxMinutes));
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private void SetTwo(bool value)
+    {
+        if (_isTwo == value)
+        {
+            return;
+        }
+
+        _isTwo = value;
+        OnPropertyChanged(nameof(IsOne));
+        OnPropertyChanged(nameof(IsTwo));
+    }
+
+    private static string FormatMinutes(double value) =>
+        Math.Max(0, value).ToString("0.##", CultureInfo.InvariantCulture);
+
+    private static double ParseMinutes(string? text, double fallback) =>
+        double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) && parsed >= 0
+            ? parsed
+            : fallback;
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+}
+
 public partial class TownHallOverviewWindow : Window
 {
     public ObservableCollection<TownHallOverviewRow> Rows { get; }
 
+    public TownHallQueueSettings Queue { get; }
+
     public IReadOnlyList<TownHallOverviewResult> Results { get; private set; } =
         Array.Empty<TownHallOverviewResult>();
 
-    public TownHallOverviewWindow(IReadOnlyList<TownHallOverviewRow> rows)
+    public TownHallOverviewWindow(
+        IReadOnlyList<TownHallOverviewRow> rows,
+        int celebrationCount,
+        double restartDelayMinMinutes,
+        double restartDelayMaxMinutes)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
 
         Rows = new ObservableCollection<TownHallOverviewRow>(rows);
+        Queue = new TownHallQueueSettings(celebrationCount, restartDelayMinMinutes, restartDelayMaxMinutes);
         DataContext = this;
         SubtitleTextBlock.Text = $"{Rows.Count} village(s)";
     }

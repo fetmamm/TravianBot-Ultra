@@ -314,7 +314,12 @@ public sealed partial class BotTaskRunner
             {
                 await client.LoginAsync(cancellationToken);
                 await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, skipFeatureRefresh: true);
-                result = await client.RunTownHallCelebrationAsync(options.TownHallCelebrationMode, cancellationToken);
+                result = await client.RunTownHallCelebrationAsync(
+                    options.TownHallCelebrationMode,
+                    options.TownHallCelebrationCount,
+                    options.TownHallCelebrationRestartDelayMinMinutes,
+                    options.TownHallCelebrationRestartDelayMaxMinutes,
+                    cancellationToken);
             });
 
         return result;

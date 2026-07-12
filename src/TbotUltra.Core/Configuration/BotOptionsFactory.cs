@@ -26,6 +26,12 @@ public static class BotOptionsFactory
             configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMaxMinutes, FarmingDefaults.DefaultDispatchDelayMaxMinutes));
         var continuousFarmSendMode = FarmingDefaults.NormalizeSendMode(configuration[BotOptionPayloadKeys.ContinuousFarmSendMode]);
         var townHallCelebrationMode = TownHallCelebrationDefaults.NormalizeMode(configuration[BotOptionPayloadKeys.TownHallCelebrationMode]);
+        var townHallCelebrationCount = TownHallCelebrationDefaults.NormalizeCount(
+            configuration.GetValue(BotOptionPayloadKeys.TownHallCelebrationCount, TownHallCelebrationDefaults.DefaultCount));
+        var townHallCelebrationRestartDelayMinMinutes = configuration.GetValue(
+            BotOptionPayloadKeys.TownHallCelebrationRestartDelayMinMinutes, TownHallCelebrationDefaults.DefaultRestartDelayMinMinutes);
+        var townHallCelebrationRestartDelayMaxMinutes = configuration.GetValue(
+            BotOptionPayloadKeys.TownHallCelebrationRestartDelayMaxMinutes, TownHallCelebrationDefaults.DefaultRestartDelayMaxMinutes);
 
         var baseUrl = (configuration["base_url"] ?? string.Empty).TrimEnd('/');
         var heroStatPriority = string.IsNullOrWhiteSpace(configuration[BotOptionPayloadKeys.HeroStatPriority])
@@ -51,6 +57,9 @@ public static class BotOptionsFactory
             ContinuousFarmDispatchDelayMaxMinutes = continuousFarmDispatchDelayVariationPercent,
             ContinuousFarmSendMode = continuousFarmSendMode,
             TownHallCelebrationMode = townHallCelebrationMode,
+            TownHallCelebrationCount = townHallCelebrationCount,
+            TownHallCelebrationRestartDelayMinMinutes = townHallCelebrationRestartDelayMinMinutes,
+            TownHallCelebrationRestartDelayMaxMinutes = townHallCelebrationRestartDelayMaxMinutes,
             ContinuousFarmDeactivateLosses = configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDeactivateLosses, false),
             ContinuousFarmDeactivateOasisLosses = configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses, false),
             PostLoginAnalyzeFarmlists = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeFarmlists, false),
@@ -231,6 +240,9 @@ public static class BotOptionsFactory
             ContinuousFarmDispatchDelayMaxMinutes = source.ContinuousFarmDispatchDelayMaxMinutes,
             ContinuousFarmSendMode = source.ContinuousFarmSendMode,
             TownHallCelebrationMode = source.TownHallCelebrationMode,
+            TownHallCelebrationCount = source.TownHallCelebrationCount,
+            TownHallCelebrationRestartDelayMinMinutes = source.TownHallCelebrationRestartDelayMinMinutes,
+            TownHallCelebrationRestartDelayMaxMinutes = source.TownHallCelebrationRestartDelayMaxMinutes,
             ContinuousFarmDeactivateLosses = source.ContinuousFarmDeactivateLosses,
             ContinuousFarmDeactivateOasisLosses = source.ContinuousFarmDeactivateOasisLosses,
             ContinuousFarmNextListIndex = source.ContinuousFarmNextListIndex,

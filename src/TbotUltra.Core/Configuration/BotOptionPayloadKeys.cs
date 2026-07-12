@@ -122,6 +122,9 @@ public static class BotOptionPayloadKeys
     public const string ContinuousFarmDispatchDelayMaxMinutes = "continuous_farm_dispatch_delay_max_minutes";
     public const string ContinuousFarmSendMode = "continuous_farm_send_mode";
     public const string TownHallCelebrationMode = "town_hall_celebration_mode";
+    public const string TownHallCelebrationCount = "town_hall_celebration_count";
+    public const string TownHallCelebrationRestartDelayMinMinutes = "town_hall_celebration_restart_delay_min_minutes";
+    public const string TownHallCelebrationRestartDelayMaxMinutes = "town_hall_celebration_restart_delay_max_minutes";
     public const string ContinuousFarmDeactivateLosses = "continuous_farm_deactivate_losses";
     public const string ContinuousFarmDeactivateOasisLosses = "continuous_farm_deactivate_oasis_losses";
     public const string ContinuousFarmNextListIndex = "continuous_farm_next_list_index";

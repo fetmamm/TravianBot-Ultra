@@ -49,6 +49,15 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.TownHallCelebrationMode)]
     public string TownHallCelebrationMode { get; init; } = TownHallCelebrationDefaults.Small;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.TownHallCelebrationCount)]
+    public int TownHallCelebrationCount { get; init; } = TownHallCelebrationDefaults.DefaultCount;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TownHallCelebrationRestartDelayMinMinutes)]
+    public double TownHallCelebrationRestartDelayMinMinutes { get; init; } = TownHallCelebrationDefaults.DefaultRestartDelayMinMinutes;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TownHallCelebrationRestartDelayMaxMinutes)]
+    public double TownHallCelebrationRestartDelayMaxMinutes { get; init; } = TownHallCelebrationDefaults.DefaultRestartDelayMaxMinutes;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmDeactivateLosses)]
     public bool ContinuousFarmDeactivateLosses { get; init; }
 

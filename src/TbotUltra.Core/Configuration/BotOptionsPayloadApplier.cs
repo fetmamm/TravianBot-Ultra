@@ -52,6 +52,9 @@ public static class BotOptionsPayloadApplier
         var continuousFarmDispatchDelayVariationPercent = source.ContinuousFarmDispatchDelayMaxMinutes;
         var continuousFarmSendMode = source.ContinuousFarmSendMode;
         var townHallCelebrationMode = source.TownHallCelebrationMode;
+        var townHallCelebrationCount = source.TownHallCelebrationCount;
+        var townHallCelebrationRestartDelayMinMinutes = source.TownHallCelebrationRestartDelayMinMinutes;
+        var townHallCelebrationRestartDelayMaxMinutes = source.TownHallCelebrationRestartDelayMaxMinutes;
         var continuousFarmDeactivateLosses = source.ContinuousFarmDeactivateLosses;
         var continuousFarmDeactivateOasisLosses = source.ContinuousFarmDeactivateOasisLosses;
         var continuousFarmNextListIndex = source.ContinuousFarmNextListIndex;
@@ -1117,6 +1120,9 @@ public static class BotOptionsPayloadApplier
             ContinuousFarmDispatchDelayMaxMinutes = continuousFarmDispatchDelayVariationPercent,
             ContinuousFarmSendMode = continuousFarmSendMode,
             TownHallCelebrationMode = townHallCelebrationMode,
+            TownHallCelebrationCount = townHallCelebrationCount,
+            TownHallCelebrationRestartDelayMinMinutes = townHallCelebrationRestartDelayMinMinutes,
+            TownHallCelebrationRestartDelayMaxMinutes = townHallCelebrationRestartDelayMaxMinutes,
             ContinuousFarmDeactivateLosses = continuousFarmDeactivateLosses,
             ContinuousFarmDeactivateOasisLosses = continuousFarmDeactivateOasisLosses,
             ContinuousFarmNextListIndex = continuousFarmNextListIndex,

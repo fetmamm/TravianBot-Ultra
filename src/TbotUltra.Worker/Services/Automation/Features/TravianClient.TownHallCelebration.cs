@@ -11,6 +11,9 @@ public sealed partial class TravianClient
 
     public async Task<string> RunTownHallCelebrationAsync(
         string? requestedMode,
+        int targetCount,
+        double restartDelayMinMinutes,
+        double restartDelayMaxMinutes,
         CancellationToken cancellationToken = default)
     {
         Notify("[town-hall] celebration run starting");
@@ -34,13 +37,8 @@ public sealed partial class TravianClient
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening Town Hall.", cancellationToken);
         await EnsureLoggedInAsync();
 
-        var pageStatus = await ReadTownHallCelebrationStatusFromCurrentPageAsync(cancellationToken);
-        var runningSeconds = pageStatus.RemainingSeconds ?? TravianParsing.ParseDurationToSeconds(pageStatus.RemainingText);
-        if (pageStatus.CelebrationRunning && runningSeconds is > 0)
-        {
-            Notify($"[town-hall] already running - {TravianParsing.FormatDuration(runningSeconds.Value)} remaining");
-            return $"Town Hall celebration running. queue_wait_seconds={Math.Max(1, runningSeconds.Value)}";
-        }
+        var goalCount = TownHallCelebrationDefaults.NormalizeCount(targetCount);
+        var restartDelaySeconds = ResolveTownHallRestartDelaySeconds(restartDelayMinMinutes, restartDelayMaxMinutes);
 
         var mode = TownHallCelebrationDefaults.NormalizeMode(requestedMode);
         var level = townHall?.Level ?? 0;
@@ -51,61 +49,111 @@ public sealed partial class TravianClient
             mode = TownHallCelebrationDefaults.Small;
         }
 
-        Notify($"[town-hall] attempting to start {mode} celebration at slot {townHallSlotId.Value}");
-        var startAttempt = await TryStartTownHallCelebrationFromCurrentPageAsync(mode, cancellationToken);
-        if (!startAttempt.Started)
+        var status = await ReadTownHallCelebrationStatusFromCurrentPageAsync(cancellationToken);
+
+        // Target already met: wait until the soonest celebration frees a slot, plus a random restart delay
+        // so a new one is not started the instant the timer hits zero.
+        if (status.ActiveCount >= goalCount)
         {
-            if (await TryHeroResourceTransferForTownHallAsync(
-                    $"Town Hall {mode} celebration (slot {townHallSlotId.Value})",
-                    mode,
-                    cancellationToken))
-            {
-                Notify("[town-hall] topped up from the hero inventory; retrying start.");
-                startAttempt = await TryStartTownHallCelebrationFromCurrentPageAsync(mode, cancellationToken);
-            }
+            var waitSeconds = ResolveTownHallSlotFreeWaitSeconds(status, restartDelaySeconds);
+            Notify($"[town-hall] {status.ActiveCount}/{goalCount} celebration(s) active - waiting {TravianParsing.FormatDuration(waitSeconds)} (incl. {restartDelaySeconds}s restart delay).");
+            return $"Town Hall celebration running. queue_wait_seconds={waitSeconds}";
         }
 
-        if (!startAttempt.Started)
+        // Below target: start celebrations until the target is reached or the server/resources stop us.
+        while (status.ActiveCount < goalCount)
         {
-            var resourceWaitMessage = await TryBuildTownHallCelebrationResourceWaitMessageAsync(mode, cancellationToken);
-            if (!string.IsNullOrWhiteSpace(resourceWaitMessage))
+            Notify($"[town-hall] attempting to start {mode} celebration at slot {townHallSlotId.Value} (active {status.ActiveCount}, target {goalCount})");
+            var startAttempt = await TryStartTownHallCelebrationFromCurrentPageAsync(mode, cancellationToken);
+            if (!startAttempt.Started)
             {
-                return resourceWaitMessage;
+                if (await TryHeroResourceTransferForTownHallAsync(
+                        $"Town Hall {mode} celebration (slot {townHallSlotId.Value})",
+                        mode,
+                        cancellationToken))
+                {
+                    Notify("[town-hall] topped up from the hero inventory; retrying start.");
+                    startAttempt = await TryStartTownHallCelebrationFromCurrentPageAsync(mode, cancellationToken);
+                }
             }
 
-            Notify($"[town-hall] start failed - {startAttempt.Message}");
-            return $"{startAttempt.Message} queue_wait_seconds={TownHallCelebrationRetrySeconds}";
-        }
+            if (!startAttempt.Started)
+            {
+                var resourceWaitMessage = await TryBuildTownHallCelebrationResourceWaitMessageAsync(mode, cancellationToken);
+                if (!string.IsNullOrWhiteSpace(resourceWaitMessage))
+                {
+                    // A start row exists but lacks resources (with Plus a second can still be queued) — come
+                    // back when resources are ready to fill the remaining slot.
+                    return resourceWaitMessage;
+                }
 
-        var startHref = ResolveUrl(startAttempt.Href);
-        if (!string.IsNullOrWhiteSpace(startHref))
-        {
-            await GotoAsync(startHref, cancellationToken);
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared after starting Town Hall celebration.", cancellationToken);
+                if (status.ActiveCount >= 1)
+                {
+                    // One celebration is already running but no further slot can be filled right now (e.g. the
+                    // server won't queue a second without Plus). Wait for the running one to free a slot.
+                    var waitSeconds = ResolveTownHallSlotFreeWaitSeconds(status, restartDelaySeconds);
+                    Notify($"[town-hall] cannot queue another celebration now; waiting {TravianParsing.FormatDuration(waitSeconds)} for the running one.");
+                    return $"Town Hall celebration running. queue_wait_seconds={waitSeconds}";
+                }
+
+                Notify($"[town-hall] start failed - {startAttempt.Message}");
+                return $"{startAttempt.Message} queue_wait_seconds={TownHallCelebrationRetrySeconds}";
+            }
+
+            var startHref = ResolveUrl(startAttempt.Href);
+            if (!string.IsNullOrWhiteSpace(startHref))
+            {
+                await GotoAsync(startHref, cancellationToken);
+                await PauseForManualStepIfVisibleAsync("Manual verification appeared after starting Town Hall celebration.", cancellationToken);
+                await EnsureLoggedInAsync();
+            }
+            else
+            {
+                await WaitForPageReadyAsync(cancellationToken);
+            }
+
+            await GotoAsync(Paths.BuildBySlot(townHallSlotId.Value), cancellationToken);
+            await PauseForManualStepIfVisibleAsync("Manual verification appeared after navigating back to Town Hall.", cancellationToken);
             await EnsureLoggedInAsync();
-        }
-        else
-        {
-            await WaitForPageReadyAsync(cancellationToken);
+
+            var reread = await ReadTownHallCelebrationStatusFromCurrentPageAsync(cancellationToken);
+            if (reread.ActiveCount <= status.ActiveCount)
+            {
+                Notify("[town-hall] start did not register - will retry");
+                return $"Town Hall celebration: start did not register, retrying. queue_wait_seconds={TownHallCelebrationRetrySeconds}";
+            }
+
+            status = reread;
         }
 
-        await GotoAsync(Paths.BuildBySlot(townHallSlotId.Value), cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after navigating back to Town Hall.", cancellationToken);
-        await EnsureLoggedInAsync();
+        var finalWaitSeconds = ResolveTownHallSlotFreeWaitSeconds(status, restartDelaySeconds);
+        Notify($"[town-hall] {mode} celebration active ({status.ActiveCount}/{goalCount}) - {TravianParsing.FormatDuration(finalWaitSeconds)} until next check.");
+        return $"Town Hall celebration started. mode={mode} queue_wait_seconds={finalWaitSeconds}";
+    }
 
-        var startedStatus = await ReadTownHallCelebrationStatusFromCurrentPageAsync(cancellationToken);
-        var remainingSeconds = startedStatus.RemainingSeconds
-            ?? TravianParsing.ParseDurationToSeconds(startedStatus.RemainingText)
+    // Seconds until the soonest-finishing celebration frees a slot, plus the random restart delay. Used both
+    // when the target is already met and when only one can run — so the next celebration never starts the
+    // instant the timer hits zero.
+    private static int ResolveTownHallSlotFreeWaitSeconds(TownHallCelebrationPageStatus status, int restartDelaySeconds)
+    {
+        var ongoingSeconds = status.RemainingSeconds
+            ?? TravianParsing.ParseDurationToSeconds(status.RemainingText)
             ?? TownHallCelebrationRetrySeconds;
+        return Math.Max(1, ongoingSeconds + Math.Max(0, restartDelaySeconds));
+    }
 
-        if (!startedStatus.CelebrationRunning)
+    // Random delay (seconds) in the configured min-max minute range. 0/0 (or max<=0) disables it.
+    private static int ResolveTownHallRestartDelaySeconds(double minMinutes, double maxMinutes)
+    {
+        var min = Math.Max(0, minMinutes);
+        var max = Math.Max(min, maxMinutes);
+        if (max <= 0)
         {
-            Notify("[town-hall] start did not register - will retry");
-            return $"Town Hall celebration: start did not register, retrying. queue_wait_seconds={TownHallCelebrationRetrySeconds}";
+            return 0;
         }
 
-        Notify($"[town-hall] {mode} celebration started - {TravianParsing.FormatDuration(Math.Max(1, remainingSeconds))} remaining");
-        return $"Town Hall celebration started. mode={mode} queue_wait_seconds={Math.Max(1, remainingSeconds)}";
+        var minutes = min + (Random.Shared.NextDouble() * (max - min));
+        return (int)Math.Round(minutes * 60);
     }
 
     private static Building? ResolveTownHallBuilding(IReadOnlyList<Building> buildings)
@@ -222,8 +270,19 @@ public sealed partial class TravianClient
             () => {
               const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
               const root = document.querySelector('.build_details') || document;
-              const runningTimer =
-                root.querySelector('.under_progress .timer, table.under_progress .timer, .under_progress span.timer');
+              // The "Ongoing celebration" table (class under_progress) is a SIBLING of the .build_details
+              // "Hold a celebration" block, not inside it. Scoping the running lookup to root misses a
+              // celebration that just started and reports a false "did not register", so search the whole
+              // document — but only the under_progress table that actually mentions a celebration, so an
+              // unrelated construction under_progress can never be misread as a running celebration.
+              const runningTable = Array.from(document.querySelectorAll('table.under_progress, .under_progress'))
+                .find(node => /celebration/i.test(normalize(node.textContent || '')));
+              // Each row in the ongoing-celebration table has its own .timer, so the number of timers is
+              // the number of active celebrations (1 = one running, 2 = one running + one queued via Plus).
+              // The first timer is the one that finishes soonest (the currently running celebration).
+              const runningTimers = runningTable ? Array.from(runningTable.querySelectorAll('.timer')) : [];
+              const activeCount = runningTimers.length;
+              const runningTimer = runningTimers[0] || null;
               const runningText = normalize(runningTimer ? runningTimer.textContent : '');
               const runningValueRaw = runningTimer ? runningTimer.getAttribute('value') : null;
               const runningValue = runningValueRaw ? parseInt(runningValueRaw, 10) : null;
@@ -247,6 +306,7 @@ public sealed partial class TravianClient
 
               return {
                 celebrationRunning,
+                activeCount,
                 remainingText: runningText,
                 remainingSeconds: Number.isFinite(runningValue) && runningValue > 0 ? runningValue : null,
                 canStart,
@@ -257,6 +317,14 @@ public sealed partial class TravianClient
 
         var celebrationRunning = payload.TryGetProperty("celebrationRunning", out var celebrationRunningNode)
             && celebrationRunningNode.ValueKind == JsonValueKind.True;
+        var activeCount = 0;
+        if (payload.TryGetProperty("activeCount", out var activeCountNode)
+            && activeCountNode.ValueKind == JsonValueKind.Number
+            && activeCountNode.TryGetInt32(out var parsedActiveCount)
+            && parsedActiveCount > 0)
+        {
+            activeCount = parsedActiveCount;
+        }
         var remainingText = payload.TryGetProperty("remainingText", out var remainingTextNode)
             ? remainingTextNode.GetString() ?? string.Empty
             : string.Empty;
@@ -276,6 +344,7 @@ public sealed partial class TravianClient
 
         return new TownHallCelebrationPageStatus(
             celebrationRunning,
+            activeCount,
             remainingText,
             remainingSeconds,
             canStart,
@@ -454,6 +523,7 @@ public sealed partial class TravianClient
 
     private sealed record TownHallCelebrationPageStatus(
         bool CelebrationRunning,
+        int ActiveCount,
         string RemainingText,
         int? RemainingSeconds,
         bool CanStart,
