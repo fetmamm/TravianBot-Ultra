@@ -56,6 +56,7 @@ public partial class ProductionBonusSettingsWindow : Window
         _onClearRequested = onClearRequested;
 
         BuildGrid();
+        PopulateManualResetHours();
         LoadDelaySettings();
         LoadResetSettings();
         ReloadTimersFromStore();
@@ -286,6 +287,19 @@ public partial class ProductionBonusSettingsWindow : Window
     private static int ParseDelayBox(TextBox box, int fallback)
         => int.TryParse(box.Text?.Trim(), out var value) ? value : fallback;
 
+    // Fills the manual reset-hour dropdown with 00:00..23:00 (Tag = the whole hour 0..23).
+    private void PopulateManualResetHours()
+    {
+        for (var hour = 0; hour < 24; hour++)
+        {
+            ManualResetHourComboBox.Items.Add(new ComboBoxItem
+            {
+                Content = $"{hour:00}:00",
+                Tag = hour,
+            });
+        }
+    }
+
     private void LoadResetSettings()
     {
         var settings = ProductionBonusStateStore.LoadSettings(_projectRoot, _accountName);
@@ -295,14 +309,14 @@ public partial class ProductionBonusSettingsWindow : Window
         {
             ResetManualRadio.IsChecked = manual;
             ResetAutoRadio.IsChecked = !manual;
-            ManualResetHourTextBox.Text = settings.ManualResetHour.ToString();
+            SelectManualResetHour(settings.ManualResetHour);
         }
         finally
         {
             _suppressResetSave = false;
         }
 
-        ManualResetHourTextBox.IsEnabled = manual;
+        ManualResetHourComboBox.IsEnabled = manual;
         RefreshLearnedResetLabel();
     }
 
@@ -315,11 +329,25 @@ public partial class ProductionBonusSettingsWindow : Window
 
         var manual = ResetManualRadio.IsChecked == true;
         var mode = manual ? ProductionBonusStateStore.ResetModeManual : ProductionBonusStateStore.ResetModeAuto;
-        var hour = ParseHourBox(ManualResetHourTextBox, ProductionBonusStateStore.DefaultManualResetHour);
-        ManualResetHourTextBox.Text = hour.ToString();
-        ManualResetHourTextBox.IsEnabled = manual;
+        var hour = GetSelectedManualResetHour();
+        ManualResetHourComboBox.IsEnabled = manual;
         ProductionBonusStateStore.SaveResetSettings(_projectRoot, _accountName, mode, hour);
         RefreshLearnedResetLabel();
+    }
+
+    private void SelectManualResetHour(int hour)
+    {
+        var clamped = Math.Clamp(hour, 0, 23);
+        ManualResetHourComboBox.SelectedItem = ManualResetHourComboBox.Items
+            .OfType<ComboBoxItem>()
+            .FirstOrDefault(item => item.Tag is int tag && tag == clamped);
+    }
+
+    private int GetSelectedManualResetHour()
+    {
+        return ManualResetHourComboBox.SelectedItem is ComboBoxItem { Tag: int hour }
+            ? Math.Clamp(hour, 0, 23)
+            : ProductionBonusStateStore.DefaultManualResetHour;
     }
 
     // Shows the auto-learned reset hour (or "learning…") next to the Auto radio; blank in manual mode.
@@ -341,9 +369,6 @@ public partial class ProductionBonusSettingsWindow : Window
             ? $"learned: {hour:00}:00"
             : "learning…";
     }
-
-    private static int ParseHourBox(TextBox box, int fallback)
-        => int.TryParse(box.Text?.Trim(), out var value) ? Math.Clamp(value, 0, 23) : fallback;
 
     private void ScanTimersButton_Click(object sender, RoutedEventArgs e)
     {

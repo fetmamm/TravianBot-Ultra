@@ -202,6 +202,33 @@ public sealed partial class BotTaskRunner
         return result;
     }
 
+    // Manual activation of the free +15% production videos on its own session (used by the popup's
+    // "Scan timers" button when the scan finds free videos available and no active bonus). Mirrors the
+    // scan runner; the shared visible session wires the isolated bonus-video browser so each video runs
+    // isolated exactly like the queued activate_production_bonus task.
+    public async Task<string> RunActivateProductionBonusVideosAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var result = "Production bonus activation: no result.";
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: true,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                result = await client.ActivateProductionBonusVideosAsync(cancellationToken);
+            });
+
+        log(result);
+        return result;
+    }
+
     public async Task<string> ReadSmithyQueueFromCurrentPageTestAsync(
         BotOptions options,
         Action<string> log,

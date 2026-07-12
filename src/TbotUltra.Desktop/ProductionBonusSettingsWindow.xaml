@@ -96,9 +96,16 @@
         </StackPanel>
 
         <StackPanel Grid.Row="3" Margin="0,14,0,0">
-            <TextBlock Text="Daily reset time (server)"
-                       FontWeight="SemiBold"
-                       Foreground="{DynamicResource TextSecondaryBrush}" />
+            <StackPanel Orientation="Horizontal">
+                <TextBlock Text="Daily reset time (server)"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                Margin="8,0,0,0"
+                                VerticalAlignment="Center"
+                                ToolTip="When the free +15% video re-enables each day (server time). Auto-learn watches when the video becomes available and remembers the hour, per account. Manual: set the whole hour yourself." />
+            </StackPanel>
             <StackPanel Orientation="Horizontal" Margin="0,6,0,0" VerticalAlignment="Center">
                 <RadioButton x:Name="ResetAutoRadio"
                              GroupName="ProductionBonusReset"
@@ -109,27 +116,18 @@
                            VerticalAlignment="Center"
                            Margin="8,0,0,0"
                            Foreground="{DynamicResource TextMutedBrush}" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,6,0,0" VerticalAlignment="Center">
                 <RadioButton x:Name="ResetManualRadio"
                              GroupName="ProductionBonusReset"
                              Content="Manual"
                              VerticalAlignment="Center"
-                             Margin="24,0,0,0"
                              Checked="ResetMode_Changed" />
-                <TextBox x:Name="ManualResetHourTextBox"
-                         Width="44"
-                         Margin="8,0,0,0"
-                         Padding="6,3"
-                         VerticalAlignment="Center"
-                         BorderBrush="{DynamicResource BorderSubtleBrush}"
-                         LostFocus="ResetMode_Changed" />
-                <TextBlock Text=":00"
-                           VerticalAlignment="Center"
-                           Margin="2,0,0,0"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
-                <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                                Margin="8,0,0,0"
-                                VerticalAlignment="Center"
-                                ToolTip="When the free +15% video re-enables each day (server time). Auto-learn watches when the video becomes available and remembers the hour, per account. Manual: set the whole hour yourself." />
+                <ComboBox x:Name="ManualResetHourComboBox"
+                          Width="80"
+                          Margin="8,0,0,0"
+                          VerticalAlignment="Center"
+                          SelectionChanged="ResetMode_Changed" />
             </StackPanel>
         </StackPanel>
 

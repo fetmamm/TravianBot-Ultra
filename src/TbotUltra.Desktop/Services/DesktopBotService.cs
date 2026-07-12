@@ -244,6 +244,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.RunScanProductionBonusTimersAsync(options, log, null, cancellationToken);
     }
 
+    public Task<string> RunActivateProductionBonusVideosAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.RunActivateProductionBonusVideosAsync(options, log, null, cancellationToken);
+    }
+
     public Task<string> ReadSmithyQueueFromCurrentPageTestAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.ReadSmithyQueueFromCurrentPageTestAsync(options, log, null, cancellationToken);

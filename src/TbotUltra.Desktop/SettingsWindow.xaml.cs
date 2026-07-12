@@ -357,7 +357,7 @@ public partial class SettingsWindow : Window
         {
             SessionHoursVariationComboBox.Items.Add(new ComboBoxItem
             {
-                Content = percent == 0 ? "No variation" : $"±{percent}%",
+                Content = $"{percent} %",
                 Tag = percent.ToString(CultureInfo.InvariantCulture),
             });
         }

@@ -86,6 +86,19 @@ public partial class MainWindow
         AppendLog($"Production bonus: saved timers ({FormatProductionBonusStates(states)}); next-run delay +{delay.TotalMinutes:0} min.");
     }
 
+    // True when a manual scan found no active bonus on any resource but the free +15% videos are
+    // available to activate — the cue to press the purple buttons instead of only reading the timers.
+    private static bool ShouldActivateProductionBonusAfterScan(string? scanResult)
+    {
+        if (ProductionBonusDomParser.ParseFreeVideoAvailableToken(scanResult) != true)
+        {
+            return false;
+        }
+
+        var states = ProductionBonusDomParser.ParseResultToken(scanResult);
+        return !states.Any(state => state.RemainingSeconds > 0);
+    }
+
     // Resolves the daily reset hour (server-local, whole hour) used to schedule +15% retries. In manual
     // mode returns the user's hour. In auto mode returns the learned hour, or — while still learning —
     // null (which makes the scheduler poll hourly) and, on each run, records the free-video availability so
@@ -290,8 +303,22 @@ public partial class MainWindow
             var options = LoadBotOptions();
             AppendLog($"[{operationId}] scanning production bonus timers.");
             var result = await _botService.RunScanProductionBonusTimersAsync(options, AppendLog, operationToken);
+            // Persist the scanned timers and (in auto mode) feed the daily-reset-hour learning.
             ApplyProductionBonusResult(result);
-            CompleteOperation(operationId, operationSw, result);
+
+            // If nothing is currently active but the free +15% videos are available to click, go ahead and
+            // activate them as part of the manual scan (press the purple buttons / watch the videos).
+            if (ShouldActivateProductionBonusAfterScan(result))
+            {
+                AppendLog("Production bonus: no active timers and free +15% videos available — activating now.");
+                var activationResult = await _botService.RunActivateProductionBonusVideosAsync(options, AppendLog, operationToken);
+                ApplyProductionBonusResult(activationResult);
+                CompleteOperation(operationId, operationSw, activationResult);
+            }
+            else
+            {
+                CompleteOperation(operationId, operationSw, result);
+            }
         }
         catch (OperationCanceledException)
         {
