@@ -65,6 +65,16 @@ public sealed partial class TravianClient
         {
             Notify($"[town-hall] attempting to start {mode} celebration at slot {townHallSlotId.Value} (active {status.ActiveCount}, target {goalCount})");
             var startAttempt = await TryStartTownHallCelebrationFromCurrentPageAsync(mode, cancellationToken);
+            if (!startAttempt.Started && status.SlotOccupied && status.ActiveCount >= 1)
+            {
+                // No Plus (or the queue is full): a celebration is already running and no further one can be
+                // queued. Wait for the running one to free a slot instead of retrying an impossible start or
+                // computing a resource wait for a slot that cannot be filled.
+                var waitSeconds = ResolveTownHallSlotFreeWaitSeconds(status, restartDelaySeconds);
+                Notify($"[town-hall] a celebration is already running and no more can be queued; waiting {TravianParsing.FormatDuration(waitSeconds)}.");
+                return $"Town Hall celebration running. queue_wait_seconds={waitSeconds}";
+            }
+
             if (!startAttempt.Started)
             {
                 if (await TryHeroResourceTransferForTownHallAsync(
@@ -298,6 +308,12 @@ public sealed partial class TravianClient
               const canStart = (!!startLink) || (!!startButton && !startButton.disabled);
               const actText = normalize((smallRow?.querySelector('.cta, td.act') || root.querySelector('.cta, td.act'))?.textContent || '');
               const celebrationRunning = !!runningTimer || /celebration is in progress/i.test(inProgressLabel) || /celebration running/i.test(inProgressLabel);
+              // Without Travian Plus only one celebration can run at a time: while one is active the start
+              // CTA is empty and the row shows "There is already a celebration going on". Flag that so the
+              // caller waits for the running one instead of computing a resource wait for a slot it can't fill.
+              const slotOccupied = Array.from(document.querySelectorAll('.errorMessage'))
+                .map(node => normalize(node.textContent || ''))
+                .some(text => /already[^.]*celebration/i.test(text) || /celebration[^.]*going on/i.test(text));
               const statusText = celebrationRunning
                 ? 'Celebration running.'
                 : canStart
@@ -307,6 +323,7 @@ public sealed partial class TravianClient
               return {
                 celebrationRunning,
                 activeCount,
+                slotOccupied,
                 remainingText: runningText,
                 remainingSeconds: Number.isFinite(runningValue) && runningValue > 0 ? runningValue : null,
                 canStart,
@@ -338,6 +355,8 @@ public sealed partial class TravianClient
         }
         var canStart = payload.TryGetProperty("canStart", out var canStartNode)
             && canStartNode.ValueKind == JsonValueKind.True;
+        var slotOccupied = payload.TryGetProperty("slotOccupied", out var slotOccupiedNode)
+            && slotOccupiedNode.ValueKind == JsonValueKind.True;
         var statusText = payload.TryGetProperty("statusText", out var statusTextNode)
             ? statusTextNode.GetString() ?? string.Empty
             : string.Empty;
@@ -345,6 +364,7 @@ public sealed partial class TravianClient
         return new TownHallCelebrationPageStatus(
             celebrationRunning,
             activeCount,
+            slotOccupied,
             remainingText,
             remainingSeconds,
             canStart,
@@ -524,6 +544,7 @@ public sealed partial class TravianClient
     private sealed record TownHallCelebrationPageStatus(
         bool CelebrationRunning,
         int ActiveCount,
+        bool SlotOccupied,
         string RemainingText,
         int? RemainingSeconds,
         bool CanStart,
