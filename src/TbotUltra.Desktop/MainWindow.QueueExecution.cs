@@ -380,6 +380,7 @@ public partial class MainWindow
             }
 
             AppendLog(FormatQueueSuccessLog(logPrefix, tickSw, item, mode));
+            MarkNetworkConnectionHealthy();
             if (mode == QueueExecutionMode.ContinuousLoop)
             {
                 _ = Dispatcher.BeginInvoke(() => LastScanInfoTextBlock.Text = $"Last scan: {GetServerNow():HH:mm:ss}");
@@ -606,7 +607,8 @@ public partial class MainWindow
     {
         if (ex is TransientNavigationException)
         {
-            var retryDelay = TimeSpan.FromSeconds(Random.Shared.Next(15, 31));
+            var retryDelay = NextTransientNavigationRetryDelay();
+            MarkTransientNetworkUnavailable(retryDelay);
             if (_botService.MarkQueueItemDeferred(item.Id, retryDelay))
             {
                 AppendLog(

@@ -413,6 +413,12 @@ public sealed partial class TravianClient : ISessionClient
                 return;
             }
 
+            if (state == "unavailable")
+            {
+                throw new TransientNavigationException(
+                    $"Travian page is unavailable while checking login state. Url='{_page.Url}'.");
+            }
+
             throw new InvalidOperationException($"Not logged in. Current page state is '{state}'.");
         }
         if (_suppressEnsureUiSyncDepth <= 0)
@@ -435,6 +441,19 @@ public sealed partial class TravianClient : ISessionClient
             // a navigating page can hang on the default action timeout, so confirm sign-out by URL
             // before touching any element.
             var currentUrl = _page.Url.ToLowerInvariant();
+            if (currentUrl.StartsWith("chrome-error://", StringComparison.Ordinal)
+                || currentUrl.StartsWith("about:neterror", StringComparison.Ordinal))
+            {
+                Notify($"[ensure-logged-in] browser network error page detected url='{_page.Url}'.");
+                return "unavailable";
+            }
+
+            if (await _page.Locator("body.neterror, #main-frame-error, .error-code").CountAsync() > 0)
+            {
+                Notify($"[ensure-logged-in] browser network error DOM detected url='{_page.Url}'.");
+                return "unavailable";
+            }
+
             if (currentUrl.Contains("login.php", StringComparison.Ordinal))
             {
                 Notify("You are logged out");

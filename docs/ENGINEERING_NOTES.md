@@ -68,8 +68,13 @@ Runtime-path helpers i `TravianClient.Selectors.cs` ar Official-only. Anropa hel
   vid saknade/otillforlitliga hero-signaler. Faktiska actions gar direkt till attributes/inventory/adventures.
 - Sakra GET/reload-navigationer far retry:a adaptivt vid segt nat (ordinarie timeout, sedan 30s/45s).
   Om URL + laddad nyckel-DOM redan ar korrekt efter timeout ska sidan accepteras. Uttomd saker navigation
-  kastar `TransientNavigationException`; Desktop defer:ar 15-30s utan retry-burn. State-changing klick far
+  kastar `TransientNavigationException`; Desktop defer:ar 30-60s utan retry-burn. State-changing klick far
   aldrig anvanda denna blinda retry-path.
+- Proxyfel (`ERR_*PROXY*`/`ERR_SOCKS_CONNECTION_FAILED`) och Chromiums natverksfelsida ar unavailable,
+  aldrig logged-out/unknown. Sakra queue-retries backar 30-60s, 60-120s, sedan 120-240s tills en lyckad
+  task aterstaller backoff. Under defer-fonstret skippar background resource/inbox reads; bypassa aldrig
+  proxyn automatiskt. Saknat `Load`-event far bara godtas nar HTTP-URL, icke-neterror DOM och Travian-shell
+  kan bekraftas.
 - Report PNG-capture ar Official `/report*` + oppnad rapport `#reportWrapper .role.attacker`; blur scope:as till
   `.role.attacker/.role.defender .troopHeadline` och `.header .subject`, aldrig rapportlistan.
 - Bulk messages far aldrig skriva till systemspelarna `Multihunter`, `Natar` eller `Natars`; filtrera bade vid analys och direkt fore send.

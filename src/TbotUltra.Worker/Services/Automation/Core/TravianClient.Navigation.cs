@@ -96,12 +96,22 @@ public sealed partial class TravianClient
             catch (PlaywrightException ex)
             {
                 lastFailure = ex;
+                if (await CurrentPageHasUsableTravianShellAsync(cancellationToken))
+                {
+                    Notify($"[WaitForPageReadyAsync] load event timed out, but Travian DOM is usable. Url='{_page.Url}'.");
+                    return;
+                }
                 if (attempt < attempts)
                     Notify($"[WaitForPageReadyAsync:verbose] Page did not load, retry {attempt + 1}/{attempts}. Timeout: {timeoutMs} ms. Url='{_page.Url}'. {ex.Message}");
             }
             catch (TimeoutException ex)
             {
                 lastFailure = ex;
+                if (await CurrentPageHasUsableTravianShellAsync(cancellationToken))
+                {
+                    Notify($"[WaitForPageReadyAsync] load event timed out, but Travian DOM is usable. Url='{_page.Url}'.");
+                    return;
+                }
                 if (attempt < attempts)
                     Notify($"[WaitForPageReadyAsync:verbose] Page did not load, retry {attempt + 1}/{attempts}. Timeout: {timeoutMs} ms. Url='{_page.Url}'. {ex.Message}");
             }
@@ -116,6 +126,43 @@ public sealed partial class TravianClient
         throw new TimeoutException(
             $"Page did not reach a ready state after {attempts} attempts (timeout {timeoutMs} ms each). Url='{url}'.",
             lastFailure);
+    }
+
+    private async Task<bool> CurrentPageHasUsableTravianShellAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var url = _page.Url;
+        if (!url.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            || url.StartsWith("chrome-error://", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        try
+        {
+            var documentUsable = await _page.EvaluateAsync<bool>(
+                "() => document.readyState !== 'loading' && !!document.body " +
+                "&& !document.body.classList.contains('neterror') " +
+                "&& !document.querySelector('#main-frame-error, .error-code')");
+            if (!documentUsable)
+            {
+                return false;
+            }
+
+            foreach (var selector in Selectors.LoggedInIndicators.Concat(Selectors.LoggedOutIndicators))
+            {
+                if (await _page.Locator(selector).CountAsync() > 0)
+                {
+                    return true;
+                }
+            }
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return false;
+        }
+
+        return false;
     }
 
     // Reloads whatever page the browser is currently on to keep a long-idle session fresh. This avoids
@@ -159,7 +206,9 @@ public sealed partial class TravianClient
             // Make a dead/misconfigured proxy unmistakable instead of looking like a Travian outage.
             Notify($"[proxy] Navigation failed through the proxy for account '{_account.Name}' "
                 + $"(server '{ProxyParser.MaskForLog(_account.ProxyServer)}'). Check the proxy in Manage account. {ex.Message}");
-            throw;
+            throw new TransientNavigationException(
+                $"Navigation to '{url}' failed because the configured proxy is unavailable.",
+                ex);
         }
         catch (Exception ex) when (IsTimeoutError(ex))
         {

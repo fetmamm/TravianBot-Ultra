@@ -463,8 +463,37 @@ public partial class MainWindow
     // remain alarms; a crashed target is discarded by BotTaskRunner before this exception returns.
     private static bool IsTransientPageReadFailure(Exception ex)
     {
-        return ex.Message.Contains("page state is 'unknown'", StringComparison.OrdinalIgnoreCase)
+        return ex is TransientNavigationException
+            || ex.Message.Contains("page state is 'unknown'", StringComparison.OrdinalIgnoreCase)
             || BrowserFailureClassifier.IsTargetCrash(ex);
+    }
+
+    private DateTimeOffset _transientNetworkUnavailableUntilUtc;
+    private int _consecutiveTransientNavigationFailures;
+
+    private void MarkTransientNetworkUnavailable(TimeSpan delay)
+    {
+        var unavailableUntil = DateTimeOffset.UtcNow + delay;
+        if (unavailableUntil > _transientNetworkUnavailableUntilUtc)
+        {
+            _transientNetworkUnavailableUntilUtc = unavailableUntil;
+        }
+    }
+
+    private bool IsTransientNetworkUnavailable()
+        => DateTimeOffset.UtcNow < _transientNetworkUnavailableUntilUtc;
+
+    private TimeSpan NextTransientNavigationRetryDelay()
+    {
+        _consecutiveTransientNavigationFailures = Math.Min(_consecutiveTransientNavigationFailures + 1, 3);
+        var minimumSeconds = 30 * (1 << (_consecutiveTransientNavigationFailures - 1));
+        return TimeSpan.FromSeconds(Random.Shared.Next(minimumSeconds, minimumSeconds * 2 + 1));
+    }
+
+    private void MarkNetworkConnectionHealthy()
+    {
+        _consecutiveTransientNavigationFailures = 0;
+        _transientNetworkUnavailableUntilUtc = DateTimeOffset.MinValue;
     }
 
     private bool ShouldRunBackgroundResourceSnapshotRefresh()
@@ -472,6 +501,11 @@ public partial class MainWindow
         // Session sleep is an offline state: the background tick must never read/navigate the browser
         // while sleeping, or it will auto-relogin and defeat the sleep (see ENGINEERING_NOTES §5).
         if (IsSessionSleeping)
+        {
+            return false;
+        }
+
+        if (IsTransientNetworkUnavailable())
         {
             return false;
         }
@@ -525,6 +559,7 @@ public partial class MainWindow
 
             if (IsTransientPageReadFailure(ex))
             {
+                MarkTransientNetworkUnavailable(TimeSpan.FromSeconds(30));
                 AppendLog($"[resource-refresh:verbose] background refresh skipped after transient page failure ({ex.Message})");
             }
             else
