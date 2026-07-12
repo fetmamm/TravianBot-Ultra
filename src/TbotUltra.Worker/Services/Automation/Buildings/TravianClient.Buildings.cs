@@ -4014,33 +4014,17 @@ public sealed partial class TravianClient : IBuildingClient
             return existingWait > 0 ? existingWait : null;
         }
 
-        var remainingAfterSlotFrees = relevantActive
-            .Select(item => item.TimeLeftSeconds!.Value - slotFreeWaitSeconds)
-            .Where(seconds => seconds > 0)
-            .OrderBy(seconds => seconds)
-            .ToList();
-
-        double delaySeconds;
-        string reason;
-        if (remainingAfterSlotFrees.Count > 0)
-        {
-            var referenceSeconds = remainingAfterSlotFrees[0];
-            var percent = RandomInRange(
-                _config.ConstructionHumanizeQueuePercentMin,
-                _config.ConstructionHumanizeQueuePercentMax) / 100.0;
-            delaySeconds = Math.Min(
-                referenceSeconds * percent,
-                Math.Max(0, _config.ConstructionHumanizeMaxDelayMinutes) * 60.0);
-            reason = $"after slot opens, percent {percent * 100:F0}% of {referenceSeconds}s remaining";
-        }
-        else
-        {
-            var minutes = RandomInRange(
-                _config.ConstructionHumanizeNoPlusMinMinutes,
-                _config.ConstructionHumanizeNoPlusMaxMinutes);
-            delaySeconds = minutes * 60.0;
-            reason = $"after slot opens, no-plus {minutes:F1}m";
-        }
+        var decision = ConstructionHumanizeCalculator.CalculateAfterFullQueue(
+            relevantActive.Select(item => item.TimeLeftSeconds!.Value).ToList(),
+            slotFreeWaitSeconds,
+            _config.ConstructionHumanizeQueuePercentMin,
+            _config.ConstructionHumanizeQueuePercentMax,
+            _config.ConstructionHumanizeMaxDelayMinutes,
+            _config.ConstructionHumanizeNoPlusMinMinutes,
+            _config.ConstructionHumanizeNoPlusMaxMinutes,
+            RandomInRange);
+        var delaySeconds = decision.DelaySeconds;
+        var reason = decision.Reason;
 
         if (delaySeconds < 1)
         {

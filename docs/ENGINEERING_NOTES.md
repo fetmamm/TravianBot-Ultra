@@ -211,6 +211,8 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   slotens finish med delay fran redan kanda `ActiveConstructions`, sa ingen kontrollnavigation behovs nar timern gar ut.
   Extra humanize-tid persistas som `queue_humanize_extra_seconds`; status-resync ska behalla extra tiden och
   far inte slappa queue-full-posten nar sloten blir ledig om postens kombinerade `NextAttemptAt` ligger i framtiden.
+  Stateless timer-/delay-beslut for full ko ligger i `ConstructionHumanizeCalculator`; browser-, session- och
+  payload-state ligger kvar i `TravianClient`.
 - Construct-tasks vars krav matchar en aktiv `ActiveConstructions`-prereq ska defer:as tills prereqens
   `FinishUtc` passerat (plus liten buffer), sa andra byar/tasks kan koras i stallet.
 - Construct-tasks vars krav saknas och inte matchar same-village queued/active prerequisite ska terminal-failas
