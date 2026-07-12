@@ -326,8 +326,8 @@ public partial class ProxyFinderWindow : Window
 
         var country = row.Country == "-" ? string.Empty : row.Country;
         var name = string.IsNullOrWhiteSpace(country)
-            ? row.Candidate.HostPort
-            : $"{country} {row.Candidate.Host}";
+            ? "Unknown"
+            : country;
         _proxyLibraryStore.Upsert(new ProxyLibraryEntry
         {
             Name = name,

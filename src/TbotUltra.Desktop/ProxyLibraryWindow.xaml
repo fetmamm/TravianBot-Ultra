@@ -64,9 +64,24 @@
                         </Style>
                     </DataGridTextColumn.EditingElementStyle>
                 </DataGridTextColumn>
-                <DataGridTextColumn Header="Proxy" Binding="{Binding HostPort}" IsReadOnly="True" Width="150" />
-                <DataGridTextColumn Header="Type" Binding="{Binding Scheme}" IsReadOnly="True" Width="80" />
-                <DataGridTextColumn Header="Country" Binding="{Binding Country}" IsReadOnly="True" Width="110" />
+                <DataGridTemplateColumn Header="Proxy" IsReadOnly="True" Width="190">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <TextBlock Text="{Binding HostPort}" VerticalAlignment="Center">
+                                <TextBlock.ToolTip>
+                                    <ToolTip>
+                                        <TextBlock>
+                                            <Run Text="IP: " /><Run Text="{Binding Host}" /><LineBreak />
+                                            <Run Text="Port: " /><Run Text="{Binding Port}" /><LineBreak />
+                                            <Run Text="Type: " /><Run Text="{Binding Scheme}" /><LineBreak />
+                                            <Run Text="Country: " /><Run Text="{Binding CountryDisplay}" />
+                                        </TextBlock>
+                                    </ToolTip>
+                                </TextBlock.ToolTip>
+                            </TextBlock>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                </DataGridTemplateColumn>
                 <DataGridTextColumn Header="Latency" Binding="{Binding LatencyText}" IsReadOnly="True" Width="80" />
                 <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" IsReadOnly="True" Width="90">
                     <DataGridTextColumn.ElementStyle>

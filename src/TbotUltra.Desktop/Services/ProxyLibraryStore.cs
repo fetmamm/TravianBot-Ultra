@@ -91,7 +91,13 @@ public sealed class ProxyLibraryEntry : INotifyPropertyChanged
     public string Country
     {
         get => _country;
-        set => SetField(ref _country, value ?? string.Empty, nameof(Country));
+        set
+        {
+            if (SetField(ref _country, value ?? string.Empty, nameof(Country)))
+            {
+                OnPropertyChanged(nameof(CountryDisplay));
+            }
+        }
     }
 
     public long? LatencyMs
@@ -155,6 +161,9 @@ public sealed class ProxyLibraryEntry : INotifyPropertyChanged
 
     [JsonIgnore]
     public string LatencyText => LatencyMs is > 0 ? $"{LatencyMs} ms" : string.Empty;
+
+    [JsonIgnore]
+    public string CountryDisplay => string.IsNullOrWhiteSpace(Country) ? "Unknown" : Country.Trim();
 
     [JsonIgnore]
     public string StatusText => IsWorking switch
