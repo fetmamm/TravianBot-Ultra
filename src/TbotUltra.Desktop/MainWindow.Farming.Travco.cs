@@ -97,6 +97,7 @@ public partial class MainWindow
         var operationSw = System.Diagnostics.Stopwatch.StartNew();
         var operationToken = _loopController.StartOperation("operation");
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(operationToken, cancellationToken);
+        BeginManualFunctionPacingPause();
         try
         {
             var result = await action(linkedCts.Token);
@@ -117,6 +118,7 @@ public partial class MainWindow
         }
         finally
         {
+            EndManualFunctionPacingPause();
             DisposeOperationCts();
         }
     }

@@ -17,6 +17,11 @@ public partial class MainWindow
     private bool _sessionPacingSleepDeferredForManualOperation;
     private string _sessionPacingAccountName = string.Empty;
 
+    // >0 while a scope-limited manual function (Analyze farmlists / Add farms / Create farmlists / Travco)
+    // is running. The pacer reads it (see IsManualOperationActive wiring) to freeze the run->sleep
+    // countdown for the duration. Counter (not bool) so overlapping/sequential Travco operations balance.
+    private int _pacingPauseRequestCount;
+
     // Visual state of the pacing box. Animated background pulse is (re)started only on state changes so
     // the 1s UI tick doesn't restart/flicker the animation.
     private enum PacingVisual { Idle, Running, Approaching, Sleeping }
@@ -46,6 +51,7 @@ public partial class MainWindow
         _sessionPacer.WakeRequested += (_, _) => _backgroundTasks.Track(
             SafeSessionPacingInvokeAsync(HandleSessionPacingWakeRequestedAsync));
         _sessionPacer.RuntimeStateChanged += (_, _) => PersistSessionPacingRuntimeState();
+        _sessionPacer.IsManualOperationActive = () => _pacingPauseRequestCount > 0;
 
         // Use a mutable brush so the pacing box background can be animated (XAML's literal brush is frozen).
         if (SessionPacingBorder is not null)
@@ -141,6 +147,26 @@ public partial class MainWindow
     private void ResetSessionPacing()
     {
         _sessionPacer.Reset();
+    }
+
+    // Freeze the pacing run->sleep countdown while a scope-limited manual function runs. Pair with
+    // EndManualFunctionPacingPause in a finally so the count always balances. When the function finishes
+    // the countdown resumes with its remaining time (no immediate sleep); if nothing was counting down
+    // (idle / pacing off / already sleeping) nothing starts.
+    private void BeginManualFunctionPacingPause()
+    {
+        _pacingPauseRequestCount++;
+        _sessionPacer.SyncManualOperationPause();
+    }
+
+    private void EndManualFunctionPacingPause()
+    {
+        if (_pacingPauseRequestCount > 0)
+        {
+            _pacingPauseRequestCount--;
+        }
+
+        _sessionPacer.SyncManualOperationPause();
     }
 
     // Triggered from the Settings popup "Sleep now" button (after the user confirms). Reuses the normal

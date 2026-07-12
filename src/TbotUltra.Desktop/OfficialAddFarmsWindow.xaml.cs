@@ -1,8 +1,10 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Threading;
 using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
@@ -124,8 +126,18 @@ public partial class OfficialAddFarmsWindow : Window
     // cancelled run can still offer to remove them from the Travco source list.
     private readonly List<FarmCoordinate> _invalidCoordinatesSoFar = [];
     private int _lastAddedCount;
+    // Live "Adding farms" progress overlay state: a stopwatch + 1s timer drive the counting-up Elapsed
+    // line; the latest progress snapshot is kept so the timer tick can re-render the full overlay text.
+    private readonly Stopwatch _runStopwatch = new();
+    private DispatcherTimer? _runElapsedTimer;
+    private FarmAddProgress? _lastAddProgress;
+    private int _addTotal;
 
     public OfficialFarmAddRunResult? RunResult { get; private set; }
+    // How long the actual add run took (excludes the time the dialog sat waiting for input). Shown in the
+    // completion summary. Set to true only when a run finished on its own (not cancelled).
+    public TimeSpan RunDuration { get; private set; }
+    public bool RunCompleted { get; private set; }
     public string? LoadFailureMessage { get; private set; }
 
     public OfficialAddFarmsWindow(
@@ -346,17 +358,18 @@ public partial class OfficialAddFarmsWindow : Window
         }
 
         var total = plans.Sum(plan => plan.DesiredCount);
-        LoadingOverlay.Show(
-            "Adding farms",
-            $"Added villages: 0/{total}\nCurrent list: -\nChecked: 0\nInvalid: 0\nOccupied skipped: 0");
+        _addTotal = total;
+        _lastAddProgress = null;
+        _runStopwatch.Restart();
+        _runElapsedTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _runElapsedTimer.Tick += (_, _) => UpdateAddingFarmsOverlayText();
+        _runElapsedTimer.Start();
+        LoadingOverlay.Show("Adding farms", string.Empty);
+        UpdateAddingFarmsOverlayText();
         var progress = new Progress<FarmAddProgress>(value =>
         {
-            LoadingOverlay.Text =
-                $"Added villages: {value.AddedCount}/{value.TotalCount}\n" +
-                $"Current list: {value.FarmListName}\n" +
-                $"Checked: {value.ProcessedCount}\n" +
-                $"Invalid: {value.NotFoundCount}\n" +
-                $"Occupied skipped: {value.OccupiedOasisSkippedCount}";
+            _lastAddProgress = value;
+            UpdateAddingFarmsOverlayText();
             _lastAddedCount = value.AddedCount;
             if (value.InvalidCoordinate is { } invalid && !_invalidCoordinatesSoFar.Contains(invalid))
             {
@@ -367,6 +380,8 @@ public partial class OfficialAddFarmsWindow : Window
         try
         {
             var result = await _runner(plans, useDefaultTroops, troopType, troopCount, progress, _runCts.Token);
+            RunDuration = _runStopwatch.Elapsed;
+            RunCompleted = true;
             var source = (SourceOption)SourceListComboBox.SelectedItem;
             RunResult = result with
             {
@@ -378,6 +393,7 @@ public partial class OfficialAddFarmsWindow : Window
         }
         catch (OperationCanceledException)
         {
+            RunDuration = _runStopwatch.Elapsed;
             LoadingOverlay.Hide();
             // Cancelled mid-run: still surface the dead villages found so far so the caller can offer to
             // remove them from the Travco source list (otherwise cancelling would silently keep retrying
@@ -406,7 +422,30 @@ public partial class OfficialAddFarmsWindow : Window
             LoadingOverlay.Hide();
             AppDialog.Show(this, ex.Message, "Add farms failed", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+        finally
+        {
+            _runStopwatch.Stop();
+            _runElapsedTimer?.Stop();
+            _runElapsedTimer = null;
+        }
     }
+
+    // Renders the live "Adding farms" overlay text from the latest progress snapshot plus the counting-up
+    // elapsed time. Called both by the progress callback (new counts) and the 1s timer (elapsed only).
+    private void UpdateAddingFarmsOverlayText()
+    {
+        var p = _lastAddProgress;
+        LoadingOverlay.Text =
+            $"Elapsed: {FormatElapsed(_runStopwatch.Elapsed)}\n" +
+            $"Added villages: {(p?.AddedCount ?? 0)}/{(p?.TotalCount ?? _addTotal)}\n" +
+            $"Current list: {(p?.FarmListName ?? "-")}\n" +
+            $"Checked: {(p?.ProcessedCount ?? 0)}\n" +
+            $"Invalid: {(p?.NotFoundCount ?? 0)}\n" +
+            $"Occupied (oasis) skipped: {(p?.OccupiedOasisSkippedCount ?? 0)}";
+    }
+
+    private static string FormatElapsed(TimeSpan value) =>
+        $"{(int)value.TotalHours:00}:{value.Minutes:00}:{value.Seconds:00}";
 
     private void LogUiGuardError(string message)
     {

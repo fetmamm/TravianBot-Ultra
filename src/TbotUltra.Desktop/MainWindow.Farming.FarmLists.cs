@@ -434,6 +434,7 @@ public partial class MainWindow
         SetFarmingFunctionRunning(true, showCancelButton: false);
         BusyOverlay.ShowCancel = true;
         ShowBusyOverlay("Analyze farmlists", "Reading current farmlists...");
+        BeginManualFunctionPacingPause();
         try
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
@@ -458,6 +459,7 @@ public partial class MainWindow
         }
         finally
         {
+            EndManualFunctionPacingPause();
             HideBusyOverlay();
             SetFarmingFunctionRunning(false);
             DisposeOperationCts();
@@ -484,6 +486,7 @@ public partial class MainWindow
         var operationSw = Stopwatch.StartNew();
         var operationToken = _loopController.StartOperation("operation");
         SetFarmingFunctionRunning(true);
+        BeginManualFunctionPacingPause();
         try
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
@@ -672,6 +675,21 @@ public partial class MainWindow
             }
 
             HideBusyOverlay();
+            if (officialDialog.RunCompleted)
+            {
+                var elapsed = officialDialog.RunDuration;
+                AppDialog.Show(
+                    this,
+                    $"Added: {runResult.Added}\n" +
+                    $"Duplicates skipped: {runResult.Duplicates}\n" +
+                    $"Occupied (oasis) skipped: {runResult.OccupiedSkipped}\n" +
+                    $"Failed: {runResult.Failed}\n" +
+                    $"Elapsed: {(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}",
+                    "Add farms complete",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+            }
+
             CompleteOperation(
                 operationId,
                 operationSw,
@@ -689,6 +707,7 @@ public partial class MainWindow
         }
         finally
         {
+            EndManualFunctionPacingPause();
             HideBusyOverlay();
             SetFarmingFunctionRunning(false);
             DisposeOperationCts();
@@ -744,6 +763,7 @@ public partial class MainWindow
         var operationSw = Stopwatch.StartNew();
         var operationToken = _loopController.StartOperation("operation");
         SetFarmingFunctionRunning(true);
+        BeginManualFunctionPacingPause();
         try
         {
             BusyOverlay.ShowCancel = true;
@@ -816,6 +836,7 @@ public partial class MainWindow
         }
         finally
         {
+            EndManualFunctionPacingPause();
             HideBusyOverlay();
             SetFarmingFunctionRunning(false);
             DisposeOperationCts();

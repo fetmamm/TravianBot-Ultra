@@ -67,6 +67,7 @@ public sealed class SessionPacer
     private bool _sleepStartRaised;
     private bool _automationActive;
     private bool _manualSleep;
+    private bool _manualOperationPaused;
     private bool _runtimeLoaded;
     private SessionSleepReason _pendingSleepReason;
     // When set, a manual "Run now" override is suppressing the schedule restriction until this time
@@ -83,6 +84,13 @@ public sealed class SessionPacer
     }
 
     public Action<string>? Logger { get; set; }
+
+    // Set by the host to report whether a scope-limited manual function (e.g. Analyze farmlists, Add farms,
+    // Create farmlists, Travco) is currently running. While it returns true the run->sleep countdown is
+    // frozen (see ReconcileManualOperationPause) so those functions don't get cut off by a sleep and the
+    // bot doesn't sleep the instant they finish.
+    public Func<bool>? IsManualOperationActive { get; set; }
+
     public SessionPacerPhase Phase { get; private set; } = SessionPacerPhase.Disabled;
     public SessionSleepReason SleepReason { get; private set; }
     public bool CanWakeNow => Phase == SessionPacerPhase.Sleeping
@@ -373,6 +381,58 @@ public sealed class SessionPacer
 
     public void TickForTests() => TickTimer();
 
+    // Re-evaluates the manual-function pause immediately (host calls this when such a function starts or
+    // stops). Kept separate from the 1s tick so the countdown freezes/resumes without up to a second of lag.
+    public void SyncManualOperationPause()
+    {
+        ReconcileManualOperationPause(_now());
+        RaiseTick();
+    }
+
+    // Freezes the run->sleep countdown while a scope-limited manual function runs, and resumes it with the
+    // SAME remaining time afterwards (so the bot doesn't sleep the instant the function finishes). Only acts
+    // on a running countdown: if nothing was counting down (idle/disabled/sleeping) it never starts one.
+    private void ReconcileManualOperationPause(DateTimeOffset now)
+    {
+        var active = IsManualOperationActive?.Invoke() ?? false;
+        if (active)
+        {
+            if (Phase == SessionPacerPhase.Running)
+            {
+                _pausedRunRemaining = TimeUntilSleep ?? TimeSpan.Zero;
+                _manualOperationPaused = true;
+                Phase = SessionPacerPhase.Paused;
+                _runStartedAt = null;
+                _runDeadline = null;
+                _lastRuntimeUpdate = null;
+                _sleepStartRaised = false;
+                _timer.Stop();
+                Logger?.Invoke($"[pacing] run timer paused for manual function; {Format(_pausedRunRemaining)} remaining.");
+            }
+
+            return;
+        }
+
+        if (!_manualOperationPaused)
+        {
+            return;
+        }
+
+        _manualOperationPaused = false;
+        if (Phase != SessionPacerPhase.Paused || !_settings.Enabled || !_automationActive)
+        {
+            return;
+        }
+
+        Phase = SessionPacerPhase.Running;
+        _runStartedAt = now;
+        _runDeadline = Earliest(now.Add(_pausedRunRemaining ?? TimeSpan.Zero), GetNextRestrictionAt(now));
+        _pausedRunRemaining = null;
+        _lastRuntimeUpdate = now;
+        _timer.Start();
+        Logger?.Invoke($"[pacing] run timer resumed after manual function; next sleep in {Format(TimeUntilSleep)}.");
+    }
+
     private void StartNewRun(DateTimeOffset now)
     {
         Phase = SessionPacerPhase.Running;
@@ -406,6 +466,7 @@ public sealed class SessionPacer
     {
         var now = _now();
         UpdateRuntime(now);
+        ReconcileManualOperationPause(now);
 
         if (!_settings.Enabled && !_manualSleep && Phase != SessionPacerPhase.Sleeping)
         {
