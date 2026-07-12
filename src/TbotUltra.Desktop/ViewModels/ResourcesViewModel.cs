@@ -67,8 +67,8 @@ public sealed class ResourcesViewModel : BaseViewModel
         set => SetProperty(ref _infoText, value);
     }
 
-    /// <summary>Target-level choices for the "upgrade all" combo box (1â€“40).</summary>
-    public IReadOnlyList<int> TargetLevelOptions { get; } = Enumerable.Range(1, 40).ToList();
+    /// <summary>Target-level choices for the "upgrade all" combo box (1-20; resource fields max at 20 on Official).</summary>
+    public IReadOnlyList<int> TargetLevelOptions { get; } = Enumerable.Range(1, 20).ToList();
 
     private int _selectedTargetLevel = 10;
 

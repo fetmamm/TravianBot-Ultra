@@ -26,43 +26,43 @@
 
                 <StackPanel Grid.Column="0" HorizontalAlignment="Left">
                     <Button x:Name="InactiveSearchButton"
-                            MinWidth="120"
+                            MinWidth="175"
                             HorizontalAlignment="Left"
-                            Content="Analyze Travco"
+                            Content="1. Analyze Travco"
                             Background="{DynamicResource AccentBrush}"
                             BorderBrush="{DynamicResource AccentBrush}"
                             Foreground="White"
                             Click="InactiveSearchButton_Click" />
-                    <Button x:Name="SaveListButton"
-                            Margin="0,8,0,0"
-                            MinWidth="135"
-                            HorizontalAlignment="Left"
-                            Content="Save page as list"
-                            Click="SaveListButton_Click" />
                     <Button x:Name="SaveAllPagesButton"
                             Margin="0,8,0,0"
-                            MinWidth="155"
+                            MinWidth="175"
                             HorizontalAlignment="Left"
-                            Content="Save all pages as list"
+                            Content="2. Save all pages as list"
                             Click="SaveAllPagesButton_Click" />
                     <Button x:Name="CalculateDistanceButton"
-                            Margin="0,8,0,0"
-                            MinWidth="155"
+                            Margin="0,28,0,0"
+                            MinWidth="175"
                             HorizontalAlignment="Left"
                             Content="Calculate distance"
                             Click="CalculateDistanceButton_Click" />
                 </StackPanel>
 
                 <StackPanel Grid.Column="2">
-                    <Button x:Name="AnalyzeMapOasisButton"
-                            Content="Analyze map oasis"
-                            MinWidth="150"
+                    <Border HorizontalAlignment="Right"
                             Margin="0,0,0,10"
-                            HorizontalAlignment="Right"
-                            Background="{DynamicResource AccentBrush}"
-                            BorderBrush="{DynamicResource AccentBrush}"
-                            Foreground="White"
-                            Click="AnalyzeMapOasisButton_Click" />
+                            Background="{DynamicResource SurfaceBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="8"
+                            Padding="8">
+                        <Button x:Name="AnalyzeMapOasisButton"
+                                Content="Analyze map oasis"
+                                MinWidth="150"
+                                Background="{DynamicResource AccentBrush}"
+                                BorderBrush="{DynamicResource AccentBrush}"
+                                Foreground="White"
+                                Click="AnalyzeMapOasisButton_Click" />
+                    </Border>
                     <Grid>
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />

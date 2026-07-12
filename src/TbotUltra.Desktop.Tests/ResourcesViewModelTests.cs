@@ -91,11 +91,11 @@ public sealed class ResourcesViewModelTests
     }
 
     [Fact]
-    public void TargetLevelOptions_CoverOneThroughForty_WithDefaultSelectionTen()
+    public void TargetLevelOptions_CoverOneThroughTwenty_WithDefaultSelectionTen()
     {
         var vm = new ResourcesViewModel();
 
-        Assert.Equal(Enumerable.Range(1, 40), vm.TargetLevelOptions);
+        Assert.Equal(Enumerable.Range(1, 20), vm.TargetLevelOptions);
         Assert.Equal(10, vm.SelectedTargetLevel);
     }
 

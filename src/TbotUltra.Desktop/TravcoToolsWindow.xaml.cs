@@ -22,7 +22,6 @@ public partial class TravcoToolsWindow : Window
     private bool _editMode;
 
     public Func<TravcoSearchRequest, CancellationToken, Task<TravcoScrapeResult>>? SearchRequested { get; init; }
-    public Func<CancellationToken, Task<TravcoScrapeResult>>? ScrapePageRequested { get; init; }
     public Func<IProgress<(int CurrentPage, int TotalPages)>, CancellationToken, Task<TravcoScrapeResult>>? ScrapeAllPagesRequested { get; init; }
     public Func<IProgress<MapOasisScanProgress>, CancellationToken, Task<List<OasisInfo>>>? MapOasisScanRequested { get; init; }
     public Func<Task>? CloseRequested { get; init; }
@@ -120,44 +119,6 @@ public partial class TravcoToolsWindow : Window
         catch (Exception ex)
         {
             SetStatus($"Travco search failed: {ex.Message}");
-        }
-        finally
-        {
-            BusyOverlay.Hide();
-            SetBusy(false);
-        }
-    }
-
-    private void SaveListButton_Click(object sender, RoutedEventArgs e)
-    {
-        _ = SaveCurrentPageAsync();
-    }
-
-    private async Task SaveCurrentPageAsync()
-    {
-        if (_busy || !_travcoReady || ScrapePageRequested is null)
-        {
-            return;
-        }
-
-        SetBusy(true);
-        BusyOverlay.Show("Save Travco page", "Reading the current Travco result page...");
-        try
-        {
-            SetStatus("Reading the current Travco page.");
-            var result = await ScrapePageRequested(_windowCts.Token);
-            SetEditMode(false);
-            ApplyRows(result.Rows.Select(TravcoListRow.FromWorker));
-            SaveCurrentRows(_viewModel.ListName);
-            SetStatus($"Saved page {result.PageNumber}/{result.TotalPages}: {result.Rows.Count} row(s).");
-        }
-        catch (OperationCanceledException)
-        {
-            SetStatus("Saving the Travco page was canceled.");
-        }
-        catch (Exception ex)
-        {
-            SetStatus($"Could not save the Travco page: {ex.Message}");
         }
         finally
         {
@@ -754,7 +715,6 @@ public partial class TravcoToolsWindow : Window
         InactiveSearchButton.IsEnabled = !busy;
         AnalyzeMapOasisButton.IsEnabled = !busy;
         CalculateDistanceButton.IsEnabled = !busy;
-        SaveListButton.IsEnabled = !busy && _travcoReady;
         SaveAllPagesButton.IsEnabled = !busy && _travcoReady;
         SavedListsListBox.IsEnabled = !busy;
         ResultsDataGrid.IsEnabled = !busy;

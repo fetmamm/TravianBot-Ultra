@@ -50,11 +50,6 @@ public partial class MainWindow
         {
             Owner = this,
             SearchRequested = RunTravcoSearchAsync,
-            ScrapePageRequested = cancellationToken =>
-                RunManualOperationAsync(
-                    "Save Travco Page",
-                    token => _botService.ScrapeTravcoPageAsync(AppendLog, token),
-                    cancellationToken),
             ScrapeAllPagesRequested = (progress, cancellationToken) =>
                 RunManualOperationAsync(
                     "Save All Travco Pages",
