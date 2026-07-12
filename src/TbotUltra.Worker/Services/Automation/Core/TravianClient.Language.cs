@@ -15,6 +15,13 @@ public sealed partial class TravianClient
             var language = await _page.EvaluateAsync<string?>(
                 """
                 () => {
+                    // Chromium renders network/proxy failures as a localized internal document while
+                    // keeping the requested Travian URL. Its html[lang] is the browser UI language,
+                    // never the account's Travian language.
+                    if (document.body?.classList.contains('neterror')
+                        || document.querySelector('#main-frame-error, .error-code')) {
+                        return null;
+                    }
                     const gameLanguage = window.Travian?.Game?.language;
                     const bodyLanguage = document.body?.getAttribute('data-language');
                     const htmlLanguage = document.documentElement?.getAttribute('lang');
@@ -56,7 +63,13 @@ public sealed partial class TravianClient
             }
         }
 
-        var display = string.IsNullOrWhiteSpace(language) ? "unknown" : language;
+        if (string.IsNullOrWhiteSpace(language))
+        {
+            Notify("[language] Travian language unavailable because the current document is not a readable Travian page; retrying later.");
+            throw new TimeoutException("Travian page is unavailable; language could not be verified.");
+        }
+
+        var display = language;
         Notify($"[language] ALARM: Travian language is '{display}', expected '{TravianLanguageDetector.ExpectedLanguage}'.");
         throw new UnexpectedTravianLanguageException(language);
     }
@@ -138,6 +151,10 @@ public sealed partial class TravianClient
             await _page.WaitForFunctionAsync(
                 """
                 expected => {
+                    if (document.body?.classList.contains('neterror')
+                        || document.querySelector('#main-frame-error, .error-code')) {
+                        return false;
+                    }
                     const gameLanguage = window.Travian?.Game?.language;
                     const bodyLanguage = document.body?.getAttribute('data-language');
                     const htmlLanguage = document.documentElement?.getAttribute('lang');

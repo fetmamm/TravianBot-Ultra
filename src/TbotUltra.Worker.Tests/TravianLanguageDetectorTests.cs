@@ -50,6 +50,20 @@ public sealed class TravianLanguageDetectorTests
         Assert.Equal("sv-SE", TravianClient.ExtractLanguageFromHtmlForTests(html));
     }
 
+    [Fact]
+    public void ExtractLanguageFromHtml_IgnoresLocalizedChromiumNetworkError()
+    {
+        var html = """
+            <html lang="sv">
+            <body class="neterror">
+              <div id="main-frame-error"><div class="error-code">ERR_PROXY_CONNECTION_FAILED</div></div>
+            </body>
+            </html>
+            """;
+
+        Assert.Null(TravianClient.ExtractLanguageFromHtmlForTests(html));
+    }
+
     [Theory]
     [InlineData("en-US", true)]
     [InlineData(" en-US ", true)]

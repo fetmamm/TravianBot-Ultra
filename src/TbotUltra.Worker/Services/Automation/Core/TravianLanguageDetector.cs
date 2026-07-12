@@ -19,6 +19,11 @@ internal static partial class TravianLanguageDetector
             return null;
         }
 
+        if (BrowserErrorDocumentRegex().IsMatch(html))
+        {
+            return null;
+        }
+
         var gameLanguage = ExtractGameLanguage(html);
         if (!string.IsNullOrWhiteSpace(gameLanguage))
         {
@@ -60,4 +65,7 @@ internal static partial class TravianLanguageDetector
 
     [GeneratedRegex(@"Travian\.Game\.language\s*=\s*([""'])(?<value>.*?)\1", RegexOptions.IgnoreCase)]
     private static partial Regex TravianGameLanguageRegex();
+
+    [GeneratedRegex(@"<body\b[^>]*\bclass\s*=\s*([""'])[^""']*\bneterror\b|id\s*=\s*([""'])main-frame-error\2|ERR_[A-Z_]+", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex BrowserErrorDocumentRegex();
 }
