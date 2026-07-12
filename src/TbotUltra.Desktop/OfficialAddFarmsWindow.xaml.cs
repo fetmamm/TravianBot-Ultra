@@ -135,9 +135,8 @@ public partial class OfficialAddFarmsWindow : Window
 
     public OfficialFarmAddRunResult? RunResult { get; private set; }
     // How long the actual add run took (excludes the time the dialog sat waiting for input). Shown in the
-    // completion summary. Set to true only when a run finished on its own (not cancelled).
+    // completion summary.
     public TimeSpan RunDuration { get; private set; }
-    public bool RunCompleted { get; private set; }
     public string? LoadFailureMessage { get; private set; }
 
     public OfficialAddFarmsWindow(
@@ -381,7 +380,6 @@ public partial class OfficialAddFarmsWindow : Window
         {
             var result = await _runner(plans, useDefaultTroops, troopType, troopCount, progress, _runCts.Token);
             RunDuration = _runStopwatch.Elapsed;
-            RunCompleted = true;
             var source = (SourceOption)SourceListComboBox.SelectedItem;
             RunResult = result with
             {

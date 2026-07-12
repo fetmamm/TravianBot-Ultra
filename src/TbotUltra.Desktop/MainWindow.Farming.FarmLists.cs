@@ -653,14 +653,26 @@ public partial class MainWindow
             ShowBusyOverlay("Adding farms", "Finalizing farm list updates...");
             await RefreshFarmListsFromServerAsync(options, operationToken);
             var runResult = officialDialog.RunResult;
+            HideBusyOverlay();
+
+            // Single completion popup: the run summary, and — only when dead villages were found — the
+            // "remove them from the Travco list?" question baked into the same dialog (Yes/No) so the user
+            // never sees two separate popups.
+            var elapsed = officialDialog.RunDuration;
+            var summary =
+                $"Added: {runResult.Added}\n" +
+                $"Duplicates skipped: {runResult.Duplicates}\n" +
+                $"Occupied (oasis) skipped: {runResult.OccupiedSkipped}\n" +
+                $"Failed: {runResult.Failed}\n" +
+                $"Elapsed: {(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";
             if (runResult.InvalidCoordinates.Count > 0)
             {
-                HideBusyOverlay();
                 var removeInvalid = AppDialog.Show(
                     this,
-                    $"{runResult.InvalidCoordinates.Count} invalid village coordinate(s) were found.\n\n" +
+                    summary +
+                    $"\n\n{runResult.InvalidCoordinates.Count} invalid village coordinate(s) were found.\n" +
                     $"Remove them from Travco list '{runResult.SourceListName}'?",
-                    "Remove invalid villages",
+                    "Add farms complete",
                     MessageBoxButton.YesNo,
                     MessageBoxImage.Question);
                 if (removeInvalid == MessageBoxResult.Yes)
@@ -673,18 +685,11 @@ public partial class MainWindow
                         $"from Travco list '{runResult.SourceListName}'.");
                 }
             }
-
-            HideBusyOverlay();
-            if (officialDialog.RunCompleted)
+            else
             {
-                var elapsed = officialDialog.RunDuration;
                 AppDialog.Show(
                     this,
-                    $"Added: {runResult.Added}\n" +
-                    $"Duplicates skipped: {runResult.Duplicates}\n" +
-                    $"Occupied (oasis) skipped: {runResult.OccupiedSkipped}\n" +
-                    $"Failed: {runResult.Failed}\n" +
-                    $"Elapsed: {(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}",
+                    summary,
                     "Add farms complete",
                     MessageBoxButton.OK,
                     MessageBoxImage.Information);
