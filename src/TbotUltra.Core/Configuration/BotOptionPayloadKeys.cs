@@ -30,6 +30,7 @@ public static class BotOptionPayloadKeys
     public const string UpgradeGranaryCapacity = "upgrade_granary_capacity";
     public const string UpgradeWaitSeconds = "upgrade_wait_seconds";
     public const string UpgradeWaitReason = "upgrade_wait_reason";
+    public const string QueueHumanizeExtraSeconds = "queue_humanize_extra_seconds";
     public const string UpgradeBlockedLabel = "upgrade_blocked_label";
     public const string UpgradeStorageCapacityKind = "upgrade_storage_capacity_kind";
     // Why a construction item last deferred. Queue occupancy is kept separate from resource,

@@ -401,6 +401,76 @@ public sealed class ConstructionQueueStateTests
         Assert.Equal(ConstructionQueueAvailability.Available, result);
     }
 
+    [Fact]
+    public void ResolveQueueFullRetryDelay_AddsPersistedHumanizeExtraToLiveTimer()
+    {
+        var status = CreateStatus([], [], 1, 100) with
+        {
+            ActiveConstructions =
+            [
+                new ActiveConstruction(ConstructionKind.Building, "Warehouse", 5, 100, "00:01:40"),
+            ],
+            ActiveConstructionsFromOverview = true,
+        };
+        var item = new QueueItem
+        {
+            Payload = new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.QueueHumanizeExtraSeconds] = "50",
+            },
+        };
+
+        var result = ConstructionQueueState.ResolveQueueFullRetryDelay(status, false, item);
+
+        Assert.Equal(TimeSpan.FromSeconds(150), result);
+    }
+
+    [Fact]
+    public void ResolveQueueFullRetryDelay_KeepsFutureCombinedDeadlineWhenSlotIsFree()
+    {
+        var now = new DateTimeOffset(2026, 7, 12, 12, 0, 0, TimeSpan.Zero);
+        var status = CreateStatus([], [], 0, null) with
+        {
+            ActiveConstructions = [],
+            ActiveConstructionsFromOverview = true,
+        };
+        var item = new QueueItem
+        {
+            NextAttemptAt = now.AddSeconds(45),
+            Payload = new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.QueueHumanizeExtraSeconds] = "50",
+            },
+        };
+
+        var result = ConstructionQueueState.ResolveQueueFullRetryDelay(status, true, item, now);
+
+        Assert.Equal(TimeSpan.FromSeconds(45), result);
+    }
+
+    [Fact]
+    public void ResolveQueueFullRetryDelay_ReleasesAfterCombinedDeadlineHasElapsed()
+    {
+        var now = new DateTimeOffset(2026, 7, 12, 12, 0, 0, TimeSpan.Zero);
+        var status = CreateStatus([], [], 0, null) with
+        {
+            ActiveConstructions = [],
+            ActiveConstructionsFromOverview = true,
+        };
+        var item = new QueueItem
+        {
+            NextAttemptAt = now.AddSeconds(-1),
+            Payload = new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.QueueHumanizeExtraSeconds] = "50",
+            },
+        };
+
+        var result = ConstructionQueueState.ResolveQueueFullRetryDelay(status, true, item, now);
+
+        Assert.Equal(TimeSpan.Zero, result);
+    }
+
     private static VillageStatus CreateStatus(
         IReadOnlyList<Building> buildings,
         IReadOnlyList<BuildQueueItem> buildQueue,

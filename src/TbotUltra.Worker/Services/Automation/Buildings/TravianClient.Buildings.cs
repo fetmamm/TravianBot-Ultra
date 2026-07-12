@@ -3976,7 +3976,8 @@ public sealed partial class TravianClient : IBuildingClient
             relevantActive,
             relevantWait,
             isRomans,
-            villageToken);
+            villageToken,
+            out var humanizeExtraSeconds);
         if (humanizedWait is int scheduledWait)
         {
             relevantWait = scheduledWait;
@@ -3986,7 +3987,7 @@ public sealed partial class TravianClient : IBuildingClient
         // without it we'd thrash polling if relevantWait==0.
         var wait = relevantWait > 0 ? relevantWait + 1 : 5;
         var label = kind == ConstructionKind.Resource ? "Resource slot" : "Slot";
-        return $"{label} {slotId}: build queue full ({status.ResourceSlotsUsed}/{status.ResourceSlotsMax} resource, {status.BuildingSlotsUsed}/{status.BuildingSlotsMax} building, plus={plusActive}). Deferring upgrade. Upgrades performed: {upgrades}. queue_wait_seconds={wait}";
+        return $"{label} {slotId}: build queue full ({status.ResourceSlotsUsed}/{status.ResourceSlotsMax} resource, {status.BuildingSlotsUsed}/{status.BuildingSlotsMax} building, plus={plusActive}). Deferring upgrade. Upgrades performed: {upgrades}. queue_wait_seconds={wait} queue_humanize_extra_seconds={humanizeExtraSeconds}";
     }
 
     private int? TryScheduleHumanizedStartAfterFullQueue(
@@ -3995,8 +3996,10 @@ public sealed partial class TravianClient : IBuildingClient
         IReadOnlyList<ActiveConstruction> relevantActive,
         int slotFreeWaitSeconds,
         bool isRomans,
-        string villageToken)
+        string villageToken,
+        out int extraSeconds)
     {
+        extraSeconds = 0;
         if (!_config.ConstructionHumanizeDelayEnabled || slotFreeWaitSeconds <= 0)
         {
             return null;
@@ -4007,6 +4010,7 @@ public sealed partial class TravianClient : IBuildingClient
         if (_session.ConstructionHumanizeUntilBySlot.TryGetValue(slotKey, out var existingUntil))
         {
             var existingWait = (int)Math.Ceiling((existingUntil - now).TotalSeconds);
+            extraSeconds = Math.Max(0, existingWait - slotFreeWaitSeconds);
             return existingWait > 0 ? existingWait : null;
         }
 
@@ -4043,7 +4047,8 @@ public sealed partial class TravianClient : IBuildingClient
             return null;
         }
 
-        var combinedWait = slotFreeWaitSeconds + (int)Math.Ceiling(delaySeconds);
+        extraSeconds = (int)Math.Ceiling(delaySeconds);
+        var combinedWait = slotFreeWaitSeconds + extraSeconds;
         _session.ConstructionHumanizeUntilBySlot[slotKey] = now.AddSeconds(combinedWait);
         _session.ConstructionOngoingByKey[ConstructionCategoryKey(kind, isRomans, villageToken)] = relevantActive.Count;
         Notify(

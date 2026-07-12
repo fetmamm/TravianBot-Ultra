@@ -299,6 +299,63 @@ public static class ConstructionQueueState
             : null;
     }
 
+    public static TimeSpan? ResolveQueueFullRetryDelay(
+        VillageStatus status,
+        bool? travianPlusActive,
+        QueueItem item,
+        DateTimeOffset? now = null)
+    {
+        var capturedAt = now ?? DateTimeOffset.UtcNow;
+        var availability = ResolveAvailabilityForItem(status, travianPlusActive, item, capturedAt);
+        if (availability == ConstructionQueueAvailability.Unknown)
+        {
+            return null;
+        }
+
+        var extraSeconds = ResolveQueueHumanizeExtraSeconds(item);
+        if (availability == ConstructionQueueAvailability.Available)
+        {
+            if (extraSeconds <= 0)
+            {
+                return TimeSpan.Zero;
+            }
+
+            var storedRemaining = item.NextAttemptAt - capturedAt;
+            return storedRemaining > TimeSpan.Zero ? storedRemaining : TimeSpan.Zero;
+        }
+
+        var active = ResolveCurrentActiveConstructions(status, capturedAt);
+        if (string.Equals(status.Tribe, "Romans", StringComparison.OrdinalIgnoreCase))
+        {
+            var isResourceTask = string.Equals(item.TaskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(item.TaskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase);
+            active = active
+                .Where(construction => isResourceTask
+                    ? construction.Kind == ConstructionKind.Resource
+                    : construction.Kind != ConstructionKind.Resource)
+                .ToList();
+        }
+
+        var liveSeconds = active
+            .Select(construction => construction.Finish?.RemainingSecondsAt(capturedAt)
+                ?? construction.TimeLeftSeconds
+                ?? 0)
+            .Where(seconds => seconds > 0)
+            .DefaultIfEmpty(0)
+            .Min();
+        return liveSeconds > 0
+            ? TimeSpan.FromSeconds(liveSeconds + extraSeconds)
+            : null;
+    }
+
+    public static int ResolveQueueHumanizeExtraSeconds(QueueItem item)
+    {
+        return item.Payload.TryGetValue(BotOptionPayloadKeys.QueueHumanizeExtraSeconds, out var raw)
+            && int.TryParse(raw, out var seconds)
+            ? Math.Max(0, seconds)
+            : 0;
+    }
+
     public static int ResolveDisplayedActiveBuildCount(VillageStatus? status)
     {
         return ResolveSnapshot(status).ActiveCount;

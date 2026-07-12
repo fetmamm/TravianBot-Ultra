@@ -377,6 +377,7 @@ public partial class MainWindow
         BotOptionPayloadKeys.UpgradeStorageCapacityKind,
         BotOptionPayloadKeys.UpgradeWaitSeconds,
         BotOptionPayloadKeys.UpgradeWaitReason,
+        BotOptionPayloadKeys.QueueHumanizeExtraSeconds,
         BotOptionPayloadKeys.ContinuousFarmNextListIndex,
     ];
 

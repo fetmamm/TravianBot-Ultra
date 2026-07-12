@@ -111,21 +111,19 @@ public partial class MainWindow
                 && NormalizeVillageName(GetQueueItemVillageName(item)) is string itemVillage
                 && string.Equals(itemVillage, statusVillage, StringComparison.OrdinalIgnoreCase))
             .ToList();
-        var queueFullDelay = ConstructionQueueState.ResolveQueueFullRetryDelay(status, _travianPlusActive);
         var constructionSnapshot = ConstructionQueueState.ResolveSnapshot(status);
-        if (queueFullItems.Count > 0 && queueFullDelay is not null)
+        if (queueFullItems.Count > 0)
         {
-            if (queueFullDelay == TimeSpan.Zero)
+            var now = DateTimeOffset.UtcNow;
+            var releasableItem = queueFullItems.FirstOrDefault(item =>
+                ConstructionQueueState.ResolveQueueFullRetryDelay(status, _travianPlusActive, item, now) == TimeSpan.Zero);
+            if (releasableItem is not null)
             {
-                var now = DateTimeOffset.UtcNow;
-                var nextBlockedItem = queueFullItems.FirstOrDefault(item => item.NextAttemptAt > now)
-                    ?? queueFullItems.FirstOrDefault();
-                if (nextBlockedItem is not null
-                    && _botService.UpdateDeferredQueueItem(nextBlockedItem.Id, nextBlockedItem.Payload, TimeSpan.Zero))
+                if (_botService.UpdateDeferredQueueItem(releasableItem.Id, releasableItem.Payload, TimeSpan.Zero))
                 {
                     AppendLog(
                         $"[construction-queue:verbose] live status released queue-full blocker " +
-                        $"id={nextBlockedItem.Id} task='{nextBlockedItem.TaskName}' village='{statusVillage ?? "-"}' " +
+                        $"id={releasableItem.Id} task='{releasableItem.TaskName}' village='{statusVillage ?? "-"}' " +
                         $"active={constructionSnapshot.ActiveCount} plus={_travianPlusActive?.ToString() ?? "unknown"} source='{source}'.");
                     AppendLog(
                         $"[construction] BUILD SLOT AVAILABLE village='{statusVillage ?? "-"}'. " +
@@ -138,6 +136,16 @@ public partial class MainWindow
                 var largestAdjustmentSeconds = 0d;
                 foreach (var item in queueFullItems)
                 {
+                    var queueFullDelay = ConstructionQueueState.ResolveQueueFullRetryDelay(
+                        status,
+                        _travianPlusActive,
+                        item,
+                        now);
+                    if (queueFullDelay is null || queueFullDelay <= TimeSpan.Zero)
+                    {
+                        continue;
+                    }
+
                     var remainingSeconds = Math.Max(0, (int)Math.Ceiling((item.NextAttemptAt - DateTimeOffset.UtcNow).TotalSeconds));
                     var adjustmentSeconds = Math.Abs(remainingSeconds - queueFullDelay.Value.TotalSeconds);
                     if (adjustmentSeconds <= 5)
@@ -154,12 +162,11 @@ public partial class MainWindow
 
                 if (updatedCount > 0 && largestAdjustmentSeconds >= 60)
                 {
-                    var retryAt = DateTimeOffset.UtcNow + queueFullDelay.Value;
                     AppendLog(
                         $"[construction-queue:verbose] live status synchronized {updatedCount} queue-full blocker(s) " +
                         $"village='{statusVillage ?? "-"}' active={constructionSnapshot.ActiveCount} " +
                         $"plus={_travianPlusActive?.ToString() ?? "unknown"} adjustmentSeconds={largestAdjustmentSeconds:F0} " +
-                        $"retryAt='{FormatQueueServerTime(retryAt)}' source='{source}'.");
+                        $"source='{source}'.");
                 }
             }
         }
