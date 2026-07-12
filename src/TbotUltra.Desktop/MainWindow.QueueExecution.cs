@@ -604,6 +604,18 @@ public partial class MainWindow
         Stopwatch timer,
         QueueExecutionMode mode)
     {
+        if (ex is TransientNavigationException)
+        {
+            var retryDelay = TimeSpan.FromSeconds(Random.Shared.Next(15, 31));
+            if (_botService.MarkQueueItemDeferred(item.Id, retryDelay))
+            {
+                AppendLog(
+                    $"{logPrefix} TRANSIENT {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                    $"slow/unavailable page; safe retry in {retryDelay.TotalSeconds:F0}s without consuming retries");
+                return true;
+            }
+        }
+
         if (BrowserFailureClassifier.IsTargetCrash(ex))
         {
             var retryDelay = TimeSpan.FromSeconds(15);

@@ -63,6 +63,10 @@ Runtime-path helpers i `TravianClient.Selectors.cs` ar Official-only. Anropa hel
 - Language-gaten ska ignorera Chromiums lokaliserade natverks-/proxyfelsidor (`body.neterror`,
   `#main-frame-error`, `ERR_*`). Deras `html[lang]` ar browserns UI-sprak, inte Travian-sprak;
   saknad Travian-spraksignal ar ett transient sidfel och far aldrig oppna language-dialogen.
+- Sakra GET/reload-navigationer far retry:a adaptivt vid segt nat (ordinarie timeout, sedan 30s/45s).
+  Om URL + laddad nyckel-DOM redan ar korrekt efter timeout ska sidan accepteras. Uttomd saker navigation
+  kastar `TransientNavigationException`; Desktop defer:ar 15-30s utan retry-burn. State-changing klick far
+  aldrig anvanda denna blinda retry-path.
 - Report PNG-capture ar Official `/report*` + oppnad rapport `#reportWrapper .role.attacker`; blur scope:as till
   `.role.attacker/.role.defender .troopHeadline` och `.header .subject`, aldrig rapportlistan.
 - Bulk messages far aldrig skriva till systemspelarna `Multihunter`, `Natar` eller `Natars`; filtrera bade vid analys och direkt fore send.

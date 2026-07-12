@@ -1,5 +1,17 @@
 namespace TbotUltra.Worker.Services;
 
+/// <summary>
+/// A safe page navigation/read failed before any state-changing browser action. Queue orchestration
+/// may defer and retry this without consuming the task's functional retry budget.
+/// </summary>
+public sealed class TransientNavigationException : TimeoutException
+{
+    public TransientNavigationException(string message, Exception? innerException = null)
+        : base(message, innerException)
+    {
+    }
+}
+
 public static class BrowserFailureClassifier
 {
     // Fatal Playwright/Chromium disconnect messages: when any of these appears the shared page/context

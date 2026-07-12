@@ -161,8 +161,21 @@ public sealed partial class TravianClient
                 + $"(server '{ProxyParser.MaskForLog(_account.ProxyServer)}'). Check the proxy in Manage account. {ex.Message}");
             throw;
         }
+        catch (Exception ex) when (IsTimeoutError(ex))
+        {
+            throw new TransientNavigationException(
+                $"Navigation to '{url}' timed out after safe retries.",
+                ex);
+        }
         
-        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
+        try
+        {
+            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
+        }
+        catch (TimeoutException ex)
+        {
+            throw new TransientNavigationException($"Navigation to '{url}' did not reach a ready state.", ex);
+        }
         Notify($"[nav] GOTO done target='{url}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
         InvalidateActiveConstructionsCache();
         await ActionPacer.FromOptions(_config, Notify).DelayAsync(
@@ -181,8 +194,7 @@ public sealed partial class TravianClient
         {
             RecordConstructionNavigation("reload", pathOrUrl);
             Notify($"[nav] RELOAD start target='{pathOrUrl}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
-            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
-                .WaitAsync(cancellationToken);
+            await ReloadCurrentPageWithSlowNetworkRecoveryAsync(pathOrUrl, cancellationToken);
             Notify($"[nav] RELOAD done target='{pathOrUrl}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
             // A reload replaces page content just like a navigation, so any page-derived cache must
             // be dropped here too (the GotoAsync branch already does this). Without this the longer
@@ -197,6 +209,91 @@ public sealed partial class TravianClient
         else
         {
             await GotoAsync(pathOrUrl, cancellationToken);
+        }
+    }
+
+    private async Task ReloadCurrentPageWithSlowNetworkRecoveryAsync(
+        string expectedPath,
+        CancellationToken cancellationToken)
+    {
+        var timeouts = new[]
+        {
+            _config.TimeoutMs,
+            Math.Max(_config.TimeoutMs + 10_000, 30_000),
+            Math.Max(_config.TimeoutMs + 25_000, 45_000),
+        };
+        Exception? lastFailure = null;
+
+        for (var attempt = 0; attempt < timeouts.Length; attempt++)
+        {
+            try
+            {
+                await _page.ReloadAsync(new PageReloadOptions
+                    {
+                        WaitUntil = WaitUntilState.DOMContentLoaded,
+                        Timeout = timeouts[attempt],
+                    })
+                    .WaitAsync(cancellationToken);
+                return;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex) when (IsTimeoutError(ex))
+            {
+                lastFailure = ex;
+                if (await DidTimedOutNavigationReachUsablePageAsync(expectedPath, cancellationToken))
+                {
+                    Notify(
+                        $"[nav] RELOAD timeout recovered: expected page is usable despite missing navigation event " +
+                        $"attempt={attempt + 1}/{timeouts.Length} current='{_page.Url}'.");
+                    return;
+                }
+
+                if (attempt + 1 < timeouts.Length)
+                {
+                    var retryDelay = TimeSpan.FromSeconds(2 + attempt * 3);
+                    Notify(
+                        $"[nav] RELOAD transient timeout attempt={attempt + 1}/{timeouts.Length} " +
+                        $"timeout={timeouts[attempt]}ms; retrying in {retryDelay.TotalSeconds:F0}s.");
+                    await Task.Delay(retryDelay, cancellationToken);
+                }
+            }
+        }
+
+        throw new TransientNavigationException(
+            $"Reload of '{expectedPath}' timed out after {timeouts.Length} safe attempts.",
+            lastFailure);
+    }
+
+    private async Task<bool> DidTimedOutNavigationReachUsablePageAsync(
+        string expectedPath,
+        CancellationToken cancellationToken)
+    {
+        if (!IsCurrentUrlForPath(expectedPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                "() => document.readyState !== 'loading'",
+                null,
+                new PageWaitForFunctionOptions { Timeout = 5_000 })
+                .WaitAsync(cancellationToken);
+            return await _page.EvaluateAsync<bool>(
+                "() => !document.body?.classList.contains('neterror') && !document.querySelector('#main-frame-error, .error-code')")
+                .WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
+        {
+            return false;
         }
     }
 

@@ -66,7 +66,7 @@ public sealed partial class TravianClient
         if (string.IsNullOrWhiteSpace(language))
         {
             Notify("[language] Travian language unavailable because the current document is not a readable Travian page; retrying later.");
-            throw new TimeoutException("Travian page is unavailable; language could not be verified.");
+            throw new TransientNavigationException("Travian page is unavailable; language could not be verified.");
         }
 
         var display = language;
