@@ -7,143 +7,143 @@
   "results": [
     {
       "scheme": "socks5",
-      "host": "212.113.116.14",
-      "port": 7777,
-      "latencyMs": 190,
-      "country": "Germany"
-    },
-    {
-      "scheme": "socks5",
-      "host": "37.120.189.175",
-      "port": 1080,
-      "latencyMs": 214,
-      "country": "Germany"
-    },
-    {
-      "scheme": "socks5",
       "host": "144.124.232.204",
       "port": 443,
-      "latencyMs": 219,
-      "country": "-"
-    },
-    {
-      "scheme": "socks5",
-      "host": "5.255.123.162",
-      "port": 1080,
-      "latencyMs": 223,
+      "latencyMs": 206,
       "country": "Netherlands"
-    },
-    {
-      "scheme": "socks5",
-      "host": "91.132.59.221",
-      "port": 1080,
-      "latencyMs": 224,
-      "country": "Netherlands"
-    },
-    {
-      "scheme": "socks5",
-      "host": "62.133.62.187",
-      "port": 1081,
-      "latencyMs": 229,
-      "country": "France"
-    },
-    {
-      "scheme": "socks5",
-      "host": "139.28.240.201",
-      "port": 1081,
-      "latencyMs": 235,
-      "country": "Netherlands"
-    },
-    {
-      "scheme": "socks5",
-      "host": "152.53.144.223",
-      "port": 1080,
-      "latencyMs": 273,
-      "country": "Germany"
-    },
-    {
-      "scheme": "socks5",
-      "host": "193.233.139.106",
-      "port": 1080,
-      "latencyMs": 293,
-      "country": "United Kingdom"
-    },
-    {
-      "scheme": "socks5",
-      "host": "95.140.154.156",
-      "port": 1080,
-      "latencyMs": 330,
-      "country": "-"
     },
     {
       "scheme": "socks5",
       "host": "5.255.99.75",
       "port": 1080,
-      "latencyMs": 372,
+      "latencyMs": 208,
       "country": "Netherlands"
     },
     {
       "scheme": "socks5",
-      "host": "5.45.118.209",
+      "host": "78.159.131.131",
+      "port": 1081,
+      "latencyMs": 216,
+      "country": "-"
+    },
+    {
+      "scheme": "socks5",
+      "host": "62.133.62.17",
+      "port": 1082,
+      "latencyMs": 226,
+      "country": "-"
+    },
+    {
+      "scheme": "socks5",
+      "host": "159.195.49.27",
       "port": 1080,
-      "latencyMs": 402,
-      "country": "Estonia"
+      "latencyMs": 228,
+      "country": "Germany"
+    },
+    {
+      "scheme": "socks5",
+      "host": "78.159.131.139",
+      "port": 1081,
+      "latencyMs": 231,
+      "country": "Netherlands"
+    },
+    {
+      "scheme": "socks5",
+      "host": "37.120.189.175",
+      "port": 1080,
+      "latencyMs": 235,
+      "country": "Germany"
+    },
+    {
+      "scheme": "socks5",
+      "host": "95.140.154.156",
+      "port": 1080,
+      "latencyMs": 260,
+      "country": "Germany"
     },
     {
       "scheme": "socks5",
       "host": "176.123.162.147",
       "port": 1080,
-      "latencyMs": 416,
+      "latencyMs": 359,
       "country": "Russia"
+    },
+    {
+      "scheme": "socks5",
+      "host": "78.159.131.112",
+      "port": 1081,
+      "latencyMs": 371,
+      "country": "Netherlands"
+    },
+    {
+      "scheme": "socks5",
+      "host": "91.98.161.17",
+      "port": 1080,
+      "latencyMs": 380,
+      "country": "Albania"
+    },
+    {
+      "scheme": "socks5",
+      "host": "206.123.156.212",
+      "port": 9080,
+      "latencyMs": 392,
+      "country": "United Kingdom"
+    },
+    {
+      "scheme": "socks5",
+      "host": "185.185.80.58",
+      "port": 1088,
+      "latencyMs": 472,
+      "country": "France"
+    },
+    {
+      "scheme": "socks5",
+      "host": "185.170.58.180",
+      "port": 1080,
+      "latencyMs": 492,
+      "country": "-"
+    },
+    {
+      "scheme": "socks5",
+      "host": "185.116.43.3",
+      "port": 1088,
+      "latencyMs": 500,
+      "country": "Netherlands"
     },
     {
       "scheme": "socks5",
       "host": "144.91.111.48",
       "port": 1088,
-      "latencyMs": 457,
+      "latencyMs": 537,
       "country": "France"
     },
     {
       "scheme": "socks5",
-      "host": "149.62.186.244",
-      "port": 1080,
-      "latencyMs": 461,
-      "country": "Italy"
-    },
-    {
-      "scheme": "socks5",
-      "host": "134.122.1.61",
-      "port": 11679,
-      "latencyMs": 563,
+      "host": "140.82.62.31",
+      "port": 50000,
+      "latencyMs": 567,
       "country": "United States"
     },
     {
       "scheme": "socks5",
       "host": "77.83.246.110",
       "port": 2000,
-      "latencyMs": 570,
+      "latencyMs": 584,
       "country": "Poland"
     },
     {
       "scheme": "socks5",
-      "host": "144.76.159.120",
-      "port": 1088,
-      "latencyMs": 570,
-      "country": "Ukraine"
+      "host": "51.222.13.193",
+      "port": 10084,
+      "latencyMs": 618,
+      "country": "Canada"
     },
     {
       "scheme": "socks5",
-      "host": "204.48.29.137",
-      "port": 1088,
-      "latencyMs": 577,
-      "country": "United States"
-    },
-    {
-      "scheme": "socks5",
-      "host": "2.63.188.78",
-      "port": 1080,
-      "latencyMs": 653,
-      "country": "Ukraine"
+      "host": "185.128.104.152",
+      "port": 8443,
+      "latencyMs": 623,
+      "country": "-"
     }
   ]
 }

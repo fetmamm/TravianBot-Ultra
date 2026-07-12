@@ -64,7 +64,7 @@
                         </Style>
                     </DataGridTextColumn.EditingElementStyle>
                 </DataGridTextColumn>
-                <DataGridTemplateColumn Header="Proxy" IsReadOnly="True" Width="190">
+                <DataGridTemplateColumn Header="IP / Port" IsReadOnly="True" Width="190">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
                             <TextBlock Text="{Binding HostPort}" VerticalAlignment="Center">
@@ -74,7 +74,7 @@
                                             <Run Text="IP: " /><Run Text="{Binding Host}" /><LineBreak />
                                             <Run Text="Port: " /><Run Text="{Binding Port}" /><LineBreak />
                                             <Run Text="Type: " /><Run Text="{Binding Scheme}" /><LineBreak />
-                                            <Run Text="Country: " /><Run Text="{Binding CountryDisplay}" />
+                                            <Run Text="Country: " /><Run Text="{Binding CountryDisplay, Mode=OneWay}" />
                                         </TextBlock>
                                     </ToolTip>
                                 </TextBlock.ToolTip>
@@ -82,7 +82,11 @@
                         </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                 </DataGridTemplateColumn>
-                <DataGridTextColumn Header="Latency" Binding="{Binding LatencyText}" IsReadOnly="True" Width="80" />
+                <DataGridTextColumn Header="Latency"
+                                    Binding="{Binding LatencyText}"
+                                    SortMemberPath="LatencyMs"
+                                    IsReadOnly="True"
+                                    Width="80" />
                 <DataGridTextColumn Header="Status" Binding="{Binding StatusText}" IsReadOnly="True" Width="90">
                     <DataGridTextColumn.ElementStyle>
                         <Style TargetType="TextBlock">
