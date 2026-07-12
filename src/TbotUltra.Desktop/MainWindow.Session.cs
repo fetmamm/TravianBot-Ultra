@@ -16,6 +16,8 @@ namespace TbotUltra.Desktop;
 // behavior change.
 public partial class MainWindow
 {
+    private AccountEntry? _pendingProxyChangeAtSleep;
+
     // Login button clicked
     private async void LoginButton_Click(object sender, RoutedEventArgs e)
         => await GuardUiAsync(ExecuteLoginFlowAsync);
@@ -392,6 +394,7 @@ public partial class MainWindow
     private async Task AccountsButtonClickAsync()
     {
         var previouslyActiveAccount = _accountStore.ActiveAccountName();
+        var activeAccountBeforeDialog = FindAccount(previouslyActiveAccount);
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
         var previousLoggedIn = _isLoggedIn;
         var defaultServers = await FetchDefaultServerOptionsAsync(options);
@@ -448,7 +451,139 @@ public partial class MainWindow
             return;
         }
 
+        var activeAccountAfterEdit = FindAccount(activeAccountAfterDialog);
+        if (activeAccountBeforeDialog is not null
+            && activeAccountAfterEdit is not null
+            && string.Equals(previouslyActiveAccount, activeAccountAfterDialog, StringComparison.OrdinalIgnoreCase)
+            && ProxyConfigurationChanged(activeAccountBeforeDialog, activeAccountAfterEdit)
+            && _isLoggedIn)
+        {
+            // Keep all non-proxy account edits, but restore the proxy currently used by the running browser.
+            // BotTaskRunner otherwise sees the new proxy fingerprint on the next task and replaces Chromium
+            // immediately, before a controlled logout/login can run.
+            var runtimeAccount = CloneAccount(activeAccountAfterEdit);
+            runtimeAccount.ProxyEnabled = activeAccountBeforeDialog.ProxyEnabled;
+            runtimeAccount.ProxyServer = activeAccountBeforeDialog.ProxyServer;
+            runtimeAccount.NeverUseOwnIp = activeAccountBeforeDialog.NeverUseOwnIp;
+            _accountStore.SaveAccount(runtimeAccount, setActive: false);
+
+            var choice = AppDialog.ShowCustom(
+                this,
+                "Proxy settings changed for the active account. When should the new proxy be activated?\n\n" +
+                "Relogin now safely stops automation, logs out, restarts the browser after a 5–20 second delay, and resumes the previous run state.\n\n" +
+                "Next sleep keeps the current browser and proxy unchanged until the next session sleep.",
+                "Apply proxy change",
+                [("Relogin now", MessageBoxResult.Yes), ("Next sleep", MessageBoxResult.No), ("Cancel change", MessageBoxResult.Cancel)],
+                MessageBoxImage.Question,
+                MessageBoxResult.No,
+                MessageBoxResult.Cancel);
+
+            if (choice == MessageBoxResult.Yes)
+            {
+                _pendingProxyChangeAtSleep = null;
+                await ApplyProxyChangeWithImmediateReloginAsync(activeAccountAfterEdit, options);
+            }
+            else if (choice == MessageBoxResult.No)
+            {
+                _pendingProxyChangeAtSleep = CloneAccount(activeAccountAfterEdit);
+                AppendLog("[proxy-change] new proxy scheduled for next session sleep; current browser remains unchanged.");
+                StatusTextBlock.Text = "Proxy change scheduled for next sleep.";
+            }
+            else
+            {
+                _pendingProxyChangeAtSleep = null;
+                AppendLog("[proxy-change] proxy change cancelled; current proxy kept.");
+            }
+        }
+
         LoadConfigToUi();
+    }
+
+    private AccountEntry? FindAccount(string accountName) => _accountStore.ListAccounts()
+        .FirstOrDefault(account => string.Equals(account.Name, accountName, StringComparison.OrdinalIgnoreCase));
+
+    private static bool ProxyConfigurationChanged(AccountEntry before, AccountEntry after) =>
+        before.ProxyEnabled != after.ProxyEnabled
+        || before.NeverUseOwnIp != after.NeverUseOwnIp
+        || !string.Equals(before.ProxyServer.Trim(), after.ProxyServer.Trim(), StringComparison.OrdinalIgnoreCase);
+
+    private static AccountEntry CloneAccount(AccountEntry source) => new()
+    {
+        Name = source.Name,
+        Username = source.Username,
+        Password = source.Password,
+        ServerName = source.ServerName,
+        ServerUrl = source.ServerUrl,
+        ProxyEnabled = source.ProxyEnabled,
+        ProxyServer = source.ProxyServer,
+        NeverUseOwnIp = source.NeverUseOwnIp,
+        IsActive = source.IsActive,
+    };
+
+    private async Task ApplyProxyChangeWithImmediateReloginAsync(AccountEntry changedAccount, BotOptions previousOptions)
+    {
+        if (_accountSwitchInProgress || _loginInProgress)
+        {
+            AppendLog("[proxy-change] immediate relogin skipped because another session transition is active.");
+            _pendingProxyChangeAtSleep = CloneAccount(changedAccount);
+            return;
+        }
+
+        _accountSwitchInProgress = true;
+        var resumeContinuousLoop = _loopTask is not null && !_loopTask.IsCompleted;
+        var resumeAutoQueue = _autoQueueRunning;
+        try
+        {
+            AppendLog("[proxy-change] controlled relogin starting; stopping active automation.");
+            _isLoggedIn = false;
+            _browserSessionLikelyOpen = false;
+            _inboxAutoEnabled = false;
+            NotifySessionPacingOnlineStopped();
+            await StopAllAutomationAndWaitAsync();
+
+            try
+            {
+                using var logoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(30));
+                await _botService.ExecuteLogoutAsync(previousOptions, AppendLog, logoutCts.Token);
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"[proxy-change] logout failed; continuing with browser shutdown: {ex.Message}");
+            }
+
+            await _botService.ShutdownAsync(AppendLog);
+            _accountStore.SaveAccount(changedAccount, setActive: false);
+
+            var delaySeconds = Random.Shared.Next(5, 21);
+            AppendLog($"[proxy-change] new proxy saved; waiting {delaySeconds}s before fresh browser login.");
+            await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
+            await ExecuteLoginFlowAsync();
+
+            if (!_isLoggedIn)
+            {
+                AppendLog("[proxy-change] relogin did not complete; automation remains stopped for safety.");
+                return;
+            }
+
+            if (resumeContinuousLoop)
+            {
+                StartContinuousLoopRunner();
+            }
+            else if (resumeAutoQueue)
+            {
+                _ = TriggerQueueAutoRunAsync();
+            }
+
+            AppendLog("[proxy-change] fresh browser login completed with new proxy; previous run state restored.");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[proxy-change] controlled relogin failed: {ex.Message}");
+        }
+        finally
+        {
+            _accountSwitchInProgress = false;
+        }
     }
 
     private async void AccountComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)

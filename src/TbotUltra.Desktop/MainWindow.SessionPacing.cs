@@ -245,6 +245,22 @@ public partial class MainWindow
                 ToggleUiBusy(false);
             }
 
+            if (_pendingProxyChangeAtSleep is { } pendingProxy)
+            {
+                try
+                {
+                    await _botService.ShutdownAsync(AppendLog);
+                }
+                catch (Exception ex)
+                {
+                    AppendLog($"[proxy-change] browser shutdown at sleep failed; fresh login will still replace it: {ex.Message}");
+                }
+
+                _accountStore.SaveAccount(pendingProxy, setActive: false);
+                _pendingProxyChangeAtSleep = null;
+                AppendLog("[proxy-change] pending proxy activated at session sleep; next wake will start a fresh browser.");
+            }
+
             ConfigureSessionPacerFromConfig();
             _sessionPacer.BeginSleep(manual);
             UpdateSessionActivityState(forcePersist: true);

@@ -142,6 +142,9 @@ document.querySelector('.warehouse .capacity .value')
   far inte starta pacing/sleep-timern.
 - Automatisk session pacing sleep far inte avbryta en aktiv manuell operation; den ska skjutas upp tills
   operationen ar klar. Detta galler bl.a. bulk messages, Travco, map oasis scan och Add farms to list.
+- Proxybyte for aktiv session ska aldrig lata worker-fingerprintet ersatta browsern mitt under korning.
+  Behall aktiv proxy tills anvandaren valt kontrollerad relogin (logout, shutdown, 5-20s delay, login) eller
+  nasta session sleep; sleep-valet aktiverar nya proxyn efter logout och stanger browsern fore wake-login.
 - Defer-orsaker ska konsumeras typat: `TaskWaitException.ReasonCode` (`TaskWaitReasons.*`), harledd pa ETT
   stalle (`BotTaskRunner.TaskHandlers.DeriveTaskWaitReason`). Sniffa inte `ex.Message` i Desktop for nya
   fall — lagg till en reason-kod i stallet. Farm-send-deferrals (cooldown/not ready/renamed) kastar
