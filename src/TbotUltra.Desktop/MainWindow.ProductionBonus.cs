@@ -16,6 +16,11 @@ public partial class MainWindow
     // is remembered yet, so a persistent failure cannot re-queue on every ~20s tick.
     private static readonly TimeSpan ProductionBonusFailureBackoff = TimeSpan.FromMinutes(30);
 
+    // Backoff between read_daily_reset attempts (per account) so a repeatedly-failing dialog read cannot
+    // re-queue on every ~20s refresh. Cleared as soon as a reset hour is successfully read.
+    private static readonly TimeSpan DailyResetReadBackoff = TimeSpan.FromMinutes(30);
+    private readonly Dictionary<string, DateTimeOffset> _dailyResetReadBackoffUntilUtc = new(StringComparer.OrdinalIgnoreCase);
+
     // Account-wide free +15% production bonus videos. Queued from the background refresh when the toggle
     // is on and the store says the next attempt is due; state is persisted so the popup timers survive
     // restart. Mirrors the auto-collect daily-quests pattern.
@@ -63,13 +68,14 @@ public partial class MainWindow
         var serverUtcOffset = ProductionBonusDomParser.ParseServerUtcOffsetToken(message) ?? _queueServerTimeOffset;
 
         // Human-like: never fire at the exact moment a cooldown/reset expires. For +15% the retry is
-        // scheduled at the daily reset (server-local hour, resolved per account below); for +25% and
-        // failed-video retries the reported relative wait is used. Bonus-end times are never jittered.
+        // scheduled at the daily reset (server-local hour, resolved below); for +25% and failed-video
+        // retries the reported relative wait is used. Bonus-end times are never jittered.
         var settings = ProductionBonusStateStore.LoadSettings(_projectRoot, account);
         var delay = ResolveProductionBonusRandomDelay(settings);
 
-        // Resolve (and, in auto mode, learn) the daily reset hour. Null => still learning => poll hourly.
-        var resetHour = ResolveProductionBonusResetHour(account, settings, message, now, serverUtcOffset);
+        // Manual override (General settings) wins; otherwise the hour auto-detected from the daily quests
+        // dialog. Null => not known yet => the scheduler polls hourly until read_daily_reset lands it.
+        var resetHour = GetEffectiveDailyResetHour(account);
 
         var timers = states
             .Select(state =>
@@ -99,58 +105,115 @@ public partial class MainWindow
         return !states.Any(state => state.RemainingSeconds > 0);
     }
 
-    // Resolves the daily reset hour (server-local, whole hour) used to schedule +15% retries. In manual
-    // mode returns the user's hour. In auto mode returns the learned hour, or — while still learning —
-    // null (which makes the scheduler poll hourly) and, on each run, records the free-video availability so
-    // the unavailable→available transition (= the reset moment) can be detected and locked in.
-    private int? ResolveProductionBonusResetHour(
-        string? account,
-        ProductionBonusSettings settings,
-        string? message,
-        DateTimeOffset nowUtc,
-        TimeSpan serverUtcOffset)
+    // Resolves the effective daily reset hour (server-local, whole hour) used to schedule +15% retries: the
+    // manual override from General settings when enabled, otherwise the per-account hour auto-detected from
+    // the daily quests dialog. Null when neither is set (still unknown) — the scheduler polls hourly then.
+    private int? GetEffectiveDailyResetHour(string? account)
     {
-        if (string.Equals(settings.ResetMode, ProductionBonusStateStore.ResetModeManual, StringComparison.OrdinalIgnoreCase))
+        var (overrideEnabled, overrideHour) = ReadDailyResetManualOverride();
+        if (overrideEnabled)
         {
-            return Math.Clamp(settings.ManualResetHour, 0, 23);
+            return overrideHour;
         }
 
-        // Auto mode.
-        if (settings.LearnedResetHour is int learned)
+        if (string.IsNullOrWhiteSpace(account))
         {
-            return learned;
+            return null;
         }
 
-        var availableNow = ProductionBonusDomParser.ParseFreeVideoAvailableToken(message);
-        if (availableNow is null || string.IsNullOrWhiteSpace(account))
-        {
-            return null; // can't tell — keep polling hourly
-        }
-
-        var currentServerHour = nowUtc.ToOffset(serverUtcOffset).Hour;
-        if (availableNow.Value && settings.LastPollServerHour is not null && !settings.LastPollFreeVideoAvailable)
-        {
-            // Free video just went unavailable→available: this hour is the daily reset. Lock it in.
-            ProductionBonusStateStore.SaveLearnState(_projectRoot, account, currentServerHour, currentServerHour, true);
-            AppendLog($"Production bonus: learned daily reset hour = {currentServerHour:00}:00 server time (auto).");
-            return currentServerHour;
-        }
-
-        // No transition yet — remember this poll so the next hourly run can detect the flip.
-        ProductionBonusStateStore.SaveLearnState(_projectRoot, account, null, currentServerHour, availableNow.Value);
-        return null;
+        return ProductionBonusStateStore.LoadSettings(_projectRoot, account).DetectedResetHour;
     }
 
-    // Reset hour for the pre-run timer normalization: manual hour, or learned hour in auto mode. Null while
-    // auto-learning (no capping then — the next hourly run re-evaluates).
-    private static int? ResolveProductionBonusResetHourFromSettings(ProductionBonusSettings settings)
+    // Reads the global (bot.json) manual-override toggle + hour. Best-effort: any read/parse failure is
+    // treated as "override off" so the auto-detected hour is used.
+    private (bool Enabled, int Hour) ReadDailyResetManualOverride()
     {
-        if (string.Equals(settings.ResetMode, ProductionBonusStateStore.ResetModeManual, StringComparison.OrdinalIgnoreCase))
+        try
         {
-            return Math.Clamp(settings.ManualResetHour, 0, 23);
+            var config = _botConfigStore.Load();
+            var enabled = config[BotOptionPayloadKeys.DailyServerResetManualOverrideEnabled]?.GetValue<bool>() ?? false;
+            var hour = config[BotOptionPayloadKeys.DailyServerResetManualHour]?.GetValue<int>() ?? 0;
+            return (enabled, Math.Clamp(hour, 0, 23));
+        }
+        catch
+        {
+            return (false, 0);
+        }
+    }
+
+    // Ensures the daily server-reset hour is known: on first start for an account (or whenever it is still
+    // unknown) queue a one-off read of the daily quests dialog. Skipped when the +15% feature is off (its
+    // only consumer) or a manual override is set. Backed off so a persistent read failure cannot spam.
+    private void TryQueueReadDailyResetHour(BotOptions options)
+    {
+        if (!IsProductionBonusVideoEnabledNow(options))
+        {
+            return;
         }
 
-        return settings.LearnedResetHour;
+        if (ReadDailyResetManualOverride().Enabled)
+        {
+            return; // manual hour wins — no need to detect
+        }
+
+        var account = _accountStore.ActiveAccountName();
+        if (string.IsNullOrWhiteSpace(account))
+        {
+            return;
+        }
+
+        if (ProductionBonusStateStore.LoadSettings(_projectRoot, account).DetectedResetHour is not null)
+        {
+            return; // already known
+        }
+
+        if (HasActiveReadDailyResetTask())
+        {
+            return;
+        }
+
+        if (_dailyResetReadBackoffUntilUtc.TryGetValue(account, out var until) && DateTimeOffset.UtcNow < until)
+        {
+            return;
+        }
+
+        _dailyResetReadBackoffUntilUtc[account] = DateTimeOffset.UtcNow.Add(DailyResetReadBackoff);
+        _botService.EnqueueRuntime("read_daily_reset", "Read daily server reset time", null, priority: -45, maxRetries: 1);
+        AppendLog("Daily reset: reset hour unknown — queued read_daily_reset (daily quests dialog).");
+    }
+
+    // Parses a daily_reset_hour=HH token from a read_daily_reset / collect_daily_quests result and remembers
+    // it per account. On a change, re-normalizes any stored +15% timers to the freshly-known reset hour.
+    private void ApplyDailyResetReadResult(string? message)
+    {
+        var hour = DailyResetDomParser.TryParseResetHourToken(message);
+        if (hour is null)
+        {
+            return;
+        }
+
+        var account = _accountStore.ActiveAccountName();
+        if (string.IsNullOrWhiteSpace(account))
+        {
+            return;
+        }
+
+        var previous = ProductionBonusStateStore.LoadSettings(_projectRoot, account).DetectedResetHour;
+        ProductionBonusStateStore.SaveDetectedResetHour(_projectRoot, account, hour.Value);
+        _dailyResetReadBackoffUntilUtc.Remove(account);
+        if (previous != hour)
+        {
+            AppendLog($"Daily reset: detected daily server reset at {hour:00}:00 server time.");
+            NormalizeStoredProductionBonus15Timers(account);
+        }
+    }
+
+    private bool HasActiveReadDailyResetTask()
+    {
+        return _botService.GetQueueItemsForDisplay()
+            .Any(item =>
+                string.Equals(item.TaskName, "read_daily_reset", StringComparison.OrdinalIgnoreCase)
+                && item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused);
     }
 
     private void NormalizeStoredProductionBonus15Timers(string? account)
@@ -168,8 +231,8 @@ public partial class MainWindow
 
         var now = DateTimeOffset.UtcNow;
         var settings = ProductionBonusStateStore.LoadSettings(_projectRoot, account);
-        // While auto-learning (reset hour unknown) there is nothing to cap to — the next hourly run resolves it.
-        if (ResolveProductionBonusResetHourFromSettings(settings) is not int resetHour)
+        // While the reset hour is unknown there is nothing to cap to — a later read/hourly run resolves it.
+        if (GetEffectiveDailyResetHour(account) is not int resetHour)
         {
             return;
         }

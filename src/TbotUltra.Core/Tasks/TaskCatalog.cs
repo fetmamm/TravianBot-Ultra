@@ -26,6 +26,7 @@ public static class TaskCatalog
         new("collect_tasks", TaskGroup.Construction, "Collect tasks", true, TaskPayloadKind.None),
         new("collect_daily_quests", TaskGroup.Construction, "Collect daily quests", true, TaskPayloadKind.None),
         new("activate_production_bonus", TaskGroup.Construction, "Activate 15% production", true, TaskPayloadKind.None),
+        new("read_daily_reset", TaskGroup.Construction, "Read daily server reset time", true, TaskPayloadKind.None),
     ];
 
     private static readonly IReadOnlyDictionary<string, TaskDescriptor> DescriptorsByName =

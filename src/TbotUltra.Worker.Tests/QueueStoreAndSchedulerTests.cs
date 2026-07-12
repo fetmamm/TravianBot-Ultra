@@ -213,6 +213,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
                 "collect_tasks",
                 "collect_daily_quests",
                 "activate_production_bonus",
+                "read_daily_reset",
             ],
             CoreTaskCatalog.AllowedTaskNames);
     }

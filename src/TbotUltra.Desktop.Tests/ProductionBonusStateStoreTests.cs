@@ -71,6 +71,23 @@ public sealed class ProductionBonusStateStoreTests : IDisposable
         var settings = ProductionBonusStateStore.LoadSettings(_root, Account);
         Assert.Equal(ProductionBonusStateStore.DefaultDelayMinMinutes, settings.DelayMinMinutes);
         Assert.Equal(ProductionBonusStateStore.DefaultDelayMaxMinutes, settings.DelayMaxMinutes);
+        Assert.Null(settings.DetectedResetHour);
+    }
+
+    [Fact]
+    public void SaveDetectedResetHour_RoundTrips_AndKeepsDelaySettings()
+    {
+        ProductionBonusStateStore.SaveSettings(_root, Account, 12, 40);
+        ProductionBonusStateStore.SaveDetectedResetHour(_root, Account, 13);
+
+        var settings = ProductionBonusStateStore.LoadSettings(_root, Account);
+        Assert.Equal(13, settings.DetectedResetHour);
+        Assert.Equal(12, settings.DelayMinMinutes);
+        Assert.Equal(40, settings.DelayMaxMinutes);
+
+        // Out-of-range clears it (forces a fresh read).
+        ProductionBonusStateStore.SaveDetectedResetHour(_root, Account, 99);
+        Assert.Null(ProductionBonusStateStore.LoadSettings(_root, Account).DetectedResetHour);
     }
 
     [Fact]

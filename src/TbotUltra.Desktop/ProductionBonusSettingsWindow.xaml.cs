@@ -35,8 +35,6 @@ public partial class ProductionBonusSettingsWindow : Window
     private int _tickCount;
 
     private Dictionary<string, ProductionBonusResourceTimer> _timersByResource = new(StringComparer.OrdinalIgnoreCase);
-    // Guards the reset radios/textbox while loading so programmatic changes don't trigger a save.
-    private bool _suppressResetSave;
 
     // Badge cells keyed by "<bonus>:<resource>" (e.g. "25:lumber"), so the tick can update them in place.
     private readonly Dictionary<string, Border> _badgeBorders = new();
@@ -56,9 +54,7 @@ public partial class ProductionBonusSettingsWindow : Window
         _onClearRequested = onClearRequested;
 
         BuildGrid();
-        PopulateManualResetHours();
         LoadDelaySettings();
-        LoadResetSettings();
         ReloadTimersFromStore();
         UpdateTimers();
 
@@ -72,7 +68,6 @@ public partial class ProductionBonusSettingsWindow : Window
             if (_tickCount % StoreReloadEveryTicks == 0)
             {
                 ReloadTimersFromStore();
-                RefreshLearnedResetLabel();
             }
 
             UpdateTimers();
@@ -286,89 +281,6 @@ public partial class ProductionBonusSettingsWindow : Window
 
     private static int ParseDelayBox(TextBox box, int fallback)
         => int.TryParse(box.Text?.Trim(), out var value) ? value : fallback;
-
-    // Fills the manual reset-hour dropdown with 00:00..23:00 (Tag = the whole hour 0..23).
-    private void PopulateManualResetHours()
-    {
-        for (var hour = 0; hour < 24; hour++)
-        {
-            ManualResetHourComboBox.Items.Add(new ComboBoxItem
-            {
-                Content = $"{hour:00}:00",
-                Tag = hour,
-            });
-        }
-    }
-
-    private void LoadResetSettings()
-    {
-        var settings = ProductionBonusStateStore.LoadSettings(_projectRoot, _accountName);
-        var manual = string.Equals(settings.ResetMode, ProductionBonusStateStore.ResetModeManual, StringComparison.OrdinalIgnoreCase);
-        _suppressResetSave = true;
-        try
-        {
-            ResetManualRadio.IsChecked = manual;
-            ResetAutoRadio.IsChecked = !manual;
-            SelectManualResetHour(settings.ManualResetHour);
-        }
-        finally
-        {
-            _suppressResetSave = false;
-        }
-
-        ManualResetHourComboBox.IsEnabled = manual;
-        RefreshLearnedResetLabel();
-    }
-
-    private void ResetMode_Changed(object sender, RoutedEventArgs e)
-    {
-        if (_suppressResetSave)
-        {
-            return;
-        }
-
-        var manual = ResetManualRadio.IsChecked == true;
-        var mode = manual ? ProductionBonusStateStore.ResetModeManual : ProductionBonusStateStore.ResetModeAuto;
-        var hour = GetSelectedManualResetHour();
-        ManualResetHourComboBox.IsEnabled = manual;
-        ProductionBonusStateStore.SaveResetSettings(_projectRoot, _accountName, mode, hour);
-        RefreshLearnedResetLabel();
-    }
-
-    private void SelectManualResetHour(int hour)
-    {
-        var clamped = Math.Clamp(hour, 0, 23);
-        ManualResetHourComboBox.SelectedItem = ManualResetHourComboBox.Items
-            .OfType<ComboBoxItem>()
-            .FirstOrDefault(item => item.Tag is int tag && tag == clamped);
-    }
-
-    private int GetSelectedManualResetHour()
-    {
-        return ManualResetHourComboBox.SelectedItem is ComboBoxItem { Tag: int hour }
-            ? Math.Clamp(hour, 0, 23)
-            : ProductionBonusStateStore.DefaultManualResetHour;
-    }
-
-    // Shows the auto-learned reset hour (or "learning…") next to the Auto radio; blank in manual mode.
-    private void RefreshLearnedResetLabel()
-    {
-        if (LearnedResetTextBlock is null)
-        {
-            return;
-        }
-
-        if (ResetManualRadio.IsChecked == true)
-        {
-            LearnedResetTextBlock.Text = string.Empty;
-            return;
-        }
-
-        var settings = ProductionBonusStateStore.LoadSettings(_projectRoot, _accountName);
-        LearnedResetTextBlock.Text = settings.LearnedResetHour is int hour
-            ? $"learned: {hour:00}:00"
-            : "learning…";
-    }
 
     private void ScanTimersButton_Click(object sender, RoutedEventArgs e)
     {

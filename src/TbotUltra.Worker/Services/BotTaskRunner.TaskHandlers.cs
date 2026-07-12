@@ -160,8 +160,14 @@ public sealed partial class BotTaskRunner
     private static async Task ExecuteRunTownHallCelebrationAsync(TaskExecutionContext context)
     {
         var mode = TownHallCelebrationDefaults.NormalizeMode(context.Options.TownHallCelebrationMode);
-        context.Log($"[town-hall] run_town_hall_celebration starting mode={mode}");
-        var result = await context.Client.RunTownHallCelebrationAsync(mode, context.CancellationToken);
+        var count = TownHallCelebrationDefaults.NormalizeCount(context.Options.TownHallCelebrationCount);
+        context.Log($"[town-hall] run_town_hall_celebration starting mode={mode} count={count}");
+        var result = await context.Client.RunTownHallCelebrationAsync(
+            mode,
+            count,
+            context.Options.TownHallCelebrationRestartDelayMinMinutes,
+            context.Options.TownHallCelebrationRestartDelayMaxMinutes,
+            context.CancellationToken);
         context.Log(result);
         ThrowIfTaskBlocked("run_town_hall_celebration", result);
     }
@@ -457,6 +463,16 @@ public sealed partial class BotTaskRunner
     {
         var result = await context.Client.CollectDailyQuestRewardsAsync(context.CancellationToken);
         context.Log(result);
+        // Record so the desktop can read the piggybacked daily_reset_hour=... token off LastTask.Message.
+        context.RecordTaskResult("collect_daily_quests", result);
+    }
+
+    private static async Task ExecuteReadDailyResetAsync(TaskExecutionContext context)
+    {
+        var result = await context.Client.ReadDailyResetHourAsync(context.CancellationToken);
+        context.Log(result);
+        // Record so the desktop can read the daily_reset_hour=... token off LastTask.Message.
+        context.RecordTaskResult("read_daily_reset", result);
     }
 
     private static async Task ExecuteActivateProductionBonusAsync(TaskExecutionContext context)

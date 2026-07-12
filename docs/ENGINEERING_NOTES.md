@@ -169,8 +169,13 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   Mode ar account-default `small`/`big` med per-by override; UI visar `big` som "Great" enligt Travian.
   `big` faller tillbaka till `small` under Town Hall level 10. Start-/resource-scope ska ligga i
   `.build_details` och matcha small- eller Great-celebration-raden.
-- +15% production bonus-video aterforsok styrs av daglig reset 09:00 server time + anvandarens delay,
-  inte 24h efter aktivering. Disabled purple video-knapp betyder vanta till nasta 09:00-reset.
+- +15% production bonus-video aterforsok styrs av daglig server-reset (server-lokal hel timme) + anvandarens
+  delay, inte 24h efter aktivering. Disabled purple video-knapp betyder vanta till nasta reset.
+- Reset-timmen lases fran Daily Quests-dialogen: raden `(Next reset at HH:MM ...)` (`DailyResetDomParser`).
+  `read_daily_reset`-tasken oppnar dialogen aven utan claimable-signal, `collect_daily_quests` piggybackar
+  samma token gratis. Desktop sparar timmen per konto i `ProductionBonusStateStore.DetectedResetHour` och
+  koar en read forsta gangen / sa lange timmen ar okand (`TryQueueReadDailyResetHour`). Manuell override
+  finns i Settings > General ("Daily server reset", global bot.json, OFF default) och vinner over auto.
 
 ### Desktop
 

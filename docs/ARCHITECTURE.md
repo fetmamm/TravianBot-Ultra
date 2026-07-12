@@ -40,7 +40,7 @@ These are contracts only — no logic was extracted out of the facade.
 | `Automation/Resources/` | Resource read/transfer, NPC trade | `TravianClient.Resources`, `.ResourceTransfer`, `.NpcTrade`; `ResourceCapacitySnapshot` |
 | `Automation/Combat/` | Catapult waves, reinforcements, manual attack | `TravianClient.Catapults`, `.Reinforcements`, `.ManualAttack`; `CatapultWavePlanner` |
 | `Automation/Training/` | Troop training | `TravianClient.TroopTraining`; `TroopTrainingCalculator` |
-| `Automation/Features/` | Daily quests, inbox, report PNG capture, brewery & town-hall celebration, map oasis, +15% production bonus videos | `TravianClient.DailyQuests`, `.Inbox`, `.ReportPng`, `.BreweryCelebration`, `.TownHallCelebration`, `.MapOasis`, `.ProductionBonus`; `DailyQuestDomParser`, `MapOasisApiParser`, `ProductionBonusDomParser` |
+| `Automation/Features/` | Daily quests, inbox, report PNG capture, brewery & town-hall celebration, map oasis, +15% production bonus videos | `TravianClient.DailyQuests`, `.Inbox`, `.ReportPng`, `.BreweryCelebration`, `.TownHallCelebration`, `.MapOasis`, `.ProductionBonus`; `DailyQuestDomParser`, `DailyResetDomParser`, `MapOasisApiParser`, `ProductionBonusDomParser` |
 | `Automation/Travco/` | Travco inactive search (standalone, not a `TravianClient` partial) | `TravcoInactiveSearch`, `TravcoInactiveSearchParser` |
 
 ---

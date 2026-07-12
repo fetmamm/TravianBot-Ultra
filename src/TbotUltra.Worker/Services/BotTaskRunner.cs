@@ -65,6 +65,8 @@ public sealed partial class BotTaskRunner
             ["collect_daily_quests"] = ExecuteCollectDailyQuestsAsync,
             // Official: watches the free +15% production bonus videos on the payment wizard Advantages tab.
             ["activate_production_bonus"] = ExecuteActivateProductionBonusAsync,
+            // Official: reads the daily server-reset hour from the daily quests dialog (seeds +15% scheduling).
+            ["read_daily_reset"] = ExecuteReadDailyResetAsync,
         };
 
     private readonly IAccountProvider _accountProvider;

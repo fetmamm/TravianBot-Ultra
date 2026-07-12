@@ -13,17 +13,21 @@ public partial class SettingsWindow : Window
     private JsonObject _config = [];
     private bool _isClosing;
     private readonly bool _sessionSleeping;
+    // Server-local hour the bot auto-detected for the active account (null when not yet detected). Display-only.
+    private readonly int? _detectedDailyResetHour;
 
     // Set when the user confirms "Sleep now"; MainWindow reads it after ShowDialog to trigger the sleep.
     public bool SleepNowRequested { get; private set; }
 
-    public SettingsWindow(BotConfigStore store, bool sessionSleeping = false)
+    public SettingsWindow(BotConfigStore store, bool sessionSleeping = false, int? detectedDailyResetHour = null)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
         _store = store;
         _sessionSleeping = sessionSleeping;
+        _detectedDailyResetHour = detectedDailyResetHour;
         InitializeSessionPacingChoices();
+        PopulateDailyServerResetHours();
         LoadConfig();
         SleepNowButton.IsEnabled = !_sessionSleeping;
     }
@@ -35,6 +39,7 @@ public partial class SettingsWindow : Window
         QuickReloginCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginQuickReloginEnabled]?.GetValue<bool>() ?? true;
         AutomaticallyCheckLanguageCheckBox.IsChecked = _config[BotOptionPayloadKeys.AutomaticallyCheckLanguage]?.GetValue<bool>() ?? true;
         AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
+        LoadDailyServerResetToUi();
         LoadPacingConfigToUi();
         PostLoginAnalyzeFarmlistsCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists]?.GetValue<bool>() ?? false;
         PostLoginAnalyzeHeroCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeHero]?.GetValue<bool>() ?? false;
@@ -45,6 +50,64 @@ public partial class SettingsWindow : Window
         SilverLimitSlider.Value = Math.Clamp(_config["silver_limit"]?.GetValue<int>() ?? 100, 0, 1000);
         UpdateLimitLabels();
     }
+
+    // Fills the reset-hour dropdown with 00:00..23:00 (Tag = the whole hour 0..23).
+    private void PopulateDailyServerResetHours()
+    {
+        for (var hour = 0; hour < 24; hour++)
+        {
+            DailyServerResetHourComboBox.Items.Add(new ComboBoxItem
+            {
+                Content = $"{hour:00}:00",
+                Tag = hour,
+            });
+        }
+    }
+
+    private void LoadDailyServerResetToUi()
+    {
+        var overrideEnabled = _config[BotOptionPayloadKeys.DailyServerResetManualOverrideEnabled]?.GetValue<bool>() ?? false;
+        var manualHour = Math.Clamp(_config[BotOptionPayloadKeys.DailyServerResetManualHour]?.GetValue<int>() ?? 0, 0, 23);
+        DailyServerResetOverrideCheckBox.IsChecked = overrideEnabled;
+        SelectDailyServerResetHour(manualHour);
+        DailyServerResetHourComboBox.IsEnabled = overrideEnabled;
+        DailyServerResetDetectedTextBlock.Text = _detectedDailyResetHour is int detected
+            ? $"detected: {detected:00}:00"
+            : "detected: —";
+    }
+
+    private void SaveDailyServerResetFromUi()
+    {
+        _config[BotOptionPayloadKeys.DailyServerResetManualOverrideEnabled] = DailyServerResetOverrideCheckBox.IsChecked == true;
+        _config[BotOptionPayloadKeys.DailyServerResetManualHour] = GetSelectedDailyServerResetHour();
+    }
+
+    private void DailyServerResetOverride_Changed(object sender, RoutedEventArgs e)
+    {
+        // Toggle only enables/disables the hour dropdown; the value is persisted on Save.
+        if (DailyServerResetHourComboBox is not null)
+        {
+            DailyServerResetHourComboBox.IsEnabled = DailyServerResetOverrideCheckBox.IsChecked == true;
+        }
+    }
+
+    private void SelectDailyServerResetHour(int hour)
+    {
+        var clamped = Math.Clamp(hour, 0, 23);
+        foreach (var item in DailyServerResetHourComboBox.Items)
+        {
+            if (item is ComboBoxItem { Tag: int tag } comboItem && tag == clamped)
+            {
+                DailyServerResetHourComboBox.SelectedItem = comboItem;
+                return;
+            }
+        }
+    }
+
+    private int GetSelectedDailyServerResetHour()
+        => DailyServerResetHourComboBox.SelectedItem is ComboBoxItem { Tag: int hour }
+            ? Math.Clamp(hour, 0, 23)
+            : 0;
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
@@ -70,6 +133,7 @@ public partial class SettingsWindow : Window
             _config[BotOptionPayloadKeys.PostLoginQuickReloginEnabled] = QuickReloginCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.AutomaticallyCheckLanguage] = AutomaticallyCheckLanguageCheckBox.IsChecked == true;
             _config["allow_silver_spending"] = AllowSilverSpendingCheckBox.IsChecked == true;
+            SaveDailyServerResetFromUi();
             SavePacingConfigFromUi();
             // Queue-wait handling is always "smart" (defer); drop the removed threshold key.
             _config.Remove("queue_wait_threshold_mode");

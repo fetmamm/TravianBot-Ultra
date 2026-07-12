@@ -34,6 +34,10 @@ public sealed partial class TravianClient
             return "No claimable daily quest rewards found.";
         }
 
+        // Cheap safety-net: the open dialog carries the "(Next reset at HH:MM ...)" line, so read the daily
+        // server-reset hour here (free — no extra navigation) and hand it back for the desktop to remember.
+        var resetToken = await TryReadDailyResetTokenFromOpenDialogAsync(cancellationToken);
+
         try
         {
             if (await ClickDailyQuestCollectRewardsAsync(cancellationToken))
@@ -47,7 +51,7 @@ public sealed partial class TravianClient
 
             var collected = await ClickDailyQuestCollectButtonsAsync(cancellationToken);
             Notify($"[daily-quests] auto-collect done - collected {collected} reward(s)");
-            return $"Collected {collected} daily quest reward(s).";
+            return $"Collected {collected} daily quest reward(s).{AppendResetTokenSuffix(resetToken)}";
         }
         finally
         {
@@ -56,21 +60,85 @@ public sealed partial class TravianClient
         }
     }
 
-    private async Task<bool> OpenDailyQuestsDialogAsync(CancellationToken cancellationToken)
+    // Reads the daily server-reset hour by opening the Daily Quests dialog even when no reward is claimable
+    // (the reset line is shown regardless), parsing "(Next reset at HH:MM ...)" and closing again. Returns the
+    // "daily_reset_hour=HH" token, or "" when the dialog/line could not be read. Used on first start for an
+    // account (and whenever the reset hour is still unknown) to seed the +15% scheduling.
+    public async Task<string> ReadDailyResetHourAsync(CancellationToken cancellationToken = default)
+    {
+        Notify("[daily-reset] reading daily server reset time from daily quests dialog");
+        await EnsureLoggedInAsync();
+
+        if (!await OpenDailyQuestsDialogAsync(cancellationToken, requireClaimableSignal: false))
+        {
+            Notify("[daily-reset] could not open daily quests dialog to read reset time");
+            return string.Empty;
+        }
+
+        try
+        {
+            var token = await TryReadDailyResetTokenFromOpenDialogAsync(cancellationToken);
+            if (string.IsNullOrEmpty(token))
+            {
+                Notify("[daily-reset] reset-time line not found in daily quests dialog");
+            }
+
+            return token;
+        }
+        finally
+        {
+            await CloseDailyQuestsDialogAsync(cancellationToken);
+        }
+    }
+
+    // Best-effort read of the reset hour from the already-open dialog. Never throws — returns "" on failure.
+    private async Task<string> TryReadDailyResetTokenFromOpenDialogAsync(CancellationToken cancellationToken)
     {
         try
         {
-            var hasClaimableSignal = await _page.EvaluateAsync<bool>(
-                """
-                () => {
-                  const link = document.querySelector('a.dailyQuests');
-                  const indicator = link?.querySelector('.indicator');
-                  return !!link && (indicator?.textContent || '').trim() === '!';
-                }
-                """);
-            if (!hasClaimableSignal)
+            var html = await _page.ContentAsync();
+            var hour = DailyResetDomParser.TryParseResetHourFromDialogHtml(html);
+            if (hour is null)
             {
-                return false;
+                return string.Empty;
+            }
+
+            Notify($"[daily-reset] detected daily server reset at {hour:00}:00 server time");
+            return DailyResetDomParser.BuildResetHourToken(hour.Value);
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private static string AppendResetTokenSuffix(string? resetToken)
+        => string.IsNullOrEmpty(resetToken) ? string.Empty : " " + resetToken;
+
+    private async Task<bool> OpenDailyQuestsDialogAsync(
+        CancellationToken cancellationToken,
+        bool requireClaimableSignal = true)
+    {
+        try
+        {
+            if (requireClaimableSignal)
+            {
+                var hasClaimableSignal = await _page.EvaluateAsync<bool>(
+                    """
+                    () => {
+                      const link = document.querySelector('a.dailyQuests');
+                      const indicator = link?.querySelector('.indicator');
+                      return !!link && (indicator?.textContent || '').trim() === '!';
+                    }
+                    """);
+                if (!hasClaimableSignal)
+                {
+                    return false;
+                }
             }
 
             var clicked = await TryClickFirstVisibleEnabledAsync(
@@ -80,19 +148,33 @@ public sealed partial class TravianClient
             if (!clicked)
             {
                 await DelayBeforeClickAsync(cancellationToken, "open daily quests fallback");
+                // In read mode (no claimable signal required) click the link unconditionally; otherwise only
+                // click when the "!" indicator confirms there is something to collect.
                 clicked = await _page.EvaluateAsync<bool>(
-                """
-                () => {
-                  const link = document.querySelector('a.dailyQuests');
-                  const indicator = link?.querySelector('.indicator');
-                  if (!link || (indicator?.textContent || '').trim() !== '!') {
-                    return false;
-                  }
-                  link.scrollIntoView({ block: 'center' });
-                  link.click();
-                  return true;
-                }
-                """);
+                    requireClaimableSignal
+                        ? """
+                          () => {
+                            const link = document.querySelector('a.dailyQuests');
+                            const indicator = link?.querySelector('.indicator');
+                            if (!link || (indicator?.textContent || '').trim() !== '!') {
+                              return false;
+                            }
+                            link.scrollIntoView({ block: 'center' });
+                            link.click();
+                            return true;
+                          }
+                          """
+                        : """
+                          () => {
+                            const link = document.querySelector('a.dailyQuests');
+                            if (!link) {
+                              return false;
+                            }
+                            link.scrollIntoView({ block: 'center' });
+                            link.click();
+                            return true;
+                          }
+                          """);
             }
             if (!clicked)
             {

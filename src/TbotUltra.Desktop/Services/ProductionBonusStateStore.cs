@@ -23,20 +23,15 @@ public sealed record ProductionBonusResourceTimer(
 /// <list type="bullet">
 /// <item>Delay window (minutes) added on top of a resource's cooldown so a run does not fire at the exact
 /// moment the timer expires (human-like).</item>
-/// <item>Daily-reset resolution: <see cref="ResetMode"/> is "auto" (learn the reset hour by watching when
-/// the free video becomes available) or "manual" (use <see cref="ManualResetHour"/>). <see cref="LearnedResetHour"/>
-/// is the auto-learned server-local hour (null until learned). The last-poll fields track the free-video
-/// availability across hourly polls so the unavailable→available transition (= the reset) can be detected.</item>
+/// <item><see cref="DetectedResetHour"/> is the server-local whole hour of the daily reset, auto-detected by
+/// reading the daily quests dialog ("Next reset at HH:MM"). Null until it has been read at least once. A
+/// manual override lives in the global settings (General) and takes precedence when enabled.</item>
 /// </list>
 /// </summary>
 public sealed record ProductionBonusSettings(
     int DelayMinMinutes,
     int DelayMaxMinutes,
-    string ResetMode,
-    int ManualResetHour,
-    int? LearnedResetHour,
-    int? LastPollServerHour,
-    bool LastPollFreeVideoAvailable);
+    int? DetectedResetHour);
 
 /// <summary>
 /// Per-account remembered +15%/+25% production bonus timers (account-wide, four resources) plus the
@@ -49,11 +44,6 @@ public static class ProductionBonusStateStore
     public const int DefaultDelayMinMinutes = 10;
     public const int DefaultDelayMaxMinutes = 60;
     private const int MaxDelayMinutes = 24 * 60;
-
-    public const string ResetModeAuto = "auto";
-    public const string ResetModeManual = "manual";
-    public const string DefaultResetMode = ResetModeAuto;
-    public const int DefaultManualResetHour = 9;
 
     private static readonly object FileIoLock = new();
 
@@ -75,13 +65,8 @@ public static class ProductionBonusStateStore
     {
         public int DelayMinMinutes { get; set; } = DefaultDelayMinMinutes;
         public int DelayMaxMinutes { get; set; } = DefaultDelayMaxMinutes;
-        // Daily-reset scheduling. Server-local whole hours. LearnedResetHour is null until auto-learn
-        // observes the free video re-enable; the LastPoll* fields bracket that transition across polls.
-        public string ResetMode { get; set; } = DefaultResetMode;
-        public int ManualResetHour { get; set; } = DefaultManualResetHour;
-        public int? LearnedResetHour { get; set; }
-        public int? LastPollServerHour { get; set; }
-        public bool LastPollFreeVideoAvailable { get; set; }
+        // Server-local whole hour of the daily reset, auto-detected from the daily quests dialog. Null until read.
+        public int? DetectedResetHour { get; set; }
         public List<ResourceState> Resources { get; set; } = new();
     }
 
@@ -165,7 +150,7 @@ public static class ProductionBonusStateStore
     }
 
     private static ProductionBonusSettings DefaultSettings()
-        => new(DefaultDelayMinMinutes, DefaultDelayMaxMinutes, DefaultResetMode, DefaultManualResetHour, null, null, false);
+        => new(DefaultDelayMinMinutes, DefaultDelayMaxMinutes, null);
 
     public static ProductionBonusSettings LoadSettings(string projectRoot, string? accountName)
     {
@@ -186,11 +171,7 @@ public static class ProductionBonusStateStore
             return new ProductionBonusSettings(
                 min,
                 max,
-                NormalizeResetMode(file.ResetMode),
-                Math.Clamp(file.ManualResetHour, 0, 23),
-                NormalizeHourOrNull(file.LearnedResetHour),
-                NormalizeHourOrNull(file.LastPollServerHour),
-                file.LastPollFreeVideoAvailable);
+                NormalizeHourOrNull(file.DetectedResetHour));
         }
     }
 
@@ -211,8 +192,9 @@ public static class ProductionBonusStateStore
         }
     }
 
-    // Persists the user's daily-reset choice (auto/manual + manual hour). Never touches the learned hour.
-    public static void SaveResetSettings(string projectRoot, string? accountName, string resetMode, int manualResetHour)
+    // Persists the auto-detected daily reset hour (server-local whole hour) read from the daily quests dialog.
+    // Passing null clears it (forces a fresh read). Keeps the delay settings and remembered timers intact.
+    public static void SaveDetectedResetHour(string projectRoot, string? accountName, int? detectedResetHour)
     {
         if (string.IsNullOrWhiteSpace(accountName))
         {
@@ -222,38 +204,10 @@ public static class ProductionBonusStateStore
         lock (FileIoLock)
         {
             var file = ReadFileOrNull(projectRoot, accountName) ?? new StateFile();
-            file.ResetMode = NormalizeResetMode(resetMode);
-            file.ManualResetHour = Math.Clamp(manualResetHour, 0, 23);
+            file.DetectedResetHour = NormalizeHourOrNull(detectedResetHour);
             WriteFile(projectRoot, accountName, file);
         }
     }
-
-    // Persists the auto-learn progress: the learned reset hour (null while still learning) and the last
-    // free-video poll (server hour + whether it was available) used to detect the reset transition.
-    public static void SaveLearnState(
-        string projectRoot,
-        string? accountName,
-        int? learnedResetHour,
-        int? lastPollServerHour,
-        bool lastPollFreeVideoAvailable)
-    {
-        if (string.IsNullOrWhiteSpace(accountName))
-        {
-            return;
-        }
-
-        lock (FileIoLock)
-        {
-            var file = ReadFileOrNull(projectRoot, accountName) ?? new StateFile();
-            file.LearnedResetHour = NormalizeHourOrNull(learnedResetHour);
-            file.LastPollServerHour = NormalizeHourOrNull(lastPollServerHour);
-            file.LastPollFreeVideoAvailable = lastPollFreeVideoAvailable;
-            WriteFile(projectRoot, accountName, file);
-        }
-    }
-
-    private static string NormalizeResetMode(string? mode)
-        => string.Equals(mode, ResetModeManual, StringComparison.OrdinalIgnoreCase) ? ResetModeManual : ResetModeAuto;
 
     private static int? NormalizeHourOrNull(int? hour)
         => hour is int value && value is >= 0 and <= 23 ? value : null;

@@ -73,9 +73,15 @@ public static class BotOptionPayloadKeys
     public const string ConstructFasterRandomEnabled = "construct_faster_random_enabled";
     public const string ConstructFasterRandomChancePercent = "construct_faster_random_chance_percent";
     // Account-wide toggle: watch the free +15% production bonus video on the payment wizard's Advantages
-    // tab for every resource that allows it after the daily server-time reset (reset hour is auto-learned
-    // or set manually per account, see ProductionBonusStateStore). Never spends gold.
+    // tab for every resource that allows it after the daily server-time reset (reset hour is auto-detected
+    // from the daily quests dialog per account, or overridden via DailyServerResetManualOverride below).
+    // Never spends gold.
     public const string ProductionBonusVideoEnabled = "production_bonus_video_enabled";
+    // Optional manual override for the daily server-reset hour (Settings > General). When the toggle is off
+    // (default) the bot uses the hour auto-detected from the daily quests dialog; when on, this whole hour
+    // (0..23, server-local) wins. Global (bot.json), like the other General settings.
+    public const string DailyServerResetManualOverrideEnabled = "daily_server_reset_manual_override_enabled";
+    public const string DailyServerResetManualHour = "daily_server_reset_manual_hour";
     public const string TargetBuildingSlotOrName = "target_building_slot_or_name";
     public const string TargetLevel = "target_level";
     public const string DontNotifyNewVersion = "dont_notify_new_version";

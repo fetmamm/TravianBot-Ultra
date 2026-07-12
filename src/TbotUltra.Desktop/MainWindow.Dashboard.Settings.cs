@@ -122,6 +122,7 @@ public partial class MainWindow
         {
             TriggerImmediateIfLoopRunning(options =>
             {
+                TryQueueReadDailyResetHour(options);
                 TryQueueActivateProductionBonus(options);
                 return Task.CompletedTask;
             });

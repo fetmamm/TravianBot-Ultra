@@ -563,6 +563,12 @@ public partial class MainWindow
         {
             ApplyProductionBonusResult(executionResult.LastTask?.Message);
         }
+        else if (string.Equals(item.TaskName, "read_daily_reset", StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(item.TaskName, "collect_daily_quests", StringComparison.OrdinalIgnoreCase))
+        {
+            // read_daily_reset carries the reset hour; collect_daily_quests piggybacks it from the open dialog.
+            ApplyDailyResetReadResult(executionResult.LastTask?.Message);
+        }
 
         return fullConstructionRefreshDone;
     }

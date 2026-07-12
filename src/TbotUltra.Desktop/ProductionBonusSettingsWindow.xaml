@@ -13,7 +13,6 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
-            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <StackPanel Grid.Row="0" Margin="0,0,0,12">
@@ -92,46 +91,10 @@
             <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
                             Margin="8,0,0,0"
                             VerticalAlignment="Center"
-                            ToolTip="After the daily 09:00 server-time reset, the bot waits a random time within this range before watching the videos again.&#10;&#10;Example: reset is 09:00 and 40 min is picked at random — the bot runs about 09:40 server time, then watches every available video in a row." />
+                            ToolTip="After the daily server-time reset, the bot waits a random time within this range before watching the videos again.&#10;&#10;The reset hour is auto-detected from the daily quests dialog (override it in Settings &gt; General).&#10;&#10;Example: reset is 13:00 and 40 min is picked at random — the bot runs about 13:40 server time, then watches every available video in a row." />
         </StackPanel>
 
-        <StackPanel Grid.Row="3" Margin="0,14,0,0">
-            <StackPanel Orientation="Horizontal">
-                <TextBlock Text="Daily reset time (server)"
-                           FontWeight="SemiBold"
-                           VerticalAlignment="Center"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
-                <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
-                                Margin="8,0,0,0"
-                                VerticalAlignment="Center"
-                                ToolTip="When the free +15% video re-enables each day (server time). Auto-learn watches when the video becomes available and remembers the hour, per account. Manual: set the whole hour yourself." />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="0,6,0,0" VerticalAlignment="Center">
-                <RadioButton x:Name="ResetAutoRadio"
-                             GroupName="ProductionBonusReset"
-                             Content="Auto-learn"
-                             VerticalAlignment="Center"
-                             Checked="ResetMode_Changed" />
-                <TextBlock x:Name="LearnedResetTextBlock"
-                           VerticalAlignment="Center"
-                           Margin="8,0,0,0"
-                           Foreground="{DynamicResource TextMutedBrush}" />
-            </StackPanel>
-            <StackPanel Orientation="Horizontal" Margin="0,6,0,0" VerticalAlignment="Center">
-                <RadioButton x:Name="ResetManualRadio"
-                             GroupName="ProductionBonusReset"
-                             Content="Manual"
-                             VerticalAlignment="Center"
-                             Checked="ResetMode_Changed" />
-                <ComboBox x:Name="ManualResetHourComboBox"
-                          Width="80"
-                          Margin="8,0,0,0"
-                          VerticalAlignment="Center"
-                          SelectionChanged="ResetMode_Changed" />
-            </StackPanel>
-        </StackPanel>
-
-        <DockPanel Grid.Row="4"
+        <DockPanel Grid.Row="3"
                    LastChildFill="False"
                    Margin="0,16,0,0">
             <Button x:Name="ClearTimersButton"

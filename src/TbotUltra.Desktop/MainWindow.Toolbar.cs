@@ -128,7 +128,10 @@ public partial class MainWindow
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        var window = new SettingsWindow(_botConfigStore, IsSessionSleeping)
+        var detectedResetHour = Services.ProductionBonusStateStore
+            .LoadSettings(_projectRoot, _accountStore.ActiveAccountName())
+            .DetectedResetHour;
+        var window = new SettingsWindow(_botConfigStore, IsSessionSleeping, detectedResetHour)
         {
             Owner = this,
         };
