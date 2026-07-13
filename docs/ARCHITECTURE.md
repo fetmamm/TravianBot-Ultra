@@ -5,6 +5,7 @@ conventions. Goal: find the right file fast (human or AI) without reading whole 
 
 Read `docs/ENGINEERING_NOTES.md` first for rules, Official-only behavior, and pitfalls.
 This file is a map only — no behavior rules. Keep it current when structure changes.
+Behavior-preserving refactors use the checks in `docs/REFACTOR_PARITY.md`.
 
 ---
 
