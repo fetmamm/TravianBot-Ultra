@@ -396,24 +396,6 @@ public sealed partial class TravianClient
         public bool InUpgradeContainer { get; init; }
     }
 
-    private sealed class ResourceFieldJs
-    {
-        [JsonPropertyName("slotId")]
-        public int? SlotId { get; init; }
-
-        [JsonPropertyName("fieldType")]
-        public string? FieldType { get; init; }
-
-        [JsonPropertyName("name")]
-        public string? Name { get; init; }
-
-        [JsonPropertyName("level")]
-        public int? Level { get; init; }
-
-        [JsonPropertyName("href")]
-        public string? Href { get; init; }
-    }
-
     private sealed class BuildingJs
     {
         [JsonPropertyName("slotId")]
