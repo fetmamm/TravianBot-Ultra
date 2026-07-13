@@ -19,7 +19,7 @@ public sealed partial class TravianClient
         }
 
         await LoginAsync(cancellationToken);
-        await GotoAsync("/karte.php", cancellationToken);
+        await GotoAsync(Paths.Map, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken);
 
         var centers = Automation.MapOasisApiParser.CreateScanCenters();

@@ -885,7 +885,7 @@ public sealed partial class TravianClient : IHeroClient
     {
         try
         {
-            await GotoAsync("/hero/attributes", cancellationToken);
+            await GotoAsync(HeroAttributesPath, cancellationToken);
             await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             await EnsureLoggedInAsync();
 

@@ -32,7 +32,7 @@ public sealed partial class TravianClient
     private async Task<int> AllocateHeroPointsOfficialAsync(string priority, CancellationToken cancellationToken)
     {
         Notify("[hero:verbose] official hero point allocation entered");
-        await GotoAsync("/hero/attributes", cancellationToken);
+        await GotoAsync(HeroAttributesPath, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await EnsureLoggedInAsync();
 
