@@ -140,7 +140,7 @@ public partial class MainWindow
             BulkMessagesAnalyzeRequestedAsync,
             BulkMessagesSendRequestedAsync,
             BulkMessagesClearCacheRequestedAsync,
-            CancellationToken.None)
+            _loopController.AcquireSessionScopeToken())
         {
             Owner = sourceWindow?.Owner ?? _resourceTestFunctionsWindow ?? (Window)this,
         };

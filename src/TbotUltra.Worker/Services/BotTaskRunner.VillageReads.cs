@@ -174,7 +174,7 @@ public sealed partial class BotTaskRunner
                     {
                         try
                         {
-                            await client.SwitchToVillageAsync(targetName ?? string.Empty, targetUrl, CancellationToken.None, skipFeatureRefresh: true);
+                            await client.SwitchToVillageAsync(targetName ?? string.Empty, targetUrl, cancellationToken, skipFeatureRefresh: true);
                             var label = !string.IsNullOrWhiteSpace(targetName) ? targetName : targetUrl;
                             log($"Returned to selected village: {label}");
                         }

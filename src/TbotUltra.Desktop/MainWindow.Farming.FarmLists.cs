@@ -344,7 +344,7 @@ public partial class MainWindow
             }
 
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            await RefreshFarmListsFromServerAsync(options, CancellationToken.None);
+            await RefreshFarmListsFromServerAsync(options, _loopController.AcquireSessionScopeToken());
         }
         catch (Exception ex)
         {

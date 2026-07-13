@@ -165,7 +165,7 @@ public partial class MainWindow
         try
         {
             await EnsureChromiumInstalledAsync();
-            var snapshot = await RefreshHeroStatsAsync(CancellationToken.None);
+            var snapshot = await RefreshHeroStatsAsync(_loopController.AcquireSessionScopeToken());
             CompleteOperation(operationId, operationSw, $"Hero stats refreshed. Free points: {snapshot.FreePoints}.");
         }
         catch (Exception ex)
@@ -239,7 +239,10 @@ public partial class MainWindow
         {
             await EnsureChromiumInstalledAsync();
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            var count = await _botService.RefreshAdventureCountAsync(options, AppendLog, CancellationToken.None);
+            var count = await _botService.RefreshAdventureCountAsync(
+                options,
+                AppendLog,
+                _loopController.AcquireSessionScopeToken());
             if (count is null)
             {
                 ApplyHeroAdventureAvailability(null);
@@ -306,7 +309,10 @@ public partial class MainWindow
         {
             await EnsureChromiumInstalledAsync();
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            var resources = await _botService.RefreshHeroInventoryAsync(options, AppendLog, CancellationToken.None);
+            var resources = await _botService.RefreshHeroInventoryAsync(
+                options,
+                AppendLog,
+                _loopController.AcquireSessionScopeToken());
             _heroViewModel.ApplyInventory(resources);
             CompleteOperation(operationId, operationSw,
                 $"Hero inventory refreshed. wood={resources.Wood}, clay={resources.Clay}, iron={resources.Iron}, crop={resources.Crop}.");

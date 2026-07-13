@@ -110,6 +110,8 @@ public sealed partial class TravianClient
         catch
         {
             // Unexpected failures keep the checkpoint so the scan can resume after a retry.
+            // Deliberately independent of the operation token: this is bounded local file I/O,
+            // does not hold the browser session gate, and must preserve progress after a failure.
             try
             {
                 await SaveMapOasisSnapshotAsync(

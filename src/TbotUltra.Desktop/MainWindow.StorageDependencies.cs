@@ -22,7 +22,7 @@ public partial class MainWindow
         {
             try
             {
-                await RefreshConstructionStatusAsync(CancellationToken.None);
+                await RefreshConstructionStatusAsync(_loopController.AcquireSessionScopeToken());
             }
             catch (Exception ex)
             {

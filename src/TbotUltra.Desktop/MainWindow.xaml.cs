@@ -1306,7 +1306,10 @@ public partial class MainWindow : Window
                     [BotOptionPayloadKeys.TargetVillageName] = villageName ?? string.Empty,
                     [BotOptionPayloadKeys.TargetVillageUrl] = villageUrl ?? string.Empty,
                 });
-            var status = await _botService.ReadBuildingsStatusAsync(options, AppendLog, CancellationToken.None);
+            var status = await _botService.ReadBuildingsStatusAsync(
+                options,
+                AppendLog,
+                _loopController.AcquireSessionScopeToken());
             var uiStatus = MergeBuildingStatusForUi(status);
             await Dispatcher.InvokeAsync(() =>
             {

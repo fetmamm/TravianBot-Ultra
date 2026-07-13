@@ -209,7 +209,7 @@ public static class TravcoInactiveSearch
         {
             try
             {
-                await ReturnToFirstPageAsync(page);
+                await ReturnToFirstPageAsync(page, cancellationToken);
                 log?.Invoke("[travco] returned to result page 1.");
             }
             catch (Exception ex)
@@ -309,24 +309,24 @@ public static class TravcoInactiveSearch
         await WaitForResultsSettledAsync(page, cancellationToken);
     }
 
-    private static async Task ReturnToFirstPageAsync(IPage page)
+    private static async Task ReturnToFirstPageAsync(IPage page, CancellationToken cancellationToken)
     {
         var firstPageLink = page.Locator(
             "main a[data-original-title='first page'][href*='page=1'], main a[title='first page'][href*='page=1']")
             .First;
         if (await firstPageLink.CountAsync() > 0)
         {
-            await firstPageLink.ClickAsync();
-            await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded);
+            await firstPageLink.ClickAsync().WaitAsync(cancellationToken);
+            await page.WaitForLoadStateAsync(LoadState.DOMContentLoaded).WaitAsync(cancellationToken);
             await page.WaitForFunctionAsync(
                 "() => Number.parseInt((document.querySelector('main a.btn.active[href*=\"page=\"]')?.textContent || '0').trim(), 10) === 1",
                 null,
-                new PageWaitForFunctionOptions { Timeout = 20000 });
-            await WaitForResultsSettledAsync(page, CancellationToken.None);
+                new PageWaitForFunctionOptions { Timeout = 20000 }).WaitAsync(cancellationToken);
+            await WaitForResultsSettledAsync(page, cancellationToken);
             return;
         }
 
-        await NavigateToPageAsync(page, 1, CancellationToken.None);
+        await NavigateToPageAsync(page, 1, cancellationToken);
     }
 
     private static Task WaitForValueAsync(

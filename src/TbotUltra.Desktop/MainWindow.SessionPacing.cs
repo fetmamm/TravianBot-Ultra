@@ -229,6 +229,8 @@ public partial class MainWindow
 
             var operationId = BeginOperation("Session sleep");
             var operationSw = System.Diagnostics.Stopwatch.StartNew();
+            // Deliberately independent of the canceled session scope: sleep must still log out
+            // after automation has been drained. Logout owns its own bounded shutdown path.
             var operationToken = CancellationToken.None;
             ToggleUiBusy(true);
             try

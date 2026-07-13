@@ -335,7 +335,7 @@ public partial class MainWindow
                 AppendLog,
                 villageName,
                 villageUrl,
-                CancellationToken.None);
+                _loopController.AcquireSessionScopeToken());
             SetActiveWorkingVillage(
                 ResolveVillageKeyByName(villageName),
                 villageName);

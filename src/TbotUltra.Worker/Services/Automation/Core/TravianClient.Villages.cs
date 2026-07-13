@@ -62,8 +62,8 @@ public sealed partial class TravianClient
             {
                 try
                 {
-                    await SwitchToVillageAsync(returnVillageName, cancellationToken: CancellationToken.None, skipFeatureRefresh: true);
-                    await GotoAsync(Paths.Resources, CancellationToken.None);
+                    await SwitchToVillageAsync(returnVillageName, cancellationToken: cancellationToken, skipFeatureRefresh: true);
+                    await GotoAsync(Paths.Resources, cancellationToken);
                     Notify($"[scan:verbose] returned to original village '{returnVillageName}' on dorf1");
                 }
                 catch (Exception ex)

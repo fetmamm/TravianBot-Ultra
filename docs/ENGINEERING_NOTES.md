@@ -136,6 +136,9 @@ document.querySelector('.warehouse .capacity .value')
 - Anvand aldrig `CancellationToken.None` for operationer som tar worker-session-gaten (post-task/manuella
   refreshes): ta token fran metodens parameter eller `LoopController.AcquireSessionScopeToken()` (cancellas
   av stop/kontobyte, ater-armas lazily for nasta operation).
+- Best-effort cleanup far vara frikopplad endast nar den ar begransad och inte tar session-gaten, t.ex.
+  lokal checkpoint-save efter map-scan-fel. Session-sleep logout ar ett dokumenterat undantag eftersom
+  det maste koras efter att session-scope medvetet har cancellats.
 - Tidsintervall styrs med min/max-minuter (inte bas+variation%): farm-dispatch
   (`continuous_farm_dispatch_delay_min/max_minutes`, default 30-90), reinforcements-send
   (`reinforcements_send_min/max_minutes`, default 60-120), session pacing run/sleep

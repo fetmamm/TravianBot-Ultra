@@ -66,7 +66,7 @@ public partial class MainWindow
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
             var status = await ReadVillageStatusWithRetryAsync(
                 options,
-                CancellationToken.None,
+                _loopController.AcquireSessionScopeToken(),
                 resourceOnly: false,
                 forceCurrentVillage: false);
 

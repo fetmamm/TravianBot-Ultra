@@ -1094,7 +1094,10 @@ public partial class MainWindow
             await EnsureChromiumInstalledAsync();
             AppendLog("[resource-refresh] manual quick refresh requested");
             var options = LoadBotOptions();
-            var status = await _botService.ReadCurrentPageResourceStatusQuickAsync(options, AppendLog, CancellationToken.None);
+            var status = await _botService.ReadCurrentPageResourceStatusQuickAsync(
+                options,
+                AppendLog,
+                _loopController.AcquireSessionScopeToken());
             ApplyResourceStatusToUi(status);
         }
         catch (Exception ex)
