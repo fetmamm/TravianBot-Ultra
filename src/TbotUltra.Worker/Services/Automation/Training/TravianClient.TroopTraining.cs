@@ -703,8 +703,8 @@ public sealed partial class TravianClient
         IReadOnlyDictionary<string, double?> statusProductionByHour,
         IReadOnlyDictionary<string, double?>? cachedProductionByHour)
     {
-        return MergeProductionByHour(
-            MergeProductionByHour(liveProductionByHour, statusProductionByHour),
+        return ResourceSnapshotCalculator.MergeProductionByHour(
+            ResourceSnapshotCalculator.MergeProductionByHour(liveProductionByHour, statusProductionByHour),
             cachedProductionByHour);
     }
 

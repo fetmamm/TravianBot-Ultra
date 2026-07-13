@@ -377,6 +377,9 @@ public partial class ProxyFinderWindow : Window
 
     // Quick-pick a list type: set the paste type to match, then download the raw list into the editor.
     private async void GetListButton_Click(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(() => GetListButtonClickAsync(sender), LogUiGuardError);
+
+    private async Task GetListButtonClickAsync(object sender)
     {
         if (sender is not FrameworkElement { Tag: string tag } || string.IsNullOrWhiteSpace(tag))
         {
@@ -389,7 +392,7 @@ public partial class ProxyFinderWindow : Window
             "http" => "https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/http.txt",
             _ => "https://raw.githubusercontent.com/TheSpeedX/SOCKS-List/master/socks5.txt",
         };
-        await AsyncUi.GuardAsync(() => LoadProxyListAsync(tag, url), LogUiGuardError);
+        await LoadProxyListAsync(tag, url);
     }
 
     private async Task LoadProxyListAsync(string scheme, string url)

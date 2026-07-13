@@ -1,0 +1,107 @@
+<UserControl x:Class="TbotUltra.Desktop.Views.LogsPanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8" VerticalAlignment="Center">
+            <TextBlock Text="Filter:" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" FontWeight="SemiBold" Margin="0,0,8,0" />
+            <ComboBox x:Name="LogCategoryFilterComboBox"
+                      Width="140"
+                      Margin="0,0,12,0"
+                      VerticalAlignment="Center"
+                      SelectionChanged="LogCategoryFilterComboBox_SelectionChanged"
+                      ToolTip="Show only log lines for this task category." />
+            <CheckBox x:Name="LogCleanModeToggle"
+                      Content="Clean"
+                      VerticalAlignment="Center"
+                      Checked="LogCleanModeToggle_Changed"
+                      Unchecked="LogCleanModeToggle_Changed"
+                      ToolTip="Hide high-volume noise lines (full log is still kept in the session file)." />
+            <Border Width="14" Height="14" Margin="8,0,0,0" CornerRadius="7"
+                    Background="{DynamicResource ControlBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
+                    VerticalAlignment="Center" ToolTipService.InitialShowDelay="0">
+                <Border.ToolTip>
+                    <ToolTip MaxWidth="360">
+                        <StackPanel Width="320">
+                            <TextBlock Text="Clean log" FontWeight="SemiBold" Foreground="{DynamicResource TooltipForegroundBrush}" Margin="0,0,0,6" />
+                            <TextBlock TextWrapping="Wrap" Text="Hides high-volume technical lines from the visible log, such as routine login checks, UI sync, resource-production updates, and repeated internal scans." />
+                            <TextBlock Margin="0,8,0,0" TextWrapping="Wrap" Text="Important queue events, waits, actions, hero status, errors, and alarms are still shown. The full raw session log is still saved to file." />
+                        </StackPanel>
+                    </ToolTip>
+                </Border.ToolTip>
+                <TextBlock Text="i" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" HorizontalAlignment="Center" VerticalAlignment="Center" TextAlignment="Center" />
+            </Border>
+        </StackPanel>
+        <TabControl x:Name="TerminalAlarmTabControl" Grid.Row="1" Margin="0,0,0,8">
+            <TabItem Header="Log">
+                <Border Background="{DynamicResource TerminalBgBrush}" Padding="8">
+                    <ListBox x:Name="TerminalListBox"
+                             Background="{DynamicResource TerminalBgBrush}"
+                             Foreground="{DynamicResource TerminalFgBrush}"
+                             BorderThickness="0" FontFamily="Consolas" FontSize="13"
+                             SelectionMode="Extended" ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate><TextBlock Text="{Binding Text}" TextWrapping="Wrap" /></DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </TabItem>
+            <TabItem x:Name="AlarmTabItem" Header="Alarms">
+                <TabItem.Resources>
+                    <ControlTemplate x:Key="ActiveAlarmTabTemplate" TargetType="TabItem">
+                        <Border x:Name="AlarmTabBorder" Background="{DynamicResource DangerBrush}"
+                                BorderBrush="{DynamicResource DangerStrongBrush}" BorderThickness="1"
+                                CornerRadius="3,3,0,0" Padding="8,3" Margin="0,0,2,0">
+                            <ContentPresenter ContentSource="Header" RecognizesAccessKey="True" HorizontalAlignment="Center" VerticalAlignment="Center" />
+                        </Border>
+                        <ControlTemplate.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter TargetName="AlarmTabBorder" Property="BorderBrush" Value="{DynamicResource DangerDarkBrush}" />
+                                <Setter TargetName="AlarmTabBorder" Property="BorderThickness" Value="2,2,2,0" />
+                                <Setter TargetName="AlarmTabBorder" Property="Padding" Value="7,3,7,4" />
+                                <Setter Property="Panel.ZIndex" Value="100" />
+                            </Trigger>
+                            <Trigger Property="IsEnabled" Value="False"><Setter Property="Opacity" Value="0.56" /></Trigger>
+                        </ControlTemplate.Triggers>
+                    </ControlTemplate>
+                </TabItem.Resources>
+                <Border Background="{DynamicResource AlarmBgBrush}" Padding="8">
+                    <ListBox x:Name="AlarmListBox"
+                             Background="{DynamicResource AlarmBgBrush}" BorderThickness="0"
+                             FontFamily="Consolas" FontSize="13" SelectionMode="Extended"
+                             ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <ListBox.ItemTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Text}" TextWrapping="Wrap">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource AlarmTextBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsAcknowledged}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource TerminalFgBrush}" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DataTemplate>
+                        </ListBox.ItemTemplate>
+                    </ListBox>
+                </Border>
+            </TabItem>
+        </TabControl>
+        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" VerticalAlignment="Center">
+            <TextBlock x:Name="CopyFeedbackTextBlock" Text="" Foreground="{DynamicResource SuccessBrush}"
+                       FontWeight="SemiBold" VerticalAlignment="Center" Margin="0,0,10,0" Visibility="Collapsed" />
+            <Button x:Name="PopoutLogsButton" Content="Pop out" Margin="0,0,8,0" Padding="10,4" Click="PopoutLogsButton_Click" />
+            <Button x:Name="CopyCurrentTabButton" Content="Copy" Margin="0,0,8,0" Padding="10,4" Click="CopyCurrentTabButton_Click" />
+            <Button x:Name="AcknowledgeAlarmButton" Content="Acknowledge alarms" Margin="0,0,8,0" Padding="10,4" Click="AcknowledgeAlarmButton_Click" />
+            <Button x:Name="ClearCurrentLogButton" Content="Clear" Padding="10,4" Click="ClearCurrentLogButton_Click" />
+        </StackPanel>
+    </Grid>
+</UserControl>

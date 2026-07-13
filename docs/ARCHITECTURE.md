@@ -35,9 +35,9 @@ These are contracts only — no logic was extracted out of the facade.
 |---|---|---|
 | `Automation/Core/` | Client plumbing: login, navigation, session, manual verification, account snapshot, villages, selectors, retry, page-tasks, capital cache | `TravianClient.cs` (state+ctor), `.Login`, `.Navigation`, `.UiSync`, `.ManualVerification`, `.AccountSnapshot`, `.Villages`, `.Selectors`, `.RetryPolicy`, `.Tasks`, `.CapitalCache`; helpers `TravianSessionCache`, `TravianUrls`, `TravianParsing`, `CapitalCacheKey` |
 | `Automation/Farming/` | Farm lists, list creation, Official Add Farms | `TravianClient.FarmLists`, `.FarmListCreation`, `.FarmAdd`; `FarmListLossStateClassifier` |
-| `Automation/Buildings/` | Construction & upgrades | `TravianClient.Buildings`, `.Upgrade`, `.ConstructFaster`; `BuildingDomParser`, `BuildingNames`, `ConstructionSlots`, `ConstructionHumanizeCalculator`, `BuildQueueFingerprints`, `UpgradeMath`, `ConstructFasterDecision` |
-| `Automation/Hero/` | Hero, adventures, hero resources | `TravianClient.Hero`, `.HeroResourceTransfer`, `.AdventureDanger`; `HeroCalc` |
-| `Automation/Resources/` | Resource read/transfer, NPC trade | `TravianClient.Resources`, `.ResourceTransfer`, `.NpcTrade`; `ResourceCapacitySnapshot` |
+| `Automation/Buildings/` | Construction, upgrades, Smithy | `TravianClient.Buildings`, `.Smithy`, `.Upgrade`, `.ConstructFaster`; `BuildingDomParser`, `BuildingOverviewScanPolicy`, `BuildingNames`, `ConstructionSlots`, `ConstructionHumanizeCalculator`, `BuildQueueFingerprints`, `UpgradeMath`, `ConstructFasterDecision` |
+| `Automation/Hero/` | Hero, adventures, attributes, hero resources | `TravianClient.Hero`, `.Hero.Adventures`, `.Hero.Attributes`, `.HeroResourceTransfer`, `.AdventureDanger`; `HeroCalc`, `HeroStatusDecision` |
+| `Automation/Resources/` | Resource read/transfer, NPC trade | `TravianClient.Resources`, `.ResourceTransfer`, `.NpcTrade`; `ResourceCapacitySnapshot`, `ResourceSnapshotCalculator` |
 | `Automation/Combat/` | Catapult waves, reinforcements, manual attack | `TravianClient.Catapults`, `.Reinforcements`, `.ManualAttack`; `CatapultWavePlanner` |
 | `Automation/Training/` | Troop training | `TravianClient.TroopTraining`; `TroopTrainingCalculator` |
 | `Automation/Features/` | Daily quests, inbox, report PNG capture, brewery & town-hall celebration, map oasis, +15% production bonus videos | `TravianClient.DailyQuests`, `.Inbox`, `.ReportPng`, `.BreweryCelebration`, `.TownHallCelebration`, `.MapOasis`, `.ProductionBonus`; `DailyQuestDomParser`, `DailyResetDomParser`, `MapOasisApiParser`, `ProductionBonusDomParser` |
@@ -74,7 +74,7 @@ One `partial class BotTaskRunner` in `Services/`, split by concern:
 
 ## 4. Core
 
-- `Configuration/` — `BotOptions`, `BotOptionsFactory`, `BotOptionsPayloadApplier`, defaults, `ActionPacer`.
+- `Configuration/` — `BotOptions`, `BotOptionsFactory`, `BotOptionsPayloadApplier` with domain appliers, defaults, `ActionPacer`.
 - `Tasks/` — task payloads (`*Payload.cs`), `TaskCatalog`, `TaskDescriptor`, `TaskGroup`.
 - `Travian/` — `SmithyPageParser`, `TroopCatalog`, troop types.
 - `Accounts/` — key normalizer, storage paths, analysis constants.
@@ -93,11 +93,12 @@ One `partial class BotTaskRunner` in `Services/`, split by concern:
   code-behind. Bound `ObservableCollection`s live on the view model; code-behind delegates and mutates in
   place (the scan/persist logic migrates later).
 - `Services/` — desktop-side stores & orchestration: `Orchestration/` (`LoopController`, `SessionPacer`,
-  `BackgroundTaskTracker`), `*Store.cs` (per-feature persistence), queue helpers, `DesktopBotService`.
+  `BackgroundTaskTracker`), `ContinuousLoopSelector`, `AccountEditorState`, `*Store.cs` (per-feature persistence),
+  queue helpers, `DesktopBotService`.
 - `*SettingsWindow.xaml` — focused popup settings such as hero resources, troop training, and construct-faster per-village options.
 - `SaveReportPngWindow.xaml` — Reports popup for saving the current opened combat report as a PNG.
 - `Models/` — UI row/item models bound to the views.
-- `Views/`, `Themes/`, `Assets/` — XAML windows, theme, resources.
+- `Views/`, `Themes/`, `Assets/` — extracted panels (including Farming, Resources, and Logs), XAML windows, theme, resources.
 
 ---
 

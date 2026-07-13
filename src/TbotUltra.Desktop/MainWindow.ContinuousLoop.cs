@@ -510,7 +510,10 @@ public partial class MainWindow
             if (CanRunReinforcements(options, out _))
             {
                 var payload = BuildAutomaticReinforcementPayload(options, selectedSources);
-                var delay = ResolveReinforcementAutomaticSendDelay(options, queueItems);
+                var delay = ContinuousLoopSelector.ResolveReinforcementSendDelay(
+                    options,
+                    queueItems,
+                    DateTimeOffset.UtcNow);
                 ScheduleAutomaticReinforcementSend(payload, delay, options);
             }
         }
@@ -582,25 +585,6 @@ public partial class MainWindow
             .ToList();
         var payload = BuildAutomaticReinforcementPayload(options, selectedSources);
         ScheduleAutomaticReinforcementSend(payload, CalculateNextReinforcementAutomaticSendDelay(options), options);
-    }
-
-    private static TimeSpan ResolveReinforcementAutomaticSendDelay(BotOptions options, IReadOnlyList<QueueItem> queueItems)
-    {
-        var lastSucceeded = queueItems
-            .Where(item => string.Equals(item.TaskName, "send_reinforcements_between_villages", StringComparison.OrdinalIgnoreCase))
-            .Where(item => item.Status == QueueStatus.Succeeded)
-            .Select(item => (DateTimeOffset?)item.UpdatedAt)
-            .Max();
-        if (lastSucceeded is null)
-        {
-            return TimeSpan.Zero;
-        }
-
-        var intervalHours = ReinforcementSendDefaults.NormalizeSendMinMinutes(options.ReinforcementsSendMinMinutes);
-        var variationPercent = ReinforcementSendDefaults.NormalizeSendMaxMinutes(options.ReinforcementsSendMaxMinutes);
-        var nextSendAt = lastSucceeded.Value.Add(ReinforcementSendDefaults.CalculateSendDelay(intervalHours, variationPercent));
-        var remaining = nextSendAt - DateTimeOffset.UtcNow;
-        return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
     }
 
     // Villages discovered at runtime (e.g. the user just founded one) that still need a one-time dorf1/dorf2
@@ -915,8 +899,8 @@ public partial class MainWindow
                 orderedGroupItems,
                 GetQueueItemVillageKey,
                 villageItems => group == QueueGroup.Hero
-                    ? SelectNextReadyHeroGroupItem(villageItems, now)
-                    : SelectNextReadyGroupHead(villageItems, now),
+                    ? ContinuousLoopSelector.SelectReadyHeroGroupItem(villageItems, now)
+                    : ContinuousLoopSelector.SelectReadyGroupHead(villageItems, now),
                 ref groupRotationKey);
             if (!preview)
             {
@@ -1187,31 +1171,6 @@ public partial class MainWindow
     // Per-village head selection for non-construction groups: returns this village's first item when it
     // is Pending and due, otherwise null (so rotation moves on to another village). Preserves the strict
     // in-order behavior within a village that the old single-head logic had.
-    private static QueueItem? SelectNextReadyGroupHead(IReadOnlyList<QueueItem> villageItems, DateTimeOffset now)
-    {
-        var head = villageItems.FirstOrDefault();
-        if (head is null || head.Status != QueueStatus.Pending || head.NextAttemptAt > now)
-        {
-            return null;
-        }
-
-        return head;
-    }
-
-    private static QueueItem? SelectNextReadyHeroGroupItem(IReadOnlyList<QueueItem> villageItems, DateTimeOffset now)
-    {
-        var head = SelectNextReadyGroupHead(villageItems, now);
-        if (head is not null)
-        {
-            return head;
-        }
-
-        return villageItems.FirstOrDefault(item =>
-            string.Equals(item.TaskName, "spend_hero_attribute_points", StringComparison.OrdinalIgnoreCase)
-            && item.Status == QueueStatus.Pending
-            && item.NextAttemptAt <= now);
-    }
-
     private QueueItem? SelectNextConstructionQueueItem(
         IReadOnlyList<QueueItem> orderedGroupItems,
         DateTimeOffset now,

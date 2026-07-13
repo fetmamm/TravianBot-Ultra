@@ -39,8 +39,8 @@ public sealed partial class TravianClient
         var capacities = (
             Warehouse: snapshot.Capacities.Warehouse ?? cachedSnapshot?.WarehouseCapacity,
             Granary: snapshot.Capacities.Granary ?? cachedSnapshot?.GranaryCapacity);
-        var productionByHour = MergeProductionByHour(snapshot.ProductionByHour, cachedSnapshot?.ProductionByHour);
-        var forecasts = BuildResourceForecasts(resources, capacities, productionByHour);
+        var productionByHour = ResourceSnapshotCalculator.MergeProductionByHour(snapshot.ProductionByHour, cachedSnapshot?.ProductionByHour);
+        var forecasts = ResourceSnapshotCalculator.BuildStorageForecasts(resources, capacities.Warehouse, capacities.Granary, productionByHour);
 
         SaveCachedVillageResourceSnapshot(
             activeVillage,
@@ -438,9 +438,6 @@ public sealed partial class TravianClient
                 // at the moment the level advances. We deliberately do NOT diff levels again here, as
                 // that produced a duplicate "Resource slot N level increased ..." line per upgrade.
                 var fallbackMax = 40;
-                var actionableFields = resourceFields
-                    .Where(field => field.SlotId is not null && field.Level is not null);
-
                 List<ResourceField> candidateRows;
                 Dictionary<string, long>? stockByType = null;
                 if (smartStrategy)
@@ -476,11 +473,7 @@ public sealed partial class TravianClient
 
                 if (stockByType is not null)
                 {
-                    candidateRows = actionableFields
-                        .OrderBy(field => stockByType.TryGetValue(field.FieldType, out var stock) ? stock : long.MaxValue)
-                        .ThenBy(field => field.Level ?? 0)
-                        .ThenBy(field => field.SlotId ?? 999)
-                        .ToList();
+                    candidateRows = ResourceSnapshotCalculator.OrderUpgradeCandidates(resourceFields, stockByType).ToList();
                     string Stock(string key) => stockByType.TryGetValue(key, out var v) ? v.ToString() : "?";
                     var orderNote = stockByType.Values.Distinct().Count() <= 1
                         ? "tracked stocks equal; lowest-level-first tiebreak"
@@ -489,10 +482,7 @@ public sealed partial class TravianClient
                 }
                 else
                 {
-                    candidateRows = actionableFields
-                        .OrderBy(field => field.Level ?? 0)
-                        .ThenBy(field => field.SlotId ?? 999)
-                        .ToList();
+                    candidateRows = ResourceSnapshotCalculator.OrderUpgradeCandidates(resourceFields, stockByType: null).ToList();
                 }
 
                 Notify($"[UpgradeAllResourcesToLevelAsync] scanned {candidateRows.Count} resource fields on dorf1.");
@@ -762,8 +752,8 @@ public sealed partial class TravianClient
         var capacities = (
             Warehouse: snapshot.Capacities.Warehouse ?? cachedSnapshot?.WarehouseCapacity,
             Granary: snapshot.Capacities.Granary ?? cachedSnapshot?.GranaryCapacity);
-        var productionByHour = MergeProductionByHour(snapshot.ProductionByHour, cachedSnapshot?.ProductionByHour);
-        var forecasts = BuildResourceForecasts(resources, capacities, productionByHour);
+        var productionByHour = ResourceSnapshotCalculator.MergeProductionByHour(snapshot.ProductionByHour, cachedSnapshot?.ProductionByHour);
+        var forecasts = ResourceSnapshotCalculator.BuildStorageForecasts(resources, capacities.Warehouse, capacities.Granary, productionByHour);
         var usingCachedProduction = !HasAnyProduction(snapshot.ProductionByHour) && HasAnyProduction(cachedSnapshot?.ProductionByHour);
         Notify($"Resource read: storage wh={FormatResourceLogNumber(capacities.Warehouse)} gr={FormatResourceLogNumber(capacities.Granary)} | stock {BuildResourceValueLog(resources)} | prod {BuildProductionValueLog(productionByHour)}{(usingCachedProduction ? " (cached production)" : string.Empty)}");
 
@@ -977,36 +967,6 @@ public sealed partial class TravianClient
 
     private static bool HasAnyProduction(IReadOnlyDictionary<string, double?>? productionByHour)
         => productionByHour is not null && productionByHour.Values.Any(value => value is not null);
-
-    private static IReadOnlyDictionary<string, double?> MergeProductionByHour(
-        IReadOnlyDictionary<string, double?> live,
-        IReadOnlyDictionary<string, double?>? cached)
-    {
-        var merged = new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["wood"] = null,
-            ["clay"] = null,
-            ["iron"] = null,
-            ["crop"] = null,
-        };
-
-        foreach (var key in merged.Keys.ToList())
-        {
-            live.TryGetValue(key, out var liveValue);
-            if (liveValue is not null)
-            {
-                merged[key] = liveValue;
-                continue;
-            }
-
-            if (cached is not null && cached.TryGetValue(key, out var cachedValue))
-            {
-                merged[key] = cachedValue;
-            }
-        }
-
-        return merged;
-    }
 
     private static void AddResourceIfPresent(IDictionary<string, string> target, string key, string? value)
     {
@@ -1324,49 +1284,6 @@ public sealed partial class TravianClient
         }
 
         return new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase);
-    }
-
-    private static IReadOnlyList<ResourceStorageForecast> BuildResourceForecasts(
-        IReadOnlyDictionary<string, string> resources,
-        (long? Warehouse, long? Granary) capacities,
-        IReadOnlyDictionary<string, double?> productionByHour)
-    {
-        var result = new List<ResourceStorageForecast>();
-        foreach (var key in new[] { "wood", "clay", "iron", "crop" })
-        {
-            resources.TryGetValue(key, out var rawCurrent);
-            var current = TravianParsing.TryParseResourceValue(rawCurrent);
-            var capacity = string.Equals(key, "crop", StringComparison.OrdinalIgnoreCase)
-                ? capacities.Granary
-                : capacities.Warehouse;
-
-            productionByHour.TryGetValue(key, out var production);
-            double? percent = null;
-            if (capacity is > 0 && current is not null)
-            {
-                percent = Math.Clamp((double)current.Value / capacity.Value * 100.0, 0.0, 100.0);
-            }
-
-            int? secondsToFull = null;
-            if (capacity is > 0 && current is not null && production is > 0)
-            {
-                var remaining = Math.Max(0L, capacity.Value - current.Value);
-                var computedSeconds = Math.Ceiling((remaining / production.Value) * 3600.0);
-                secondsToFull = computedSeconds >= int.MaxValue
-                    ? int.MaxValue
-                    : (int)computedSeconds;
-            }
-
-            result.Add(new ResourceStorageForecast(
-                ResourceKey: key,
-                Current: current,
-                Capacity: capacity,
-                PercentOfCapacity: percent,
-                ProductionPerHour: production,
-                SecondsToFull: secondsToFull));
-        }
-
-        return result;
     }
 
     private static bool HasCompleteResourceFieldSnapshot(IReadOnlyList<ResourceField> fields)
@@ -2150,15 +2067,7 @@ public sealed partial class TravianClient
     }
 
     private static int ComputeResourceUpgradeWaitSeconds(int? detectedSeconds)
-    {
-        var seconds = Math.Max(0, detectedSeconds ?? 0);
-        if (seconds == 0)
-        {
-            return 0;
-        }
-
-        return Math.Min(seconds + 1, 12 * 60 * 60);
-    }
+        => ResourceSnapshotCalculator.ComputeUpgradeWaitSeconds(detectedSeconds);
 
     private async Task<int> ReadQueuedResourceWaitSecondsAsync(
         string resourceName,
@@ -2262,7 +2171,13 @@ public sealed partial class TravianClient
                 continue;
             }
 
-            var evaluation = EvaluateResourceUpgradeAffordability(cost, resources, productionByHour);
+            var evaluation = ResourceSnapshotCalculator.EvaluateUpgradeAffordability(
+                cost.Wood,
+                cost.Clay,
+                cost.Iron,
+                cost.Crop,
+                resources,
+                productionByHour);
             ranked.Add(new ResourceUpgradeCandidate(
                 candidate,
                 actionability,
@@ -2413,49 +2328,6 @@ public sealed partial class TravianClient
         return null;
     }
 
-    private static ResourceUpgradeAffordability EvaluateResourceUpgradeAffordability(
-        ResourceUpgradeCostSnapshot cost,
-        IReadOnlyDictionary<string, string> resources,
-        IReadOnlyDictionary<string, double?> productionByHour)
-    {
-        long longest = 0;
-        var hasUnknownWait = false;
-
-        foreach (var key in new[] { "wood", "clay", "iron", "crop" })
-        {
-            var required = key switch
-            {
-                "wood" => cost.Wood,
-                "clay" => cost.Clay,
-                "iron" => cost.Iron,
-                _ => cost.Crop,
-            };
-
-            resources.TryGetValue(key, out var currentRaw);
-            var current = TravianParsing.TryParseResourceValue(currentRaw) ?? 0;
-            var missing = Math.Max(0, required - current);
-            if (missing <= 0)
-            {
-                continue;
-            }
-
-            productionByHour.TryGetValue(key, out var production);
-            if (production is > 0)
-            {
-                var wait = (long)Math.Ceiling((missing / production.Value) * 3600d);
-                longest = Math.Max(longest, Math.Max(1L, wait));
-                continue;
-            }
-
-            hasUnknownWait = true;
-        }
-
-        return new ResourceUpgradeAffordability(
-            hasUnknownWait ? long.MaxValue : longest,
-            hasUnknownWait,
-            cost.Wood + cost.Clay + cost.Iron + cost.Crop);
-    }
-
     private sealed record ResourceUpgradeCandidate(
         ResourceField Field,
         UpgradeAttemptResult? Actionability,
@@ -2506,7 +2378,5 @@ public sealed partial class TravianClient
 
         return Math.Min(effectiveTarget, nextKnownLevel);
     }
-
-    private sealed record ResourceUpgradeAffordability(long TimeUntilAffordableSeconds, bool HasUnknownWait, long TotalCost);
 
 }

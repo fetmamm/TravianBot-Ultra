@@ -1,6 +1,5 @@
 using System.ComponentModel;
 using System.Diagnostics;
-using System.Text.Json;
 using System.Windows;
 using System.Windows.Data;
 using Microsoft.Playwright;
@@ -34,12 +33,7 @@ public partial class AccountsWindow : Window
     private string _editingOriginalName = string.Empty;
     private string _editingOriginalServerName = string.Empty;
     private string _selectedAccountName = string.Empty;
-    private string _baselineUsername = string.Empty;
-    private string _baselinePassword = string.Empty;
-    private string _baselineServerUrl = string.Empty;
-    private bool _baselineProxyEnabled;
-    private string _baselineProxyServer = string.Empty;
-    private bool _baselineNeverUseOwnIp;
+    private AccountEditorSnapshot _baselineEditorState = new(string.Empty, string.Empty, string.Empty, false, string.Empty, false);
     private bool _suppressSelectionChanged;
     private bool _suppressSavedProxySelection;
     private bool _isClosing;
@@ -443,6 +437,9 @@ public partial class AccountsWindow : Window
     }
 
     private async void CheckProxyButton_Click(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(CheckProxyAsync, message => System.Diagnostics.Debug.WriteLine(message));
+
+    private async Task CheckProxyAsync()
     {
         CheckProxyButton.IsEnabled = false;
         CheckMyIpButton.IsEnabled = false;
@@ -456,7 +453,7 @@ public partial class AccountsWindow : Window
             var proxyServer = ValidateCurrentProxyFields();
             if (!ProxyParser.TryBuild(proxyServer, out var proxy, out var proxyWarning) || proxy is null)
             {
-                CompleteProxyCheckOverlay("Proxy check", BuildProxyCheckFailure("Invalid proxy settings.", proxyServer), string.Empty, success: false);
+                CompleteProxyCheckOverlay("Proxy check", ProxyCheckResultCodec.BuildFailure("Invalid proxy settings.", proxyServer), string.Empty, success: false);
                 return;
             }
 
@@ -470,7 +467,7 @@ public partial class AccountsWindow : Window
         }
         catch (Exception ex)
         {
-            CompleteProxyCheckOverlay("Proxy check", BuildProxyCheckFailure(SummarizeProxyCheckError(ex.Message), TryBuildProxyServerStringForDisplay()), string.Empty, success: false);
+            CompleteProxyCheckOverlay("Proxy check", ProxyCheckResultCodec.BuildFailure(ProxyCheckResultCodec.SummarizeError(ex.Message), TryBuildProxyServerStringForDisplay()), string.Empty, success: false);
         }
         finally
         {
@@ -480,6 +477,9 @@ public partial class AccountsWindow : Window
     }
 
     private async void CheckMyIpButton_Click(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(CheckMyIpAsync, message => System.Diagnostics.Debug.WriteLine(message));
+
+    private async Task CheckMyIpAsync()
     {
         CheckProxyButton.IsEnabled = false;
         CheckMyIpButton.IsEnabled = false;
@@ -500,7 +500,7 @@ public partial class AccountsWindow : Window
                 proxyServer = ValidateCurrentProxyFields();
                 if (!ProxyParser.TryBuild(proxyServer, out proxy, out proxyWarning) || proxy is null)
                 {
-                    CompleteProxyCheckOverlay("Check IP adress", BuildProxyCheckFailure("Invalid proxy settings.", proxyServer), string.Empty, success: false);
+                    CompleteProxyCheckOverlay("Check IP adress", ProxyCheckResultCodec.BuildFailure("Invalid proxy settings.", proxyServer), string.Empty, success: false);
                     return;
                 }
 
@@ -517,7 +517,7 @@ public partial class AccountsWindow : Window
         }
         catch (Exception ex)
         {
-            CompleteProxyCheckOverlay("Check IP adress", BuildProxyCheckFailure(SummarizeProxyCheckError(ex.Message), TryBuildProxyServerStringForDisplay()), string.Empty, success: false);
+            CompleteProxyCheckOverlay("Check IP adress", ProxyCheckResultCodec.BuildFailure(ProxyCheckResultCodec.SummarizeError(ex.Message), TryBuildProxyServerStringForDisplay()), string.Empty, success: false);
         }
         finally
         {
@@ -745,15 +745,7 @@ public partial class AccountsWindow : Window
 
     private void RebuildSavedProxyOptions(string? accountName)
     {
-        var normalizedAccount = accountName?.Trim() ?? string.Empty;
-        var orderedEntries = _proxyLibraryEntries
-            .OrderByDescending(entry => normalizedAccount.Length > 0
-                && string.Equals(entry.AssignedAccount, normalizedAccount, StringComparison.OrdinalIgnoreCase))
-            .ThenBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(entry => entry.HostPort, StringComparer.OrdinalIgnoreCase);
-
-        _savedProxyOptions = [new SavedProxyOption(null, "Select saved proxy...")];
-        _savedProxyOptions.AddRange(orderedEntries.Select(entry => new SavedProxyOption(entry, BuildSavedProxyDisplay(entry))));
+        _savedProxyOptions = AccountEditorState.BuildSavedProxyOptions(_proxyLibraryEntries, accountName);
 
         _suppressSavedProxySelection = true;
         SavedProxyComboBox.ItemsSource = null;
@@ -839,18 +831,6 @@ public partial class AccountsWindow : Window
         return AccountKeyNormalizer.MakeKey(username, serverUrl);
     }
 
-    private static string BuildSavedProxyDisplay(ProxyLibraryEntry entry)
-    {
-        var display = entry.DisplayName;
-        if (!string.IsNullOrWhiteSpace(entry.AssignedAccount))
-        {
-            return $"{display} [locked: {entry.AssignedAccount}]";
-        }
-
-        var usedCount = entry.UsedByAccounts.Count(item => !string.IsNullOrWhiteSpace(item));
-        return usedCount > 0 ? $"{display} [used: {usedCount}]" : display;
-    }
-
     private void AccountsWindow_Closing(object? sender, CancelEventArgs e)
     {
         if (_isClosing)
@@ -869,64 +849,24 @@ public partial class AccountsWindow : Window
 
     private AccountEntry ReadEditor()
     {
-        var username = UsernameTextBox.Text.Trim();
         var password = _showPassword ? PasswordTextBox.Text : PasswordBox.Password;
-        if (username.Length == 0 || password.Length == 0)
-        {
-            throw new InvalidOperationException("Username and password are required.");
-        }
-
         var selectedServer = ServerComboBox.SelectedItem as ServerOption;
         var serverName = selectedServer?.Name ?? _defaultServerName;
         var serverUrl = selectedServer?.BaseUrl ?? _defaultServerUrl;
-
-        var proxyEnabled = UseProxyCheckBox.IsChecked == true;
-        var neverUseOwnIp = NeverUseOwnIpCheckBox.IsChecked == true;
-        var proxyServer = BuildProxyServerString();
-        if (proxyEnabled || neverUseOwnIp)
-        {
-            var proxyHost = ProxyHostTextBox.Text.Trim();
-            var proxyPort = ProxyPortTextBox.Text.Trim();
-            if (proxyHost.Length == 0 || proxyPort.Length == 0)
-            {
-                throw new InvalidOperationException("Proxy host/IP and port are required when proxy protection is on.");
-            }
-
-            if (proxyHost.Any(char.IsWhiteSpace) || proxyHost.Contains("://", StringComparison.Ordinal) || proxyHost.Contains(':'))
-            {
-                throw new InvalidOperationException("Proxy host/IP must not contain spaces, scheme, or port. Use the separate type and port fields.");
-            }
-
-            if (!int.TryParse(proxyPort, out var parsedPort) || parsedPort is < 1 or > 65535)
-            {
-                throw new InvalidOperationException("Proxy port must be a number between 1 and 65535.");
-            }
-
-            if (neverUseOwnIp)
-            {
-                proxyEnabled = true;
-                if (!ProxyParser.TryBuild(proxyServer, out _, out _))
-                {
-                    throw new InvalidOperationException("Never use own IP address requires a valid proxy.");
-                }
-            }
-        }
-
-        var normalizedName = _editingExistingAccount
-            ? _editingOriginalName
-            : AccountKeyNormalizer.MakeKey(username, serverUrl);
-
-        return new AccountEntry
-        {
-            Name = normalizedName,
-            Username = username,
-            Password = password,
-            ServerName = serverName,
-            ServerUrl = serverUrl,
-            ProxyEnabled = proxyEnabled,
-            ProxyServer = proxyServer,
-            NeverUseOwnIp = neverUseOwnIp,
-        };
+        var proxyScheme = (ProxySchemeComboBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString()
+            ?? "socks5";
+        return AccountEditorState.BuildAccountEntry(new AccountEditorInput(
+            UsernameTextBox.Text,
+            password,
+            serverName,
+            serverUrl,
+            UseProxyCheckBox.IsChecked == true,
+            NeverUseOwnIpCheckBox.IsChecked == true,
+            proxyScheme,
+            ProxyHostTextBox.Text,
+            ProxyPortTextBox.Text,
+            _editingExistingAccount,
+            _editingOriginalName));
     }
 
     private void SelectByName(string name)
@@ -1026,30 +966,22 @@ public partial class AccountsWindow : Window
 
     private void CaptureBaseline()
     {
-        _baselineUsername = UsernameTextBox.Text.Trim();
-        _baselinePassword = (_showPassword ? PasswordTextBox.Text : PasswordBox.Password) ?? string.Empty;
-        _baselineServerUrl = (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl?.Trim() ?? string.Empty;
-        _baselineProxyEnabled = UseProxyCheckBox.IsChecked == true;
-        _baselineProxyServer = BuildProxyServerString();
-        _baselineNeverUseOwnIp = NeverUseOwnIpCheckBox.IsChecked == true;
+        _baselineEditorState = ReadEditorSnapshot();
     }
 
     private bool HasUnsavedChanges()
     {
-        var currentUsername = UsernameTextBox.Text.Trim();
-        var currentPassword = (_showPassword ? PasswordTextBox.Text : PasswordBox.Password) ?? string.Empty;
-        var currentServerUrl = (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl?.Trim() ?? string.Empty;
-        var currentProxyEnabled = UseProxyCheckBox.IsChecked == true;
-        var currentProxyServer = BuildProxyServerString();
-        var currentNeverUseOwnIp = NeverUseOwnIpCheckBox.IsChecked == true;
-
-        return !string.Equals(currentUsername, _baselineUsername, StringComparison.Ordinal)
-            || !string.Equals(currentPassword, _baselinePassword, StringComparison.Ordinal)
-            || !string.Equals(currentServerUrl, _baselineServerUrl, StringComparison.OrdinalIgnoreCase)
-            || currentProxyEnabled != _baselineProxyEnabled
-            || !string.Equals(currentProxyServer, _baselineProxyServer, StringComparison.Ordinal)
-            || currentNeverUseOwnIp != _baselineNeverUseOwnIp;
+        return AccountEditorState.HasChanges(_baselineEditorState, ReadEditorSnapshot());
     }
+
+    private AccountEditorSnapshot ReadEditorSnapshot()
+        => new(
+            UsernameTextBox.Text.Trim(),
+            (_showPassword ? PasswordTextBox.Text : PasswordBox.Password) ?? string.Empty,
+            (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl?.Trim() ?? string.Empty,
+            UseProxyCheckBox.IsChecked == true,
+            BuildProxyServerString(),
+            NeverUseOwnIpCheckBox.IsChecked == true);
 
     private void SetProxyFieldsEnabled(bool enabled)
     {
@@ -1239,16 +1171,11 @@ public partial class AccountsWindow : Window
             var raw = await page.Locator("body").InnerTextAsync(new LocatorInnerTextOptions { Timeout = 5000 });
             stopwatch.Stop();
 
-            var info = ParseProxyCheckResponse(raw);
+            var info = ProxyCheckResultCodec.ParseLookupResponse(raw);
             var route = string.IsNullOrWhiteSpace(proxyServer)
                 ? mode
                 : $"{mode} ({ProxyParser.MaskForLog(proxyServer)})";
-            return JsonSerializer.Serialize(new ProxyCheckResult(
-                info.Ip,
-                info.Location,
-                info.Isp,
-                route,
-                $"{stopwatch.ElapsedMilliseconds} ms"));
+            return ProxyCheckResultCodec.BuildSuccess(info, route, $"{stopwatch.ElapsedMilliseconds} ms");
         }
         finally
         {
@@ -1294,7 +1221,7 @@ public partial class AccountsWindow : Window
     private void CompleteProxyCheckOverlay(string title, string status, string warning, bool success)
     {
         ShowProxyCheckOverlay(title, success ? "Your IP is:" : status, completed: true);
-        if (success && TryParseProxyCheckResult(status, out var result))
+        if (success && ProxyCheckResultCodec.TryParseSuccess(status, out var result))
         {
             ProxyCheckResultGrid.Visibility = Visibility.Visible;
             SetProxyCheckResultLabels("IP", "Location", "ISP", "Route", "Latency", null);
@@ -1304,7 +1231,7 @@ public partial class AccountsWindow : Window
             ProxyCheckRouteTextBlock.Text = result.Route;
             ProxyCheckLatencyTextBlock.Text = result.Latency + warning;
         }
-        else if (!success && TryParseProxyCheckFailure(status, out var failure))
+        else if (!success && ProxyCheckResultCodec.TryParseFailure(status, out var failure))
         {
             ProxyCheckStatusTextBlock.Text = "Proxy check did not complete.";
             ProxyCheckResultGrid.Visibility = Visibility.Visible;
@@ -1336,91 +1263,12 @@ public partial class AccountsWindow : Window
         ProxyCheckTargetTextBlock.Visibility = row5Visible ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    private static bool TryParseProxyCheckResult(string raw, out ProxyCheckResult result)
-    {
-        try
-        {
-            result = JsonSerializer.Deserialize<ProxyCheckResult>(raw) ?? new ProxyCheckResult("unknown", "unknown", "unknown", "unknown", "unknown");
-            return true;
-        }
-        catch
-        {
-            result = new ProxyCheckResult("unknown", "unknown", "unknown", "unknown", "unknown");
-            return false;
-        }
-    }
-
-    private static bool TryParseProxyCheckFailure(string raw, out ProxyCheckFailure failure)
-    {
-        try
-        {
-            failure = JsonSerializer.Deserialize<ProxyCheckFailure>(raw) ?? new ProxyCheckFailure("unknown", "unknown", "https://ipwho.is/");
-            return true;
-        }
-        catch
-        {
-            failure = new ProxyCheckFailure(raw, "unknown", "https://ipwho.is/");
-            return false;
-        }
-    }
-
     private string TryBuildProxyServerStringForDisplay()
     {
         var proxyServer = BuildProxyServerString();
         return string.IsNullOrWhiteSpace(proxyServer) ? "Direct" : ProxyParser.MaskForLog(proxyServer);
     }
 
-    private static string BuildProxyCheckFailure(string error, string route)
-        => JsonSerializer.Serialize(new ProxyCheckFailure(error, route, "https://ipwho.is/"));
-
-    private static string SummarizeProxyCheckError(string? message)
-    {
-        var value = message ?? string.Empty;
-        var firstLine = value.Replace("\r", string.Empty).Split('\n').FirstOrDefault() ?? string.Empty;
-        return firstLine.Length == 0 ? "Unknown error." : firstLine;
-    }
-
-    private static ProxyCheckInfo ParseProxyCheckResponse(string raw)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(raw);
-            var root = document.RootElement;
-            var success = !root.TryGetProperty("success", out var successNode) || successNode.GetBoolean();
-            if (!success)
-            {
-                var message = TryGetJsonString(root, "message");
-                throw new InvalidOperationException(string.IsNullOrWhiteSpace(message) ? "IP lookup failed." : message);
-            }
-
-            var ip = TryGetJsonString(root, "ip");
-            var country = TryGetJsonString(root, "country");
-            var region = TryGetJsonString(root, "region");
-            var city = TryGetJsonString(root, "city");
-            var isp = TryGetJsonString(root, "isp");
-            var location = string.Join(", ", new[] { city, region, country }.Where(item => !string.IsNullOrWhiteSpace(item)));
-            return new ProxyCheckInfo(
-                string.IsNullOrWhiteSpace(ip) ? "unknown" : ip,
-                string.IsNullOrWhiteSpace(location) ? "unknown" : location,
-                string.IsNullOrWhiteSpace(isp) ? "unknown" : isp);
-        }
-        catch (JsonException ex)
-        {
-            throw new InvalidOperationException($"IP lookup returned invalid data: {ex.Message}");
-        }
-    }
-
-    private static string TryGetJsonString(JsonElement root, string propertyName)
-    {
-        return root.TryGetProperty(propertyName, out var node) && node.ValueKind == JsonValueKind.String
-            ? node.GetString() ?? string.Empty
-            : string.Empty;
-    }
-
-    private sealed record ProxyCheckInfo(string Ip, string Location, string Isp);
-    private sealed record ProxyCheckResult(string Ip, string Location, string Isp, string Route, string Latency);
-    private sealed record ProxyCheckFailure(string Error, string Route, string Target);
-    private sealed record SavedProxyOption(ProxyLibraryEntry? Entry, string DisplayText);
 
     private void SafeRunAccountEditorAction(Action action, string actionName)
     {

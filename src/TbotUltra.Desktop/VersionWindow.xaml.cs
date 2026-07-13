@@ -26,6 +26,9 @@ public partial class VersionWindow : Window
     }
 
     private async void OnLoaded(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(OnLoadedAsync, LogUiGuardError);
+
+    private async Task OnLoadedAsync()
     {
         RenderStatus();
 
@@ -106,6 +109,9 @@ public partial class VersionWindow : Window
     }
 
     private async void UpdateRestartButton_Click(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(UpdateRestartAsync, LogUiGuardError);
+
+    private async Task UpdateRestartAsync()
     {
         var release = _status?.Release;
         if (release?.PortableDownloadUrl is null)
@@ -181,6 +187,9 @@ public partial class VersionWindow : Window
     }
 
     private async void DownloadButton_Click(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(DownloadAsync, LogUiGuardError);
+
+    private async Task DownloadAsync()
     {
         var release = _status?.Release;
         if (release?.PortableDownloadUrl is null)
@@ -261,6 +270,14 @@ public partial class VersionWindow : Window
     {
         _busy = busy;
         UpdateButtonStates();
+    }
+
+    private void LogUiGuardError(string message)
+    {
+        StatusText.Text = message;
+        DownloadProgress.IsIndeterminate = false;
+        DownloadProgress.Visibility = Visibility.Collapsed;
+        SetBusy(false);
     }
 
     private static void OpenUrl(string url)

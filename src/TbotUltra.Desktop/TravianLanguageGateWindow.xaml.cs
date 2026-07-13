@@ -31,14 +31,14 @@ public partial class TravianLanguageGateWindow : Window
     }
 
     private async void AutoButton_Click(object sender, RoutedEventArgs e)
-    {
-        await RunLanguageActionAsync("Setting language to English...", _setAutomatically);
-    }
+        => await AsyncUi.GuardAsync(
+            () => RunLanguageActionAsync("Setting language to English...", _setAutomatically),
+            message => StatusTextBlock.Text = message);
 
     private async void ManualButton_Click(object sender, RoutedEventArgs e)
-    {
-        await RunLanguageActionAsync("Checking current language...", _readCurrentLanguage);
-    }
+        => await AsyncUi.GuardAsync(
+            () => RunLanguageActionAsync("Checking current language...", _readCurrentLanguage),
+            message => StatusTextBlock.Text = message);
 
     private void ForceCloseButton_Click(object sender, RoutedEventArgs e)
     {

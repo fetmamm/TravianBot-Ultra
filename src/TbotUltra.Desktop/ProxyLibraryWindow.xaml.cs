@@ -175,6 +175,9 @@ public partial class ProxyLibraryWindow : Window
     }
 
     private async void CheckProxiesButton_Click(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(CheckProxiesAsync, message => System.Diagnostics.Debug.WriteLine(message));
+
+    private async Task CheckProxiesAsync()
     {
         if (_workingProxies.Count == 0)
         {

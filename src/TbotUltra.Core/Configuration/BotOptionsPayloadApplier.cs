@@ -4,1106 +4,156 @@ public static class BotOptionsPayloadApplier
 {
     public static BotOptions Apply(BotOptions source, IReadOnlyDictionary<string, string>? payload)
     {
-        var targetVillageName = source.TargetVillageName;
-        var targetVillageUrl = source.TargetVillageUrl;
-        var resourceUpgradeSlotId = source.ResourceUpgradeSlotId;
-        var resourceUpgradeTargetLevel = source.ResourceUpgradeTargetLevel;
-        var resourceUpgradeMaxAttempts = source.ResourceUpgradeMaxAttempts;
-        var resourceBuildStrategy = source.ResourceBuildStrategy;
-        var smithyUpgradeTargets = source.SmithyUpgradeTargets;
-        var buildingUpgradeSlotId = source.BuildingUpgradeSlotId;
-        var buildingUpgradeTargetLevel = source.BuildingUpgradeTargetLevel;
-        var buildingUpgradeMaxAttempts = source.BuildingUpgradeMaxAttempts;
-        var buildingConstructSlotId = source.BuildingConstructSlotId;
-        var buildingConstructGid = source.BuildingConstructGid;
-        var buildingConstructName = source.BuildingConstructName;
-        var constructFasterEnabled = source.ConstructFasterEnabled;
-        var constructFasterMinBuildTimeEnabled = source.ConstructFasterMinBuildTimeEnabled;
-        var constructFasterMinBuildMinutes = source.ConstructFasterMinBuildMinutes;
-        var constructFasterRandomEnabled = source.ConstructFasterRandomEnabled;
-        var constructFasterRandomChancePercent = source.ConstructFasterRandomChancePercent;
-        var targetBuildingSlotOrName = source.TargetBuildingSlotOrName;
-        var targetLevel = source.TargetLevel;
-        var heroMinHpForAdventure = source.HeroMinHpForAdventure;
-        var heroAutoRevive = source.HeroAutoRevive;
-        var heroAutoAssignPoints = source.HeroAutoAssignPoints;
-        var heroAutoUseOintments = source.HeroAutoUseOintments;
-        var heroStatPriority = source.HeroStatPriority;
-        var heroAdventurePickOrder = source.HeroAdventurePickOrder;
-        var heroContinuousAdventures = source.HeroContinuousAdventures;
-        var increaseAdventuresToHard = source.IncreaseAdventuresToHard;
-        var reduceAdventureTime = source.ReduceAdventureTime;
-        var autoCollectTasksEnabled = source.AutoCollectTasksEnabled;
-        var autoCollectDailyQuestsEnabled = source.AutoCollectDailyQuestsEnabled;
-        var productionBonusVideoEnabled = source.ProductionBonusVideoEnabled;
-        var collectStepDelayMinSeconds = source.CollectStepDelayMinSeconds;
-        var collectStepDelayMaxSeconds = source.CollectStepDelayMaxSeconds;
-        var heroResourceTransferEnabled = source.HeroResourceTransferEnabled;
-        var heroResourceMaxUseEnabled = source.HeroResourceMaxUseEnabled;
-        var heroResourceMaxUsePerResource = source.HeroResourceMaxUsePerResource;
-        var heroResourceUseConstruction = source.HeroResourceUseConstruction;
-        var heroResourceUseSmithy = source.HeroResourceUseSmithy;
-        var heroResourceUseBrewery = source.HeroResourceUseBrewery;
-        var heroResourceUseTownHall = source.HeroResourceUseTownHall;
-        var upgradeSelectorProfile = source.UpgradeSelectorProfile;
-        var continuousFarmListNames = source.ContinuousFarmListNames;
-        var continuousFarmListIds = source.ContinuousFarmListIds;
-        var continuousFarmDispatchDelayMinutes = source.ContinuousFarmDispatchDelayMinMinutes;
-        var continuousFarmDispatchDelayVariationPercent = source.ContinuousFarmDispatchDelayMaxMinutes;
-        var continuousFarmSendMode = source.ContinuousFarmSendMode;
-        var townHallCelebrationMode = source.TownHallCelebrationMode;
+        var construction = ConstructionPayloadApplier.Apply(source, payload);
+        var targetVillageName = construction.TargetVillageName;
+        var targetVillageUrl = construction.TargetVillageUrl;
+        var resourceUpgradeSlotId = construction.ResourceUpgradeSlotId;
+        var resourceUpgradeTargetLevel = construction.ResourceUpgradeTargetLevel;
+        var resourceUpgradeMaxAttempts = construction.ResourceUpgradeMaxAttempts;
+        var resourceBuildStrategy = construction.ResourceBuildStrategy;
+        var smithyUpgradeTargets = construction.SmithyUpgradeTargets;
+        var buildingUpgradeSlotId = construction.BuildingUpgradeSlotId;
+        var buildingUpgradeTargetLevel = construction.BuildingUpgradeTargetLevel;
+        var buildingUpgradeMaxAttempts = construction.BuildingUpgradeMaxAttempts;
+        var buildingConstructSlotId = construction.BuildingConstructSlotId;
+        var buildingConstructGid = construction.BuildingConstructGid;
+        var buildingConstructName = construction.BuildingConstructName;
+        var constructFasterEnabled = construction.ConstructFasterEnabled;
+        var constructFasterMinBuildTimeEnabled = construction.ConstructFasterMinBuildTimeEnabled;
+        var constructFasterMinBuildMinutes = construction.ConstructFasterMinBuildMinutes;
+        var constructFasterRandomEnabled = construction.ConstructFasterRandomEnabled;
+        var constructFasterRandomChancePercent = construction.ConstructFasterRandomChancePercent;
+        var targetBuildingSlotOrName = construction.TargetBuildingSlotOrName;
+        var targetLevel = construction.TargetLevel;
+        var hero = HeroPayloadApplier.Apply(source, payload);
+        var heroMinHpForAdventure = hero.MinHpForAdventure;
+        var heroAutoRevive = hero.AutoRevive;
+        var heroAutoAssignPoints = hero.AutoAssignPoints;
+        var heroAutoUseOintments = hero.AutoUseOintments;
+        var heroStatPriority = hero.StatPriority;
+        var heroAdventurePickOrder = hero.AdventurePickOrder;
+        var heroContinuousAdventures = hero.ContinuousAdventures;
+        var increaseAdventuresToHard = hero.IncreaseAdventuresToHard;
+        var reduceAdventureTime = hero.ReduceAdventureTime;
+        var autoCollectTasksEnabled = hero.AutoCollectTasksEnabled;
+        var autoCollectDailyQuestsEnabled = hero.AutoCollectDailyQuestsEnabled;
+        var productionBonusVideoEnabled = hero.ProductionBonusVideoEnabled;
+        var collectStepDelayMinSeconds = hero.CollectStepDelayMinSeconds;
+        var collectStepDelayMaxSeconds = hero.CollectStepDelayMaxSeconds;
+        var heroResourceTransferEnabled = hero.ResourceTransferEnabled;
+        var heroResourceMaxUseEnabled = hero.ResourceMaxUseEnabled;
+        var heroResourceMaxUsePerResource = hero.ResourceMaxUsePerResource;
+        var heroResourceUseConstruction = hero.ResourceUseConstruction;
+        var heroResourceUseSmithy = hero.ResourceUseSmithy;
+        var heroResourceUseBrewery = hero.ResourceUseBrewery;
+        var heroResourceUseTownHall = hero.ResourceUseTownHall;
+        var upgradeSelectorProfile = construction.UpgradeSelectorProfile;
+        var farming = FarmingPayloadApplier.Apply(source, payload);
+        var continuousFarmListNames = farming.ListNames;
+        var continuousFarmListIds = farming.ListIds;
+        var continuousFarmDispatchDelayMinutes = farming.DispatchDelayMinMinutes;
+        var continuousFarmDispatchDelayVariationPercent = farming.DispatchDelayMaxMinutes;
+        var continuousFarmSendMode = farming.SendMode;
+        var townHallCelebrationMode = farming.TownHallCelebrationMode;
         var townHallCelebrationCount = source.TownHallCelebrationCount;
         var townHallCelebrationRestartDelayMinMinutes = source.TownHallCelebrationRestartDelayMinMinutes;
         var townHallCelebrationRestartDelayMaxMinutes = source.TownHallCelebrationRestartDelayMaxMinutes;
-        var continuousFarmDeactivateLosses = source.ContinuousFarmDeactivateLosses;
-        var continuousFarmDeactivateOasisLosses = source.ContinuousFarmDeactivateOasisLosses;
-        var continuousFarmNextListIndex = source.ContinuousFarmNextListIndex;
-        var postLoginAnalyzeFarmlists = source.PostLoginAnalyzeFarmlists;
-        var postLoginAnalyzeHero = source.PostLoginAnalyzeHero;
-        var postLoginAnalyzeHeroInventory = source.PostLoginAnalyzeHeroInventory;
-        var postLoginReadTroopTrainingQueue = source.PostLoginReadTroopTrainingQueue;
-        var postLoginAnalyzeBrewery = source.PostLoginAnalyzeBrewery;
-        var postLoginAnalyzeNewVillages = source.PostLoginAnalyzeNewVillages;
-        var automaticallyCheckLanguage = source.AutomaticallyCheckLanguage;
-        var troopTrainingBarracksEnabled = source.TroopTrainingBarracksEnabled;
-        var troopTrainingBarracksTroopType = source.TroopTrainingBarracksTroopType;
-        var troopTrainingBarracksMaxQueueHours = source.TroopTrainingBarracksMaxQueueHours;
-        var troopTrainingBarracksAmountMode = source.TroopTrainingBarracksAmountMode;
-        var troopTrainingBarracksKeepResourcesPercent = source.TroopTrainingBarracksKeepResourcesPercent;
-        var troopTrainingBarracksRunMode = source.TroopTrainingBarracksRunMode;
-        var troopTrainingBarracksMinimumTroops = source.TroopTrainingBarracksMinimumTroops;
-        var troopTrainingBarracksMinimumResourcesPercent = source.TroopTrainingBarracksMinimumResourcesPercent;
-        var troopTrainingBarracksTimedMinMinutes = source.TroopTrainingBarracksTimedMinMinutes;
-        var troopTrainingBarracksTimedMaxMinutes = source.TroopTrainingBarracksTimedMaxMinutes;
-        var troopTrainingBarracksCheckWood = source.TroopTrainingBarracksCheckWood;
-        var troopTrainingBarracksCheckClay = source.TroopTrainingBarracksCheckClay;
-        var troopTrainingBarracksCheckIron = source.TroopTrainingBarracksCheckIron;
-        var troopTrainingBarracksCheckCrop = source.TroopTrainingBarracksCheckCrop;
-        var troopTrainingStableEnabled = source.TroopTrainingStableEnabled;
-        var troopTrainingStableTroopType = source.TroopTrainingStableTroopType;
-        var troopTrainingStableMaxQueueHours = source.TroopTrainingStableMaxQueueHours;
-        var troopTrainingStableAmountMode = source.TroopTrainingStableAmountMode;
-        var troopTrainingStableKeepResourcesPercent = source.TroopTrainingStableKeepResourcesPercent;
-        var troopTrainingStableRunMode = source.TroopTrainingStableRunMode;
-        var troopTrainingStableMinimumTroops = source.TroopTrainingStableMinimumTroops;
-        var troopTrainingStableMinimumResourcesPercent = source.TroopTrainingStableMinimumResourcesPercent;
-        var troopTrainingStableTimedMinMinutes = source.TroopTrainingStableTimedMinMinutes;
-        var troopTrainingStableTimedMaxMinutes = source.TroopTrainingStableTimedMaxMinutes;
-        var troopTrainingStableCheckWood = source.TroopTrainingStableCheckWood;
-        var troopTrainingStableCheckClay = source.TroopTrainingStableCheckClay;
-        var troopTrainingStableCheckIron = source.TroopTrainingStableCheckIron;
-        var troopTrainingStableCheckCrop = source.TroopTrainingStableCheckCrop;
-        var troopTrainingWorkshopEnabled = source.TroopTrainingWorkshopEnabled;
-        var troopTrainingWorkshopTroopType = source.TroopTrainingWorkshopTroopType;
-        var troopTrainingWorkshopMaxQueueHours = source.TroopTrainingWorkshopMaxQueueHours;
-        var troopTrainingWorkshopAmountMode = source.TroopTrainingWorkshopAmountMode;
-        var troopTrainingWorkshopKeepResourcesPercent = source.TroopTrainingWorkshopKeepResourcesPercent;
-        var troopTrainingWorkshopRunMode = source.TroopTrainingWorkshopRunMode;
-        var troopTrainingWorkshopMinimumTroops = source.TroopTrainingWorkshopMinimumTroops;
-        var troopTrainingWorkshopMinimumResourcesPercent = source.TroopTrainingWorkshopMinimumResourcesPercent;
-        var troopTrainingWorkshopTimedMinMinutes = source.TroopTrainingWorkshopTimedMinMinutes;
-        var troopTrainingWorkshopTimedMaxMinutes = source.TroopTrainingWorkshopTimedMaxMinutes;
-        var troopTrainingWorkshopCheckWood = source.TroopTrainingWorkshopCheckWood;
-        var troopTrainingWorkshopCheckClay = source.TroopTrainingWorkshopCheckClay;
-        var troopTrainingWorkshopCheckIron = source.TroopTrainingWorkshopCheckIron;
-        var troopTrainingWorkshopCheckCrop = source.TroopTrainingWorkshopCheckCrop;
-        var troopTrainingFallbackCooldownSeconds = source.TroopTrainingFallbackCooldownSeconds;
-        var breweryAutoCelebrationEnabled = source.BreweryAutoCelebrationEnabled;
-        var npcTradeEnabled = source.NpcTradeEnabled;
-        var npcTradeConstructionEnabled = source.NpcTradeConstructionEnabled;
-        var npcTradeThresholdPercent = source.NpcTradeThresholdPercent;
-        var npcTradeAnalyzeWood = source.NpcTradeAnalyzeWood;
-        var npcTradeAnalyzeClay = source.NpcTradeAnalyzeClay;
-        var npcTradeAnalyzeIron = source.NpcTradeAnalyzeIron;
-        var npcTradeAnalyzeCrop = source.NpcTradeAnalyzeCrop;
-        var npcTradeBuildTimeLimitEnabled = source.NpcTradeBuildTimeLimitEnabled;
-        var npcTradeBuildTimeLimitSeconds = source.NpcTradeBuildTimeLimitSeconds;
-        var resourceTransferEnabled = source.ResourceTransferEnabled;
-        var resourceTransferTargetVillageName = source.ResourceTransferTargetVillageName;
-        var resourceTransferSourceVillageNames = source.ResourceTransferSourceVillageNames;
-        var resourceTransferSourceThresholdPercent = source.ResourceTransferSourceThresholdPercent;
-        var resourceTransferSourceKeepPercent = source.ResourceTransferSourceKeepPercent;
-        var resourceTransferTargetFillPercent = source.ResourceTransferTargetFillPercent;
-        var resourceTransferSendWood = source.ResourceTransferSendWood;
-        var resourceTransferSendClay = source.ResourceTransferSendClay;
-        var resourceTransferSendIron = source.ResourceTransferSendIron;
-        var resourceTransferSendCrop = source.ResourceTransferSendCrop;
-        var reinforcementsEnabled = source.ReinforcementsEnabled;
-        var reinforcementsTargetVillageName = source.ReinforcementsTargetVillageName;
-        var reinforcementsSourceVillageNames = source.ReinforcementsSourceVillageNames;
-        var reinforcementsTroopRules = source.ReinforcementsTroopRules;
-        var reinforcementsSendIntervalHours = source.ReinforcementsSendMinMinutes;
-        var reinforcementsSendVariationPercent = source.ReinforcementsSendMaxMinutes;
-        var actionPacingEnabled = source.ActionPacingEnabled;
-        var actionPacingTaskMinSeconds = source.ActionPacingTaskMinSeconds;
-        var actionPacingTaskMaxSeconds = source.ActionPacingTaskMaxSeconds;
-        var actionPacingPageLoadMinSeconds = source.ActionPacingPageLoadMinSeconds;
-        var actionPacingPageLoadMaxSeconds = source.ActionPacingPageLoadMaxSeconds;
-        var actionPacingClickMinSeconds = source.ActionPacingClickMinSeconds;
-        var actionPacingClickMaxSeconds = source.ActionPacingClickMaxSeconds;
-        var actionPacingLoopMinSeconds = source.ActionPacingLoopMinSeconds;
-        var actionPacingLoopMaxSeconds = source.ActionPacingLoopMaxSeconds;
-        var farmListStepDelayMinSeconds = source.FarmListStepDelayMinSeconds;
-        var farmListStepDelayMaxSeconds = source.FarmListStepDelayMaxSeconds;
-
-        if (payload is not null)
-        {
-            foreach (var pair in payload)
-            {
-                var key = pair.Key.Trim();
-                var value = pair.Value.Trim();
-                if (key.Length == 0 || value.Length == 0)
-                {
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TargetVillageName, StringComparison.OrdinalIgnoreCase))
-                {
-                    targetVillageName = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TargetVillageUrl, StringComparison.OrdinalIgnoreCase))
-                {
-                    targetVillageUrl = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ResourceUpgradeSlotId, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var resourceSlot))
-                {
-                    resourceUpgradeSlotId = resourceSlot;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ResourceUpgradeTargetLevel, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var resourceTarget))
-                {
-                    resourceUpgradeTargetLevel = resourceTarget;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ResourceBuildStrategy, StringComparison.OrdinalIgnoreCase))
-                {
-                    resourceBuildStrategy = value.Equals("smart", StringComparison.OrdinalIgnoreCase) ? "smart" : "lowest_first";
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ResourceUpgradeMaxAttempts, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var resourceAttempts))
-                {
-                    resourceUpgradeMaxAttempts = resourceAttempts;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.BuildingUpgradeSlotId, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var buildingSlot))
-                {
-                    buildingUpgradeSlotId = buildingSlot;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.BuildingUpgradeTargetLevel, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var buildingTarget))
-                {
-                    buildingUpgradeTargetLevel = buildingTarget;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.BuildingUpgradeMaxAttempts, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var buildingAttempts))
-                {
-                    buildingUpgradeMaxAttempts = buildingAttempts;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.BuildingConstructSlotId, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var constructSlot))
-                {
-                    buildingConstructSlotId = constructSlot;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.BuildingConstructGid, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var constructGid))
-                {
-                    buildingConstructGid = constructGid;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.BuildingConstructName, StringComparison.OrdinalIgnoreCase))
-                {
-                    buildingConstructName = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ConstructFasterEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var constructFaster))
-                {
-                    constructFasterEnabled = constructFaster;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ConstructFasterMinBuildTimeEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var constructFasterMinTime))
-                {
-                    constructFasterMinBuildTimeEnabled = constructFasterMinTime;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ConstructFasterMinBuildMinutes, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var constructFasterMinMinutes))
-                {
-                    constructFasterMinBuildMinutes = Math.Max(0, constructFasterMinMinutes);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ConstructFasterRandomEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var constructFasterRandom))
-                {
-                    constructFasterRandomEnabled = constructFasterRandom;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ConstructFasterRandomChancePercent, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var constructFasterRandomChance))
-                {
-                    constructFasterRandomChancePercent = Math.Clamp(constructFasterRandomChance, 0, 100);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TargetBuildingSlotOrName, StringComparison.OrdinalIgnoreCase))
-                {
-                    targetBuildingSlotOrName = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TargetLevel, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var demolishTargetLevel))
-                {
-                    targetLevel = demolishTargetLevel;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.HeroMinHpForAdventure, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out var minHp))
-                {
-                    heroMinHpForAdventure = minHp;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.HeroAutoRevive, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var autoRevive))
-                {
-                    heroAutoRevive = autoRevive;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.HeroAutoAssignPoints, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var autoAssignPoints))
-                {
-                    heroAutoAssignPoints = autoAssignPoints;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.HeroAutoUseOintments, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out var autoUseOintments))
-                {
-                    heroAutoUseOintments = autoUseOintments;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.HeroStatPriority, StringComparison.OrdinalIgnoreCase))
-                {
-                    heroStatPriority = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.SmithyUpgradeTargets, StringComparison.OrdinalIgnoreCase))
-                {
-                    smithyUpgradeTargets = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.HeroAdventurePickOrder, StringComparison.OrdinalIgnoreCase))
-                {
-                    heroAdventurePickOrder = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.HeroContinuousAdventures, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var continuousAdventures))
-                {
-                    heroContinuousAdventures = continuousAdventures;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.IncreaseAdventuresToHard, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var increaseToHard))
-                {
-                    increaseAdventuresToHard = increaseToHard;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ReduceAdventureTime, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var reduceTime))
-                {
-                    reduceAdventureTime = reduceTime;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.AutoCollectTasksEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var autoCollectTasks))
-                {
-                    autoCollectTasksEnabled = autoCollectTasks;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var autoCollectDailyQuests))
-                {
-                    autoCollectDailyQuestsEnabled = autoCollectDailyQuests;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ProductionBonusVideoEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var productionBonusVideo))
-                {
-                    productionBonusVideoEnabled = productionBonusVideo;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.CollectStepDelayMinSeconds, StringComparison.OrdinalIgnoreCase)
-                    && double.TryParse(value, out var collectStepMin))
-                {
-                    collectStepDelayMinSeconds = ClampDelaySeconds(collectStepMin);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.CollectStepDelayMaxSeconds, StringComparison.OrdinalIgnoreCase)
-                    && double.TryParse(value, out var collectStepMax))
-                {
-                    collectStepDelayMaxSeconds = ClampDelaySeconds(collectStepMax);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.HeroResourceTransferEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var heroResourceTransfer))
-                {
-                    heroResourceTransferEnabled = heroResourceTransfer;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.HeroResourceMaxUseEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var heroResourceMaxUse))
-                {
-                    heroResourceMaxUseEnabled = heroResourceMaxUse;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.HeroResourceMaxUsePerResource, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var heroResourceMaxUseAmount))
-                {
-                    heroResourceMaxUsePerResource = Math.Max(0, heroResourceMaxUseAmount);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.HeroResourceUseConstruction, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var heroUseConstruction))
-                {
-                    heroResourceUseConstruction = heroUseConstruction;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.HeroResourceUseSmithy, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var heroUseSmithy))
-                {
-                    heroResourceUseSmithy = heroUseSmithy;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.HeroResourceUseBrewery, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var heroUseBrewery))
-                {
-                    heroResourceUseBrewery = heroUseBrewery;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.HeroResourceUseTownHall, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var heroUseTownHall))
-                {
-                    heroResourceUseTownHall = heroUseTownHall;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.UpgradeSelectorProfile, StringComparison.OrdinalIgnoreCase))
-                {
-                    upgradeSelectorProfile = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmListNames, StringComparison.OrdinalIgnoreCase))
-                {
-                    continuousFarmListNames = value
-                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                        .Where(item => !string.IsNullOrWhiteSpace(item))
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToList();
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmListIds, StringComparison.OrdinalIgnoreCase))
-                {
-                    continuousFarmListIds = value
-                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                        .Where(item => !string.IsNullOrWhiteSpace(item))
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToList();
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinMinutes, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var dispatchDelayMinutes))
-                {
-                    continuousFarmDispatchDelayMinutes = FarmingDefaults.NormalizeDispatchDelayMinMinutes(dispatchDelayMinutes);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmDispatchDelayMaxMinutes, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var dispatchDelayVariationPercent))
-                {
-                    continuousFarmDispatchDelayVariationPercent = FarmingDefaults.NormalizeDispatchDelayMaxMinutes(dispatchDelayVariationPercent);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmSendMode, StringComparison.OrdinalIgnoreCase))
-                {
-                    continuousFarmSendMode = FarmingDefaults.NormalizeSendMode(value);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TownHallCelebrationMode, StringComparison.OrdinalIgnoreCase))
-                {
-                    townHallCelebrationMode = TownHallCelebrationDefaults.NormalizeMode(value);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmDeactivateLosses, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var deactivateLosses))
-                {
-                    continuousFarmDeactivateLosses = deactivateLosses;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var deactivateOasisLosses))
-                {
-                    continuousFarmDeactivateOasisLosses = deactivateOasisLosses;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ContinuousFarmNextListIndex, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var nextListIndex))
-                {
-                    continuousFarmNextListIndex = Math.Max(0, nextListIndex);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.PostLoginAnalyzeFarmlists, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var analyzeFarmlists))
-                {
-                    postLoginAnalyzeFarmlists = analyzeFarmlists;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.PostLoginAnalyzeHero, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var analyzeHero))
-                {
-                    postLoginAnalyzeHero = analyzeHero;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var analyzeHeroInventory))
-                {
-                    postLoginAnalyzeHeroInventory = analyzeHeroInventory;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var readTroopTrainingQueue))
-                {
-                    postLoginReadTroopTrainingQueue = readTroopTrainingQueue;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.PostLoginAnalyzeBrewery, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var analyzeBrewery))
-                {
-                    postLoginAnalyzeBrewery = analyzeBrewery;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.PostLoginAnalyzeNewVillages, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var analyzeNewVillages))
-                {
-                    postLoginAnalyzeNewVillages = analyzeNewVillages;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.AutomaticallyCheckLanguage, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var checkLanguage))
-                {
-                    automaticallyCheckLanguage = checkLanguage;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var barracksEnabled))
-                {
-                    troopTrainingBarracksEnabled = barracksEnabled;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksTroopType, StringComparison.OrdinalIgnoreCase))
-                {
-                    troopTrainingBarracksTroopType = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksMaxQueueHours, StringComparison.OrdinalIgnoreCase))
-                {
-                    troopTrainingBarracksMaxQueueHours = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksAmountMode, StringComparison.OrdinalIgnoreCase))
-                {
-                    troopTrainingBarracksAmountMode = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksKeepResourcesPercent, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var barracksKeepPercent))
-                {
-                    troopTrainingBarracksKeepResourcesPercent = Math.Clamp(barracksKeepPercent, 0, 95);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksRunMode, StringComparison.OrdinalIgnoreCase))
-                {
-                    troopTrainingBarracksRunMode = NormalizeTroopTrainingRunMode(value);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksMinimumTroops, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var barracksMinimumTroops))
-                {
-                    troopTrainingBarracksMinimumTroops = Math.Max(1, barracksMinimumTroops);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksMinimumResourcesPercent, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var barracksMinimumResourcesPercent))
-                {
-                    troopTrainingBarracksMinimumResourcesPercent = Math.Clamp(barracksMinimumResourcesPercent, 0, 100);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksTimedMinMinutes, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var barracksTimedMinMinutes))
-                {
-                    troopTrainingBarracksTimedMinMinutes = Math.Max(1, barracksTimedMinMinutes);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksTimedMaxMinutes, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var barracksTimedMaxMinutes))
-                {
-                    troopTrainingBarracksTimedMaxMinutes = Math.Max(1, barracksTimedMaxMinutes);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksCheckWood, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var barracksCheckWood))
-                {
-                    troopTrainingBarracksCheckWood = barracksCheckWood;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksCheckClay, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var barracksCheckClay))
-                {
-                    troopTrainingBarracksCheckClay = barracksCheckClay;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksCheckIron, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var barracksCheckIron))
-                {
-                    troopTrainingBarracksCheckIron = barracksCheckIron;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingBarracksCheckCrop, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var barracksCheckCrop))
-                {
-                    troopTrainingBarracksCheckCrop = barracksCheckCrop;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var stableEnabled))
-                {
-                    troopTrainingStableEnabled = stableEnabled;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableTroopType, StringComparison.OrdinalIgnoreCase))
-                {
-                    troopTrainingStableTroopType = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableMaxQueueHours, StringComparison.OrdinalIgnoreCase))
-                {
-                    troopTrainingStableMaxQueueHours = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableAmountMode, StringComparison.OrdinalIgnoreCase))
-                {
-                    troopTrainingStableAmountMode = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableKeepResourcesPercent, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var stableKeepPercent))
-                {
-                    troopTrainingStableKeepResourcesPercent = Math.Clamp(stableKeepPercent, 0, 95);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableRunMode, StringComparison.OrdinalIgnoreCase))
-                {
-                    troopTrainingStableRunMode = NormalizeTroopTrainingRunMode(value);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableMinimumTroops, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var stableMinimumTroops))
-                {
-                    troopTrainingStableMinimumTroops = Math.Max(1, stableMinimumTroops);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableMinimumResourcesPercent, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var stableMinimumResourcesPercent))
-                {
-                    troopTrainingStableMinimumResourcesPercent = Math.Clamp(stableMinimumResourcesPercent, 0, 100);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableTimedMinMinutes, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var stableTimedMinMinutes))
-                {
-                    troopTrainingStableTimedMinMinutes = Math.Max(1, stableTimedMinMinutes);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableTimedMaxMinutes, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var stableTimedMaxMinutes))
-                {
-                    troopTrainingStableTimedMaxMinutes = Math.Max(1, stableTimedMaxMinutes);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableCheckWood, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var stableCheckWood))
-                {
-                    troopTrainingStableCheckWood = stableCheckWood;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableCheckClay, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var stableCheckClay))
-                {
-                    troopTrainingStableCheckClay = stableCheckClay;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableCheckIron, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var stableCheckIron))
-                {
-                    troopTrainingStableCheckIron = stableCheckIron;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingStableCheckCrop, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var stableCheckCrop))
-                {
-                    troopTrainingStableCheckCrop = stableCheckCrop;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var workshopEnabled))
-                {
-                    troopTrainingWorkshopEnabled = workshopEnabled;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopTroopType, StringComparison.OrdinalIgnoreCase))
-                {
-                    troopTrainingWorkshopTroopType = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopMaxQueueHours, StringComparison.OrdinalIgnoreCase))
-                {
-                    troopTrainingWorkshopMaxQueueHours = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopAmountMode, StringComparison.OrdinalIgnoreCase))
-                {
-                    troopTrainingWorkshopAmountMode = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopKeepResourcesPercent, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var workshopKeepPercent))
-                {
-                    troopTrainingWorkshopKeepResourcesPercent = Math.Clamp(workshopKeepPercent, 0, 95);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopRunMode, StringComparison.OrdinalIgnoreCase))
-                {
-                    troopTrainingWorkshopRunMode = NormalizeTroopTrainingRunMode(value);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumTroops, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var workshopMinimumTroops))
-                {
-                    troopTrainingWorkshopMinimumTroops = Math.Max(1, workshopMinimumTroops);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopMinimumResourcesPercent, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var workshopMinimumResourcesPercent))
-                {
-                    troopTrainingWorkshopMinimumResourcesPercent = Math.Clamp(workshopMinimumResourcesPercent, 0, 100);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopTimedMinMinutes, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var workshopTimedMinMinutes))
-                {
-                    troopTrainingWorkshopTimedMinMinutes = Math.Max(1, workshopTimedMinMinutes);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopTimedMaxMinutes, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var workshopTimedMaxMinutes))
-                {
-                    troopTrainingWorkshopTimedMaxMinutes = Math.Max(1, workshopTimedMaxMinutes);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopCheckWood, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var workshopCheckWood))
-                {
-                    troopTrainingWorkshopCheckWood = workshopCheckWood;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopCheckClay, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var workshopCheckClay))
-                {
-                    troopTrainingWorkshopCheckClay = workshopCheckClay;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopCheckIron, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var workshopCheckIron))
-                {
-                    troopTrainingWorkshopCheckIron = workshopCheckIron;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingWorkshopCheckCrop, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var workshopCheckCrop))
-                {
-                    troopTrainingWorkshopCheckCrop = workshopCheckCrop;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var troopTrainingFallbackCooldown))
-                {
-                    troopTrainingFallbackCooldownSeconds = troopTrainingFallbackCooldown switch
-                    {
-                        10 or 30 or 60 or 120 or 300 or 600 => troopTrainingFallbackCooldown,
-                        _ => 30,
-                    };
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.BreweryAutoCelebrationEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var autoCelebrationEnabled))
-                {
-                    breweryAutoCelebrationEnabled = autoCelebrationEnabled;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.NpcTradeEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var npcEnabled))
-                {
-                    npcTradeEnabled = npcEnabled;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.NpcTradeConstructionEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var npcConstructionEnabled))
-                {
-                    npcTradeConstructionEnabled = npcConstructionEnabled;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.NpcTradeThresholdPercent, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var npcThreshold))
-                {
-                    npcTradeThresholdPercent = Math.Clamp(npcThreshold, 1, 100);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.NpcTradeAnalyzeWood, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var npcWood))
-                {
-                    npcTradeAnalyzeWood = npcWood;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.NpcTradeAnalyzeClay, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var npcClay))
-                {
-                    npcTradeAnalyzeClay = npcClay;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.NpcTradeAnalyzeIron, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var npcIron))
-                {
-                    npcTradeAnalyzeIron = npcIron;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.NpcTradeAnalyzeCrop, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var npcCrop))
-                {
-                    npcTradeAnalyzeCrop = npcCrop;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.NpcTradeBuildTimeLimitEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var npcBuildTimeLimitEnabled))
-                {
-                    npcTradeBuildTimeLimitEnabled = npcBuildTimeLimitEnabled;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.NpcTradeBuildTimeLimitSeconds, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var npcBuildTimeLimitSeconds))
-                {
-                    npcTradeBuildTimeLimitSeconds = npcBuildTimeLimitSeconds switch
-                    {
-                        30 or 60 or 300 or 1200 or 3600 => npcBuildTimeLimitSeconds,
-                        _ => 60,
-                    };
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ResourceTransferEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var transferEnabled))
-                {
-                    resourceTransferEnabled = transferEnabled;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ResourceTransferTargetVillageName, StringComparison.OrdinalIgnoreCase))
-                {
-                    resourceTransferTargetVillageName = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ResourceTransferSourceVillageNames, StringComparison.OrdinalIgnoreCase))
-                {
-                    resourceTransferSourceVillageNames = value
-                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                        .Where(item => !string.IsNullOrWhiteSpace(item))
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToList();
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ResourceTransferSourceThresholdPercent, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var transferSourceThreshold))
-                {
-                    resourceTransferSourceThresholdPercent = Math.Clamp(transferSourceThreshold, 0, 100);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ResourceTransferSourceKeepPercent, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var transferSourceKeep))
-                {
-                    resourceTransferSourceKeepPercent = Math.Clamp(transferSourceKeep, 0, 99);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ResourceTransferTargetFillPercent, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var transferTargetFill))
-                {
-                    resourceTransferTargetFillPercent = Math.Clamp(transferTargetFill, 0, 100);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ResourceTransferSendWood, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var transferWood))
-                {
-                    resourceTransferSendWood = transferWood;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ResourceTransferSendClay, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var transferClay))
-                {
-                    resourceTransferSendClay = transferClay;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ResourceTransferSendIron, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var transferIron))
-                {
-                    resourceTransferSendIron = transferIron;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ResourceTransferSendCrop, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var transferCrop))
-                {
-                    resourceTransferSendCrop = transferCrop;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ReinforcementsEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var reinforcementsEnabledValue))
-                {
-                    reinforcementsEnabled = reinforcementsEnabledValue;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ReinforcementsTargetVillageName, StringComparison.OrdinalIgnoreCase))
-                {
-                    reinforcementsTargetVillageName = value;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ReinforcementsSourceVillageNames, StringComparison.OrdinalIgnoreCase))
-                {
-                    reinforcementsSourceVillageNames = value
-                        .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                        .Where(item => !string.IsNullOrWhiteSpace(item))
-                        .Distinct(StringComparer.OrdinalIgnoreCase)
-                        .ToList();
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ReinforcementsTroopRules, StringComparison.OrdinalIgnoreCase))
-                {
-                    reinforcementsTroopRules = ParseReinforcementTroopRules(value);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ReinforcementsSendMinMinutes, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var reinforcementIntervalHours))
-                {
-                    reinforcementsSendIntervalHours = ReinforcementSendDefaults.NormalizeSendMinMinutes(reinforcementIntervalHours);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ReinforcementsSendMaxMinutes, StringComparison.OrdinalIgnoreCase)
-                    && int.TryParse(value, out var reinforcementVariationPercent))
-                {
-                    reinforcementsSendVariationPercent = ReinforcementSendDefaults.NormalizeSendMaxMinutes(reinforcementVariationPercent);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ActionPacingEnabled, StringComparison.OrdinalIgnoreCase)
-                    && bool.TryParse(value, out var pacingEnabled))
-                {
-                    actionPacingEnabled = pacingEnabled;
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ActionPacingTaskMinSeconds, StringComparison.OrdinalIgnoreCase)
-                    && double.TryParse(value, out var taskMin))
-                {
-                    actionPacingTaskMinSeconds = ClampDelaySeconds(taskMin);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ActionPacingTaskMaxSeconds, StringComparison.OrdinalIgnoreCase)
-                    && double.TryParse(value, out var taskMax))
-                {
-                    actionPacingTaskMaxSeconds = ClampDelaySeconds(taskMax);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds, StringComparison.OrdinalIgnoreCase)
-                    && double.TryParse(value, out var pageMin))
-                {
-                    actionPacingPageLoadMinSeconds = ClampDelaySeconds(pageMin);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds, StringComparison.OrdinalIgnoreCase)
-                    && double.TryParse(value, out var pageMax))
-                {
-                    actionPacingPageLoadMaxSeconds = ClampDelaySeconds(pageMax);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ActionPacingClickMinSeconds, StringComparison.OrdinalIgnoreCase)
-                    && double.TryParse(value, out var clickMin))
-                {
-                    actionPacingClickMinSeconds = ClampDelaySeconds(clickMin);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ActionPacingClickMaxSeconds, StringComparison.OrdinalIgnoreCase)
-                    && double.TryParse(value, out var clickMax))
-                {
-                    actionPacingClickMaxSeconds = ClampDelaySeconds(clickMax);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ActionPacingLoopMinSeconds, StringComparison.OrdinalIgnoreCase)
-                    && double.TryParse(value, out var loopMin))
-                {
-                    actionPacingLoopMinSeconds = ClampDelaySeconds(loopMin);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, StringComparison.OrdinalIgnoreCase)
-                    && double.TryParse(value, out var loopMax))
-                {
-                    actionPacingLoopMaxSeconds = ClampDelaySeconds(loopMax);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.FarmListStepDelayMinSeconds, StringComparison.OrdinalIgnoreCase)
-                    && double.TryParse(value, out var farmListMin))
-                {
-                    farmListStepDelayMinSeconds = ClampDelaySeconds(farmListMin);
-                    continue;
-                }
-
-                if (key.Equals(BotOptionPayloadKeys.FarmListStepDelayMaxSeconds, StringComparison.OrdinalIgnoreCase)
-                    && double.TryParse(value, out var farmListMax))
-                {
-                    farmListStepDelayMaxSeconds = ClampDelaySeconds(farmListMax);
-                }
-            }
-        }
+        var continuousFarmDeactivateLosses = farming.DeactivateLosses;
+        var continuousFarmDeactivateOasisLosses = farming.DeactivateOasisLosses;
+        var continuousFarmNextListIndex = farming.NextListIndex;
+        var postLogin = PostLoginPayloadApplier.Apply(source, payload);
+        var postLoginAnalyzeFarmlists = postLogin.AnalyzeFarmlists;
+        var postLoginAnalyzeHero = postLogin.AnalyzeHero;
+        var postLoginAnalyzeHeroInventory = postLogin.AnalyzeHeroInventory;
+        var postLoginReadTroopTrainingQueue = postLogin.ReadTroopTrainingQueue;
+        var postLoginAnalyzeBrewery = postLogin.AnalyzeBrewery;
+        var postLoginAnalyzeNewVillages = postLogin.AnalyzeNewVillages;
+        var automaticallyCheckLanguage = postLogin.AutomaticallyCheckLanguage;
+        var troopTraining = TroopTrainingPayloadApplier.Apply(source, payload);
+        var troopTrainingBarracksEnabled = troopTraining.Barracks.Enabled;
+        var troopTrainingBarracksTroopType = troopTraining.Barracks.TroopType;
+        var troopTrainingBarracksMaxQueueHours = troopTraining.Barracks.MaxQueueHours;
+        var troopTrainingBarracksAmountMode = troopTraining.Barracks.AmountMode;
+        var troopTrainingBarracksKeepResourcesPercent = troopTraining.Barracks.KeepResourcesPercent;
+        var troopTrainingBarracksRunMode = troopTraining.Barracks.RunMode;
+        var troopTrainingBarracksMinimumTroops = troopTraining.Barracks.MinimumTroops;
+        var troopTrainingBarracksMinimumResourcesPercent = troopTraining.Barracks.MinimumResourcesPercent;
+        var troopTrainingBarracksTimedMinMinutes = troopTraining.Barracks.TimedMinMinutes;
+        var troopTrainingBarracksTimedMaxMinutes = troopTraining.Barracks.TimedMaxMinutes;
+        var troopTrainingBarracksCheckWood = troopTraining.Barracks.CheckWood;
+        var troopTrainingBarracksCheckClay = troopTraining.Barracks.CheckClay;
+        var troopTrainingBarracksCheckIron = troopTraining.Barracks.CheckIron;
+        var troopTrainingBarracksCheckCrop = troopTraining.Barracks.CheckCrop;
+        var troopTrainingStableEnabled = troopTraining.Stable.Enabled;
+        var troopTrainingStableTroopType = troopTraining.Stable.TroopType;
+        var troopTrainingStableMaxQueueHours = troopTraining.Stable.MaxQueueHours;
+        var troopTrainingStableAmountMode = troopTraining.Stable.AmountMode;
+        var troopTrainingStableKeepResourcesPercent = troopTraining.Stable.KeepResourcesPercent;
+        var troopTrainingStableRunMode = troopTraining.Stable.RunMode;
+        var troopTrainingStableMinimumTroops = troopTraining.Stable.MinimumTroops;
+        var troopTrainingStableMinimumResourcesPercent = troopTraining.Stable.MinimumResourcesPercent;
+        var troopTrainingStableTimedMinMinutes = troopTraining.Stable.TimedMinMinutes;
+        var troopTrainingStableTimedMaxMinutes = troopTraining.Stable.TimedMaxMinutes;
+        var troopTrainingStableCheckWood = troopTraining.Stable.CheckWood;
+        var troopTrainingStableCheckClay = troopTraining.Stable.CheckClay;
+        var troopTrainingStableCheckIron = troopTraining.Stable.CheckIron;
+        var troopTrainingStableCheckCrop = troopTraining.Stable.CheckCrop;
+        var troopTrainingWorkshopEnabled = troopTraining.Workshop.Enabled;
+        var troopTrainingWorkshopTroopType = troopTraining.Workshop.TroopType;
+        var troopTrainingWorkshopMaxQueueHours = troopTraining.Workshop.MaxQueueHours;
+        var troopTrainingWorkshopAmountMode = troopTraining.Workshop.AmountMode;
+        var troopTrainingWorkshopKeepResourcesPercent = troopTraining.Workshop.KeepResourcesPercent;
+        var troopTrainingWorkshopRunMode = troopTraining.Workshop.RunMode;
+        var troopTrainingWorkshopMinimumTroops = troopTraining.Workshop.MinimumTroops;
+        var troopTrainingWorkshopMinimumResourcesPercent = troopTraining.Workshop.MinimumResourcesPercent;
+        var troopTrainingWorkshopTimedMinMinutes = troopTraining.Workshop.TimedMinMinutes;
+        var troopTrainingWorkshopTimedMaxMinutes = troopTraining.Workshop.TimedMaxMinutes;
+        var troopTrainingWorkshopCheckWood = troopTraining.Workshop.CheckWood;
+        var troopTrainingWorkshopCheckClay = troopTraining.Workshop.CheckClay;
+        var troopTrainingWorkshopCheckIron = troopTraining.Workshop.CheckIron;
+        var troopTrainingWorkshopCheckCrop = troopTraining.Workshop.CheckCrop;
+        var troopTrainingFallbackCooldownSeconds = troopTraining.FallbackCooldownSeconds;
+        var breweryAutoCelebrationEnabled = troopTraining.BreweryAutoCelebrationEnabled;
+        var npcTrade = NpcTradePayloadApplier.Apply(source, payload);
+        var npcTradeEnabled = npcTrade.Enabled;
+        var npcTradeConstructionEnabled = npcTrade.ConstructionEnabled;
+        var npcTradeThresholdPercent = npcTrade.ThresholdPercent;
+        var npcTradeAnalyzeWood = npcTrade.AnalyzeWood;
+        var npcTradeAnalyzeClay = npcTrade.AnalyzeClay;
+        var npcTradeAnalyzeIron = npcTrade.AnalyzeIron;
+        var npcTradeAnalyzeCrop = npcTrade.AnalyzeCrop;
+        var npcTradeBuildTimeLimitEnabled = npcTrade.BuildTimeLimitEnabled;
+        var npcTradeBuildTimeLimitSeconds = npcTrade.BuildTimeLimitSeconds;
+        var resourceTransfer = ResourceTransferPayloadApplier.Apply(source, payload);
+        var resourceTransferEnabled = resourceTransfer.Enabled;
+        var resourceTransferTargetVillageName = resourceTransfer.TargetVillageName;
+        var resourceTransferSourceVillageNames = resourceTransfer.SourceVillageNames;
+        var resourceTransferSourceThresholdPercent = resourceTransfer.SourceThresholdPercent;
+        var resourceTransferSourceKeepPercent = resourceTransfer.SourceKeepPercent;
+        var resourceTransferTargetFillPercent = resourceTransfer.TargetFillPercent;
+        var resourceTransferSendWood = resourceTransfer.SendWood;
+        var resourceTransferSendClay = resourceTransfer.SendClay;
+        var resourceTransferSendIron = resourceTransfer.SendIron;
+        var resourceTransferSendCrop = resourceTransfer.SendCrop;
+        var reinforcements = ReinforcementPayloadApplier.Apply(source, payload);
+        var reinforcementsEnabled = reinforcements.Enabled;
+        var reinforcementsTargetVillageName = reinforcements.TargetVillageName;
+        var reinforcementsSourceVillageNames = reinforcements.SourceVillageNames;
+        var reinforcementsTroopRules = reinforcements.TroopRules;
+        var reinforcementsSendIntervalHours = reinforcements.SendMinMinutes;
+        var reinforcementsSendVariationPercent = reinforcements.SendMaxMinutes;
+        var actionPacing = ActionPacingPayloadApplier.Apply(source, payload);
+        var actionPacingEnabled = actionPacing.Enabled;
+        var actionPacingTaskMinSeconds = actionPacing.TaskMinSeconds;
+        var actionPacingTaskMaxSeconds = actionPacing.TaskMaxSeconds;
+        var actionPacingPageLoadMinSeconds = actionPacing.PageLoadMinSeconds;
+        var actionPacingPageLoadMaxSeconds = actionPacing.PageLoadMaxSeconds;
+        var actionPacingClickMinSeconds = actionPacing.ClickMinSeconds;
+        var actionPacingClickMaxSeconds = actionPacing.ClickMaxSeconds;
+        var actionPacingLoopMinSeconds = actionPacing.LoopMinSeconds;
+        var actionPacingLoopMaxSeconds = actionPacing.LoopMaxSeconds;
+        var farmListStepDelayMinSeconds = actionPacing.FarmListStepMinSeconds;
+        var farmListStepDelayMaxSeconds = actionPacing.FarmListStepMaxSeconds;
 
         return new BotOptions
         {
@@ -1283,38 +333,4 @@ public static class BotOptionsPayloadApplier
         };
     }
 
-    private static List<ReinforcementTroopRule> ParseReinforcementTroopRules(string value)
-    {
-        try
-        {
-            var rules = System.Text.Json.JsonSerializer.Deserialize<List<ReinforcementTroopRule>>(
-                value,
-                new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true }) ?? [];
-            return rules
-                .Where(rule => rule is not null && !string.IsNullOrWhiteSpace(rule.TroopType))
-                .Select(rule => rule.Normalize())
-                .GroupBy(rule => $"{rule.AccountName}\u001f{rule.SourceVillageName}\u001f{rule.TroopType}", StringComparer.OrdinalIgnoreCase)
-                .Select(group => group.First())
-                .ToList();
-        }
-        catch
-        {
-            return [];
-        }
-    }
-
-    private static double ClampDelaySeconds(double value)
-    {
-        if (double.IsNaN(value) || double.IsInfinity(value))
-        {
-            return 0;
-        }
-
-        return Math.Clamp(value, 0, 3600);
-    }
-
-    private static string NormalizeTroopTrainingRunMode(string? value)
-        => string.Equals(value, "resource_percent", StringComparison.OrdinalIgnoreCase)
-            ? "resource_percent"
-            : "timed";
 }
