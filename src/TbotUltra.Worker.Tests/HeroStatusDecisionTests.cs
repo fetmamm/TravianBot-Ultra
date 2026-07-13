@@ -50,4 +50,21 @@ public sealed class HeroStatusDecisionTests
         Assert.False(HeroStatusDecision.IsDeadStatusText("Hero is at home"));
         Assert.False(HeroStatusDecision.IsAwayStatusText(null));
     }
+
+    [Theory]
+    [InlineData(null, 50, 20, 600)]
+    [InlineData(40, 50, 0, 600)]
+    [InlineData(50, 50, 20, 600)]
+    [InlineData(49, 50, 1000, 87)]
+    [InlineData(20, 50, 20, 1800)]
+    public void ComputeHpWaitSeconds_PreservesExistingBounds(
+        int? hp,
+        int threshold,
+        int regenPerDay,
+        int expected)
+    {
+        Assert.Equal(
+            expected,
+            HeroStatusDecision.ComputeHpWaitSeconds(hp, threshold, regenPerDay, maxDeferSeconds: 1800));
+    }
 }

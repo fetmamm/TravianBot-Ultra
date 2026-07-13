@@ -43,4 +43,27 @@ internal static class HeroStatusDecision
             || text.Contains("back from", StringComparison.Ordinal)
             || text.Contains("returning", StringComparison.Ordinal);
     }
+
+    internal static int ComputeHpWaitSeconds(
+        int? hpPercent,
+        int thresholdPercent,
+        int regenPerDayPercent,
+        int maxDeferSeconds)
+    {
+        const int fallbackSeconds = 600;
+        if (hpPercent is not int hp || regenPerDayPercent <= 0)
+        {
+            return fallbackSeconds;
+        }
+
+        var deficit = thresholdPercent - hp;
+        if (deficit <= 0)
+        {
+            return fallbackSeconds;
+        }
+
+        var hours = deficit * 24.0 / regenPerDayPercent;
+        var seconds = (int)Math.Ceiling(hours * 3600.0);
+        return Math.Clamp(seconds, 60, maxDeferSeconds);
+    }
 }
