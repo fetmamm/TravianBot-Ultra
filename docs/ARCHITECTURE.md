@@ -75,7 +75,7 @@ One `partial class BotTaskRunner` in `Services/`, split by concern:
 
 ## 4. Core
 
-- `Configuration/` — `BotOptions`, `BotOptionsFactory`, `BotOptionsPayloadApplier` with domain appliers, defaults, `ActionPacer`.
+- `Configuration/` — `BotOptions`, `BotOptionsFactory`, `BotOptionsPayloadApplier` with domain appliers, defaults, `ActionPacer`, and isolated legacy compatibility mappings.
 - `Tasks/` — task payloads (`*Payload.cs`), `TaskCatalog`, `TaskDescriptor`, `TaskGroup`.
 - `Travian/` — `SmithyPageParser`, `TroopCatalog`, troop types.
 - `Accounts/` — key normalizer, storage paths, analysis constants.

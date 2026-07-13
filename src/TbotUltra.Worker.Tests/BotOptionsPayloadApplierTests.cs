@@ -606,6 +606,50 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
+    public void FromConfiguration_NewPacingKeysWinOverLegacyCompatibility()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["server_name"] = "srv",
+                ["base_url"] = "https://example.com",
+                ["human_like_enabled"] = "true",
+                ["human_like_speed"] = "slow",
+                [BotOptionPayloadKeys.ActionPacingEnabled] = "false",
+                [BotOptionPayloadKeys.ActionPacingTaskMinSeconds] = "0.9",
+            })
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.True(options.HumanLikeEnabled);
+        Assert.False(options.ActionPacingEnabled);
+        Assert.Equal(0.9, options.ActionPacingTaskMinSeconds);
+        Assert.Equal(5.0, options.ActionPacingTaskMaxSeconds);
+    }
+
+    [Fact]
+    public void FromConfiguration_LegacyCompatibility_IsDeterministicAcrossLoads()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["human_like_enabled"] = "true",
+                ["human_like_speed"] = "fast",
+            })
+            .Build();
+
+        var first = BotOptionsFactory.FromConfiguration(configuration);
+        var second = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.Equal(first.HumanLikeEnabled, second.HumanLikeEnabled);
+        Assert.Equal(first.HumanLikeSpeed, second.HumanLikeSpeed);
+        Assert.Equal(first.ActionPacingEnabled, second.ActionPacingEnabled);
+        Assert.Equal(first.ActionPacingTaskMinSeconds, second.ActionPacingTaskMinSeconds);
+        Assert.Equal(first.ActionPacingTaskMaxSeconds, second.ActionPacingTaskMaxSeconds);
+    }
+
+    [Fact]
     public void Apply_OverridesFarmingRuntimeSettings()
     {
         var source = new BotOptions

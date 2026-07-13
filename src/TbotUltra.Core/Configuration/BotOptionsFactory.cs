@@ -37,10 +37,8 @@ public static class BotOptionsFactory
         var heroStatPriority = string.IsNullOrWhiteSpace(configuration[BotOptionPayloadKeys.HeroStatPriority])
             ? DefaultHeroStatPriority
             : configuration[BotOptionPayloadKeys.HeroStatPriority]!;
-        var legacyHumanLikeEnabled = configuration.GetValue("human_like_enabled", false);
-        var legacyHumanLikeSpeed = configuration["human_like_speed"] ?? "medium";
-        var actionPacingEnabled = ResolveActionPacingEnabled(configuration, legacyHumanLikeEnabled);
-        var actionPacingDefaults = ResolveActionPacingFallbacks(legacyHumanLikeEnabled, legacyHumanLikeSpeed);
+        var legacyActionPacing = LegacyActionPacingCompatibility.Resolve(configuration);
+        var actionPacingDefaults = legacyActionPacing.Fallbacks;
 
         return new BotOptions
         {
@@ -136,9 +134,9 @@ public static class BotOptionsFactory
             ReinforcementsSendMinMinutes = reinforcementsSendIntervalHours,
             ReinforcementsSendMaxMinutes = reinforcementsSendVariationPercent,
             GithubReleasesUrl = configuration["github_releases_url"] ?? string.Empty,
-            HumanLikeEnabled = legacyHumanLikeEnabled,
-            HumanLikeSpeed = legacyHumanLikeSpeed,
-            ActionPacingEnabled = actionPacingEnabled,
+            HumanLikeEnabled = legacyActionPacing.HumanLikeEnabled,
+            HumanLikeSpeed = legacyActionPacing.HumanLikeSpeed,
+            ActionPacingEnabled = legacyActionPacing.ActionPacingEnabled,
             ActionPacingTaskMinSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingTaskMinSeconds, actionPacingDefaults.TaskMinSeconds)),
             ActionPacingTaskMaxSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingTaskMaxSeconds, actionPacingDefaults.TaskMaxSeconds)),
             ActionPacingPageLoadMinSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds, actionPacingDefaults.PageLoadMinSeconds)),
@@ -418,43 +416,6 @@ public static class BotOptionsFactory
             : configuration.GetValue(key, defaultValue);
     }
 
-    private static bool ResolveActionPacingEnabled(IConfiguration configuration, bool legacyHumanLikeEnabled)
-    {
-        if (configuration[BotOptionPayloadKeys.ActionPacingEnabled] is not null)
-        {
-            return configuration.GetValue(BotOptionPayloadKeys.ActionPacingEnabled, PacingDefaults.ActionPacingEnabled);
-        }
-
-        return legacyHumanLikeEnabled || PacingDefaults.ActionPacingEnabled;
-    }
-
-    private static ActionPacingFallbacks ResolveActionPacingFallbacks(bool legacyHumanLikeEnabled, string? legacyHumanLikeSpeed)
-    {
-        if (!legacyHumanLikeEnabled)
-        {
-            return ActionPacingFallbacks.Default;
-        }
-
-        var (legacyMin, legacyMax) = legacyHumanLikeSpeed?.Trim().ToLowerInvariant() switch
-        {
-            "slow" => (2.5, 5.0),
-            "fast" => (0.3, 1.0),
-            _ => (1.0, 2.5),
-        };
-
-        return new ActionPacingFallbacks(
-            Math.Max(PacingDefaults.ActionPacingTaskMinSeconds, legacyMin),
-            Math.Max(PacingDefaults.ActionPacingTaskMaxSeconds, legacyMax),
-            Math.Max(PacingDefaults.ActionPacingPageLoadMinSeconds, legacyMin),
-            Math.Max(PacingDefaults.ActionPacingPageLoadMaxSeconds, legacyMax),
-            Math.Max(PacingDefaults.ActionPacingClickMinSeconds, legacyMin),
-            Math.Max(PacingDefaults.ActionPacingClickMaxSeconds, legacyMax),
-            PacingDefaults.ActionPacingLoopMinSeconds,
-            PacingDefaults.ActionPacingLoopMaxSeconds,
-            Math.Max(PacingDefaults.FarmListStepDelayMinSeconds, legacyMin),
-            Math.Max(PacingDefaults.FarmListStepDelayMaxSeconds, legacyMax));
-    }
-
     private static double ClampDelaySeconds(double value)
     {
         if (double.IsNaN(value) || double.IsInfinity(value))
@@ -480,28 +441,4 @@ public static class BotOptionsFactory
             .ToList();
     }
 
-    private sealed record ActionPacingFallbacks(
-        double TaskMinSeconds,
-        double TaskMaxSeconds,
-        double PageLoadMinSeconds,
-        double PageLoadMaxSeconds,
-        double ClickMinSeconds,
-        double ClickMaxSeconds,
-        double LoopMinSeconds,
-        double LoopMaxSeconds,
-        double FarmListMinSeconds,
-        double FarmListMaxSeconds)
-    {
-        public static ActionPacingFallbacks Default { get; } = new(
-            PacingDefaults.ActionPacingTaskMinSeconds,
-            PacingDefaults.ActionPacingTaskMaxSeconds,
-            PacingDefaults.ActionPacingPageLoadMinSeconds,
-            PacingDefaults.ActionPacingPageLoadMaxSeconds,
-            PacingDefaults.ActionPacingClickMinSeconds,
-            PacingDefaults.ActionPacingClickMaxSeconds,
-            PacingDefaults.ActionPacingLoopMinSeconds,
-            PacingDefaults.ActionPacingLoopMaxSeconds,
-            PacingDefaults.FarmListStepDelayMinSeconds,
-            PacingDefaults.FarmListStepDelayMaxSeconds);
-    }
 }
