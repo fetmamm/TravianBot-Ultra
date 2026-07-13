@@ -315,7 +315,7 @@ public partial class MainWindow
                     && existing.Status == QueueStatus.Pending
                     && string.Equals(GetQueueItemVillageKey(existing) ?? string.Empty, buildTroopsVillageKey, StringComparison.OrdinalIgnoreCase));
                 if (existingPending is not null
-                    && !QueuePayloadEquals(existingPending.Payload, trainingPayload)
+                    && !ContinuousLoopSelector.PayloadEquals(existingPending.Payload, trainingPayload)
                     && _botService.UpdateDeferredQueueItem(existingPending.Id, trainingPayload))
                 {
                     AppendLog($"[troops] refreshed deferred build_troops payload for '{village.Name}' with updated troop settings.");
@@ -793,15 +793,16 @@ public partial class MainWindow
         var now = DateTimeOffset.UtcNow;
         var readyUtilityItems = OrderContinuousLoopGroupItems(
                 queueItems.Where(item =>
-                    IsAlwaysOnUtilityTask(item.TaskName) &&
+                    ContinuousLoopSelector.IsUtilityTask(item.TaskName) &&
                     IsAutoCollectUtilityTaskEnabledNow(item.TaskName, options) &&
                     IsQueueItemAllowedByAutomationSettings(item) &&
                     item.Status == QueueStatus.Pending &&
                     item.NextAttemptAt <= now));
         var activeVillageKey = _activeWorkingVillageKey;
-        var readyUtilityItem = readyUtilityItems.FirstOrDefault(item =>
-            activeVillageKey is null
-            || string.Equals(GetQueueItemVillageKey(item), activeVillageKey, StringComparison.OrdinalIgnoreCase));
+        var readyUtilityItem = ContinuousLoopSelector.SelectReadyUtilityItem(
+            readyUtilityItems,
+            activeVillageKey,
+            GetQueueItemVillageKey);
         if (readyUtilityItem is not null)
         {
             return readyUtilityItem;
@@ -810,18 +811,9 @@ public partial class MainWindow
         // Consider the union of enabled runtime groups across all active villages. Persistent Queue-page
         // work is appended below only to preserve group ordering; every item is still gated by its own
         // village Auto toggle and per-village group toggle before it can run.
-        var orderedGroups = GetContinuousLoopConsideredGroupsInOrder().ToList();
-        var seenGroups = orderedGroups.ToHashSet();
-        foreach (var manualGroup in queueItems
-            .Where(item => !item.IsRuntimeOnly
-                && item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused)
-            .Select(item => item.Group))
-        {
-            if (seenGroups.Add(manualGroup))
-            {
-                orderedGroups.Add(manualGroup);
-            }
-        }
+        var orderedGroups = ContinuousLoopSelector.BuildConsideredGroups(
+            GetContinuousLoopConsideredGroupsInOrder(),
+            queueItems);
 
         if (orderedGroups.Count <= 0)
         {
@@ -841,7 +833,7 @@ public partial class MainWindow
             var orderedGroupItems = OrderContinuousLoopGroupItems(
                 queueItems.Where(item =>
                     item.Group == group &&
-                    !IsAlwaysOnUtilityTask(item.TaskName) &&
+                    !ContinuousLoopSelector.IsUtilityTask(item.TaskName) &&
                     IsQueueItemAllowedByAutomationSettings(item) &&
                     item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused));
             if (group == QueueGroup.Construction)
@@ -1017,27 +1009,6 @@ public partial class MainWindow
 
     // Tags a runtime item with its target village so the worker switches there before executing, and
     // gates NPC trade per village (master AND per-village both on).
-    // True when two runtime payload snapshots carry identical keys/values. Used to skip queue writes
-    // when a deferred item's payload already matches the current per-village settings.
-    private static bool QueuePayloadEquals(IReadOnlyDictionary<string, string> current, Dictionary<string, string> updated)
-    {
-        if (current.Count != updated.Count)
-        {
-            return false;
-        }
-
-        foreach (var pair in updated)
-        {
-            if (!current.TryGetValue(pair.Key, out var existingValue)
-                || !string.Equals(existingValue, pair.Value, StringComparison.Ordinal))
-            {
-                return false;
-            }
-        }
-
-        return true;
-    }
-
     private Dictionary<string, string> BuildVillageRuntimePayload(VillageSelectionItem village)
     {
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -1145,10 +1116,6 @@ public partial class MainWindow
 
         return remainingSeconds.Min();
     }
-
-    private static bool IsAlwaysOnUtilityTask(string? taskName) =>
-        string.Equals(taskName, "collect_tasks", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(taskName, "collect_daily_quests", StringComparison.OrdinalIgnoreCase);
 
     private bool HasReadyContinuousConstructionItem()
     {

@@ -8,6 +8,40 @@ namespace TbotUltra.Desktop.Services;
 /// </summary>
 internal static class ContinuousLoopSelector
 {
+    internal static bool IsUtilityTask(string? taskName) =>
+        string.Equals(taskName, "collect_tasks", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "collect_daily_quests", StringComparison.OrdinalIgnoreCase);
+
+    internal static IReadOnlyList<QueueGroup> BuildConsideredGroups(
+        IEnumerable<QueueGroup> configuredGroups,
+        IEnumerable<QueueItem> queueItems)
+    {
+        var groups = configuredGroups.ToList();
+        var seen = groups.ToHashSet();
+        foreach (var group in queueItems
+            .Where(item => !item.IsRuntimeOnly
+                && item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused)
+            .Select(item => item.Group))
+        {
+            if (seen.Add(group))
+            {
+                groups.Add(group);
+            }
+        }
+
+        return groups;
+    }
+
+    internal static QueueItem? SelectReadyUtilityItem(
+        IReadOnlyList<QueueItem> orderedReadyItems,
+        string? activeVillageKey,
+        Func<QueueItem, string?> villageKeySelector)
+    {
+        return orderedReadyItems.FirstOrDefault(item =>
+            activeVillageKey is null
+            || string.Equals(villageKeySelector(item), activeVillageKey, StringComparison.OrdinalIgnoreCase));
+    }
+
     internal static QueueItem? SelectReadyGroupHead(
         IReadOnlyList<QueueItem> villageItems,
         DateTimeOffset now)
@@ -51,5 +85,26 @@ internal static class ContinuousLoopSelector
         var nextSendAt = lastSucceeded.Value.Add(ReinforcementSendDefaults.CalculateSendDelay(minMinutes, maxMinutes));
         var remaining = nextSendAt - now;
         return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+    }
+
+    internal static bool PayloadEquals(
+        IReadOnlyDictionary<string, string> current,
+        IReadOnlyDictionary<string, string> updated)
+    {
+        if (current.Count != updated.Count)
+        {
+            return false;
+        }
+
+        foreach (var pair in updated)
+        {
+            if (!current.TryGetValue(pair.Key, out var existingValue)
+                || !string.Equals(existingValue, pair.Value, StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 }
