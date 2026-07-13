@@ -28,6 +28,17 @@ public sealed record DailyPacingTimelineSegment(
     string State,
     string Details);
 
+public sealed record DailyProxyUsageRow(
+    string Status,
+    string IpAddress,
+    string Connection,
+    string Country,
+    string Used,
+    string Share,
+    int Sessions,
+    string FirstUsed,
+    string LastUsed);
+
 /// <summary>One day on the runtime graph: online hours, and the day's daily-max (limit) hours if set.</summary>
 public sealed record DailyPacingChartPoint(
     string DateLabel,
@@ -49,7 +60,8 @@ public partial class DailyPacingDetailsWindow : Window
         IReadOnlyList<DailyPacingDayRow> dayRows,
         IReadOnlyList<DailyPacingTaskRow> taskRows,
         IReadOnlyList<DailyPacingTimelineSegment> timelineSegments,
-        IReadOnlyList<DailyPacingChartPoint> chartPoints)
+        IReadOnlyList<DailyPacingChartPoint> chartPoints,
+        IReadOnlyList<DailyProxyUsageRow> proxyUsageRows)
     {
         InitializeComponent();
         OnlineTodayTextBlock.Text = onlineToday;
@@ -60,6 +72,7 @@ public partial class DailyPacingDetailsWindow : Window
         AccountTotalTextBlock.Text = accountTotal;
         WeekDataGrid.ItemsSource = dayRows;
         TaskDataGrid.ItemsSource = taskRows;
+        ProxyUsageDataGrid.ItemsSource = proxyUsageRows;
         _timelineSegments = timelineSegments;
         _chartPoints = chartPoints;
     }

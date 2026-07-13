@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Daily details"
-        Width="780"
+        Width="920"
         Height="520"
-        MinWidth="680"
+        MinWidth="760"
         MinHeight="420"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner">
@@ -150,6 +150,29 @@
                         </ScrollViewer>
                     </DockPanel>
                 </Border>
+            </TabItem>
+
+            <TabItem Header="Proxy">
+                <DataGrid x:Name="ProxyUsageDataGrid"
+                          AutoGenerateColumns="False"
+                          CanUserAddRows="False"
+                          CanUserDeleteRows="False"
+                          IsReadOnly="True"
+                          HeadersVisibility="Column"
+                          GridLinesVisibility="None"
+                          Margin="0">
+                    <DataGrid.Columns>
+                        <DataGridTextColumn Header="Status" Binding="{Binding Status}" Width="0.75*" />
+                        <DataGridTextColumn Header="IP / host" Binding="{Binding IpAddress}" Width="1.25*" />
+                        <DataGridTextColumn Header="Connection" Binding="{Binding Connection}" Width="1.35*" />
+                        <DataGridTextColumn Header="Country" Binding="{Binding Country}" Width="0.9*" />
+                        <DataGridTextColumn Header="Used" Binding="{Binding Used}" Width="0.9*" />
+                        <DataGridTextColumn Header="Share" Binding="{Binding Share}" Width="0.65*" />
+                        <DataGridTextColumn Header="Sessions" Binding="{Binding Sessions}" Width="0.7*" />
+                        <DataGridTextColumn Header="First used" Binding="{Binding FirstUsed}" Width="1.25*" />
+                        <DataGridTextColumn Header="Last used" Binding="{Binding LastUsed}" Width="1.25*" />
+                    </DataGrid.Columns>
+                </DataGrid>
             </TabItem>
         </TabControl>
 

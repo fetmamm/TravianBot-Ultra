@@ -94,7 +94,7 @@ Compatible with:
 - Construct 25% faster with button / video watch
 - Watch video to get 15% resource bonus production
 - Save reports as PNG to the program folder and blur out attacker, defender and alliance
-- Support to use Proxy per account, manage proxy lists and more (Using: https://github.com/TheSpeedX/PROXY-List)
+- Support to use Proxy per account, manage proxy lists, and track per-account IP/proxy usage time (Using: https://github.com/TheSpeedX/PROXY-List)
 - Make building templates that is reusable for different villages
 - Language detection if wrong (Must be in English) + auto change language
 -----------------------------------------------------------------------------------

@@ -153,6 +153,7 @@ document.querySelector('.warehouse .capacity .value')
 - Proxybyte for aktiv session ska aldrig lata worker-fingerprintet ersatta browsern mitt under korning.
   Behall aktiv proxy tills anvandaren valt kontrollerad relogin (logout, shutdown, 5-20s delay, login) eller
   nasta session sleep; sleep-valet aktiverar nya proxyn efter logout och stanger browsern fore wake-login.
+  Proxy/IP-anvandning sparas per konto i `proxy_usage.json`; task/waiting raknas, session sleep raknas inte.
 - Defer-orsaker ska konsumeras typat: `TaskWaitException.ReasonCode` (`TaskWaitReasons.*`), harledd pa ETT
   stalle (`BotTaskRunner.TaskHandlers.DeriveTaskWaitReason`). Sniffa inte `ex.Message` i Desktop for nya
   fall — lagg till en reason-kod i stallet. Farm-send-deferrals (cooldown/not ready/renamed) kastar

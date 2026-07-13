@@ -262,6 +262,31 @@ public sealed class ProxyListTester
         };
         using var client = new HttpClient(handler, disposeHandler: true) { Timeout = ProbeTimeout };
 
+        return await ReadEnrichmentAsync(client, ProxyParser.MaskForLog(server), cancellationToken).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// Best-effort lookup for a direct connection. Used by connection-usage tracking so accounts
+    /// without a proxy can still distinguish the public IP addresses they have used.
+    /// </summary>
+    public async Task<ProxyEnrichment> EnrichDirectAsync(CancellationToken cancellationToken)
+    {
+        var handler = new SocketsHttpHandler
+        {
+            UseProxy = false,
+            AllowAutoRedirect = false,
+            ConnectTimeout = ProbeTimeout,
+        };
+        using var client = new HttpClient(handler, disposeHandler: true) { Timeout = ProbeTimeout };
+
+        return await ReadEnrichmentAsync(client, "direct connection", cancellationToken).ConfigureAwait(false);
+    }
+
+    private async Task<ProxyEnrichment> ReadEnrichmentAsync(
+        HttpClient client,
+        string connectionLabel,
+        CancellationToken cancellationToken)
+    {
         try
         {
             var json = await client.GetStringAsync(IpLookupUrl, cancellationToken).ConfigureAwait(false);
@@ -277,7 +302,7 @@ public sealed class ProxyListTester
         }
         catch (Exception ex)
         {
-            _log?.Invoke($"[proxytest] enrich failed for {ProxyParser.MaskForLog(server)}: {ex.Message}");
+            _log?.Invoke($"[proxytest] enrich failed for {connectionLabel}: {ex.Message}");
             return new ProxyEnrichment(string.Empty, string.Empty);
         }
     }

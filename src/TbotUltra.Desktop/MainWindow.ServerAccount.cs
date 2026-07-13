@@ -179,39 +179,67 @@ public partial class MainWindow
     // Sidebar proxy indicator: grey/"No proxy is used" when off, green + country when on. The country
     // is looked up once through the proxy (and cached per server) so the user can tell at a glance that
     // the proxy is active, where it exits, and whether it actually responds.
+    private const string DirectConnectionLookupKey = "direct";
     private string _proxyStatusServer = string.Empty;
+    private string _proxyStatusLookupKey = string.Empty;
+    private string _proxyStatusIp = string.Empty;
     private string _proxyStatusCountry = string.Empty;
     private CancellationTokenSource? _proxyStatusCts;
 
     private void UpdateProxyStatus(AccountEntry? account)
     {
-        var enabled = account?.ProxyEnabled == true && !string.IsNullOrWhiteSpace(account.ProxyServer);
-        if (!enabled)
+        if (account is null)
         {
+            _proxyStatusLookupKey = string.Empty;
             _proxyStatusServer = string.Empty;
+            _proxyStatusIp = string.Empty;
             _proxyStatusCountry = string.Empty;
             _proxyStatusCts?.Cancel();
             SetProxyStatusVisual("TextMutedBrush", "No proxy is used", detail: null);
             return;
         }
 
-        var server = account!.ProxyServer.Trim();
+        var enabled = account?.ProxyEnabled == true && !string.IsNullOrWhiteSpace(account.ProxyServer);
+        var server = enabled ? account!.ProxyServer.Trim() : string.Empty;
+        var lookupKey = enabled ? server : DirectConnectionLookupKey;
 
-        // Reuse the cached country when the proxy has not changed since the last lookup.
-        if (string.Equals(server, _proxyStatusServer, StringComparison.OrdinalIgnoreCase)
-            && !string.IsNullOrWhiteSpace(_proxyStatusCountry))
+        if (enabled
+            && string.Equals(lookupKey, _proxyStatusLookupKey, StringComparison.OrdinalIgnoreCase)
+            && !string.IsNullOrWhiteSpace(_proxyStatusIp))
         {
-            SetProxyStatusVisual("SuccessBrush", _proxyStatusCountry, $"IP: {ProxyHostPortForDisplay(server)}");
+            ApplyConnectionStatusVisual(enabled, server, _proxyStatusIp, _proxyStatusCountry);
             return;
         }
 
+        _proxyStatusLookupKey = lookupKey;
         _proxyStatusServer = server;
+        _proxyStatusIp = string.Empty;
         _proxyStatusCountry = string.Empty;
-        SetProxyStatusVisual("WarningTextBrush", "Checking…", $"IP: {ProxyHostPortForDisplay(server)}");
-        _ = RefreshProxyCountryAsync(server);
+        if (enabled)
+        {
+            SetProxyStatusVisual("WarningTextBrush", "Checking…", $"Proxy: {ProxyHostPortForDisplay(server)}");
+        }
+        else
+        {
+            SetProxyStatusVisual("TextMutedBrush", "No proxy is used", "IP: Checking…");
+        }
+
+        _ = RefreshConnectionIdentityAsync(lookupKey, enabled ? server : null);
     }
 
-    private async Task RefreshProxyCountryAsync(string server)
+    private void ApplyConnectionStatusVisual(bool isProxy, string server, string ip, string country)
+    {
+        if (!isProxy)
+        {
+            SetProxyStatusVisual("TextMutedBrush", "No proxy is used", $"IP: {ip}");
+            return;
+        }
+
+        var label = string.IsNullOrWhiteSpace(country) ? "Proxy active" : country;
+        SetProxyStatusVisual("SuccessBrush", label, $"IP: {ip} · Proxy: {ProxyHostPortForDisplay(server)}");
+    }
+
+    private async Task RefreshConnectionIdentityAsync(string lookupKey, string? proxyServer)
     {
         _proxyStatusCts?.Cancel();
         _proxyStatusCts?.Dispose();
@@ -221,29 +249,41 @@ public partial class MainWindow
         ProxyEnrichment info;
         try
         {
-            info = await new ProxyListTester().EnrichAsync(server, token);
+            var tester = new ProxyListTester();
+            info = string.IsNullOrWhiteSpace(proxyServer)
+                ? await tester.EnrichDirectAsync(token)
+                : await tester.EnrichAsync(proxyServer, token);
         }
         catch (Exception ex)
         {
-            AppendLog($"[proxy-status] country lookup failed: {ex.Message}");
+            AppendLog($"[proxy-status] connection lookup failed: {ex.Message}");
             info = new ProxyEnrichment(string.Empty, string.Empty);
         }
 
-        // Ignore a stale result if the active proxy changed while we were looking it up.
-        if (!string.Equals(server, _proxyStatusServer, StringComparison.OrdinalIgnoreCase))
+        // Ignore a stale result if the active connection changed while we were looking it up.
+        if (!string.Equals(lookupKey, _proxyStatusLookupKey, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
-        if (!string.IsNullOrWhiteSpace(info.Country))
+        _proxyStatusIp = info.Ip?.Trim() ?? string.Empty;
+        _proxyStatusCountry = info.Country?.Trim() ?? string.Empty;
+        if (!string.IsNullOrWhiteSpace(_proxyStatusIp))
         {
-            _proxyStatusCountry = info.Country;
-            SetProxyStatusVisual("SuccessBrush", info.Country, $"IP: {ProxyHostPortForDisplay(server)}");
+            ApplyConnectionStatusVisual(
+                !string.IsNullOrWhiteSpace(proxyServer),
+                proxyServer ?? string.Empty,
+                _proxyStatusIp,
+                _proxyStatusCountry);
+        }
+        else if (string.IsNullOrWhiteSpace(proxyServer))
+        {
+            SetProxyStatusVisual("TextMutedBrush", "No proxy is used", "IP: Unknown");
         }
         else
         {
             // Reached nothing through the proxy — surface it so the user knows it is not working.
-            SetProxyStatusVisual("DangerTextBrush", "Not responding", $"IP: {ProxyHostPortForDisplay(server)}");
+            SetProxyStatusVisual("DangerTextBrush", "Not responding", $"Proxy: {ProxyHostPortForDisplay(proxyServer)}");
         }
     }
 

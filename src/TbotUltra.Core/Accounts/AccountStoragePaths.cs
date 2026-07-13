@@ -98,6 +98,11 @@ public static class AccountStoragePaths
         return Path.Combine(AccountDirectory(projectRoot, accountName), "town_hall_state.json");
     }
 
+    public static string ProxyUsagePath(string projectRoot, string accountName)
+    {
+        return Path.Combine(AccountDirectory(projectRoot, accountName), "proxy_usage.json");
+    }
+
     // Per-account remembered +15%/+25% production bonus timers (per resource: bonus, expiry, next
     // free-video attempt). Lets the dashboard popup restore the countdowns across restarts.
     public static string ProductionBonusStatePath(string projectRoot, string accountName)

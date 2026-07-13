@@ -556,6 +556,7 @@ public partial class MainWindow
             out var firstTimelineDate);
         var taskRows = BuildDailyPacingTaskRows();
         var timelineSegments = BuildDailyPacingTimelineSegments(firstTimelineDate, progress.Date);
+        var proxyUsageRows = BuildDailyProxyUsageRows(_accountStore.ActiveAccountName());
         var window = new DailyPacingDetailsWindow(
             FormatDailyDetailsDuration(progress.OnlineToday),
             FormatDailyDetailsDuration(activityToday.Waiting),
@@ -566,7 +567,8 @@ public partial class MainWindow
             dayRows,
             taskRows,
             timelineSegments,
-            chartPoints)
+            chartPoints,
+            proxyUsageRows)
         {
             Owner = this,
         };

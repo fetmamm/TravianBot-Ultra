@@ -39,18 +39,25 @@ public partial class MainWindow
         var now = DateTimeOffset.UtcNow;
         if (_shutdownInProgress || _shutdownCompleted)
         {
+            CloseCurrentProxyUsageInterval(now);
             CloseCurrentSessionActivityInterval(now);
             return;
         }
 
         var accountName = _accountStore.ActiveAccountName();
+        var (state, label) = ResolveCurrentSessionActivityState();
+        UpdateProxyUsageState(
+            accountName,
+            state is ActivityStateTask or ActivityStateWaiting,
+            now,
+            forcePersist);
+
         if (!string.Equals(_sessionActivityAccountName, accountName, StringComparison.OrdinalIgnoreCase))
         {
             CloseCurrentSessionActivityInterval(now);
             _sessionActivityAccountName = accountName;
         }
 
-        var (state, label) = ResolveCurrentSessionActivityState();
         if (state is null)
         {
             CloseCurrentSessionActivityInterval(now);
