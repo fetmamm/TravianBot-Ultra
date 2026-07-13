@@ -189,7 +189,6 @@ public partial class TownHallOverviewWindow : Window
         Rows = new ObservableCollection<TownHallOverviewRow>(rows);
         Queue = new TownHallQueueSettings(celebrationCount, restartDelayMinMinutes, restartDelayMaxMinutes);
         DataContext = this;
-        SubtitleTextBlock.Text = $"{Rows.Count} village(s)";
     }
 
     private IReadOnlyList<TownHallOverviewResult> BuildResults()

@@ -27,10 +27,6 @@
                                 Margin="8,2,0,0"
                                 ToolTip="Enable Town Hall celebrations per village and choose whether that village should prefer small or Great celebrations. Great falls back to small until the Town Hall is level 10." />
             </StackPanel>
-            <TextBlock x:Name="SubtitleTextBlock"
-                       Foreground="{DynamicResource TextSubtleBrush}"
-                       TextWrapping="Wrap"
-                       Margin="0,4,0,0" />
         </StackPanel>
 
         <Border Grid.Row="1"
@@ -128,9 +124,14 @@
                 CornerRadius="8"
                 Padding="14,12">
             <StackPanel>
-                <TextBlock Text="Celebration queue"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                    <TextBlock Text="Celebration queue"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                    Margin="8,1,0,0"
+                                    ToolTip="One runs one celebration at a time. Two keeps one celebration running and queues a second with Travian Plus. Without Plus, the bot automatically runs one celebration at a time." />
+                </StackPanel>
 
                 <StackPanel Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
                     <TextBlock Text="Run"
@@ -147,10 +148,14 @@
                 </StackPanel>
 
                 <StackPanel Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
-                    <TextBlock Text="Restart delay"
-                               Width="120"
-                               VerticalAlignment="Center"
-                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                    <StackPanel Width="120" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Restart delay"
+                                   VerticalAlignment="Center"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                        <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                        Margin="6,1,0,0"
+                                        ToolTip="Waits a random time after a celebration ends before starting the next one. Set both values to 0 to disable the delay." />
+                    </StackPanel>
                     <TextBox Width="56"
                              VerticalContentAlignment="Center"
                              Text="{Binding Queue.DelayMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -163,12 +168,6 @@
                                Margin="8,0,0,0"
                                Foreground="{DynamicResource TextSubtleBrush}" />
                 </StackPanel>
-
-                <TextBlock Text="Two celebrations requires Travian Plus. The delay waits a random time after a celebration ends before starting the next one (0 = off)."
-                           Foreground="{DynamicResource TextSubtleBrush}"
-                           TextWrapping="Wrap"
-                           FontSize="11"
-                           Margin="0,8,0,0" />
             </StackPanel>
         </Border>
 

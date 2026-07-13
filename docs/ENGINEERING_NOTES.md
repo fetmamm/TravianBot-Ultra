@@ -190,8 +190,9 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
   (`.toast.toastError .text` = "There are no resources to transfer from the Hero Inventory.").
   Dialog-vantan race:ar dialog mot toasten, cachar tomt inventory och skippar — ingen full timeout.
 - Town Hall celebration ar `gid 24`, alla stammar, per-by `QueueGroup.TownHallCelebration`.
-  Mode ar account-default `small`/`big` med per-by override; UI visar `big` som "Great" enligt Travian.
-  `big` faller tillbaka till `small` under Town Hall level 10. Start-/resource-scope ska ligga i
+  Mode ar account-default `small`/`big` med per-by override; ko-default ar tva med restart-delay 15-75 min.
+  Utan aktiv Plus reduceras malet till en direkt; `big` visas som "Great" och faller tillbaka under level 10.
+  Start-/resource-scope ska ligga i
   `.build_details` och matcha small- eller Great-celebration-raden.
 - +15% production bonus-video aterforsok styrs av daglig server-reset (server-lokal hel timme) + anvandarens
   delay, inte 24h efter aktivering. Disabled purple video-knapp betyder vanta till nasta reset.

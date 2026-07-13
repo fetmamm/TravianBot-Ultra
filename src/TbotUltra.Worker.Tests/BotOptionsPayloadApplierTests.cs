@@ -64,6 +64,23 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
+    public void FromConfiguration_TownHallRestartDelay_DefaultsTo15Through75Minutes()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["server_name"] = "srv",
+                ["base_url"] = "https://example.com",
+            })
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.Equal(15, options.TownHallCelebrationRestartDelayMinMinutes);
+        Assert.Equal(75, options.TownHallCelebrationRestartDelayMaxMinutes);
+    }
+
+    [Fact]
     public void Apply_OverridesNewVillageStartupAnalysis()
     {
         var source = new BotOptions { PostLoginAnalyzeNewVillages = true };

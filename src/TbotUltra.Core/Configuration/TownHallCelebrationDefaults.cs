@@ -13,8 +13,8 @@ public static class TownHallCelebrationDefaults
 
     // Random delay (minutes) after a celebration slot frees before starting the next one, so the bot does
     // not restart the instant the timer hits zero. 0/0 disables it.
-    public const double DefaultRestartDelayMinMinutes = 5;
-    public const double DefaultRestartDelayMaxMinutes = 30;
+    public const double DefaultRestartDelayMinMinutes = 15;
+    public const double DefaultRestartDelayMaxMinutes = 75;
 
     public static string NormalizeMode(string? value)
     {

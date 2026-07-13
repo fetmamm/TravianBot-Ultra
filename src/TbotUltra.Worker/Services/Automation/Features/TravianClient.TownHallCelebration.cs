@@ -33,12 +33,19 @@ public sealed partial class TravianClient
             return "Town Hall celebration: Town Hall not found. queue_wait_seconds=600";
         }
 
+        var goalCount = TownHallCelebrationDefaults.NormalizeCount(targetCount);
+        if (goalCount > TownHallCelebrationDefaults.MinCount
+            && !await IsTravianPlusActiveAsync(cancellationToken))
+        {
+            goalCount = TownHallCelebrationDefaults.MinCount;
+            Notify("[town-hall] two celebrations requested but Travian Plus is inactive; using one celebration.");
+        }
+
+        var restartDelaySeconds = ResolveTownHallRestartDelaySeconds(restartDelayMinMinutes, restartDelayMaxMinutes);
+
         await GotoAsync(Paths.BuildBySlot(townHallSlotId.Value), cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening Town Hall.", cancellationToken);
         await EnsureLoggedInAsync();
-
-        var goalCount = TownHallCelebrationDefaults.NormalizeCount(targetCount);
-        var restartDelaySeconds = ResolveTownHallRestartDelaySeconds(restartDelayMinMinutes, restartDelayMaxMinutes);
 
         var mode = TownHallCelebrationDefaults.NormalizeMode(requestedMode);
         var level = townHall?.Level ?? 0;
