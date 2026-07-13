@@ -73,9 +73,13 @@ Runtime-path helpers i `TravianClient.Selectors.cs` ar Official-only. Anropa hel
 - Proxyfel (`ERR_*PROXY*`/`ERR_SOCKS_CONNECTION_FAILED`) och Chromiums natverksfelsida ar unavailable,
   aldrig logged-out/unknown. Sakra queue-retries backar 30-60s, 60-120s, sedan 120-240s tills en lyckad
   task aterstaller backoff. Continuous-loop-fel fore item-pick anvander samma globala backoff; ready-items,
-  wake-signaler och keep-alive far inte avbryta den. Under defer-fonstret skippar background resource/inbox reads; bypassa aldrig
-  proxyn automatiskt. Saknat `Load`-event far bara godtas nar HTTP-URL, icke-neterror DOM och Travian-shell
+  wake-signaler och keep-alive far inte avbryta den. Under defer-fonstret skippar background resource/inbox reads.
+  Proxyn far bara bypassas av recovery nar `Never use own IP` ar av. Saknat `Load`-event far bara godtas nar HTTP-URL, icke-neterror DOM och Travian-shell
   kan bekraftas.
+- Tre konsekutiva navigationsfel med aktiv proxy triggar proxy-recovery: aktuell proxy dubbeltestas +
+  Travian-testas, darefter provas konto-tilldelade och sakra oallokerade proxies sekventiellt. Misslyckade
+  proxies far 45 min cooldown. Direktanslutning far endast provas/aktiveras nar `Never use own IP` ar av.
+  Varje byte anvander kontrollerad logout, browser-restart, 5-20s delay, login och resume.
 - Report PNG-capture ar Official `/report*` + oppnad rapport `#reportWrapper .role.attacker`; blur scope:as till
   `.role.attacker/.role.defender .troopHeadline` och `.header .subject`, aldrig rapportlistan.
 - Bulk messages far aldrig skriva till systemspelarna `Multihunter`, `Natar` eller `Natars`; filtrera bade vid analys och direkt fore send.

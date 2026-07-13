@@ -202,4 +202,33 @@ public sealed class ProxyListTesterTests
         Assert.Equal("3.3.3.3:3", reachable[1].Candidate.HostPort);
         Assert.DoesNotContain(reachable, item => item.Candidate.HostPort == "2.2.2.2:2");
     }
+
+    [Fact]
+    public async Task TestServerAgainstTargetAsync_RequiresTwoStableProbesAndTargetReachability()
+    {
+        var calls = 0;
+        var tester = new ProxyListTester(probe: (_, url, _) =>
+        {
+            calls++;
+            var success = url.Contains("gstatic", StringComparison.Ordinal) || calls < 3;
+            return Task.FromResult(new ProxyProbeResult(success, 20));
+        });
+
+        var result = await tester.TestServerAgainstTargetAsync(
+            "socks5://1.2.3.4:1080",
+            "https://travian.example/",
+            CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Equal(3, calls);
+    }
+
+    [Fact]
+    public async Task TestDirectAgainstTargetAsync_UsesInjectedDirectProbe()
+    {
+        var tester = new ProxyListTester(
+            directProbe: (url, _) => Task.FromResult(url == "https://travian.example/"));
+
+        Assert.True(await tester.TestDirectAgainstTargetAsync("https://travian.example/", CancellationToken.None));
+    }
 }

@@ -29,6 +29,7 @@ public sealed class ProxyLibraryEntry : INotifyPropertyChanged
     private string _country = string.Empty;
     private long? _latencyMs;
     private bool? _isWorking;
+    private DateTime? _lastFailureUtc;
     private string? _assignedAccount;
     private List<string> _usedByAccounts = new();
     private DateTime _createdAtUtc;
@@ -124,6 +125,12 @@ public sealed class ProxyLibraryEntry : INotifyPropertyChanged
         }
     }
 
+    public DateTime? LastFailureUtc
+    {
+        get => _lastFailureUtc;
+        set => SetField(ref _lastFailureUtc, value, nameof(LastFailureUtc));
+    }
+
     public string? AssignedAccount
     {
         get => _assignedAccount;
@@ -205,6 +212,7 @@ public sealed class ProxyLibraryEntry : INotifyPropertyChanged
             Country = Country,
             LatencyMs = LatencyMs,
             IsWorking = IsWorking,
+            LastFailureUtc = LastFailureUtc,
             AssignedAccount = AssignedAccount,
             UsedByAccounts = UsedByAccounts.ToList(),
             CreatedAtUtc = CreatedAtUtc,
@@ -479,6 +487,7 @@ public sealed class ProxyLibraryStore
             entry.Host = host;
             entry.Port = port;
             entry.Country = entry.Country == "-" ? string.Empty : entry.Country?.Trim() ?? string.Empty;
+            entry.LastFailureUtc = entry.LastFailureUtc?.ToUniversalTime();
             entry.AssignedAccount = string.IsNullOrWhiteSpace(entry.AssignedAccount) ? null : entry.AssignedAccount.Trim();
             entry.CreatedAtUtc = entry.CreatedAtUtc == default ? DateTime.UtcNow : entry.CreatedAtUtc;
             entry.UsedByAccounts = DistinctAccounts(entry.UsedByAccounts);

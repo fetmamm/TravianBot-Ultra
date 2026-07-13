@@ -520,17 +520,21 @@ public partial class MainWindow
         IsActive = source.IsActive,
     };
 
-    private async Task ApplyProxyChangeWithImmediateReloginAsync(AccountEntry changedAccount, BotOptions previousOptions)
+    private async Task<bool> ApplyProxyChangeWithImmediateReloginAsync(
+        AccountEntry changedAccount,
+        BotOptions previousOptions,
+        bool? resumeContinuousLoopOverride = null)
     {
         if (_accountSwitchInProgress || _loginInProgress)
         {
             AppendLog("[proxy-change] immediate relogin skipped because another session transition is active.");
             _pendingProxyChangeAtSleep = CloneAccount(changedAccount);
-            return;
+            return false;
         }
 
         _accountSwitchInProgress = true;
-        var resumeContinuousLoop = _loopTask is not null && !_loopTask.IsCompleted;
+        var resumeContinuousLoop = resumeContinuousLoopOverride
+            ?? (_loopTask is not null && !_loopTask.IsCompleted);
         var resumeAutoQueue = _autoQueueRunning;
         try
         {
@@ -553,6 +557,8 @@ public partial class MainWindow
 
             await _botService.ShutdownAsync(AppendLog);
             _accountStore.SaveAccount(changedAccount, setActive: false);
+            RefreshAccountPicker();
+            UpdateProxyStatus(changedAccount);
 
             var delaySeconds = Random.Shared.Next(5, 21);
             AppendLog($"[proxy-change] new proxy saved; waiting {delaySeconds}s before fresh browser login.");
@@ -562,7 +568,7 @@ public partial class MainWindow
             if (!_isLoggedIn)
             {
                 AppendLog("[proxy-change] relogin did not complete; automation remains stopped for safety.");
-                return;
+                return false;
             }
 
             if (resumeContinuousLoop)
@@ -575,10 +581,12 @@ public partial class MainWindow
             }
 
             AppendLog("[proxy-change] fresh browser login completed with new proxy; previous run state restored.");
+            return true;
         }
         catch (Exception ex)
         {
             AppendLog($"[proxy-change] controlled relogin failed: {ex.Message}");
+            return false;
         }
         finally
         {

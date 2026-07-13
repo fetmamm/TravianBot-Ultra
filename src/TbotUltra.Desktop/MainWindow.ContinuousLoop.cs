@@ -1572,6 +1572,11 @@ public partial class MainWindow
             var tickSw = Stopwatch.StartNew();
             try
             {
+                if (TryScheduleAutomaticProxyRecovery(options))
+                {
+                    break;
+                }
+
                 var networkBackoffRemaining = GetTransientNetworkUnavailableRemaining();
                 if (networkBackoffRemaining > TimeSpan.Zero)
                 {
@@ -1653,6 +1658,11 @@ public partial class MainWindow
             {
                 var retryDelay = NextTransientNavigationRetryDelay();
                 MarkTransientNetworkUnavailable(retryDelay);
+                if (TryScheduleAutomaticProxyRecovery(options))
+                {
+                    break;
+                }
+
                 AppendLog(
                     $"[LOOP {tickId}] TRANSIENT {tickSw.Elapsed.TotalSeconds:F1}s | "
                     + $"network unavailable; retry in {retryDelay.TotalSeconds:F0}s | {FormatExceptionForLog(ex)}");

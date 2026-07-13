@@ -45,6 +45,7 @@ public sealed class ProxyListTester
     private static readonly TimeSpan ProbeTimeout = TimeSpan.FromSeconds(6);
 
     private readonly Func<string, string, CancellationToken, Task<ProxyProbeResult>> _probe;
+    private readonly Func<string, CancellationToken, Task<bool>> _directProbe;
     private readonly Action<string>? _log;
 
     /// <param name="probe">
@@ -55,11 +56,33 @@ public sealed class ProxyListTester
     /// <param name="log">Optional log sink for diagnostics.</param>
     public ProxyListTester(
         Func<string, string, CancellationToken, Task<ProxyProbeResult>>? probe = null,
+        Func<string, CancellationToken, Task<bool>>? directProbe = null,
         Action<string>? log = null)
     {
         _probe = probe ?? DefaultProbeAsync;
+        _directProbe = directProbe ?? DefaultDirectProbeAsync;
         _log = log;
     }
+
+    public async Task<ProxyProbeResult> TestServerAgainstTargetAsync(
+        string server,
+        string targetUrl,
+        CancellationToken cancellationToken)
+    {
+        var stable = await ProbeStableAsync(server, cancellationToken).ConfigureAwait(false);
+        if (!stable.Success)
+        {
+            return stable;
+        }
+
+        var target = await _probe(server, targetUrl, cancellationToken).ConfigureAwait(false);
+        return target.Success
+            ? stable
+            : new ProxyProbeResult(false, stable.LatencyMs);
+    }
+
+    public Task<bool> TestDirectAgainstTargetAsync(string targetUrl, CancellationToken cancellationToken)
+        => _directProbe(targetUrl, cancellationToken);
 
     /// <summary>
     /// Parses pasted text (one <c>host:port</c> per line) into unique candidates using the chosen
@@ -358,6 +381,34 @@ public sealed class ProxyListTester
         {
             // Timeout, refused connection, TLS failure, etc. — the proxy is not usable.
             return new ProxyProbeResult(false, 0);
+        }
+    }
+
+    private static async Task<bool> DefaultDirectProbeAsync(string targetUrl, CancellationToken cancellationToken)
+    {
+        var handler = new SocketsHttpHandler
+        {
+            UseProxy = false,
+            AllowAutoRedirect = false,
+            ConnectTimeout = ProbeTimeout,
+        };
+        using var client = new HttpClient(handler, disposeHandler: true) { Timeout = ProbeTimeout };
+
+        try
+        {
+            using var response = await client.GetAsync(
+                targetUrl,
+                HttpCompletionOption.ResponseHeadersRead,
+                cancellationToken).ConfigureAwait(false);
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return false;
         }
     }
 
