@@ -72,7 +72,8 @@ Runtime-path helpers i `TravianClient.Selectors.cs` ar Official-only. Anropa hel
   aldrig anvanda denna blinda retry-path.
 - Proxyfel (`ERR_*PROXY*`/`ERR_SOCKS_CONNECTION_FAILED`) och Chromiums natverksfelsida ar unavailable,
   aldrig logged-out/unknown. Sakra queue-retries backar 30-60s, 60-120s, sedan 120-240s tills en lyckad
-  task aterstaller backoff. Under defer-fonstret skippar background resource/inbox reads; bypassa aldrig
+  task aterstaller backoff. Continuous-loop-fel fore item-pick anvander samma globala backoff; ready-items,
+  wake-signaler och keep-alive far inte avbryta den. Under defer-fonstret skippar background resource/inbox reads; bypassa aldrig
   proxyn automatiskt. Saknat `Load`-event far bara godtas nar HTTP-URL, icke-neterror DOM och Travian-shell
   kan bekraftas.
 - Report PNG-capture ar Official `/report*` + oppnad rapport `#reportWrapper .role.attacker`; blur scope:as till

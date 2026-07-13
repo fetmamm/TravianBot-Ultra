@@ -483,6 +483,12 @@ public partial class MainWindow
     private bool IsTransientNetworkUnavailable()
         => DateTimeOffset.UtcNow < _transientNetworkUnavailableUntilUtc;
 
+    private TimeSpan GetTransientNetworkUnavailableRemaining()
+    {
+        var remaining = _transientNetworkUnavailableUntilUtc - DateTimeOffset.UtcNow;
+        return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+    }
+
     private TimeSpan NextTransientNavigationRetryDelay()
     {
         _consecutiveTransientNavigationFailures = Math.Min(_consecutiveTransientNavigationFailures + 1, 3);

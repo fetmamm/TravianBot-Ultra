@@ -1572,6 +1572,19 @@ public partial class MainWindow
             var tickSw = Stopwatch.StartNew();
             try
             {
+                var networkBackoffRemaining = GetTransientNetworkUnavailableRemaining();
+                if (networkBackoffRemaining > TimeSpan.Zero)
+                {
+                    await WaitForNextContinuousLoopPassAsync(
+                        tickId,
+                        networkBackoffRemaining,
+                        options,
+                        token,
+                        routineIdleWait: false,
+                        networkBackoff: true);
+                    continue;
+                }
+
                 // Occasional human-like "stepped away from the computer" pause. Between tasks only, so it
                 // never interrupts a build/click.
                 await MaybeTakeIdleBreakAsync(options, token);
@@ -1636,6 +1649,21 @@ public partial class MainWindow
             {
                 break;
             }
+            catch (TransientNavigationException ex)
+            {
+                var retryDelay = NextTransientNavigationRetryDelay();
+                MarkTransientNetworkUnavailable(retryDelay);
+                AppendLog(
+                    $"[LOOP {tickId}] TRANSIENT {tickSw.Elapsed.TotalSeconds:F1}s | "
+                    + $"network unavailable; retry in {retryDelay.TotalSeconds:F0}s | {FormatExceptionForLog(ex)}");
+                await WaitForNextContinuousLoopPassAsync(
+                    tickId,
+                    retryDelay,
+                    options,
+                    token,
+                    routineIdleWait: false,
+                    networkBackoff: true);
+            }
             catch (Exception ex)
             {
                 AppendLog($"[LOOP {tickId}] FAIL {tickSw.Elapsed.TotalSeconds:F1}s | {FormatExceptionForLog(ex)}");
@@ -1677,21 +1705,15 @@ public partial class MainWindow
         }
     }
 
-    private async Task WaitForNextContinuousLoopPassAsync(long tickId, TimeSpan? waitDelay, BotOptions options, CancellationToken token, bool routineIdleWait = false)
+    private async Task WaitForNextContinuousLoopPassAsync(
+        long tickId,
+        TimeSpan? waitDelay,
+        BotOptions options,
+        CancellationToken token,
+        bool routineIdleWait = false,
+        bool networkBackoff = false)
     {
-        var totalSeconds = waitDelay is null
-            ? Math.Max(1, options.LoopIntervalSeconds)
-            : Math.Max(1, (int)Math.Ceiling(waitDelay.Value.TotalSeconds));
-        if (options.ActionPacingEnabled)
-        {
-            var minMs = (int)Math.Round(Math.Max(0, options.ActionPacingLoopMinSeconds) * 1000);
-            var maxMs = (int)Math.Round(Math.Max(options.ActionPacingLoopMinSeconds, options.ActionPacingLoopMaxSeconds) * 1000);
-            var pacingSeconds = Random.Shared.Next(minMs, maxMs + 1) / 1000.0;
-            var pacingTotalSeconds = Math.Max(1, (int)Math.Ceiling(pacingSeconds));
-            totalSeconds = waitDelay is null
-                ? pacingTotalSeconds
-                : Math.Min(totalSeconds, pacingTotalSeconds);
-        }
+        var totalSeconds = ResolveContinuousLoopWaitSeconds(waitDelay, options, networkBackoff);
 
         // Routine idle waits are throttled to a single "[LOOP n] idle" heartbeat every couple of minutes
         // so the loop spine no longer fills the log; the FAIL path (and any non-idle caller) still logs
@@ -1716,7 +1738,8 @@ public partial class MainWindow
                 return;
             }
 
-            if (Interlocked.Exchange(ref _continuousLoopWakeRequested, 0) == 1)
+            var wakeRequested = Interlocked.Exchange(ref _continuousLoopWakeRequested, 0) == 1;
+            if (!networkBackoff && wakeRequested)
             {
                 AppendLog($"[LOOP {tickId}] WAIT ended early: queue state or settings changed.");
                 return;
@@ -1724,7 +1747,7 @@ public partial class MainWindow
 
             try
             {
-                if (SelectNextQueueItemForContinuousLoop(preview: true) is not null)
+                if (!networkBackoff && SelectNextQueueItemForContinuousLoop(preview: true) is not null)
                 {
                     AppendLog($"[LOOP {tickId}] WAIT ended early: queue item ready.");
                     return;
@@ -1735,7 +1758,10 @@ public partial class MainWindow
                 // If checking readiness fails, keep the wait responsive and let the next pass log the real error.
             }
 
-            await MaybeKeepBrowserFreshDuringContinuousLoopAsync(options, token);
+            if (!networkBackoff)
+            {
+                await MaybeKeepBrowserFreshDuringContinuousLoopAsync(options, token);
+            }
 
             var remaining = deadline - DateTimeOffset.UtcNow;
             if (remaining <= TimeSpan.Zero)
@@ -1748,6 +1774,28 @@ public partial class MainWindow
                 : TimeSpan.FromSeconds(ContinuousLoopMaxSleepSliceSeconds);
             await Task.Delay(slice, token);
         }
+    }
+
+    internal static int ResolveContinuousLoopWaitSeconds(
+        TimeSpan? waitDelay,
+        BotOptions options,
+        bool networkBackoff)
+    {
+        var totalSeconds = waitDelay is null
+            ? Math.Max(1, options.LoopIntervalSeconds)
+            : Math.Max(1, (int)Math.Ceiling(waitDelay.Value.TotalSeconds));
+        if (!options.ActionPacingEnabled || networkBackoff)
+        {
+            return totalSeconds;
+        }
+
+        var minMs = (int)Math.Round(Math.Max(0, options.ActionPacingLoopMinSeconds) * 1000);
+        var maxMs = (int)Math.Round(Math.Max(options.ActionPacingLoopMinSeconds, options.ActionPacingLoopMaxSeconds) * 1000);
+        var pacingSeconds = Random.Shared.Next(minMs, maxMs + 1) / 1000.0;
+        var pacingTotalSeconds = Math.Max(1, (int)Math.Ceiling(pacingSeconds));
+        return waitDelay is null
+            ? pacingTotalSeconds
+            : Math.Min(totalSeconds, pacingTotalSeconds);
     }
 
     // Occasional human-like "stepped away from the computer" pause. Called at the top of a loop
