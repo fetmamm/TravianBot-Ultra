@@ -103,6 +103,21 @@ public static class AccountStoragePaths
         return Path.Combine(AccountDirectory(projectRoot, accountName), "proxy_usage.json");
     }
 
+    public static string ProxyPlanPath(string projectRoot, string accountName)
+    {
+        return Path.Combine(AccountDirectory(projectRoot, accountName), "proxy_plan.json");
+    }
+
+    public static string ProxyPlanDraftPath(string projectRoot, string accountName)
+    {
+        return Path.Combine(AccountDirectory(projectRoot, accountName), "proxy_plan.draft.json");
+    }
+
+    public static string ProxyRuntimeStatePath(string projectRoot, string accountName)
+    {
+        return Path.Combine(AccountDirectory(projectRoot, accountName), "proxy_runtime.json");
+    }
+
     // Per-account remembered +15%/+25% production bonus timers (per resource: bonus, expiry, next
     // free-video attempt). Lets the dashboard popup restore the countdowns across restarts.
     public static string ProductionBonusStatePath(string projectRoot, string accountName)

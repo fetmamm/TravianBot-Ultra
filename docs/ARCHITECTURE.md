@@ -96,6 +96,8 @@ One `partial class BotTaskRunner` in `Services/`, split by concern:
 - `Services/` — desktop-side stores & orchestration: `Orchestration/` (`LoopController`, `SessionPacer`,
   `BackgroundTaskTracker`), `ContinuousLoopSelector`, `AccountEditorState`, `ProxyCheckService`, `*Store.cs` (per-feature persistence),
   queue helpers, `DesktopBotService`.
+- Proxyrotation — `AccountProxyPlan*` i `Services/` ager modell, atomisk lagring, normalisering, resolver och
+  validering; `ProxyScheduleWindow` redigerar planen och `MainWindow.ProxyPlan` kopplar den till login/sleep/recovery.
 - `*SettingsWindow.xaml` — focused popup settings such as hero resources, troop training, and construct-faster per-village options.
 - `SaveReportPngWindow.xaml` — Reports popup for saving the current opened combat report as a PNG.
 - `Models/` — UI row/item models bound to the views.

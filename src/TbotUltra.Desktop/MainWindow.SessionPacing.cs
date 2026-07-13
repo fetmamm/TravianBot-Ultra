@@ -93,6 +93,7 @@ public partial class MainWindow
             ReadInt(config, BotOptionPayloadKeys.SessionPacingDailyMaxVariationPercent, PacingDefaults.SessionPacingDailyMaxVariationPercent, 0, 50),
             ReadInt(config, BotOptionPayloadKeys.SessionPacingHoursVariationPercent, PacingDefaults.SessionPacingHoursVariationPercent, 0, 49)),
             reloadRuntime);
+        ConfigureProxyPlanTransition(accountName);
     }
 
     private void PersistSessionPacingRuntimeState()
@@ -265,6 +266,10 @@ public partial class MainWindow
 
             ConfigureSessionPacerFromConfig();
             _sessionPacer.BeginSleep(manual);
+            if (_sessionPacer.PlannedWakeAt is { } wakeAt)
+            {
+                await ApplyProxyPlanForWakeAsync(wakeAt);
+            }
             UpdateSessionActivityState(forcePersist: true);
         }
         finally

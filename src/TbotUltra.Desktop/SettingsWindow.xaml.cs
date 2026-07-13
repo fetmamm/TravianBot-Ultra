@@ -15,17 +15,23 @@ public partial class SettingsWindow : Window
     private readonly bool _sessionSleeping;
     // Server-local hour the bot auto-detected for the active account (null when not yet detected). Display-only.
     private readonly int? _detectedDailyResetHour;
+    private readonly Func<JsonObject, string?>? _validateBeforeSave;
 
     // Set when the user confirms "Sleep now"; MainWindow reads it after ShowDialog to trigger the sleep.
     public bool SleepNowRequested { get; private set; }
 
-    public SettingsWindow(BotConfigStore store, bool sessionSleeping = false, int? detectedDailyResetHour = null)
+    public SettingsWindow(
+        BotConfigStore store,
+        bool sessionSleeping = false,
+        int? detectedDailyResetHour = null,
+        Func<JsonObject, string?>? validateBeforeSave = null)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
         _store = store;
         _sessionSleeping = sessionSleeping;
         _detectedDailyResetHour = detectedDailyResetHour;
+        _validateBeforeSave = validateBeforeSave;
         InitializeSessionPacingChoices();
         PopulateDailyServerResetHours();
         LoadConfig();
@@ -144,6 +150,12 @@ public partial class SettingsWindow : Window
             _config[BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory] = PostLoginAnalyzeHeroInventoryCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginAnalyzeNewVillages] = PostLoginAnalyzeNewVillagesCheckBox.IsChecked == true;
             _config["silver_limit"] = (int)Math.Round(SilverLimitSlider.Value);
+            var validationError = _validateBeforeSave?.Invoke(_config);
+            if (!string.IsNullOrWhiteSpace(validationError))
+            {
+                AppDialog.Show(this, validationError, "Proxy setup conflict", MessageBoxButton.OK, MessageBoxImage.Warning);
+                return false;
+            }
             _store.Save(_config);
             return true;
         }
@@ -211,7 +223,23 @@ public partial class SettingsWindow : Window
 
         try
         {
+            var previous = (JsonObject)_config.DeepClone();
             _store.ResetSettingsToDefaults();
+            var reset = _store.Load();
+            var validationError = _validateBeforeSave?.Invoke(reset);
+            if (!string.IsNullOrWhiteSpace(validationError))
+            {
+                _store.Save(previous);
+                LoadConfig();
+                AppDialog.Show(
+                    this,
+                    validationError + "\n\nThe previous Settings values were restored.",
+                    "Proxy setup conflict",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
+            }
+
             LoadConfig();
         }
         catch (Exception ex)

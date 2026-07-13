@@ -70,6 +70,7 @@ public sealed class SessionPacer
     private bool _manualOperationPaused;
     private bool _runtimeLoaded;
     private SessionSleepReason _pendingSleepReason;
+    private DateTimeOffset? _proxyTransitionAt;
     // When set, a manual "Run now" override is suppressing the schedule restriction until this time
     // (the next moment the schedule would allow running on its own), so the bot can run through a
     // disallowed off-hours window the user explicitly chose to override.
@@ -99,6 +100,7 @@ public sealed class SessionPacer
     public TimeSpan? TimeUntilWake => _wakeAt is null ? null : Positive(_wakeAt.Value - _now());
     public TimeSpan? ActiveRunDuration => _activeRunDuration;
     public TimeSpan? ActiveSleepDuration => _activeSleepDuration;
+    public DateTimeOffset? PlannedWakeAt => _wakeAt;
     public SessionPacerRuntimeState RuntimeState => new(_runtimeDate, _runtimeSeconds);
     public string StatusText => Phase switch
     {
@@ -168,6 +170,23 @@ public sealed class SessionPacer
         if (Phase == SessionPacerPhase.Running)
         {
             _timer.Start();
+        }
+
+        RaiseTick();
+    }
+
+    /// <summary>
+    /// Supplies the next varied proxy handover boundary. A running session is shortened only when
+    /// needed so an ordinary pacing sleep can contain the handover; the proxy itself is applied by
+    /// the host while the browser is logged out.
+    /// </summary>
+    public void SetNextProxyTransition(DateTimeOffset? transitionAt)
+    {
+        _proxyTransitionAt = transitionAt;
+        if (Phase == SessionPacerPhase.Running && transitionAt is { } target)
+        {
+            var alignedSleepStart = target.AddMinutes(-Math.Max(5, _settings.SleepMinMinutes));
+            _runDeadline = Earliest(_runDeadline, alignedSleepStart <= _now() ? _now() : alignedSleepStart);
         }
 
         RaiseTick();
@@ -312,7 +331,19 @@ public sealed class SessionPacer
         }
         else
         {
-            _activeSleepDuration = TimeSpan.FromMinutes(RandomMinutesInRange(_settings.SleepMinMinutes, _settings.SleepMaxMinutes));
+            var sleepMinutes = RandomMinutesInRange(_settings.SleepMinMinutes, _settings.SleepMaxMinutes);
+            if (_proxyTransitionAt is { } proxyAt && proxyAt > now)
+            {
+                // If this sleep is close enough to the next handover, keep the browser offline until
+                // after that boundary. The random sleep range still decides the actual wake time.
+                var minutesToBoundary = (proxyAt - now).TotalMinutes;
+                if (minutesToBoundary <= _settings.SleepMaxMinutes)
+                {
+                    sleepMinutes = Math.Max(sleepMinutes, minutesToBoundary);
+                }
+            }
+
+            _activeSleepDuration = TimeSpan.FromMinutes(sleepMinutes);
             _wakeAt = now.Add(_activeSleepDuration.Value);
         }
 
@@ -440,6 +471,11 @@ public sealed class SessionPacer
         _runStartedAt = now;
         _activeRunDuration = TimeSpan.FromMinutes(RandomMinutesInRange(_settings.RunMinMinutes, _settings.RunMaxMinutes));
         _runDeadline = Earliest(now.Add(_activeRunDuration.Value), GetNextRestrictionAt(now));
+        if (_proxyTransitionAt is { } proxyAt)
+        {
+            var alignedSleepStart = proxyAt.AddMinutes(-Math.Max(5, _settings.SleepMinMinutes));
+            _runDeadline = Earliest(_runDeadline, alignedSleepStart <= now ? now : alignedSleepStart);
+        }
         _pausedRunRemaining = null;
         _wakeAt = null;
         _sleepStartRaised = false;

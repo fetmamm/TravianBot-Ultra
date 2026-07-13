@@ -58,13 +58,25 @@ public partial class MainWindow
             using var recoveryCts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
             var libraryStore = new ProxyLibraryStore();
             var library = libraryStore.Load();
+            IReadOnlyList<string>? plannedProxyIds = null;
+            var plan = ProxyPlanStore.LoadActive(account.Name);
+            if (plan?.Enabled == true)
+            {
+                var runtime = ProxyPlanStore.LoadRuntime(account.Name);
+                var scheduled = AccountProxyPlanResolver.Resolve(plan, account.Name, DateTimeOffset.Now, runtime.ActiveProxyId);
+                plannedProxyIds = plan.Assignments
+                    .Select(item => item.ProxyId)
+                    .OrderByDescending(id => string.Equals(id, scheduled.ProxyId, StringComparison.OrdinalIgnoreCase))
+                    .ToList();
+            }
             var recoveryService = new ProxyFailoverService(new ProxyListTester(log: AppendLog));
             var result = await recoveryService.FindRecoveryAsync(
                 account,
                 library,
                 account.ServerUrl,
                 AppendLog,
-                recoveryCts.Token);
+                recoveryCts.Token,
+                plannedProxyIds);
             libraryStore.Save(library);
             AppendLog($"[proxy-recovery] {result.Message}");
 
@@ -95,6 +107,14 @@ public partial class MainWindow
             {
                 changedAccount.ProxyEnabled = true;
                 changedAccount.ProxyServer = result.Proxy.Server;
+                if (plan?.Enabled == true)
+                {
+                    var runtime = ProxyPlanStore.LoadRuntime(account.Name);
+                    runtime.ActiveProxyId = result.Proxy.Id;
+                    runtime.LastSuccessfulProxyId = result.Proxy.Id;
+                    runtime.ActivatedAtUtc = DateTimeOffset.UtcNow;
+                    ProxyPlanStore.SaveRuntime(account.Name, runtime);
+                }
                 AppendLog($"[proxy-recovery] switching to {ProxyParser.MaskForLog(result.Proxy.Server)}.");
             }
             else

@@ -131,7 +131,7 @@ public partial class MainWindow
         var detectedResetHour = Services.ProductionBonusStateStore
             .LoadSettings(_projectRoot, _accountStore.ActiveAccountName())
             .DetectedResetHour;
-        var window = new SettingsWindow(_botConfigStore, IsSessionSleeping, detectedResetHour)
+        var window = new SettingsWindow(_botConfigStore, IsSessionSleeping, detectedResetHour, ValidateActiveProxyPlanForSettings)
         {
             Owner = this,
         };

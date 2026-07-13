@@ -1,10 +1,14 @@
 using System.ComponentModel;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Data;
 using Microsoft.Playwright;
 using TbotUltra.Core.Accounts;
+using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Worker;
 using TbotUltra.Worker.Infrastructure;
 
 namespace TbotUltra.Desktop;
@@ -15,6 +19,9 @@ public partial class AccountsWindow : Window
     private readonly AccountDeletionService _deletionService;
     private readonly ServerCatalogStore _serverCatalogStore;
     private readonly ProxyLibraryStore _proxyLibraryStore = new();
+    private readonly string _projectRoot;
+    private readonly AccountProxyPlanStore _proxyPlanStore;
+    private readonly BotConfigStore _botConfigStore;
     private readonly string _defaultServerName;
     private readonly string _defaultServerUrl;
     private readonly List<ServerOption> _serverOptions;
@@ -38,6 +45,9 @@ public partial class AccountsWindow : Window
     private bool _isClosing;
     private CancellationTokenSource? _proxyCheckCts;
     private bool _proxyCheckCompleted;
+    private bool _suppressProxyRotationChange;
+    private AccountProxyPlan _editorProxyPlan = new();
+    private string _baselineProxyPlanJson = string.Empty;
 
     public AccountsWindow(
         EnvAccountStore store,
@@ -57,6 +67,9 @@ public partial class AccountsWindow : Window
         _defaultServerUrl = defaultServerUrl;
         _serverOptions = serverOptions.ToList();
         _defaultServerOptions = defaultServerOptions.ToList();
+        _projectRoot = ProjectRootLocator.FindProjectRoot();
+        _proxyPlanStore = new AccountProxyPlanStore(_projectRoot);
+        _botConfigStore = new BotConfigStore(System.IO.Path.Combine(_projectRoot, "config", "bot.json"), _projectRoot, () => _store.ActiveAccountName());
         SafeRunAccountEditorAction(() => SelectProxyScheme("socks5"), "initialize proxy type");
         Reload();
     }
@@ -140,6 +153,13 @@ public partial class AccountsWindow : Window
             RefreshSavedProxySelection();
             SetProxyFieldsEnabled(selected.ProxyEnabled);
         }, "load proxy fields");
+        _editorProxyPlan = _proxyPlanStore.LoadDraft(selected.Name)
+            ?? _proxyPlanStore.LoadActive(selected.Name)
+            ?? _proxyPlanStore.BuildLegacyPlan(selected.ProxyServer, _proxyLibraryEntries);
+        _suppressProxyRotationChange = true;
+        UseProxyRotationCheckBox.IsChecked = _editorProxyPlan.IsRotation;
+        _suppressProxyRotationChange = false;
+        UpdateProxyPlanSummary(selected.Name);
         var serverName = string.IsNullOrWhiteSpace(selected.ServerName) ? _defaultServerName : selected.ServerName;
         var serverUrl = string.IsNullOrWhiteSpace(selected.ServerUrl) ? _defaultServerUrl : selected.ServerUrl;
         SelectServer(serverName, serverUrl);
@@ -229,6 +249,47 @@ public partial class AccountsWindow : Window
                 }
             }
 
+            var rotationEnabled = UseProxyRotationCheckBox.IsChecked == true;
+            _editorProxyPlan.Enabled = rotationEnabled;
+            if (rotationEnabled)
+            {
+                if (_editorProxyPlan.Assignments.Select(item => item.ProxyId).Distinct(StringComparer.OrdinalIgnoreCase).Count() < 2)
+                {
+                    throw new InvalidOperationException("Proxy rotation requires at least two different proxies. Open Schedule and add another proxy.");
+                }
+
+                var validation = ValidateEditorProxyPlan(entry, requireHealth: _editorProxyPlan.IsRotation);
+                if (!validation.IsValid)
+                {
+                    var choice = AppDialog.ShowCustom(
+                        this,
+                        string.Join("\n", validation.Errors.Select(issue => $"• {issue.Message}"))
+                            + "\n\nThe invalid setup cannot be activated. You can save it as a draft.",
+                        "Proxy setup errors",
+                        [("Save draft", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.Cancel)],
+                        MessageBoxImage.Warning,
+                        MessageBoxResult.Cancel,
+                        MessageBoxResult.Cancel);
+                    if (choice == MessageBoxResult.Yes)
+                    {
+                        _proxyPlanStore.SaveDraft(entry.Name, _editorProxyPlan);
+                        InfoTextBlock.Text = "Proxy setup saved as draft; the active setup was not changed.";
+                    }
+                    return false;
+                }
+
+                var runtime = _proxyPlanStore.LoadRuntime(entry.Name);
+                var resolution = AccountProxyPlanResolver.Resolve(_editorProxyPlan, entry.Name, DateTimeOffset.Now, runtime.ActiveProxyId);
+                var current = _proxyLibraryEntries.FirstOrDefault(proxy => string.Equals(proxy.Id, resolution.ProxyId, StringComparison.OrdinalIgnoreCase));
+                if (current is null)
+                {
+                    throw new InvalidOperationException("The current scheduled proxy no longer exists in the proxy list.");
+                }
+
+                entry.ProxyEnabled = true;
+                entry.ProxyServer = current.Server;
+            }
+
             if (entry.ProxyEnabled && !ConfirmProxyReuseForSave(entry.ProxyServer, entry.Name))
             {
                 return false;
@@ -236,6 +297,15 @@ public partial class AccountsWindow : Window
 
             var setActiveForSave = !_editingExistingAccount && _accounts.Count == 0;
             _store.SaveAccount(entry, setActive: setActiveForSave);
+            _proxyPlanStore.SaveActive(entry.Name, _editorProxyPlan);
+            _proxyPlanStore.DeleteDraft(entry.Name);
+            if (rotationEnabled)
+            {
+                foreach (var assignment in _editorProxyPlan.Assignments)
+                {
+                    _proxyLibraryStore.AddUsage(assignment.ProxyId, entry.Name);
+                }
+            }
             MarkSavedProxyUsed(entry);
             Reload();
             SelectByName(entry.Name);
@@ -414,6 +484,13 @@ public partial class AccountsWindow : Window
         }
 
         var enabled = UseProxyCheckBox.IsChecked == true;
+        if (!enabled && UseProxyRotationCheckBox is not null)
+        {
+            _suppressProxyRotationChange = true;
+            UseProxyRotationCheckBox.IsChecked = false;
+            _suppressProxyRotationChange = false;
+            _editorProxyPlan.Enabled = false;
+        }
         SafeRunAccountEditorAction(() => SetProxyFieldsEnabled(enabled), "toggle proxy fields");
         if (enabled)
         {
@@ -421,6 +498,27 @@ public partial class AccountsWindow : Window
                 + "logged-in account may require a fresh login.";
         }
 
+        UpdateActionButtons();
+    }
+
+    private void UseProxyRotationCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressProxyRotationChange || UseProxyRotationCheckBox is null)
+        {
+            return;
+        }
+
+        var enabled = UseProxyRotationCheckBox.IsChecked == true;
+        if (enabled && UseProxyCheckBox.IsChecked != true)
+        {
+            UseProxyCheckBox.IsChecked = true;
+        }
+
+        _editorProxyPlan.Enabled = enabled;
+        UpdateProxyPlanSummary(ResolveCurrentEditorAccountName());
+        InfoTextBlock.Text = enabled
+            ? "Proxy rotation enabled. Configure at least two proxies in Schedule."
+            : "Proxy rotation disabled. The saved schedule is kept for later.";
         UpdateActionButtons();
     }
 
@@ -578,6 +676,187 @@ public partial class AccountsWindow : Window
             RefreshSavedProxySelection();
             InfoTextBlock.Text = "Proxy list updated.";
         }
+    }
+
+    private void ProxyScheduleButton_Click(object sender, RoutedEventArgs e)
+    {
+        try
+        {
+            var accountName = ResolveCurrentEditorAccountName();
+            if (string.IsNullOrWhiteSpace(accountName))
+            {
+                throw new InvalidOperationException("Enter username and select a server before configuring proxy rotation.");
+            }
+
+            ReloadProxyLibraryEntries();
+            if (_proxyLibraryEntries.Count == 0)
+            {
+                throw new InvalidOperationException("Add proxies to the proxy list first.");
+            }
+
+            var settings = ReadProxyPlanSettings(accountName);
+            var dialog = new ProxyScheduleWindow(
+                _proxyPlanStore,
+                _proxyLibraryStore,
+                _editorProxyPlan,
+                _proxyLibraryEntries,
+                accountName,
+                (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl ?? _defaultServerUrl,
+                NeverUseOwnIpCheckBox.IsChecked == true,
+                settings.PacingEnabled,
+                settings.AllowedHours,
+                settings.SleepMinMinutes)
+            {
+                Owner = this,
+            };
+
+            if (dialog.ShowDialog() == true)
+            {
+                _editorProxyPlan = dialog.ResultPlan;
+                UseProxyCheckBox.IsChecked = _editorProxyPlan.Enabled;
+                _suppressProxyRotationChange = true;
+                UseProxyRotationCheckBox.IsChecked = _editorProxyPlan.IsRotation;
+                _suppressProxyRotationChange = false;
+                _editorProxyPlan.Enabled = UseProxyRotationCheckBox.IsChecked == true;
+                ApplyCurrentPlanProxyToFields(accountName);
+                UpdateProxyPlanSummary(accountName);
+                UpdateActionButtons();
+                InfoTextBlock.Text = "Proxy schedule is ready. Press Save or Update to activate it.";
+            }
+            else if (dialog.SavedAsDraft)
+            {
+                InfoTextBlock.Text = "Proxy schedule saved as draft; the active setup is unchanged.";
+            }
+
+            ReloadProxyLibraryEntries();
+        }
+        catch (Exception ex)
+        {
+            AppDialog.Show(this, ex.Message, "Proxy schedule", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
+    }
+
+    private async void ValidateProxySetupButton_Click(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(ValidateProxySetupAsync, message => System.Diagnostics.Debug.WriteLine(message));
+
+    private async Task ValidateProxySetupAsync()
+    {
+        var accountName = ResolveCurrentEditorAccountName();
+        if (string.IsNullOrWhiteSpace(accountName) || UseProxyRotationCheckBox.IsChecked != true)
+        {
+            AppDialog.Show(this, "Configure and select at least one scheduled proxy first.", "Validate proxy setup", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        ValidateProxySetupButton.IsEnabled = false;
+        try
+        {
+            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+            var tester = new ProxyListTester();
+            var selected = _editorProxyPlan.Assignments
+                .Select(assignment => _proxyLibraryEntries.FirstOrDefault(proxy => string.Equals(proxy.Id, assignment.ProxyId, StringComparison.OrdinalIgnoreCase)))
+                .Where(proxy => proxy is not null)
+                .Cast<ProxyLibraryEntry>()
+                .ToList();
+            for (var index = 0; index < selected.Count; index++)
+            {
+                var proxy = selected[index];
+                InfoTextBlock.Text = $"Testing proxy {index + 1} of {selected.Count}: {proxy.DisplayName}…";
+                var probe = await tester.TestServerAgainstTargetAsync(
+                    proxy.Server,
+                    (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl ?? _defaultServerUrl,
+                    cts.Token);
+                proxy.IsWorking = probe.Success;
+                proxy.LatencyMs = probe.LatencyMs > 0 ? probe.LatencyMs : proxy.LatencyMs;
+                proxy.LastFailureUtc = probe.Success ? null : probe.LatencyMs <= 0 ? DateTime.UtcNow : proxy.LastFailureUtc;
+            }
+
+            _proxyLibraryStore.Save(_proxyLibraryEntries);
+            var account = ReadEditor();
+            account.Name = accountName;
+            var result = ValidateEditorProxyPlan(account, requireHealth: true);
+            var text = result.Issues.Count == 0
+                ? "Setup is valid. All selected proxies passed the stability and Travian tests."
+                : string.Join("\n", result.Issues.Select(issue => $"{(issue.Severity == ProxyPlanIssueSeverity.Error ? "ERROR" : "WARNING")}: {issue.Message}"));
+            AppDialog.Show(this, text, "Validate proxy setup", MessageBoxButton.OK,
+                result.IsValid ? MessageBoxImage.Information : MessageBoxImage.Warning);
+            InfoTextBlock.Text = result.IsValid ? "Proxy setup is valid." : "Proxy setup contains errors.";
+        }
+        finally
+        {
+            ValidateProxySetupButton.IsEnabled = true;
+        }
+    }
+
+    private ProxyPlanValidationResult ValidateEditorProxyPlan(AccountEntry entry, bool requireHealth)
+    {
+        var settings = ReadProxyPlanSettings(entry.Name);
+        return AccountProxyPlanValidator.Validate(
+            _editorProxyPlan,
+            _proxyLibraryEntries,
+            entry.Name,
+            entry.NeverUseOwnIp,
+            settings.PacingEnabled,
+            settings.AllowedHours,
+            settings.SleepMinMinutes,
+            requireHealth);
+    }
+
+    private (bool PacingEnabled, IReadOnlyCollection<int> AllowedHours, int SleepMinMinutes) ReadProxyPlanSettings(string accountName)
+    {
+        var config = _botConfigStore.LoadForAccount(accountName);
+        var pacingEnabled = config[BotOptionPayloadKeys.SessionPacingEnabled]?.GetValue<bool>() ?? PacingDefaults.SessionPacingEnabled;
+        var sleepMin = config[BotOptionPayloadKeys.SessionPacingSleepMinMinutes]?.GetValue<int>() ?? PacingDefaults.SessionPacingSleepMinMinutes;
+        var hours = config[BotOptionPayloadKeys.SessionPacingAllowedHours] is JsonArray array
+            ? array.Select(node => node?.GetValue<int>() ?? -1).Where(hour => hour is >= 0 and <= 23).ToArray()
+            : Enumerable.Range(0, 24).ToArray();
+        return (pacingEnabled, hours, sleepMin);
+    }
+
+    private void ApplyCurrentPlanProxyToFields(string accountName)
+    {
+        if (!_editorProxyPlan.Enabled)
+        {
+            return;
+        }
+
+        var runtime = _proxyPlanStore.LoadRuntime(accountName);
+        var resolution = AccountProxyPlanResolver.Resolve(_editorProxyPlan, accountName, DateTimeOffset.Now, runtime.ActiveProxyId);
+        var proxy = _proxyLibraryEntries.FirstOrDefault(item => string.Equals(item.Id, resolution.ProxyId, StringComparison.OrdinalIgnoreCase));
+        if (proxy is null)
+        {
+            return;
+        }
+
+        SelectProxyScheme(proxy.Scheme);
+        ProxyHostTextBox.Text = proxy.Host;
+        ProxyPortTextBox.Text = proxy.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    private void UpdateProxyPlanSummary(string accountName)
+    {
+        if (ProxyPlanSummaryTextBlock is null)
+        {
+            return;
+        }
+
+        if (UseProxyRotationCheckBox?.IsChecked != true)
+        {
+            ProxyPlanSummaryTextBlock.Text = _editorProxyPlan.Assignments.Count > 1
+                ? $"Rotation off · {_editorProxyPlan.Assignments.Count} saved proxies"
+                : "Single proxy mode";
+            ProxyPlanNextTextBlock.Text = string.Empty;
+            return;
+        }
+
+        ProxyPlanSummaryTextBlock.Text = $"{_editorProxyPlan.Assignments.Count} proxies · {_editorProxyPlan.VariationPercent}% variation";
+        var runtime = string.IsNullOrWhiteSpace(accountName) ? new AccountProxyRuntimeState() : _proxyPlanStore.LoadRuntime(accountName);
+        var resolution = AccountProxyPlanResolver.Resolve(_editorProxyPlan, accountName, DateTimeOffset.Now, runtime.ActiveProxyId);
+        var current = _proxyLibraryEntries.FirstOrDefault(proxy => string.Equals(proxy.Id, resolution.ProxyId, StringComparison.OrdinalIgnoreCase));
+        var next = _proxyLibraryEntries.FirstOrDefault(proxy => string.Equals(proxy.Id, resolution.NextProxyId, StringComparison.OrdinalIgnoreCase));
+        ProxyPlanNextTextBlock.Text = resolution.NextTransitionAt is { } transition
+            ? $"Current: {current?.DisplayName ?? "Unknown"} · Next: {next?.DisplayName ?? "Unknown"} at {transition:ddd HH:mm}"
+            : $"Current: {current?.DisplayName ?? "Unknown"}";
     }
 
     private void SavedProxyComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -890,7 +1169,12 @@ public partial class AccountsWindow : Window
         PasswordTextBox.Visibility = Visibility.Collapsed;
         TogglePasswordButton.Content = "Show";
         UseProxyCheckBox.IsChecked = false;
+        _suppressProxyRotationChange = true;
+        UseProxyRotationCheckBox.IsChecked = false;
+        _suppressProxyRotationChange = false;
         NeverUseOwnIpCheckBox.IsChecked = false;
+        _editorProxyPlan = new AccountProxyPlan();
+        UpdateProxyPlanSummary(string.Empty);
         SafeRunAccountEditorAction(() =>
         {
             LoadProxyFields(string.Empty);
@@ -966,11 +1250,13 @@ public partial class AccountsWindow : Window
     private void CaptureBaseline()
     {
         _baselineEditorState = ReadEditorSnapshot();
+        _baselineProxyPlanJson = JsonSerializer.Serialize(_editorProxyPlan);
     }
 
     private bool HasUnsavedChanges()
     {
-        return AccountEditorState.HasChanges(_baselineEditorState, ReadEditorSnapshot());
+        return AccountEditorState.HasChanges(_baselineEditorState, ReadEditorSnapshot())
+            || !string.Equals(_baselineProxyPlanJson, JsonSerializer.Serialize(_editorProxyPlan), StringComparison.Ordinal);
     }
 
     private AccountEditorSnapshot ReadEditorSnapshot()
@@ -1007,6 +1293,16 @@ public partial class AccountsWindow : Window
         if (CheckProxyButton is not null)
         {
             CheckProxyButton.IsEnabled = enabled;
+        }
+
+        if (UseProxyRotationCheckBox is not null)
+        {
+            UseProxyRotationCheckBox.IsEnabled = enabled;
+        }
+
+        if (ProxyScheduleButton is not null)
+        {
+            ProxyScheduleButton.IsEnabled = enabled;
         }
     }
 

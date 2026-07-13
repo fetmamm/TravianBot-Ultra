@@ -3,7 +3,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Accounts"
-        Height="520"
+        Height="650"
         Width="820"
         MinHeight="480"
         MinWidth="760"
@@ -159,6 +159,16 @@
                                         ToolTip="Routes this account's browser traffic through your proxy so it uses a different IP.&#10;Choose proxy type, then enter host/IP and port separately.&#10;Examples: SOCKS5 1.2.3.4 1080, HTTP 1.2.3.4 8080.&#10;Applies on next bot start." />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <CheckBox x:Name="UseProxyRotationCheckBox"
+                                  Content="Use proxy rotation"
+                                  VerticalAlignment="Center"
+                                  IsEnabled="False"
+                                  Checked="UseProxyRotationCheckBox_Changed"
+                                  Unchecked="UseProxyRotationCheckBox_Changed" />
+                        <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="6,0,0,0"
+                                        ToolTip="Uses the saved hourly proxy schedule for this account.&#10;Turn this off to use the single proxy without deleting the rotation schedule." />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
                         <CheckBox x:Name="NeverUseOwnIpCheckBox"
                                   Content="Never use own IP"
                                   VerticalAlignment="Center"
@@ -274,6 +284,25 @@
                                  ToolTip="Proxy port, for example 9050" />
                     </Grid>
                 </Grid>
+
+                <Border Grid.Row="5" Grid.ColumnSpan="2" Margin="0,6,0,6" Padding="10"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5">
+                    <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
+                        <StackPanel>
+                            <TextBlock Text="PROXY ROTATION" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource SlateTextBrush}" />
+                            <TextBlock x:Name="ProxyPlanSummaryTextBlock" Text="Single proxy mode" Margin="0,3,10,0" TextWrapping="Wrap" />
+                            <TextBlock x:Name="ProxyPlanNextTextBlock" Margin="0,2,10,0" FontSize="11" Foreground="{DynamicResource SlateTextBrush}" />
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                            <Button x:Name="ProxyScheduleButton" Content="Schedule…" Width="95" Click="ProxyScheduleButton_Click" />
+                            <Button x:Name="ValidateProxySetupButton" Content="Validate setup" Width="110" Margin="8,0,0,0" Click="ValidateProxySetupButton_Click" />
+                        </StackPanel>
+                    </Grid>
+                </Border>
 
                 <Border Grid.Row="6"
                         Grid.ColumnSpan="2"

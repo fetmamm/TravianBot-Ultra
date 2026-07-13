@@ -7,6 +7,33 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class SessionPacerTests
 {
     [Fact]
+    public void ProxyTransition_AlignsSleepAndKeepsWakeAfterBoundary()
+    {
+        var now = new DateTimeOffset(2026, 7, 13, 3, 0, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(
+            true,
+            120,
+            120,
+            20,
+            60,
+            Enumerable.Range(0, 24).ToArray(),
+            HoursVariationPercent: 0));
+        pacer.NotifyAutomationStarted();
+        var boundary = now.AddHours(1);
+        pacer.SetNextProxyTransition(boundary);
+        pacer.SleepStarting += (_, _) => pacer.BeginSleep();
+
+        Assert.InRange(pacer.TimeUntilSleep!.Value.TotalMinutes, 39.9, 40.1);
+
+        now = now.AddMinutes(40);
+        pacer.TickForTests();
+
+        Assert.Equal(SessionPacerPhase.Sleeping, pacer.Phase);
+        Assert.True(pacer.PlannedWakeAt >= boundary);
+    }
+
+    [Fact]
     public void PacingDefaults_UseConservativeSessionDefaults()
     {
         Assert.True(PacingDefaults.SessionPacingEnabled);

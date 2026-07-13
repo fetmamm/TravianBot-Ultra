@@ -98,6 +98,23 @@ public sealed class ProxyFailoverServiceTests
     }
 
     [Fact]
+    public void SelectCandidates_RestrictsAndOrdersConfiguredAccountProxies()
+    {
+        var account = CreateAccount("socks5://1.1.1.1:1080");
+        var first = CreateProxy("first", "2.2.2.2", assignedAccount: "alice");
+        var second = CreateProxy("second", "3.3.3.3", assignedAccount: "alice");
+        var unselected = CreateProxy("unselected", "4.4.4.4", assignedAccount: "alice");
+
+        var result = ProxyFailoverService.SelectCandidates(
+            [first, second, unselected],
+            account,
+            DateTime.UtcNow,
+            [second.Id, first.Id]);
+
+        Assert.Equal([second, first], result);
+    }
+
+    [Fact]
     public async Task FindRecovery_DoesNotMarkStableProxiesFailedWhenNoRouteCanReachTravian()
     {
         var account = CreateAccount("socks5://1.1.1.1:1080");

@@ -39,6 +39,11 @@ public partial class MainWindow
             return;
         }
 
+        if (!PrepareProxyPlanForLogin())
+        {
+            return;
+        }
+
         // Guard against re-entrancy (e.g. double-clicking Login or clicking while a login is
         // already running). The button is also disabled via ToggleUiBusy, but this is belt-and-suspenders.
         if (_loginInProgress)

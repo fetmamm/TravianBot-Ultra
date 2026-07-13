@@ -33,7 +33,8 @@ internal sealed class ProxyFailoverService
         List<ProxyLibraryEntry> library,
         string targetUrl,
         Action<string> log,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IReadOnlyList<string>? allowedProxyIds = null)
     {
         var current = ProxyLibraryStore.FindByServer(library, account.ProxyServer);
         var targetRejected = new List<ProxyLibraryEntry>();
@@ -50,7 +51,7 @@ internal sealed class ProxyFailoverService
         RecordFailedProbe(current, currentProbe, targetRejected);
         log($"[proxy-recovery] active proxy failed the stability and Travian reachability test: {ProxyParser.MaskForLog(account.ProxyServer)}.");
 
-        foreach (var candidate in SelectCandidates(library, account, DateTime.UtcNow))
+        foreach (var candidate in SelectCandidates(library, account, DateTime.UtcNow, allowedProxyIds))
         {
             cancellationToken.ThrowIfCancellationRequested();
             log($"[proxy-recovery] testing replacement proxy {ProxyParser.MaskForLog(candidate.Server)}.");
@@ -106,18 +107,24 @@ internal sealed class ProxyFailoverService
     internal static IReadOnlyList<ProxyLibraryEntry> SelectCandidates(
         IEnumerable<ProxyLibraryEntry> library,
         AccountEntry account,
-        DateTime nowUtc)
+        DateTime nowUtc,
+        IReadOnlyList<string>? allowedProxyIds = null)
     {
         var current = ProxyLibraryStore.FindByServer(library, account.ProxyServer);
+        var allowedOrder = allowedProxyIds?
+            .Select((id, index) => (id, index))
+            .ToDictionary(item => item.id, item => item.index, StringComparer.OrdinalIgnoreCase);
         return library
             .Where(entry => !ReferenceEquals(entry, current))
+            .Where(entry => allowedOrder is null || allowedOrder.ContainsKey(entry.Id))
             .Where(entry => string.IsNullOrWhiteSpace(entry.AssignedAccount)
                 || string.Equals(entry.AssignedAccount, account.Name, StringComparison.OrdinalIgnoreCase))
             .Where(entry => entry.UsedByAccounts.All(usedBy =>
                 string.Equals(usedBy, account.Name, StringComparison.OrdinalIgnoreCase)))
             .Where(entry => entry.LastFailureUtc is null
                 || nowUtc - entry.LastFailureUtc.Value.ToUniversalTime() >= FailedProxyCooldown)
-            .OrderByDescending(entry => string.Equals(entry.AssignedAccount, account.Name, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(entry => allowedOrder?.GetValueOrDefault(entry.Id) ?? int.MaxValue)
+            .ThenByDescending(entry => string.Equals(entry.AssignedAccount, account.Name, StringComparison.OrdinalIgnoreCase))
             .ThenByDescending(entry => entry.IsWorking == true)
             .ThenBy(entry => entry.IsWorking == false)
             .ThenBy(entry => entry.LatencyMs ?? long.MaxValue)

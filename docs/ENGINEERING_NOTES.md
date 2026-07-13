@@ -162,6 +162,15 @@ document.querySelector('.warehouse .capacity .value')
   Behall aktiv proxy tills anvandaren valt kontrollerad relogin (logout, shutdown, 5-20s delay, login) eller
   nasta session sleep; sleep-valet aktiverar nya proxyn efter logout och stanger browsern fore wake-login.
   Proxy/IP-anvandning sparas per konto i `proxy_usage.json`; task/waiting raknas, session sleep raknas inte.
+- Kontots proxyrotation sparas atomiskt i `proxy_plan.json` (utkast i `proxy_plan.draft.json`, aktiv proxy i
+  `proxy_runtime.json`). Nominella veckoblock far stabil daglig variation pa 0-49% av en timme. `SessionPacer`
+  far nasta relevanta proxygrans och kortar vid behov run-perioden sa bytet sker utloggat under ordinarie sleep;
+  Allowed hours/daily max vinner alltid. Aktiv plan valideras mot proxybibliotek, pacing och Allowed hours bade
+  vid konto-/Settings-save och fore login. `Never use own IP` kraver full proxytackning av alla tillatna timmar;
+  ogiltig plan far sparas som utkast men aldrig aktiveras eller starta browsern. Editorn visar Allowed hours som
+  oversta 24h-rad och en checkbox-rad per proxy med endast All days/Weekdays/Weekends som dagval.
+  `Manage accounts > Use proxy rotation` ar den explicita av/på-brytaren; OFF behaller schemat men kor den
+  vanliga enskilda proxyn, ON kraver minst tva valda proxies och en giltig aktiv plan.
 - Defer-orsaker ska konsumeras typat: `TaskWaitException.ReasonCode` (`TaskWaitReasons.*`), harledd pa ETT
   stalle (`BotTaskRunner.TaskHandlers.DeriveTaskWaitReason`). Sniffa inte `ex.Message` i Desktop for nya
   fall — lagg till en reason-kod i stallet. Farm-send-deferrals (cooldown/not ready/renamed) kastar
