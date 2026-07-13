@@ -94,12 +94,12 @@ One `partial class BotTaskRunner` in `Services/`, split by concern:
   code-behind. Bound `ObservableCollection`s live on the view model; code-behind delegates and mutates in
   place (the scan/persist logic migrates later).
 - `Services/` — desktop-side stores & orchestration: `Orchestration/` (`LoopController`, `SessionPacer`,
-  `BackgroundTaskTracker`), `ContinuousLoopSelector`, `AccountEditorState`, `*Store.cs` (per-feature persistence),
+  `BackgroundTaskTracker`), `ContinuousLoopSelector`, `AccountEditorState`, `ProxyCheckService`, `*Store.cs` (per-feature persistence),
   queue helpers, `DesktopBotService`.
 - `*SettingsWindow.xaml` — focused popup settings such as hero resources, troop training, and construct-faster per-village options.
 - `SaveReportPngWindow.xaml` — Reports popup for saving the current opened combat report as a PNG.
 - `Models/` — UI row/item models bound to the views.
-- `Views/`, `Themes/`, `Assets/` — extracted panels (including Farming, Resources, and Logs), XAML windows, theme, resources.
+- `Views/`, `Themes/`, `Assets/` — extracted panels (including Farming, Resources, Reinforcements, and Logs), XAML windows, theme, resources.
 
 ---
 

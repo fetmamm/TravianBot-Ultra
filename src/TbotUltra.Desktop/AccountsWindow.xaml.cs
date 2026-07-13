@@ -1,5 +1,4 @@
 using System.ComponentModel;
-using System.Diagnostics;
 using System.Windows;
 using System.Windows.Data;
 using Microsoft.Playwright;
@@ -457,7 +456,7 @@ public partial class AccountsWindow : Window
                 return;
             }
 
-            var result = await CheckIpAsync("Proxy", proxyServer, proxy, UpdateProxyCheckStatus, _proxyCheckCts.Token);
+            var result = await ProxyCheckService.CheckIpAsync("Proxy", proxyServer, proxy, UpdateProxyCheckStatus, _proxyCheckCts.Token);
             var warningText = string.IsNullOrWhiteSpace(proxyWarning) ? string.Empty : $" Warning: {proxyWarning}";
             CompleteProxyCheckOverlay("Proxy check", result, warningText, success: true);
         }
@@ -507,7 +506,7 @@ public partial class AccountsWindow : Window
                 mode = "Proxy";
             }
 
-            var result = await CheckIpAsync(mode, proxyServer, proxy, UpdateProxyCheckStatus, _proxyCheckCts.Token);
+            var result = await ProxyCheckService.CheckIpAsync(mode, proxyServer, proxy, UpdateProxyCheckStatus, _proxyCheckCts.Token);
             var warningText = string.IsNullOrWhiteSpace(proxyWarning) ? string.Empty : $" Warning: {proxyWarning}";
             CompleteProxyCheckOverlay("Check IP adress", result, warningText, success: true);
         }
@@ -1112,85 +1111,6 @@ public partial class AccountsWindow : Window
         }
 
         return proxyServer;
-    }
-
-    private static async Task<string> CheckIpAsync(
-        string mode,
-        string? proxyServer,
-        Proxy? proxy,
-        Action<string> status,
-        CancellationToken cancellationToken)
-    {
-        var stopwatch = Stopwatch.StartNew();
-        status("Starting temporary browser...");
-        cancellationToken.ThrowIfCancellationRequested();
-        using var playwright = await Playwright.CreateAsync();
-        IBrowser? browser = null;
-        using var registration = cancellationToken.Register(() =>
-        {
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    if (browser is not null)
-                    {
-                        await browser.CloseAsync();
-                    }
-                }
-                catch
-                {
-                    // Browser may already be closing.
-                }
-            });
-        });
-
-        try
-        {
-            status(proxy is null ? "Launching browser..." : "Launching browser through proxy...");
-            var launchOptions = new BrowserTypeLaunchOptions
-            {
-                Headless = true,
-                Timeout = 20000,
-            };
-            if (proxy is not null)
-            {
-                launchOptions.Proxy = proxy;
-            }
-
-            browser = await playwright.Chromium.LaunchAsync(launchOptions);
-
-            cancellationToken.ThrowIfCancellationRequested();
-            status("Requesting public IP...");
-            var page = await browser.NewPageAsync();
-            await page.GotoAsync(
-                "https://ipwho.is/",
-                new PageGotoOptions { WaitUntil = WaitUntilState.NetworkIdle, Timeout = 20000 });
-            cancellationToken.ThrowIfCancellationRequested();
-
-            status("Reading proxy details...");
-            var raw = await page.Locator("body").InnerTextAsync(new LocatorInnerTextOptions { Timeout = 5000 });
-            stopwatch.Stop();
-
-            var info = ProxyCheckResultCodec.ParseLookupResponse(raw);
-            var route = string.IsNullOrWhiteSpace(proxyServer)
-                ? mode
-                : $"{mode} ({ProxyParser.MaskForLog(proxyServer)})";
-            return ProxyCheckResultCodec.BuildSuccess(info, route, $"{stopwatch.ElapsedMilliseconds} ms");
-        }
-        finally
-        {
-            if (browser is not null)
-            {
-                try
-                {
-                    await browser.CloseAsync();
-                }
-                catch
-                {
-                    // Browser may already have been closed by cancellation.
-                }
-            }
-        }
     }
 
     private void ShowProxyCheckOverlay(string title, string status, bool completed)
