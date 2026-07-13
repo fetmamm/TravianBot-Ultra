@@ -103,6 +103,46 @@ public sealed class TravianOfficialConstructionDomTests
             && item.Level == 2);
     }
 
+    [Fact]
+    public void BuildingOverviewParser_EmptyDom_ReturnsNoBuildings()
+    {
+        Assert.Empty(TravianClient.ParseBuildingOverviewHtmlForTests("<main></main>"));
+    }
+
+    [Fact]
+    public void BuildingOverviewParser_PartialDom_KeepsKnownSlotEvidence()
+    {
+        const string html = """
+            <div class="buildingSlot aid26 g15" data-name="Main Building" data-level="3">
+              <a href="build.php?id=26&amp;gid=15"><div class="labelLayer">3</div></a>
+            </div>
+            """;
+
+        var building = Assert.Single(TravianClient.ParseBuildingOverviewHtmlForTests(html));
+
+        Assert.Equal(26, building.SlotId);
+        Assert.Equal(15, building.Gid);
+        Assert.Equal("Main Building", building.Name);
+        Assert.Equal(3, building.Level);
+    }
+
+    [Fact]
+    public void BuildingOverviewParser_MalformedSlot_DoesNotDiscardValidSlots()
+    {
+        const string html = """
+            <div class="buildingSlot aidXX g15"><a href="build.php?id=broken">broken</a></div>
+            <div class="buildingSlot aid31 g19" data-level="2">
+              <a href="build.php?id=31&amp;gid=19"><div class="labelLayer">2</div></a>
+            </div>
+            """;
+
+        var building = Assert.Single(TravianClient.ParseBuildingOverviewHtmlForTests(html));
+
+        Assert.Equal(31, building.SlotId);
+        Assert.Equal(19, building.Gid);
+        Assert.Equal(2, building.Level);
+    }
+
     [Theory]
     [InlineData("Main Building Level 5", "Main Building", 5)]
     [InlineData("Warehouse lvl 12", "Warehouse", 12)]
