@@ -46,6 +46,10 @@ public static class PacingDefaults
     public const double ActionPacingIdleBrowseIntervalMaxMinutes = 60.0;
     public const bool ActionPacingIdleBrowsePageMap = true;
     public const bool ActionPacingIdleBrowsePageStatistics = true;
+    public const bool ActionPacingIdleBrowsePageStatisticsHero = true;
+    public const bool ActionPacingIdleBrowsePageStatisticsTop10 = true;
+    public const bool ActionPacingIdleBrowsePageStatisticsDefenders = true;
+    public const bool ActionPacingIdleBrowsePageStatisticsAttackers = true;
     public const bool ActionPacingIdleBrowsePageReports = true;
     public const bool ActionPacingIdleBrowsePageMessages = true;
 

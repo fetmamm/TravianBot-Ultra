@@ -251,6 +251,10 @@ public static class BotOptionPayloadKeys
     public const string ActionPacingIdleBrowseIntervalMaxMinutes = "action_pacing_idle_browse_interval_max_minutes";
     public const string ActionPacingIdleBrowsePageMap = "action_pacing_idle_browse_page_map";
     public const string ActionPacingIdleBrowsePageStatistics = "action_pacing_idle_browse_page_statistics";
+    public const string ActionPacingIdleBrowsePageStatisticsHero = "action_pacing_idle_browse_page_statistics_hero";
+    public const string ActionPacingIdleBrowsePageStatisticsTop10 = "action_pacing_idle_browse_page_statistics_top10";
+    public const string ActionPacingIdleBrowsePageStatisticsDefenders = "action_pacing_idle_browse_page_statistics_defenders";
+    public const string ActionPacingIdleBrowsePageStatisticsAttackers = "action_pacing_idle_browse_page_statistics_attackers";
     public const string ActionPacingIdleBrowsePageReports = "action_pacing_idle_browse_page_reports";
     public const string ActionPacingIdleBrowsePageMessages = "action_pacing_idle_browse_page_messages";
 

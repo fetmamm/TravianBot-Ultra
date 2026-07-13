@@ -84,6 +84,7 @@ Compatible with:
 - Create multiple farmlists with selected village and default troops
 - Send catapult waves
 - Session pacing
+- Configurable idle browsing, including Official statistics pages
 - Auto sleep (logout and wait)
 - Oasis scan for whole map (and add to farmlists)
 - Travco inactive search (and add to farmlists)

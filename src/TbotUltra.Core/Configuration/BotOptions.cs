@@ -367,6 +367,18 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatistics)]
     public bool ActionPacingIdleBrowsePageStatistics { get; init; } = PacingDefaults.ActionPacingIdleBrowsePageStatistics;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsHero)]
+    public bool ActionPacingIdleBrowsePageStatisticsHero { get; init; } = PacingDefaults.ActionPacingIdleBrowsePageStatisticsHero;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsTop10)]
+    public bool ActionPacingIdleBrowsePageStatisticsTop10 { get; init; } = PacingDefaults.ActionPacingIdleBrowsePageStatisticsTop10;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsDefenders)]
+    public bool ActionPacingIdleBrowsePageStatisticsDefenders { get; init; } = PacingDefaults.ActionPacingIdleBrowsePageStatisticsDefenders;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsAttackers)]
+    public bool ActionPacingIdleBrowsePageStatisticsAttackers { get; init; } = PacingDefaults.ActionPacingIdleBrowsePageStatisticsAttackers;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.ActionPacingIdleBrowsePageReports)]
     public bool ActionPacingIdleBrowsePageReports { get; init; } = PacingDefaults.ActionPacingIdleBrowsePageReports;
 

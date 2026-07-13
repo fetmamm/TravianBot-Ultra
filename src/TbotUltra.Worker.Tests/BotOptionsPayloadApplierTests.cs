@@ -592,6 +592,11 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.Equal(25.0, options.ActionPacingLoopMaxSeconds);
         Assert.Equal(1.5, options.FarmListStepDelayMinSeconds);
         Assert.Equal(4.0, options.FarmListStepDelayMaxSeconds);
+        Assert.True(options.ActionPacingIdleBrowsePageStatistics);
+        Assert.True(options.ActionPacingIdleBrowsePageStatisticsHero);
+        Assert.True(options.ActionPacingIdleBrowsePageStatisticsTop10);
+        Assert.True(options.ActionPacingIdleBrowsePageStatisticsDefenders);
+        Assert.True(options.ActionPacingIdleBrowsePageStatisticsAttackers);
         Assert.Equal(0.6, options.CollectStepDelayMinSeconds);
         Assert.Equal(2.0, options.CollectStepDelayMaxSeconds);
         Assert.False(options.IncreaseAdventuresToHard);

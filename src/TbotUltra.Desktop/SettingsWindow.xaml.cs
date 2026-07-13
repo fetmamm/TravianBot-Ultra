@@ -270,6 +270,10 @@ public partial class SettingsWindow : Window
         IdleBrowseIntervalMaxTextBox.Text = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMaxMinutes, PacingDefaults.ActionPacingIdleBrowseIntervalMaxMinutes));
         IdleBrowsePageMapCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageMap, PacingDefaults.ActionPacingIdleBrowsePageMap);
         IdleBrowsePageStatisticsCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatistics, PacingDefaults.ActionPacingIdleBrowsePageStatistics);
+        IdleBrowsePageStatisticsHeroCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsHero, PacingDefaults.ActionPacingIdleBrowsePageStatisticsHero);
+        IdleBrowsePageStatisticsTop10CheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsTop10, PacingDefaults.ActionPacingIdleBrowsePageStatisticsTop10);
+        IdleBrowsePageStatisticsDefendersCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsDefenders, PacingDefaults.ActionPacingIdleBrowsePageStatisticsDefenders);
+        IdleBrowsePageStatisticsAttackersCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsAttackers, PacingDefaults.ActionPacingIdleBrowsePageStatisticsAttackers);
         IdleBrowsePageReportsCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageReports, PacingDefaults.ActionPacingIdleBrowsePageReports);
         IdleBrowsePageMessagesCheckBox.IsChecked = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageMessages, PacingDefaults.ActionPacingIdleBrowsePageMessages);
 
@@ -334,6 +338,10 @@ public partial class SettingsWindow : Window
             PacingDefaults.ActionPacingIdleBrowseIntervalMaxMinutes);
         _config[BotOptionPayloadKeys.ActionPacingIdleBrowsePageMap] = IdleBrowsePageMapCheckBox.IsChecked == true;
         _config[BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatistics] = IdleBrowsePageStatisticsCheckBox.IsChecked == true;
+        _config[BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsHero] = IdleBrowsePageStatisticsHeroCheckBox.IsChecked == true;
+        _config[BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsTop10] = IdleBrowsePageStatisticsTop10CheckBox.IsChecked == true;
+        _config[BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsDefenders] = IdleBrowsePageStatisticsDefendersCheckBox.IsChecked == true;
+        _config[BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsAttackers] = IdleBrowsePageStatisticsAttackersCheckBox.IsChecked == true;
         _config[BotOptionPayloadKeys.ActionPacingIdleBrowsePageReports] = IdleBrowsePageReportsCheckBox.IsChecked == true;
         _config[BotOptionPayloadKeys.ActionPacingIdleBrowsePageMessages] = IdleBrowsePageMessagesCheckBox.IsChecked == true;
 
@@ -382,6 +390,10 @@ public partial class SettingsWindow : Window
         IdleBrowseIntervalMaxTextBox.Text = FormatDelay(PacingDefaults.ActionPacingIdleBrowseIntervalMaxMinutes);
         IdleBrowsePageMapCheckBox.IsChecked = PacingDefaults.ActionPacingIdleBrowsePageMap;
         IdleBrowsePageStatisticsCheckBox.IsChecked = PacingDefaults.ActionPacingIdleBrowsePageStatistics;
+        IdleBrowsePageStatisticsHeroCheckBox.IsChecked = PacingDefaults.ActionPacingIdleBrowsePageStatisticsHero;
+        IdleBrowsePageStatisticsTop10CheckBox.IsChecked = PacingDefaults.ActionPacingIdleBrowsePageStatisticsTop10;
+        IdleBrowsePageStatisticsDefendersCheckBox.IsChecked = PacingDefaults.ActionPacingIdleBrowsePageStatisticsDefenders;
+        IdleBrowsePageStatisticsAttackersCheckBox.IsChecked = PacingDefaults.ActionPacingIdleBrowsePageStatisticsAttackers;
         IdleBrowsePageReportsCheckBox.IsChecked = PacingDefaults.ActionPacingIdleBrowsePageReports;
         IdleBrowsePageMessagesCheckBox.IsChecked = PacingDefaults.ActionPacingIdleBrowsePageMessages;
         CollectStepDelayMinTextBox.Text = FormatDelay(PacingDefaults.CollectStepDelayMinSeconds);

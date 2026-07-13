@@ -19,7 +19,7 @@ public partial class BulkSavePageHtmlWindow : Window
         new("dorf1.php", "Village - Resources"),
         new("dorf2.php", "Village - Buildings"),
         new("karte.php", "Map"),
-        new("statistiken.php", "Statistics"),
+        new("/statistics", "Statistics"),
         new("berichte.php", "Reports"),
         new("nachrichten.php", "Messages"),
         new("spieler.php", "Player profile"),

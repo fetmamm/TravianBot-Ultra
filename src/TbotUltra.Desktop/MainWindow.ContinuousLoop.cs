@@ -1875,6 +1875,13 @@ public partial class MainWindow
         AppendLog($"[pacing] idle browse: viewing {page}.");
         try
         {
+            if (RequiresStatisticsLandingPage(page))
+            {
+                AppendLog("[pacing:verbose] idle browse: opening the statistics overview before the selected statistics page.");
+                await _botService.NavigateToPageAndReadHtmlAsync(
+                    options, "/statistics", AppendLog, _loopController.AcquireSessionScopeToken());
+            }
+
             await _botService.NavigateToPageAndReadHtmlAsync(
                 options, page, AppendLog, _loopController.AcquireSessionScopeToken());
         }
@@ -1892,14 +1899,24 @@ public partial class MainWindow
     }
 
     // Official page paths for the idle-browse whitelist, filtered to the ones toggled on in settings.
-    private static List<string> GetEnabledIdleBrowsePages(BotOptions options)
+    internal static List<string> GetEnabledIdleBrowsePages(BotOptions options)
     {
-        var pages = new List<string>(4);
+        var pages = new List<string>(8);
         if (options.ActionPacingIdleBrowsePageMap) pages.Add("karte.php");
-        if (options.ActionPacingIdleBrowsePageStatistics) pages.Add("statistiken.php");
+        if (options.ActionPacingIdleBrowsePageStatistics) pages.Add("/statistics/general");
+        if (options.ActionPacingIdleBrowsePageStatisticsHero) pages.Add("/statistics/hero");
+        if (options.ActionPacingIdleBrowsePageStatisticsTop10) pages.Add("/statistics/player/top10");
+        if (options.ActionPacingIdleBrowsePageStatisticsDefenders) pages.Add("/statistics/player/defenders");
+        if (options.ActionPacingIdleBrowsePageStatisticsAttackers) pages.Add("/statistics/player/attackers");
         if (options.ActionPacingIdleBrowsePageReports) pages.Add("berichte.php");
         if (options.ActionPacingIdleBrowsePageMessages) pages.Add("nachrichten.php");
         return pages;
+    }
+
+    internal static bool RequiresStatisticsLandingPage(string page)
+    {
+        return page.StartsWith("/statistics/", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(page, "/statistics", StringComparison.OrdinalIgnoreCase);
     }
 
     private static TimeSpan RandomIdleBrowseInterval(BotOptions options)

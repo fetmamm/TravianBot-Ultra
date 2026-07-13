@@ -464,6 +464,7 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
   (run 40-100 min, sleep 20-60 min, 16h daily max), action pacing pa
   (task 0.8-2s, page load 0.6-1.6s, click 0.4-1.4s, loop 4-25s),
   farm-list step 1.5-4s, collect tasks/daily step 0.6-2s.
+  Idle browse-statistik anvander Official `/statistics/*`; valda sidor oppnas via `/statistics`.
   High-volume scans och keep-alive ska ha jitter/pacing och far inte infora zero-delay bursts.
 - State-changing JS/Evaluate-klick i build/hero/celebration-floden ska foregas av `DelayBeforeClickAsync`;
   reload-grenar ska anvanda samma page-load pacing som navigation.
