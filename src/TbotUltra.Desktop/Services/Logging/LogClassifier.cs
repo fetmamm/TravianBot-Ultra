@@ -243,6 +243,17 @@ public static class LogClassifier
                 && value.Contains(" invalid coordinate(s)", StringComparison.Ordinal));
     }
 
+    public static bool IsSafeTransientRetry(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return message.Contains("TransientNavigationException", StringComparison.OrdinalIgnoreCase)
+            && message.Contains("timed out after safe retries", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static bool Contains(string haystack, params string[] needles)
     {
         foreach (var needle in needles)

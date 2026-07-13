@@ -463,13 +463,26 @@ public partial class MainWindow
     // remain alarms; a crashed target is discarded by BotTaskRunner before this exception returns.
     private static bool IsTransientPageReadFailure(Exception ex)
     {
-        return ex is TransientNavigationException
-            || ex.Message.Contains("page state is 'unknown'", StringComparison.OrdinalIgnoreCase)
+        return IsTransientConnectionFailure(ex)
             || BrowserFailureClassifier.IsTargetCrash(ex);
     }
 
+    internal static bool IsTransientConnectionFailure(Exception ex)
+    {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is TransientNavigationException
+                || current.Message.Contains("page state is 'unknown'", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private DateTimeOffset _transientNetworkUnavailableUntilUtc;
-    private int _consecutiveTransientNavigationFailures;
+    private int _consecutiveTransientConnectionFailures;
 
     private void MarkTransientNetworkUnavailable(TimeSpan delay)
     {
@@ -491,15 +504,16 @@ public partial class MainWindow
 
     private TimeSpan NextTransientNavigationRetryDelay()
     {
-        _consecutiveTransientNavigationFailures = Math.Min(_consecutiveTransientNavigationFailures + 1, 3);
-        var minimumSeconds = 30 * (1 << (_consecutiveTransientNavigationFailures - 1));
+        _consecutiveTransientConnectionFailures = Math.Min(_consecutiveTransientConnectionFailures + 1, 3);
+        var minimumSeconds = 30 * (1 << (_consecutiveTransientConnectionFailures - 1));
         return TimeSpan.FromSeconds(Random.Shared.Next(minimumSeconds, minimumSeconds * 2 + 1));
     }
 
     private void MarkNetworkConnectionHealthy()
     {
-        _consecutiveTransientNavigationFailures = 0;
+        _consecutiveTransientConnectionFailures = 0;
         _transientNetworkUnavailableUntilUtc = DateTimeOffset.MinValue;
+        ResetAutomaticProxyRecoveryRetry();
     }
 
     private bool ShouldRunBackgroundResourceSnapshotRefresh()

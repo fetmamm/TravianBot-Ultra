@@ -9,10 +9,13 @@ public partial class MainWindow
 {
     private const int AutomaticProxyRecoveryFailureThreshold = 3;
     private int _automaticProxyRecoveryScheduled;
+    private int _automaticProxyRecoveryRetryAttempt;
+    private DateTimeOffset _automaticProxyRecoveryRetryAtUtc;
 
     private bool TryScheduleAutomaticProxyRecovery(BotOptions options)
     {
-        if (_consecutiveTransientNavigationFailures < AutomaticProxyRecoveryFailureThreshold
+        if (_consecutiveTransientConnectionFailures < AutomaticProxyRecoveryFailureThreshold
+            || DateTimeOffset.UtcNow < _automaticProxyRecoveryRetryAtUtc
             || Interlocked.CompareExchange(ref _automaticProxyRecoveryScheduled, 1, 0) != 0)
         {
             return false;
@@ -73,8 +76,15 @@ public partial class MainWindow
                 return;
             }
 
+            if (result.Kind == ProxyFailoverKind.RetryLater)
+            {
+                ScheduleAutomaticProxyRecoveryRetry(result.Message);
+                return;
+            }
+
             if (result.Kind == ProxyFailoverKind.Unavailable)
             {
+                ResetAutomaticProxyRecoveryRetry();
                 StatusTextBlock.Text = "Proxy unavailable. Automation stopped.";
                 AppendLog($"[ALARM] [proxy-recovery] {result.Message} Automation remains stopped for safety.");
                 return;
@@ -107,7 +117,7 @@ public partial class MainWindow
         }
         catch (OperationCanceledException)
         {
-            AppendLog("[proxy-recovery] recovery timed out or was cancelled; automation remains stopped.");
+            ScheduleAutomaticProxyRecoveryRetry("The proxy checks timed out before a safe decision could be made.");
         }
         catch (Exception ex)
         {
@@ -119,4 +129,36 @@ public partial class MainWindow
             Interlocked.Exchange(ref _automaticProxyRecoveryScheduled, 0);
         }
     }
+
+    private void ScheduleAutomaticProxyRecoveryRetry(string reason)
+    {
+        if (_loopController.IsClosing)
+        {
+            return;
+        }
+
+        _automaticProxyRecoveryRetryAttempt++;
+        var retryDelay = ResolveAutomaticProxyRecoveryRetryDelay(_automaticProxyRecoveryRetryAttempt);
+        _automaticProxyRecoveryRetryAtUtc = DateTimeOffset.UtcNow + retryDelay;
+        MarkTransientNetworkUnavailable(retryDelay);
+        StatusTextBlock.Text = $"Connection unavailable. Retrying in {retryDelay.TotalMinutes:F0} min.";
+        AppendLog(
+            $"[proxy-recovery] {reason} Retry {_automaticProxyRecoveryRetryAttempt} scheduled in "
+            + $"{retryDelay.TotalMinutes:F0} min without changing the proxy or raising an alarm.");
+        StartContinuousLoopRunner();
+    }
+
+    private void ResetAutomaticProxyRecoveryRetry()
+    {
+        _automaticProxyRecoveryRetryAttempt = 0;
+        _automaticProxyRecoveryRetryAtUtc = DateTimeOffset.MinValue;
+    }
+
+    internal static TimeSpan ResolveAutomaticProxyRecoveryRetryDelay(int attempt)
+        => attempt switch
+        {
+            <= 1 => TimeSpan.FromMinutes(2),
+            2 => TimeSpan.FromMinutes(5),
+            _ => TimeSpan.FromMinutes(10),
+        };
 }

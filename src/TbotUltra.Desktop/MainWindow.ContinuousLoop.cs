@@ -1512,6 +1512,7 @@ public partial class MainWindow
         try
         {
             await _botService.RefreshCurrentPageAsync(options, _ => { }, token);
+            MarkNetworkConnectionHealthy();
         }
         catch (OperationCanceledException)
         {
@@ -1522,6 +1523,8 @@ public partial class MainWindow
             _lastContinuousKeepAliveFailureUtc = DateTimeOffset.UtcNow;
             if (IsTransientKeepAliveFailure(ex))
             {
+                var retryDelay = NextTransientNavigationRetryDelay();
+                MarkTransientNetworkUnavailable(retryDelay);
                 AppendLog($"[keep-alive:verbose] refresh skipped after transient failure: {ex.Message}");
                 return;
             }
@@ -1654,7 +1657,7 @@ public partial class MainWindow
             {
                 break;
             }
-            catch (TransientNavigationException ex)
+            catch (Exception ex) when (IsTransientConnectionFailure(ex))
             {
                 var retryDelay = NextTransientNavigationRetryDelay();
                 MarkTransientNetworkUnavailable(retryDelay);

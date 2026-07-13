@@ -117,11 +117,30 @@ public sealed class ProxyFailoverServiceTests
             _ => { },
             CancellationToken.None);
 
-        Assert.Equal(ProxyFailoverKind.Unavailable, result.Kind);
+        Assert.Equal(ProxyFailoverKind.RetryLater, result.Kind);
         Assert.Null(current.IsWorking);
         Assert.Null(current.LastFailureUtc);
         Assert.Null(replacement.IsWorking);
         Assert.Null(replacement.LastFailureUtc);
+    }
+
+    [Fact]
+    public async Task FindRecovery_RetriesLaterWhenAllAllowedRoutesAreTemporarilyUnavailable()
+    {
+        var account = CreateAccount("socks5://1.1.1.1:1080");
+        var tester = new ProxyListTester(
+            probe: (_, _, _) => Task.FromResult(new ProxyProbeResult(false, 0)),
+            directProbe: (_, _) => Task.FromResult(false));
+        var service = new ProxyFailoverService(tester);
+
+        var result = await service.FindRecoveryAsync(
+            account,
+            [],
+            account.ServerUrl,
+            _ => { },
+            CancellationToken.None);
+
+        Assert.Equal(ProxyFailoverKind.RetryLater, result.Kind);
     }
 
     private static AccountEntry CreateAccount(string proxyServer) => new()

@@ -653,6 +653,14 @@ public partial class MainWindow
             return true;
         }
 
+        // Safe navigation failures are deferred without consuming task retries. The Worker emits its
+        // FAILED/FAIL diagnostics before Desktop applies that defer, so those lines must not turn the
+        // recoverable connection outage into a red alarm.
+        if (LogClassifier.IsSafeTransientRetry(message))
+        {
+            return false;
+        }
+
         // Verbose diagnostic lines (":verbose]" tag) are never alarms by definition. Their free-text
         // payload often contains words like "timeout", "failed" or "error" (e.g.
         // "[login:verbose] waiting for login confirmation (timeout=180s ...)") that would otherwise

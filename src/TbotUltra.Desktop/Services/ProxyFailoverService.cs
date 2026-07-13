@@ -8,6 +8,7 @@ internal enum ProxyFailoverKind
     CurrentProxyHealthy,
     ReplacementProxy,
     DirectConnection,
+    RetryLater,
     Unavailable,
 }
 
@@ -80,10 +81,26 @@ internal sealed class ProxyFailoverService
                 "No replacement proxy passed; direct connection is available and allowed.");
         }
 
-        var reason = account.NeverUseOwnIp
-            ? "No working replacement proxy was found and Never use own IP is enabled."
-            : "No working replacement proxy or direct connection was found.";
-        return new ProxyFailoverResult(ProxyFailoverKind.Unavailable, null, reason);
+        if (targetRejected.Count > 0)
+        {
+            return new ProxyFailoverResult(
+                ProxyFailoverKind.RetryLater,
+                null,
+                "At least one connection reached the internet but Travian was unavailable; keeping the current proxy and retrying later.");
+        }
+
+        if (!account.NeverUseOwnIp)
+        {
+            return new ProxyFailoverResult(
+                ProxyFailoverKind.RetryLater,
+                null,
+                "No proxy or direct connection completed the reachability test; keeping the current settings and retrying later.");
+        }
+
+        return new ProxyFailoverResult(
+            ProxyFailoverKind.Unavailable,
+            null,
+            "The active proxy failed, no working replacement proxy was found, and Never use own IP is enabled.");
     }
 
     internal static IReadOnlyList<ProxyLibraryEntry> SelectCandidates(

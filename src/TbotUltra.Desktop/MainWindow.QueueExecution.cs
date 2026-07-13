@@ -605,7 +605,7 @@ public partial class MainWindow
         Stopwatch timer,
         QueueExecutionMode mode)
     {
-        if (ex is TransientNavigationException)
+        if (IsTransientConnectionFailure(ex))
         {
             var retryDelay = NextTransientNavigationRetryDelay();
             MarkTransientNetworkUnavailable(retryDelay);

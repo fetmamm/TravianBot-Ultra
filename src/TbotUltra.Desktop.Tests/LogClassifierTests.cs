@@ -63,4 +63,21 @@ public sealed class LogClassifierTests
     {
         Assert.True(LogClassifier.IsExpectedFarmListResult(message));
     }
+
+    [Theory]
+    [InlineData("[queue] FAIL task='upgrade' TransientNavigationException: Navigation to 'dorf2.php' timed out after safe retries.")]
+    [InlineData("[upgrade FAILED] TransientNavigationException: Navigation to 'dorf1.php' timed out after safe retries.")]
+    [InlineData("[LOOP 5] TRANSIENT | TransientNavigationException: Navigation to 'dorf2.php' timed out after safe retries.")]
+    public void IsSafeTransientRetry_MatchesDeferredNavigationFailures(string message)
+    {
+        Assert.True(LogClassifier.IsSafeTransientRetry(message));
+    }
+
+    [Theory]
+    [InlineData("ALARM: controlled relogin failed")]
+    [InlineData("TimeoutException: state-changing click timed out")]
+    public void IsSafeTransientRetry_DoesNotHideActionableFailures(string message)
+    {
+        Assert.False(LogClassifier.IsSafeTransientRetry(message));
+    }
 }
