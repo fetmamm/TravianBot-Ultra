@@ -90,7 +90,8 @@ Runtime-path helpers i `TravianClient.Selectors.cs` ar Official-only. Anropa hel
 - Bulk messages UI satter `Max recipients` fran senaste `map.sql`-analysens spelarantal; fallback/default ar 5000.
 - Continuous farming ar per-by: `send_farmlists` runtime-items ska stampas med byn dar Farming-gruppen ar
   enabled och workern ska byta till den byn innan farmlistan skickas. Village-less legacy farming-items ska
-  inte valjas av loop-pickern.
+  inte valjas av loop-pickern. En redan hydrerad Official `tt=99`-sida ska ateranvandas genom overview,
+  loss-scan, send och timer-refresh; en farsk manuell analys ska inte ogiltigforklaras nar gruppen aktiveras.
 - Official `map.sql`/`x_world`: player id ar kolumn 7; skicka aldrig den som namn. Player name ar kolumn 8,
   alliance name kolumn 10, population kolumn 11 (0-baserat: 7,9,10).
 - Verifiera nya Official-selektorer live.
@@ -162,13 +163,14 @@ document.querySelector('.warehouse .capacity .value')
   Behall aktiv proxy tills anvandaren valt kontrollerad relogin (logout, shutdown, 5-20s delay, login) eller
   nasta session sleep; sleep-valet aktiverar nya proxyn efter logout och stanger browsern fore wake-login.
   Proxy/IP-anvandning sparas per konto i `proxy_usage.json`; task/waiting raknas, session sleep raknas inte.
-- Kontots proxyrotation sparas atomiskt i `proxy_plan.json` (utkast i `proxy_plan.draft.json`, aktiv proxy i
+- Kontots proxyrotation sparas atomiskt i `proxy_plan.json` (aldre utkast kan finnas i `proxy_plan.draft.json`, aktiv proxy i
   `proxy_runtime.json`). Nominella veckoblock far stabil daglig variation pa 0-49% av en timme. `SessionPacer`
   far nasta relevanta proxygrans och kortar vid behov run-perioden sa bytet sker utloggat under ordinarie sleep;
   Allowed hours/daily max vinner alltid. Aktiv plan valideras mot proxybibliotek, pacing och Allowed hours bade
   vid konto-/Settings-save och fore login. `Never use own IP` kraver full proxytackning av alla tillatna timmar;
-  ogiltig plan far sparas som utkast men aldrig aktiveras eller starta browsern. Editorn visar Allowed hours som
-  oversta 24h-rad och en checkbox-rad per proxy med endast All days/Weekdays/Weekends som dagval.
+  ogiltig plan far aldrig sparas som aktiv eller starta browsern. Editorn visar Allowed hours som bla statusrutor
+  over en checkbox-rad per proxy med endast All days/Weekdays/Weekends som dagval. Gron `Save` sparar och
+  aktiverar direkt; om natverkstest inte har korts valjer anvandaren att validera, hoppa over halsotestet eller avbryta.
   `Manage accounts > Use proxy rotation` ar den explicita av/på-brytaren; OFF behaller schemat men kor den
   vanliga enskilda proxyn, ON kraver minst tva valda proxies och en giltig aktiv plan.
 - Defer-orsaker ska konsumeras typat: `TaskWaitException.ReasonCode` (`TaskWaitReasons.*`), harledd pa ETT
@@ -210,8 +212,9 @@ Detaljer: [ADR 2026-06-05](adr/2026-06-05-multi-village.md), [ADR 2026-06-06](ad
 - Town Hall celebration ar `gid 24`, alla stammar, per-by `QueueGroup.TownHallCelebration`.
   Mode ar account-default `small`/`big` med per-by override; ko-default ar tva med restart-delay 15-75 min.
   Utan aktiv Plus reduceras malet till en direkt; `big` visas som "Great" och faller tillbaka under level 10.
-  Start-/resource-scope ska ligga i
-  `.build_details` och matcha small- eller Great-celebration-raden.
+    Start-/resource-scope ska ligga i `.build_details.researches` och matcha small- eller
+    Great-celebration-raden; fall aldrig tillbaka till sidans första `.build_details`, eftersom den
+    innehaller Town Hall-byggnadens upgrade/resource-CTA.
 - +15% production bonus-video aterforsok styrs av daglig server-reset (server-lokal hel timme) + anvandarens
   delay, inte 24h efter aktivering. Disabled purple video-knapp betyder vanta till nasta reset.
 - Reset-timmen lases fran Daily Quests-dialogen: raden `(Next reset at HH:MM ...)` (`DailyResetDomParser`).

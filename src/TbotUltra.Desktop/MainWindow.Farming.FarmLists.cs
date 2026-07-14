@@ -21,6 +21,7 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
+    private static readonly TimeSpan RecentFarmListAnalysisWindow = TimeSpan.FromMinutes(5);
     private readonly HashSet<string> _analyzedFarmCoordinates = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, int?> _farmListCapacitiesByName = new(StringComparer.OrdinalIgnoreCase);
 
@@ -33,6 +34,10 @@ public partial class MainWindow
     {
         return !row.IsPlaceholder;
     }
+
+    internal static bool CanReuseRecentFarmListAnalysis(DateTimeOffset lastAnalysisAt, DateTimeOffset now)
+        => lastAnalysisAt != DateTimeOffset.MinValue
+            && lastAnalysisAt >= now - RecentFarmListAnalysisWindow;
 
     private void EnsureFarmListPlaceholderRow()
     {

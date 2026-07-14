@@ -153,8 +153,7 @@ public partial class AccountsWindow : Window
             RefreshSavedProxySelection();
             SetProxyFieldsEnabled(selected.ProxyEnabled);
         }, "load proxy fields");
-        _editorProxyPlan = _proxyPlanStore.LoadDraft(selected.Name)
-            ?? _proxyPlanStore.LoadActive(selected.Name)
+        _editorProxyPlan = _proxyPlanStore.LoadActive(selected.Name)
             ?? _proxyPlanStore.BuildLegacyPlan(selected.ProxyServer, _proxyLibraryEntries);
         _suppressProxyRotationChange = true;
         UseProxyRotationCheckBox.IsChecked = _editorProxyPlan.IsRotation;
@@ -261,20 +260,12 @@ public partial class AccountsWindow : Window
                 var validation = ValidateEditorProxyPlan(entry, requireHealth: _editorProxyPlan.IsRotation);
                 if (!validation.IsValid)
                 {
-                    var choice = AppDialog.ShowCustom(
+                    AppDialog.Show(
                         this,
-                        string.Join("\n", validation.Errors.Select(issue => $"• {issue.Message}"))
-                            + "\n\nThe invalid setup cannot be activated. You can save it as a draft.",
+                        string.Join("\n", validation.Errors.Select(issue => $"• {issue.Message}")),
                         "Proxy setup errors",
-                        [("Save draft", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.Cancel)],
-                        MessageBoxImage.Warning,
-                        MessageBoxResult.Cancel,
-                        MessageBoxResult.Cancel);
-                    if (choice == MessageBoxResult.Yes)
-                    {
-                        _proxyPlanStore.SaveDraft(entry.Name, _editorProxyPlan);
-                        InfoTextBlock.Text = "Proxy setup saved as draft; the active setup was not changed.";
-                    }
+                        MessageBoxButton.OK,
+                        MessageBoxImage.Warning);
                     return false;
                 }
 
@@ -718,14 +709,10 @@ public partial class AccountsWindow : Window
                 UseProxyRotationCheckBox.IsChecked = _editorProxyPlan.IsRotation;
                 _suppressProxyRotationChange = false;
                 _editorProxyPlan.Enabled = UseProxyRotationCheckBox.IsChecked == true;
-                ApplyCurrentPlanProxyToFields(accountName);
+                _baselineProxyPlanJson = JsonSerializer.Serialize(_editorProxyPlan);
                 UpdateProxyPlanSummary(accountName);
                 UpdateActionButtons();
-                InfoTextBlock.Text = "Proxy schedule is ready. Press Save or Update to activate it.";
-            }
-            else if (dialog.SavedAsDraft)
-            {
-                InfoTextBlock.Text = "Proxy schedule saved as draft; the active setup is unchanged.";
+                InfoTextBlock.Text = "Proxy schedule saved and activated.";
             }
 
             ReloadProxyLibraryEntries();

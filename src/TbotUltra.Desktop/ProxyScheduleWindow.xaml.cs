@@ -26,9 +26,9 @@ public partial class ProxyScheduleWindow : Window
     private readonly ObservableCollection<ProxyTimelineRow> _rows = [];
     private CancellationTokenSource? _validationCts;
     private bool _buildingTimeline;
+    private bool _validatedSinceChange;
 
     public AccountProxyPlan ResultPlan { get; private set; }
-    public bool SavedAsDraft { get; private set; }
 
     public ProxyScheduleWindow(
         AccountProxyPlanStore planStore,
@@ -72,14 +72,15 @@ public partial class ProxyScheduleWindow : Window
             TimelineGrid.Children.Clear();
             TimelineGrid.ColumnDefinitions.Clear();
             TimelineGrid.RowDefinitions.Clear();
-            TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(220) });
-            TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(105) });
+            TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(180) });
+            TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
             for (var hour = 0; hour < 24; hour++)
             {
-                TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(38) });
+                TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
             }
-            TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(90) });
+            TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(82) });
             TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(72) });
+            TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(64) });
 
             TimelineGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             AddHeader("Proxy", 0);
@@ -88,7 +89,8 @@ public partial class ProxyScheduleWindow : Window
             {
                 AddHeader(hour.ToString("00", CultureInfo.InvariantCulture), hour + 2, HorizontalAlignment.Center);
             }
-            AddHeader("Status", 26);
+            AddHeader("Hours", 26);
+            AddHeader("Status", 27);
 
             TimelineGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
             var allowedLabel = new TextBlock
@@ -104,13 +106,22 @@ public partial class ProxyScheduleWindow : Window
             TimelineGrid.Children.Add(allowedLabel);
             for (var hour = 0; hour < 24; hour++)
             {
-                var checkBox = CreateHourCheckBox(_allowedHours.Contains(hour));
-                checkBox.IsHitTestVisible = false;
-                checkBox.Focusable = false;
-                checkBox.ToolTip = _allowedHours.Contains(hour) ? "Program may run during this hour" : "Program is blocked during this hour";
-                Grid.SetRow(checkBox, 1);
-                Grid.SetColumn(checkBox, hour + 2);
-                TimelineGrid.Children.Add(checkBox);
+                var allowed = _allowedHours.Contains(hour);
+                var square = new Border
+                {
+                    Width = 14,
+                    Height = 14,
+                    CornerRadius = new CornerRadius(2),
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Background = FindResource(allowed ? "PrimaryButtonBrush" : "ControlBackgroundBrush") as Brush,
+                    BorderBrush = FindResource(allowed ? "PrimaryButtonBrush" : "BorderBrush") as Brush,
+                    BorderThickness = new Thickness(1),
+                    ToolTip = allowed ? "Program may run during this hour" : "Program is blocked during this hour",
+                };
+                Grid.SetRow(square, 1);
+                Grid.SetColumn(square, hour + 2);
+                TimelineGrid.Children.Add(square);
             }
 
             for (var index = 0; index < _rows.Count; index++)
@@ -152,7 +163,7 @@ public partial class ProxyScheduleWindow : Window
             SelectedValue = row.ProxyId,
             Tag = row,
             Margin = new Thickness(2, 4, 6, 4),
-            MinWidth = 205,
+            MinWidth = 165,
         };
         proxyCombo.SelectionChanged += ProxyComboBox_SelectionChanged;
         Grid.SetRow(proxyCombo, gridRow);
@@ -182,6 +193,19 @@ public partial class ProxyScheduleWindow : Window
             TimelineGrid.Children.Add(checkBox);
         }
 
+        var toggleAllButton = new Button
+        {
+            Content = row.Hours.All(selected => selected) ? "Uncheck all" : "Check all",
+            Tag = row,
+            Margin = new Thickness(3, 4, 3, 4),
+            Padding = new Thickness(3, 2, 3, 2),
+            FontSize = 10,
+        };
+        toggleAllButton.Click += ToggleAllHoursButton_Click;
+        Grid.SetRow(toggleAllButton, gridRow);
+        Grid.SetColumn(toggleAllButton, 26);
+        TimelineGrid.Children.Add(toggleAllButton);
+
         var proxy = FindProxy(row.ProxyId);
         var status = proxy?.StatusText ?? "Missing";
         var statusText = new TextBlock
@@ -199,7 +223,7 @@ public partial class ProxyScheduleWindow : Window
             ToolTip = proxy?.LatencyMs is > 0 ? $"{proxy.LatencyMs} ms" : null,
         };
         Grid.SetRow(statusText, gridRow);
-        Grid.SetColumn(statusText, 26);
+        Grid.SetColumn(statusText, 27);
         TimelineGrid.Children.Add(statusText);
 
         var removeButton = new Button
@@ -211,7 +235,7 @@ public partial class ProxyScheduleWindow : Window
         };
         removeButton.Click += RemoveProxyButton_Click;
         Grid.SetRow(removeButton, gridRow);
-        Grid.SetColumn(removeButton, 27);
+        Grid.SetColumn(removeButton, 28);
         TimelineGrid.Children.Add(removeButton);
     }
 
@@ -220,8 +244,25 @@ public partial class ProxyScheduleWindow : Window
         IsChecked = isChecked,
         HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
-        Margin = new Thickness(3, 7, 3, 7),
+        Margin = new Thickness(1, 7, 1, 7),
     };
+
+    private void ToggleAllHoursButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is not Button { Tag: ProxyTimelineRow row })
+        {
+            return;
+        }
+
+        var selectAll = !row.Hours.All(selected => selected);
+        for (var hour = 0; hour < 24; hour++)
+        {
+            row.Hours[hour] = selectAll;
+        }
+
+        BuildTimeline();
+        MarkChanged(selectAll ? "All hours checked. Validate again before saving." : "All hours unchecked. Validate again before saving.");
+    }
 
     private void AddProxyButton_Click(object sender, RoutedEventArgs e)
     {
@@ -245,7 +286,7 @@ public partial class ProxyScheduleWindow : Window
 
         _rows.Add(row);
         BuildTimeline();
-        ValidationTextBlock.Text = "Proxy added. Check the hours it should use, then validate the setup.";
+        MarkChanged("Proxy added. Check the hours it should use, then validate the setup.");
     }
 
     private void RemoveProxyButton_Click(object sender, RoutedEventArgs e)
@@ -254,7 +295,7 @@ public partial class ProxyScheduleWindow : Window
         {
             _rows.Remove(row);
             BuildTimeline();
-            ValidationTextBlock.Text = "Proxy removed. Validate again before using the setup.";
+            MarkChanged("Proxy removed. Validate again before saving.");
         }
     }
 
@@ -267,14 +308,14 @@ public partial class ProxyScheduleWindow : Window
 
         if (_rows.Any(other => !ReferenceEquals(other, row) && string.Equals(other.ProxyId, proxyId, StringComparison.OrdinalIgnoreCase)))
         {
-            ValidationTextBlock.Text = "That proxy already has a schedule row. Choose another proxy.";
+            MarkChanged("That proxy already has a schedule row. Choose another proxy.");
             BuildTimeline();
             return;
         }
 
         row.ProxyId = proxyId;
         BuildTimeline();
-        ValidationTextBlock.Text = "Proxy changed. Validate again before using the setup.";
+        MarkChanged("Proxy changed. Validate again before saving.");
     }
 
     private void DaysComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -285,7 +326,7 @@ public partial class ProxyScheduleWindow : Window
         }
 
         row.DayGroup = dayGroup;
-        ValidationTextBlock.Text = "Day selection changed. Validate again before using the setup.";
+        MarkChanged("Day selection changed. Validate again before saving.");
     }
 
     private void ProxyHourCheckBox_Changed(object sender, RoutedEventArgs e)
@@ -296,7 +337,7 @@ public partial class ProxyScheduleWindow : Window
         }
 
         tag.Row.Hours[tag.Hour] = checkBox.IsChecked == true;
-        ValidationTextBlock.Text = "Hours changed. Validate again before using the setup.";
+        MarkChanged("Hours changed. Validate again before saving.");
     }
 
     private async void ValidateButton_Click(object sender, RoutedEventArgs e)
@@ -304,34 +345,66 @@ public partial class ProxyScheduleWindow : Window
             async () => { await ValidateAsync(showHealthyResult: true); },
             message => System.Diagnostics.Debug.WriteLine(message));
 
-    private async void ActivateButton_Click(object sender, RoutedEventArgs e)
-        => await AsyncUi.GuardAsync(ActivateAsync, message => System.Diagnostics.Debug.WriteLine(message));
+    private async void SaveButton_Click(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(SaveAsync, message => System.Diagnostics.Debug.WriteLine(message));
 
-    private async Task ActivateAsync()
+    private async Task SaveAsync()
     {
-        if (!await ValidateAsync(showHealthyResult: true))
+        if (!_validatedSinceChange)
         {
-            return;
+            var choice = AppDialog.ShowCustom(
+                this,
+                "This setup has not passed the proxy health check since its last change.\n\nValidate and save tests every selected proxy against the Travian server. Save without check skips the network test but still blocks unsafe schedules.",
+                "Save proxy schedule",
+                [("Validate and save", MessageBoxResult.Yes), ("Save without check", MessageBoxResult.No), ("Cancel", MessageBoxResult.Cancel)],
+                MessageBoxImage.Question,
+                MessageBoxResult.Yes,
+                MessageBoxResult.Cancel);
+            if (choice == MessageBoxResult.Cancel)
+            {
+                return;
+            }
+
+            if (choice == MessageBoxResult.Yes && !await ValidateAsync(showHealthyResult: true))
+            {
+                return;
+            }
+
+            if (choice == MessageBoxResult.No)
+            {
+                AccountProxyPlan uncheckedPlan;
+                try
+                {
+                    uncheckedPlan = BuildPlan();
+                }
+                catch (Exception ex)
+                {
+                    ValidationTextBlock.Text = $"Error: {ex.Message}";
+                    return;
+                }
+
+                var structural = AccountProxyPlanValidator.Validate(
+                    uncheckedPlan,
+                    _library,
+                    _accountName,
+                    _neverUseOwnIp,
+                    _sessionPacingEnabled,
+                    _allowedHours,
+                    _sleepMinMinutes,
+                    requireHealth: false);
+                ShowValidation(structural, showHealthyResult: false);
+                if (!structural.IsValid)
+                {
+                    return;
+                }
+            }
         }
 
         ResultPlan = BuildPlan();
+        _planStore.SaveActive(_accountName, ResultPlan);
+        _planStore.DeleteDraft(_accountName);
         DialogResult = true;
         Close();
-    }
-
-    private void SaveDraftButton_Click(object sender, RoutedEventArgs e)
-    {
-        try
-        {
-            ResultPlan = BuildPlan();
-            _planStore.SaveDraft(_accountName, ResultPlan);
-            SavedAsDraft = true;
-            Close();
-        }
-        catch (Exception ex)
-        {
-            ValidationTextBlock.Text = $"Draft could not be saved: {ex.Message}";
-        }
     }
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
@@ -344,7 +417,16 @@ public partial class ProxyScheduleWindow : Window
     {
         if (ValidationTextBlock is not null)
         {
-            ValidationTextBlock.Text = "Setup changed. Validate again before using it.";
+            MarkChanged("Variation changed. Validate again before saving.");
+        }
+    }
+
+    private void MarkChanged(string message)
+    {
+        _validatedSinceChange = false;
+        if (ValidationTextBlock is not null)
+        {
+            ValidationTextBlock.Text = message;
         }
     }
 
@@ -362,7 +444,7 @@ public partial class ProxyScheduleWindow : Window
         }
 
         ValidateButton.IsEnabled = false;
-        ActivateButton.IsEnabled = false;
+        SaveButton.IsEnabled = false;
         _validationCts?.Cancel();
         _validationCts?.Dispose();
         _validationCts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
@@ -392,6 +474,7 @@ public partial class ProxyScheduleWindow : Window
                 _sleepMinMinutes,
                 requireHealth: true);
             ShowValidation(result, showHealthyResult);
+            _validatedSinceChange = result.IsValid;
             return result.IsValid;
         }
         catch (OperationCanceledException)
@@ -407,7 +490,7 @@ public partial class ProxyScheduleWindow : Window
         finally
         {
             ValidateButton.IsEnabled = true;
-            ActivateButton.IsEnabled = true;
+            SaveButton.IsEnabled = true;
         }
     }
 
@@ -416,6 +499,11 @@ public partial class ProxyScheduleWindow : Window
         if (!int.TryParse(VariationTextBox.Text.Trim(), out var variation) || variation is < 0 or > 49)
         {
             throw new InvalidOperationException("Schedule variation must be a whole number between 0 and 49.");
+        }
+
+        if (_rows.Select(row => row.ProxyId).Distinct(StringComparer.OrdinalIgnoreCase).Count() < 2)
+        {
+            throw new InvalidOperationException("Proxy rotation requires at least two different proxies.");
         }
 
         return AccountProxyPlanNormalizer.Normalize(new AccountProxyPlan

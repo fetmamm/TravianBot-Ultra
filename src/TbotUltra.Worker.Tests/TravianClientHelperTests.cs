@@ -567,6 +567,27 @@ public sealed class TravianClientHelperTests
     }
 
     [Fact]
+    public void ComputeResourceAccumulationWaitSeconds_UsesTownHallShortfallAndCachedVillageProduction()
+    {
+        var cachedProduction = new Dictionary<string, double?>
+        {
+            ["wood"] = 7000,
+            ["clay"] = 8050,
+            ["iron"] = 8750,
+            ["crop"] = 7415,
+        };
+
+        var waitSeconds = UpgradeMath.ComputeResourceAccumulationWaitSeconds(
+            remainingWood: 1453,
+            remainingClay: 1275,
+            remainingIron: 573,
+            remainingCrop: 0,
+            cachedProduction);
+
+        Assert.Equal(748, waitSeconds);
+    }
+
+    [Fact]
     public void ComputeConstructionSlotStatus_EmptyAllowsBoth()
     {
         var status = ConstructionSlots.Compute([], "Romans", travianPlusActive: false);

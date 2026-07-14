@@ -101,17 +101,15 @@ public sealed partial class TravianClient
                 (args) => {
                   const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
                   const findTownHallCelebrationScope = () => {
-                    const root = document.querySelector('.build_details') || document;
-                    const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
+                    const root = document.querySelector('.build_details.researches, .researches');
+                    const rows = Array.from(root?.querySelectorAll('.researches .research, .research') || []);
                     const mode = String(args.townHallCelebrationMode || '').toLowerCase();
                     const pattern = mode === 'big'
                       ? /(big|great|large)\s+celebration/i
                       : /small\s+celebration/i;
                     // Never fall back to the whole page: the build page also shows the building's own
                     // upgrade costs, whose transfer icon would then be picked over the celebration's.
-                    return rows.find(row => pattern.test(normalize(row.textContent || '')))
-                      || document.querySelector('.researches')
-                      || root;
+                    return rows.find(row => pattern.test(normalize(row.textContent || ''))) || null;
                   };
                   const findBreweryCelebrationScope = () => {
                     const rows = Array.from(document.querySelectorAll('.researches .research'));
@@ -442,17 +440,15 @@ public sealed partial class TravianClient
                 return rect.width > 0 && rect.height > 0;
               };
               const findTownHallCelebrationScope = () => {
-                const root = document.querySelector('.build_details') || document;
-                const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
+                const root = document.querySelector('.build_details.researches, .researches');
+                const rows = Array.from(root?.querySelectorAll('.researches .research, .research') || []);
                 const mode = String(args.townHallCelebrationMode || '').toLowerCase();
                 const pattern = mode === 'big'
                   ? /(big|great|large)\s+celebration/i
                   : /small\s+celebration/i;
                 // Never fall back to the whole page: the build page also shows the building's own
                 // upgrade costs, whose transfer icon would then be picked over the celebration's.
-                return rows.find(row => pattern.test(normalize(row.textContent || '')))
-                  || document.querySelector('.researches')
-                  || root;
+                return rows.find(row => pattern.test(normalize(row.textContent || ''))) || null;
               };
               const findBreweryCelebrationScope = () => {
                 const rows = Array.from(document.querySelectorAll('.researches .research'));
@@ -804,17 +800,15 @@ public sealed partial class TravianClient
                 (args) => {
                   const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
                   const findTownHallCelebrationScope = () => {
-                    const root = document.querySelector('.build_details') || document;
-                    const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
+                    const root = document.querySelector('.build_details.researches, .researches');
+                    const rows = Array.from(root?.querySelectorAll('.researches .research, .research') || []);
                     const mode = String(args.townHallCelebrationMode || '').toLowerCase();
                     const pattern = mode === 'big'
                       ? /(big|great|large)\s+celebration/i
                       : /small\s+celebration/i;
                     // Never fall back to the whole page: the build page also shows the building's own
                     // upgrade costs, whose transfer icon would then be picked over the celebration's.
-                    return rows.find(row => pattern.test(normalize(row.textContent || '')))
-                      || document.querySelector('.researches')
-                      || root;
+                    return rows.find(row => pattern.test(normalize(row.textContent || ''))) || null;
                   };
                   const findBreweryCelebrationScope = () => {
                     const rows = Array.from(document.querySelectorAll('.researches .research'));

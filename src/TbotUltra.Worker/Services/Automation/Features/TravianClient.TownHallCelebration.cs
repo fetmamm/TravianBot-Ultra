@@ -286,7 +286,7 @@ public sealed partial class TravianClient
             """
             () => {
               const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
-              const root = document.querySelector('.build_details') || document;
+              const root = document.querySelector('.build_details.researches, .researches');
               // The "Ongoing celebration" table (class under_progress) is a SIBLING of the .build_details
               // "Hold a celebration" block, not inside it. Scoping the running lookup to root misses a
               // celebration that just started and reports a false "did not register", so search the whole
@@ -303,17 +303,15 @@ public sealed partial class TravianClient
               const runningText = normalize(runningTimer ? runningTimer.textContent : '');
               const runningValueRaw = runningTimer ? runningTimer.getAttribute('value') : null;
               const runningValue = runningValueRaw ? parseInt(runningValueRaw, 10) : null;
-              const inProgressLabel = Array.from(root.querySelectorAll('.act .none, .under_progress, .act'))
+              const inProgressLabel = Array.from(root?.querySelectorAll('.act .none, .under_progress, .act') || [])
                 .map(node => normalize(node.textContent || ''))
                 .find(text => /celebration is in progress/i.test(text) || /celebration running/i.test(text) || /underway/i.test(text)) || '';
-              const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
+              const rows = Array.from(root?.querySelectorAll('.researches .research, .research') || []);
               const smallRow = rows.find(row => /small\s+celebration/i.test(normalize(row.textContent || '')));
-              const startLink = smallRow?.querySelector('.cta a.research, .cta a[href*="a=1"], .cta a[href*="celebr"], td.act a.research, td.act a[href*="a=1"], td.act a[href*="celebr"]')
-                || root.querySelector('.cta a.research, .cta a[href*="a=1"], td.act a.research, td.act a[href*="a=1"]');
-              const startButton = smallRow?.querySelector('.cta button:not([disabled]):not(.disabled), td.act button:not([disabled]):not(.disabled)')
-                || root.querySelector('.cta button:not([disabled]):not(.disabled), td.act button:not([disabled]):not(.disabled)');
+              const startLink = smallRow?.querySelector('.cta a.research, .cta a[href*="a=1"], .cta a[href*="celebr"], td.act a.research, td.act a[href*="a=1"], td.act a[href*="celebr"]');
+              const startButton = smallRow?.querySelector('.cta button:not([disabled]):not(.disabled), td.act button:not([disabled]):not(.disabled)');
               const canStart = (!!startLink) || (!!startButton && !startButton.disabled);
-              const actText = normalize((smallRow?.querySelector('.cta, td.act') || root.querySelector('.cta, td.act'))?.textContent || '');
+              const actText = normalize(smallRow?.querySelector('.cta, td.act')?.textContent || '');
               const celebrationRunning = !!runningTimer || /celebration is in progress/i.test(inProgressLabel) || /celebration running/i.test(inProgressLabel);
               // Without Travian Plus only one celebration can run at a time: while one is active the start
               // CTA is empty and the row shows "There is already a celebration going on". Flag that so the
@@ -388,20 +386,18 @@ public sealed partial class TravianClient
             """
             (mode) => {
               const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
-              const root = document.querySelector('.build_details') || document;
-              const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
+              const root = document.querySelector('.build_details.researches, .researches');
+              const rows = Array.from(root?.querySelectorAll('.researches .research, .research') || []);
               const rowPattern = mode === 'big'
                 ? /(big|great|large)\s+celebration/i
                 : /small\s+celebration/i;
               const row = rows.find(candidate => rowPattern.test(normalize(candidate.textContent || '')));
-              const scope = row || root;
-              const link = scope.querySelector('.cta a.research, .cta a[href*="a=1"], .cta a[href*="celebr"], td.act a.research, td.act a[href*="a=1"], td.act a[href*="celebr"]')
-                || (mode === 'small' ? root.querySelector('.cta a.research, .cta a[href*="a=1"], td.act a.research, td.act a[href*="a=1"]') : null);
+              if (!row) return { kind: 'none', href: '' };
+              const link = row.querySelector('.cta a.research, .cta a[href*="a=1"], .cta a[href*="celebr"], td.act a.research, td.act a[href*="a=1"], td.act a[href*="celebr"]');
               if (link) {
                 return { kind: 'link', href: link.getAttribute('href') || '' };
               }
-              const button = scope.querySelector('.cta button:not([disabled]):not(.disabled), td.act button:not([disabled]):not(.disabled)')
-                || (mode === 'small' ? root.querySelector('.cta button:not([disabled]):not(.disabled), td.act button:not([disabled]):not(.disabled)') : null);
+              const button = row.querySelector('.cta button:not([disabled]):not(.disabled), td.act button:not([disabled]):not(.disabled)');
               if (button && !button.disabled) {
                 button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
                 return { kind: 'button', href: '' };
@@ -452,13 +448,14 @@ public sealed partial class TravianClient
             return null;
         }
 
-        var productionByHour = await ReadCurrentPageResourceProductionByHourAsync(cancellationToken);
-        var productionSource = "page_resources";
-        if (!HasAnyProduction(productionByHour))
-        {
-            productionByHour = await ReadCachedProductionByHourForActiveVillageAsync(cancellationToken);
-            productionSource = HasAnyProduction(productionByHour) ? "cached_production" : "fallback";
-        }
+        var pageProductionByHour = await ReadCurrentPageResourceProductionByHourAsync(cancellationToken);
+        var cachedProductionByHour = await ReadCachedProductionByHourForActiveVillageAsync(cancellationToken);
+        var productionByHour = ResourceSnapshotCalculator.MergeProductionByHour(
+            pageProductionByHour,
+            cachedProductionByHour);
+        var productionSource = HasAnyProduction(pageProductionByHour)
+            ? HasAnyProduction(cachedProductionByHour) ? "page_or_cached_production" : "page_resources"
+            : HasAnyProduction(cachedProductionByHour) ? "cached_production" : "fallback";
 
         var waitSeconds = UpgradeMath.ComputeResourceAccumulationWaitSeconds(
             shortfall.Wood,
@@ -484,16 +481,15 @@ public sealed partial class TravianClient
                 """
                 (mode) => {
                   const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
-                  const root = document.querySelector('.build_details') || document;
+                  const root = document.querySelector('.build_details.researches, .researches');
                   const rowPattern = mode === 'big'
                     ? /(big|great|large)\s+celebration/i
                     : /small\s+celebration/i;
-                  const rows = Array.from(root.querySelectorAll('.research, tr, li, .row, .information'));
+                  const rows = Array.from(root?.querySelectorAll('.researches .research, .research') || []);
                   // Never fall back to the whole page: the building's own upgrade block has a .timer
                   // ("Enough resources on ...") that would be misread as the celebration's wait.
-                  const row = rows.find(candidate => rowPattern.test(normalize(candidate.textContent || '')))
-                    || document.querySelector('.researches')
-                    || root;
+                  const row = rows.find(candidate => rowPattern.test(normalize(candidate.textContent || '')));
+                  if (!row) return null;
                   const timer = row.querySelector('.errorMessage .timer, .timer');
                   const raw = timer?.getAttribute('value') || timer?.getAttribute('data-value') || '';
                   const parsed = raw ? parseInt(raw, 10) : NaN;

@@ -992,7 +992,14 @@ public partial class MainWindow
         else if (option.IsEnabled
             && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Farming), StringComparison.OrdinalIgnoreCase))
         {
-            _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
+            if (!CanReuseRecentFarmListAnalysis(_lastFarmListsAnalysisAt, DateTimeOffset.UtcNow))
+            {
+                _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
+            }
+            else
+            {
+                AppendLog("[farm-list:verbose] keeping the recent analysis when enabling Farming.");
+            }
             ClearFarmingBlockedState();
         }
         else if (option.IsEnabled

@@ -259,6 +259,12 @@ public sealed partial class TravianClient : IFarmingClient
 
     private async Task EnsureRallyPointAndOpenFarmListPageAsync(CancellationToken cancellationToken)
     {
+        if (await CanReuseCurrentFarmListPageAsync(cancellationToken))
+        {
+            Notify("[farm-list:verbose] reusing the current hydrated farm list page.");
+            return;
+        }
+
         await GotoAsync(RallyPointFarmListPath, cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening farmlists.", cancellationToken);
         await EnsureLoggedInAsync();
@@ -299,6 +305,47 @@ public sealed partial class TravianClient : IFarmingClient
         {
             throw new InvalidOperationException($"Could not open farm list page at {RallyPointFarmListPath}. Farmlists may be unavailable on this account/server.");
         }
+    }
+
+    private async Task<bool> CanReuseCurrentFarmListPageAsync(CancellationToken cancellationToken)
+    {
+        if (!IsOfficialFarmListUrl(_page.Url))
+        {
+            return false;
+        }
+
+        try
+        {
+            await PauseForManualStepIfVisibleAsync(
+                "Manual verification appeared while checking the current farmlist page.",
+                cancellationToken);
+            return await _page.Locator("#rallyPointFarmList .farmListWrapper").CountAsync() > 0;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (PlaywrightException)
+        {
+            return false;
+        }
+    }
+
+    internal static bool IsOfficialFarmListUrl(string? url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            || !uri.AbsolutePath.EndsWith("/build.php", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var query = uri.Query.TrimStart('?')
+            .Split('&', StringSplitOptions.RemoveEmptyEntries)
+            .Select(part => part.Split('=', 2))
+            .Where(part => part.Length == 2)
+            .ToList();
+        return query.Any(part => part[0].Equals("id", StringComparison.OrdinalIgnoreCase) && part[1] == "39")
+            && query.Any(part => part[0].Equals("tt", StringComparison.OrdinalIgnoreCase) && part[1] == "99");
     }
 
     private async Task WaitForOfficialFarmListRenderAsync(CancellationToken cancellationToken)
