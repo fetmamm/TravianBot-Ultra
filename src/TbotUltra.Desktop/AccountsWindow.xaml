@@ -151,7 +151,15 @@
                 <TextBlock Grid.Row="3" Grid.Column="0" Text="Selected URL" Margin="0,0,8,16" VerticalAlignment="Center" />
                 <TextBlock x:Name="ServerUrlTextBlock" Grid.Row="3" Grid.Column="1" Margin="0,0,0,16" VerticalAlignment="Center" Foreground="{DynamicResource SlateTextBrush}" />
 
-                <StackPanel Grid.Row="4" Grid.Column="0" Margin="0,0,8,8" VerticalAlignment="Center">
+                <Border Grid.Row="4" Grid.RowSpan="2" Grid.ColumnSpan="2" Margin="0,0,0,8"
+                        Background="{DynamicResource ControlBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" />
+
+                <StackPanel Grid.Row="4" Grid.Column="0" Margin="14,12,12,8" VerticalAlignment="Top">
+                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                        <Ellipse Width="7" Height="7" Fill="{DynamicResource InfoBrush}" VerticalAlignment="Center" Margin="0,0,7,0" />
+                        <TextBlock Text="PROXY SETTINGS" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    </StackPanel>
                     <StackPanel Orientation="Horizontal">
                         <CheckBox x:Name="UseProxyCheckBox" Content="Use proxy" VerticalAlignment="Center"
                                   Checked="UseProxyCheckBox_Changed" Unchecked="UseProxyCheckBox_Changed" />
@@ -177,27 +185,8 @@
                         <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="6,0,0,0"
                                         ToolTip="Blocks browser startup unless this account has a valid working proxy configured.&#10;Use this to avoid exposing your own IP address to Travian." />
                     </StackPanel>
-                    <Button x:Name="CheckProxyButton"
-                            Content="Check proxy"
-                            Margin="0,6,0,0"
-                            MinWidth="105"
-                            HorizontalAlignment="Left"
-                            IsEnabled="False"
-                            Click="CheckProxyButton_Click" />
-                    <Button x:Name="CheckMyIpButton"
-                            Content="Check my IP address"
-                            Margin="0,6,0,0"
-                            MinWidth="130"
-                            HorizontalAlignment="Left"
-                            Click="CheckMyIpButton_Click" />
-                    <Button x:Name="ProxyFinderButton"
-                            Content="Proxy finder…"
-                            Margin="0,6,0,0"
-                            MinWidth="130"
-                            HorizontalAlignment="Left"
-                            Click="ProxyFinderButton_Click" />
                 </StackPanel>
-                <Grid Grid.Row="4" Grid.Column="1" Margin="0,0,0,8">
+                <Grid Grid.Row="4" Grid.Column="1" Margin="0,12,14,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -215,7 +204,8 @@
                     <Grid Grid.Row="1" Margin="0,0,0,8">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="120" />
+                            <ColumnDefinition Width="105" />
+                            <ColumnDefinition Width="105" />
                         </Grid.ColumnDefinitions>
                         <ComboBox x:Name="SavedProxyComboBox"
                                   Grid.Column="0"
@@ -225,8 +215,13 @@
                                   SelectionChanged="SavedProxyComboBox_SelectionChanged" />
                         <Button x:Name="ProxyLibraryButton"
                                 Grid.Column="1"
+                                Margin="0,0,8,0"
                                 Content="Proxy list…"
                                 Click="ProxyLibraryButton_Click" />
+                        <Button x:Name="ProxyFinderButton"
+                                Grid.Column="2"
+                                Content="Proxy finder…"
+                                Click="ProxyFinderButton_Click" />
                     </Grid>
 
                     <Grid Grid.Row="2">
@@ -285,27 +280,33 @@
                     </Grid>
                 </Grid>
 
-                <Border Grid.Row="5" Grid.ColumnSpan="2" Margin="0,6,0,6" Padding="14,12"
-                        Background="{DynamicResource ControlBackgroundBrush}"
-                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
+                <Border Grid.Row="5" Grid.ColumnSpan="2" Margin="14,6,14,14" Padding="0"
+                        Background="Transparent" BorderThickness="0">
                     <Grid>
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="*" />
+                            <ColumnDefinition Width="Auto" />
+                        </Grid.ColumnDefinitions>
                         <Grid.RowDefinitions>
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
-                        <StackPanel Grid.Row="0" Orientation="Horizontal">
+                        <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal">
                             <Ellipse Width="7" Height="7" Fill="{DynamicResource InfoBrush}" VerticalAlignment="Center" Margin="0,0,7,0" />
                             <TextBlock Text="PROXY ROTATION" FontSize="10" FontWeight="SemiBold"
                                        Foreground="{DynamicResource SlateTextBrush}" VerticalAlignment="Center" />
                         </StackPanel>
-                        <TextBlock x:Name="ProxyPlanSummaryTextBlock" Grid.Row="1" Text="Single proxy mode"
+                        <TextBlock x:Name="ProxyPlanSummaryTextBlock" Grid.Row="1" Grid.ColumnSpan="2" Text="Single proxy mode"
                                    Margin="0,7,0,0" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
-                        <TextBlock x:Name="ProxyPlanNextTextBlock" Grid.Row="2" Margin="0,5,0,10" FontSize="11"
+                        <TextBlock x:Name="ProxyPlanNextTextBlock" Grid.Row="2" Grid.ColumnSpan="2" Margin="0,5,0,10" FontSize="11"
                                    Foreground="{DynamicResource SlateTextBrush}" TextWrapping="Wrap" />
                         <Button x:Name="ProxyScheduleButton" Grid.Row="3" Content="Schedule…" Width="100"
                                 HorizontalAlignment="Left" Click="ProxyScheduleButton_Click" />
+                        <Button x:Name="CheckIpAddressButton" Grid.Row="3" Grid.Column="1"
+                                Content="Check IP address" Width="125" Margin="10,0,0,0"
+                                Click="CheckIpAddressButton_Click" />
                     </Grid>
                 </Border>
 

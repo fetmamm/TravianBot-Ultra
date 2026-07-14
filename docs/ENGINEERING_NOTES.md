@@ -183,6 +183,8 @@ document.querySelector('.warehouse .capacity .value')
   anvandaren kan lasa dem; ett efterfoljande `Save` godkanner och sparar det redan validerade schemat.
   Proxy schedule visar samma serverdatum/-tid och format som dashboardens Time-kort via `ServerTimeClock`.
   Manage accounts visar bara `Schedule...` i proxyrotationskortet; all setup-validering kors i schedule-editorn.
+  Alla proxykontroller i Manage accounts ligger i ett gemensamt kort under Selected URL. `Check IP address`
+  testar den effektiva anslutningen: konfigurerad proxy nar Use proxy ar pa, annars direktanslutningen.
   `Manage accounts > Use proxy rotation` ar den explicita av/på-brytaren; OFF behaller schemat men kor den
   vanliga enskilda proxyn, ON kraver minst tva valda proxies och en giltig aktiv plan.
 - Defer-orsaker ska konsumeras typat: `TaskWaitException.ReasonCode` (`TaskWaitReasons.*`), harledd pa ETT

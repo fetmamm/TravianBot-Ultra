@@ -532,57 +532,16 @@ public partial class AccountsWindow : Window
         UpdateActionButtons();
     }
 
-    private async void CheckProxyButton_Click(object sender, RoutedEventArgs e)
-        => await AsyncUi.GuardAsync(CheckProxyAsync, message => System.Diagnostics.Debug.WriteLine(message));
+    private async void CheckIpAddressButton_Click(object sender, RoutedEventArgs e)
+        => await AsyncUi.GuardAsync(CheckIpAddressAsync, message => System.Diagnostics.Debug.WriteLine(message));
 
-    private async Task CheckProxyAsync()
+    private async Task CheckIpAddressAsync()
     {
-        CheckProxyButton.IsEnabled = false;
-        CheckMyIpButton.IsEnabled = false;
+        CheckIpAddressButton.IsEnabled = false;
         _proxyCheckCompleted = false;
         _proxyCheckCts?.Dispose();
         _proxyCheckCts = new CancellationTokenSource();
-        ShowProxyCheckOverlay("Proxy check", "Preparing proxy check...", completed: false);
-
-        try
-        {
-            var proxyServer = ValidateCurrentProxyFields();
-            if (!ProxyParser.TryBuild(proxyServer, out var proxy, out var proxyWarning) || proxy is null)
-            {
-                CompleteProxyCheckOverlay("Proxy check", ProxyCheckResultCodec.BuildFailure("Invalid proxy settings.", proxyServer), string.Empty, success: false);
-                return;
-            }
-
-            var result = await ProxyCheckService.CheckIpAsync("Proxy", proxyServer, proxy, UpdateProxyCheckStatus, _proxyCheckCts.Token);
-            var warningText = string.IsNullOrWhiteSpace(proxyWarning) ? string.Empty : $" Warning: {proxyWarning}";
-            CompleteProxyCheckOverlay("Proxy check", result, warningText, success: true);
-        }
-        catch (OperationCanceledException)
-        {
-            CompleteProxyCheckOverlay("Proxy check", "Proxy check cancelled.", string.Empty, success: false);
-        }
-        catch (Exception ex)
-        {
-            CompleteProxyCheckOverlay("Proxy check", ProxyCheckResultCodec.BuildFailure(ProxyCheckResultCodec.SummarizeError(ex.Message), TryBuildProxyServerStringForDisplay()), string.Empty, success: false);
-        }
-        finally
-        {
-            CheckProxyButton.IsEnabled = UseProxyCheckBox.IsChecked == true;
-            CheckMyIpButton.IsEnabled = true;
-        }
-    }
-
-    private async void CheckMyIpButton_Click(object sender, RoutedEventArgs e)
-        => await AsyncUi.GuardAsync(CheckMyIpAsync, message => System.Diagnostics.Debug.WriteLine(message));
-
-    private async Task CheckMyIpAsync()
-    {
-        CheckProxyButton.IsEnabled = false;
-        CheckMyIpButton.IsEnabled = false;
-        _proxyCheckCompleted = false;
-        _proxyCheckCts?.Dispose();
-        _proxyCheckCts = new CancellationTokenSource();
-        ShowProxyCheckOverlay("Check IP adress", "Preparing IP check...", completed: false);
+        ShowProxyCheckOverlay("Check IP address", "Preparing IP check...", completed: false);
 
         try
         {
@@ -596,7 +555,7 @@ public partial class AccountsWindow : Window
                 proxyServer = ValidateCurrentProxyFields();
                 if (!ProxyParser.TryBuild(proxyServer, out proxy, out proxyWarning) || proxy is null)
                 {
-                    CompleteProxyCheckOverlay("Check IP adress", ProxyCheckResultCodec.BuildFailure("Invalid proxy settings.", proxyServer), string.Empty, success: false);
+                    CompleteProxyCheckOverlay("Check IP address", ProxyCheckResultCodec.BuildFailure("Invalid proxy settings.", proxyServer), string.Empty, success: false);
                     return;
                 }
 
@@ -605,20 +564,19 @@ public partial class AccountsWindow : Window
 
             var result = await ProxyCheckService.CheckIpAsync(mode, proxyServer, proxy, UpdateProxyCheckStatus, _proxyCheckCts.Token);
             var warningText = string.IsNullOrWhiteSpace(proxyWarning) ? string.Empty : $" Warning: {proxyWarning}";
-            CompleteProxyCheckOverlay("Check IP adress", result, warningText, success: true);
+            CompleteProxyCheckOverlay("Check IP address", result, warningText, success: true);
         }
         catch (OperationCanceledException)
         {
-            CompleteProxyCheckOverlay("Check IP adress", "IP check cancelled.", string.Empty, success: false);
+            CompleteProxyCheckOverlay("Check IP address", "IP check cancelled.", string.Empty, success: false);
         }
         catch (Exception ex)
         {
-            CompleteProxyCheckOverlay("Check IP adress", ProxyCheckResultCodec.BuildFailure(ProxyCheckResultCodec.SummarizeError(ex.Message), TryBuildProxyServerStringForDisplay()), string.Empty, success: false);
+            CompleteProxyCheckOverlay("Check IP address", ProxyCheckResultCodec.BuildFailure(ProxyCheckResultCodec.SummarizeError(ex.Message), TryBuildProxyServerStringForDisplay()), string.Empty, success: false);
         }
         finally
         {
-            CheckProxyButton.IsEnabled = UseProxyCheckBox.IsChecked == true;
-            CheckMyIpButton.IsEnabled = true;
+            CheckIpAddressButton.IsEnabled = true;
         }
     }
 
@@ -1248,11 +1206,6 @@ public partial class AccountsWindow : Window
         if (ProxyPortTextBox is not null)
         {
             ProxyPortTextBox.IsEnabled = enabled;
-        }
-
-        if (CheckProxyButton is not null)
-        {
-            CheckProxyButton.IsEnabled = enabled;
         }
 
         if (UseProxyRotationCheckBox is not null)
