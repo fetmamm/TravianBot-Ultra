@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Diagnostics;
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Windows;
 using System.Windows.Controls;
@@ -11,6 +10,7 @@ using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Threading;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.Services.Logging;
 
 namespace TbotUltra.Desktop;
@@ -270,27 +270,12 @@ public partial class MainWindow
                 TrimOldSessionLogFiles(sessionLogDirectory);
             }
 
-            var header = new[]
+            var header = new List<string>
             {
                 "=== Tbot Ultra Session Log ===",
-                $"Started: {DateTime.Now:yyyy-MM-dd HH:mm:ss}",
-                $"ProjectRoot: {_projectRoot}",
-                $"AppVersion: {ReadAppVersionForLog()}",
-                $"MachineName: {Environment.MachineName}",
-                $"UserName: {Environment.UserName}",
-                $"OS: {RuntimeInformation.OSDescription}",
-                $"ProcessArchitecture: {RuntimeInformation.ProcessArchitecture}",
-                $"DotNet: {RuntimeInformation.FrameworkDescription}",
-                $"CPU: {ReadCpuDescriptionForLog()}",
-                $"LogicalProcessors: {Environment.ProcessorCount}",
-                $"RAM: {ReadRamDescriptionForLog()}",
-                $"Screen: {(int)SystemParameters.PrimaryScreenWidth}x{(int)SystemParameters.PrimaryScreenHeight}",
-                string.Empty,
-                "=== ALARMS ===",
-                string.Empty,
-                "=== LOGS ===",
-                string.Empty,
             };
+            header.AddRange(SystemDiagnosticsInfo.BuildLines(ReadAppVersionForLog(), _projectRoot, DateTimeOffset.UtcNow));
+            header.AddRange([string.Empty, "=== ALARMS ===", string.Empty, "=== LOGS ===", string.Empty]);
             lock (_sessionLogWriteSync)
             {
                 File.WriteAllLines(_sessionLogPath, header);
@@ -349,55 +334,6 @@ public partial class MainWindow
             return "unknown";
         }
     }
-
-    private static string ReadCpuDescriptionForLog()
-    {
-        try
-        {
-            var identifier = Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER");
-            if (!string.IsNullOrWhiteSpace(identifier))
-            {
-                return identifier.Trim();
-            }
-        }
-        catch
-        {
-        }
-
-        return "unknown";
-    }
-
-    private static string ReadRamDescriptionForLog()
-    {
-        try
-        {
-            var memoryStatus = new MemoryStatusEx
-            {
-                Length = (uint)Marshal.SizeOf<MemoryStatusEx>(),
-            };
-
-            if (!GlobalMemoryStatusEx(ref memoryStatus) || memoryStatus.TotalPhys == 0)
-            {
-                return "unknown";
-            }
-
-            var totalBytes = memoryStatus.TotalPhys;
-            if (totalBytes > 0)
-            {
-                var totalGb = totalBytes / (1024d * 1024d * 1024d);
-                return $"{totalGb:F1} GB";
-            }
-        }
-        catch
-        {
-        }
-
-        return "unknown";
-    }
-
-    [DllImport("kernel32.dll", CharSet = CharSet.Auto, SetLastError = true)]
-    [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool GlobalMemoryStatusEx(ref MemoryStatusEx memoryStatus);
 
     private void TryAppendSessionLogLines(IReadOnlyList<string> logLines, IReadOnlyList<string> alarmLines)
     {

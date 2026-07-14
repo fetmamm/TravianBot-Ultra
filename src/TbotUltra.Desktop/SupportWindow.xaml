@@ -3,9 +3,9 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Support"
-        Height="280"
+        Height="430"
         Width="460"
-        MinHeight="240"
+        MinHeight="390"
         MinWidth="420"
         WindowStartupLocation="CenterOwner">
     <Grid Margin="12">
@@ -52,15 +52,32 @@
                     Click="VersionButton_Click" />
         </StackPanel>
 
-        <!-- Diagnostics export is disabled for now (to be revisited). -->
-        <Button Grid.Row="3"
-                Content="Create diagnostics file"
-                Width="170"
-                Margin="0,0,0,12"
-                HorizontalAlignment="Left"
-                IsEnabled="False"
-                ToolTip="Temporarily disabled — coming back in a future update."
-                Click="DiagnosticsButton_Click" />
+        <Border Grid.Row="3"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="12"
+                Margin="0,0,0,12">
+            <StackPanel>
+                <TextBlock Text="Diagnostics" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,6" />
+                <TextBlock Text="Creates a ZIP file with sanitized settings, all available logs, system information, and runtime diagnostics. Screenshots may still contain visible game data. Review the ZIP before sharing it."
+                           Foreground="{DynamicResource TextSubtleBrush}"
+                           TextWrapping="Wrap"
+                           Margin="0,0,0,10" />
+                <StackPanel Orientation="Horizontal">
+                    <Button x:Name="DiagnosticsButton"
+                            Content="Create diagnostics file"
+                            Width="170"
+                            Margin="0,0,8,0"
+                            Click="DiagnosticsButton_Click" />
+                    <Button x:Name="OpenDiagnosticsFolderButton"
+                            Content="Open diagnostics folder"
+                            Width="180"
+                            Click="OpenDiagnosticsFolderButton_Click" />
+                </StackPanel>
+            </StackPanel>
+        </Border>
 
         <TextBlock x:Name="InfoTextBlock" Grid.Row="4" TextWrapping="Wrap" Foreground="{DynamicResource IronTextBrush}" />
 

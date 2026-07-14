@@ -519,6 +519,10 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 - State-changing JS/Evaluate-klick i build/hero/celebration-floden ska foregas av `DelayBeforeClickAsync`;
   reload-grenar ska anvanda samma page-load pacing som navigation.
 - Huvudfonstrets gemensamma `BusyOverlay` ska alltid doljas i operationens `finally`.
+- Support > Diagnostics sparar atomiska ZIP-paket i `Documents/Tbot Ultra/Diagnostics`. Alla tillgangliga
+  loggar ska med; config och textartefakter saneras, `.env`/browser-state exkluderas och screenshots varnas som osanerbara.
+- Versionsdialogens `Update & restart` visas alltid for att funktionen ska vara synlig. Den ar endast
+  klickbar nar en ny portable-release finns och appen kors som publicerade `Tbot Ultra.exe`.
 - Diagnostisk pacing loggas med `[pacing]`, men viktiga sleep/wake-handelser ska vara synliga i Clean mode.
   Cached currency pa sidor utan valuta ar verbose; avsaknad av bade live- och cachevarde ar alarm.
 - `Resource read` loggas hogst varannan minut per browser-session och oforandrad transient ad-storage cleanup
