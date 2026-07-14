@@ -36,9 +36,9 @@
     "host": "193.221.203.192",
     "port": 1080,
     "country": "Finland",
-    "latencyMs": 301,
-    "isWorking": true,
-    "lastFailureUtc": null,
+    "latencyMs": 159,
+    "isWorking": false,
+    "lastFailureUtc": "2026-07-14T13:26:56.6487598Z",
     "assignedAccount": "jesperr_svensson_gmail_com_ts50_x5_arabics_travian_com",
     "usedByAccounts": [],
     "createdAtUtc": "2026-07-14T07:19:22.9135967Z"
@@ -92,9 +92,9 @@
     "host": "159.195.49.27",
     "port": 1080,
     "country": "Germany",
-    "latencyMs": 436,
-    "isWorking": false,
-    "lastFailureUtc": "2026-07-14T08:16:03.0753029Z",
+    "latencyMs": 465,
+    "isWorking": true,
+    "lastFailureUtc": null,
     "assignedAccount": "jesperr_svensson_gmail_com_ts50_x5_arabics_travian_com",
     "usedByAccounts": [
       "jesperr_svensson_gmail_com_ts50_x5_arabics_travian_com"
