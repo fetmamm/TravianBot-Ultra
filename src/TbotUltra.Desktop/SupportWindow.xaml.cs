@@ -18,6 +18,7 @@ public partial class SupportWindow : Window
     private readonly UpdateChecker.UpdateStatus? _updateStatus;
     private readonly bool _muteUpdateNotifications;
     private readonly DiagnosticsExporter _diagnosticsExporter = new();
+    private CancellationTokenSource? _diagnosticsCts;
 
     private static string DiagnosticsDirectory => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments),
@@ -99,6 +100,8 @@ public partial class SupportWindow : Window
         DiagnosticsButton.IsEnabled = false;
         OpenDiagnosticsFolderButton.IsEnabled = false;
         InfoTextBlock.Text = "Creating diagnostics file...";
+        using var diagnosticsCts = new CancellationTokenSource();
+        _diagnosticsCts = diagnosticsCts;
         DiagnosticsBusyOverlay.Show("Creating diagnostics file", "Collecting and sanitizing logs and settings...");
         try
         {
@@ -109,7 +112,8 @@ public partial class SupportWindow : Window
                 DiagnosticsDirectory,
                 _currentVersion,
                 _terminalEntries,
-                DateTimeOffset.UtcNow));
+                DateTimeOffset.UtcNow),
+                diagnosticsCts.Token);
             InfoTextBlock.Text = $"Diagnostics created: {result.ZipPath}";
             try
             {
@@ -125,16 +129,26 @@ public partial class SupportWindow : Window
                 InfoTextBlock.Text = $"Diagnostics created: {result.ZipPath}\nCould not open File Explorer: {ex.Message}";
             }
         }
+        catch (OperationCanceledException) when (diagnosticsCts.IsCancellationRequested)
+        {
+            InfoTextBlock.Text = "Diagnostics creation canceled.";
+        }
         catch (Exception ex)
         {
             InfoTextBlock.Text = $"Could not create diagnostics: {ex.Message}";
         }
         finally
         {
+            _diagnosticsCts = null;
             DiagnosticsBusyOverlay.Hide();
             DiagnosticsButton.IsEnabled = true;
             OpenDiagnosticsFolderButton.IsEnabled = true;
         }
+    }
+
+    private void DiagnosticsBusyOverlay_Cancelled(object sender, EventArgs e)
+    {
+        _diagnosticsCts?.Cancel();
     }
 
     private void OpenDiagnosticsFolderButton_Click(object sender, RoutedEventArgs e)

@@ -74,6 +74,19 @@ public sealed class DiagnosticsExporterTests
         Assert.Empty(Directory.EnumerateFileSystemEntries(fixture.OutputRoot));
     }
 
+    [Fact]
+    public async Task CreateAsync_HonorsCancellationBeforeExport()
+    {
+        using var fixture = new DiagnosticsFixture();
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            fixture.Exporter.CreateAsync(fixture.Request([]), cancellation.Token));
+
+        Assert.Empty(Directory.EnumerateFileSystemEntries(fixture.OutputRoot));
+    }
+
     private static string ReadEntry(ZipArchiveEntry entry)
     {
         using var reader = new StreamReader(entry.Open());

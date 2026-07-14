@@ -32,6 +32,7 @@ internal sealed class DiagnosticsExporter
         ArgumentException.ThrowIfNullOrWhiteSpace(request.ProjectRoot);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.AppBaseDirectory);
         ArgumentException.ThrowIfNullOrWhiteSpace(request.OutputDirectory);
+        cancellationToken.ThrowIfCancellationRequested();
 
         CreateDirectoryWithRetry(request.OutputDirectory);
         var stamp = request.GeneratedUtc.UtcDateTime.ToString("yyyyMMdd-HHmmssfff");
@@ -45,6 +46,7 @@ internal sealed class DiagnosticsExporter
         {
             CreateDirectoryWithRetry(stagingPath);
             CopyLogs(request, stagingPath, included, missing, cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
             WriteTerminal(request.TerminalEntries, stagingPath, included);
             WriteSanitizedConfiguration(request.ProjectRoot, stagingPath, included, missing, cancellationToken);
             if (request.IncludeRuntimeDiagnostics)
@@ -52,12 +54,15 @@ internal sealed class DiagnosticsExporter
                 CopyRuntimeDiagnostics(request.ProjectRoot, stagingPath, included, missing, cancellationToken);
             }
 
+            cancellationToken.ThrowIfCancellationRequested();
             WriteManifest(request, stagingPath, included, missing);
+            cancellationToken.ThrowIfCancellationRequested();
             RetryFileIo(() =>
             {
                 TryDeleteFile(temporaryZipPath);
                 ZipFile.CreateFromDirectory(stagingPath, temporaryZipPath, CompressionLevel.Optimal, includeBaseDirectory: false);
             });
+            cancellationToken.ThrowIfCancellationRequested();
             RetryFileIo(() => File.Move(temporaryZipPath, zipPath));
             return new DiagnosticsExportResult(zipPath, included.AsReadOnly(), missing.AsReadOnly());
         }

@@ -4,9 +4,9 @@
         xmlns:views="clr-namespace:TbotUltra.Desktop.Views"
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Support"
-        Height="430"
+        Height="390"
         Width="460"
-        MinHeight="390"
+        MinHeight="350"
         MinWidth="420"
         WindowStartupLocation="CenterOwner">
     <Grid Margin="12">
@@ -61,11 +61,11 @@
                 Padding="12"
                 Margin="0,0,0,12">
             <StackPanel>
-                <TextBlock Text="Diagnostics" FontSize="15" FontWeight="SemiBold" Margin="0,0,0,6" />
-                <TextBlock Text="Creates a ZIP file with sanitized settings, all available logs, system information, and runtime diagnostics. Screenshots may still contain visible game data. Review the ZIP before sharing it."
-                           Foreground="{DynamicResource TextSubtleBrush}"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,10" />
+                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                    <TextBlock Text="Diagnostics" FontSize="15" FontWeight="SemiBold" VerticalAlignment="Center" />
+                    <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                    ToolTip="Creates a ZIP file with sanitized settings, all available logs, system information, and runtime diagnostics. Screenshots may still contain visible game data. Review the ZIP before sharing it." />
+                </StackPanel>
                 <StackPanel Orientation="Horizontal">
                     <Button x:Name="DiagnosticsButton"
                             Content="Create diagnostics file"
@@ -92,6 +92,7 @@
         <views:BusyOverlayControl x:Name="DiagnosticsBusyOverlay"
                                   Grid.RowSpan="6"
                                   Panel.ZIndex="100"
-                                  ShowCancel="False" />
+                                  ShowCancel="True"
+                                  Cancelled="DiagnosticsBusyOverlay_Cancelled" />
     </Grid>
 </Window>
