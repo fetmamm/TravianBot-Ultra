@@ -38,6 +38,7 @@ public partial class VersionWindow : Window
             StatusText.Text = "Checking for updates…";
             try
             {
+                // Version operations are app-scoped, not browser/account-session scoped.
                 _status = await UpdateChecker.CheckAsync(_currentVersion, CancellationToken.None);
             }
             catch
@@ -158,6 +159,7 @@ public partial class VersionWindow : Window
                 DownloadProgress.IsIndeterminate = false;
                 DownloadProgress.Value = Math.Clamp(fraction * 100, 0, 100);
             });
+            // Keep the user-started app update independent from browser/account-session cancellation.
             await UpdateChecker.DownloadAsync(release.PortableDownloadUrl, zipPath, progress, CancellationToken.None);
 
             StatusText.Text = "Extracting update…";
@@ -239,6 +241,7 @@ public partial class VersionWindow : Window
                 DownloadProgress.Value = Math.Clamp(fraction * 100, 0, 100);
             });
 
+            // Keep the user-started download independent from browser/account-session cancellation.
             await UpdateChecker.DownloadAsync(release.PortableDownloadUrl, destination, progress, CancellationToken.None);
 
             StatusText.Text = $"Downloaded to: {destination}";

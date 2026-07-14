@@ -120,6 +120,7 @@ public sealed partial class TravianClient
                     includeOccupied,
                     completedAreas,
                     found.Values,
+                    // Preserve the last completed map areas even when the scan itself was canceled.
                     CancellationToken.None);
             }
             catch (Exception checkpointException)

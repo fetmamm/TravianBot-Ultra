@@ -85,7 +85,9 @@ public sealed partial class BrowserSession : IAsyncDisposable
                 ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
             };
 
-        MigrateLegacyStorageStateIfNeeded();
+        LegacyBrowserStorageAdapter.MigrateIfNeeded(
+            AccountStoragePaths.LegacyBrowserStatePath(_projectRoot, _account.Name),
+            StorageStatePath);
 
         if (File.Exists(StorageStatePath))
         {
@@ -524,30 +526,4 @@ public sealed partial class BrowserSession : IAsyncDisposable
         Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", browsersPath);
     }
 
-    private void MigrateLegacyStorageStateIfNeeded()
-    {
-        var legacyPath = AccountStoragePaths.LegacyBrowserStatePath(_projectRoot, _account.Name);
-        if (File.Exists(StorageStatePath) || !File.Exists(legacyPath))
-        {
-            return;
-        }
-
-        var targetDirectory = Path.GetDirectoryName(StorageStatePath);
-        if (string.IsNullOrWhiteSpace(targetDirectory))
-        {
-            throw new InvalidOperationException("Storage state path is invalid.");
-        }
-
-        Directory.CreateDirectory(targetDirectory);
-        File.Copy(legacyPath, StorageStatePath, overwrite: false);
-    }
-
-    private void DeleteLegacyStorageStateIfPresent()
-    {
-        var legacyPath = AccountStoragePaths.LegacyBrowserStatePath(_projectRoot, _account.Name);
-        if (File.Exists(legacyPath))
-        {
-            File.Delete(legacyPath);
-        }
-    }
 }

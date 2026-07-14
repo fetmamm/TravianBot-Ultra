@@ -119,6 +119,7 @@ public sealed class BackgroundTaskTracker : IDisposable
                     _tasks.Remove(completedTask);
                 }
             },
+            // Cleanup must run even when the tracked operation's own token was canceled.
             CancellationToken.None,
             TaskContinuationOptions.ExecuteSynchronously,
             TaskScheduler.Default);

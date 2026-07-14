@@ -798,6 +798,7 @@ public partial class MainWindow : Window
         _updateCheckRunning = true;
         try
         {
+            // Detached from browser/session lifecycle: an account switch must not cancel the app update check.
             var status = await UpdateChecker.CheckAsync(_currentVersion, CancellationToken.None);
             if (status.Release is null)
             {

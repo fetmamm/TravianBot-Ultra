@@ -44,7 +44,8 @@ public sealed partial class BrowserSession
             TryDeleteFile(tempPath);
         }
 
-        DeleteLegacyStorageStateIfPresent();
+        LegacyBrowserStorageAdapter.DeleteIfPresent(
+            AccountStoragePaths.LegacyBrowserStatePath(_projectRoot, _account.Name));
     }
 
     // Removes cookies and localStorage origins that belong to a sibling subdomain of the
