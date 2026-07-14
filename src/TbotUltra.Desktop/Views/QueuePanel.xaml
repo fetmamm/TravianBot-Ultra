@@ -1,0 +1,500 @@
+<UserControl x:Class="TbotUltra.Desktop.Views.QueuePanel"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+<Grid Background="{DynamicResource AppBackgroundBrush}">
+    <Grid.RowDefinitions>
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="Auto" />
+        <RowDefinition Height="*" />
+    </Grid.RowDefinitions>
+
+    <!-- Header -->
+    <DockPanel Grid.Row="0" Margin="2,2,2,8">
+        <StackPanel DockPanel.Dock="Left">
+            <TextBlock Text="Queue"
+                       FontSize="22"
+                       FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimaryBrush}" />
+            <TextBlock x:Name="BuildQueueStatusTextBlock" Visibility="Collapsed" />
+        </StackPanel>
+        <TextBlock />
+    </DockPanel>
+
+    <Grid Grid.Row="1" Margin="2,0,2,12">
+        <Grid.ColumnDefinitions>
+            <ColumnDefinition Width="*" />
+            <ColumnDefinition Width="*" />
+        </Grid.ColumnDefinitions>
+
+        <Border Grid.Column="0"
+                Margin="0,0,6,0"
+                Padding="12"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0"
+                           Text="Travian build queue"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           Margin="0,0,0,8" />
+                <Grid Grid.Row="1">
+                    <DataGrid x:Name="TravianBuildQueueDataGrid"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              CanUserReorderColumns="False"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="{DynamicResource AppBackgroundBrush}"
+                              RowBackground="{DynamicResource SurfaceBrush}"
+                              AlternatingRowBackground="{DynamicResource RowAltBackgroundBrush}"
+                              BorderBrush="{DynamicResource BorderSubtleBrush}"
+                              BorderThickness="1"
+                              ColumnHeaderHeight="28"
+                              RowHeight="30"
+                              MinHeight="90"
+                              MaxHeight="120"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                              FontSize="12">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Construction" Width="*" Binding="{Binding Name}" />
+                            <DataGridTextColumn Header="Target" Width="78" Binding="{Binding LevelText}" />
+                            <DataGridTextColumn Header="Timer" Width="82" Binding="{Binding CountdownText}" />
+                            <DataGridTextColumn Header="Finished" Width="80" Binding="{Binding FinishAtText}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Grid>
+        </Border>
+
+        <Border Grid.Column="1"
+                Margin="6,0,0,0"
+                Padding="12"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                BorderThickness="1"
+                CornerRadius="8">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <TextBlock Grid.Row="0"
+                           Text="Smithy upgrade queue"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           Margin="0,0,0,8" />
+                <Grid Grid.Row="1">
+                    <DataGrid x:Name="TravianSmithyQueueDataGrid"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              CanUserReorderColumns="False"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal"
+                              HorizontalGridLinesBrush="{DynamicResource AppBackgroundBrush}"
+                              RowBackground="{DynamicResource SurfaceBrush}"
+                              AlternatingRowBackground="{DynamicResource RowAltBackgroundBrush}"
+                              BorderBrush="{DynamicResource BorderSubtleBrush}"
+                              BorderThickness="1"
+                              ColumnHeaderHeight="28"
+                              RowHeight="30"
+                              MinHeight="90"
+                              MaxHeight="90"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled"
+                              ScrollViewer.VerticalScrollBarVisibility="Disabled"
+                              FontSize="12">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Upgrade" Width="*" Binding="{Binding Name}" />
+                            <DataGridTextColumn Header="Target" Width="78" Binding="{Binding LevelText}" />
+                            <DataGridTextColumn Header="Timer" Width="82" Binding="{Binding CountdownText}" />
+                            <DataGridTextColumn Header="Finished" Width="80" Binding="{Binding FinishAtText}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Grid>
+        </Border>
+    </Grid>
+
+    <TabControl x:Name="QueueSectionTabControl"
+                Grid.Row="2"
+                Margin="2,0,2,2"
+                SelectionChanged="QueueSectionTabControl_SelectionChanged">
+        <TabItem x:Name="ActiveQueueTabItem" Header="Active queue">
+            <Border Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderSubtleBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="0,8,0,0">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+                <RowDefinition Height="Auto" />
+            </Grid.RowDefinitions>
+
+            <DockPanel Grid.Row="0" Margin="0,0,0,10">
+                <StackPanel Orientation="Horizontal" DockPanel.Dock="Left">
+                    <Ellipse Width="8" Height="8" Fill="{DynamicResource SuccessBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                    <TextBlock Text="Active queue"
+                               FontSize="14"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               VerticalAlignment="Center" />
+                    <Rectangle Width="1" Fill="{DynamicResource BorderSubtleBrush}" Margin="12,3,12,3" />
+                    <TextBlock x:Name="QueueInfoTextBlock"
+                               Text="Queue loaded."
+                               Width="118"
+                               TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource TextSubtleBrush}"
+                               FontSize="11"
+                               VerticalAlignment="Center" />
+                    <TextBlock Text=" | "
+                               Foreground="{DynamicResource TextSubtleBrush}"
+                               FontSize="11"
+                               VerticalAlignment="Center" />
+                    <TextBlock x:Name="QueueSelectedVillageTextBlock"
+                               Text="Selected village: -"
+                               Width="150"
+                               TextTrimming="CharacterEllipsis"
+                               Foreground="{DynamicResource TextSubtleBrush}"
+                               FontSize="11"
+                               VerticalAlignment="Center"
+                               ToolTip="The queue below is shown for this village. Choose a village with the dropdown on the Dashboard." />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                    <Button x:Name="QueueRemoveButton" Content="Remove" Width="76" Click="QueueRemoveButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" />
+                    <Button x:Name="QueueRedoButton" Content="Redo" Width="76" Margin="6,0,0,0" Click="QueueRedoButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" ToolTip="Bring back the queue item(s) removed by the last Remove" />
+                    <Rectangle Width="1" Fill="{DynamicResource BorderSubtleBrush}" Margin="10,3,10,3" />
+                    <Button x:Name="QueueMoveUpButton" Content="↑" Width="36" Click="QueueMoveUpButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" ToolTip="Move up" />
+                    <Button x:Name="QueueMoveDownButton" Content="↓" Width="36" Margin="6,0,0,0" Click="QueueMoveDownButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" ToolTip="Move down" />
+                    <Rectangle Width="1" Fill="{DynamicResource BorderSubtleBrush}" Margin="10,3,10,3" />
+                    <Button x:Name="QueueRefreshButton" Content="Refresh" Width="76" Click="QueueRefreshButton_Click" Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" />
+                </StackPanel>
+            </DockPanel>
+
+            <DataGrid x:Name="QueueDataGrid"
+                      Grid.Row="1"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      SelectionMode="Single"
+                      SelectionUnit="FullRow"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserReorderColumns="False"
+                      GridLinesVisibility="Horizontal"
+                      HorizontalGridLinesBrush="{DynamicResource AppBackgroundBrush}"
+                      RowBackground="{DynamicResource SurfaceBrush}"
+                      AlternatingRowBackground="{DynamicResource RowAltBackgroundBrush}"
+                      BorderBrush="{DynamicResource BorderSubtleBrush}"
+                      BorderThickness="1"
+                      HeadersVisibility="Column"
+                      ColumnHeaderHeight="32"
+                      RowHeight="30"
+                      FontSize="12">
+                <DataGrid.RowStyle>
+                    <Style TargetType="DataGridRow">
+                        <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsAutomaticRepair}" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource DangerBgBrush}" />
+                                <Setter Property="BorderBrush" Value="{DynamicResource DangerBorderBrush}" />
+                                <Setter Property="ToolTip" Value="{Binding AutomaticRepairReason}" />
+                            </DataTrigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.RowStyle>
+                <DataGrid.ColumnHeaderStyle>
+                    <Style TargetType="DataGridColumnHeader">
+                        <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                        <Setter Property="FontSize" Value="11" />
+                        <Setter Property="Padding" Value="10,6" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource ControlBackgroundBrush}" />
+                        <Setter Property="BorderThickness" Value="0,0,1,1" />
+                        <Setter Property="HorizontalContentAlignment" Value="Left" />
+                    </Style>
+                </DataGrid.ColumnHeaderStyle>
+                <DataGrid.CellStyle>
+                    <Style TargetType="DataGridCell">
+                        <Setter Property="Padding" Value="10,4" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Foreground" Value="{DynamicResource DataGridCellTextBrush}" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="DataGridCell">
+                                    <Border Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}">
+                                        <ContentPresenter VerticalAlignment="Center" />
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource SelectedRowBgBrush}" />
+                                <Setter Property="Foreground" Value="{DynamicResource DataGridCellTextBrush}" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.CellStyle>
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Group" Width="1.15*" Binding="{Binding GroupName}" />
+                    <DataGridTextColumn Header="Village" Width="1.2*" Binding="{Binding VillageName}" />
+                    <DataGridTextColumn Header="Task" Width="2.4*" Binding="{Binding DisplayName}" />
+                    <DataGridTemplateColumn Header="Status" Width="*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Status}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource DataGridCellTextBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Status}" Value="Running">
+                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Created" Width="1.5*" Binding="{Binding CreatedAtServer}" />
+                    <DataGridTextColumn Header="Time" Width="1.1*" Binding="{Binding BuildTimeText}" />
+                    <DataGridTemplateColumn Header="Cost (W | C | I | Cr)" Width="1.7*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="{Binding WoodText}" Foreground="{DynamicResource WoodTextBrush}" />
+                                    <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" />
+                                    <TextBlock Text="{Binding ClayText}" Foreground="{DynamicResource ClayTextBrush}" />
+                                    <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" />
+                                    <TextBlock Text="{Binding IronText}" Foreground="{DynamicResource IronTextBrush}" />
+                                    <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" />
+                                    <TextBlock Text="{Binding CropText}" Foreground="{DynamicResource CropTextBrush}" />
+                                </StackPanel>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                </DataGrid.Columns>
+            </DataGrid>
+
+            <Border Grid.Row="2"
+                    Margin="0,10,0,0"
+                    Padding="10,6"
+                    Background="{DynamicResource SurfaceAltBrush}"
+                    BorderBrush="{DynamicResource BorderSubtleBrush}"
+                    BorderThickness="1"
+                    CornerRadius="6">
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
+                        <TextBlock Text="Totals (selected village):"
+                                   Foreground="{DynamicResource TextSecondaryBrush}"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,12,0" />
+                        <TextBlock Text="Cost "
+                                   Foreground="{DynamicResource TextSubtleBrush}"
+                                   VerticalAlignment="Center" />
+                        <TextBlock x:Name="QueueTotalWoodTextBlock" Text="-" Foreground="{DynamicResource WoodTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
+                        <TextBlock x:Name="QueueTotalClayTextBlock" Text="-" Foreground="{DynamicResource ClayTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
+                        <TextBlock x:Name="QueueTotalIronTextBlock" Text="-" Foreground="{DynamicResource IronTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock Text=" | " Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
+                        <TextBlock x:Name="QueueTotalCropTextBlock" Text="-" Foreground="{DynamicResource CropTextBrush}" FontWeight="SemiBold" VerticalAlignment="Center" />
+                        <TextBlock Text="Time "
+                                   Foreground="{DynamicResource TextSubtleBrush}"
+                                   VerticalAlignment="Center"
+                                   Margin="24,0,0,0" />
+                        <TextBlock x:Name="QueueTotalTimeTextBlock"
+                                   Text="-"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1"
+                                Orientation="Horizontal"
+                                HorizontalAlignment="Right"
+                                VerticalAlignment="Center"
+                                Margin="18,0,0,0">
+                        <TextBlock Text="Time (25%): "
+                                   Foreground="#C084FC"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                        <TextBlock x:Name="QueueTotalTimeConstructFasterTextBlock"
+                                   Text="-"
+                                   Foreground="#C084FC"
+                                   FontWeight="SemiBold"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
+    </Border>
+
+        </TabItem>
+        <TabItem x:Name="HistoryQueueTabItem" Header="History">
+            <Border Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderSubtleBrush}"
+                    BorderThickness="1"
+                    CornerRadius="8"
+                    Padding="12"
+                    Margin="0,8,0,0">
+        <Grid>
+            <Grid.RowDefinitions>
+                <RowDefinition Height="Auto" />
+                <RowDefinition Height="*" />
+            </Grid.RowDefinitions>
+            <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,10">
+                <Ellipse Width="8" Height="8" Fill="{DynamicResource BorderMutedBrush}" VerticalAlignment="Center" Margin="0,0,8,0" />
+                <TextBlock Text="History"
+                           FontSize="14"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}"
+                           VerticalAlignment="Center" />
+            </StackPanel>
+            <DataGrid x:Name="QueueHistoryDataGrid"
+                      Grid.Row="1"
+                      AutoGenerateColumns="False"
+                      IsReadOnly="True"
+                      SelectionMode="Single"
+                      SelectionUnit="FullRow"
+                      CanUserAddRows="False"
+                      CanUserDeleteRows="False"
+                      CanUserReorderColumns="False"
+                      GridLinesVisibility="Horizontal"
+                      HorizontalGridLinesBrush="{DynamicResource AppBackgroundBrush}"
+                      RowBackground="{DynamicResource SurfaceBrush}"
+                      AlternatingRowBackground="{DynamicResource RowAltBackgroundBrush}"
+                      BorderBrush="{DynamicResource BorderSubtleBrush}"
+                      BorderThickness="1"
+                      HeadersVisibility="Column"
+                      ColumnHeaderHeight="32"
+                      RowHeight="30"
+                      FontSize="12">
+                <DataGrid.ColumnHeaderStyle>
+                    <Style TargetType="DataGridColumnHeader">
+                        <Setter Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+                        <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                        <Setter Property="FontWeight" Value="SemiBold" />
+                        <Setter Property="FontSize" Value="11" />
+                        <Setter Property="Padding" Value="10,6" />
+                        <Setter Property="BorderBrush" Value="{DynamicResource ControlBackgroundBrush}" />
+                        <Setter Property="BorderThickness" Value="0,0,1,1" />
+                        <Setter Property="HorizontalContentAlignment" Value="Left" />
+                    </Style>
+                </DataGrid.ColumnHeaderStyle>
+                <DataGrid.CellStyle>
+                    <Style TargetType="DataGridCell">
+                        <Setter Property="Padding" Value="10,4" />
+                        <Setter Property="BorderThickness" Value="0" />
+                        <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                        <Setter Property="Template">
+                            <Setter.Value>
+                                <ControlTemplate TargetType="DataGridCell">
+                                    <Border Padding="{TemplateBinding Padding}" Background="{TemplateBinding Background}">
+                                        <ContentPresenter VerticalAlignment="Center" />
+                                    </Border>
+                                </ControlTemplate>
+                            </Setter.Value>
+                        </Setter>
+                        <Style.Triggers>
+                            <Trigger Property="IsSelected" Value="True">
+                                <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
+                            </Trigger>
+                        </Style.Triggers>
+                    </Style>
+                </DataGrid.CellStyle>
+                <DataGrid.Columns>
+                    <DataGridTextColumn Header="Group" Width="1.15*" Binding="{Binding GroupName}" />
+                    <DataGridTextColumn Header="Village" Width="1.2*" Binding="{Binding VillageName}" />
+                    <DataGridTextColumn Header="Completed task" Width="2.4*" Binding="{Binding DisplayName}" />
+                    <DataGridTemplateColumn Header="Status" Width="*">
+                        <DataGridTemplateColumn.CellTemplate>
+                            <DataTemplate>
+                                <TextBlock Text="{Binding Status}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding Status}" Value="Running">
+                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </DataTemplate>
+                        </DataGridTemplateColumn.CellTemplate>
+                    </DataGridTemplateColumn>
+                    <DataGridTextColumn Header="Retries" Width="0.7*" Binding="{Binding Retries}" />
+                    <DataGridTextColumn Header="Created" Width="1.5*" Binding="{Binding CreatedAtServer}" />
+                </DataGrid.Columns>
+            </DataGrid>
+        </Grid>
+    </Border>
+
+        </TabItem>
+    </TabControl>
+
+    <Border Grid.Row="2"
+            Panel.ZIndex="10"
+            HorizontalAlignment="Right"
+            VerticalAlignment="Top"
+            Height="30"
+            Margin="0,0,16,0"
+            Padding="6,0,0,0"
+            Background="{DynamicResource AppBackgroundBrush}">
+        <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+            <Button x:Name="ClearVillageQueueButton"
+                    Content="Clear village queue"
+                    Width="124"
+                    Height="26"
+                    Margin="8,0,0,0"
+                    Click="ClearVillageQueueButton_Click"
+                    ToolTip="Clears only the queued tasks for the village selected in the Dashboard dropdown."
+                    Background="{DynamicResource DangerBgBrush}"
+                    BorderBrush="{DynamicResource DangerBorderBrush}"
+                    Foreground="{DynamicResource DangerTextBrush}" />
+            <Button x:Name="QueueClearButton"
+                    Content="Clear account queue"
+                    Width="132"
+                    Height="26"
+                    Margin="6,0,0,0"
+                    Click="QueueClearButton_Click"
+                    Background="{DynamicResource DangerBgBrush}"
+                    BorderBrush="{DynamicResource DangerBorderBrush}"
+                    Foreground="{DynamicResource DangerTextBrush}" />
+            <Button x:Name="QueuePopoutButton"
+                    Content="Pop out"
+                    Width="74"
+                    Height="26"
+                    Margin="6,0,0,0"
+                    Click="QueuePopoutButton_Click"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderSubtleBrush}" />
+        </StackPanel>
+    </Border>
+</Grid>
+</UserControl>
