@@ -185,6 +185,7 @@ document.querySelector('.warehouse .capacity .value')
   Manage accounts visar bara `Schedule...` i proxyrotationskortet; all setup-validering kors i schedule-editorn.
   Alla proxykontroller i Manage accounts ligger i ett gemensamt kort under Selected URL. `Check IP address`
   testar den effektiva anslutningen: konfigurerad proxy nar Use proxy ar pa, annars direktanslutningen.
+  Manage accounts visar ingen manuell proxy-endpoint; manuellt tillagg/andring gors endast i Proxy list.
   `Manage accounts > Use proxy rotation` ar den explicita av/på-brytaren; OFF behaller schemat men kor den
   vanliga enskilda proxyn, ON kraver minst tva valda proxies och en giltig aktiv plan.
 - Defer-orsaker ska konsumeras typat: `TaskWaitException.ReasonCode` (`TaskWaitReasons.*`), harledd pa ETT
@@ -551,6 +552,8 @@ uppskjuten: gor en doman i taget med live-smoke-test mellan stegen, inte som obe
 Detaljer: [ADR 2026-06-25](adr/2026-06-25-travianclient-seams.md).
 
 ## 9. Dokumentationsregler
+
+- Startsidan visar kontots faktiskt sparade proxy kompakt pa en rad som `Name host:port`; namnet har statusfarg och endpointen ar mindre/gra. Nar ett aktivt rotationsschema sparas synkas den proxy som galler nu till kontot, sa startsida, konto och nasta login anvander samma kalla.
 
 - Hall denna fil under 300 rader; behall endast aktiva regler, aktuella fallgropar och lankar har.
 - Nya arkitekturbeslut dokumenteras kort har och utforligt i `docs/adr/`.

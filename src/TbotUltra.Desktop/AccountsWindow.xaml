@@ -157,7 +157,6 @@
 
                 <StackPanel Grid.Row="4" Grid.Column="0" Margin="14,12,12,8" VerticalAlignment="Top">
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                        <Ellipse Width="7" Height="7" Fill="{DynamicResource InfoBrush}" VerticalAlignment="Center" Margin="0,0,7,0" />
                         <TextBlock Text="PROXY SETTINGS" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
                     </StackPanel>
                     <StackPanel Orientation="Horizontal">
@@ -224,7 +223,7 @@
                                 Click="ProxyFinderButton_Click" />
                     </Grid>
 
-                    <Grid Grid.Row="2">
+                    <Grid Grid.Row="2" Visibility="Collapsed">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="105" />
                             <ColumnDefinition Width="*" />
@@ -250,7 +249,7 @@
                                    Margin="0,0,0,2" />
                     </Grid>
 
-                    <Grid Grid.Row="3">
+                    <Grid Grid.Row="3" Visibility="Collapsed">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="105" />
                             <ColumnDefinition Width="*" />
@@ -294,7 +293,6 @@
                             <RowDefinition Height="Auto" />
                         </Grid.RowDefinitions>
                         <StackPanel Grid.Row="0" Grid.ColumnSpan="2" Orientation="Horizontal">
-                            <Ellipse Width="7" Height="7" Fill="{DynamicResource InfoBrush}" VerticalAlignment="Center" Margin="0,0,7,0" />
                             <TextBlock Text="PROXY ROTATION" FontSize="10" FontWeight="SemiBold"
                                        Foreground="{DynamicResource SlateTextBrush}" VerticalAlignment="Center" />
                         </StackPanel>

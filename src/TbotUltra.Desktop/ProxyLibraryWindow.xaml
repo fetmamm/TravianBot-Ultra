@@ -41,29 +41,44 @@
                   HeadersVisibility="Column"
                   SelectionMode="Single">
             <DataGrid.Columns>
-                <DataGridTextColumn Header="Name" Binding="{Binding Name, UpdateSourceTrigger=PropertyChanged}" Width="230">
-                    <DataGridTextColumn.ElementStyle>
-                        <Style TargetType="TextBlock">
-                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                    <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
-                                    <Setter Property="FontWeight" Value="SemiBold" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </DataGridTextColumn.ElementStyle>
-                    <DataGridTextColumn.EditingElementStyle>
-                        <Style TargetType="TextBox">
-                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                            <Style.Triggers>
-                                <DataTrigger Binding="{Binding IsActive}" Value="True">
-                                    <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
-                                </DataTrigger>
-                            </Style.Triggers>
-                        </Style>
-                    </DataGridTextColumn.EditingElementStyle>
-                </DataGridTextColumn>
+                <DataGridTemplateColumn Header="Name" SortMemberPath="Name" CanUserSort="True" Width="230">
+                    <DataGridTemplateColumn.CellTemplate>
+                        <DataTemplate>
+                            <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding Name}">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                                <TextBlock Text=" (Active)" Foreground="{DynamicResource SuccessTextBrush}" FontWeight="SemiBold">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding IsActive}" Value="True">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                    <DataGridTemplateColumn.CellEditingTemplate>
+                        <DataTemplate>
+                            <TextBox Text="{Binding Name, UpdateSourceTrigger=PropertyChanged}" />
+                        </DataTemplate>
+                    </DataGridTemplateColumn.CellEditingTemplate>
+                </DataGridTemplateColumn>
                 <DataGridTemplateColumn Header="IP / Port" IsReadOnly="True" Width="190">
                     <DataGridTemplateColumn.CellTemplate>
                         <DataTemplate>
@@ -124,8 +139,9 @@
                 <DataGridTemplateColumn Width="90">
                     <DataGridTemplateColumn.Header>
                         <Button Content="Delete all"
-                                Width="78"
-                                Height="22"
+                                Width="64"
+                                Height="20"
+                                FontSize="10"
                                 Padding="0"
                                 Background="{DynamicResource DangerBgBrush}"
                                 BorderBrush="{DynamicResource DangerBorderBrush}"
@@ -154,6 +170,9 @@
                 <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
                     <Button Width="110"
                             Content="Check proxies"
+                            Background="{DynamicResource InfoBgBrush}"
+                            BorderBrush="{DynamicResource InfoBrush}"
+                            Foreground="{DynamicResource InfoTextBrush}"
                             Click="CheckProxiesButton_Click" />
                     <Button Width="142"
                             Margin="8,0,0,0"
@@ -165,8 +184,12 @@
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                     <Button Width="100" Margin="0,0,8,0" Content="Proxy finder" Click="ProxyFinderButton_Click" />
-                    <Button Width="130" Margin="0,0,8,0" Content="Manual add proxy" Click="ManualAddProxyButton_Click" />
-                    <Button Width="100" Margin="0,0,8,0" Content="Save" Click="SaveButton_Click" />
+                    <Button Width="130" Margin="0,0,16,0" Content="Manual add proxy" Click="ManualAddProxyButton_Click" />
+                    <Button Width="100" Margin="0,0,8,0" Content="Save"
+                            Background="{DynamicResource SuccessBgBrush}"
+                            BorderBrush="{DynamicResource SuccessBorderBrush}"
+                            Foreground="{DynamicResource SuccessTextBrush}"
+                            Click="SaveButton_Click" />
                     <Button Width="100" Content="Close" Click="CloseButton_Click" />
                 </StackPanel>
             </DockPanel>

@@ -677,6 +677,7 @@ public partial class AccountsWindow : Window
                 UseProxyRotationCheckBox.IsChecked = _editorProxyPlan.IsRotation;
                 _suppressProxyRotationChange = false;
                 _editorProxyPlan.Enabled = UseProxyRotationCheckBox.IsChecked == true;
+                SynchronizeSavedScheduleProxy(accountName);
                 _baselineProxyPlanJson = JsonSerializer.Serialize(_editorProxyPlan);
                 UpdateProxyPlanSummary(accountName);
                 UpdateActionButtons();
@@ -749,6 +750,44 @@ public partial class AccountsWindow : Window
         ProxyPortTextBox.Text = proxy.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
+    private void SynchronizeSavedScheduleProxy(string accountName)
+    {
+        if (!_editingExistingAccount)
+        {
+            ApplyCurrentPlanProxyToFields(accountName);
+            return;
+        }
+
+        var account = _store.ListAccounts().FirstOrDefault(item =>
+            string.Equals(item.Name, accountName, StringComparison.OrdinalIgnoreCase));
+        if (account is null)
+        {
+            throw new InvalidOperationException("The account could not be found while synchronizing the proxy schedule.");
+        }
+
+        var runtime = _proxyPlanStore.LoadRuntime(accountName);
+        var resolution = AccountProxyPlanResolver.Resolve(_editorProxyPlan, accountName, DateTimeOffset.Now, runtime.ActiveProxyId);
+        var proxy = _proxyLibraryEntries.FirstOrDefault(item =>
+            string.Equals(item.Id, resolution.ProxyId, StringComparison.OrdinalIgnoreCase));
+
+        account.ProxyEnabled = proxy is not null;
+        if (proxy is not null)
+        {
+            account.ProxyServer = proxy.Server;
+            SelectProxyScheme(proxy.Scheme);
+            ProxyHostTextBox.Text = proxy.Host;
+            ProxyPortTextBox.Text = proxy.Port.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        _store.SaveAccount(account, setActive: false);
+        _baselineEditorState = _baselineEditorState with
+        {
+            ProxyEnabled = account.ProxyEnabled,
+            ProxyServer = account.ProxyServer,
+        };
+        RefreshSavedProxySelection();
+    }
+
     private void UpdateProxyPlanSummary(string accountName)
     {
         if (ProxyPlanSummaryTextBlock is null)
@@ -765,7 +804,7 @@ public partial class AccountsWindow : Window
             return;
         }
 
-        ProxyPlanSummaryTextBlock.Text = $"{_editorProxyPlan.Assignments.Count} proxies · {_editorProxyPlan.VariationPercent}% variation";
+        ProxyPlanSummaryTextBlock.Text = $"{_editorProxyPlan.Assignments.Count} proxies ({_editorProxyPlan.VariationPercent}% variation)";
         var runtime = string.IsNullOrWhiteSpace(accountName) ? new AccountProxyRuntimeState() : _proxyPlanStore.LoadRuntime(accountName);
         var resolution = AccountProxyPlanResolver.Resolve(_editorProxyPlan, accountName, DateTimeOffset.Now, runtime.ActiveProxyId);
         var current = _proxyLibraryEntries.FirstOrDefault(proxy => string.Equals(proxy.Id, resolution.ProxyId, StringComparison.OrdinalIgnoreCase));
@@ -773,7 +812,7 @@ public partial class AccountsWindow : Window
         var currentName = string.IsNullOrWhiteSpace(resolution.ProxyId) ? "Direct connection" : current?.DisplayName ?? "Unknown";
         var nextName = string.IsNullOrWhiteSpace(resolution.NextProxyId) ? "Direct connection" : next?.DisplayName ?? "Unknown";
         ProxyPlanNextTextBlock.Text = resolution.NextTransitionAt is { } transition
-            ? $"Current: {currentName} · Next: {nextName} at {transition:ddd HH:mm}"
+            ? $"Current: {currentName}{Environment.NewLine}Next: {nextName} at {transition:ddd HH:mm}"
             : $"Current: {currentName}";
     }
 

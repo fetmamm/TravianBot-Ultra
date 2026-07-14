@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Infrastructure;
 
 namespace TbotUltra.Desktop;
@@ -235,8 +236,26 @@ public partial class MainWindow
             return;
         }
 
-        var label = string.IsNullOrWhiteSpace(country) ? "Proxy active" : country;
-        SetProxyStatusVisual("SuccessBrush", label, $"IP: {ip} · Proxy: {ProxyHostPortForDisplay(server)}");
+        var label = ResolveProxyLabel(server, country);
+        SetProxyStatusVisual("SuccessBrush", label, ProxyHostPortForDisplay(server));
+    }
+
+    private static string ResolveProxyLabel(string server, string country)
+    {
+        try
+        {
+            var entry = new ProxyLibraryStore().FindByServer(server);
+            if (entry is not null && !string.IsNullOrWhiteSpace(entry.Name))
+            {
+                return entry.Name.Trim();
+            }
+        }
+        catch
+        {
+            // The live country lookup below is still sufficient if the proxy library cannot be read.
+        }
+
+        return string.IsNullOrWhiteSpace(country) ? "Proxy active" : country.Trim();
     }
 
     private async Task RefreshConnectionIdentityAsync(string lookupKey, string? proxyServer)

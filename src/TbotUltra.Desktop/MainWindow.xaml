@@ -102,26 +102,30 @@
                 <Border Grid.Row="3" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
                     <StackPanel>
                         <TextBlock Text="Proxy" Foreground="{DynamicResource TextSubtleBrush}" Margin="0,0,0,5" />
-                        <StackPanel Orientation="Horizontal">
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
                             <Ellipse x:Name="ProxyStatusIndicator"
                                      Width="10"
                                      Height="10"
                                      Fill="{DynamicResource TextMutedBrush}"
-                                     VerticalAlignment="Center"
-                                     Margin="0,0,7,0" />
-                            <TextBlock x:Name="ProxyStatusTextBlock"
-                                       Text="No proxy is used"
-                                       Foreground="{DynamicResource TextMutedBrush}"
-                                       VerticalAlignment="Center"
-                                       TextTrimming="CharacterEllipsis" />
-                            <TextBlock x:Name="ProxyStatusDetailTextBlock"
-                                       Margin="8,0,0,0"
-                                       VerticalAlignment="Center"
-                                       Foreground="{DynamicResource TextMutedBrush}"
-                                       FontSize="11"
-                                       TextTrimming="CharacterEllipsis"
-                                       Visibility="Collapsed" />
-                        </StackPanel>
+                                     VerticalAlignment="Top"
+                                     Margin="0,4,7,0" />
+                            <StackPanel Grid.Column="1" Orientation="Horizontal">
+                                <TextBlock x:Name="ProxyStatusTextBlock"
+                                           Text="No proxy is used"
+                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           VerticalAlignment="Center" />
+                                <TextBlock x:Name="ProxyStatusDetailTextBlock"
+                                           Margin="5,0,0,0"
+                                           VerticalAlignment="Center"
+                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           FontSize="10"
+                                           Visibility="Collapsed" />
+                            </StackPanel>
+                        </Grid>
                     </StackPanel>
                 </Border>
 
