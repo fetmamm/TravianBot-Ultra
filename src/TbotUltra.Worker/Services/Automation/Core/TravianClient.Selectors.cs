@@ -2,7 +2,7 @@ namespace TbotUltra.Worker.Services;
 
 public sealed partial class TravianClient
 {
-    private static class Paths
+    internal static class Paths
     {
         public const string Resources = "/dorf1.php";
         public const string Login = "/login.php";
@@ -12,11 +12,23 @@ public sealed partial class TravianClient
         public const string Map = "/karte.php";
         // Questmaster task overview.
         public const string Tasks = "/tasks";
+        public const string RallyPointTroops = "/build.php?id=39&gid=16&tt=1";
+        public const string RallyPointSendTroops = "/build.php?id=39&gid=16&tt=2";
+        public const string RallyPointFarmLists = "/build.php?id=39&gid=16&tt=99";
+        public const string HeroAdventures = "/hero/adventures";
+        public const string HeroInventory = "/hero/inventory";
+        public const string HeroAttributes = "/hero/attributes";
+        public const string Messages = "/messages";
+        public const string MessagesWrite = "/messages/write";
+        public const string Reports = "/report";
 
         public const string FarmListFastUp = "/build.php?id=39&fastUP=0";
 
         public static string BuildBySlot(int slotId) =>
             $"/build.php?id={slotId}";
+
+        public static string BuildBySlotTab(int slotId, int tab) =>
+            $"/build.php?id={slotId}&t={tab}";
 
         public static string FarmListBySlotId(string lid) =>
             $"/build.php?id=39&gid=16&tt=99&action=showSlot&lid={lid}";
@@ -26,33 +38,6 @@ public sealed partial class TravianClient
             "/logout",
         };
     }
-
-    private string RallyPointTroopsPath =>
-        "/build.php?id=39&gid=16&tt=1";
-
-    private string RallyPointSendTroopsPath =>
-        "/build.php?id=39&gid=16&tt=2";
-
-    private string RallyPointFarmListPath =>
-        "/build.php?id=39&gid=16&tt=99";
-
-    private string HeroAdventuresPath =>
-        "/hero/adventures";
-
-    private string HeroInventoryPath =>
-        "/hero/inventory";
-
-    private string HeroAttributesPath =>
-        "/hero/attributes";
-
-    private string MessagesPath =>
-        "/messages";
-
-    private string MessagesWritePath =>
-        "/messages/write";
-
-    private string ReportsPath =>
-        "/report";
 
     private static class Selectors
     {

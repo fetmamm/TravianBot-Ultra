@@ -39,7 +39,7 @@ public sealed partial class TravianClient
             return HeroOintmentUseResult.Suppressed;
         }
 
-        await GotoAsync(HeroInventoryPath, cancellationToken);
+        await GotoAsync(Paths.HeroInventory, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
 
         var info = await ReadHeroOintmentInventoryInfoAsync(cancellationToken);

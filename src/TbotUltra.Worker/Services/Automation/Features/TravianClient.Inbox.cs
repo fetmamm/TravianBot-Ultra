@@ -21,7 +21,7 @@ public sealed partial class TravianClient
     {
         Notify("[inbox] marking messages as read");
         await EnsureLoggedInAsync();
-        await GotoAsync(MessagesPath, cancellationToken);
+        await GotoAsync(Paths.Messages, cancellationToken);
         return await TryMarkMessagesAsReadAcrossPagesAsync(
             markSelectors:
             [
@@ -44,7 +44,7 @@ public sealed partial class TravianClient
     {
         Notify("[inbox] marking reports as read");
         await EnsureLoggedInAsync();
-        await GotoAsync(ReportsPath, cancellationToken);
+        await GotoAsync(Paths.Reports, cancellationToken);
         return await TryMarkInboxItemsAsReadAsync(
             markSelectors:
             [

@@ -46,7 +46,7 @@ public sealed partial class TravianClient
     private async Task<bool> ReviveHeroOnInventoryAsync(CancellationToken cancellationToken)
     {
         Notify("[hero] revive flow starting (attributes page)");
-        await GotoAsync(HeroAttributesPath, cancellationToken);
+        await GotoAsync(Paths.HeroAttributes, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
 
         // Read the revive duration shown above the button (example: 00:00:03) before clicking revive.
@@ -112,7 +112,7 @@ public sealed partial class TravianClient
     private async Task<bool> TryReviveHeroAsync(CancellationToken cancellationToken)
     {
         // Revive UI is on the inventory/attributes page on this Travian version. /hero.php opens Appearance.
-        await GotoAsync(HeroInventoryPath, cancellationToken);
+        await GotoAsync(Paths.HeroInventory, cancellationToken);
         await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         return await _page.EvaluateAsync<bool>(
             """

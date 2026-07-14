@@ -214,7 +214,7 @@ public sealed partial class TravianClient : IHeroClient
             return;
         }
 
-        await GotoAsync(HeroAdventuresPath, cancellationToken);
+        await GotoAsync(Paths.HeroAdventures, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         if (await HasAdventureEntryOnPageAsync(cancellationToken))
         {
@@ -233,7 +233,7 @@ public sealed partial class TravianClient : IHeroClient
 
         try
         {
-            await GotoAsync(HeroAdventuresPath, cancellationToken);
+            await GotoAsync(Paths.HeroAdventures, cancellationToken);
             await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             if (await IsHeroAdventuresPageAsync(cancellationToken))
             {
@@ -242,10 +242,10 @@ public sealed partial class TravianClient : IHeroClient
         }
         catch (Exception ex) when (IsTransientExecutionContextException(ex))
         {
-            Notify($"Hero adventures page hit transient navigation issue; retrying {HeroAdventuresPath}. {ex.Message}");
+            Notify($"Hero adventures page hit transient navigation issue; retrying {Paths.HeroAdventures}. {ex.Message}");
         }
 
-        await GotoAsync(HeroAdventuresPath, cancellationToken);
+        await GotoAsync(Paths.HeroAdventures, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
     }
 
@@ -506,7 +506,7 @@ public sealed partial class TravianClient : IHeroClient
             // so we can defer by the hero's real revive ETA instead of blind-polling every few minutes.
             if (status.ReviveRemainingSeconds is not > 0)
             {
-                await GotoAsync(HeroAttributesPath, cancellationToken);
+                await GotoAsync(Paths.HeroAttributes, cancellationToken);
                 await WaitForPageReadyAsync(cancellationToken);
                 status = await ReadHeroStatusAsync(cancellationToken);
             }

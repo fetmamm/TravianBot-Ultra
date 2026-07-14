@@ -225,7 +225,7 @@ public sealed partial class TravianClient : IFarmingClient
             return;
         }
 
-        await GotoAsync(RallyPointFarmListPath, cancellationToken);
+        await GotoAsync(Paths.RallyPointFarmLists, cancellationToken);
         await EnsureLoggedInAsync();
         await WaitForOfficialFarmListRenderAsync(cancellationToken);
         if (await IsFarmListPageAsync(cancellationToken))
@@ -254,13 +254,13 @@ public sealed partial class TravianClient : IFarmingClient
             Notify($"Could not auto-construct Rally Point on slot 39: {ex.Message}");
         }
 
-        await GotoAsync(RallyPointFarmListPath, cancellationToken);
+        await GotoAsync(Paths.RallyPointFarmLists, cancellationToken);
         await EnsureLoggedInAsync();
         await WaitForOfficialFarmListRenderAsync(cancellationToken);
 
         if (!await IsFarmListPageAsync(cancellationToken))
         {
-            throw new InvalidOperationException($"Could not open farm list page at {RallyPointFarmListPath}. Farmlists may be unavailable on this account/server.");
+            throw new InvalidOperationException($"Could not open farm list page at {Paths.RallyPointFarmLists}. Farmlists may be unavailable on this account/server.");
         }
     }
 

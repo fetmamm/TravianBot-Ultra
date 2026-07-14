@@ -92,7 +92,7 @@ public sealed partial class TravianClient
                 continue;
             }
 
-            await GotoAsync($"/build.php?id={marketplace.SlotId.Value}&t=5", cancellationToken);
+            await GotoAsync(Paths.BuildBySlotTab(marketplace.SlotId.Value, 5), cancellationToken);
             await EnsureLoggedInAsync();
 
             var merchantState = await ReadMarketplaceMerchantStateAsync(cancellationToken);

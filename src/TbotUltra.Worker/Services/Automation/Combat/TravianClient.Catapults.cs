@@ -178,7 +178,7 @@ public sealed partial class TravianClient : ICombatClient
     {
         if (!allowReuseCurrentPage || !await IsSendTroopsPageAsync(page, cancellationToken))
         {
-            await GotoAsync(page, RallyPointSendTroopsPath, cancellationToken);
+            await GotoAsync(page, Paths.RallyPointSendTroops, cancellationToken);
         }
 
         if (!await IsSendTroopsPageAsync(page, cancellationToken))

@@ -77,7 +77,7 @@ public sealed partial class TravianClient
                 }
 
                 Notify("[herohome] home village missing for dead/reviving hero; reading hero attributes.");
-                await GotoAsync(HeroAttributesPath, cancellationToken);
+                await GotoAsync(Paths.HeroAttributes, cancellationToken);
                 await WaitForPageReadyAsync(cancellationToken);
                 await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
@@ -234,7 +234,7 @@ public sealed partial class TravianClient
     private async Task<int?> ReadHeroReturnFromRallyPointAsync(CancellationToken cancellationToken)
     {
         Notify("[hero:verbose] ReadHeroReturnFromRallyPoint starting");
-        await GotoAsync(RallyPointTroopsPath, cancellationToken);
+        await GotoAsync(Paths.RallyPointTroops, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
 
         var raw = await _page.EvaluateAsync<string?>(
@@ -355,9 +355,9 @@ public sealed partial class TravianClient
     {
         try
         {
-            if (!IsCurrentUrlForPath(HeroAdventuresPath))
+            if (!IsCurrentUrlForPath(Paths.HeroAdventures))
             {
-                await GotoAsync(HeroAdventuresPath, cancellationToken);
+                await GotoAsync(Paths.HeroAdventures, cancellationToken);
                 await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
                 await EnsureLoggedInAsync();
             }
@@ -393,7 +393,7 @@ public sealed partial class TravianClient
     {
         try
         {
-            await GotoAsync(HeroAttributesPath, cancellationToken);
+            await GotoAsync(Paths.HeroAttributes, cancellationToken);
             await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             await EnsureLoggedInAsync();
 
@@ -594,7 +594,7 @@ public sealed partial class TravianClient
             return cachedSnapshot with { AdventureCount = adventureCount };
         }
 
-        await GotoAsync(HeroAttributesPath, cancellationToken);
+        await GotoAsync(Paths.HeroAttributes, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await EnsureLoggedInAsync();
 

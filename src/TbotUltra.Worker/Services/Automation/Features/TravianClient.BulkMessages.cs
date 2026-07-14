@@ -108,7 +108,7 @@ public sealed partial class TravianClient
 
         Notify($"[bulk-messages] opening message writer for {safePlayerNames.Count} recipient(s).");
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
-        await GotoAsync(MessagesWritePath, cancellationToken);
+        await GotoAsync(Paths.MessagesWrite, cancellationToken);
         await WaitForBulkMessageWriteFormAsync(cancellationToken);
 
         var recipients = await FindVisibleBulkMessageFieldAsync(BulkMessageRecipientSelectors, "recipients");

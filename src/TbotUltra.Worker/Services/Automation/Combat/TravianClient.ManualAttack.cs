@@ -21,7 +21,7 @@ public sealed partial class TravianClient
             return;
         }
 
-        await GotoAsync(RallyPointSendTroopsPath, cancellationToken);
+        await GotoAsync(Paths.RallyPointSendTroops, cancellationToken);
         await EnsureLoggedInAsync();
         if (await IsSendTroopsPageAsync(cancellationToken))
         {
@@ -31,7 +31,7 @@ public sealed partial class TravianClient
         await GotoAsync(Paths.FarmListFastUp, cancellationToken);
         await EnsureLoggedInAsync();
 
-        await GotoAsync(RallyPointSendTroopsPath, cancellationToken);
+        await GotoAsync(Paths.RallyPointSendTroops, cancellationToken);
         await EnsureLoggedInAsync();
         if (await IsSendTroopsPageAsync(cancellationToken))
         {
