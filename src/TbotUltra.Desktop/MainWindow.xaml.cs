@@ -404,6 +404,14 @@ public partial class MainWindow : Window
         _serverCatalogPath = Path.Combine(_projectRoot, "config", "servers.user.json");
         _sessionLogPath = Path.Combine(_projectRoot, "logs", $"TbotUltra_Log_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
         InitializeSessionLogFile();
+        if (BuildingCatalogService.CatalogLoadError is { } catalogError)
+        {
+            AppendLog($"ALARM: {catalogError} Construction cost/time estimates are disabled.");
+        }
+        else
+        {
+            AppendLog("[catalog] Embedded building catalog loaded.");
+        }
 
         _accountProvider = new EnvAccountProvider(_envPath);
         _accountStore = new EnvAccountStore(_envPath);

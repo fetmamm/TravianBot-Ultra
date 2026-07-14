@@ -16,4 +16,9 @@
   <ItemGroup>
     <InternalsVisibleTo Include="TbotUltra.Worker.Tests" />
   </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\config\buildings_catalog.json"
+                      LogicalName="TbotUltra.Worker.Data.buildings_catalog.json" />
+  </ItemGroup>
 </Project>

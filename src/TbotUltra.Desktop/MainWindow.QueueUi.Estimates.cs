@@ -83,7 +83,7 @@ public partial class MainWindow
 
     private QueueItemEstimate EstimateForQueueItem(QueueItem item, double serverSpeed, int loadedVillageMainBuildingLevel, Dictionary<string, int> queuedCoverage)
     {
-        if (item is null)
+        if (item is null || BuildingCatalogService.CatalogLoadError is not null)
         {
             return QueueItemEstimate.None;
         }

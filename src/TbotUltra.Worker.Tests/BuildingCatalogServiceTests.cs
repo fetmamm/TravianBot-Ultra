@@ -5,6 +5,41 @@ namespace TbotUltra.Worker.Tests;
 
 public sealed class BuildingCatalogServiceTests
 {
+    private static readonly int[] CatalogGids =
+    [
+        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,
+        13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30,
+        31, 32, 33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49,
+    ];
+
+    [Fact]
+    public void EmbeddedCatalog_LoadsWithoutExternalConfigFile()
+    {
+        using var stream = typeof(BuildingCatalogService).Assembly
+            .GetManifestResourceStream(BuildingCatalogService.CatalogResourceName);
+
+        Assert.NotNull(stream);
+        Assert.Null(BuildingCatalogService.CatalogLoadError);
+    }
+
+    [Fact]
+    public void Catalog_AllSupportedBuildingsHaveContiguousLevelData()
+    {
+        foreach (var gid in CatalogGids)
+        {
+            var maxLevel = BuildingCatalogService.MaxLevelFor(gid);
+            var levels = BuildingCatalogService.LevelsFor(gid);
+
+            Assert.NotNull(levels);
+            Assert.Equal(maxLevel, levels.Count);
+            Assert.Equal(Enumerable.Range(1, maxLevel), levels.Select(level => level.Level));
+            Assert.All(levels, level => Assert.True(level.BuildSeconds1x > 0, $"gid {gid} level {level.Level}"));
+        }
+
+        Assert.Null(BuildingCatalogService.LevelsFor(12));
+        Assert.Null(BuildingCatalogService.LevelsFor(50));
+    }
+
     [Fact]
     public void TribeCatalog_ContainsExpectedSpecialBuildings()
     {
@@ -15,6 +50,83 @@ public sealed class BuildingCatalogServiceTests
         var gauls = BuildingCatalogService.GetCatalogForTribe("Gauls");
         Assert.Contains(gauls, item => item.Gid == 33 && item.IsSpecial);
         Assert.Contains(gauls, item => item.Gid == 36 && item.IsSpecial);
+    }
+
+    [Theory]
+    [InlineData("Romans", 31, 41)]
+    [InlineData("Teutons", 32, 35)]
+    [InlineData("Gauls", 33, 36)]
+    [InlineData("Egyptians", 42, 45)]
+    [InlineData("Huns", 43, 44)]
+    [InlineData("Spartans", 47, 48)]
+    public void TribeCatalog_ContainsOnlyTheExpectedTribeSpecials(string tribe, int wallOrFirst, int second)
+    {
+        var catalog = BuildingCatalogService.GetCatalogForTribe(tribe);
+
+        Assert.Contains(catalog, item => item.Gid == wallOrFirst && item.IsSpecial);
+        Assert.Contains(catalog, item => item.Gid == second && item.IsSpecial);
+        Assert.Equal(2, catalog.Count(item => item.IsSpecial));
+    }
+
+    [Fact]
+    public void Spartans_UseAsclepeionInsteadOfHospital()
+    {
+        var catalog = BuildingCatalogService.GetCatalogForTribe("Spartans");
+
+        Assert.Contains(catalog, item => item.Gid == 48 && item.Name == "Asclepeion");
+        Assert.DoesNotContain(catalog, item => item.Gid == 46);
+    }
+
+    [Theory]
+    [InlineData("Romans", 31)]
+    [InlineData("Teutons", 32)]
+    [InlineData("Gauls", 33)]
+    [InlineData("Egyptians", 42)]
+    [InlineData("Huns", 43)]
+    [InlineData("Spartans", 47)]
+    public void WallForTribe_ReturnsOfficialWallGid(string tribe, int expectedGid)
+    {
+        Assert.Equal(expectedGid, BuildingCatalogService.WallForTribe(tribe)?.Gid);
+    }
+
+    [Theory]
+    [InlineData(1, 3, 110, 280, 140, 165)]
+    [InlineData(4, 3, 195, 250, 195, 55)]
+    [InlineData(10, 4, 275, 335, 190, 85)]
+    [InlineData(11, 5, 215, 270, 190, 55)]
+    [InlineData(35, 1, 3210, 2050, 2750, 3830)]
+    [InlineData(44, 1, 1600, 1250, 1050, 200)]
+    [InlineData(45, 1, 910, 945, 910, 340)]
+    [InlineData(47, 1, 160, 100, 80, 60)]
+    [InlineData(48, 1, 320, 280, 420, 360)]
+    public void Catalog_OfficialAnchorCostsMatch(
+        int gid,
+        int level,
+        int wood,
+        int clay,
+        int iron,
+        int crop)
+    {
+        var stats = BuildingCatalogService.CostFor(gid, level);
+
+        Assert.NotNull(stats);
+        Assert.Equal((wood, clay, iron, crop), (stats.Wood, stats.Clay, stats.Iron, stats.Crop));
+    }
+
+    [Fact]
+    public void Brewery_UsesCurrentTwentyLevelCatalog()
+    {
+        Assert.Equal(20, BuildingCatalogService.MaxLevelFor(35));
+        Assert.Equal(191215, BuildingCatalogService.CostFor(35, 20)?.Wood);
+    }
+
+    [Fact]
+    public void Harbor_HasEstimateDataButIsNotOfferedWithoutShoreContext()
+    {
+        Assert.Equal(49, BuildingCatalogService.GidForName("Harbor"));
+        Assert.Equal(1, BuildingCatalogService.CategoryIndexFor(49));
+        Assert.NotNull(BuildingCatalogService.CostFor(49, 20));
+        Assert.DoesNotContain(BuildingCatalogService.GetCatalogForTribe("Romans"), item => item.Gid == 49);
     }
 
     [Fact]
@@ -134,12 +246,22 @@ public sealed class BuildingCatalogServiceTests
         Assert.Contains(requirements, item => item.Name == "Academy" && item.Level == 15);
     }
 
+    [Fact]
+    public void RequirementsFor_TribeBuildings_MatchOfficialRules()
+    {
+        Assert.Contains(BuildingCatalogService.RequirementsFor(44), item => item.Name == "Main Building" && item.Level == 5);
+        Assert.Contains(BuildingCatalogService.RequirementsFor(45), item => item.Name == "Hero's Mansion" && item.Level == 10);
+        Assert.Contains(BuildingCatalogService.RequirementsFor(48), item => item.Name == "Main Building" && item.Level == 5);
+        Assert.Contains(BuildingCatalogService.RequirementsFor(48), item => item.Name == "Academy" && item.Level == 10);
+    }
+
     [Theory]
     [InlineData(31)]
     [InlineData(32)]
     [InlineData(33)]
     [InlineData(42)]
     [InlineData(43)]
+    [InlineData(47)]
     public void RequirementsFor_Walls_ReturnsNoRequirements(int gid)
     {
         Assert.Empty(BuildingCatalogService.RequirementsFor(gid));

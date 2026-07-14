@@ -5,6 +5,8 @@ namespace TbotUltra.Worker.Services;
 
 public static class BuildingCatalogService
 {
+    internal const string CatalogResourceName = "TbotUltra.Worker.Data.buildings_catalog.json";
+
     private static readonly Dictionary<int, (string Name, string Category)> BaseBuildings = new()
     {
         [5] = ("Sawmill", "resource_buildings"),
@@ -51,6 +53,16 @@ public static class BuildingCatalogService
         [42] = ("Stone Wall", "infrastructure"),
         [43] = ("Makeshift Wall", "infrastructure"),
         [44] = ("Command Center", "infrastructure"),
+        [45] = ("Waterworks", "infrastructure"),
+        [47] = ("Defensive Wall", "infrastructure"),
+        [48] = ("Asclepeion", "army_buildings"),
+    };
+
+    // Data and name matching are available for context-restricted buildings, but they are not offered in
+    // the generic construct picker until that picker can prove the server-side location requirement.
+    private static readonly Dictionary<int, (string Name, string Category)> ContextRestrictedBuildings = new()
+    {
+        [49] = ("Harbor", "infrastructure"),
     };
 
     private static readonly Dictionary<int, List<BuildingRequirementEntry>> BuildingRequirements = new()
@@ -80,14 +92,16 @@ public static class BuildingCatalogService
         [36] = [new("Rally Point", 1)],
         [37] = [new("Main Building", 3), new("Rally Point", 1)],
         [41] = [new("Rally Point", 10), new("Stable", 20)],
-        [44] = [new("Main Building", 10), new("Academy", 15)],
+        [44] = [new("Main Building", 5)],
+        [45] = [new("Hero's Mansion", 10)],
         [46] = [new("Main Building", 10), new("Academy", 15)],
+        [48] = [new("Main Building", 5), new("Academy", 10)],
     };
 
     private static readonly HashSet<int> SingleInstanceGids =
     [
-        13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 28, 29, 30, 34, 35, 36, 37, 40, 41, 44, 46,
-        31, 32, 33, 42, 43,
+        13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 24, 25, 26, 27, 28, 29, 30, 34, 35, 36, 37, 40, 41, 44, 45, 46, 48, 49,
+        31, 32, 33, 42, 43, 47,
     ];
 
     private static readonly Dictionary<string, int[]> TribeSpecialGids = new(StringComparer.OrdinalIgnoreCase)
@@ -95,9 +109,15 @@ public static class BuildingCatalogService
         ["Romans"] = [31, 41],
         ["Teutons"] = [32, 35],
         ["Gauls"] = [33, 36],
-        ["Egyptians"] = [42],
-        ["Huns"] = [43],
-        ["Spartans"] = [44],
+        ["Egyptians"] = [42, 45],
+        ["Huns"] = [43, 44],
+        ["Spartans"] = [47, 48],
+    };
+
+    private static readonly Dictionary<int, string[]> BaseBuildingExcludedTribes = new()
+    {
+        // Spartan villages use Asclepeion (gid 48) instead of Hospital (gid 46).
+        [46] = ["Spartans"],
     };
 
     // Resource fields (gids 1-4) are not in BaseBuildings (which only lists constructible buildings),
@@ -112,7 +132,11 @@ public static class BuildingCatalogService
 
     private static readonly Lazy<IReadOnlyDictionary<string, int>> NameToGid = new(BuildNameToGid);
 
-    private static readonly Lazy<IReadOnlyDictionary<int, BuildingCatalogEntry>> CatalogData = new(LoadCatalogData);
+    private static readonly Lazy<CatalogLoadResult> Catalog = new(LoadCatalogData);
+
+    private static IReadOnlyDictionary<int, BuildingCatalogEntry> CatalogData => Catalog.Value.Entries;
+
+    public static string? CatalogLoadError => Catalog.Value.Error;
 
     // Reverse lookup name -> gid across base buildings, tribe specials and resource fields.
     // Used to resolve a queued/clicked building name back to its catalog gid for estimates.
@@ -144,6 +168,11 @@ public static class BuildingCatalogService
             map[pair.Value.Name] = pair.Key;
         }
 
+        foreach (var pair in ContextRestrictedBuildings)
+        {
+            map[pair.Value.Name] = pair.Key;
+        }
+
         return map;
     }
 
@@ -154,6 +183,11 @@ public static class BuildingCatalogService
 
         foreach (var pair in BaseBuildings.OrderBy(item => item.Key))
         {
+            if (!IsBaseBuildingAvailableForTribe(pair.Key, normalized))
+            {
+                continue;
+            }
+
             entries.Add(new TribeBuildingCatalogEntry(
                 Gid: pair.Key,
                 Name: pair.Value.Name,
@@ -190,13 +224,15 @@ public static class BuildingCatalogService
 
         foreach (var pair in BaseBuildings.OrderBy(item => item.Key))
         {
+            var excludedTribes = BaseBuildingExcludedTribes.GetValueOrDefault(pair.Key) ?? [];
+            var isTribeRestricted = excludedTribes.Length > 0;
             entries.Add(new TribeBuildingCatalogFullEntry(
                 Gid: pair.Key,
                 Name: pair.Value.Name,
                 Category: pair.Value.Category,
-                IsSpecial: false,
-                RequiredTribe: null,
-                MatchesPlayerTribe: true,
+                IsSpecial: isTribeRestricted,
+                RequiredTribe: isTribeRestricted ? "non-Spartan tribes" : null,
+                MatchesPlayerTribe: IsBaseBuildingAvailableForTribe(pair.Key, normalizedPlayer),
                 Requirements: RequirementsFor(pair.Key)));
         }
 
@@ -227,7 +263,7 @@ public static class BuildingCatalogService
 
     public static int MaxLevelFor(int gid)
     {
-        if (CatalogData.Value.TryGetValue(gid, out var entry))
+        if (CatalogData.TryGetValue(gid, out var entry))
         {
             return entry.MaxLevel;
         }
@@ -237,12 +273,12 @@ public static class BuildingCatalogService
 
     public static IReadOnlyList<BuildingLevelStats>? LevelsFor(int gid)
     {
-        return CatalogData.Value.TryGetValue(gid, out var entry) ? entry.Levels : null;
+        return CatalogData.TryGetValue(gid, out var entry) ? entry.Levels : null;
     }
 
     public static BuildingLevelStats? CostFor(int gid, int level)
     {
-        if (!CatalogData.Value.TryGetValue(gid, out var entry))
+        if (!CatalogData.TryGetValue(gid, out var entry))
         {
             return null;
         }
@@ -314,6 +350,11 @@ public static class BuildingCatalogService
             return resourceFieldName;
         }
 
+        if (ContextRestrictedBuildings.TryGetValue(gid, out var contextRestrictedBuilding))
+        {
+            return contextRestrictedBuilding.Name;
+        }
+
         return $"gid {gid}";
     }
 
@@ -332,6 +373,10 @@ public static class BuildingCatalogService
         else if (TribeSpecialBuildings.TryGetValue(gid, out var spec))
         {
             category = spec.Category;
+        }
+        else if (ContextRestrictedBuildings.TryGetValue(gid, out var restricted))
+        {
+            category = restricted.Category;
         }
 
         return category switch
@@ -353,6 +398,7 @@ public static class BuildingCatalogService
             "Gauls" => (33, "Palisade"),
             "Egyptians" => (42, "Stone Wall"),
             "Huns" => (43, "Makeshift Wall"),
+            "Spartans" => (47, "Defensive Wall"),
             _ => null,
         };
     }
@@ -387,21 +433,22 @@ public static class BuildingCatalogService
         return [];
     }
 
-    private static IReadOnlyDictionary<int, BuildingCatalogEntry> LoadCatalogData()
+    private static bool IsBaseBuildingAvailableForTribe(int gid, string tribe)
     {
-        var path = ResolveCatalogPath();
-        if (path is null || !File.Exists(path))
-        {
-            return new Dictionary<int, BuildingCatalogEntry>();
-        }
+        return !BaseBuildingExcludedTribes.TryGetValue(gid, out var excludedTribes)
+            || !excludedTribes.Contains(tribe, StringComparer.OrdinalIgnoreCase);
+    }
 
+    private static CatalogLoadResult LoadCatalogData()
+    {
         try
         {
-            using var stream = File.OpenRead(path);
+            using var stream = typeof(BuildingCatalogService).Assembly.GetManifestResourceStream(CatalogResourceName)
+                ?? throw new InvalidOperationException($"Embedded resource '{CatalogResourceName}' was not found.");
             using var doc = JsonDocument.Parse(stream);
             if (!doc.RootElement.TryGetProperty("buildings", out var buildings))
             {
-                return new Dictionary<int, BuildingCatalogEntry>();
+                throw new InvalidDataException("Required root property 'buildings' is missing.");
             }
 
             var result = new Dictionary<int, BuildingCatalogEntry>();
@@ -435,14 +482,32 @@ public static class BuildingCatalogService
                     }
                 }
 
+                if (string.IsNullOrWhiteSpace(name))
+                {
+                    throw new InvalidDataException($"Building gid {gid} has no name.");
+                }
+
+                if (levels.Count != maxLevel || levels.Where((level, index) => level.Level != index + 1).Any())
+                {
+                    throw new InvalidDataException(
+                        $"Building gid {gid} has an incomplete level sequence: expected 1-{maxLevel}, found {levels.Count} entries.");
+                }
+
                 result[gid] = new BuildingCatalogEntry(gid, name, tribe, maxLevel, levels);
             }
 
-            return result;
+            if (result.Count == 0)
+            {
+                throw new InvalidDataException("The building catalog contains no buildings.");
+            }
+
+            return new CatalogLoadResult(result, null);
         }
-        catch
+        catch (Exception ex) when (ex is IOException or JsonException or InvalidDataException or InvalidOperationException)
         {
-            return new Dictionary<int, BuildingCatalogEntry>();
+            return new CatalogLoadResult(
+                new Dictionary<int, BuildingCatalogEntry>(),
+                $"Building catalog '{CatalogResourceName}' could not be loaded: {ex.Message}");
         }
     }
 
@@ -452,29 +517,16 @@ public static class BuildingCatalogService
     private static long GetLong(JsonElement obj, string name)
         => obj.TryGetProperty(name, out var p) && p.ValueKind == JsonValueKind.Number ? p.GetInt64() : 0;
 
-    private static string? ResolveCatalogPath()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current is not null)
-        {
-            var candidate = Path.Combine(current.FullName, "config", "buildings_catalog.json");
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-
-            current = current.Parent;
-        }
-
-        return null;
-    }
-
     private sealed record BuildingCatalogEntry(
         int Gid,
         string Name,
         string? Tribe,
         int MaxLevel,
         IReadOnlyList<BuildingLevelStats> Levels);
+
+    private sealed record CatalogLoadResult(
+        IReadOnlyDictionary<int, BuildingCatalogEntry> Entries,
+        string? Error);
 }
 
 public sealed record BuildingLevelStats(
