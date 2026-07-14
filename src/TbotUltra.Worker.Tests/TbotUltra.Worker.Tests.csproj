@@ -15,4 +15,10 @@
   <ItemGroup>
     <ProjectReference Include="..\TbotUltra.Worker\TbotUltra.Worker.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Include="..\..\.release-template\config\bot.json"
+          Link="ReleaseTemplate\bot.json"
+          CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
 </Project>

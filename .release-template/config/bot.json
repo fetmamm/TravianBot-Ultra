@@ -1,16 +1,14 @@
 {
   "server_name": "",
   "base_url": "",
-  "headless": false,
   "timeout_ms": 15000,
   "manual_login_timeout_seconds": 180,
   "loop_interval_seconds": 60,
   "loop_tasks": [
     "status"
   ],
-  "queue_wait_threshold_mode": "smart",
-  "continuous_farm_dispatch_delay_minutes": 20,
-  "continuous_farm_dispatch_delay_variation_percent": 20,
+  "continuous_farm_dispatch_delay_min_minutes": 30,
+  "continuous_farm_dispatch_delay_max_minutes": 90,
   "continuous_farm_send_mode": "list_per_list",
   "github_releases_url": "",
   "human_like_enabled": false,
@@ -22,6 +20,5 @@
   "troop_training_stable_run_mode": "resource_percent",
   "troop_training_workshop_run_mode": "resource_percent",
   "troop_training_fallback_cooldown_seconds": 300,
-  "resource_build_strategy": "smart",
-  "natar_village_selection": "farm_villages"
+  "resource_build_strategy": "smart"
 }

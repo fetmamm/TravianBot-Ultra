@@ -6,6 +6,9 @@ No installation needed.
 3. Run Tbot Ultra.exe inside the folder.
 4. Add your account and server inside the app (Account -> Manage), then log in.
 
+Always distribute and extract the complete portable zip. Tbot Ultra.exe cannot be
+used by itself because the bundled config, Playwright driver and Chromium are required.
+
 You do NOT need to edit .env or config files by hand - the app writes them for you
 when you save your account and settings.
 
@@ -22,3 +25,4 @@ Notes:
 - Use a folder the app can write to (logs, queue data, config updates).
 - If .env or config files already exist from an older copy, they are kept.
 - Chromium and the Playwright driver are bundled in the portable folder.
+- The matching .sha256 release asset can be used to verify the downloaded zip.

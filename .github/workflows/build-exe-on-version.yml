@@ -10,9 +10,17 @@ on:
 permissions:
   contents: write
 
+concurrency:
+  group: tbot-ultra-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: windows-latest
+    outputs:
+      release_url: ${{ steps.create_release.outputs.release_url }}
+      version: ${{ steps.version.outputs.version }}
+      portable_name: ${{ steps.version.outputs.portable_name }}
 
     steps:
       - name: Checkout
@@ -56,26 +64,58 @@ jobs:
       - name: Restore desktop publish dependencies
         run: dotnet restore src/TbotUltra.Desktop/TbotUltra.Desktop.csproj -r win-x64
 
+      - name: Build desktop runtime output
+        run: dotnet build src/TbotUltra.Desktop/TbotUltra.Desktop.csproj -c Release -r win-x64 --no-restore
+
+      - name: Resolve desktop build output
+        id: desktop_output
+        shell: pwsh
+        run: |
+          $desktopBuildDir = dotnet msbuild src/TbotUltra.Desktop/TbotUltra.Desktop.csproj `
+            -nologo `
+            -getProperty:TargetDir `
+            -p:Configuration=Release `
+            -p:RuntimeIdentifier=win-x64
+          if ($LASTEXITCODE -ne 0) {
+            throw "Could not resolve the desktop build output."
+          }
+          $desktopBuildDir = ($desktopBuildDir | Select-Object -Last 1).Trim()
+          if (-not (Test-Path -LiteralPath $desktopBuildDir -PathType Container)) {
+            throw "Resolved desktop build output does not exist: $desktopBuildDir"
+          }
+          "desktop_build_dir=$desktopBuildDir" >> $env:GITHUB_OUTPUT
+
       - name: Publish desktop app
-        run: >
-          dotnet publish src/TbotUltra.Desktop/TbotUltra.Desktop.csproj
-          -c Release
-          -r win-x64
-          --self-contained true
-          -p:PublishSingleFile=true
-          -p:IncludeNativeLibrariesForSelfExtract=true
-          -p:EnableCompressionInSingleFile=true
-          -p:DebugType=None
-          --no-restore
-          -o temp_build_out/publish
+        env:
+          VERSION_NUMBER: ${{ steps.version.outputs.version }}
+          COMMIT_SHA: ${{ github.sha }}
+        shell: pwsh
+        run: |
+          dotnet publish src/TbotUltra.Desktop/TbotUltra.Desktop.csproj `
+            -c Release `
+            -r win-x64 `
+            --self-contained true `
+            -p:PublishSingleFile=true `
+            -p:IncludeNativeLibrariesForSelfExtract=true `
+            -p:EnableCompressionInSingleFile=true `
+            -p:DebugType=None `
+            -p:Version=$env:VERSION_NUMBER `
+            -p:FileVersion="$env:VERSION_NUMBER.0" `
+            -p:AssemblyVersion="$env:VERSION_NUMBER.0" `
+            -p:InformationalVersion="$env:VERSION_NUMBER+$env:COMMIT_SHA" `
+            --no-restore `
+            -o temp_build_out/publish
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
       - name: Install bundled Chromium
+        env:
+          DESKTOP_BUILD_DIR: ${{ steps.desktop_output.outputs.desktop_build_dir }}
         shell: pwsh
         run: |
           $browserRoot = Join-Path $PWD "temp_build_out\playwright-browsers"
           New-Item -ItemType Directory -Path $browserRoot -Force | Out-Null
           $env:PLAYWRIGHT_BROWSERS_PATH = $browserRoot
-          $scriptPath = Join-Path $PWD "src\TbotUltra.Desktop\bin\Release\net8.0-windows\win-x64\playwright.ps1"
+          $scriptPath = Join-Path $env:DESKTOP_BUILD_DIR "playwright.ps1"
           if (-not (Test-Path $scriptPath)) {
             throw "Could not find playwright.ps1 in desktop build output."
           }
@@ -88,6 +128,7 @@ jobs:
         env:
           VERSION_NUMBER: ${{ steps.version.outputs.version }}
           PACKAGE_NAME: ${{ steps.version.outputs.package_name }}
+          DESKTOP_BUILD_DIR: ${{ steps.desktop_output.outputs.desktop_build_dir }}
         shell: pwsh
         run: |
           $stageRoot = Join-Path $PWD "temp_build_out\release"
@@ -138,7 +179,7 @@ jobs:
           # The single-file publish embeds node.exe into the exe instead of leaving it loose under
           # .playwright\node, so the published copy is incomplete and Playwright fails with
           # "Driver not found". Overwrite it with the complete driver folder.
-          $driverRoot = Join-Path $PWD "src\TbotUltra.Desktop\bin\Release\net8.0-windows\win-x64\.playwright"
+          $driverRoot = Join-Path $env:DESKTOP_BUILD_DIR ".playwright"
           if (-not (Test-Path (Join-Path $driverRoot "node\win32_x64\node.exe"))) {
             throw "Playwright driver (node.exe) is missing from build output: $driverRoot"
           }
@@ -147,6 +188,7 @@ jobs:
             Remove-Item $packagedDriverRoot -Recurse -Force
           }
           Copy-Item $driverRoot $packagedDriverRoot -Recurse -Force
+          Remove-Item (Join-Path $packageRoot "playwright.ps1") -ErrorAction SilentlyContinue
 
           $envTemplatePath = Join-Path $templateRoot "env.template"
           $readmeTemplatePath = Join-Path $templateRoot "README_RELEASE.txt"
@@ -172,6 +214,21 @@ jobs:
           New-Item -ItemType Directory -Path (Join-Path $packageRoot "config\account-analysis") -Force | Out-Null
           New-Item -ItemType Directory -Path (Join-Path $packageRoot "config\cache\natar-farms") -Force | Out-Null
 
+      - name: Validate and start staged release bundle
+        env:
+          VERSION_NUMBER: ${{ steps.version.outputs.version }}
+          PACKAGE_NAME: ${{ steps.version.outputs.package_name }}
+        shell: pwsh
+        run: |
+          $packageRoot = Join-Path $PWD ("temp_build_out\release\" + $env:PACKAGE_NAME)
+          & "$PWD\scripts\Test-ReleaseBundle.ps1" `
+            -PackageRoot $packageRoot `
+            -ExpectedVersion $env:VERSION_NUMBER `
+            -Launch `
+            -LaunchFromTemporaryCopy `
+            -StartupTimeoutSeconds 90
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
       - name: Create portable zip
         env:
           PACKAGE_NAME: ${{ steps.version.outputs.package_name }}
@@ -185,8 +242,6 @@ jobs:
           if (-not (Test-Path $packageRoot)) {
             throw "Portable source folder is missing: $packageRoot"
           }
-
-          Remove-Item (Join-Path $packageRoot "playwright.ps1") -ErrorAction SilentlyContinue
 
           $appExe = Join-Path $packageRoot "Tbot Ultra.exe"
           if (-not (Test-Path $appExe)) {
@@ -224,6 +279,41 @@ jobs:
             throw "Portable zip was not created: $zipPath"
           }
 
+      - name: Extract and start final portable zip
+        env:
+          VERSION_NUMBER: ${{ steps.version.outputs.version }}
+          PACKAGE_NAME: ${{ steps.version.outputs.package_name }}
+          PORTABLE_NAME: ${{ steps.version.outputs.portable_name }}
+        shell: pwsh
+        run: |
+          $zipPath = Join-Path $PWD "temp_build_out\dist\$env:PORTABLE_NAME"
+          $extractRoot = Join-Path $PWD "temp_build_out\release-smoke-extracted"
+          if (Test-Path -LiteralPath $extractRoot) {
+            Remove-Item -LiteralPath $extractRoot -Recurse -Force
+          }
+          Expand-Archive -LiteralPath $zipPath -DestinationPath $extractRoot -Force
+          $packageRoot = Join-Path $extractRoot $env:PACKAGE_NAME
+          & "$PWD\scripts\Test-ReleaseBundle.ps1" `
+            -PackageRoot $packageRoot `
+            -ExpectedVersion $env:VERSION_NUMBER `
+            -Launch `
+            -StartupTimeoutSeconds 90
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Create SHA256 checksum
+        env:
+          PORTABLE_NAME: ${{ steps.version.outputs.portable_name }}
+        shell: pwsh
+        run: |
+          $outputRoot = Join-Path $PWD "temp_build_out\dist"
+          $zipPath = Join-Path $outputRoot $env:PORTABLE_NAME
+          $checksumPath = "$zipPath.sha256"
+          $hash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
+          [System.IO.File]::WriteAllText($checksumPath, "$hash *$env:PORTABLE_NAME`n")
+          if (-not (Test-Path -LiteralPath $checksumPath -PathType Leaf)) {
+            throw "SHA256 checksum file was not created: $checksumPath"
+          }
+
       - name: Create GitHub release
         id: create_release
         env:
@@ -234,9 +324,13 @@ jobs:
         shell: pwsh
         run: |
           $portablePath = Join-Path $PWD "temp_build_out\dist\$env:PORTABLE_NAME"
+          $checksumPath = "$portablePath.sha256"
 
           if (-not (Test-Path $portablePath)) {
             throw "Portable zip is missing: $portablePath"
+          }
+          if (-not (Test-Path $checksumPath)) {
+            throw "Portable checksum is missing: $checksumPath"
           }
 
           $notes = @"
@@ -246,16 +340,34 @@ jobs:
           move or rename the folder wherever you like (e.g. your Desktop), then run
           Tbot Ultra.exe inside it.
 
+          The matching $env:PORTABLE_NAME.sha256 asset can be used to verify the downloaded zip.
+
           Set up your account and server inside the app (Account -> Manage). No manual editing of .env or config files is needed.
 
           Tip: for multiple accounts, extract a separate copy of the portable folder per account and run them at the same time. Do not run two instances from the same folder.
           "@
 
-          gh release create $env:TAG_NAME $portablePath `
-            --repo $env:GITHUB_REPOSITORY `
-            --target $env:GITHUB_SHA `
-            --title "Tbot Ultra $env:VERSION_NUMBER" `
-            --notes $notes
+          gh release view $env:TAG_NAME --repo $env:GITHUB_REPOSITORY *> $null
+          $releaseExists = $LASTEXITCODE -eq 0
+          if ($releaseExists) {
+            gh release edit $env:TAG_NAME `
+              --repo $env:GITHUB_REPOSITORY `
+              --target $env:GITHUB_SHA `
+              --title "Tbot Ultra $env:VERSION_NUMBER" `
+              --notes $notes
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+            gh release upload $env:TAG_NAME $portablePath $checksumPath `
+              --repo $env:GITHUB_REPOSITORY `
+              --clobber
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          } else {
+            gh release create $env:TAG_NAME $portablePath $checksumPath `
+              --repo $env:GITHUB_REPOSITORY `
+              --target $env:GITHUB_SHA `
+              --title "Tbot Ultra $env:VERSION_NUMBER" `
+              --notes $notes
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
 
           $releaseUrl = gh release view $env:TAG_NAME --repo $env:GITHUB_REPOSITORY --json url -q ".url"
           if ([string]::IsNullOrWhiteSpace($releaseUrl)) {
@@ -264,13 +376,22 @@ jobs:
 
           "release_url=$releaseUrl" >> $env:GITHUB_OUTPUT
 
+  announce-discord:
+    needs: release
+    if: ${{ always() && needs.release.result == 'success' }}
+    runs-on: windows-latest
+    permissions:
+      contents: read
+
+    steps:
       - name: Announce release in Discord
+        continue-on-error: true
         env:
           DISCORD_ANNOUNCEMENT_WEBHOOK_URL: ${{ secrets.DISCORD_ANNOUNCEMENT_WEBHOOK_URL }}
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-          VERSION_NUMBER: ${{ steps.version.outputs.version }}
-          PORTABLE_NAME: ${{ steps.version.outputs.portable_name }}
-          RELEASE_URL: ${{ steps.create_release.outputs.release_url }}
+          VERSION_NUMBER: ${{ needs.release.outputs.version }}
+          PORTABLE_NAME: ${{ needs.release.outputs.portable_name }}
+          RELEASE_URL: ${{ needs.release.outputs.release_url }}
           COMMIT_SHA: ${{ github.sha }}
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         shell: pwsh

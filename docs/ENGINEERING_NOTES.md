@@ -523,6 +523,14 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
   loggar ska med; config och textartefakter saneras, `.env`/browser-state exkluderas och screenshots varnas som osanerbara.
 - Versionsdialogens `Update & restart` visas alltid for att funktionen ska vara synlig. Den ar endast
   klickbar nar en ny portable-release finns och appen kors som publicerade `Tbot Ultra.exe`.
+- Release-workflowen ska hamta Desktop `TargetDir` fran MSBuild for `Release` + `win-x64`; hardkoda aldrig
+  `src/.../bin`, eftersom `Directory.Build.props` styr output till `temp_build_out/dotnet/`.
+- Portable-releasen ska verifieras med `scripts/Test-ReleaseBundle.ps1` bade fran en staging-kopia och efter
+  ZIP + ny uppackning. Testet maste kontrollera metadata/filer/config och se `Chromium warmup completed`.
+- `.release-template/config/bot.json` far bara innehalla aktuella `BotOptions`-nycklar; Worker-testet
+  `ReleaseTemplateTests` skyddar mot pensionerade eller felstavade nycklar.
+- Release-EXE:ns version ska komma fran `VERSION`, ZIP:en ska publiceras med SHA256-fil, befintlig tagg ska
+  kunna uppdateras vid omkorning och Discord-notisen ska ligga i ett separat icke-blockerande jobb.
 - Diagnostisk pacing loggas med `[pacing]`, men viktiga sleep/wake-handelser ska vara synliga i Clean mode.
   Cached currency pa sidor utan valuta ar verbose; avsaknad av bade live- och cachevarde ar alarm.
 - `Resource read` loggas hogst varannan minut per browser-session och oforandrad transient ad-storage cleanup
