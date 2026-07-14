@@ -705,7 +705,8 @@ public partial class AccountsWindow : Window
                 settings.PacingEnabled,
                 settings.AllowedHours,
                 settings.SleepMinMinutes,
-                _accounts.Select(account => account.Name))
+                _accounts.Select(account => account.Name),
+                ResolveProxyScheduleServerTimeOffset())
             {
                 Owner = this,
             };
@@ -807,6 +808,19 @@ public partial class AccountsWindow : Window
             ? array.Select(node => node?.GetValue<int>() ?? -1).Where(hour => hour is >= 0 and <= 23).ToArray()
             : Enumerable.Range(0, 24).ToArray();
         return (pacingEnabled, hours, sleepMin);
+    }
+
+    private TimeSpan ResolveProxyScheduleServerTimeOffset()
+    {
+        try
+        {
+            return ServerTimeClock.ResolveUtcOffset(_botConfigStore.Load(), DateTime.UtcNow);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[proxy-plan] could not resolve server time offset: {ex.Message}");
+            return TimeZoneInfo.Local.GetUtcOffset(DateTime.UtcNow);
+        }
     }
 
     private void ApplyCurrentPlanProxyToFields(string accountName)

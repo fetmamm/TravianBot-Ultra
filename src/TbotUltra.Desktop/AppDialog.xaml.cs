@@ -11,6 +11,7 @@ public partial class AppDialog : Window
     private readonly MessageBoxButton _buttons;
     private readonly MessageBoxResult _defaultResult;
     private readonly MessageBoxResult _cancelResult;
+    private readonly MessageBoxResult? _successResult;
     private readonly IReadOnlyList<(string Label, MessageBoxResult Result)>? _customButtons;
     private MessageBoxResult _result;
     private bool _resultChosen;
@@ -23,7 +24,8 @@ public partial class AppDialog : Window
         MessageBoxImage icon,
         MessageBoxResult defaultResult,
         MessageBoxResult? cancelResult = null,
-        IReadOnlyList<(string Label, MessageBoxResult Result)>? customButtons = null)
+        IReadOnlyList<(string Label, MessageBoxResult Result)>? customButtons = null,
+        MessageBoxResult? successResult = null)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
@@ -33,6 +35,7 @@ public partial class AppDialog : Window
         MessageTextBlock.Text = message ?? string.Empty;
         _buttons = buttons;
         _customButtons = customButtons;
+        _successResult = successResult;
         _defaultResult = defaultResult;
         _cancelResult = ResolveCancelResult(buttons, cancelResult, customButtons);
         _result = ResolveDefaultResult(buttons, defaultResult, customButtons);
@@ -127,7 +130,8 @@ public partial class AppDialog : Window
         IReadOnlyList<(string Label, MessageBoxResult Result)> buttons,
         MessageBoxImage icon,
         MessageBoxResult defaultResult,
-        MessageBoxResult cancelResult)
+        MessageBoxResult cancelResult,
+        MessageBoxResult? successResult = null)
     {
         var dialog = new AppDialog(
             owner,
@@ -137,7 +141,8 @@ public partial class AppDialog : Window
             icon,
             defaultResult,
             cancelResult,
-            buttons);
+            buttons,
+            successResult);
         _ = dialog.ShowDialog();
         return dialog._result;
     }
@@ -172,6 +177,13 @@ public partial class AppDialog : Window
                 IsDefault = result == defaultResult,
                 IsCancel = result == _cancelResult,
             };
+            if (result == _successResult)
+            {
+                button.Background = FindResource("SuccessBrush") as Brush;
+                button.BorderBrush = FindResource("SuccessBrush") as Brush;
+                button.Foreground = Brushes.White;
+                button.FontWeight = FontWeights.SemiBold;
+            }
 
             button.Click += (_, _) =>
             {

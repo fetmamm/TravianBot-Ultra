@@ -38,12 +38,7 @@ public partial class MainWindow
     {
         try
         {
-            var config = _botConfigStore.Load();
-            var configuredHours = config["server_time_utc_offset_hours"]?.GetValue<double?>();
-            if (configuredHours.HasValue)
-            {
-                return TimeSpan.FromHours(configuredHours.Value);
-            }
+            return Services.ServerTimeClock.ResolveUtcOffset(_botConfigStore.Load(), DateTime.UtcNow);
         }
         catch (Exception ex)
         {
@@ -61,7 +56,7 @@ public partial class MainWindow
     private void UpdateClockText(DateTimeOffset? serverNow = null)
     {
         var currentServerTime = serverNow ?? GetServerNow();
-        ClockTextBlock.Text = $"{currentServerTime:yyyy-MM-dd HH:mm:ss}";
+        ClockTextBlock.Text = Services.ServerTimeClock.Format(currentServerTime);
     }
 
     private string FormatQueueServerTime(DateTimeOffset utcTimestamp)

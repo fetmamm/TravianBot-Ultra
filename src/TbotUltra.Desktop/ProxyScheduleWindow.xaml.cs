@@ -4,6 +4,7 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Documents;
 using System.Windows.Media;
+using System.Windows.Threading;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Infrastructure;
 
@@ -24,11 +25,14 @@ public partial class ProxyScheduleWindow : Window
     private readonly IReadOnlyCollection<int> _allowedHours;
     private readonly int _sleepMinMinutes;
     private readonly IReadOnlyList<string> _accountNames;
+    private readonly TimeSpan _serverTimeOffset;
+    private readonly DispatcherTimer _clockTimer;
     private readonly List<ProxyLibraryEntry> _library;
     private readonly ObservableCollection<ProxyTimelineRow> _rows = [];
     private CancellationTokenSource? _validationCts;
     private bool _buildingTimeline;
     private bool _validatedSinceChange;
+    private ProxyPlanValidationResult? _lastValidationResult;
 
     public AccountProxyPlan ResultPlan { get; private set; }
 
@@ -43,7 +47,8 @@ public partial class ProxyScheduleWindow : Window
         bool sessionPacingEnabled,
         IReadOnlyCollection<int> allowedHours,
         int sleepMinMinutes,
-        IEnumerable<string> accountNames)
+        IEnumerable<string> accountNames,
+        TimeSpan serverTimeOffset)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
@@ -55,11 +60,17 @@ public partial class ProxyScheduleWindow : Window
         _sessionPacingEnabled = sessionPacingEnabled;
         _allowedHours = allowedHours.Where(hour => hour is >= 0 and <= 23).Distinct().Order().ToArray();
         _sleepMinMinutes = sleepMinMinutes;
+        _serverTimeOffset = serverTimeOffset;
         _accountNames = accountNames
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+        _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _clockTimer.Tick += (_, _) => UpdateClock();
+        Closed += (_, _) => _clockTimer.Stop();
+        UpdateClock();
+        _clockTimer.Start();
         _library = library.OrderBy(proxy => proxy.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
         ResultPlan = plan.Clone();
         VariationTextBox.Text = Math.Clamp(plan.VariationPercent, 0, 49).ToString(CultureInfo.InvariantCulture);
@@ -70,6 +81,12 @@ public partial class ProxyScheduleWindow : Window
         }
 
         BuildTimeline();
+    }
+
+    private void UpdateClock()
+    {
+        var serverNow = DateTimeOffset.UtcNow.ToOffset(_serverTimeOffset);
+        ScheduleClockTextBlock.Text = ServerTimeClock.Format(serverNow);
     }
 
     private void BuildTimeline()
@@ -384,7 +401,8 @@ public partial class ProxyScheduleWindow : Window
                 [("Validate and save", MessageBoxResult.Yes), ("Save without check", MessageBoxResult.No), ("Cancel", MessageBoxResult.Cancel)],
                 MessageBoxImage.Question,
                 MessageBoxResult.Yes,
-                MessageBoxResult.Cancel);
+                MessageBoxResult.Cancel,
+                successResult: MessageBoxResult.Yes);
             if (choice == MessageBoxResult.Cancel)
             {
                 return;
@@ -392,6 +410,16 @@ public partial class ProxyScheduleWindow : Window
 
             if (choice == MessageBoxResult.Yes && !await ValidateAsync(showHealthyResult: true))
             {
+                return;
+            }
+
+            if (choice == MessageBoxResult.Yes && _lastValidationResult?.Warnings.Count > 0)
+            {
+                ValidationTextBlock.Inlines.Add(new LineBreak());
+                ValidationTextBlock.Inlines.Add(new Run("Review the warnings, then click Save again to use this setup.")
+                {
+                    Foreground = FindResource("TextPrimaryBrush") as Brush,
+                });
                 return;
             }
 
@@ -463,6 +491,7 @@ public partial class ProxyScheduleWindow : Window
     private void MarkChanged(string message)
     {
         _validatedSinceChange = false;
+        _lastValidationResult = null;
         if (ValidationTextBlock is not null)
         {
             ValidationTextBlock.Text = message;
@@ -487,6 +516,8 @@ public partial class ProxyScheduleWindow : Window
         _validationCts?.Cancel();
         _validationCts?.Dispose();
         _validationCts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
+        ValidationOverlay.ShowCancel = true;
+        ValidationOverlay.Show("Validating proxy setup", $"Preparing to test {_rows.Count} proxies…");
         try
         {
             var selected = _rows.Select(row => FindProxy(row.ProxyId)).Where(proxy => proxy is not null).Cast<ProxyLibraryEntry>().ToList();
@@ -495,6 +526,7 @@ public partial class ProxyScheduleWindow : Window
             {
                 var proxy = selected[index];
                 ValidationTextBlock.Text = $"Testing proxy {index + 1} of {selected.Count}: {proxy.DisplayName}…";
+                ValidationOverlay.Text = $"Testing proxy {index + 1} of {selected.Count}\n{proxy.DisplayName}";
                 var probe = await tester.TestServerAgainstTargetAsync(proxy.Server, _serverUrl, _validationCts.Token);
                 proxy.IsWorking = probe.Success;
                 proxy.LatencyMs = probe.LatencyMs > 0 ? probe.LatencyMs : proxy.LatencyMs;
@@ -502,6 +534,7 @@ public partial class ProxyScheduleWindow : Window
             }
 
             _libraryStore.Save(_library);
+            ValidationOverlay.Text = "Proxy tests complete. Checking schedule and allowed hours…";
             BuildTimeline();
             var result = AccountProxyPlanValidator.Validate(
                 plan,
@@ -512,26 +545,33 @@ public partial class ProxyScheduleWindow : Window
                 _allowedHours,
                 _sleepMinMinutes,
                 requireHealth: true);
+            _lastValidationResult = result;
             ShowValidation(result, showHealthyResult);
             _validatedSinceChange = result.IsValid;
             return result.IsValid;
         }
         catch (OperationCanceledException)
         {
+            _lastValidationResult = null;
             ValidationTextBlock.Text = "Proxy validation was cancelled or timed out.";
             return false;
         }
         catch (Exception ex)
         {
+            _lastValidationResult = null;
             ValidationTextBlock.Text = $"Proxy validation failed: {ex.Message}";
             return false;
         }
         finally
         {
+            ValidationOverlay.Hide();
             ValidateButton.IsEnabled = true;
             SaveButton.IsEnabled = true;
         }
     }
+
+    private void ValidationOverlay_Cancelled(object sender, EventArgs e)
+        => _validationCts?.Cancel();
 
     private AccountProxyPlan BuildPlan()
     {

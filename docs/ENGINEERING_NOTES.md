@@ -177,6 +177,10 @@ document.querySelector('.warehouse .capacity .value')
   tilldelade proxies sorteras forst och varje grupp sorteras med lagst kanda latency forst.
   Proxy schedule lankar till Proxy list, och Proxy list lankar till Proxy finder; manuellt tillagg heter
   `Manual add proxy` sa de tre proxyflodena ar tydligt atskilda men kan nas fran varandra.
+  Proxy schedule-validering visar alltid gemensam loading-overlay med proxy-for-proxy-status och Cancel;
+  dialogens `Validate and save` ar gron primaratgard. Om testet ger varningar stannar editorn oppen sa
+  anvandaren kan lasa dem; ett efterfoljande `Save` godkanner och sparar det redan validerade schemat.
+  Proxy schedule visar samma serverdatum/-tid och format som dashboardens Time-kort via `ServerTimeClock`.
   `Manage accounts > Use proxy rotation` ar den explicita av/på-brytaren; OFF behaller schemat men kor den
   vanliga enskilda proxyn, ON kraver minst tva valda proxies och en giltig aktiv plan.
 - Defer-orsaker ska konsumeras typat: `TaskWaitException.ReasonCode` (`TaskWaitReasons.*`), harledd pa ETT
