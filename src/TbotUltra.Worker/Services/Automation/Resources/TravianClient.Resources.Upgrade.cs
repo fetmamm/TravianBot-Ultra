@@ -137,7 +137,7 @@ public sealed partial class TravianClient
                         $"Resource slot {slotId} ({resourceName}) upgrade to level {effectiveTarget}",
                         UpgradeMath.ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
                         cancellationToken);
-                    return BuildUpgradeResourceBlockedResultMessage(resourceWaitSnapshot);
+                    return UpgradeResourceWaitCalculator.BuildBlockedResultMessage(resourceWaitSnapshot);
                 }
 
                 if (actionability.Outcome != UpgradeAttemptOutcome.CanUpgrade)
@@ -462,7 +462,7 @@ public sealed partial class TravianClient
                             cancellationToken);
                         blockReasons.Add($"slot {slot}: {actionability.Outcome} ({actionability.Reason})");
                         Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} blocked by resources. Deferring construction for {snapshot.WaitSeconds}s instead of scanning more slots. reason={snapshot.WaitReason}.");
-                        return BuildUpgradeResourceBlockedResultMessage(snapshot);
+                        return UpgradeResourceWaitCalculator.BuildBlockedResultMessage(snapshot);
                     }
 
                     blockReasons.Add($"slot {slot}: {actionability.Outcome} ({actionability.Reason})");

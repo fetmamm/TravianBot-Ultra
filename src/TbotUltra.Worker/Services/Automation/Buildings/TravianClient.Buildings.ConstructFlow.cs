@@ -193,7 +193,7 @@ public sealed partial class TravianClient : IBuildingClient
                         }
                     }
 
-                    return BuildUpgradeResourceBlockedResultMessage(snapshot);
+                    return UpgradeResourceWaitCalculator.BuildBlockedResultMessage(snapshot);
                 }
 
                 var waitAfterBusy = await WaitForConstructionSlotIfBusyAsync(ConstructionKind.Building, cancellationToken);
@@ -247,7 +247,7 @@ public sealed partial class TravianClient : IBuildingClient
                     return $"Constructed {buildingName} in slot {slotId} (confirmed level {confirmedLevel} on dorf2).{constructFasterResultNote}";
                 }
 
-                var waitMs = ComputePostActionWaitMs(durationSeconds);
+                var waitMs = UpgradeResourceWaitCalculator.ComputePostActionWaitMs(durationSeconds);
                 var waitSeconds = Math.Max(1, (int)Math.Ceiling(waitMs / 1000d));
                 Notify($"Slot {slotId}: construct click did not confirm immediately ({progress.Evidence}). Deferring {waitSeconds}s before retry.");
                 return $"Slot {slotId}: construct click did not confirm immediately ({progress.Evidence}). queue_wait_seconds={waitSeconds}";
@@ -637,4 +637,3 @@ public sealed partial class TravianClient : IBuildingClient
 
 
 }
-
