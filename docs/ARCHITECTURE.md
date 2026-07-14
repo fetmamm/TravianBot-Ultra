@@ -34,9 +34,9 @@ These are contracts only — no logic was extracted out of the facade.
 
 | Folder | What | Key files |
 |---|---|---|
-| `Automation/Core/` | Client plumbing: login, navigation, session, manual verification, account snapshot, villages, selectors, retry, page-tasks, capital cache | `TravianClient.cs` (state+ctor), `.Login`, `.Navigation`, `.UiSync`, `.ManualVerification`, `.AccountSnapshot`, `.Villages`, `.Selectors`, `.RetryPolicy`, `.Tasks`, `.CapitalCache`; helpers `TravianSessionCache`, `TravianUrls`, `TravianParsing`, `CapitalCacheKey` |
+| `Automation/Core/` | Client plumbing: login, navigation, session, account snapshot, village list/switch/status, selectors, retry, page-tasks, capital cache | `TravianClient.cs` (state+ctor), `.Login`, `.Navigation`, `.UiSync`, `.AccountSnapshot`, `.Villages.List`, `.Villages.Switch`, `.Villages.Status`, `.Selectors`, `.RetryPolicy`, `.Tasks`, `.CapitalCache`; helpers `TravianSessionCache`, `TravianUrls`, `TravianParsing`, `VillageIdentityReconciler`, `CapitalCacheKey` |
 | `Automation/Farming/` | Farm lists, list creation, Official Add Farms | `TravianClient.FarmLists`, `.FarmListCreation`, `.FarmAdd`; `FarmListLossStateClassifier` |
-| `Automation/Buildings/` | Construction, upgrades, Smithy | `TravianClient.Buildings`, `.Buildings.Overview`, `.Buildings.Queue`, `.Buildings.UpgradeAnalysis`, `.Smithy`, `.Upgrade`, `.ConstructFaster`; `BuildingDomParser`, `BuildingOverviewDomParser`, `BuildingOverviewScanPolicy`, `BuildingNames`, `ConstructionSlots`, `ConstructionHumanizeCalculator`, `BuildQueueFingerprints`, `UpgradeMath`, `ConstructFasterDecision` |
+| `Automation/Buildings/` | Construction, upgrades, demolition, Plus and Smithy | `TravianClient.Buildings`, `.Buildings.UpgradeFlow`, `.Buildings.ConstructFlow`, `.Buildings.Demolition`, `.Buildings.Plus`, `.Buildings.Overview`, `.Buildings.Queue`, `.Buildings.UpgradeAnalysis`, `.Smithy`, `.Upgrade`, `.ConstructFaster`; `BuildingDomParser`, `BuildingOverviewDomParser`, `UpgradeResourceWaitCalculator`, `ConstructionHumanizeCalculator`, `BuildQueueFingerprints`, `UpgradeMath`, `ConstructFasterDecision` |
 | `Automation/Hero/` | Hero, adventures, attributes, hero resources | `TravianClient.Hero`, `.Hero.Status`, `.Hero.Revive`, `.Hero.Inventory`, `.Hero.Adventures`, `.Hero.Attributes`, `.HeroResourceTransfer`, `.AdventureDanger`; `HeroCalc`, `HeroStatusDecision` |
 | `Automation/Resources/` | Resource read/transfer, NPC trade | `TravianClient.Resources.Snapshot`, `.Resources.FieldScan`, `.Resources.Upgrade`, `.ResourceTransfer`, `.NpcTrade`; `ResourceFieldScanParser`, `ResourceCapacitySnapshot`, `ResourceSnapshotCalculator` |
 | `Automation/Combat/` | Catapult waves, reinforcements, manual attack | `TravianClient.Catapults`, `.Reinforcements`, `.ManualAttack`; `CatapultWavePlanner` |
@@ -68,7 +68,8 @@ One `partial class BotTaskRunner` in `Services/`, split by concern:
 - `Services/Catalogs/` — building & task catalogs.
 - `Services/` (root) — `BrowserFailureClassifier`.
 - `Infrastructure/BrowserSession.cs` — Playwright browser lifecycle (partial; bonus-video,
-  warmup/install and storage-state filtering live in `BrowserSession.<Area>.cs`).
+  warmup/install and storage-state filtering live in `BrowserSession.<Area>.cs`); old browser-state
+  compatibility is isolated in `LegacyBrowserStorageAdapter`.
 - `Domain/` — Worker DTOs (`TravianModels`, `MapOasisModels`, `TravcoModels`, queue types, exceptions).
 
 ---
@@ -101,7 +102,10 @@ One `partial class BotTaskRunner` in `Services/`, split by concern:
 - `*SettingsWindow.xaml` — focused popup settings such as hero resources, troop training, and construct-faster per-village options.
 - `SaveReportPngWindow.xaml` — Reports popup for saving the current opened combat report as a PNG.
 - `Models/` — UI row/item models bound to the views.
-- `Views/`, `Themes/`, `Assets/` — extracted panels (including Farming, Resources, Reinforcements, and Logs), XAML windows, theme, resources.
+- `Views/`, `Themes/`, `Assets/` — extracted panels (including Dashboard, Queue, NPC/Trade,
+  Farming, Resources, Reinforcements, and Logs), XAML windows, theme, resources. Panel interaction
+  is forwarded through narrow `MainWindow.<Area>.Panel.cs` aliases so mechanical XAML moves do not
+  change existing code-behind behavior.
 
 ---
 
@@ -139,7 +143,7 @@ Applies to the whole solution. The codebase already follows this — keep it con
 
 | Looking for… | Go to |
 |---|---|
-| Login / session / captcha gate | `Automation/Core/TravianClient.Login.cs`, `.ManualVerification.cs` |
+| Login / session / language gate | `Automation/Core/TravianClient.Login.cs`, `.UiSync.cs` |
 | Farm list send / create | `Automation/Farming/`, `BotTaskRunner.Farming.cs` |
 | Building upgrade/construct logic | `Automation/Buildings/`, handlers in `BotTaskRunner.TaskHandlers.cs` |
 | Hero adventures / attributes | `Automation/Hero/`, `BotTaskRunner.Hero.cs`, `ViewModels/HeroViewModel.cs` |
@@ -148,5 +152,5 @@ Applies to the whole solution. The codebase already follows this — keep it con
 | Queue scheduling/persistence | `Worker/Services/Queue/` |
 | Config / payloads / flavor | `Core/Configuration/`, `Core/Tasks/` |
 | Browser lifecycle | `Worker/Infrastructure/BrowserSession.cs` |
-| UI loop/threading | `Desktop/Services/Orchestration/LoopController.cs` |
+| UI loop/threading | `Desktop/Services/Orchestration/LoopController.cs`, `ContinuousLoopSelector.cs` |
 | Per-feature UI panel | `Desktop/MainWindow.<Area>.cs` + matching `ViewModels/<Area>ViewModel.cs` |
