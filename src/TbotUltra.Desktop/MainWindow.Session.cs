@@ -468,12 +468,13 @@ public partial class MainWindow
                 this,
                 "Proxy settings changed for the active account. When should the new proxy be activated?\n\n" +
                 "Relogin now safely stops automation, logs out, restarts the browser after a 5–20 second delay, and resumes the previous run state.\n\n" +
-                "Next sleep keeps the current browser and proxy unchanged until the next session sleep.",
+                "Next sleep keeps the current browser and proxy unchanged until the next session sleep (recommended).",
                 "Apply proxy change",
                 [("Relogin now", MessageBoxResult.Yes), ("Next sleep", MessageBoxResult.No), ("Cancel change", MessageBoxResult.Cancel)],
                 MessageBoxImage.Question,
                 MessageBoxResult.No,
-                MessageBoxResult.Cancel);
+                MessageBoxResult.Cancel,
+                MessageBoxResult.No);
 
             if (choice == MessageBoxResult.Yes)
             {
