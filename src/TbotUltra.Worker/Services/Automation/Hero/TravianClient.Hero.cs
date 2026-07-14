@@ -207,25 +207,6 @@ public sealed partial class TravianClient : IHeroClient
     // hero box points to the hero's HOME village; the icon class shows the state). Emits a [herohome] log
     // line the desktop parses. Dead/reviving Official widgets can have an empty href, so those states fall
     // back to /hero/attributes to resolve the village name.
-    private async Task<bool> ClickAdventureButtonOnDorf1Async(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
-        return await _page.EvaluateAsync<bool>(
-            """
-            () => {
-              const candidate =
-                document.querySelector('button.adventureWhite, button.layoutButton.adventureWhite')
-                || document.querySelector('a.adventure[href*="/hero/adventures"], a[href*="/hero/adventures"]')
-                || Array.from(document.querySelectorAll('button')).find(b => /adventure/i.test(b.className || ''));
-              if (!candidate) return false;
-              if (candidate.hasAttribute('disabled') || /\bdisabled\b/.test(candidate.className || '')) return false;
-              candidate.click();
-              return true;
-            }
-            """);
-    }
-
     private async Task OpenAdventureListWithFallbackAsync(CancellationToken cancellationToken)
     {
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load

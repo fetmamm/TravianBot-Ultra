@@ -683,83 +683,6 @@ public sealed partial class TravianClient
         IReadOnlyList<ResourceField> ResourceFields,
         IReadOnlyList<BuildQueueItem> BuildQueue);
 
-    private async Task<IReadOnlyList<ResourceUpgradeCandidate>> RankResourceUpgradeCandidatesAsync(
-        IReadOnlyList<ResourceField> candidates,
-        int targetLevel,
-        int fallbackMaxLevel,
-        IReadOnlyDictionary<string, string> resources,
-        IReadOnlyDictionary<string, double?> productionByHour,
-        CancellationToken cancellationToken)
-    {
-        var ranked = new List<ResourceUpgradeCandidate>();
-        foreach (var candidate in candidates)
-        {
-            var slotId = candidate.SlotId ?? 0;
-            var level = candidate.Level ?? 0;
-            var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
-            var cap = actionability.DetectedMaxLevel ?? fallbackMaxLevel;
-            var effectiveTarget = Math.Min(targetLevel, cap);
-            if (level >= effectiveTarget || actionability.Outcome == UpgradeAttemptOutcome.BlockedByMaxLevel)
-            {
-                continue;
-            }
-
-            var nextLevel = level + 1;
-            var cost = await TryReadLiveResourceUpgradeCostOnCurrentPageAsync(cancellationToken)
-                ?? TryReadCatalogResourceUpgradeCost(candidate, nextLevel);
-            if (cost is null)
-            {
-                ranked.Add(new ResourceUpgradeCandidate(candidate, actionability, long.MaxValue, true, long.MaxValue, false));
-                continue;
-            }
-
-            var evaluation = ResourceSnapshotCalculator.EvaluateUpgradeAffordability(
-                cost.Wood,
-                cost.Clay,
-                cost.Iron,
-                cost.Crop,
-                resources,
-                productionByHour);
-            ranked.Add(new ResourceUpgradeCandidate(
-                candidate,
-                actionability,
-                evaluation.TimeUntilAffordableSeconds,
-                evaluation.HasUnknownWait,
-                evaluation.TotalCost,
-                true));
-        }
-
-        if (ranked.Count == 0)
-        {
-            return candidates.Select(candidate => new ResourceUpgradeCandidate(
-                candidate,
-                null,
-                long.MaxValue,
-                true,
-                long.MaxValue,
-                false)).ToList();
-        }
-
-        if (ranked.All(candidate => !candidate.HasReadableCost))
-        {
-            return candidates.Select(candidate => new ResourceUpgradeCandidate(
-                candidate,
-                null,
-                long.MaxValue,
-                true,
-                long.MaxValue,
-                false)).ToList();
-        }
-
-        return ranked
-            .OrderBy(candidate => candidate.HasUnknownWait)
-            .ThenBy(candidate => candidate.TimeUntilAffordableSeconds)
-            .ThenBy(candidate => candidate.Field.Level ?? 0)
-            .ThenBy(candidate => candidate.TotalCost)
-            .ThenBy(candidate => candidate.Field.SlotId ?? 999)
-            .ToList();
-    }
-
     private async Task<ResourceUpgradeCostSnapshot?> TryReadLiveResourceUpgradeCostOnCurrentPageAsync(CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading resource upgrade costs.", cancellationToken);
@@ -829,54 +752,6 @@ public sealed partial class TravianClient
 
         return new ResourceUpgradeCostSnapshot(wood.Value, clay.Value, iron.Value, crop.Value);
     }
-
-    private static ResourceUpgradeCostSnapshot? TryReadCatalogResourceUpgradeCost(ResourceField candidate, int nextLevel)
-    {
-        var gid = ResolveResourceFieldGid(candidate);
-        if (gid is null)
-        {
-            return null;
-        }
-
-        var stats = BuildingCatalogService.CostFor(gid.Value, nextLevel);
-        return stats is null
-            ? null
-            : new ResourceUpgradeCostSnapshot(stats.Wood, stats.Clay, stats.Iron, stats.Crop);
-    }
-
-    private static int? ResolveResourceFieldGid(ResourceField field)
-    {
-        var raw = $"{field.FieldType} {field.Name}".ToLowerInvariant();
-        if (raw.Contains("wood"))
-        {
-            return 1;
-        }
-
-        if (raw.Contains("clay"))
-        {
-            return 2;
-        }
-
-        if (raw.Contains("iron"))
-        {
-            return 3;
-        }
-
-        if (raw.Contains("crop") || raw.Contains("grain"))
-        {
-            return 4;
-        }
-
-        return null;
-    }
-
-    private sealed record ResourceUpgradeCandidate(
-        ResourceField Field,
-        UpgradeAttemptResult? Actionability,
-        long TimeUntilAffordableSeconds,
-        bool HasUnknownWait,
-        long TotalCost,
-        bool HasReadableCost);
 
     private sealed record ResourceUpgradeCostSnapshot(long Wood, long Clay, long Iron, long Crop);
 

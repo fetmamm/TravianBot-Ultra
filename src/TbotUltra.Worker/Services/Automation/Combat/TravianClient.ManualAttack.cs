@@ -114,109 +114,6 @@ public sealed partial class TravianClient
             """);
     }
 
-    private async Task<ManualAttackSendResult> TrySendManualAttackAsync(
-        string troopType,
-        int troopIndex,
-        long troopCount,
-        int troopVariancePercent,
-        int x,
-        int y,
-        bool raidAttack,
-        CancellationToken cancellationToken)
-    {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared before filling manual farming form.", cancellationToken);
-        var randomizedTroopCount = ResolveRandomizedTroopCount(troopCount, troopVariancePercent);
-        var minimumAcceptedTroopCount = Math.Max(1L, (long)Math.Ceiling(randomizedTroopCount * ManualFarmingMinimumTroopRatio));
-        var fieldToken = $"t{troopIndex}";
-        var availableTroopCount = await WaitForAvailableTroopsAsync(fieldToken, troopType, cancellationToken);
-        if (availableTroopCount == 0)
-        {
-            return new ManualAttackSendResult(
-                ManualAttackSendStatus.StoppedByNoTroopsAlarm,
-                0,
-                0,
-                minimumAcceptedTroopCount);
-        }
-
-        var troopCountToSend = randomizedTroopCount;
-
-        if (availableTroopCount.HasValue)
-        {
-            troopCountToSend = Math.Min(randomizedTroopCount, Math.Max(0L, availableTroopCount.Value));
-            if (troopCountToSend < minimumAcceptedTroopCount)
-            {
-                return new ManualAttackSendResult(
-                    ManualAttackSendStatus.SkippedLowTroops,
-                    availableTroopCount.Value,
-                    troopCountToSend,
-                    minimumAcceptedTroopCount);
-            }
-        }
-
-        await FillFirstAvailableAsync(["input[name='x']", "input[name='xCoord']", "input[id*='xCoord' i]"], x.ToString(CultureInfo.InvariantCulture), cancellationToken);
-        await FillFirstAvailableAsync(["input[name='y']", "input[name='yCoord']", "input[id*='yCoord' i]"], y.ToString(CultureInfo.InvariantCulture), cancellationToken);
-
-        var troopInputFilled = await TryFillTroopInputAsync(fieldToken, troopType, troopCountToSend, cancellationToken);
-        if (!troopInputFilled)
-        {
-            return new ManualAttackSendResult(
-                ManualAttackSendStatus.Failed,
-                availableTroopCount ?? 0L,
-                0,
-                minimumAcceptedTroopCount);
-        }
-
-        var attackModeSelected = await TrySelectAttackModeAsync(raidAttack, cancellationToken);
-        if (!attackModeSelected)
-        {
-            return new ManualAttackSendResult(
-                ManualAttackSendStatus.Failed,
-                availableTroopCount ?? 0L,
-                troopCountToSend,
-                minimumAcceptedTroopCount);
-        }
-
-        var firstConfirmClicked = await TryClickConfirmButtonAsync(cancellationToken);
-        if (!firstConfirmClicked)
-        {
-            return new ManualAttackSendResult(
-                ManualAttackSendStatus.Failed,
-                availableTroopCount ?? 0L,
-                troopCountToSend,
-                minimumAcceptedTroopCount);
-        }
-
-        var confirmationPageReady = await WaitForManualAttackConfirmationPageAsync(cancellationToken);
-        if (!confirmationPageReady)
-        {
-            return new ManualAttackSendResult(
-                ManualAttackSendStatus.Failed,
-                availableTroopCount ?? 0L,
-                troopCountToSend,
-                minimumAcceptedTroopCount);
-        }
-
-        var secondConfirmClicked = await TryClickConfirmButtonAsync(cancellationToken);
-
-        if (!secondConfirmClicked)
-        {
-            return new ManualAttackSendResult(
-                ManualAttackSendStatus.Failed,
-                availableTroopCount ?? 0L,
-                troopCountToSend,
-                minimumAcceptedTroopCount);
-        }
-
-        await WaitForManualAttackCompletionAsync(cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after sending manual farming attack.", cancellationToken);
-        await EnsureLoggedInAsync();
-        return new ManualAttackSendResult(
-            ManualAttackSendStatus.Sent,
-            availableTroopCount ?? troopCountToSend,
-            troopCountToSend,
-            minimumAcceptedTroopCount);
-    }
-
     private async Task<long?> ReadAvailableTroopCountAsync(string fieldToken, CancellationToken cancellationToken)
     {
         await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading available troops.", cancellationToken);
@@ -290,46 +187,6 @@ public sealed partial class TravianClient
             Notify("Page navigated while reading available troops. Continuing without exact availability.");
             return null;
         }
-    }
-
-    private async Task<long?> WaitForAvailableTroopsAsync(string fieldToken, string troopType, CancellationToken cancellationToken)
-    {
-        for (var attempt = 1; attempt <= ManualFarmingNoTroopsRetryAttempts; attempt++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-
-            var availableTroopCount = await ReadAvailableTroopCountAsync(fieldToken, cancellationToken);
-            if (availableTroopCount.GetValueOrDefault() > 0)
-            {
-                return availableTroopCount;
-            }
-
-            if (attempt >= ManualFarmingNoTroopsRetryAttempts)
-            {
-                return 0;
-            }
-
-            Notify(
-                $"Available {troopType.Trim()}: {FormatLargeCount(availableTroopCount.GetValueOrDefault())}. " +
-                $"Waiting {ManualFarmingNoTroopsRetryWaitSeconds}s before retry {attempt + 1}/{ManualFarmingNoTroopsRetryAttempts}. " +
-                $"queue_wait_seconds={ManualFarmingNoTroopsRetryWaitSeconds}");
-            await Task.Delay(TimeSpan.FromSeconds(ManualFarmingNoTroopsRetryWaitSeconds), cancellationToken);
-
-            // The rally point page goes stale while we wait, so the next ReadAvailableTroopCountAsync
-            // would re-read the old (zero) troop count. Reload so returning troops are picked up.
-            try
-            {
-                await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
-                    .WaitAsync(cancellationToken);
-                await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-            }
-            catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
-            {
-                Notify("Page navigated while refreshing troop availability. Continuing.");
-            }
-        }
-
-        return 0;
     }
 
     private async Task<bool> TryFillTroopInputAsync(string fieldToken, string troopType, long troopCountToSend, CancellationToken cancellationToken)
@@ -563,20 +420,6 @@ public sealed partial class TravianClient
         return false;
     }
 
-    private sealed record ManualAttackSendResult(
-        ManualAttackSendStatus Status,
-        long AvailableTroopCount,
-        long SentTroopCount,
-        long MinimumAcceptedTroopCount);
-
-    private enum ManualAttackSendStatus
-    {
-        Failed = 0,
-        SkippedLowTroops = 1,
-        Sent = 2,
-        StoppedByNoTroopsAlarm = 3,
-    }
-
     private static string FormatLargeCount(long value)
     {
         return Math.Max(0, value).ToString("#,0", CultureInfo.InvariantCulture);
@@ -595,25 +438,6 @@ public sealed partial class TravianClient
             > int.MaxValue => int.MaxValue,
             _ => (int)value.Value,
         };
-    }
-
-    private static long ResolveRandomizedTroopCount(long troopCount, int troopVariancePercent)
-    {
-        var normalizedTroopCount = Math.Max(1L, troopCount);
-        var normalizedVariancePercent = troopVariancePercent switch
-        {
-            0 or 5 or 10 or 20 or 50 => troopVariancePercent,
-            _ => 10,
-        };
-
-        if (normalizedVariancePercent <= 0)
-        {
-            return normalizedTroopCount;
-        }
-
-        var min = Math.Max(1L, (long)Math.Floor(normalizedTroopCount * (100d - normalizedVariancePercent) / 100d));
-        var max = Math.Max(min, (long)Math.Ceiling(normalizedTroopCount * (100d + normalizedVariancePercent) / 100d));
-        return Random.Shared.NextInt64(min, max + 1);
     }
 
 }

@@ -953,8 +953,6 @@ public sealed partial class TravianClient
             .ToList();
     }
 
-    private void InvalidateVillagesCache() => _cachedVillagesAt = DateTimeOffset.MinValue;
-
     private void UpdateCachedVillages(IReadOnlyList<Village> villages)
     {
         if (villages.Count == 0)

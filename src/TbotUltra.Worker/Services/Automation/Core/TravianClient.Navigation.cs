@@ -34,15 +34,6 @@ public sealed partial class TravianClient
             string.IsNullOrWhiteSpace(reason) ? "Click" : $"Click: {reason}");
     }
 
-    private Task DelayFarmListStepAsync(CancellationToken cancellationToken)
-    {
-        return new ActionPacer(enabled: true, Notify).DelayAsync(
-            _config.FarmListStepDelayMinSeconds,
-            _config.FarmListStepDelayMaxSeconds,
-            cancellationToken,
-            "Farm list: step");
-    }
-
     // Types a value into an input the way a person would: focus (real mouse click), clear, then enter the
     // characters one at a time with a small randomized cadence between keystrokes. This produces genuine
     // per-character keydown/keyup/input events instead of an instant paste, which looks far more human while

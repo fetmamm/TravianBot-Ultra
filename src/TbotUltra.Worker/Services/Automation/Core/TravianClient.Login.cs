@@ -698,39 +698,6 @@ public sealed partial class TravianClient : ISessionClient
         }
     }
 
-    private async Task<bool> TryClickFirstAsync(IEnumerable<string> selectors, CancellationToken cancellationToken)
-    {
-        foreach (var selector in selectors)
-        {
-            var locator = _page.Locator(selector).First;
-            if (await locator.CountAsync() == 0)
-            {
-                continue;
-            }
-
-            try
-            {
-                await RetryAsync($"click selector {selector}", async () =>
-                {
-                    await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
-                    await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
-                }, cancellationToken: cancellationToken);
-                await PauseForManualStepIfVisibleAsync("Manual verification appeared after click.", cancellationToken);
-                return true;
-            }
-            catch (PlaywrightException)
-            {
-                // Try next selector.
-            }
-            catch (TimeoutException)
-            {
-                // Try next selector.
-            }
-        }
-
-        return false;
-    }
-
     private async Task<bool> TryClickFirstVisibleEnabledAsync(
         string selector,
         CancellationToken cancellationToken,

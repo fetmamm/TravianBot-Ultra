@@ -16,10 +16,6 @@ public sealed partial class TravianClient
 {
     private const int OfficialFarmListCapacity = 100;
     private const int MaxFarmsPerFarmList = 120;
-    private const double ManualFarmingMinimumTroopRatio = 0.5d;
-    private const int ManualFarmingMaxConsecutiveLowTroopSkips = 3;
-    private const int ManualFarmingNoTroopsRetryAttempts = 3;
-    private const int ManualFarmingNoTroopsRetryWaitSeconds = 10;
     private static readonly string[] CaptchaDetectionSelectors =
     [
         "input[name*='captcha' i]",
@@ -55,7 +51,6 @@ public sealed partial class TravianClient
     private DateTimeOffset _lastManualVerificationScreenshotAt = DateTimeOffset.MinValue;
     private string? _cachedTribe;
     private readonly TravianSessionCache _session;
-    private static readonly TimeSpan TribePlusCacheTtl = TimeSpan.FromMinutes(10);
     private static readonly TimeSpan ResourceReadLogInterval = TimeSpan.FromMinutes(2);
     // These caches are backed by the shared session cache (_session) so they survive across the
     // short-lived TravianClient instances created per operation for the same browser session.

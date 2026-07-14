@@ -493,31 +493,4 @@ public sealed partial class TravianClient
         }
     }
 
-    private static string GetHeroAttributeDisplayName(string stat) => stat switch
-    {
-        "fighting_strength" => "Fighting strength",
-        "offence_bonus" => "Offence bonus",
-        "defence_bonus" => "Defence bonus",
-        "resources" => "Resources",
-        _ => stat,
-    };
-
-    private static int GetHeroAttributeValue(HeroAttributeSnapshot snapshot, string stat) => stat switch
-    {
-        "fighting_strength" => snapshot.FightingStrength,
-        "offence_bonus" => snapshot.OffenceBonus,
-        "defence_bonus" => snapshot.DefenceBonus,
-        "resources" => snapshot.Resources,
-        _ => 0,
-    };
-
-    private static HeroAttributeSnapshot SetHeroAttributeValue(HeroAttributeSnapshot snapshot, string stat, int value) => stat switch
-    {
-        "fighting_strength" => snapshot with { FightingStrength = value },
-        "offence_bonus" => snapshot with { OffenceBonus = value },
-        "defence_bonus" => snapshot with { DefenceBonus = value },
-        "resources" => snapshot with { Resources = value },
-        _ => snapshot,
-    };
-
 }

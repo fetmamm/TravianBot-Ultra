@@ -86,25 +86,6 @@ public sealed partial class TravianClient
         SaveCachedCapitalState(activeVillage, isCapital);
     }
 
-    private async Task RefreshCapitalStatesFromPlayerProfileAsync(CancellationToken cancellationToken)
-    {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading capital states.", cancellationToken);
-        await EnsureLoggedInAsync();
-
-        // ReadVillagesAsync visits spieler.php (or returns the session cache) and already calls
-        // SaveCachedVillageState for each village. We just need to log the capital detection.
-        var villages = await ReadVillagesAsync(cancellationToken);
-        if (villages.Count == 0)
-        {
-            Notify("Capital detection: no village data found - falling back to active village check.");
-            await RefreshCapitalStateForActiveVillageAsync(cancellationToken);
-            return;
-        }
-
-        var capitalName = villages.FirstOrDefault(v => v.IsCapital == true)?.Name ?? string.Empty;
-        Notify($"Capital detection: identified capital village as '{(string.IsNullOrWhiteSpace(capitalName) ? "(none)" : capitalName)}'. Found {villages.Count} villages with coords.");
-    }
-
     private async Task<string?> TryReadActiveVillageNameSafeAsync(CancellationToken cancellationToken)
     {
         Notify("[scan:verbose] reading active village name from page");

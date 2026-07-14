@@ -2033,20 +2033,6 @@ public sealed partial class TravianClient : IBuildingClient
         }
     }
 
-    private static Building? ResolveTargetBuilding(VillageStatus status, string targetBuildingSlotOrName)
-    {
-        if (int.TryParse(targetBuildingSlotOrName.Trim(), out var slotId))
-        {
-            return status.Buildings.FirstOrDefault(item => item.SlotId == slotId);
-        }
-
-        return status.Buildings
-            .Where(item => item.Level is > 0)
-            .OrderByDescending(item => item.Level ?? 0)
-            .FirstOrDefault(item =>
-                item.Name.Contains(targetBuildingSlotOrName.Trim(), StringComparison.OrdinalIgnoreCase));
-    }
-
     private async Task<bool> TryStartDemolitionStepAsync(
         int mainBuildingSlotId,
         int targetSlotId,
@@ -2203,51 +2189,6 @@ public sealed partial class TravianClient : IBuildingClient
         return waitedAtLeastOnce;
     }
 
-    private async Task<Building?> WaitForDemolitionLevelChangeAsync(
-        int slotId,
-        int previousLevel,
-        CancellationToken cancellationToken)
-    {
-        var statusAfterStart = await ReadVillageStatusAsync(cancellationToken);
-        var queueWaitSeconds = Math.Max(20, (statusAfterStart.BuildQueueRemainingSeconds ?? 0) + 30);
-        var deadlineUtc = DateTimeOffset.UtcNow.AddSeconds(queueWaitSeconds);
-
-        while (DateTimeOffset.UtcNow < deadlineUtc)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await Task.Delay(TimeSpan.FromSeconds(5), cancellationToken);
-
-            var currentStatus = await ReadVillageStatusAsync(cancellationToken);
-            var current = currentStatus.Buildings.FirstOrDefault(item => item.SlotId == slotId);
-            var currentLevel = current?.Level ?? 0;
-            if (current is null || currentLevel < previousLevel || !IsOccupiedBuilding(current))
-            {
-                return current;
-            }
-        }
-
-        return statusAfterStart.Buildings.FirstOrDefault(item => item.SlotId == slotId);
-    }
-
-    private static bool IsOccupiedBuilding(Building? building)
-    {
-        if (building is null)
-        {
-            return false;
-        }
-
-        if ((building.Gid ?? 0) <= 0
-            && ((building.Level ?? 0) <= 0
-                || string.IsNullOrWhiteSpace(building.Name)
-                || string.Equals(building.Name, "Empty", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(building.Name, "g0", StringComparison.OrdinalIgnoreCase)))
-        {
-            return false;
-        }
-
-        return true;
-    }
-
     public Task<string> ReadTribeOnlyAsync(CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
@@ -2327,23 +2268,6 @@ public sealed partial class TravianClient : IBuildingClient
         }
     }
 
-
-    private async Task<int> ResolveBuildingMaxLevelAsync(Building building, int slotId, CancellationToken cancellationToken)
-    {
-        var configured = BuildingNames.MaxLevelFor(building);
-        var actionability = await AnalyzeUpgradeActionabilityAsync(slotId, cancellationToken, performClick: false);
-        if (actionability.DetectedMaxLevel is int detected && detected > 0)
-        {
-            if (detected != configured)
-            {
-                Notify($"Building max level override for slot {slotId} ({building.Name}): configured={configured}, detected={detected}");
-            }
-
-            return detected;
-        }
-
-        return configured;
-    }
 
     private async Task<UpgradeProgressResult> WaitForBuildingLevelAdvanceAsync(
         int slotId,
@@ -2624,23 +2548,6 @@ public sealed partial class TravianClient : IBuildingClient
         {
             return currentLevel;
         }
-    }
-
-    private static void EnsureBuildingRequirementsMet(VillageStatus status, int? gid, string name)
-    {
-        if (gid is null)
-        {
-            return;
-        }
-
-        var missing = MissingBuildingRequirements(status, gid.Value);
-        if (missing.Count == 0)
-        {
-            return;
-        }
-
-        var requirements = string.Join(", ", missing.Select(item => $"{item.name} level {item.level}"));
-        throw new InvalidOperationException($"{name} cannot be upgraded yet. Missing requirements: {requirements}.");
     }
 
     private static void EnsureBuildingCanBeConstructed(VillageStatus status, int gid, string name)
