@@ -1328,37 +1328,16 @@ public partial class AccountsWindow : Window
             scheme = "socks5";
         }
 
-        var host = ProxyHostTextBox?.Text.Trim() ?? string.Empty;
-        var port = ProxyPortTextBox?.Text.Trim() ?? string.Empty;
-        if (host.Length == 0 && port.Length == 0)
-        {
-            return string.Empty;
-        }
-
-        return $"{scheme}://{host}:{port}";
+        return AccountEditorState.BuildProxyServer(scheme, ProxyHostTextBox?.Text, ProxyPortTextBox?.Text);
     }
 
     private string ValidateCurrentProxyFields()
     {
-        var proxyServer = BuildProxyServerString();
-        var proxyHost = ProxyHostTextBox?.Text.Trim() ?? string.Empty;
-        var proxyPort = ProxyPortTextBox?.Text.Trim() ?? string.Empty;
-        if (proxyHost.Length == 0 || proxyPort.Length == 0)
-        {
-            throw new InvalidOperationException("Enter proxy IP and port first.");
-        }
-
-        if (proxyHost.Any(char.IsWhiteSpace) || proxyHost.Contains("://", StringComparison.Ordinal) || proxyHost.Contains(':'))
-        {
-            throw new InvalidOperationException("Proxy IP must not contain spaces, scheme, or port.");
-        }
-
-        if (!int.TryParse(proxyPort, out var parsedPort) || parsedPort is < 1 or > 65535)
-        {
-            throw new InvalidOperationException("Proxy port must be a number between 1 and 65535.");
-        }
-
-        return proxyServer;
+        var scheme = (ProxySchemeComboBox?.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString();
+        return AccountEditorState.ValidateProxyFieldsForCheck(
+            scheme,
+            ProxyHostTextBox?.Text,
+            ProxyPortTextBox?.Text);
     }
 
     private void ShowProxyCheckOverlay(string title, string status, bool completed)

@@ -46,9 +46,7 @@ internal static class AccountEditorState
         var proxyHost = input.ProxyHost.Trim();
         var proxyPort = input.ProxyPort.Trim();
         var proxyScheme = string.IsNullOrWhiteSpace(input.ProxyScheme) ? "socks5" : input.ProxyScheme.Trim();
-        var proxyServer = proxyHost.Length == 0 && proxyPort.Length == 0
-            ? string.Empty
-            : $"{proxyScheme}://{proxyHost}:{proxyPort}";
+        var proxyServer = BuildProxyServer(proxyScheme, proxyHost, proxyPort);
         if (proxyEnabled || neverUseOwnIp)
         {
             if (proxyHost.Length == 0 || proxyPort.Length == 0)
@@ -56,14 +54,12 @@ internal static class AccountEditorState
                 throw new InvalidOperationException("Proxy host/IP and port are required when proxy protection is on.");
             }
 
-            if (proxyHost.Any(char.IsWhiteSpace)
-                || proxyHost.Contains("://", StringComparison.Ordinal)
-                || proxyHost.Contains(':'))
+            if (!IsValidProxyHost(proxyHost))
             {
                 throw new InvalidOperationException("Proxy host/IP must not contain spaces, scheme, or port. Use the separate type and port fields.");
             }
 
-            if (!int.TryParse(proxyPort, out var parsedPort) || parsedPort is < 1 or > 65535)
+            if (!IsValidProxyPort(proxyPort))
             {
                 throw new InvalidOperationException("Proxy port must be a number between 1 and 65535.");
             }
@@ -91,6 +87,38 @@ internal static class AccountEditorState
             ProxyServer = proxyServer,
             NeverUseOwnIp = neverUseOwnIp,
         };
+    }
+
+    internal static string BuildProxyServer(string? scheme, string? host, string? port)
+    {
+        var normalizedScheme = string.IsNullOrWhiteSpace(scheme) ? "socks5" : scheme.Trim();
+        var normalizedHost = host?.Trim() ?? string.Empty;
+        var normalizedPort = port?.Trim() ?? string.Empty;
+        return normalizedHost.Length == 0 && normalizedPort.Length == 0
+            ? string.Empty
+            : $"{normalizedScheme}://{normalizedHost}:{normalizedPort}";
+    }
+
+    internal static string ValidateProxyFieldsForCheck(string? scheme, string? host, string? port)
+    {
+        var normalizedHost = host?.Trim() ?? string.Empty;
+        var normalizedPort = port?.Trim() ?? string.Empty;
+        if (normalizedHost.Length == 0 || normalizedPort.Length == 0)
+        {
+            throw new InvalidOperationException("Enter proxy IP and port first.");
+        }
+
+        if (!IsValidProxyHost(normalizedHost))
+        {
+            throw new InvalidOperationException("Proxy IP must not contain spaces, scheme, or port.");
+        }
+
+        if (!IsValidProxyPort(normalizedPort))
+        {
+            throw new InvalidOperationException("Proxy port must be a number between 1 and 65535.");
+        }
+
+        return BuildProxyServer(scheme, normalizedHost, normalizedPort);
     }
 
     internal static bool HasChanges(AccountEditorSnapshot baseline, AccountEditorSnapshot current)
@@ -148,4 +176,12 @@ internal static class AccountEditorState
         var latency = entry.LatencyMs is > 0 ? $"{entry.LatencyMs} ms" : "Not tested";
         return $"{entry.CountryDisplay} · {entry.HostPort} · {accountName} · {serverName} · {latency}";
     }
+
+    private static bool IsValidProxyHost(string host) =>
+        !host.Any(char.IsWhiteSpace)
+        && !host.Contains("://", StringComparison.Ordinal)
+        && !host.Contains(':');
+
+    private static bool IsValidProxyPort(string port) =>
+        int.TryParse(port, out var parsedPort) && parsedPort is >= 1 and <= 65535;
 }

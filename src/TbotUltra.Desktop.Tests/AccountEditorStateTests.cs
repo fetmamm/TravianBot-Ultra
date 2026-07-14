@@ -7,6 +7,25 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class AccountEditorStateTests
 {
     [Fact]
+    public void BuildProxyServer_NormalizesFieldsAndUsesDefaultScheme()
+    {
+        Assert.Equal("socks5://127.0.0.1:1080", AccountEditorState.BuildProxyServer(null, " 127.0.0.1 ", " 1080 "));
+        Assert.Equal(string.Empty, AccountEditorState.BuildProxyServer("http", " ", " "));
+    }
+
+    [Theory]
+    [InlineData("", "1080", "Enter proxy IP and port first.")]
+    [InlineData("http://host", "1080", "Proxy IP must not contain spaces, scheme, or port.")]
+    [InlineData("host", "70000", "Proxy port must be a number between 1 and 65535.")]
+    public void ValidateProxyFieldsForCheck_PreservesValidationMessages(string host, string port, string message)
+    {
+        var error = Assert.Throws<InvalidOperationException>(() =>
+            AccountEditorState.ValidateProxyFieldsForCheck("http", host, port));
+
+        Assert.Equal(message, error.Message);
+    }
+
+    [Fact]
     public void HasChanges_UsesCaseInsensitiveServerUrlButExactCredentialsAndProxy()
     {
         var baseline = Snapshot(serverUrl: "https://Example.com", username: "user");
