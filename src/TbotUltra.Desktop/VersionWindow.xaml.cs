@@ -96,16 +96,17 @@ public partial class VersionWindow : Window
         var hasAsset = release?.PortableDownloadUrl is not null;
         DownloadButton.IsEnabled = !_busy && hasAsset;
 
-        // One-click update is only usable in the published portable build (exe 'Tbot Ultra.exe').
-        // In other builds (dev/repo) the button stays visible but disabled, with the reason as a
-        // tooltip, so it is clear the feature exists but cannot run here.
+        // Always show one-click update so the feature is discoverable. It is only clickable when a
+        // newer portable release exists and this is the published build (exe 'Tbot Ultra.exe').
         var updateAvailable = _status?.UpdateAvailable == true && hasAsset;
         var canSelfUpdate = updateAvailable && SelfUpdater.IsSupported(_currentVersion);
-        UpdateRestartButton.Visibility = updateAvailable ? Visibility.Visible : Visibility.Collapsed;
+        UpdateRestartButton.Visibility = Visibility.Visible;
         UpdateRestartButton.IsEnabled = !_busy && canSelfUpdate;
-        UpdateRestartButton.ToolTip = updateAvailable && !canSelfUpdate
-            ? "Self-update is only available in the portable build (Tbot Ultra.exe)."
-            : null;
+        UpdateRestartButton.ToolTip = !updateAvailable
+            ? "No newer portable version is available."
+            : !canSelfUpdate
+                ? "Self-update is only available in the portable build (Tbot Ultra.exe)."
+                : "Download, install, and restart Tbot Ultra.";
     }
 
     private async void UpdateRestartButton_Click(object sender, RoutedEventArgs e)
