@@ -733,58 +733,6 @@ public partial class AccountsWindow : Window
         }
     }
 
-    private async void ValidateProxySetupButton_Click(object sender, RoutedEventArgs e)
-        => await AsyncUi.GuardAsync(ValidateProxySetupAsync, message => System.Diagnostics.Debug.WriteLine(message));
-
-    private async Task ValidateProxySetupAsync()
-    {
-        var accountName = ResolveCurrentEditorAccountName();
-        if (string.IsNullOrWhiteSpace(accountName) || UseProxyRotationCheckBox.IsChecked != true)
-        {
-            AppDialog.Show(this, "Configure and select at least one scheduled proxy first.", "Validate proxy setup", MessageBoxButton.OK, MessageBoxImage.Information);
-            return;
-        }
-
-        ValidateProxySetupButton.IsEnabled = false;
-        try
-        {
-            using var cts = new CancellationTokenSource(TimeSpan.FromMinutes(2));
-            var tester = new ProxyListTester();
-            var selected = _editorProxyPlan.Assignments
-                .Select(assignment => _proxyLibraryEntries.FirstOrDefault(proxy => string.Equals(proxy.Id, assignment.ProxyId, StringComparison.OrdinalIgnoreCase)))
-                .Where(proxy => proxy is not null)
-                .Cast<ProxyLibraryEntry>()
-                .ToList();
-            for (var index = 0; index < selected.Count; index++)
-            {
-                var proxy = selected[index];
-                InfoTextBlock.Text = $"Testing proxy {index + 1} of {selected.Count}: {proxy.DisplayName}…";
-                var probe = await tester.TestServerAgainstTargetAsync(
-                    proxy.Server,
-                    (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl ?? _defaultServerUrl,
-                    cts.Token);
-                proxy.IsWorking = probe.Success;
-                proxy.LatencyMs = probe.LatencyMs > 0 ? probe.LatencyMs : proxy.LatencyMs;
-                proxy.LastFailureUtc = probe.Success ? null : probe.LatencyMs <= 0 ? DateTime.UtcNow : proxy.LastFailureUtc;
-            }
-
-            _proxyLibraryStore.Save(_proxyLibraryEntries);
-            var account = ReadEditor();
-            account.Name = accountName;
-            var result = ValidateEditorProxyPlan(account, requireHealth: true);
-            var text = result.Issues.Count == 0
-                ? "Setup is valid. All selected proxies passed the stability and Travian tests."
-                : string.Join("\n", result.Issues.Select(issue => $"{(issue.Severity == ProxyPlanIssueSeverity.Error ? "ERROR" : "WARNING")}: {issue.Message}"));
-            AppDialog.Show(this, text, "Validate proxy setup", MessageBoxButton.OK,
-                result.IsValid ? MessageBoxImage.Information : MessageBoxImage.Warning);
-            InfoTextBlock.Text = result.IsValid ? "Proxy setup is valid." : "Proxy setup contains errors.";
-        }
-        finally
-        {
-            ValidateProxySetupButton.IsEnabled = true;
-        }
-    }
-
     private ProxyPlanValidationResult ValidateEditorProxyPlan(AccountEntry entry, bool requireHealth)
     {
         var settings = ReadProxyPlanSettings(entry.Name);

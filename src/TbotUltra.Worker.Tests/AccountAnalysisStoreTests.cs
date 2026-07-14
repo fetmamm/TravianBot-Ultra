@@ -116,6 +116,28 @@ public sealed class AccountAnalysisStoreTests : IDisposable
         Assert.False(File.Exists(legacyPath));
     }
 
+    [Fact]
+    public void Save_SerializesConcurrentWritersAndLeavesValidJson()
+    {
+        Parallel.For(0, 20, index =>
+        {
+            _store.Save(new AccountAnalysisSnapshot(
+                SchemaVersion: 1,
+                AnalyzedAtUtc: DateTimeOffset.UtcNow,
+                AccountName: "shared",
+                ServerUrl: "https://example.com",
+                Tribe: index % 2 == 0 ? "Romans" : "Gauls",
+                GoldClubEnabled: true,
+                BuildingCatalog: []));
+        });
+
+        Assert.True(_store.TryLoad("shared", out var result, "https://example.com"));
+        Assert.NotNull(result);
+        Assert.Contains(result!.Tribe, new[] { "Romans", "Gauls" });
+        var directory = Path.GetDirectoryName(_store.GetFilePath("shared", "https://example.com"))!;
+        Assert.Empty(Directory.EnumerateFiles(directory, "*.tmp"));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

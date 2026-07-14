@@ -285,22 +285,27 @@
                     </Grid>
                 </Grid>
 
-                <Border Grid.Row="5" Grid.ColumnSpan="2" Margin="0,6,0,6" Padding="10"
-                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="5">
+                <Border Grid.Row="5" Grid.ColumnSpan="2" Margin="0,6,0,6" Padding="14,12"
+                        Background="{DynamicResource ControlBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8">
                     <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="Auto" />
-                        </Grid.ColumnDefinitions>
-                        <StackPanel>
-                            <TextBlock Text="PROXY ROTATION" FontSize="10" FontWeight="SemiBold" Foreground="{DynamicResource SlateTextBrush}" />
-                            <TextBlock x:Name="ProxyPlanSummaryTextBlock" Text="Single proxy mode" Margin="0,3,10,0" TextWrapping="Wrap" />
-                            <TextBlock x:Name="ProxyPlanNextTextBlock" Margin="0,2,10,0" FontSize="11" Foreground="{DynamicResource SlateTextBrush}" />
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="*" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                        <StackPanel Grid.Row="0" Orientation="Horizontal">
+                            <Ellipse Width="7" Height="7" Fill="{DynamicResource InfoBrush}" VerticalAlignment="Center" Margin="0,0,7,0" />
+                            <TextBlock Text="PROXY ROTATION" FontSize="10" FontWeight="SemiBold"
+                                       Foreground="{DynamicResource SlateTextBrush}" VerticalAlignment="Center" />
                         </StackPanel>
-                        <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
-                            <Button x:Name="ProxyScheduleButton" Content="Schedule…" Width="95" Click="ProxyScheduleButton_Click" />
-                            <Button x:Name="ValidateProxySetupButton" Content="Validate setup" Width="110" Margin="8,0,0,0" Click="ValidateProxySetupButton_Click" />
-                        </StackPanel>
+                        <TextBlock x:Name="ProxyPlanSummaryTextBlock" Grid.Row="1" Text="Single proxy mode"
+                                   Margin="0,7,0,0" FontSize="14" FontWeight="SemiBold" TextWrapping="Wrap" />
+                        <TextBlock x:Name="ProxyPlanNextTextBlock" Grid.Row="2" Margin="0,5,0,10" FontSize="11"
+                                   Foreground="{DynamicResource SlateTextBrush}" TextWrapping="Wrap" />
+                        <Button x:Name="ProxyScheduleButton" Grid.Row="3" Content="Schedule…" Width="100"
+                                HorizontalAlignment="Left" Click="ProxyScheduleButton_Click" />
                     </Grid>
                 </Border>
 

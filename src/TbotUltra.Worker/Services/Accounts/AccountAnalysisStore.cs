@@ -1,3 +1,5 @@
+using System.Collections.Concurrent;
+using System.Diagnostics;
 using System.Text.Json;
 using TbotUltra.Core.Accounts;
 using TbotUltra.Worker.Domain;
@@ -6,6 +8,7 @@ namespace TbotUltra.Worker.Services;
 
 public sealed class AccountAnalysisStore
 {
+    private static readonly ConcurrentDictionary<string, object> FileLocks = new(StringComparer.OrdinalIgnoreCase);
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -65,7 +68,7 @@ public sealed class AccountAnalysisStore
 
         try
         {
-            var raw = File.ReadAllText(filePath);
+            var raw = RetryFileIo(() => File.ReadAllText(filePath), filePath, "read");
             if (string.IsNullOrWhiteSpace(raw))
             {
                 return false;
@@ -110,9 +113,14 @@ public sealed class AccountAnalysisStore
             throw new InvalidOperationException("Account analysis path is invalid.");
         }
 
-        Directory.CreateDirectory(directory);
-        File.WriteAllText(filePath, JsonSerializer.Serialize(analysis, JsonOptions));
-        DeleteFileIfExists(AccountStoragePaths.LegacyAnalysisPath(_rootPath, analysis.AccountName, analysis.ServerUrl));
+        var content = JsonSerializer.Serialize(analysis, JsonOptions);
+        var fileLock = FileLocks.GetOrAdd(filePath, static _ => new object());
+        lock (fileLock)
+        {
+            Directory.CreateDirectory(directory);
+            WriteAtomically(filePath, content);
+            DeleteFileIfExists(AccountStoragePaths.LegacyAnalysisPath(_rootPath, analysis.AccountName, analysis.ServerUrl));
+        }
     }
 
     public void Delete(string accountName, string? serverUrl = null)
@@ -125,7 +133,56 @@ public sealed class AccountAnalysisStore
     {
         if (File.Exists(filePath))
         {
-            File.Delete(filePath);
+            RetryFileIo(() =>
+            {
+                File.Delete(filePath);
+                return true;
+            }, filePath, "delete");
+        }
+    }
+
+    private static void WriteAtomically(string filePath, string content)
+    {
+        var tempPath = $"{filePath}.{Guid.NewGuid():N}.tmp";
+        try
+        {
+            RetryFileIo(() =>
+            {
+                File.WriteAllText(tempPath, content);
+                File.Move(tempPath, filePath, overwrite: true);
+                return true;
+            }, filePath, "save");
+        }
+        finally
+        {
+            try
+            {
+                if (File.Exists(tempPath))
+                {
+                    File.Delete(tempPath);
+                }
+            }
+            catch
+            {
+                // Best-effort cleanup. A uniquely named stale temp file cannot corrupt the snapshot.
+            }
+        }
+    }
+
+    private static T RetryFileIo<T>(Func<T> action, string filePath, string operation)
+    {
+        const int maxAttempts = 5;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                return action();
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && attempt < maxAttempts)
+            {
+                Debug.WriteLine($"[analysis-store] transient {operation} lock for '{filePath}' on attempt {attempt}/{maxAttempts}: {ex.Message}");
+                Thread.Sleep(40 * attempt);
+            }
         }
     }
 }

@@ -133,7 +133,8 @@ document.querySelector('.warehouse .capacity .value')
 - Config-/cache-stores skriver via `AtomicFile.WriteAllText` (temp-fil + `File.Move`); nya stores ska folja samma monster.
 - All fil-IO under OneDrive-synkade Documents ska retry:a bade `IOException` och `UnauthorizedAccessException`
   (transient ERROR_ACCESS_DENIED fran OneDrive/antivirus). Finns i `AtomicFile.RetryFileIo`,
-  `JsonQueueStore.RetryFileIo` och `BrowserSession.ReplaceStorageStateWithRetryAsync`.
+  `JsonQueueStore.RetryFileIo`, `AccountAnalysisStore` och `BrowserSession.ReplaceStorageStateWithRetryAsync`.
+  Account analysis skriver via unik tempfil + atomisk move och serialiserar samtidiga skrivare per malfil.
 - Korrupt `queue.json` kastas inte langre for evigt: `JsonQueueStore.LoadMutable` karantaniserar filen
   (`queue.json.corrupt-<stamp>`), loggar och fortsatter med tom ko.
 - Post-defer construction-refresh (`RefreshConstructionStatusAfterDeferAsync`) laser byggko+storage fran
@@ -181,6 +182,7 @@ document.querySelector('.warehouse .capacity .value')
   dialogens `Validate and save` ar gron primaratgard. Om testet ger varningar stannar editorn oppen sa
   anvandaren kan lasa dem; ett efterfoljande `Save` godkanner och sparar det redan validerade schemat.
   Proxy schedule visar samma serverdatum/-tid och format som dashboardens Time-kort via `ServerTimeClock`.
+  Manage accounts visar bara `Schedule...` i proxyrotationskortet; all setup-validering kors i schedule-editorn.
   `Manage accounts > Use proxy rotation` ar den explicita av/på-brytaren; OFF behaller schemat men kor den
   vanliga enskilda proxyn, ON kraver minst tva valda proxies och en giltig aktiv plan.
 - Defer-orsaker ska konsumeras typat: `TaskWaitException.ReasonCode` (`TaskWaitReasons.*`), harledd pa ETT
