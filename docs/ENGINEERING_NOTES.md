@@ -168,9 +168,15 @@ document.querySelector('.warehouse .capacity .value')
   far nasta relevanta proxygrans och kortar vid behov run-perioden sa bytet sker utloggat under ordinarie sleep;
   Allowed hours/daily max vinner alltid. Aktiv plan valideras mot proxybibliotek, pacing och Allowed hours bade
   vid konto-/Settings-save och fore login. `Never use own IP` kraver full proxytackning av alla tillatna timmar;
+  nar den ar av betyder schemaglapp direktanslutning utan varning. Olika proxies far overlappa som primar +
+  fallback; forsta raden ar ordinarie val och recovery kan prova ovriga kontoproxies.
   ogiltig plan far aldrig sparas som aktiv eller starta browsern. Editorn visar Allowed hours som bla statusrutor
   over en checkbox-rad per proxy med endast All days/Weekdays/Weekends som dagval. Gron `Save` sparar och
   aktiverar direkt; om natverkstest inte har korts valjer anvandaren att validera, hoppa over halsotestet eller avbryta.
+  Saved proxies visar land, IP:port, lasbart kontonamn, kort servernamn och senaste latency; valt kontos
+  tilldelade proxies sorteras forst och varje grupp sorteras med lagst kanda latency forst.
+  Proxy schedule lankar till Proxy list, och Proxy list lankar till Proxy finder; manuellt tillagg heter
+  `Manual add proxy` sa de tre proxyflodena ar tydligt atskilda men kan nas fran varandra.
   `Manage accounts > Use proxy rotation` ar den explicita av/på-brytaren; OFF behaller schemat men kor den
   vanliga enskilda proxyn, ON kraver minst tva valda proxies och en giltig aktiv plan.
 - Defer-orsaker ska konsumeras typat: `TaskWaitException.ReasonCode` (`TaskWaitReasons.*`), harledd pa ETT

@@ -164,7 +164,8 @@
                             Click="DeleteFailedProxiesButton_Click" />
                 </StackPanel>
                 <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                    <Button Width="100" Margin="0,0,8,0" Content="Add proxy" Click="AddProxyButton_Click" />
+                    <Button Width="100" Margin="0,0,8,0" Content="Proxy finder" Click="ProxyFinderButton_Click" />
+                    <Button Width="130" Margin="0,0,8,0" Content="Manual add proxy" Click="ManualAddProxyButton_Click" />
                     <Button Width="100" Margin="0,0,8,0" Content="Save" Click="SaveButton_Click" />
                     <Button Width="100" Content="Close" Click="CloseButton_Click" />
                 </StackPanel>

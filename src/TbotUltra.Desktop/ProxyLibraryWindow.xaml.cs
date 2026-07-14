@@ -55,7 +55,7 @@ public partial class ProxyLibraryWindow : Window
         Close();
     }
 
-    private void AddProxyButton_Click(object sender, RoutedEventArgs e)
+    private void ManualAddProxyButton_Click(object sender, RoutedEventArgs e)
     {
         var nameBox = new TextBox { Text = "New proxy", MinWidth = 260 };
         var schemeBox = new ComboBox { Width = 100, SelectedValuePath = "Tag" };
@@ -79,7 +79,7 @@ public partial class ProxyLibraryWindow : Window
         AddDialogRow(panel, 2, "Host/IP", hostBox);
         AddDialogRow(panel, 3, "Port", portBox);
 
-        var result = AppDialog.ShowContent(this, panel, "Add proxy", MessageBoxButton.OKCancel, MessageBoxImage.Question, MessageBoxResult.OK);
+        var result = AppDialog.ShowContent(this, panel, "Manual add proxy", MessageBoxButton.OKCancel, MessageBoxImage.Question, MessageBoxResult.OK);
         if (result != MessageBoxResult.OK)
         {
             return;
@@ -89,7 +89,7 @@ public partial class ProxyLibraryWindow : Window
         var host = hostBox.Text.Trim();
         if (!int.TryParse(portBox.Text.Trim(), out var port) || port is < 1 or > 65535 || host.Length == 0 || host.Any(char.IsWhiteSpace))
         {
-            AppDialog.Show(this, "Enter a valid host/IP and port.", "Add proxy", MessageBoxButton.OK, MessageBoxImage.Warning);
+            AppDialog.Show(this, "Enter a valid host/IP and port.", "Manual add proxy", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
 
@@ -105,6 +105,24 @@ public partial class ProxyLibraryWindow : Window
         ProxyDataGrid.Items.Refresh();
         ProxyDataGrid.SelectedItem = entry;
         ProxyDataGrid.ScrollIntoView(entry);
+    }
+
+    private void ProxyFinderButton_Click(object sender, RoutedEventArgs e)
+    {
+        var finder = new ProxyFinderWindow { Owner = this };
+        _ = finder.ShowDialog();
+
+        var stored = _store.Load();
+        foreach (var entry in stored)
+        {
+            if (ProxyLibraryStore.FindByServer(_workingProxies, entry.Server) is null)
+            {
+                _workingProxies.Add(entry.Clone());
+            }
+        }
+
+        ApplyActiveState();
+        ProxyDataGrid.Items.Refresh();
     }
 
     private void DeleteRowButton_Click(object sender, RoutedEventArgs e)

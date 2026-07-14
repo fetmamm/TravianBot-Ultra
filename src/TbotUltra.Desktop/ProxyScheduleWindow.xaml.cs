@@ -2,6 +2,7 @@ using System.Collections.ObjectModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Infrastructure;
@@ -22,6 +23,7 @@ public partial class ProxyScheduleWindow : Window
     private readonly bool _sessionPacingEnabled;
     private readonly IReadOnlyCollection<int> _allowedHours;
     private readonly int _sleepMinMinutes;
+    private readonly IReadOnlyList<string> _accountNames;
     private readonly List<ProxyLibraryEntry> _library;
     private readonly ObservableCollection<ProxyTimelineRow> _rows = [];
     private CancellationTokenSource? _validationCts;
@@ -40,7 +42,8 @@ public partial class ProxyScheduleWindow : Window
         bool neverUseOwnIp,
         bool sessionPacingEnabled,
         IReadOnlyCollection<int> allowedHours,
-        int sleepMinMinutes)
+        int sleepMinMinutes,
+        IEnumerable<string> accountNames)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
@@ -52,6 +55,11 @@ public partial class ProxyScheduleWindow : Window
         _sessionPacingEnabled = sessionPacingEnabled;
         _allowedHours = allowedHours.Where(hour => hour is >= 0 and <= 23).Distinct().Order().ToArray();
         _sleepMinMinutes = sleepMinMinutes;
+        _accountNames = accountNames
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(name => name, StringComparer.OrdinalIgnoreCase)
+            .ToList();
         _library = library.OrderBy(proxy => proxy.DisplayName, StringComparer.OrdinalIgnoreCase).ToList();
         ResultPlan = plan.Clone();
         VariationTextBox.Text = Math.Clamp(plan.VariationPercent, 0, 49).ToString(CultureInfo.InvariantCulture);
@@ -78,7 +86,7 @@ public partial class ProxyScheduleWindow : Window
             {
                 TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
             }
-            TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(82) });
+            TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(66) });
             TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(72) });
             TimelineGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(64) });
 
@@ -93,13 +101,24 @@ public partial class ProxyScheduleWindow : Window
             AddHeader("Status", 27);
 
             TimelineGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-            var allowedLabel = new TextBlock
+            var allowedLabel = new StackPanel
             {
-                Text = "Allowed hours",
-                FontWeight = FontWeights.SemiBold,
+                Orientation = Orientation.Horizontal,
                 Margin = new Thickness(4, 8, 8, 8),
                 VerticalAlignment = VerticalAlignment.Center,
             };
+            allowedLabel.Children.Add(new TextBlock
+            {
+                Text = "Allowed hours",
+                FontWeight = FontWeights.SemiBold,
+                VerticalAlignment = VerticalAlignment.Center,
+            });
+            allowedLabel.Children.Add(new ContentControl
+            {
+                Style = FindResource("InfoTooltipIconStyle") as Style,
+                Margin = new Thickness(6, 0, 0, 0),
+                ToolTip = "Read-only allowed hours from Settings > Bot behaviour. Blue means the program may run during that hour.",
+            });
             Grid.SetRow(allowedLabel, 1);
             Grid.SetColumn(allowedLabel, 0);
             Grid.SetColumnSpan(allowedLabel, 2);
@@ -109,13 +128,13 @@ public partial class ProxyScheduleWindow : Window
                 var allowed = _allowedHours.Contains(hour);
                 var square = new Border
                 {
-                    Width = 14,
-                    Height = 14,
-                    CornerRadius = new CornerRadius(2),
+                    Width = 16,
+                    Height = 16,
+                    CornerRadius = new CornerRadius(3),
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
-                    Background = FindResource(allowed ? "PrimaryButtonBrush" : "ControlBackgroundBrush") as Brush,
-                    BorderBrush = FindResource(allowed ? "PrimaryButtonBrush" : "BorderBrush") as Brush,
+                    Background = FindResource(allowed ? "InfoBrush" : "ControlBackgroundBrush") as Brush,
+                    BorderBrush = FindResource(allowed ? "InfoBrush" : "BorderBrush") as Brush,
                     BorderThickness = new Thickness(1),
                     ToolTip = allowed ? "Program may run during this hour" : "Program is blocked during this hour",
                 };
@@ -197,9 +216,13 @@ public partial class ProxyScheduleWindow : Window
         {
             Content = row.Hours.All(selected => selected) ? "Uncheck all" : "Check all",
             Tag = row,
-            Margin = new Thickness(3, 4, 3, 4),
-            Padding = new Thickness(3, 2, 3, 2),
-            FontSize = 10,
+            Width = 60,
+            Height = 22,
+            Margin = new Thickness(2),
+            Padding = new Thickness(2, 0, 2, 0),
+            FontSize = 9,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
         };
         toggleAllButton.Click += ToggleAllHoursButton_Click;
         Grid.SetRow(toggleAllButton, gridRow);
@@ -242,6 +265,8 @@ public partial class ProxyScheduleWindow : Window
     private static CheckBox CreateHourCheckBox(bool isChecked) => new()
     {
         IsChecked = isChecked,
+        Width = 16,
+        Height = 16,
         HorizontalAlignment = HorizontalAlignment.Center,
         VerticalAlignment = VerticalAlignment.Center,
         Margin = new Thickness(1, 7, 1, 7),
@@ -413,6 +438,20 @@ public partial class ProxyScheduleWindow : Window
         Close();
     }
 
+    private void ProxyListButton_Click(object sender, RoutedEventArgs e)
+    {
+        var dialog = new ProxyLibraryWindow(_libraryStore, _accountNames, activeAccountName: _accountName)
+        {
+            Owner = this,
+        };
+        _ = dialog.ShowDialog();
+
+        _library.Clear();
+        _library.AddRange(_libraryStore.Load().OrderBy(proxy => proxy.DisplayName, StringComparer.OrdinalIgnoreCase));
+        BuildTimeline();
+        MarkChanged("Proxy list updated. Validate again before saving.");
+    }
+
     private void VariationTextBox_TextChanged(object sender, TextChangedEventArgs e)
     {
         if (ValidationTextBlock is not null)
@@ -520,15 +559,30 @@ public partial class ProxyScheduleWindow : Window
 
     private void ShowValidation(ProxyPlanValidationResult result, bool showHealthyResult)
     {
-        var lines = result.Issues
-            .Select(issue => $"{(issue.Severity == ProxyPlanIssueSeverity.Error ? "ERROR" : "WARNING")}: {issue.Message}")
-            .ToList();
-        if (lines.Count == 0 && showHealthyResult)
+        ValidationTextBlock.Inlines.Clear();
+        if (result.Issues.Count == 0 && showHealthyResult)
         {
-            lines.Add("Setup is valid. All selected proxies passed the stability and Travian tests.");
+            ValidationTextBlock.Inlines.Add(new Run("Setup is valid. All selected proxies passed the stability and Travian tests.")
+            {
+                Foreground = FindResource("SuccessTextBrush") as Brush,
+            });
+            return;
         }
 
-        ValidationTextBlock.Text = string.Join(Environment.NewLine, lines);
+        for (var index = 0; index < result.Issues.Count; index++)
+        {
+            var issue = result.Issues[index];
+            if (index > 0)
+            {
+                ValidationTextBlock.Inlines.Add(new LineBreak());
+            }
+
+            ValidationTextBlock.Inlines.Add(new Run(
+                $"{(issue.Severity == ProxyPlanIssueSeverity.Error ? "ERROR" : "WARNING")}: {issue.Message}")
+            {
+                Foreground = FindResource("DangerTextBrush") as Brush,
+            });
+        }
     }
 
     private ProxyLibraryEntry? FindProxy(string proxyId)

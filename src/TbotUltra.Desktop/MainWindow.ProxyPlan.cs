@@ -99,8 +99,16 @@ public partial class MainWindow
 
         var runtime = ProxyPlanStore.LoadRuntime(account.Name);
         var resolution = AccountProxyPlanResolver.Resolve(plan, account.Name, wakeAt, runtime.ActiveProxyId);
+        if (string.IsNullOrWhiteSpace(resolution.ProxyId))
+        {
+            if (!account.ProxyEnabled)
+            {
+                return;
+            }
+        }
         var target = library.FirstOrDefault(proxy => string.Equals(proxy.Id, resolution.ProxyId, StringComparison.OrdinalIgnoreCase));
-        if (target is null || string.Equals(account.ProxyServer.Trim(), target.Server.Trim(), StringComparison.OrdinalIgnoreCase))
+        if (target is not null && account.ProxyEnabled
+            && string.Equals(account.ProxyServer.Trim(), target.Server.Trim(), StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
@@ -126,6 +134,28 @@ public partial class MainWindow
     {
         var runtime = ProxyPlanStore.LoadRuntime(account.Name);
         var resolution = AccountProxyPlanResolver.Resolve(plan, account.Name, at, runtime.ActiveProxyId);
+        if (string.IsNullOrWhiteSpace(resolution.ProxyId))
+        {
+            if (account.NeverUseOwnIp)
+            {
+                AppendLog($"[ALARM] [proxy-plan] {reason} resolved to direct connection while Never use own IP is enabled.");
+                return false;
+            }
+
+            if (account.ProxyEnabled)
+            {
+                var changed = CloneAccount(account);
+                changed.ProxyEnabled = false;
+                _accountStore.SaveAccount(changed, setActive: false);
+                AppendLog($"[proxy-plan] {reason}: no proxy is scheduled; using the allowed direct connection.");
+            }
+
+            runtime.ActiveProxyId = string.Empty;
+            runtime.ActivatedAtUtc = DateTimeOffset.UtcNow;
+            ProxyPlanStore.SaveRuntime(account.Name, runtime);
+            return true;
+        }
+
         var target = library.FirstOrDefault(proxy => string.Equals(proxy.Id, resolution.ProxyId, StringComparison.OrdinalIgnoreCase));
         if (target is null || !ProxyParser.TryBuild(target.Server, out _, out _))
         {

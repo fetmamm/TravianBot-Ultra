@@ -155,6 +155,11 @@ public partial class AccountsWindow : Window
         }, "load proxy fields");
         _editorProxyPlan = _proxyPlanStore.LoadActive(selected.Name)
             ?? _proxyPlanStore.BuildLegacyPlan(selected.ProxyServer, _proxyLibraryEntries);
+        if (_editorProxyPlan.Enabled && UseProxyCheckBox.IsChecked != true)
+        {
+            UseProxyCheckBox.IsChecked = true;
+            SetProxyFieldsEnabled(true);
+        }
         _suppressProxyRotationChange = true;
         UseProxyRotationCheckBox.IsChecked = _editorProxyPlan.IsRotation;
         _suppressProxyRotationChange = false;
@@ -272,13 +277,16 @@ public partial class AccountsWindow : Window
                 var runtime = _proxyPlanStore.LoadRuntime(entry.Name);
                 var resolution = AccountProxyPlanResolver.Resolve(_editorProxyPlan, entry.Name, DateTimeOffset.Now, runtime.ActiveProxyId);
                 var current = _proxyLibraryEntries.FirstOrDefault(proxy => string.Equals(proxy.Id, resolution.ProxyId, StringComparison.OrdinalIgnoreCase));
-                if (current is null)
+                if (current is null && !string.IsNullOrWhiteSpace(resolution.ProxyId))
                 {
                     throw new InvalidOperationException("The current scheduled proxy no longer exists in the proxy list.");
                 }
 
-                entry.ProxyEnabled = true;
-                entry.ProxyServer = current.Server;
+                entry.ProxyEnabled = current is not null;
+                if (current is not null)
+                {
+                    entry.ProxyServer = current.Server;
+                }
             }
 
             if (entry.ProxyEnabled && !ConfirmProxyReuseForSave(entry.ProxyServer, entry.Name))
@@ -627,7 +635,7 @@ public partial class AccountsWindow : Window
         _proxyCheckCts?.Cancel();
     }
 
-    private void FindBestProxyButton_Click(object sender, RoutedEventArgs e)
+    private void ProxyFinderButton_Click(object sender, RoutedEventArgs e)
     {
         var initialScheme = (ProxySchemeComboBox?.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString();
         var finder = new ProxyFinderWindow(initialScheme) { Owner = this };
@@ -696,7 +704,8 @@ public partial class AccountsWindow : Window
                 NeverUseOwnIpCheckBox.IsChecked == true,
                 settings.PacingEnabled,
                 settings.AllowedHours,
-                settings.SleepMinMinutes)
+                settings.SleepMinMinutes,
+                _accounts.Select(account => account.Name))
             {
                 Owner = this,
             };
@@ -841,9 +850,11 @@ public partial class AccountsWindow : Window
         var resolution = AccountProxyPlanResolver.Resolve(_editorProxyPlan, accountName, DateTimeOffset.Now, runtime.ActiveProxyId);
         var current = _proxyLibraryEntries.FirstOrDefault(proxy => string.Equals(proxy.Id, resolution.ProxyId, StringComparison.OrdinalIgnoreCase));
         var next = _proxyLibraryEntries.FirstOrDefault(proxy => string.Equals(proxy.Id, resolution.NextProxyId, StringComparison.OrdinalIgnoreCase));
+        var currentName = string.IsNullOrWhiteSpace(resolution.ProxyId) ? "Direct connection" : current?.DisplayName ?? "Unknown";
+        var nextName = string.IsNullOrWhiteSpace(resolution.NextProxyId) ? "Direct connection" : next?.DisplayName ?? "Unknown";
         ProxyPlanNextTextBlock.Text = resolution.NextTransitionAt is { } transition
-            ? $"Current: {current?.DisplayName ?? "Unknown"} · Next: {next?.DisplayName ?? "Unknown"} at {transition:ddd HH:mm}"
-            : $"Current: {current?.DisplayName ?? "Unknown"}";
+            ? $"Current: {currentName} · Next: {nextName} at {transition:ddd HH:mm}"
+            : $"Current: {currentName}";
     }
 
     private void SavedProxyComboBox_SelectionChanged(object sender, System.Windows.Controls.SelectionChangedEventArgs e)
@@ -1010,7 +1021,7 @@ public partial class AccountsWindow : Window
 
     private void RebuildSavedProxyOptions(string? accountName)
     {
-        _savedProxyOptions = AccountEditorState.BuildSavedProxyOptions(_proxyLibraryEntries, accountName);
+        _savedProxyOptions = AccountEditorState.BuildSavedProxyOptions(_proxyLibraryEntries, accountName, _accounts);
 
         _suppressSavedProxySelection = true;
         SavedProxyComboBox.ItemsSource = null;

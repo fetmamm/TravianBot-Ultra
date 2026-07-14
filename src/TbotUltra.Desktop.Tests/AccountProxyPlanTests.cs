@@ -50,7 +50,7 @@ public sealed class AccountProxyPlanTests
     }
 
     [Fact]
-    public void Validate_DetectsOvernightOverlap()
+    public void Validate_AllowsOverlappingProxiesAsFallbacks()
     {
         var first = Proxy("first", "1.1.1.1");
         var second = Proxy("second", "2.2.2.2");
@@ -68,7 +68,37 @@ public sealed class AccountProxyPlanTests
             sleepMinMinutes: 20,
             requireHealth: false);
 
-        Assert.Contains(result.Errors, issue => issue.Code == "overlap");
+        Assert.DoesNotContain(result.Errors, issue => issue.Code == "overlap");
+        var duringOverlap = AccountProxyPlanResolver.Resolve(
+            plan,
+            "alice",
+            new DateTimeOffset(2026, 7, 13, 2, 30, 0, TimeSpan.Zero));
+        Assert.Equal(first.Id, duringOverlap.ProxyId);
+    }
+
+    [Fact]
+    public void Validate_AllowsScheduleGapsAndResolverUsesDirectWhenOwnIpIsAllowed()
+    {
+        var proxy = Proxy("night", "1.1.1.1");
+        var plan = Plan(Assignment(proxy.Id, Block(0, 8)));
+
+        var result = AccountProxyPlanValidator.Validate(
+            plan,
+            [proxy],
+            "alice",
+            neverUseOwnIp: false,
+            sessionPacingEnabled: true,
+            allowedHours: Enumerable.Range(0, 24).ToArray(),
+            sleepMinMinutes: 20,
+            requireHealth: false);
+        var daytime = AccountProxyPlanResolver.Resolve(
+            plan,
+            "alice",
+            new DateTimeOffset(2026, 7, 13, 12, 0, 0, TimeSpan.Zero));
+
+        Assert.DoesNotContain(result.Issues, issue => issue.Code is "coverage_gap" or "direct_allowed");
+        Assert.Equal(string.Empty, daytime.ProxyId);
+        Assert.Equal(proxy.Id, daytime.NextProxyId);
     }
 
     [Fact]

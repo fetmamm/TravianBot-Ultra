@@ -157,11 +157,6 @@ public static class AccountProxyPlanValidator
             }
         }
 
-        if (!neverUseOwnIp)
-        {
-            Warning(issues, "direct_allowed", "Never use own IP is off; recovery may use the direct connection.");
-        }
-
         return new ProxyPlanValidationResult(issues);
     }
 
@@ -194,7 +189,6 @@ public static class AccountProxyPlanValidator
         List<ProxyPlanIssue> issues)
     {
         var allowed = allowedHours.Where(hour => hour is >= 0 and <= 23).Distinct().Order().ToList();
-        var overlaps = new List<string>();
         var gaps = new List<string>();
         foreach (var day in Enum.GetValues<DayOfWeek>())
         {
@@ -204,11 +198,6 @@ public static class AccountProxyPlanValidator
                     .Where(assignment => proxies.ContainsKey(assignment.ProxyId))
                     .Where(assignment => assignment.TimeBlocks.Any(block => Covers(block, day, hour)))
                     .ToList();
-                if (covering.Count > 1)
-                {
-                    overlaps.Add($"{day} {hour:00}:00");
-                }
-
                 if (allowed.Contains(hour) && covering.Count == 0)
                 {
                     gaps.Add($"{day} {hour:00}:00");
@@ -216,22 +205,10 @@ public static class AccountProxyPlanValidator
             }
         }
 
-        if (overlaps.Count > 0)
-        {
-            Error(issues, "overlap", $"Different proxies overlap at: {FormatSlots(overlaps)}.");
-        }
-
-        if (gaps.Count > 0)
+        if (neverUseOwnIp && gaps.Count > 0)
         {
             var message = $"No proxy covers allowed runtime at: {FormatSlots(gaps)}.";
-            if (neverUseOwnIp)
-            {
-                Error(issues, "coverage_gap", message + " Never use own IP requires complete coverage.");
-            }
-            else
-            {
-                Warning(issues, "coverage_gap", message + " The latest proxy will continue through these gaps.");
-            }
+            Error(issues, "coverage_gap", message + " Never use own IP requires complete coverage.");
         }
 
         if (allowed.Count == 0)

@@ -105,32 +105,47 @@ internal static class AccountEditorState
 
     internal static List<SavedProxyOption> BuildSavedProxyOptions(
         IEnumerable<ProxyLibraryEntry> entries,
-        string? accountName)
+        string? accountName,
+        IEnumerable<AccountEntry>? accounts = null)
     {
         var normalizedAccount = accountName?.Trim() ?? string.Empty;
+        var accountsByKey = (accounts ?? [])
+            .Where(account => !string.IsNullOrWhiteSpace(account.Name))
+            .GroupBy(account => account.Name, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
         var orderedEntries = entries
             .OrderByDescending(entry => normalizedAccount.Length > 0
                 && string.Equals(entry.AssignedAccount, normalizedAccount, StringComparison.OrdinalIgnoreCase))
-            .ThenBy(entry => entry.Name, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(entry => entry.LatencyMs is > 0 ? entry.LatencyMs.Value : long.MaxValue)
+            .ThenBy(entry => entry.CountryDisplay, StringComparer.OrdinalIgnoreCase)
             .ThenBy(entry => entry.HostPort, StringComparer.OrdinalIgnoreCase);
 
         var options = new List<SavedProxyOption>
         {
             new(null, "Select saved proxy..."),
         };
-        options.AddRange(orderedEntries.Select(entry => new SavedProxyOption(entry, BuildSavedProxyDisplay(entry))));
+        options.AddRange(orderedEntries.Select(entry => new SavedProxyOption(entry, BuildSavedProxyDisplay(entry, accountsByKey))));
         return options;
     }
 
-    private static string BuildSavedProxyDisplay(ProxyLibraryEntry entry)
+    private static string BuildSavedProxyDisplay(
+        ProxyLibraryEntry entry,
+        IReadOnlyDictionary<string, AccountEntry> accountsByKey)
     {
-        var display = entry.DisplayName;
-        if (!string.IsNullOrWhiteSpace(entry.AssignedAccount))
+        var accountName = "Unassigned";
+        var serverName = "—";
+        if (!string.IsNullOrWhiteSpace(entry.AssignedAccount)
+            && accountsByKey.TryGetValue(entry.AssignedAccount, out var account))
         {
-            return $"{display} [locked: {entry.AssignedAccount}]";
+            accountName = string.IsNullOrWhiteSpace(account.Username) ? "Unknown account" : account.Username.Trim();
+            serverName = account.ServerDisplayName;
+        }
+        else if (!string.IsNullOrWhiteSpace(entry.AssignedAccount))
+        {
+            accountName = "Missing account";
         }
 
-        var usedCount = entry.UsedByAccounts.Count(item => !string.IsNullOrWhiteSpace(item));
-        return usedCount > 0 ? $"{display} [used: {usedCount}]" : display;
+        var latency = entry.LatencyMs is > 0 ? $"{entry.LatencyMs} ms" : "Not tested";
+        return $"{entry.CountryDisplay} · {entry.HostPort} · {accountName} · {serverName} · {latency}";
     }
 }

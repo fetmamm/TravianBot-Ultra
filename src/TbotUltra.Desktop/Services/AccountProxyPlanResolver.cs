@@ -15,13 +15,13 @@ public static class AccountProxyPlanResolver
 
         var transitions = BuildTransitions(plan, accountName, at.AddDays(-8), at.AddDays(8));
         var latest = transitions.LastOrDefault(item => item.At <= at);
-        var proxyId = latest?.ProxyId;
-        if (string.IsNullOrWhiteSpace(proxyId))
+        var proxyId = latest?.ProxyId ?? string.Empty;
+        if (latest is null && string.IsNullOrWhiteSpace(proxyId))
         {
             proxyId = fallbackProxyId;
         }
 
-        if (string.IsNullOrWhiteSpace(proxyId))
+        if (latest is null && string.IsNullOrWhiteSpace(proxyId))
         {
             proxyId = plan.Assignments[0].ProxyId;
         }
@@ -31,35 +31,80 @@ public static class AccountProxyPlanResolver
             proxyId ?? string.Empty,
             next?.At,
             next?.ProxyId ?? string.Empty,
-            latest is null ? "Using the configured fallback proxy." : "Using the latest varied schedule boundary.");
+            latest is null
+                ? "Using the configured fallback proxy."
+                : string.IsNullOrWhiteSpace(proxyId)
+                    ? "No proxy is scheduled; direct connection is selected."
+                    : "Using the latest varied schedule boundary.");
     }
 
     private static List<ProxyTransition> BuildTransitions(AccountProxyPlan plan, string accountName, DateTimeOffset from, DateTimeOffset to)
     {
-        var result = new List<ProxyTransition>();
-        var firstDay = DateOnly.FromDateTime(from.LocalDateTime.Date).AddDays(-1);
-        var lastDay = DateOnly.FromDateTime(to.LocalDateTime.Date).AddDays(1);
+        var events = new List<ProxyBoundaryEvent>();
+        var firstDay = DateOnly.FromDateTime(from.LocalDateTime.Date).AddDays(-2);
+        var lastDay = DateOnly.FromDateTime(to.LocalDateTime.Date).AddDays(2);
         for (var day = firstDay; day <= lastDay; day = day.AddDays(1))
         {
-            foreach (var assignment in plan.Assignments)
+            for (var assignmentIndex = 0; assignmentIndex < plan.Assignments.Count; assignmentIndex++)
             {
+                var assignment = plan.Assignments[assignmentIndex];
                 foreach (var block in assignment.TimeBlocks.Where(block => block.Days.Contains(day.DayOfWeek)))
                 {
-                    var hour = block.FullDay ? 0 : block.StartHour;
-                    var boundary = new DateTimeOffset(day.ToDateTime(new TimeOnly(hour, 0)), atOffset(from));
-                    var minutes = StableFraction(accountName, day, hour) * Math.Clamp(plan.VariationPercent, 0, 49) / 100.0 * 60.0;
-                    result.Add(new ProxyTransition(boundary.AddMinutes(minutes), assignment.ProxyId));
+                    var startHour = block.FullDay ? 0 : block.StartHour;
+                    var start = day.ToDateTime(new TimeOnly(startHour, 0));
+                    var end = block.FullDay
+                        ? start.AddDays(1)
+                        : day.ToDateTime(new TimeOnly(block.EndHour, 0));
+                    if (!block.FullDay && block.EndHour <= block.StartHour)
+                    {
+                        end = end.AddDays(1);
+                    }
+
+                    events.Add(new ProxyBoundaryEvent(Vary(start), assignmentIndex, 1));
+                    events.Add(new ProxyBoundaryEvent(Vary(end), assignmentIndex, -1));
                 }
             }
         }
 
-        return result
-            .OrderBy(item => item.At)
-            .GroupBy(item => item.At)
-            .Select(group => group.First())
-            .ToList();
+        var result = new List<ProxyTransition>();
+        var activeCounts = new Dictionary<int, int>();
+        string? previousProxyId = null;
+        var hasPrevious = false;
+        foreach (var group in events.OrderBy(item => item.At).GroupBy(item => item.At))
+        {
+            foreach (var boundaryEvent in group)
+            {
+                var count = activeCounts.GetValueOrDefault(boundaryEvent.AssignmentIndex) + boundaryEvent.Delta;
+                if (count <= 0)
+                {
+                    activeCounts.Remove(boundaryEvent.AssignmentIndex);
+                }
+                else
+                {
+                    activeCounts[boundaryEvent.AssignmentIndex] = count;
+                }
+            }
 
-        static TimeSpan atOffset(DateTimeOffset value) => value.Offset;
+            var selectedIndex = activeCounts.Keys.Order().Cast<int?>().FirstOrDefault();
+            var selectedProxyId = selectedIndex is null ? string.Empty : plan.Assignments[selectedIndex.Value].ProxyId;
+            if (!hasPrevious || !string.Equals(previousProxyId, selectedProxyId, StringComparison.OrdinalIgnoreCase))
+            {
+                result.Add(new ProxyTransition(group.Key, selectedProxyId));
+                previousProxyId = selectedProxyId;
+                hasPrevious = true;
+            }
+        }
+
+        return result;
+
+        DateTimeOffset Vary(DateTime nominal)
+        {
+            var boundaryDay = DateOnly.FromDateTime(nominal.Date);
+            var boundary = new DateTimeOffset(nominal, from.Offset);
+            var minutes = StableFraction(accountName, boundaryDay, nominal.Hour)
+                * Math.Clamp(plan.VariationPercent, 0, 49) / 100.0 * 60.0;
+            return boundary.AddMinutes(minutes);
+        }
     }
 
     private static double StableFraction(string accountName, DateOnly day, int hour)
@@ -79,4 +124,5 @@ public static class AccountProxyPlanResolver
     }
 
     private sealed record ProxyTransition(DateTimeOffset At, string ProxyId);
+    private sealed record ProxyBoundaryEvent(DateTimeOffset At, int AssignmentIndex, int Delta);
 }

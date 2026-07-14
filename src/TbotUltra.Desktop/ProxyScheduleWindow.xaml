@@ -41,7 +41,12 @@
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
                 <DockPanel Margin="0,0,0,8">
-                    <Button Content="Add proxy" Width="100" DockPanel.Dock="Left" Click="AddProxyButton_Click" />
+                    <Button Content="Add proxy" Width="100" DockPanel.Dock="Left"
+                            Background="{DynamicResource SuccessBrush}"
+                            BorderBrush="{DynamicResource SuccessBrush}"
+                            Foreground="White"
+                            FontWeight="SemiBold"
+                            Click="AddProxyButton_Click" />
                     <TextBlock Text="Checked hours are active. Each hour may belong to only one proxy for the same day group."
                                Margin="12,4,0,0" Foreground="{DynamicResource SlateTextBrush}" />
                 </DockPanel>
@@ -61,6 +66,7 @@
                 <Button x:Name="ValidateButton" Content="Validate setup" Width="120" Click="ValidateButton_Click" />
             </StackPanel>
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
+                <Button Content="Proxy list" Width="100" Margin="0,0,8,0" Click="ProxyListButton_Click" />
                 <Button x:Name="SaveButton" Content="Save" Width="100"
                         Background="{DynamicResource SuccessBrush}"
                         BorderBrush="{DynamicResource SuccessBrush}"

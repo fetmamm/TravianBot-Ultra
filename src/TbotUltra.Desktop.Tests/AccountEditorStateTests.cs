@@ -1,4 +1,5 @@
 using TbotUltra.Desktop.Services;
+using TbotUltra.Desktop.Models;
 using Xunit;
 
 namespace TbotUltra.Desktop.Tests;
@@ -20,28 +21,31 @@ public sealed class AccountEditorStateTests
     {
         var entries = new[]
         {
-            Entry("B", "b.example", assigned: null),
-            Entry("Z", "z.example", assigned: "active"),
-            Entry("A", "a.example", assigned: "other"),
+            Entry("B", "b.example", assigned: null, latencyMs: 10),
+            Entry("Z", "z.example", assigned: "active", latencyMs: 500),
+            Entry("A", "a.example", assigned: "other", latencyMs: 20),
+        };
+        var accounts = new[]
+        {
+            new AccountEntry { Name = "active", Username = "player@example.com", ServerName = "Arabia 50 (5x)" },
         };
 
-        var options = AccountEditorState.BuildSavedProxyOptions(entries, "active");
+        var options = AccountEditorState.BuildSavedProxyOptions(entries, "active", accounts);
 
         Assert.Null(options[0].Entry);
         Assert.Equal("Z", options[1].Entry!.Name);
-        Assert.Equal(new[] { "A", "B" }, options.Skip(2).Select(option => option.Entry!.Name));
-        Assert.Contains("[locked: active]", options[1].DisplayText);
+        Assert.Equal(new[] { "B", "A" }, options.Skip(2).Select(option => option.Entry!.Name));
+        Assert.Equal("Unknown · z.example:1080 · player@example.com · Arabia 50 (5x) · 500 ms", options[1].DisplayText);
     }
 
     [Fact]
-    public void BuildSavedProxyOptions_ShowsUsageCountForUnlockedProxy()
+    public void BuildSavedProxyOptions_ShowsUnassignedAndUntestedProxy()
     {
         var entry = Entry("Shared", "shared.example", assigned: null);
-        entry.UsedByAccounts = ["one", "two"];
 
         var option = AccountEditorState.BuildSavedProxyOptions([entry], "active")[1];
 
-        Assert.Contains("[used: 2]", option.DisplayText);
+        Assert.Equal("Unknown · shared.example:1080 · Unassigned · — · Not tested", option.DisplayText);
     }
 
     [Fact]
@@ -104,7 +108,7 @@ public sealed class AccountEditorStateTests
             EditingExistingAccount: false,
             ExistingAccountName: string.Empty);
 
-    private static ProxyLibraryEntry Entry(string name, string host, string? assigned)
+    private static ProxyLibraryEntry Entry(string name, string host, string? assigned, long? latencyMs = null)
         => new()
         {
             Name = name,
@@ -112,5 +116,6 @@ public sealed class AccountEditorStateTests
             Host = host,
             Port = 1080,
             AssignedAccount = assigned,
+            LatencyMs = latencyMs,
         };
 }
