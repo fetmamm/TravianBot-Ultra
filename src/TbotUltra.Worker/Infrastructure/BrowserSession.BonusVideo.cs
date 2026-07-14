@@ -18,33 +18,42 @@ public sealed partial class BrowserSession
             throw new InvalidOperationException("Browser session is not open.");
         }
 
-        if (BonusVideoCooldownUntilByAccount.TryGetValue(_account.Name, out var cooldownUntil)
-            && cooldownUntil > DateTimeOffset.UtcNow)
+        var cooldownKey = BuildBonusVideoCooldownKey();
+        if (BonusVideoCooldownByRoute.TryGetValue(cooldownKey, out var cooldown)
+            && cooldown.UntilUtc > DateTimeOffset.UtcNow)
         {
             throw new InvalidOperationException(
-                $"Bonus-video attempts are paused until {cooldownUntil.ToLocalTime():HH:mm} after a hard timeout.");
+                $"Bonus-video attempts are paused until {cooldown.UntilUtc.ToLocalTime():HH:mm} "
+                + $"for this account/proxy after {FormatBonusVideoFailureKind(cooldown.Kind)}.");
         }
 
-        ConsentDomainsAllowed = false;
-        await ClearTransientExternalStorageOriginsAsync(force: true);
-        var stateJson = FilterForeignSubdomainState(await _context.StorageStateAsync());
+        BonusVideoCooldownByRoute.TryRemove(cooldownKey, out _);
 
         IBrowser? videoBrowser = null;
         IBrowserContext? videoContext = null;
         Task<T>? actionTask = null;
-        // Hard time-box the whole flow so a hung ad/video renderer can never leave this browser open.
-        using var flowTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        flowTimeout.CancelAfter(IsolatedBonusVideoMaxDuration);
+        BonusVideoNetworkDiagnostics? networkDiagnostics = null;
+        CancellationTokenSource? phaseTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        phaseTimeout.CancelAfter(IsolatedBonusVideoSetupMaxDuration);
         try
         {
-            videoBrowser = await _playwright.Chromium.LaunchAsync(CreateChromiumLaunchOptions(keepNativePopupBlocker: false));
+            ConsentDomainsAllowed = false;
+            await ClearTransientExternalStorageOriginsAsync(force: true).WaitAsync(phaseTimeout.Token);
+            var stateJson = FilterForeignSubdomainState(await _context.StorageStateAsync().WaitAsync(phaseTimeout.Token));
+
+            videoBrowser = await _playwright.Chromium
+                .LaunchAsync(CreateChromiumLaunchOptions(keepNativePopupBlocker: false))
+                .WaitAsync(phaseTimeout.Token);
             videoContext = await videoBrowser.NewContextAsync(new BrowserNewContextOptions
             {
                 BaseURL = _config.BaseUrl,
                 ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
                 StorageState = stateJson,
-            });
+            }).WaitAsync(phaseTimeout.Token);
             videoContext.SetDefaultTimeout(_config.TimeoutMs);
+            networkDiagnostics = new BonusVideoNetworkDiagnostics(_log);
+            videoContext.RequestFailed += networkDiagnostics.OnRequestFailed;
+            videoContext.Response += networkDiagnostics.OnResponse;
             videoContext.Page += (_, page) =>
             {
                 _log?.Invoke($"[browser-video] page event pages={videoContext.Pages.Count} initialUrl='{page.Url}'");
@@ -54,22 +63,57 @@ public sealed partial class BrowserSession
                 };
             };
 
-            var page = await videoContext.NewPageAsync();
+            var page = await videoContext.NewPageAsync().WaitAsync(phaseTimeout.Token);
             _log?.Invoke("[browser-video] isolated bonus-video browser opened.");
-            // Stop awaiting on the hard cap even if `action` ignores the token (a stuck Playwright call
-            // may not observe cancellation). The finally then closes the browser, which unblocks the hung
-            // call, and we surface a timeout so construct-faster falls back to a normal build.
-            actionTask = action(page, flowTimeout.Token);
-            return await actionTask.WaitAsync(flowTimeout.Token);
+
+            phaseTimeout.Dispose();
+            phaseTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            phaseTimeout.CancelAfter(IsolatedBonusVideoActionMaxDuration);
+            actionTask = action(page, phaseTimeout.Token);
+            var result = await actionTask.WaitAsync(phaseTimeout.Token);
+            var resultKind = result is string text
+                ? BonusVideoFailureClassifier.Classify(text)
+                : BonusVideoFailureKind.None;
+            if (resultKind == BonusVideoFailureKind.None)
+            {
+                BonusVideoCooldownByRoute.TryRemove(cooldownKey, out _);
+                _log?.Invoke("[browser-video] video route confirmed working for current account/proxy.");
+            }
+            else
+            {
+                if (resultKind == BonusVideoFailureKind.Unknown && networkDiagnostics.HasFailures)
+                {
+                    resultKind = BonusVideoFailureKind.Network;
+                }
+
+                SetBonusVideoCooldown(cooldownKey, resultKind);
+            }
+
+            return result;
         }
-        catch (OperationCanceledException) when (flowTimeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (phaseTimeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
-            BonusVideoCooldownUntilByAccount[_account.Name] = DateTimeOffset.UtcNow + BonusVideoFailureCooldown;
-            _log?.Invoke($"[browser-video] video flow exceeded {IsolatedBonusVideoMaxDuration.TotalSeconds:0}s hard cap — aborting and closing the isolated browser.");
-            throw new TimeoutException($"Bonus-video flow exceeded {IsolatedBonusVideoMaxDuration.TotalSeconds:0}s and was aborted.");
+            var setupPhase = actionTask is null;
+            var limit = setupPhase ? IsolatedBonusVideoSetupMaxDuration : IsolatedBonusVideoActionMaxDuration;
+            SetBonusVideoCooldown(cooldownKey, BonusVideoFailureKind.Timeout);
+            _log?.Invoke($"[browser-video] video {(setupPhase ? "setup" : "action")} exceeded {limit.TotalSeconds:0}s hard cap — aborting.");
+            throw new TimeoutException($"Bonus-video {(setupPhase ? "setup" : "action")} exceeded {limit.TotalSeconds:0}s and was aborted.");
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            var kind = BonusVideoFailureClassifier.Classify(ex.Message);
+            if (kind == BonusVideoFailureKind.Unknown && networkDiagnostics?.HasFailures == true)
+            {
+                kind = BonusVideoFailureKind.Network;
+            }
+
+            SetBonusVideoCooldown(cooldownKey, kind);
+            throw;
         }
         finally
         {
+            phaseTimeout.Dispose();
+            networkDiagnostics?.LogSummary();
             if (videoBrowser is not null)
             {
                 try
@@ -99,6 +143,36 @@ public sealed partial class BrowserSession
             _log?.Invoke("[browser-video] isolated bonus-video browser closed.");
         }
     }
+
+    private string BuildBonusVideoCooldownKey()
+        => $"{_account.Name}|{(_account.ProxyEnabled ? _account.ProxyServer.Trim() : "direct")}";
+
+    private void SetBonusVideoCooldown(string key, BonusVideoFailureKind kind)
+    {
+        var duration = BonusVideoFailureClassifier.Cooldown(kind);
+        if (duration <= TimeSpan.Zero)
+        {
+            return;
+        }
+
+        var state = new BonusVideoCooldownState(DateTimeOffset.UtcNow + duration, kind);
+        BonusVideoCooldownByRoute[key] = state;
+        _log?.Invoke(
+            $"[browser-video] current account/proxy paused for video until {state.UntilUtc.ToLocalTime():HH:mm} "
+            + $"after {FormatBonusVideoFailureKind(kind)}; normal automation continues.");
+    }
+
+    private static string FormatBonusVideoFailureKind(BonusVideoFailureKind kind)
+        => kind switch
+        {
+            BonusVideoFailureKind.NoAdOrCookies => "no ad or third-party-cookie rejection",
+            BonusVideoFailureKind.Network => "ad-network failure",
+            BonusVideoFailureKind.Session => "stale isolated session",
+            BonusVideoFailureKind.Codec => "missing video codec",
+            BonusVideoFailureKind.Timeout => "video timeout",
+            BonusVideoFailureKind.Unavailable => "unavailable video feature",
+            _ => "unknown video failure",
+        };
 
     public async Task<IPage> OpenIsolatedExternalPageAsync(CancellationToken cancellationToken = default)
     {
@@ -531,6 +605,120 @@ public sealed partial class BrowserSession
                 }
             }
         }
+    }
+
+    private sealed class BonusVideoNetworkDiagnostics
+    {
+        private readonly Action<string>? _log;
+        private readonly object _signatureGate = new();
+        private readonly HashSet<string> _loggedSignatures = new(StringComparer.OrdinalIgnoreCase);
+        private int _successfulResponses;
+        private int _noContentResponses;
+        private int _httpErrors;
+        private int _requestFailures;
+
+        internal BonusVideoNetworkDiagnostics(Action<string>? log)
+        {
+            _log = log;
+        }
+
+        internal bool HasFailures => Volatile.Read(ref _requestFailures) > 0 || Volatile.Read(ref _httpErrors) > 0;
+
+        internal void OnRequestFailed(object? sender, IRequest request)
+        {
+            if (!IsBonusVideoAdDomain(request.Url))
+            {
+                return;
+            }
+
+            Interlocked.Increment(ref _requestFailures);
+            var failureReason = SafeVideoFailureReason(request.Failure);
+            LogOnce(
+                $"failed|{SafeVideoRequestLabel(request.Url)}|{failureReason}",
+                $"[browser-video:network] request failed host='{SafeVideoRequestLabel(request.Url)}' reason='{failureReason}'.");
+        }
+
+        internal void OnResponse(object? sender, IResponse response)
+        {
+            if (!IsBonusVideoAdDomain(response.Url))
+            {
+                return;
+            }
+
+            if (response.Status == 204)
+            {
+                Interlocked.Increment(ref _noContentResponses);
+                return;
+            }
+
+            if (response.Status >= 400)
+            {
+                Interlocked.Increment(ref _httpErrors);
+                LogOnce(
+                    $"http|{response.Status}|{SafeVideoRequestLabel(response.Url)}",
+                    $"[browser-video:network] HTTP {response.Status} host='{SafeVideoRequestLabel(response.Url)}'.");
+                return;
+            }
+
+            if (response.Status >= 200)
+            {
+                Interlocked.Increment(ref _successfulResponses);
+            }
+        }
+
+        internal void LogSummary()
+        {
+            _log?.Invoke(
+                $"[browser-video:network] summary ok={Volatile.Read(ref _successfulResponses)} "
+                + $"no-content={Volatile.Read(ref _noContentResponses)} http-errors={Volatile.Read(ref _httpErrors)} "
+                + $"request-failures={Volatile.Read(ref _requestFailures)}.");
+        }
+
+        private void LogOnce(string signature, string message)
+        {
+            lock (_signatureGate)
+            {
+                if (!_loggedSignatures.Add(signature))
+                {
+                    return;
+                }
+            }
+
+            _log?.Invoke(message);
+        }
+    }
+
+    internal static string SafeVideoRequestLabel(string? url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri))
+        {
+            return "invalid-url";
+        }
+
+        return uri.Host;
+    }
+
+    internal static string SafeVideoFailureReason(string? failure)
+    {
+        if (string.IsNullOrWhiteSpace(failure))
+        {
+            return "request failed";
+        }
+
+        var marker = failure.IndexOf("net::", StringComparison.OrdinalIgnoreCase);
+        if (marker < 0)
+        {
+            return "request failed";
+        }
+
+        var end = marker;
+        while (end < failure.Length
+               && (char.IsLetterOrDigit(failure[end]) || failure[end] is ':' or '_'))
+        {
+            end++;
+        }
+
+        return failure[marker..end];
     }
 
 }

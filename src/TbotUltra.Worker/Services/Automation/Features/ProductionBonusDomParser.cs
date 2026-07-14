@@ -94,6 +94,10 @@ public static class ProductionBonusDomParser
     public static bool AnyActivatable(IReadOnlyList<ProductionBonusBox> boxes)
         => boxes.Any(box => box.PurplePresent && box.PurpleEnabled && !box.Active);
 
+    /// <summary>True only after Travian has rendered one unique bonus box for every resource.</summary>
+    public static bool HasCompleteResourceSet(IReadOnlyList<ProductionBonusBox> boxes)
+        => Resources.All(resource => boxes.Count(box => string.Equals(box.Resource, resource, StringComparison.OrdinalIgnoreCase)) == 1);
+
     /// <summary>
     /// Resolves the final state for every known resource (missing boxes count as "none").
     /// <paramref name="afterActivationAttempt"/> is true when called right after watching videos (a

@@ -2,6 +2,7 @@ using Microsoft.Playwright;
 using System.Globalization;
 using System.Text.Json;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Infrastructure;
 
 namespace TbotUltra.Worker.Services;
 
@@ -87,6 +88,15 @@ public sealed partial class TravianClient
 
             if (attempt < ConstructFasterMaxVideoAttempts)
             {
+                var failureKind = BonusVideoFailureClassifier.Classify(lastVideoResult);
+                if (!BonusVideoFailureClassifier.ShouldRetryImmediately(failureKind))
+                {
+                    Notify(
+                        $"[construct-faster] skipping immediate video retry after {failureKind}; "
+                        + "building normally without changing route.");
+                    break;
+                }
+
                 Notify($"[construct-faster] no queue/progress evidence after attempt {attempt}/{ConstructFasterMaxVideoAttempts}: {verification.Evidence}. Retrying video once.");
                 continue;
             }
@@ -463,6 +473,12 @@ public sealed partial class TravianClient
             }
 
             var elapsedSeconds = (DateTimeOffset.UtcNow - startUtc).TotalSeconds;
+            if (elapsedSeconds >= 8 && await TryReadVisibleBonusVideoFailureAsync(cancellationToken) is { } visibleFailure)
+            {
+                Notify($"[construct-faster:verbose] {visibleFailure}; stopping video wait early.");
+                return false;
+            }
+
             var dialogOpen = GetBoolean(root, "dialogOpen");
             var hasPlayer = GetBoolean(root, "hasPlayer");
             if (elapsedSeconds >= 20 && !dialogOpen && !hasPlayer)

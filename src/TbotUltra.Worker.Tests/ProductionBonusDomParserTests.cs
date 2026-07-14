@@ -102,6 +102,18 @@ public sealed class ProductionBonusDomParserTests
     }
 
     [Fact]
+    public void HasCompleteResourceSet_RequiresAllFourUniqueResources()
+    {
+        var complete = ProductionBonusDomParser.Resources
+            .Select(resource => new ProductionBonusDomParser.ProductionBonusBox(resource, false, 0, "", true, true))
+            .ToList();
+
+        Assert.True(ProductionBonusDomParser.HasCompleteResourceSet(complete));
+        Assert.False(ProductionBonusDomParser.HasCompleteResourceSet(complete.Take(3).ToList()));
+        Assert.False(ProductionBonusDomParser.HasCompleteResourceSet(complete.Append(complete[0]).ToList()));
+    }
+
+    [Fact]
     public void BuildAndParseResultToken_RoundTrips()
     {
         var states = new[]

@@ -12,16 +12,15 @@ public sealed partial class BrowserSession : IAsyncDisposable
     private const string LocalPlaywrightBrowsersDirectoryName = "ms-playwright";
     private const string LocalPlaywrightDriverDirectoryName = ".playwright";
     private static readonly TimeSpan BonusVideoCleanupStepTimeout = TimeSpan.FromSeconds(5);
-    // Hard cap for the WHOLE isolated bonus-video flow (setup + video + completion wait). A stuck
-    // ad/video renderer can hang a Playwright call past its own timeout; this bound guarantees the
-    // isolated browser is always torn down so it can never be left open with the task stalled. A legit
-    // run is ~95s worst case (75s completion wait + ~20s setup), so this leaves comfortable margin.
-    private static readonly TimeSpan IsolatedBonusVideoMaxDuration = TimeSpan.FromSeconds(120);
+    // Setup and playback have separate caps. Slow proxies no longer consume the playback budget while
+    // Chrome starts/navigates, but either phase still has a firm bound so video can never stall automation.
+    private static readonly TimeSpan IsolatedBonusVideoSetupMaxDuration = TimeSpan.FromSeconds(60);
+    private static readonly TimeSpan IsolatedBonusVideoActionMaxDuration = TimeSpan.FromSeconds(120);
     // Upper bound on tearing down the isolated bonus-video browser, so a wedged CloseAsync cannot itself
     // re-stall the calling task. A leaked browser process is recoverable; an infinite stall is not.
     private static readonly TimeSpan IsolatedBonusVideoCloseTimeout = TimeSpan.FromSeconds(10);
-    private static readonly TimeSpan BonusVideoFailureCooldown = TimeSpan.FromMinutes(30);
-    private static readonly ConcurrentDictionary<string, DateTimeOffset> BonusVideoCooldownUntilByAccount = new(StringComparer.OrdinalIgnoreCase);
+    private sealed record BonusVideoCooldownState(DateTimeOffset UntilUtc, BonusVideoFailureKind Kind);
+    private static readonly ConcurrentDictionary<string, BonusVideoCooldownState> BonusVideoCooldownByRoute = new(StringComparer.OrdinalIgnoreCase);
     private static readonly SemaphoreSlim WarmupGate = new(1, 1);
     private static readonly SemaphoreSlim StorageStateGate = new(1, 1);
     private static bool _warmupCompleted;

@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Playwright;
+using TbotUltra.Worker.Infrastructure;
 
 namespace TbotUltra.Worker.Services;
 
@@ -15,6 +16,9 @@ public sealed partial class TravianClient
     // Minimum playthrough before a closed player counts as "done", so an ad that has not started yet is
     // never mistaken for a completed one.
     private const int ProductionBonusVideoMinPlaySeconds = 20;
+    private const int AdvantagesRenderAttempts = 60;
+    private const int AdvantagesRenderPollIntervalMs = 500;
+    private const int AdvantagesOpenAttempts = 2;
 
     // Opens Travian's payment wizard on the Advantages tab and returns which tab/state is visible.
     private const string OpenAdvantagesWizardScript =
@@ -37,7 +41,10 @@ public sealed partial class TravianClient
     private const string AdvantagesWizardStatusScript =
         """
         () => {
-          if (document.querySelector('.advantagesBonusBox')) return 'boxes';
+          const classes = ['lumberProductionBonus', 'clayProductionBonus', 'ironProductionBonus', 'cropProductionBonus'];
+          const rendered = classes.filter(cls => document.querySelector('.advantagesBonusBox.' + cls)).length;
+          if (rendered === classes.length) return 'boxes';
+          if (rendered > 0) return 'loading';
           if (document.querySelector('#paymentWizardContent, #paymentWizard, .paymentWizard')) return 'wizard';
           return 'none';
         }
@@ -154,13 +161,22 @@ public sealed partial class TravianClient
                     cancellationToken.ThrowIfCancellationRequested();
                     try
                     {
-                        await _runInIsolatedBonusVideoBrowserAsync(
+                        var videoResult = await _runInIsolatedBonusVideoBrowserAsync(
                             async (videoPage, videoCancellationToken) =>
                             {
                                 var videoClient = CreateIsolatedBonusVideoClient(videoPage);
                                 return await videoClient.RunSingleProductionBonusVideoIsolatedAsync(resource, videoCancellationToken);
                             },
                             cancellationToken);
+                        var failureKind = BonusVideoFailureClassifier.Classify(videoResult);
+                        if (failureKind != BonusVideoFailureKind.None
+                            && !BonusVideoFailureClassifier.ShouldRetryImmediately(failureKind))
+                        {
+                            Notify(
+                                $"[production-bonus] stopping remaining video attempts after {failureKind}; "
+                                + "normal automation continues and videos can retry after cooldown.");
+                            break;
+                        }
                     }
                     catch (OperationCanceledException)
                     {
@@ -169,6 +185,14 @@ public sealed partial class TravianClient
                     catch (Exception ex)
                     {
                         Notify($"[production-bonus:verbose] {resource}: isolated bonus video failed and was skipped: {ex.GetType().Name}: {ex.Message}");
+                        var failureKind = BonusVideoFailureClassifier.Classify(ex.Message);
+                        if (!BonusVideoFailureClassifier.ShouldRetryImmediately(failureKind))
+                        {
+                            Notify(
+                                $"[production-bonus] stopping remaining video attempts after {failureKind}; "
+                                + "normal automation continues without changing route.");
+                            break;
+                        }
                     }
                     finally
                     {
@@ -187,6 +211,11 @@ public sealed partial class TravianClient
         }
         catch (OperationCanceledException)
         {
+            throw;
+        }
+        catch (TimeoutException ex)
+        {
+            Notify($"[production-bonus] ALARM: could not inspect +15% bonuses because {ex.Message}");
             throw;
         }
         catch (Exception ex)
@@ -217,6 +246,11 @@ public sealed partial class TravianClient
         {
             throw;
         }
+        catch (TimeoutException ex)
+        {
+            Notify($"[production-bonus] ALARM: could not inspect +15% bonuses because {ex.Message}");
+            return $"Production bonus: scan could not complete ({ex.Message}).";
+        }
         catch (Exception ex)
         {
             Notify($"[production-bonus:verbose] scan failed and was skipped: {ex.GetType().Name}: {ex.Message}");
@@ -233,19 +267,43 @@ public sealed partial class TravianClient
     private async Task<ProductionBonusPageState> ReadProductionBonusPageStateInMainBrowserAsync(
         CancellationToken cancellationToken)
     {
-        // Reload in place when already on dorf1 instead of a redundant same-URL GOTO.
-        await ReloadOrGotoAsync(Paths.Resources, cancellationToken);
-        if (!await OpenAdvantagesTabAsync(cancellationToken))
+        try
         {
-            Notify("[production-bonus:verbose] could not open the Advantages tab to read bonus state.");
-            return new ProductionBonusPageState(Array.Empty<ProductionBonusDomParser.ProductionBonusBox>(), null);
-        }
+            for (var openAttempt = 1; openAttempt <= AdvantagesOpenAttempts; openAttempt++)
+            {
+                // A fresh dorf1 load gives a slow or stalled React wizard one clean retry.
+                await ReloadOrGotoAsync(Paths.Resources, cancellationToken);
+                if (!await OpenAdvantagesTabAsync(cancellationToken))
+                {
+                    Notify($"[production-bonus:verbose] Advantages tab did not finish rendering (open attempt {openAttempt}/{AdvantagesOpenAttempts}).");
+                    continue;
+                }
 
-        var boxes = ProductionBonusDomParser.ParseBoxesJson(await ReadProductionBonusBoxesRawAsync(cancellationToken));
-        var serverUtcOffset = await ReadProductionBonusServerUtcOffsetAsync(cancellationToken);
-        // Reload in place when already on dorf1 instead of a redundant same-URL GOTO.
-        await ReloadOrGotoAsync(Paths.Resources, cancellationToken);
-        return new ProductionBonusPageState(boxes, serverUtcOffset);
+                // The status script saw all four boxes. Read until the serialized state agrees, guarding
+                // against a React re-render or transient execution-context replacement between calls.
+                for (var readAttempt = 1; readAttempt <= 5; readAttempt++)
+                {
+                    var boxes = ProductionBonusDomParser.ParseBoxesJson(await ReadProductionBonusBoxesRawAsync(cancellationToken));
+                    if (ProductionBonusDomParser.HasCompleteResourceSet(boxes))
+                    {
+                        var serverUtcOffset = await ReadProductionBonusServerUtcOffsetAsync(cancellationToken);
+                        return new ProductionBonusPageState(boxes, serverUtcOffset);
+                    }
+
+                    await Task.Delay(400, cancellationToken);
+                }
+
+                Notify($"[production-bonus:verbose] Advantages tab returned an incomplete resource set (open attempt {openAttempt}/{AdvantagesOpenAttempts}).");
+            }
+
+            throw new TimeoutException(
+                "Advantages did not finish loading all four production bonus boxes after two attempts.");
+        }
+        finally
+        {
+            // Close the wizard/iframes before normal automation continues, including after a failed read.
+            await ReloadOrGotoAsync(Paths.Resources, cancellationToken);
+        }
     }
 
     // Isolated browser: activate exactly one resource's +15% video.
@@ -405,6 +463,12 @@ public sealed partial class TravianClient
             }
 
             var elapsedSeconds = (DateTimeOffset.UtcNow - startUtc).TotalSeconds;
+            if (elapsedSeconds >= 8 && await TryReadVisibleBonusVideoFailureAsync(cancellationToken) is { } visibleFailure)
+            {
+                Notify($"[production-bonus:verbose] {visibleFailure}; stopping video wait early.");
+                return false;
+            }
+
             if (elapsedSeconds >= ProductionBonusVideoMinPlaySeconds
                 && !GetBoolean(root, "dialogOpen")
                 && !GetBoolean(root, "hasPlayer"))
@@ -447,7 +511,7 @@ public sealed partial class TravianClient
             return false;
         }
 
-        for (var attempt = 1; attempt <= 20; attempt++)
+        for (var attempt = 1; attempt <= AdvantagesRenderAttempts; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             string status;
@@ -457,7 +521,7 @@ public sealed partial class TravianClient
             }
             catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
             {
-                await Task.Delay(300, cancellationToken);
+                await Task.Delay(AdvantagesRenderPollIntervalMs, cancellationToken);
                 continue;
             }
 
@@ -471,10 +535,10 @@ public sealed partial class TravianClient
                 await _page.EvaluateAsync<bool>(ClickAdvantagesTabScript);
             }
 
-            await Task.Delay(300, cancellationToken);
+            await Task.Delay(AdvantagesRenderPollIntervalMs, cancellationToken);
         }
 
-        Notify("[production-bonus:verbose] Advantages bonus boxes did not render.");
+        Notify("[production-bonus:verbose] Advantages did not render all four bonus boxes before the 30s deadline.");
         return false;
     }
 

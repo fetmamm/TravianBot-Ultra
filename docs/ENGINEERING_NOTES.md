@@ -111,6 +111,16 @@ Common endpoints:
 - Test the proxy using the same effective settings as the browser session.
 - Do not log credentials or embed them in user-visible URLs.
 - Keep browser and HTTP-client proxy behavior aligned.
+- Bonus-video traffic must use the account's current route; never bypass the proxy or change IP only for video.
+- Isolated bonus video has separate 60s setup and 120s action caps. Expected ad/provider failure must not
+  block construction, hero dispatch, or other automation.
+- Classify video failures and apply account+proxy cooldown: network 10m, no-ad/cookies 20m, timeout 30m,
+  stale isolated session 5m, missing codec 6h. Known failures do not get an immediate second attempt.
+- Production-bonus inspection is complete only when the Advantages tab contains one box for each of
+  lumber, clay, iron, and crop. An empty/partial React render must be retried, never classified as
+  "nothing to activate"; after two 30s render attempts it is an alarm/task failure.
+- Video network diagnostics log only sanitized ad host, network error code, status, and aggregate counts; never path/query,
+  credentials, cookies, or tokens.
 
 ## Feature implementation conventions
 

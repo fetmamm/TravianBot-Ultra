@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using TbotUltra.Worker.Infrastructure;
 
 namespace TbotUltra.Worker.Services;
 
@@ -286,6 +287,15 @@ public sealed partial class TravianClient
 
             if (attempt < maxAttempts)
             {
+                var failureKind = BonusVideoFailureClassifier.Classify(lastResult);
+                if (!BonusVideoFailureClassifier.ShouldRetryImmediately(failureKind))
+                {
+                    Notify(
+                        $"[adventure-video] {label}: skipping immediate retry after {failureKind}; "
+                        + "normal hero flow continues and video can retry after cooldown.");
+                    break;
+                }
+
                 Notify($"[adventure-video] {label}: activation was not confirmed; retrying the complete video flow once.");
             }
         }
@@ -570,6 +580,13 @@ public sealed partial class TravianClient
                 }
                 else
                 {
+                    var visibleFailure = await TryReadVisibleBonusVideoFailureAsync(cancellationToken);
+                    if (visibleFailure is not null)
+                    {
+                        Notify($"{logPrefix} {label}: {visibleFailure}");
+                        return false;
+                    }
+
                     var area = _page.Locator("#videoArea, #videoFeature iframe").First;
                     // Scroll the player into view first: a click at a bounding-box center that sits below the
                     // fold lands nowhere, which was one way the play button "wasn't clicked".
@@ -606,6 +623,49 @@ public sealed partial class TravianClient
         }
 
         return true;
+    }
+
+    private async Task<string?> TryReadVisibleBonusVideoFailureAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var messages = new[]
+        {
+            "Are you using an ad blocker or declining third-party cookies?",
+            "Does the video not load?",
+        };
+
+        foreach (var frame in _page.Frames)
+        {
+            foreach (var message in messages)
+            {
+                try
+                {
+                    var locator = frame.Locator($"text={message}").First;
+                    if (await locator.CountAsync() > 0
+                        && await locator.IsVisibleAsync()
+                        && await locator.EvaluateAsync<bool>(
+                            """
+                            element => {
+                              const rect = element.getBoundingClientRect();
+                              if (rect.width <= 0 || rect.height <= 0) return false;
+                              const x = Math.max(0, Math.min(innerWidth - 1, rect.left + rect.width / 2));
+                              const y = Math.max(0, Math.min(innerHeight - 1, rect.top + rect.height / 2));
+                              const top = document.elementFromPoint(x, y);
+                              return !!top && (top === element || element.contains(top) || top.contains(element));
+                            }
+                            """))
+                    {
+                        return "ad provider visibly reported no ad, ad blocking, or rejected third-party cookies";
+                    }
+                }
+                catch (PlaywrightException)
+                {
+                    // Diagnostic only. Frame can navigate/detach while ad player starts.
+                }
+            }
+        }
+
+        return null;
     }
 
     private async Task MuteBonusVideoAsync(string label, string logPrefix, CancellationToken cancellationToken)
@@ -753,7 +813,8 @@ public sealed partial class TravianClient
     /// <summary>
     /// Polls until the bonus box reports "active" (reward applied) or the timeout elapses. The reward
     /// is granted server-side after the video completes; the box may update in place or only after a
-    /// reload, so a reload is issued partway through.
+    /// reload, so a reload is issued partway through. A visibly rendered provider error stops the
+    /// wait early; hidden fallback text is ignored so a real playing ad is never false-failed.
     /// </summary>
     private async Task<bool> WaitForAdventureVideoActiveAsync(string boxClass, string label, CancellationToken cancellationToken)
     {
@@ -772,6 +833,13 @@ public sealed partial class TravianClient
             {
                 Notify($"[adventure-video] {label}: reward confirmed — the bonus is now active.");
                 return true;
+            }
+
+            if ((DateTimeOffset.UtcNow - startUtc).TotalSeconds >= 8
+                && await TryReadVisibleBonusVideoFailureAsync(cancellationToken) is { } visibleFailure)
+            {
+                Notify($"[adventure-video:verbose] {label}: {visibleFailure}; stopping video wait early.");
+                return false;
             }
 
             // Once the player has closed, reload the adventures page so the box reflects the granted reward.
