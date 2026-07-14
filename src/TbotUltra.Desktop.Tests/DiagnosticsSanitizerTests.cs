@@ -46,4 +46,20 @@ public sealed class DiagnosticsSanitizerTests
         Assert.DoesNotContain("192.0.2.10:8080", result, StringComparison.Ordinal);
         Assert.DoesNotContain("user_gmail_com_ts1_example", result, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void SanitizeJson_SanitizesStringArraysWithoutInvalidatingEnumeration()
+    {
+        const string json = """
+            {
+              "entries": ["person@example.com", "status"]
+            }
+            """;
+
+        var result = DiagnosticsSanitizer.SanitizeJson(json);
+
+        Assert.DoesNotContain("person@example.com", result, StringComparison.Ordinal);
+        Assert.Contains("redacted-email", result, StringComparison.Ordinal);
+        Assert.Contains("status", result, StringComparison.Ordinal);
+    }
 }

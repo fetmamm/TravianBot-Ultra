@@ -58,7 +58,9 @@ internal static partial class DiagnosticsSanitizer
 
         if (node is JsonArray array)
         {
-            foreach (var item in array)
+            // String values are replaced in-place during sanitization. Enumerate a snapshot so replacing
+            // an array item does not invalidate JsonArray's live enumerator.
+            foreach (var item in array.ToList())
             {
                 SanitizeNode(item);
             }

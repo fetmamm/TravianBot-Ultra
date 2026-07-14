@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Windows;
 using System.Windows.Media;
+using System.Windows.Threading;
 using TbotUltra.Desktop.Services;
 
 namespace TbotUltra.Desktop;
@@ -98,8 +99,10 @@ public partial class SupportWindow : Window
         DiagnosticsButton.IsEnabled = false;
         OpenDiagnosticsFolderButton.IsEnabled = false;
         InfoTextBlock.Text = "Creating diagnostics file...";
+        DiagnosticsBusyOverlay.Show("Creating diagnostics file", "Collecting and sanitizing logs and settings...");
         try
         {
+            await Dispatcher.Yield(DispatcherPriority.Render);
             var result = await _diagnosticsExporter.CreateAsync(new DiagnosticsExportRequest(
                 _projectRoot,
                 AppContext.BaseDirectory,
@@ -128,6 +131,7 @@ public partial class SupportWindow : Window
         }
         finally
         {
+            DiagnosticsBusyOverlay.Hide();
             DiagnosticsButton.IsEnabled = true;
             OpenDiagnosticsFolderButton.IsEnabled = true;
         }

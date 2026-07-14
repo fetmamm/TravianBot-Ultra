@@ -521,6 +521,8 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 - Huvudfonstrets gemensamma `BusyOverlay` ska alltid doljas i operationens `finally`.
 - Support > Diagnostics sparar atomiska ZIP-paket i `Documents/Tbot Ultra/Diagnostics`. Alla tillgangliga
   loggar ska med; config och textartefakter saneras, `.env`/browser-state exkluderas och screenshots varnas som osanerbara.
+- Diagnostics-export visar den gemensamma blockerande busy-overlayn. JSON-array sanitiseras fran en snapshot,
+  eftersom string-redaction ersatter arrayelement och annars invaliderar `JsonArray`-enumeratorn.
 - Versionsdialogens `Update & restart` visas alltid for att funktionen ska vara synlig. Den ar endast
   klickbar nar en ny portable-release finns och appen kors som publicerade `Tbot Ultra.exe`.
 - Release-workflowen ska hamta Desktop `TargetDir` fran MSBuild for `Release` + `win-x64`; hardkoda aldrig
