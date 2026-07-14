@@ -547,6 +547,24 @@ public sealed class TravianClientHelperTests
     }
 
     [Fact]
+    public void ComputeResourceAccumulationWaitSeconds_OneHourShortfallWaitsOneHour()
+    {
+        var production = new Dictionary<string, double?>
+        {
+            ["wood"] = 1000,
+        };
+
+        var waitSeconds = UpgradeMath.ComputeResourceAccumulationWaitSeconds(
+            remainingWood: 1000,
+            remainingClay: 0,
+            remainingIron: 0,
+            remainingCrop: 0,
+            production);
+
+        Assert.Equal(3600, waitSeconds);
+    }
+
+    [Fact]
     public void ComputeResourceAccumulationWaitSeconds_FallsBackWhenNeededProductionMissing()
     {
         var production = new Dictionary<string, double?>

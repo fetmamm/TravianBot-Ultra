@@ -161,6 +161,7 @@ Common endpoints:
 - Existing buildings and level-zero construction sites are distinct cases.
 - Building-type selectors must be exact enough to avoid upgrading the wrong slot.
 - “Construct faster” controls are not build/upgrade actions.
+- Town Hall celebration rows must calculate resource shortfall before clicking; generic research/hero-transfer links are not start actions.
 - Mutually exclusive building rules must be evaluated before queue execution.
 - GID 13 and other special buildings must use the catalog and verified Official behavior.
 - Building catalog data must cover all supported tribes: Romans, Teutons, Gauls, Egyptians, and Huns.

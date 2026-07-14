@@ -8,6 +8,8 @@ public sealed partial class TravianClient
 {
     private const int TownHallCelebrationRetrySeconds = 60;
     private const int TownHallBigCelebrationRequiredLevel = 10;
+    internal const string TownHallCelebrationStartLinkSelector =
+        ".cta a[href*='a=1'], .cta a[href*='celebr'], td.act a[href*='a=1'], td.act a[href*='celebr']";
 
     public async Task<string> RunTownHallCelebrationAsync(
         string? requestedMode,
@@ -68,9 +70,33 @@ public sealed partial class TravianClient
         }
 
         // Below target: start celebrations until the target is reached or the server/resources stop us.
+        _heroTransferOverLimitWaitSeconds = null;
         while (status.ActiveCount < goalCount)
         {
             Notify($"[town-hall] attempting to start {mode} celebration at slot {townHallSlotId.Value} (active {status.ActiveCount}, target {goalCount})");
+
+            // Resource-blocked rows can contain a generic a.research link that opens the hero inventory.
+            // Detect the shortfall before selecting a start action so that link is never mistaken for Start.
+            var resourceWaitMessage = await TryBuildTownHallCelebrationResourceWaitMessageAsync(mode, cancellationToken);
+            if (!string.IsNullOrWhiteSpace(resourceWaitMessage))
+            {
+                if (!await TryHeroResourceTransferForTownHallAsync(
+                        $"Town Hall {mode} celebration (slot {townHallSlotId.Value})",
+                        mode,
+                        cancellationToken))
+                {
+                    if (_heroTransferOverLimitWaitSeconds is not null)
+                    {
+                        resourceWaitMessage = await TryBuildTownHallCelebrationResourceWaitMessageAsync(mode, cancellationToken)
+                            ?? resourceWaitMessage;
+                    }
+
+                    return resourceWaitMessage;
+                }
+
+                Notify("[town-hall] topped up from the hero inventory; retrying start.");
+            }
+
             var startAttempt = await TryStartTownHallCelebrationFromCurrentPageAsync(mode, cancellationToken);
             if (!startAttempt.Started && status.SlotOccupied && status.ActiveCount >= 1)
             {
@@ -84,19 +110,7 @@ public sealed partial class TravianClient
 
             if (!startAttempt.Started)
             {
-                if (await TryHeroResourceTransferForTownHallAsync(
-                        $"Town Hall {mode} celebration (slot {townHallSlotId.Value})",
-                        mode,
-                        cancellationToken))
-                {
-                    Notify("[town-hall] topped up from the hero inventory; retrying start.");
-                    startAttempt = await TryStartTownHallCelebrationFromCurrentPageAsync(mode, cancellationToken);
-                }
-            }
-
-            if (!startAttempt.Started)
-            {
-                var resourceWaitMessage = await TryBuildTownHallCelebrationResourceWaitMessageAsync(mode, cancellationToken);
+                resourceWaitMessage = await TryBuildTownHallCelebrationResourceWaitMessageAsync(mode, cancellationToken);
                 if (!string.IsNullOrWhiteSpace(resourceWaitMessage))
                 {
                     // A start row exists but lacks resources (with Plus a second can still be queued) — come
@@ -284,7 +298,7 @@ public sealed partial class TravianClient
         cancellationToken.ThrowIfCancellationRequested();
         var payload = await _page.EvaluateAsync<JsonElement>(
             """
-            () => {
+            (startLinkSelector) => {
               const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
               const root = document.querySelector('.build_details.researches, .researches');
               // The "Ongoing celebration" table (class under_progress) is a SIBLING of the .build_details
@@ -308,7 +322,7 @@ public sealed partial class TravianClient
                 .find(text => /celebration is in progress/i.test(text) || /celebration running/i.test(text) || /underway/i.test(text)) || '';
               const rows = Array.from(root?.querySelectorAll('.researches .research, .research') || []);
               const smallRow = rows.find(row => /small\s+celebration/i.test(normalize(row.textContent || '')));
-              const startLink = smallRow?.querySelector('.cta a.research, .cta a[href*="a=1"], .cta a[href*="celebr"], td.act a.research, td.act a[href*="a=1"], td.act a[href*="celebr"]');
+              const startLink = smallRow?.querySelector(startLinkSelector);
               const startButton = smallRow?.querySelector('.cta button:not([disabled]):not(.disabled), td.act button:not([disabled]):not(.disabled)');
               const canStart = (!!startLink) || (!!startButton && !startButton.disabled);
               const actText = normalize(smallRow?.querySelector('.cta, td.act')?.textContent || '');
@@ -335,7 +349,8 @@ public sealed partial class TravianClient
                 statusText
               };
             }
-            """);
+            """,
+            TownHallCelebrationStartLinkSelector);
 
         var celebrationRunning = payload.TryGetProperty("celebrationRunning", out var celebrationRunningNode)
             && celebrationRunningNode.ValueKind == JsonValueKind.True;
@@ -384,16 +399,16 @@ public sealed partial class TravianClient
         await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         var payload = await _page.EvaluateAsync<JsonElement>(
             """
-            (mode) => {
+            (args) => {
               const normalize = value => (value || '').replace(/\s+/g, ' ').trim();
               const root = document.querySelector('.build_details.researches, .researches');
               const rows = Array.from(root?.querySelectorAll('.researches .research, .research') || []);
-              const rowPattern = mode === 'big'
+              const rowPattern = args.mode === 'big'
                 ? /(big|great|large)\s+celebration/i
                 : /small\s+celebration/i;
               const row = rows.find(candidate => rowPattern.test(normalize(candidate.textContent || '')));
               if (!row) return { kind: 'none', href: '' };
-              const link = row.querySelector('.cta a.research, .cta a[href*="a=1"], .cta a[href*="celebr"], td.act a.research, td.act a[href*="a=1"], td.act a[href*="celebr"]');
+              const link = row.querySelector(args.startLinkSelector);
               if (link) {
                 return { kind: 'link', href: link.getAttribute('href') || '' };
               }
@@ -405,7 +420,7 @@ public sealed partial class TravianClient
               return { kind: 'none', href: '' };
             }
             """,
-            mode);
+            new { mode, startLinkSelector = TownHallCelebrationStartLinkSelector });
 
         var kind = payload.TryGetProperty("kind", out var kindNode) ? kindNode.GetString() ?? "none" : "none";
         var href = payload.TryGetProperty("href", out var hrefNode) ? hrefNode.GetString() ?? string.Empty : string.Empty;
