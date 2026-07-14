@@ -283,6 +283,11 @@ public sealed partial class BotTaskRunner
     {
         var account = _accountProvider.LoadAccount(accountName);
         _accountAnalysisStore.TryLoad(account.Name, out var existing, options.BaseUrl);
+        if (existing?.GoldClubEnabled == true)
+        {
+            return true;
+        }
+
         var detectedGoldClubEnabled = false;
         var serverUrl = options.BaseUrl.TrimEnd('/');
         var tribe = existing?.Tribe ?? "Unknown";
@@ -305,22 +310,26 @@ public sealed partial class BotTaskRunner
                 }
             });
 
-        var effectiveGoldClubEnabled = detectedGoldClubEnabled || (existing?.GoldClubEnabled ?? false);
+        if (!detectedGoldClubEnabled)
+        {
+            return false;
+        }
+
         var completed = new AccountAnalysisSnapshot(
             SchemaVersion: AccountAnalysisConstants.CurrentSchemaVersion,
             AnalyzedAtUtc: DateTimeOffset.UtcNow,
             AccountName: account.Name,
             ServerUrl: serverUrl,
             Tribe: string.IsNullOrWhiteSpace(tribe) ? "Unknown" : tribe,
-            GoldClubEnabled: effectiveGoldClubEnabled,
+            GoldClubEnabled: true,
             BuildingCatalog: existing?.BuildingCatalog ?? [],
             AutoCelebrationEnabled: existing?.AutoCelebrationEnabled,
             AutomationLoopEnabledGroups: existing?.AutomationLoopEnabledGroups,
             AutomationLoopVisibleGroups: existing?.AutomationLoopVisibleGroups);
 
         _accountAnalysisStore.Save(completed);
-        log($"Gold Club status saved for '{completed.AccountName}': {(completed.GoldClubEnabled ? "Yes" : "No")}.");
-        return completed.GoldClubEnabled;
+        log($"Gold Club activated and saved for '{completed.AccountName}'.");
+        return true;
     }
 
     public async Task ExecuteLogoutAsync(

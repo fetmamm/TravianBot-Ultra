@@ -190,24 +190,6 @@ public partial class MainWindow
                         alarmLinesForSessionLog.Add(line);
                     }
 
-                    if (IsManualVerificationAlarmMessage(part))
-                    {
-                        _manualVerificationAlarmActive = true;
-                    }
-
-                    if (_manualVerificationAlarmActive && IsManualVerificationResolvedMessage(part))
-                    {
-                        AcknowledgeAllAlarmEntries();
-                        _manualVerificationAlarmActive = false;
-                    }
-
-                    if (part.Contains("manual verification appeared", StringComparison.OrdinalIgnoreCase)
-                        || part.Contains("captcha/manual", StringComparison.OrdinalIgnoreCase))
-                    {
-                        // During a visible login the browser window is open even though
-                        // _browserSessionLikelyOpen is still false (it flips only after post-login finishes).
-                        ShowManualVerificationPopup(_browserSessionLikelyOpen || _visibleBrowserLoginInProgress);
-                    }
                 }
             }
 
@@ -566,78 +548,12 @@ public partial class MainWindow
         ApplyResourceProductionOnlyToUi(productionByHour);
     }
 
-    private void ShowManualVerificationPopup(bool browserAlreadyOpen)
-    {
-        var now = DateTimeOffset.UtcNow;
-        if ((now - _lastVerificationPopupAt).TotalSeconds < 10)
-        {
-            return;
-        }
-
-        _lastVerificationPopupAt = now;
-        if (browserAlreadyOpen)
-        {
-            var solved = AppDialog.Show(
-                this,
-                "Manual verification detected. Solve it in the open browser window, then click Yes (Solved).",
-                "Manual verification",
-                MessageBoxButton.YesNo,
-                MessageBoxImage.Information);
-            if (solved == MessageBoxResult.Yes)
-            {
-                _manualVerificationAlarmActive = false;
-                AcknowledgeAllAlarmEntries();
-                AppendLog("Manual verification marked as solved by user.");
-            }
-            return;
-        }
-
-        var openBrowser = AppDialog.Show(
-            this,
-            "Manual verification is required. Browser is not open. Open/restart verification browser now?",
-            "Manual verification",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Information);
-        if (openBrowser == MessageBoxResult.Yes)
-        {
-            OpenVerificationBrowser();
-        }
-    }
-
     private static void TrimToMaxEntries<T>(ObservableCollection<T> entries, int max)
     {
         while (entries.Count > max)
         {
             entries.RemoveAt(entries.Count - 1);
         }
-    }
-
-    private static bool IsManualVerificationAlarmMessage(string message)
-    {
-        if (string.IsNullOrWhiteSpace(message))
-        {
-            return false;
-        }
-
-        var value = message.ToLowerInvariant();
-        return value.Contains("manual verification appeared")
-            || value.Contains("captcha/manual")
-            || value.Contains("captcha/manual step detected")
-            || value.Contains("solve it in the browser window")
-            || value.Contains("captured captcha screenshot");
-    }
-
-    private static bool IsManualVerificationResolvedMessage(string message)
-    {
-        if (string.IsNullOrWhiteSpace(message))
-        {
-            return false;
-        }
-
-        var value = message.ToLowerInvariant();
-        return value.Contains("manual verification cleared")
-            || value.Contains("login completed")
-            || value.Contains("login finished");
     }
 
     private static bool IsAlarmMessage(string message)

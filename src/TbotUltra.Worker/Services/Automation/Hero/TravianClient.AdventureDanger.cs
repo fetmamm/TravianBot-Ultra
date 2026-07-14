@@ -38,7 +38,7 @@ public sealed partial class TravianClient
         Notify($"[adventure-video] starting — {label} via bonus video");
 
         // The bonus video is best-effort: it must NEVER throw into the hero flow, or a video error (browser
-        // launch failure, navigation timeout, login needed in the isolated browser, captcha, ...) would abort
+        // launch failure, navigation timeout, login needed in the isolated browser, ...) would abort
         // the much more important hero adventure dispatch. Swallow everything except cancellation and return a
         // status string; failure details go to the verbose log (hidden in Clean) so problems stay discoverable.
         try

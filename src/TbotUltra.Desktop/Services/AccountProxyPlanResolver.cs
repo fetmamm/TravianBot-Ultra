@@ -6,6 +6,26 @@ public static class AccountProxyPlanResolver
         AccountProxyPlan plan,
         string accountName,
         DateTimeOffset at,
+        AccountProxyRuntimeState runtime)
+    {
+        var scheduled = Resolve(plan, accountName, at, runtime.ActiveProxyId);
+        if (string.IsNullOrWhiteSpace(runtime.RecoveryOverrideProxyId)
+            || runtime.RecoveryOverrideUntilUtc is { } until && at >= until)
+        {
+            return scheduled;
+        }
+
+        return new ProxyPlanResolution(
+            runtime.RecoveryOverrideProxyId,
+            runtime.RecoveryOverrideUntilUtc ?? scheduled.NextTransitionAt,
+            scheduled.ProxyId,
+            "Using the recovery proxy until the next scheduled sleep switch.");
+    }
+
+    public static ProxyPlanResolution Resolve(
+        AccountProxyPlan plan,
+        string accountName,
+        DateTimeOffset at,
         string? fallbackProxyId = null)
     {
         if (!plan.Enabled || plan.Assignments.Count == 0)

@@ -122,6 +122,30 @@ public sealed class AccountProxyPlanTests
     }
 
     [Fact]
+    public void Resolve_KeepsRecoveryProxyUntilItsScheduledSleepBoundary()
+    {
+        var scheduled = Proxy("scheduled", "1.1.1.1");
+        var recovery = Proxy("recovery", "2.2.2.2");
+        var plan = Plan(
+            Assignment(scheduled.Id, Block(0, 12)),
+            Assignment(recovery.Id, Block(12, 0)));
+        var now = new DateTimeOffset(2026, 7, 13, 8, 0, 0, TimeSpan.Zero);
+        var runtime = new AccountProxyRuntimeState
+        {
+            ActiveProxyId = scheduled.Id,
+            RecoveryOverrideProxyId = recovery.Id,
+            RecoveryOverrideUntilUtc = now.AddHours(2),
+        };
+
+        var duringRecovery = AccountProxyPlanResolver.Resolve(plan, "alice", now, runtime);
+        var afterRecovery = AccountProxyPlanResolver.Resolve(plan, "alice", now.AddHours(2), runtime);
+
+        Assert.Equal(recovery.Id, duringRecovery.ProxyId);
+        Assert.Equal(runtime.RecoveryOverrideUntilUtc, duringRecovery.NextTransitionAt);
+        Assert.Equal(scheduled.Id, afterRecovery.ProxyId);
+    }
+
+    [Fact]
     public void Validate_RequiresPacingForMultipleProxies()
     {
         var first = Proxy("first", "1.1.1.1");

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using Microsoft.Playwright;
 using TbotUltra.Core.Accounts;
@@ -19,6 +20,8 @@ public sealed partial class BrowserSession : IAsyncDisposable
     // Upper bound on tearing down the isolated bonus-video browser, so a wedged CloseAsync cannot itself
     // re-stall the calling task. A leaked browser process is recoverable; an infinite stall is not.
     private static readonly TimeSpan IsolatedBonusVideoCloseTimeout = TimeSpan.FromSeconds(10);
+    private static readonly TimeSpan BonusVideoFailureCooldown = TimeSpan.FromMinutes(30);
+    private static readonly ConcurrentDictionary<string, DateTimeOffset> BonusVideoCooldownUntilByAccount = new(StringComparer.OrdinalIgnoreCase);
     private static readonly SemaphoreSlim WarmupGate = new(1, 1);
     private static readonly SemaphoreSlim StorageStateGate = new(1, 1);
     private static bool _warmupCompleted;
@@ -30,6 +33,8 @@ public sealed partial class BrowserSession : IAsyncDisposable
     private readonly HashSet<string> _transientExternalOrigins = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _isolatedExternalContextsGate = new();
     private readonly HashSet<IBrowserContext> _isolatedExternalContexts = [];
+    private DateTimeOffset _lastTransientStorageCleanupLogAtUtc = DateTimeOffset.MinValue;
+    private string _lastTransientStorageCleanupLog = string.Empty;
 
     private IPlaywright? _playwright;
     private IBrowser? _browser;

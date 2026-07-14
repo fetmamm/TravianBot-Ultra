@@ -421,7 +421,7 @@ public partial class MainWindow
         {
             // A page caught mid-navigation reports login state 'unknown' and self-heals on the next
             // read. It is never user-actionable, so log it as a verbose (non-alarm) line instead of a
-            // red FAIL alarm. Real problems (captcha/manual step/logged out) keep alarming.
+            // red FAIL alarm. Real session and navigation failures still keep alarming.
             if (IsTransientPageReadFailure(ex))
             {
                 AppendLog($"[resource-refresh:verbose] transient page read skipped ({ex.Message})");

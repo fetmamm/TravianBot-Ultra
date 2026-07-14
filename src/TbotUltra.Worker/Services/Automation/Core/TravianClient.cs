@@ -56,6 +56,7 @@ public sealed partial class TravianClient
     private string? _cachedTribe;
     private readonly TravianSessionCache _session;
     private static readonly TimeSpan TribePlusCacheTtl = TimeSpan.FromMinutes(10);
+    private static readonly TimeSpan ResourceReadLogInterval = TimeSpan.FromMinutes(2);
     // These caches are backed by the shared session cache (_session) so they survive across the
     // short-lived TravianClient instances created per operation for the same browser session.
     private bool? _cachedTravianPlusActive { get => _session.CachedTravianPlusActive; set => _session.CachedTravianPlusActive = value; }
@@ -86,6 +87,18 @@ public sealed partial class TravianClient
         _cachedActiveConstructions = null;
         _cachedActiveConstructionsFromOverview = false;
         _lastActiveConstructionsFromOverview = false;
+    }
+
+    private void NotifyResourceRead(string message)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (now - _session.LastResourceReadLogAt < ResourceReadLogInterval)
+        {
+            return;
+        }
+
+        _session.LastResourceReadLogAt = now;
+        Notify(message);
     }
 
     private IDisposable BeginConstructionNavigationDiagnostics(string label)
@@ -211,7 +224,7 @@ public sealed partial class TravianClient
     // short TTL lets the ~20s background refresh pick up renamed/new villages promptly while still
     // sharing one read across rapid successive calls.
     private static readonly TimeSpan VillagesCacheTtl = TimeSpan.FromSeconds(15);
-    private static readonly TimeSpan EnsureLoggedInMinInterval = TimeSpan.FromSeconds(16);
+    private static readonly TimeSpan EnsureLoggedInMinInterval = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan UiSyncMinInterval = TimeSpan.FromSeconds(20);
     private static readonly object ResourceStatusCacheSync = new();
     private static readonly object HeroAttributeSnapshotCacheSync = new();

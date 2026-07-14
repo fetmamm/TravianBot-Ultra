@@ -70,14 +70,6 @@ public partial class MainWindow
             BrowserInfoTextBlock.Text = "Browser: starting";
 
             await EnsureChromiumInstalledAsync();
-            // A visible browser opens as soon as login starts. Track that in a DEDICATED flag so a
-            // captcha / manual-verification popup mid-login knows the window is already open (and doesn't
-            // offer to open a second, conflicting verification browser). Do NOT flip
-            // _browserSessionLikelyOpen here: that flag also gates background refresh and village-selection
-            // operations, and turning it on before post-login analysis finishes lets those ops race the
-            // login on the shared page (tab flicker). The finally block clears this flag.
-            _visibleBrowserLoginInProgress = true;
-
             // Quick re-login: the full post-login stack (snapshot + analyzes) was completed for this
             // account only minutes ago, and nothing meaningful changes server-side that fast. Log in,
             // confirm the session, restore the persisted caches — done.
@@ -249,6 +241,7 @@ public partial class MainWindow
         {
             StatusTextBlock.Text = "Login paused.";
             AppendLog("Login paused.");
+            CompleteOperation(operationId, operationSw, "Login canceled.");
         }
         catch (UnexpectedTravianLanguageException ex)
         {
@@ -268,7 +261,6 @@ public partial class MainWindow
         }
         finally
         {
-            _visibleBrowserLoginInProgress = false;
             HideBusyOverlay();
             ToggleUiBusy(false);
             DisposeOperationCts();
@@ -949,10 +941,10 @@ public partial class MainWindow
     }
 
     // Quick re-login: when enabled (Settings > General) and the last FULL post-login stack for this
-    // account finished under 10 minutes ago, login only confirms the session — the snapshot/analyze
+    // account finished under the configured quick window, login only confirms the session — the snapshot/analyze
     // stack is skipped since nothing meaningful changes server-side that fast. The timestamp is
     // account-scoped, so switching account always runs the full stack.
-    private const int QuickReloginWindowMinutes = 10;
+    private const int QuickReloginWindowMinutes = 120;
 
     private bool IsQuickReloginWindowActive(out double minutesSinceFullLogin)
     {

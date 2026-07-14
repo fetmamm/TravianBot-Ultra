@@ -63,7 +63,7 @@ public partial class MainWindow
             if (plan?.Enabled == true)
             {
                 var runtime = ProxyPlanStore.LoadRuntime(account.Name);
-                var scheduled = AccountProxyPlanResolver.Resolve(plan, account.Name, DateTimeOffset.Now, runtime.ActiveProxyId);
+                var scheduled = AccountProxyPlanResolver.Resolve(plan, account.Name, DateTimeOffset.Now, runtime);
                 plannedProxyIds = plan.Assignments
                     .Select(item => item.ProxyId)
                     .OrderByDescending(id => string.Equals(id, scheduled.ProxyId, StringComparison.OrdinalIgnoreCase))
@@ -82,9 +82,26 @@ public partial class MainWindow
 
             if (result.Kind == ProxyFailoverKind.CurrentProxyHealthy)
             {
-                MarkNetworkConnectionHealthy();
-                StatusTextBlock.Text = "Proxy recovered; resuming automation.";
-                StartContinuousLoopRunner();
+                try
+                {
+                    // A standalone proxy request can succeed while the existing Chromium page is still
+                    // stranded on chrome-error://. Verify the real browser session before resuming work.
+                    await _botService.ExecuteLoginAsync(
+                        previousOptions,
+                        AppendLog,
+                        keepBrowserOpenAfterLogin: true,
+                        recoveryCts.Token);
+                    MarkNetworkConnectionHealthy();
+                    ResetAutomaticProxyRecoveryRetry();
+                    StatusTextBlock.Text = "Proxy recovered; resuming automation.";
+                    StartContinuousLoopRunner();
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    ScheduleAutomaticProxyRecoveryRetry(
+                        $"The proxy test passed, but the browser session still could not reach Travian: {ex.Message}");
+                }
+
                 return;
             }
 
@@ -113,6 +130,10 @@ public partial class MainWindow
                     runtime.ActiveProxyId = result.Proxy.Id;
                     runtime.LastSuccessfulProxyId = result.Proxy.Id;
                     runtime.ActivatedAtUtc = DateTimeOffset.UtcNow;
+                    runtime.RecoveryOverrideProxyId = result.Proxy.Id;
+                    runtime.RecoveryOverrideUntilUtc = AccountProxyPlanResolver
+                        .Resolve(plan, account.Name, DateTimeOffset.Now, runtime.ActiveProxyId)
+                        .NextTransitionAt;
                     ProxyPlanStore.SaveRuntime(account.Name, runtime);
                 }
                 AppendLog($"[proxy-recovery] switching to {ProxyParser.MaskForLog(result.Proxy.Server)}.");

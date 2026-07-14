@@ -275,7 +275,7 @@ public partial class AccountsWindow : Window
                 }
 
                 var runtime = _proxyPlanStore.LoadRuntime(entry.Name);
-                var resolution = AccountProxyPlanResolver.Resolve(_editorProxyPlan, entry.Name, DateTimeOffset.Now, runtime.ActiveProxyId);
+                var resolution = AccountProxyPlanResolver.Resolve(_editorProxyPlan, entry.Name, DateTimeOffset.Now, runtime);
                 var current = _proxyLibraryEntries.FirstOrDefault(proxy => string.Equals(proxy.Id, resolution.ProxyId, StringComparison.OrdinalIgnoreCase));
                 if (current is null && !string.IsNullOrWhiteSpace(resolution.ProxyId))
                 {
@@ -738,7 +738,7 @@ public partial class AccountsWindow : Window
         }
 
         var runtime = _proxyPlanStore.LoadRuntime(accountName);
-        var resolution = AccountProxyPlanResolver.Resolve(_editorProxyPlan, accountName, DateTimeOffset.Now, runtime.ActiveProxyId);
+        var resolution = AccountProxyPlanResolver.Resolve(_editorProxyPlan, accountName, DateTimeOffset.Now, runtime);
         var proxy = _proxyLibraryEntries.FirstOrDefault(item => string.Equals(item.Id, resolution.ProxyId, StringComparison.OrdinalIgnoreCase));
         if (proxy is null)
         {
@@ -766,7 +766,7 @@ public partial class AccountsWindow : Window
         }
 
         var runtime = _proxyPlanStore.LoadRuntime(accountName);
-        var resolution = AccountProxyPlanResolver.Resolve(_editorProxyPlan, accountName, DateTimeOffset.Now, runtime.ActiveProxyId);
+        var resolution = AccountProxyPlanResolver.Resolve(_editorProxyPlan, accountName, DateTimeOffset.Now, runtime);
         var proxy = _proxyLibraryEntries.FirstOrDefault(item =>
             string.Equals(item.Id, resolution.ProxyId, StringComparison.OrdinalIgnoreCase));
 
@@ -806,7 +806,7 @@ public partial class AccountsWindow : Window
 
         ProxyPlanSummaryTextBlock.Text = $"{_editorProxyPlan.Assignments.Count} proxies ({_editorProxyPlan.VariationPercent}% variation)";
         var runtime = string.IsNullOrWhiteSpace(accountName) ? new AccountProxyRuntimeState() : _proxyPlanStore.LoadRuntime(accountName);
-        var resolution = AccountProxyPlanResolver.Resolve(_editorProxyPlan, accountName, DateTimeOffset.Now, runtime.ActiveProxyId);
+        var resolution = AccountProxyPlanResolver.Resolve(_editorProxyPlan, accountName, DateTimeOffset.Now, runtime);
         var current = _proxyLibraryEntries.FirstOrDefault(proxy => string.Equals(proxy.Id, resolution.ProxyId, StringComparison.OrdinalIgnoreCase));
         var next = _proxyLibraryEntries.FirstOrDefault(proxy => string.Equals(proxy.Id, resolution.NextProxyId, StringComparison.OrdinalIgnoreCase));
         var currentName = string.IsNullOrWhiteSpace(resolution.ProxyId) ? "Direct connection" : current?.DisplayName ?? "Unknown";

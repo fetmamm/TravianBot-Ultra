@@ -17,7 +17,8 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private static readonly TimeSpan LoopPickVerboseThrottle = TimeSpan.FromSeconds(30);
+    private static readonly TimeSpan LoopPickVerboseThrottle = TimeSpan.FromMinutes(5);
+    private static readonly TimeSpan GoldClubInactiveRecheckInterval = TimeSpan.FromMinutes(10);
     // Idle loop passes no longer log "[LOOP n] START" + "WAIT" every few seconds. Instead a single
     // "[LOOP n] idle" heartbeat is logged at most this often while nothing is ready, so the log shows the
     // loop is alive without the per-pass spine. Active passes (a PICK) and failures still log in full.
@@ -26,6 +27,9 @@ public partial class MainWindow
     private readonly object _loopPickVerboseLogGate = new();
     private readonly Dictionary<string, DateTimeOffset> _loopPickVerboseLogAtByKey = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _constructionQueueSummaryByVillage = new(StringComparer.OrdinalIgnoreCase);
+    private string _continuousGoldClubAccount = string.Empty;
+    private bool? _continuousGoldClubEnabled;
+    private DateTimeOffset _lastContinuousGoldClubCheckUtc = DateTimeOffset.MinValue;
 
     // The village the AutoQueue drain is currently working through. Rotation drains one village's ready
     // tasks before advancing to the next; reset at the start of each run so a fresh run starts cleanly.
@@ -403,9 +407,11 @@ public partial class MainWindow
             _botService.EnqueueRuntime("run_town_hall_celebration", "Town Hall celebration", payload, priority: -50, maxRetries: 0);
         }
 
-        if (consideredGroups.Contains(QueueGroup.Farming) && !IsFarmingGroupBlocked())
+        var farmingBlockedForOtherReason = IsFarmingGroupBlocked()
+            && !string.Equals(_farmingBlockedReasonKey, FarmingBlockedReasonNoGoldClub, StringComparison.OrdinalIgnoreCase);
+        if (consideredGroups.Contains(QueueGroup.Farming) && !farmingBlockedForOtherReason)
         {
-            var goldClubEnabled = await _botService.ReadAndPersistGoldClubStatusAsync(options, AppendLog, cancellationToken);
+            var goldClubEnabled = await ResolveContinuousGoldClubStatusAsync(options, cancellationToken);
             UpdateGoldClubInfo(goldClubEnabled);
             if (goldClubEnabled)
             {
@@ -1787,6 +1793,35 @@ public partial class MainWindow
                 : TimeSpan.FromSeconds(ContinuousLoopMaxSleepSliceSeconds);
             await Task.Delay(slice, token);
         }
+    }
+
+    private async Task<bool> ResolveContinuousGoldClubStatusAsync(BotOptions options, CancellationToken cancellationToken)
+    {
+        var accountName = _accountStore.ActiveAccountName();
+        if (!string.Equals(_continuousGoldClubAccount, accountName, StringComparison.OrdinalIgnoreCase))
+        {
+            _continuousGoldClubAccount = accountName;
+            _continuousGoldClubEnabled = TryGetStoredGoldClubEnabled(accountName);
+            _lastContinuousGoldClubCheckUtc = DateTimeOffset.MinValue;
+        }
+
+        // Gold Club cannot be lost during a server. Once true, the persisted value is authoritative
+        // and the loop never logs in or writes analysis merely to reconfirm it.
+        if (_continuousGoldClubEnabled == true)
+        {
+            _continuousGoldClubEnabled = true;
+            return true;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (now - _lastContinuousGoldClubCheckUtc < GoldClubInactiveRecheckInterval)
+        {
+            return false;
+        }
+
+        _lastContinuousGoldClubCheckUtc = now;
+        _continuousGoldClubEnabled = await _botService.ReadAndPersistGoldClubStatusAsync(options, AppendLog, cancellationToken);
+        return _continuousGoldClubEnabled == true;
     }
 
     internal static int ResolveContinuousLoopWaitSeconds(

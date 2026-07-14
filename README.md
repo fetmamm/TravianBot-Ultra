@@ -293,7 +293,7 @@ cache/                     capital-state, manual-farming prefs
 
 - Runtime + UI fully C# (`TbotUltra.Desktop` + `TbotUltra.Worker`).
 - Queue persists per account in `config/accounts/<account>/queue.json`, managed from the Queue tab.
-- Captcha/manual verification is handled manually in the browser.
+- Official Travian login is handled with a bounded timeout; logged-out sessions are restored automatically.
 
 ---
 

@@ -18,6 +18,7 @@ public sealed class TravianSessionCache
 
     public System.DateTimeOffset LastEnsureLoggedInAt { get; set; } = System.DateTimeOffset.MinValue;
     public bool LastEnsureLoggedInSucceeded { get; set; }
+    public System.DateTimeOffset LastResourceReadLogAt { get; set; } = System.DateTimeOffset.MinValue;
 
     // Villages list + population cache. Shared so the bylist/population read from spieler.php once
     // survives across per-operation clients (no duplicate spieler navigation at startup) and the

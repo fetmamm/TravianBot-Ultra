@@ -18,6 +18,13 @@ public sealed partial class BrowserSession
             throw new InvalidOperationException("Browser session is not open.");
         }
 
+        if (BonusVideoCooldownUntilByAccount.TryGetValue(_account.Name, out var cooldownUntil)
+            && cooldownUntil > DateTimeOffset.UtcNow)
+        {
+            throw new InvalidOperationException(
+                $"Bonus-video attempts are paused until {cooldownUntil.ToLocalTime():HH:mm} after a hard timeout.");
+        }
+
         ConsentDomainsAllowed = false;
         await ClearTransientExternalStorageOriginsAsync(force: true);
         var stateJson = FilterForeignSubdomainState(await _context.StorageStateAsync());
@@ -57,6 +64,7 @@ public sealed partial class BrowserSession
         }
         catch (OperationCanceledException) when (flowTimeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
+            BonusVideoCooldownUntilByAccount[_account.Name] = DateTimeOffset.UtcNow + BonusVideoFailureCooldown;
             _log?.Invoke($"[browser-video] video flow exceeded {IsolatedBonusVideoMaxDuration.TotalSeconds:0}s hard cap — aborting and closing the isolated browser.");
             throw new TimeoutException($"Bonus-video flow exceeded {IsolatedBonusVideoMaxDuration.TotalSeconds:0}s and was aborted.");
         }
@@ -494,7 +502,15 @@ public sealed partial class BrowserSession
 
             if (force || trackedOriginCount > 0)
             {
-                _log?.Invoke($"[browser] transient ad/consent storage cleanup cleared origins={cleared} tracked={trackedOriginCount} force={force}.");
+                var cleanupLog = $"[browser] transient ad/consent storage cleanup cleared origins={cleared} tracked={trackedOriginCount} force={force}.";
+                var now = DateTimeOffset.UtcNow;
+                if (!string.Equals(cleanupLog, _lastTransientStorageCleanupLog, StringComparison.Ordinal)
+                    || now - _lastTransientStorageCleanupLogAtUtc >= TimeSpan.FromMinutes(5))
+                {
+                    _lastTransientStorageCleanupLog = cleanupLog;
+                    _lastTransientStorageCleanupLogAtUtc = now;
+                    _log?.Invoke(cleanupLog);
+                }
             }
         }
         catch (Exception ex)

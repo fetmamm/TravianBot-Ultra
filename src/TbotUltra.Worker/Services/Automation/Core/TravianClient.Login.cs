@@ -25,11 +25,19 @@ public sealed partial class TravianClient : ISessionClient
     // Login function
     public async Task LoginAsync(CancellationToken cancellationToken = default)
     {
+        var now = DateTimeOffset.UtcNow;
+        if (_lastEnsureLoggedInSucceeded
+            && now - _lastEnsureLoggedInAt < EnsureLoggedInMinInterval
+            && !_page.Url.Contains("login", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
         Notify($"[login] Account='{_account.Name}' server='{ServerUrl}' — starting");
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared before login.", cancellationToken);
         var state = await LoginStateAsync();
         if (state == "logged_in")
         {
+            MarkSessionLoggedIn();
             Notify($"[login] already logged in as '{_account.Name}'");
             await ConfirmExpectedLanguageIfEnabledAndRefreshAccountSignalsAsync(cancellationToken);
             return;
@@ -41,6 +49,7 @@ public sealed partial class TravianClient : ISessionClient
             await GotoAsync(Paths.Resources, cancellationToken);
             if (await IsLoggedInAsync())
             {
+                MarkSessionLoggedIn();
                 Notify($"[login] already logged in as '{_account.Name}' after dorf1 recheck");
                 await ConfirmExpectedLanguageIfEnabledAndRefreshAccountSignalsAsync(cancellationToken);
                 return;
@@ -51,6 +60,7 @@ public sealed partial class TravianClient : ISessionClient
         var loggedInFromCurrentPage = await TryLoginUsingCurrentPageAsync(cancellationToken);
         if (loggedInFromCurrentPage)
         {
+            MarkSessionLoggedIn();
             Notify($"[login] success ({_account.Name}) — used existing page form");
             await RefreshAccountFeatureSignalsAsync(cancellationToken);
             return;
@@ -58,9 +68,9 @@ public sealed partial class TravianClient : ISessionClient
 
         await GotoAsync(Paths.Login, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared on the login page.", cancellationToken);
         if (await IsLoggedInAsync())
         {
+            MarkSessionLoggedIn();
             Notify($"[login] success ({_account.Name}) — already authenticated after opening login page");
             await ConfirmExpectedLanguageIfEnabledAndRefreshAccountSignalsAsync(cancellationToken);
             return;
@@ -69,39 +79,21 @@ public sealed partial class TravianClient : ISessionClient
         // Tolerate a slow-loading login page: wait for the form to appear before filling it.
         if (!await WaitForAnySelectorAsync(Selectors.LoginUsernameField, TimeSpan.FromSeconds(15), cancellationToken))
         {
-            // Maybe a redirect logged us in, or a captcha/manual step is blocking the form.
+            // Maybe a redirect logged us in while the login page was loading.
             if (await IsLoggedInAsync())
             {
+                MarkSessionLoggedIn();
                 await ConfirmExpectedLanguageIfEnabledAndRefreshAccountSignalsAsync(cancellationToken);
                 return;
             }
 
-            if (!await CaptchaOrManualStepVisibleAsync())
-            {
-                throw new InvalidOperationException("Login form did not load (the page may be slow or unavailable).");
-            }
+            throw new InvalidOperationException("Login form did not load (the page may be slow or unavailable).");
         }
 
         await FillLoginCredentialsWithPacingAsync(cancellationToken);
 
-        if (await CaptchaOrManualStepVisibleAsync())
-        {
-            await CaptureManualVerificationScreenshotAsync("login-page", cancellationToken);
-
-            if (!_browserVisible)
-            {
-                throw new ManualVerificationRequiredException(
-                    "Captcha/manual verification appeared while running headless.");
-            }
-
-            Notify($"[login] ALARM: captcha/manual step detected for {_account.Name}. Solve it manually in the browser — bot is paused.");
-            await WaitForManualVerificationToClearAsync(cancellationToken);
-        }
-        else
-        {
-            await ClickLoginButtonAsync(cancellationToken);
-            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        }
+        await ClickLoginButtonAsync(cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
 
         var loggedIn = await WaitUntilLoggedInAsync(cancellationToken);
         if (!loggedIn)
@@ -152,7 +144,14 @@ public sealed partial class TravianClient : ISessionClient
             Notify($"[login:verbose] post-login page settle did not complete: {ex.Message}");
         }
         Notify($"[login] success ({_account.Name}) — submitted credentials and confirmed");
+        MarkSessionLoggedIn();
         await RefreshAccountFeatureSignalsAsync(cancellationToken);
+    }
+
+    private void MarkSessionLoggedIn()
+    {
+        _lastEnsureLoggedInAt = DateTimeOffset.UtcNow;
+        _lastEnsureLoggedInSucceeded = true;
     }
 
     private async Task ConfirmExpectedLanguageIfEnabledAndRefreshAccountSignalsAsync(CancellationToken cancellationToken)
@@ -186,20 +185,7 @@ public sealed partial class TravianClient : ISessionClient
 
         await FillLoginCredentialsWithPacingAsync(cancellationToken);
 
-        if (await CaptchaOrManualStepVisibleAsync())
-        {
-            await CaptureManualVerificationScreenshotAsync("login-current-page", cancellationToken);
-
-            if (!_browserVisible)
-            {
-                throw new ManualVerificationRequiredException(
-                    "Captcha/manual verification appeared while running headless.");
-            }
-        }
-        else
-        {
-            await ClickLoginButtonAsync(cancellationToken);
-        }
+        await ClickLoginButtonAsync(cancellationToken);
 
         var loggedIn = await WaitUntilLoggedInAsync(cancellationToken);
         if (loggedIn)
@@ -218,7 +204,6 @@ public sealed partial class TravianClient : ISessionClient
         _cachedTribe = null;
         _cachedGoldClubEnabled = null;
         await GotoAsync(Paths.Resources, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared before logout.", cancellationToken);
         if (!await IsLoggedInAsync())
         {
             Notify($"[logout] {_account.Name} was already logged out");
@@ -310,7 +295,6 @@ public sealed partial class TravianClient : ISessionClient
         var currentUrl = _page.Url.ToLowerInvariant();
         if (currentUrl.Contains("login.php", StringComparison.Ordinal))
         {
-            Notify("You are logged out");
             return true;
         }
 
@@ -320,7 +304,6 @@ public sealed partial class TravianClient : ISessionClient
             {
                 if (await _page.Locator(selector).CountAsync() > 0)
                 {
-                    Notify("You are logged out");
                     return true;
                 }
             }
@@ -365,7 +348,8 @@ public sealed partial class TravianClient : ISessionClient
             // redirects to login.php). Re-use the existing LoginAsync flow rather than throwing —
             // BotTaskRunner already calls LoginAsync at the start of every feature, so this just
             // covers the in-feature drop case (and the keep-alive idle path). Other non-logged-in
-            // states (captcha, manual_step, unknown) still need human attention, so keep throwing.
+            // Unknown/unavailable states remain transient failures; an explicit logged-out state
+            // is the only state that starts the normal Official login flow.
             var state = await LoginStateAsync();
             if (state == "unknown")
             {
@@ -456,16 +440,10 @@ public sealed partial class TravianClient : ISessionClient
 
             if (currentUrl.Contains("login.php", StringComparison.Ordinal))
             {
-                Notify("You are logged out");
                 return "logged_out";
             }
 
             await TryDismissContinuePromptAsync();
-
-            if (await CaptchaOrManualStepVisibleAsync())
-            {
-                return "manual_step";
-            }
 
             // The page can still be settling right after a navigation/reload (especially the
             // official React in-game pages). Probing the indicators too early yielded a false
@@ -488,7 +466,6 @@ public sealed partial class TravianClient : ISessionClient
                 {
                     if (await _page.Locator(selector).CountAsync() > 0)
                     {
-                        Notify("You are logged out");
                         return "logged_out";
                     }
                 }
@@ -838,38 +815,16 @@ public sealed partial class TravianClient : ISessionClient
     {
         var timeoutSeconds = Math.Max(10, _config.ManualLoginTimeoutSeconds);
         var deadline = DateTime.UtcNow.AddSeconds(timeoutSeconds);
-        // Interactive waits extend the deadline in 10s steps so the user can finish a manual
-        // login/captcha — but never past this cap: the wait holds the worker session gate, so a
-        // forgotten login window must not block the queue and account switching forever.
-        var hardDeadline = DateTime.UtcNow.Add(ManualInteractiveWaitMaxDuration);
-        var manualMessageShown = false;
         var pollCount = 0;
-        Notify($"[login:verbose] waiting for login confirmation (timeout={timeoutSeconds}s, interactive={_interactive}, browserVisible={_browserVisible})");
+        Notify($"[login:verbose] waiting for login confirmation (timeout={timeoutSeconds}s)");
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
             pollCount++;
             if (DateTime.UtcNow >= deadline)
             {
-                if (!_interactive || !_browserVisible)
-                {
-                    Notify($"[login] timeout: login not confirmed after {timeoutSeconds}s (polls={pollCount}, headless/non-interactive)");
-                    throw new InvalidOperationException("Login was not confirmed before timeout.");
-                }
-
-                if (DateTime.UtcNow >= hardDeadline)
-                {
-                    Notify($"[login] login/captcha was not completed within {ManualInteractiveWaitMaxDuration.TotalMinutes:F0} minutes — giving up so the bot is not blocked forever.");
-                    throw new InvalidOperationException($"Login was not confirmed within {ManualInteractiveWaitMaxDuration.TotalMinutes:F0} minutes.");
-                }
-
-                if (!manualMessageShown)
-                {
-                    Notify("Login is not confirmed yet. Finish login/captcha in the browser if needed.");
-                    manualMessageShown = true;
-                }
-
-                deadline = DateTime.UtcNow.AddSeconds(10);
+                Notify($"[login] timeout: login not confirmed after {timeoutSeconds}s (polls={pollCount})");
+                throw new InvalidOperationException("Login was not confirmed before timeout.");
             }
 
             try
@@ -889,19 +844,6 @@ public sealed partial class TravianClient : ISessionClient
                 {
                     Notify($"[login] credential/account error visible on page: {loginError}");
                     throw new InvalidOperationException($"Login failed: {loginError}");
-                }
-
-                if (await CaptchaOrManualStepVisibleAsync() && !manualMessageShown)
-                {
-                    await CaptureManualVerificationScreenshotAsync("login-wait", cancellationToken);
-                    Notify("Captcha/manual step detected. Solve it in the browser window, then wait here.");
-                    if (!_browserVisible)
-                    {
-                        throw new ManualVerificationRequiredException(
-                            "Captcha/manual verification appeared while running headless.");
-                    }
-
-                    manualMessageShown = true;
                 }
 
                 await Task.Delay(Random.Shared.Next(400, 600), cancellationToken); // Random wait

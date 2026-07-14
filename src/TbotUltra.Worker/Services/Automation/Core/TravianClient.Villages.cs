@@ -647,7 +647,7 @@ public sealed partial class TravianClient
         var productionByHour = ResourceSnapshotCalculator.MergeProductionByHour(snapshot.ProductionByHour, cachedSnapshot?.ProductionByHour);
         var forecasts = ResourceSnapshotCalculator.BuildStorageForecasts(resources, capacities.Warehouse, capacities.Granary, productionByHour);
         var usingCachedProduction = !HasAnyProduction(snapshot.ProductionByHour) && HasAnyProduction(cachedSnapshot?.ProductionByHour);
-        Notify($"Resource read: storage wh={FormatResourceLogNumber(capacities.Warehouse)} gr={FormatResourceLogNumber(capacities.Granary)} | stock {BuildResourceValueLog(resources)} | prod {BuildProductionValueLog(productionByHour)}{(usingCachedProduction ? " (cached production)" : string.Empty)}");
+        NotifyResourceRead($"Resource read: storage wh={FormatResourceLogNumber(capacities.Warehouse)} gr={FormatResourceLogNumber(capacities.Granary)} | stock {BuildResourceValueLog(resources)} | prod {BuildProductionValueLog(productionByHour)}{(usingCachedProduction ? " (cached production)" : string.Empty)}");
 
         var resourceFields = await ReadResourceFieldsAsync(cancellationToken);
 

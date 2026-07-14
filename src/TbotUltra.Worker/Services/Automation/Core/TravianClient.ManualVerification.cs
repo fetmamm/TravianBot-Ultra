@@ -258,21 +258,9 @@ public sealed partial class TravianClient
 
     private async Task PauseForManualStepIfVisibleAsync(string message, CancellationToken cancellationToken)
     {
-        if (!await CaptchaOrManualStepVisibleAsync())
-        {
-            return;
-        }
-
-        await CaptureManualVerificationScreenshotAsync("manual-verification", cancellationToken);
-
-        Notify($"{message} Solve it in the browser window. The bot is paused.");
-        if (!_browserVisible)
-        {
-            throw new ManualVerificationRequiredException(
-                "Captcha/manual verification appeared while running headless.");
-        }
-
-        await WaitForManualVerificationToClearAsync(cancellationToken);
+        // Official Travian has no supported captcha/manual-verification flow.
+        // Keep this compatibility seam temporarily while its old call sites are removed.
+        await Task.CompletedTask;
     }
 
     // Upper bound for interactive "wait for the user" pauses (captcha/manual login). These waits run

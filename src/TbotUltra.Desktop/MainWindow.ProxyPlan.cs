@@ -22,7 +22,7 @@ public partial class MainWindow
             }
 
             var runtime = ProxyPlanStore.LoadRuntime(accountName);
-            var resolution = AccountProxyPlanResolver.Resolve(plan, accountName, DateTimeOffset.Now, runtime.ActiveProxyId);
+            var resolution = AccountProxyPlanResolver.Resolve(plan, accountName, DateTimeOffset.Now, runtime);
             var next = resolution.NextTransitionAt;
             _sessionPacer.SetNextProxyTransition(next);
             if (next is not null)
@@ -98,7 +98,10 @@ public partial class MainWindow
         }
 
         var runtime = ProxyPlanStore.LoadRuntime(account.Name);
-        var resolution = AccountProxyPlanResolver.Resolve(plan, account.Name, wakeAt, runtime.ActiveProxyId);
+        runtime.RecoveryOverrideProxyId = string.Empty;
+        runtime.RecoveryOverrideUntilUtc = null;
+        ProxyPlanStore.SaveRuntime(account.Name, runtime);
+        var resolution = AccountProxyPlanResolver.Resolve(plan, account.Name, wakeAt, runtime);
         if (string.IsNullOrWhiteSpace(resolution.ProxyId))
         {
             if (!account.ProxyEnabled)
@@ -133,7 +136,7 @@ public partial class MainWindow
         string reason)
     {
         var runtime = ProxyPlanStore.LoadRuntime(account.Name);
-        var resolution = AccountProxyPlanResolver.Resolve(plan, account.Name, at, runtime.ActiveProxyId);
+        var resolution = AccountProxyPlanResolver.Resolve(plan, account.Name, at, runtime);
         if (string.IsNullOrWhiteSpace(resolution.ProxyId))
         {
             if (account.NeverUseOwnIp)

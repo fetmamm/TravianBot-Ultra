@@ -54,6 +54,8 @@ public sealed class AccountProxyRuntimeState
     public string ActiveProxyId { get; set; } = string.Empty;
     public string LastSuccessfulProxyId { get; set; } = string.Empty;
     public DateTimeOffset? ActivatedAtUtc { get; set; }
+    public string RecoveryOverrideProxyId { get; set; } = string.Empty;
+    public DateTimeOffset? RecoveryOverrideUntilUtc { get; set; }
 }
 
 public enum ProxyPlanIssueSeverity

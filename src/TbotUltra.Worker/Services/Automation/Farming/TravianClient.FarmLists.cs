@@ -98,7 +98,6 @@ public sealed partial class TravianClient : IFarmingClient
 
         await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after sending farm list.", cancellationToken);
-        await TryClickCaptchaSuccessDialogOkAsync(cancellationToken);
         var remaining = await ReadFarmListTimerSecondsByNameAsync(farmListName, cancellationToken);
         Notify($"[farm-list] '{farmListName}' sent — next ready in {(remaining is > 0 ? TravianParsing.FormatDuration(remaining.Value) : "now")}");
         return remaining;
@@ -132,46 +131,9 @@ public sealed partial class TravianClient : IFarmingClient
         Notify($"[farm-list] send-all started for {clickState.ListCount} list(s).");
         await WaitForFarmListStartButtonsDisabledAsync(clickState.ListIds ?? [], cancellationToken);
         await PauseForManualStepIfVisibleAsync("Manual verification appeared after starting all farmlists.", cancellationToken);
-        await TryClickCaptchaSuccessDialogOkAsync(cancellationToken);
         await WaitForFarmListStartButtonsEnabledAsync(clickState.ListIds ?? [], cancellationToken);
         Notify($"[farm-list] send-all completed for {clickState.ListCount} list(s).");
         return clickState.ListCount;
-    }
-
-    private async Task<bool> TryClickCaptchaSuccessDialogOkAsync(CancellationToken cancellationToken)
-    {
-        foreach (var selector in Selectors.CaptchaSuccessDialogOkButton)
-        {
-            var locator = _page.Locator(selector).First;
-            if (await locator.CountAsync() == 0)
-            {
-                continue;
-            }
-
-            try
-            {
-                if (!await locator.IsVisibleAsync())
-                {
-                    continue;
-                }
-
-                await RetryAsync($"click captcha success dialog selector {selector}", async () =>
-                {
-                    await DelayBeforeClickAsync(cancellationToken);
-                    await locator.ClickAsync(new LocatorClickOptions { Timeout = Math.Min(_config.TimeoutMs, 1500) });
-                }, cancellationToken: cancellationToken);
-                await Task.Delay(250, cancellationToken);
-                return true;
-            }
-            catch (PlaywrightException)
-            {
-            }
-            catch (TimeoutException)
-            {
-            }
-        }
-
-        return false;
     }
 
     public async Task<FarmListLossDeactivationResult> DeactivateFarmListLossTargetsAsync(

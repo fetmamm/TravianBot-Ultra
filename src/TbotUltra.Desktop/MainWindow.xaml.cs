@@ -266,10 +266,6 @@ public partial class MainWindow : Window
     private volatile bool _isLoggedIn;
     private volatile bool _browserSessionLikelyOpen;
     private volatile bool _travianLanguageGateActive;
-    // True only while a visible (non-headless) login is running. Lets the captcha/manual-verification
-    // popup know the browser window is already open WITHOUT enabling background/village-selection ops
-    // (which gate on _browserSessionLikelyOpen) to race the login on the shared page.
-    private volatile bool _visibleBrowserLoginInProgress;
     // Guards the account-switch flow (logout → close → reopen + auto-login) against overlapping runs so
     // rapid picker changes can't spawn concurrent flows fighting over the shared browser.
     private bool _accountSwitchInProgress;
@@ -287,11 +283,10 @@ public partial class MainWindow : Window
     private IReadOnlyList<Building>? _pendingSmithyUpgradeStatusBuildings;
     private bool _buildQueueReachedZeroPendingCompletion;
     private int _unacknowledgedAlarmCount;
-    private bool _manualVerificationAlarmActive;
     private int _npcTradeSessionCount;
     private int _npcTradeTroopSessionCount;
     private int _npcTradeBuildingSessionCount;
-    private DateTimeOffset _lastVerificationPopupAt = DateTimeOffset.MinValue;
+    private DateTimeOffset _lastBrowserClosedPopupAt = DateTimeOffset.MinValue;
     private DateTimeOffset _inlineWaitUntilUtc = DateTimeOffset.MinValue;
     // When the next "step away" idle break is due. MinValue = not scheduled yet (rescheduled fresh on
     // each continuous-loop start). See MaybeTakeIdleBreakAsync.
@@ -1485,7 +1480,7 @@ public partial class MainWindow : Window
             || normalized.Contains("did not complete successfully")
             || normalized.Contains("login was not confirmed"))
         {
-            return "Login timed out. The page may be slow, or login/captcha needs attention in the browser.";
+            return "Login timed out. The page may be slow or the session may have been logged out.";
         }
 
         // Surface explicit "Login failed: ..." messages produced by the worker as-is.
@@ -1586,12 +1581,12 @@ public partial class MainWindow : Window
         UpdateLoginButtonsVisual(false);
 
         var now = DateTimeOffset.UtcNow;
-        if ((now - _lastVerificationPopupAt).TotalSeconds < 5)
+        if ((now - _lastBrowserClosedPopupAt).TotalSeconds < 5)
         {
             return;
         }
 
-        _lastVerificationPopupAt = now;
+        _lastBrowserClosedPopupAt = now;
         var result = AppDialog.Show(
             this,
             "Chromium browser was closed. Do you want to restart it now?",
@@ -1600,21 +1595,21 @@ public partial class MainWindow : Window
             MessageBoxImage.Warning);
         if (result == MessageBoxResult.Yes)
         {
-            OpenVerificationBrowser();
+            RestartBrowser();
         }
     }
 
-    private async void OpenVerificationBrowser()
-        => await GuardUiAsync(OpenVerificationBrowserAsync);
+    private async void RestartBrowser()
+        => await GuardUiAsync(RestartBrowserAsync);
 
-    private async Task OpenVerificationBrowserAsync()
+    private async Task RestartBrowserAsync()
     {
-        if (BlockIfSessionSleeping("Open verification browser"))
+        if (BlockIfSessionSleeping("Restart browser"))
         {
             return;
         }
 
-        var operationId = BeginOperation("OpenVerificationBrowser");
+        var operationId = BeginOperation("RestartBrowser");
         var operationSw = Stopwatch.StartNew();
         var operationToken = _loopController.StartOperation("operation");
         ToggleUiBusy(true);
@@ -1632,7 +1627,7 @@ public partial class MainWindow : Window
             _isLoggedIn = true;
             _browserSessionLikelyOpen = true;
             NotifySessionPacingOnlineStarted();
-            CompleteOperation(operationId, operationSw, "Verification browser opened.");
+            CompleteOperation(operationId, operationSw, "Browser restarted.");
         }
         catch (Exception ex)
         {

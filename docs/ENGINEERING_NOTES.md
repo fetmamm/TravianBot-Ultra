@@ -83,6 +83,9 @@ Runtime-path helpers i `TravianClient.Selectors.cs` ar Official-only. Anropa hel
   `unknown` efter sidfel och transient keep-alive-timeout raknas i samma felserie. Nar internet fungerar
   men Travian inte kan nas, eller ingen tillaten route kan bekraftas, behalls proxyvalet och recovery
   retry:as efter 2/5/10 min utan alarm; alarm+stop ar reserverat for bekraftat trasig proxy utan tillaten route.
+  En recovery-proxy sparas som runtime-override till nasta planerade sleep-grans, sa login-forberedelsen inte
+  omedelbart aterstaller den trasiga schemaproxyn. Ett friskt separat proxytest maste dessutom verifieras i
+  den riktiga Chromium-sessionen innan continuous loop aterupptas; en kvarvarande `chrome-error://` retry:as.
 - Report PNG-capture ar Official `/report*` + oppnad rapport `#reportWrapper .role.attacker`; blur scope:as till
   `.role.attacker/.role.defender .troopHeadline` och `.header .subject`, aldrig rapportlistan.
 - Bulk messages far aldrig skriva till systemspelarna `Multihunter`, `Natar` eller `Natars`; filtrera bade vid analys och direkt fore send.
@@ -126,10 +129,15 @@ document.querySelector('.warehouse .capacity .value')
 - Borttagning av ett inaktivt konto far inte blockeras av det aktiva kontots ko; aktivt konto skyddas medan dess ko har arbete.
 - All ko- och slotbaserad UI-harledning filtreras till vald by eller uttryckligen globala items.
 - Settings-fonstret far inte skriva konto-scopeade overlay-varden tillbaka till global config.
-- Quick re-login (Settings > General, `post_login_quick_relogin_enabled`, per konto): login <10 min efter
+- Quick re-login (Settings > General, `post_login_quick_relogin_enabled`, per konto): login <120 min efter
   senast SLUTFORDA fulla post-login-stacken (`post_login_last_full_login_at`, skrivs fore CompleteOperation)
   hoppar over snapshot+analyzes och bekraftar bara sessionen + laddar persisterade cacher. Kontobyte
   paverkas inte (timestampen ar account-scoped).
+- Gold Club ar monotont per konto/server: ett persisterat `true` far aldrig skrivas tillbaka till `false`.
+  Nar status ar `false` far continuous loop kontrollera igen hogst var 10:e minut, eftersom anvandaren kan
+  aktivera Gold Club senare; `true` anvands darefter direkt utan login-, DOM- eller filskrivningsspam.
+- Bekraftad login-status delas mellan kortlivade klienter och ateranvands i hogst 1 minut. Login-URL bypassar
+  alltid cachen, och funktionsflodenas vanliga login-kontroller aterstaller en utloggad session automatiskt.
 - Config-/cache-stores skriver via `AtomicFile.WriteAllText` (temp-fil + `File.Move`); nya stores ska folja samma monster.
 - All fil-IO under OneDrive-synkade Documents ska retry:a bade `IOException` och `UnauthorizedAccessException`
   (transient ERROR_ACCESS_DENIED fran OneDrive/antivirus). Finns i `AtomicFile.RetryFileIo`,
@@ -196,9 +204,9 @@ document.querySelector('.warehouse .capacity .value')
   `troops_blocked=<key>`-tokens ar avsiktligt maskinprotokoll och far inte omformuleras.
 - Items som recovras fran Running vid start defereras ~120s (`JsonQueueStore.RecoveredRunningItemDefer`):
   kraschen kan ha skett efter browser-aktionen men fore defer-persist, sa direkt re-run riskerar dubbelkorning.
-- Interaktiva vantloopar (captcha/manuell login) ar tidsbegransade av `ManualInteractiveWaitMaxDuration`
-  (30 min) — de haller session-gaten och far aldrig vara obegransade. `BotTaskRunner.ShutdownAsync` vantar
-  max 15s pa gaten och force-stanger sedan browsern (fast operation far target-closed och slapper gaten sjalv).
+- Official har inget stott captcha-/manual-verification-flode. Login anvander ordinarie begransad timeout och
+  en utloggad session loggas in igen; det finns ingen interaktiv vantloop eller desktop-popup som kan halla
+  session-gaten. `BotTaskRunner.ShutdownAsync` vantar max 15s pa gaten och force-stanger sedan browsern.
 
 For en ny dashboard-bool ska hela configkedjan uppdateras:
 `BotOptionPayloadKeys` -> `BotOptions` -> `BotOptionsFactory` ->
@@ -372,7 +380,7 @@ En ny formaga ska kunna enhetstestas till stor del utan browser. God-klasserna s
   dess kvarvarande Pending/Paused-koposter tas bort (`ConfirmedMissingSinceUtc` ->
   `GetVillagesConfirmedMissingSince`/`RemoveVillages` + `ConfirmedVillageQueueReconciler.RemoveItemsForVillages`).
 - Login ska anvanda action pacing och vanta pa full sidladdning. Login-state `unknown` under navigation ar
-  normalt en transient ladd-race; captcha, `manual_step` och `logged_out` ar inte det.
+  normalt en transient ladd-race; `logged_out` ska starta vanlig login utan att pollningen loggar samma status.
 - Post-login-landningen (dorf1) far INTE blocka pa hela browser-`load`-eventet med `_config.TimeoutMs`:
   Officials inloggningssida drar in tredjeparts ad/consent/video-iframes vars resurser kan hanga oandligt,
   sa `load` fyras aldrig aven om spelet ar klart -> ~20s bortkastad vantan + falskt "timeout"-alarm pa en
@@ -400,6 +408,8 @@ En ny formaga ska kunna enhetstestas till stor del utan browser. God-klasserna s
   forsoker stanga sidor gracefult och hanger pa en frusen ad/video-renderer (loggade "context cleanup failed:
   timed out" + brande close-timeouten), medan browser-close river ner context/sidor/process pa ~1s. Inget lases
   tillbaka fran denna browser sa inget behover flushas gracefult.
+  En hard timeout satter 30 min konto-scopead bonus-video-cooldown, sa efterfoljande tasks faller tillbaka
+  direkt i stallet for att upprepa samma 120s-timeout.
 - Official resource/production text kan innehalla bidi-markers och Unicode-minus (`\u2212`); DOM-number parsers
   maste strippa `\u202A-\u202E`/`\u2066-\u2069` och normalisera minus innan `Number(...)`.
 - Session i `Sleeping` far inte vackas av refresh, login/logout, scan, test, bybyte eller auto-run.
@@ -506,6 +516,8 @@ Full mekanik i [ADR construction-queue](adr/2026-06-20-construction-queue.md) oc
 - Huvudfonstrets gemensamma `BusyOverlay` ska alltid doljas i operationens `finally`.
 - Diagnostisk pacing loggas med `[pacing]`, men viktiga sleep/wake-handelser ska vara synliga i Clean mode.
   Cached currency pa sidor utan valuta ar verbose; avsaknad av bade live- och cachevarde ar alarm.
+- `Resource read` loggas hogst varannan minut per browser-session och oforandrad transient ad-storage cleanup
+  hogst var femte minut; beteendet fortsatter koras med full frekvens, endast loggutskriften begransas.
 - Daily Quest-indikatorn kan vara stale; verifiera dialogen och refresha vid behov. Questmaster-klick
   kraver synligt och handlingsbart element, inte bara DOM-narvaro.
 
