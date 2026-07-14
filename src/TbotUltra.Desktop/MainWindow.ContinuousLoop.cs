@@ -797,29 +797,31 @@ public partial class MainWindow
         }
         var queueItems = _botService.GetQueueItemsForDisplay();
         var now = DateTimeOffset.UtcNow;
-        var readyUtilityItems = OrderContinuousLoopGroupItems(
-                queueItems.Where(item =>
-                    ContinuousLoopSelector.IsUtilityTask(item.TaskName) &&
-                    IsAutoCollectUtilityTaskEnabledNow(item.TaskName, options) &&
-                    IsQueueItemAllowedByAutomationSettings(item) &&
-                    item.Status == QueueStatus.Pending &&
-                    item.NextAttemptAt <= now));
-        var activeVillageKey = _activeWorkingVillageKey;
-        var readyUtilityItem = ContinuousLoopSelector.SelectReadyUtilityItem(
-            readyUtilityItems,
-            activeVillageKey,
-            GetQueueItemVillageKey);
-        if (readyUtilityItem is not null)
+        var selectionCandidates = queueItems
+            .Select(item => new ContinuousLoopSelectionCandidate(
+                item,
+                GetQueueItemVillageKey(item),
+                IsQueueItemAllowedByAutomationSettings(item),
+                ContinuousLoopSelector.IsUtilityTask(item.TaskName)
+                    && IsAutoCollectUtilityTaskEnabledNow(item.TaskName, options)))
+            .ToList();
+        var villageKeysByItemId = selectionCandidates
+            .ToDictionary(candidate => candidate.Item.Id, candidate => candidate.VillageKey);
+        var utilitySelection = ContinuousLoopSelector.SelectUtility(
+            new ContinuousLoopUtilitySelectionInput(selectionCandidates, _activeWorkingVillageKey, now));
+        if (utilitySelection.PreferredItem is not null)
         {
-            return readyUtilityItem;
+            return utilitySelection.PreferredItem;
         }
+
+        var selectionPlan = ContinuousLoopSelector.CreatePlan(new ContinuousLoopSelectionInput(
+            selectionCandidates,
+            GetContinuousLoopConsideredGroupsInOrder()));
 
         // Consider the union of enabled runtime groups across all active villages. Persistent Queue-page
         // work is appended below only to preserve group ordering; every item is still gated by its own
         // village Auto toggle and per-village group toggle before it can run.
-        var orderedGroups = ContinuousLoopSelector.BuildConsideredGroups(
-            GetContinuousLoopConsideredGroupsInOrder(),
-            queueItems);
+        var orderedGroups = selectionPlan.OrderedGroups;
 
         if (orderedGroups.Count <= 0)
         {
@@ -836,12 +838,7 @@ public partial class MainWindow
         string? lastSkipReason = null;
         foreach (var group in orderedGroups)
         {
-            var orderedGroupItems = OrderContinuousLoopGroupItems(
-                queueItems.Where(item =>
-                    item.Group == group &&
-                    !ContinuousLoopSelector.IsUtilityTask(item.TaskName) &&
-                    IsQueueItemAllowedByAutomationSettings(item) &&
-                    item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused));
+            var orderedGroupItems = selectionPlan.OrderedItemsByGroup[group];
             if (group == QueueGroup.Construction)
             {
                 // Rotate construction across enabled villages: drain the current village's construction in
@@ -892,17 +889,17 @@ public partial class MainWindow
             // tagged per village, so a village whose head item is waiting must not block another village's
             // ready item. For truly global/village-less groups (hero, …) all items share one village key,
             // so this collapses to the original strict in-order head selection.
-            var groupRotationKey = GetContinuousGroupRotationVillageKey(group);
-            var candidate = QueueVillageRotation.SelectByVillageRotation(
-                orderedGroupItems,
-                GetQueueItemVillageKey,
-                villageItems => group == QueueGroup.Hero
-                    ? ContinuousLoopSelector.SelectReadyHeroGroupItem(villageItems, now)
-                    : ContinuousLoopSelector.SelectReadyGroupHead(villageItems, now),
-                ref groupRotationKey);
+            var groupSelection = ContinuousLoopSelector.SelectNonConstructionGroup(
+                new ContinuousLoopGroupSelectionInput(
+                    group,
+                    orderedGroupItems,
+                    GetContinuousGroupRotationVillageKey(group),
+                    now,
+                    villageKeysByItemId));
+            var candidate = groupSelection.Item;
             if (!preview)
             {
-                SetContinuousGroupRotationVillageKey(group, groupRotationKey);
+                SetContinuousGroupRotationVillageKey(group, groupSelection.RotationVillageKey);
             }
 
             if (candidate is not null)
@@ -928,7 +925,7 @@ public partial class MainWindow
         }
         // Collect rewards in the village where the signal was observed. If another village still had
         // ready work, the utility item waited above; switch only after the current work is exhausted.
-        return readyUtilityItems.FirstOrDefault();
+        return utilitySelection.ReadyItems.FirstOrDefault();
     }
 
     // Whether a queue item's automation group is enabled for ITS OWN village. Lets a group turned off on

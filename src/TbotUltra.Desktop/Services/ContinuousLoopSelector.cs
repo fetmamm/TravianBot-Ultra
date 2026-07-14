@@ -3,11 +3,100 @@ using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop.Services;
 
+internal sealed record ContinuousLoopSelectionCandidate(
+    QueueItem Item,
+    string? VillageKey,
+    bool IsAllowedByAutomationSettings,
+    bool IsUtilityEnabled);
+
+internal sealed record ContinuousLoopSelectionInput(
+    IReadOnlyList<ContinuousLoopSelectionCandidate> Candidates,
+    IReadOnlyList<QueueGroup> ConfiguredGroups);
+
+internal sealed record ContinuousLoopUtilitySelectionInput(
+    IReadOnlyList<ContinuousLoopSelectionCandidate> Candidates,
+    string? ActiveVillageKey,
+    DateTimeOffset Now);
+
+internal sealed record ContinuousLoopUtilitySelectionResult(
+    IReadOnlyList<QueueItem> ReadyItems,
+    QueueItem? PreferredItem);
+
+internal sealed record ContinuousLoopSelectionPlan(
+    IReadOnlyList<QueueGroup> OrderedGroups,
+    IReadOnlyDictionary<QueueGroup, IReadOnlyList<QueueItem>> OrderedItemsByGroup);
+
+internal sealed record ContinuousLoopGroupSelectionInput(
+    QueueGroup Group,
+    IReadOnlyList<QueueItem> OrderedItems,
+    string? RotationVillageKey,
+    DateTimeOffset Now,
+    IReadOnlyDictionary<Guid, string?> VillageKeys);
+
+internal sealed record ContinuousLoopGroupSelectionResult(
+    QueueItem? Item,
+    string? RotationVillageKey);
+
 /// <summary>
 /// Stateless selection and timing rules used by the continuous loop.
 /// </summary>
 internal static class ContinuousLoopSelector
 {
+    internal static ContinuousLoopUtilitySelectionResult SelectUtility(
+        ContinuousLoopUtilitySelectionInput input)
+    {
+        var readyUtilityCandidates = OrderItems(input.Candidates
+            .Where(candidate =>
+                IsUtilityTask(candidate.Item.TaskName)
+                && candidate.IsUtilityEnabled
+                && candidate.IsAllowedByAutomationSettings
+                && candidate.Item.Status == QueueStatus.Pending
+                && candidate.Item.NextAttemptAt <= input.Now));
+        var readyUtilityItems = readyUtilityCandidates
+            .Select(candidate => candidate.Item)
+            .ToList();
+        var preferredUtilityItem = readyUtilityCandidates
+            .FirstOrDefault(candidate =>
+                input.ActiveVillageKey is null
+                || string.Equals(candidate.VillageKey, input.ActiveVillageKey, StringComparison.OrdinalIgnoreCase))
+            ?.Item;
+
+        return new ContinuousLoopUtilitySelectionResult(readyUtilityItems, preferredUtilityItem);
+    }
+
+    internal static ContinuousLoopSelectionPlan CreatePlan(ContinuousLoopSelectionInput input)
+    {
+        var queueItems = input.Candidates.Select(candidate => candidate.Item).ToList();
+        var orderedGroups = BuildConsideredGroups(input.ConfiguredGroups, queueItems);
+        var orderedItemsByGroup = orderedGroups.ToDictionary(
+            group => group,
+            group => (IReadOnlyList<QueueItem>)OrderItems(input.Candidates
+                .Where(candidate =>
+                    candidate.Item.Group == group
+                    && !IsUtilityTask(candidate.Item.TaskName)
+                    && candidate.IsAllowedByAutomationSettings
+                    && candidate.Item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused))
+                .Select(candidate => candidate.Item)
+                .ToList());
+
+        return new ContinuousLoopSelectionPlan(orderedGroups, orderedItemsByGroup);
+    }
+
+    internal static ContinuousLoopGroupSelectionResult SelectNonConstructionGroup(
+        ContinuousLoopGroupSelectionInput input)
+    {
+        var rotationVillageKey = input.RotationVillageKey;
+        var candidate = QueueVillageRotation.SelectByVillageRotation(
+            input.OrderedItems,
+            item => input.VillageKeys.TryGetValue(item.Id, out var villageKey) ? villageKey : null,
+            villageItems => input.Group == QueueGroup.Hero
+                ? SelectReadyHeroGroupItem(villageItems, input.Now)
+                : SelectReadyGroupHead(villageItems, input.Now),
+            ref rotationVillageKey);
+
+        return new ContinuousLoopGroupSelectionResult(candidate, rotationVillageKey);
+    }
+
     internal static bool IsUtilityTask(string? taskName) =>
         string.Equals(taskName, "collect_tasks", StringComparison.OrdinalIgnoreCase)
         || string.Equals(taskName, "collect_daily_quests", StringComparison.OrdinalIgnoreCase);
@@ -30,16 +119,6 @@ internal static class ContinuousLoopSelector
         }
 
         return groups;
-    }
-
-    internal static QueueItem? SelectReadyUtilityItem(
-        IReadOnlyList<QueueItem> orderedReadyItems,
-        string? activeVillageKey,
-        Func<QueueItem, string?> villageKeySelector)
-    {
-        return orderedReadyItems.FirstOrDefault(item =>
-            activeVillageKey is null
-            || string.Equals(villageKeySelector(item), activeVillageKey, StringComparison.OrdinalIgnoreCase));
     }
 
     internal static QueueItem? SelectReadyGroupHead(
@@ -106,5 +185,15 @@ internal static class ContinuousLoopSelector
         }
 
         return true;
+    }
+
+    private static IReadOnlyList<ContinuousLoopSelectionCandidate> OrderItems(
+        IEnumerable<ContinuousLoopSelectionCandidate> candidates)
+    {
+        return candidates
+            .OrderBy(candidate => candidate.Item.IsRuntimeOnly)
+            .ThenByDescending(candidate => candidate.Item.Priority)
+            .ThenBy(candidate => candidate.Item.CreatedAt)
+            .ToList();
     }
 }
