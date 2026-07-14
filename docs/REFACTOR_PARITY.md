@@ -5,9 +5,9 @@ remains the source of truth for behavior and Official-specific constraints.
 
 ## Baseline
 
-- Build: 0 warnings, 0 errors (`scripts/Build-Check.ps1`, 2026-07-13).
-- Desktop tests: 340 passed.
-- Worker tests: 623 passed.
+- Build: 0 warnings, 0 errors (`scripts/Build-Check.ps1`, 2026-07-14).
+- Desktop tests: 397 passed.
+- Worker tests: 687 passed.
 - Public task names, payload keys, config formats and storage paths stay stable.
 
 ## Parity checks
@@ -22,6 +22,11 @@ remains the source of truth for behavior and Official-specific constraints.
 | Queue selection | Preserve group order, per-village rotation, defer times and preview purity | Continuous-loop selector tests with explicit clock | Compare Next task with the item actually executed |
 | Proxy change | Preserve controlled relogin now or at next sleep | Proxy/session state tests | Change active proxy using both user choices |
 | Shutdown | Cancel scoped work, release session gate and close browser within existing limits | LoopController, runner and browser lifecycle tests | Stop during navigation and during a deferred task |
+
+Fixture-backed parser tests are required before changing Official selectors. A live
+check is required only when navigation order, clicks, React interaction, or other
+state-changing browser behavior changes; mechanical moves and pure extractions use
+the automated parity checks above.
 
 ## Compatibility classification
 
