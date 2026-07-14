@@ -429,7 +429,6 @@ public sealed partial class TravianClient
             Notify($"[adventure-video] {label}: clicked 'Watch video' on the bonus box.");
         }
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the adventure bonus video.", cancellationToken);
         return clicked;
     }
 
@@ -483,7 +482,6 @@ public sealed partial class TravianClient
             if (clicked)
             {
                 Notify($"[adventure-video] {label}: confirmed 'Watch video' in the info dialog.");
-                await PauseForManualStepIfVisibleAsync("Manual verification appeared after confirming the adventure bonus video.", cancellationToken);
                 return true;
             }
 

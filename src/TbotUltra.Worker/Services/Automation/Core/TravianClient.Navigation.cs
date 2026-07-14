@@ -67,7 +67,6 @@ public sealed partial class TravianClient
         {
             try
             {
-                await PauseForManualStepIfVisibleAsync("Manual verification appeared on the page.", cancellationToken);
                 await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded, new PageWaitForLoadStateOptions
                 {
                     Timeout = timeoutMs,
@@ -223,7 +222,6 @@ public sealed partial class TravianClient
             _config.ActionPacingPageLoadMaxSeconds,
             cancellationToken,
             "after page load");
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after navigation.", cancellationToken);
         await TryDismissContinuePromptAsync(cancellationToken);
     }
 

@@ -46,7 +46,6 @@ public sealed partial class TravianClient
         var restartDelaySeconds = ResolveTownHallRestartDelaySeconds(restartDelayMinMinutes, restartDelayMaxMinutes);
 
         await GotoAsync(Paths.BuildBySlot(townHallSlotId.Value), cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening Town Hall.", cancellationToken);
         await EnsureLoggedInAsync();
 
         var mode = TownHallCelebrationDefaults.NormalizeMode(requestedMode);
@@ -135,7 +134,6 @@ public sealed partial class TravianClient
             if (!string.IsNullOrWhiteSpace(startHref))
             {
                 await GotoAsync(startHref, cancellationToken);
-                await PauseForManualStepIfVisibleAsync("Manual verification appeared after starting Town Hall celebration.", cancellationToken);
                 await EnsureLoggedInAsync();
             }
             else
@@ -144,7 +142,6 @@ public sealed partial class TravianClient
             }
 
             await GotoAsync(Paths.BuildBySlot(townHallSlotId.Value), cancellationToken);
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared after navigating back to Town Hall.", cancellationToken);
             await EnsureLoggedInAsync();
 
             var reread = await ReadTownHallCelebrationStatusFromCurrentPageAsync(cancellationToken);
@@ -201,7 +198,6 @@ public sealed partial class TravianClient
             if (!IsCurrentUrlForPath(Paths.Buildings))
             {
                 await GotoAsync(Paths.Buildings, cancellationToken);
-                await PauseForManualStepIfVisibleAsync("Manual verification appeared while probing Town Hall slot on dorf2.", cancellationToken);
                 await EnsureLoggedInAsync();
             }
 

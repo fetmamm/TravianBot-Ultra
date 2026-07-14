@@ -22,7 +22,6 @@ public sealed partial class TravianClient
         }
 
         await GotoAsync(RallyPointSendTroopsPath, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening send troops.", cancellationToken);
         await EnsureLoggedInAsync();
         if (await IsSendTroopsPageAsync(cancellationToken))
         {
@@ -30,11 +29,9 @@ public sealed partial class TravianClient
         }
 
         await GotoAsync(Paths.FarmListFastUp, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening rally point slot.", cancellationToken);
         await EnsureLoggedInAsync();
 
         await GotoAsync(RallyPointSendTroopsPath, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reopening send troops.", cancellationToken);
         await EnsureLoggedInAsync();
         if (await IsSendTroopsPageAsync(cancellationToken))
         {
@@ -45,7 +42,6 @@ public sealed partial class TravianClient
         if (tabOpened)
         {
             await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared after opening send troops tab.", cancellationToken);
             await EnsureLoggedInAsync();
         }
 
@@ -83,7 +79,6 @@ public sealed partial class TravianClient
 
     private async Task<bool> IsSendTroopsPageAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while checking send troops page.", cancellationToken);
         return await _page.EvaluateAsync<bool>(
             """
             () => {
@@ -97,7 +92,6 @@ public sealed partial class TravianClient
 
     private async Task<bool> TryOpenSendTroopsTabAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared before opening send troops tab.", cancellationToken);
         return await _page.EvaluateAsync<bool>(
             """
             () => {
@@ -116,7 +110,6 @@ public sealed partial class TravianClient
 
     private async Task<long?> ReadAvailableTroopCountAsync(string fieldToken, CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading available troops.", cancellationToken);
         try
         {
             var result = await _page.EvaluateAsync<long?>(
@@ -237,7 +230,6 @@ public sealed partial class TravianClient
 
     private async Task<bool> TrySelectAttackModeAsync(bool raidAttack, CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while selecting attack mode.", cancellationToken);
         try
         {
             return await _page.EvaluateAsync<bool>(
@@ -398,7 +390,6 @@ public sealed partial class TravianClient
                         await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
                     }, cancellationToken: cancellationToken);
 
-                    await PauseForManualStepIfVisibleAsync("Manual verification appeared after clicking confirm.", cancellationToken);
                     return true;
                 }
             }

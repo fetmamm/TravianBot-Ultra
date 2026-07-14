@@ -734,7 +734,6 @@ public sealed partial class TravianClient
         }
 
         await GotoAsync(Paths.BuildBySlot(smithySlotId.Value), cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading the Smithy queue.", cancellationToken);
         await EnsureLoggedInAsync();
 
         var activeQueue = (await ReadSmithyQueueEntriesAsync(cancellationToken))
@@ -768,7 +767,6 @@ public sealed partial class TravianClient
     {
         LogFunctionStarted();
         await EnsureLoggedInAsync();
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared before the Smithy queue test.", cancellationToken);
 
         if (!await IsCurrentPageSmithyAsync(cancellationToken))
         {
@@ -841,9 +839,7 @@ public sealed partial class TravianClient
         {
             await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
 
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the building overview.", cancellationToken);
             await EnsureLoggedInAsync();
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while resolving the Smithy slot.", cancellationToken);
 
             var slots = await ReadBuildingInfosAsync(cancellationToken);
             // Smithy is gid 13 (see ENGINEERING_NOTES §5: no separate Armoury on gid 12). Accept 12 as a

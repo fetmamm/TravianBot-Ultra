@@ -522,7 +522,6 @@ public sealed partial class TravianClient
             await GotoAsync(Paths.Resources, cancellationToken);
         }
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while returning to resource fields after upgrade click.", cancellationToken);
         await EnsureLoggedInAsync();
     }
 
@@ -542,7 +541,6 @@ public sealed partial class TravianClient
             await GotoAsync(Paths.Resources, cancellationToken);
         }
 
-        await PauseForManualStepIfVisibleAsync(manualVerificationMessage, cancellationToken);
         await EnsureLoggedInAsync();
     }
 
@@ -685,7 +683,6 @@ public sealed partial class TravianClient
 
     private async Task<ResourceUpgradeCostSnapshot?> TryReadLiveResourceUpgradeCostOnCurrentPageAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading resource upgrade costs.", cancellationToken);
         var required = await _page.EvaluateAsync<Dictionary<string, long?>>(
             """
             () => {

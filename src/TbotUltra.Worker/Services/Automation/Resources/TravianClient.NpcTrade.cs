@@ -90,7 +90,6 @@ public sealed partial class TravianClient
 
         await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         await exchangeButton.ClickAsync();
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening NPC trade.", cancellationToken);
 
         if (!await CompleteNpcTradeDialogAsync(cancellationToken))
         {
@@ -175,7 +174,6 @@ public sealed partial class TravianClient
         var exchangeButton = _page.Locator("button, input[type='submit'], input[type='button'], a, div.addHoverClick, div.button-container").Nth(candidateIndex.Value);
         await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         await exchangeButton.ClickAsync();
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening NPC trade.", cancellationToken);
 
         if (!await CompleteNpcTradeDialogAsync(cancellationToken, requirePositiveRemain: true))
         {
@@ -215,7 +213,6 @@ public sealed partial class TravianClient
         }
 
         await Task.Delay(500, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after NPC trade.", cancellationToken);
         await EnsureLoggedInAsync();
         return true;
     }
@@ -264,7 +261,6 @@ public sealed partial class TravianClient
             }
             """);
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while finding NPC trade button.", cancellationToken);
         return index;
     }
 
@@ -308,7 +304,6 @@ public sealed partial class TravianClient
             }
             """);
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading NPC trade remains value.", cancellationToken);
         return remain;
     }
 
@@ -343,7 +338,6 @@ public sealed partial class TravianClient
             }
             """);
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while checking resource block state.", cancellationToken);
         return blocked;
     }
 
@@ -385,7 +379,6 @@ public sealed partial class TravianClient
             }
             """);
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while checking storage capacity block state.", cancellationToken);
         return string.IsNullOrWhiteSpace(kind) ? null : kind;
     }
 
@@ -479,7 +472,6 @@ public sealed partial class TravianClient
             }
             """);
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading resource availability time.", cancellationToken);
         return seconds;
     }
 
@@ -529,7 +521,6 @@ public sealed partial class TravianClient
 
         Notify($"NPC trade test: navigating to {queueStatus.BuildingName} slot {queueStatus.SlotId.Value} for '{troopType}' (t{troopUnitId.Value}).");
         await GotoAsync(Paths.BuildBySlot(queueStatus.SlotId.Value), cancellationToken);
-        await PauseForManualStepIfVisibleAsync($"Manual verification appeared while opening the {queueStatus.BuildingName}.", cancellationToken);
         await EnsureLoggedInAsync();
 
         var traded = await ExecuteNpcTradeClicksAsync(troopUnitId.Value, queueStatus.BuildingName, cancellationToken);
@@ -542,7 +533,6 @@ public sealed partial class TravianClient
     {
         LogFunctionStarted();
         await EnsureLoggedInAsync();
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared before current-page NPC trade test.", cancellationToken);
 
         var label = "current building page";
         var traded = await TryNpcTradeForConstructionAsync(label, cancellationToken, bypassEnabledSetting: true, bypassGoldGates: true);

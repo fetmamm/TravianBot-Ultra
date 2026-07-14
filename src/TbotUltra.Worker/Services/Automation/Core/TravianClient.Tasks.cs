@@ -46,7 +46,6 @@ public sealed partial class TravianClient
             await GotoAsync(Paths.Tasks, cancellationToken);
             await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             await EnsureLoggedInAsync();
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared on the tasks page.", cancellationToken);
             await WaitForTasksPageRenderAsync(cancellationToken);
 
             // Village tab (active by default on arrival).

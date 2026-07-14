@@ -342,7 +342,6 @@ public sealed partial class TravianClient
         {
             await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
             Notify("[construct-faster] clicked video feature button.");
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening construct-faster video.", cancellationToken);
             return true;
         }
         catch (PlaywrightException ex)
@@ -402,7 +401,6 @@ public sealed partial class TravianClient
             if (clicked)
             {
                 Notify("[construct-faster] confirmed 'Watch video' in info dialog.");
-                await PauseForManualStepIfVisibleAsync("Manual verification appeared after confirming construct-faster video.", cancellationToken);
                 return true;
             }
 

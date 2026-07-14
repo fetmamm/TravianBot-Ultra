@@ -110,7 +110,6 @@ public sealed partial class TravianClient
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         await GotoAsync(MessagesWritePath, cancellationToken);
         await WaitForBulkMessageWriteFormAsync(cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening message writer.", cancellationToken);
 
         var recipients = await FindVisibleBulkMessageFieldAsync(BulkMessageRecipientSelectors, "recipients");
         var subjectInput = await FindVisibleBulkMessageFieldAsync(BulkMessageSubjectSelectors, "subject");
@@ -387,7 +386,6 @@ public sealed partial class TravianClient
             Notify($"[bulk-messages:verbose] message send page-ready wait failed or no navigation occurred: {ex.Message}");
         }
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after sending a message.", cancellationToken);
 
         var hasVisibleError = await _page.EvaluateAsync<bool>(
             """

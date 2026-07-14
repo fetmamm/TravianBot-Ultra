@@ -48,7 +48,6 @@ public sealed partial class TravianClient
         Notify("[hero] revive flow starting (attributes page)");
         await GotoAsync(HeroAttributesPath, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero attributes.", cancellationToken);
 
         // Read the revive duration shown above the button (example: 00:00:03) before clicking revive.
         var reviveDurationRaw = await _page.EvaluateAsync<string?>(
@@ -100,7 +99,6 @@ public sealed partial class TravianClient
             }
 
             await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared after clicking Revive.", cancellationToken);
             Notify("Revive button clicked.");
         }
         else
@@ -115,7 +113,6 @@ public sealed partial class TravianClient
     {
         // Revive UI is on the inventory/attributes page on this Travian version. /hero.php opens Appearance.
         await GotoAsync(HeroInventoryPath, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while trying to revive hero.", cancellationToken);
         await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         return await _page.EvaluateAsync<bool>(
             """
@@ -137,4 +134,3 @@ public sealed partial class TravianClient
     }
 
 }
-

@@ -23,7 +23,6 @@ public sealed partial class TravianClient
                 {
                     await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
                 }
-                await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the upgrade page.", cancellationToken);
                 await EnsureLoggedInAsync();
                 await EnsureExpectedBuildSlotPageAsync(slotId, "analyze upgrade", cancellationToken);
                 await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
@@ -445,7 +444,6 @@ public sealed partial class TravianClient
                     await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded)
                         .WaitAsync(cancellationToken);
                 }, cancellationToken: cancellationToken);
-                await PauseForManualStepIfVisibleAsync("Manual verification appeared after upgrade actionability analysis.", cancellationToken);
 
                 return new UpgradeAttemptResult(
                     Outcome: outcome,

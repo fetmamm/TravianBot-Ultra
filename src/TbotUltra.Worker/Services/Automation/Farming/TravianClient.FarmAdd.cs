@@ -261,7 +261,6 @@ public sealed partial class TravianClient
             throw new InvalidOperationException($"Add target dialog for farm list id {lid} did not render after {formRenderAttempts} attempts.");
         }
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening Add target form.", cancellationToken);
         await EnsureLoggedInAsync();
     }
 
@@ -276,7 +275,6 @@ public sealed partial class TravianClient
         bool requireUnoccupiedOasis,
         CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared before filling Add target form.", cancellationToken);
         var troopIndex = TroopCatalog.ResolveTroopIndex(troopType);
         var filled = await _page.EvaluateAsync<bool>(
             """
@@ -559,7 +557,6 @@ public sealed partial class TravianClient
             return AddRaidSaveOutcome.Failed;
         }
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after saving new target.", cancellationToken);
         await EnsureLoggedInAsync();
 
         var saveState = await ReadAddTargetSaveStateAsync(lid, x, y, stateBeforeSave, cancellationToken);

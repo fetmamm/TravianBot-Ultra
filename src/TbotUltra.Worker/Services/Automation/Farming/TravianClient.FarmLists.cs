@@ -97,7 +97,6 @@ public sealed partial class TravianClient : IFarmingClient
         }
 
         await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after sending farm list.", cancellationToken);
         var remaining = await ReadFarmListTimerSecondsByNameAsync(farmListName, cancellationToken);
         Notify($"[farm-list] '{farmListName}' sent — next ready in {(remaining is > 0 ? TravianParsing.FormatDuration(remaining.Value) : "now")}");
         return remaining;
@@ -130,7 +129,6 @@ public sealed partial class TravianClient : IFarmingClient
 
         Notify($"[farm-list] send-all started for {clickState.ListCount} list(s).");
         await WaitForFarmListStartButtonsDisabledAsync(clickState.ListIds ?? [], cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after starting all farmlists.", cancellationToken);
         await WaitForFarmListStartButtonsEnabledAsync(clickState.ListIds ?? [], cancellationToken);
         Notify($"[farm-list] send-all completed for {clickState.ListCount} list(s).");
         return clickState.ListCount;
@@ -228,7 +226,6 @@ public sealed partial class TravianClient : IFarmingClient
         }
 
         await GotoAsync(RallyPointFarmListPath, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening farmlists.", cancellationToken);
         await EnsureLoggedInAsync();
         await WaitForOfficialFarmListRenderAsync(cancellationToken);
         if (await IsFarmListPageAsync(cancellationToken))
@@ -245,7 +242,6 @@ public sealed partial class TravianClient : IFarmingClient
         }
 
         await GotoAsync(Paths.FarmListFastUp, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening rally point slot.", cancellationToken);
         await EnsureLoggedInAsync();
 
         try
@@ -259,7 +255,6 @@ public sealed partial class TravianClient : IFarmingClient
         }
 
         await GotoAsync(RallyPointFarmListPath, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening farmlists.", cancellationToken);
         await EnsureLoggedInAsync();
         await WaitForOfficialFarmListRenderAsync(cancellationToken);
 
@@ -278,9 +273,6 @@ public sealed partial class TravianClient : IFarmingClient
 
         try
         {
-            await PauseForManualStepIfVisibleAsync(
-                "Manual verification appeared while checking the current farmlist page.",
-                cancellationToken);
             return await _page.Locator("#rallyPointFarmList .farmListWrapper").CountAsync() > 0;
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -411,7 +403,6 @@ public sealed partial class TravianClient : IFarmingClient
 
     private async Task<bool> IsFarmListPageAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while checking farm list page.", cancellationToken);
         var isFarmListPage = await _page.EvaluateAsync<bool>(
             """
             () => {
@@ -427,7 +418,6 @@ public sealed partial class TravianClient : IFarmingClient
 
     private async Task<IReadOnlyList<FarmListOverview>> ReadFarmListsFromCurrentPageAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading farmlists.", cancellationToken);
 
         var rawRows = await _page.EvaluateAsync<FarmListRowJs[]>(
             """
@@ -677,7 +667,6 @@ public sealed partial class TravianClient : IFarmingClient
     private async Task WaitForDispatchLimitToClearAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while checking farm dispatch limit.", cancellationToken);
 
         var state = await _page.EvaluateAsync<FarmDispatchLimitStateJs>(
             """
@@ -717,7 +706,6 @@ public sealed partial class TravianClient : IFarmingClient
 
     private async Task<FarmListSendAllClickStateJs> TryClickStartAllFarmListsAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared before starting all farmlists.", cancellationToken);
         var state = await _page.EvaluateAsync<FarmListSendAllClickStateJs>(
             """
             () => {
@@ -825,7 +813,6 @@ public sealed partial class TravianClient : IFarmingClient
 
     private async Task<IReadOnlyList<FarmListLossRowJs>> ReadFarmListLossRowsFromCurrentPageAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while scanning farm losses.", cancellationToken);
         var rows = await _page.EvaluateAsync<FarmListLossRowJs[]>(
             """
             () => {
@@ -908,7 +895,6 @@ public sealed partial class TravianClient : IFarmingClient
         }
 
         await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared before deactivating farm loss row.", cancellationToken);
         return await _page.EvaluateAsync<bool>(
             """
             () => {
@@ -926,7 +912,6 @@ public sealed partial class TravianClient : IFarmingClient
 
     private async Task<bool> TryClickFarmListSendNowAsync(string farmListName, CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared before sending farm list.", cancellationToken);
         var clicked = await _page.EvaluateAsync<bool>(
             """
             (targetName) => {
@@ -1043,13 +1028,11 @@ public sealed partial class TravianClient : IFarmingClient
             return false;
         }
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after clicking Start Raid.", cancellationToken);
         return true;
     }
 
     private async Task<int?> ReadFarmListTimerSecondsByNameAsync(string farmListName, CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading farm list timer.", cancellationToken);
         var rawTimer = await _page.EvaluateAsync<string?>(
             """
             (targetName) => {
@@ -1117,7 +1100,6 @@ public sealed partial class TravianClient : IFarmingClient
 
     private async Task<string?> TryResolveFarmListSlotIdByNameAsync(string farmListName, CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while resolving farm list slot.", cancellationToken);
         return await _page.EvaluateAsync<string?>(
             """
             (targetName) => {

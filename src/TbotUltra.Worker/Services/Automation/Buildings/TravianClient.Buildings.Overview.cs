@@ -11,10 +11,8 @@ public sealed partial class TravianClient
     private async Task<IReadOnlyList<Building>> ReadBuildingsAsync(CancellationToken cancellationToken)
     {
         await GotoAsync(Paths.Buildings, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the building overview.", cancellationToken);
 
         await EnsureLoggedInAsync();
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading buildings.", cancellationToken);
 
         Dictionary<int, BuildingInfo> buildingsBySlot = new();
         await RetryAsync("read building slots snapshot", async () =>
@@ -45,9 +43,7 @@ public sealed partial class TravianClient
 
         await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while retrying the building overview scan.", cancellationToken);
         await EnsureLoggedInAsync();
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while waiting for the building overview retry.", cancellationToken);
 
         var secondScan = await ScanBuildingOverviewAsync(cancellationToken);
         return BuildingOverviewScanPolicy.PreferSecond(firstScan.Metrics, secondScan.Metrics)

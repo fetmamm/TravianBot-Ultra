@@ -59,7 +59,6 @@ public sealed partial class TravianClient : IBuildingClient
 
         // One-shot: read dorf2 to get original level + main building slot id.
         await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification on dorf2.", cancellationToken);
 
         var initialSlots = await ReadBuildingInfosAsync(cancellationToken);
         if (!initialSlots.TryGetValue(slotId, out var initialInfo) || initialInfo.Level <= 0)
@@ -462,7 +461,6 @@ public sealed partial class TravianClient : IBuildingClient
 
         _heroTransferOverLimitWaitSeconds = null;
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading upgrade resource requirements.", cancellationToken);
         var required = await _page.EvaluateAsync<Dictionary<string, long?>>(
             """
             () => {
@@ -728,7 +726,6 @@ public sealed partial class TravianClient : IBuildingClient
     {
         try
         {
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while checking production table.", cancellationToken);
             return await _page.EvaluateAsync<bool>("() => !!document.querySelector('#production')");
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
@@ -989,7 +986,6 @@ public sealed partial class TravianClient : IBuildingClient
 
         Notify($"[build:verbose] slot {slotId}: current page snapshot unavailable; reading dorf2 overview.");
         await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification on dorf2.", cancellationToken);
         var slots = await ReadBuildingInfosAsync(cancellationToken);
         return slots.TryGetValue(slotId, out var info) ? info : null;
     }
@@ -1127,7 +1123,6 @@ public sealed partial class TravianClient : IBuildingClient
             await ReloadOrGotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
         }
 
-        await PauseForManualStepIfVisibleAsync($"Manual verification on slot {slotId}.", cancellationToken);
         await EnsureExpectedBuildSlotPageAsync(slotId, operationLabel, cancellationToken);
     }
 
@@ -1566,7 +1561,6 @@ public sealed partial class TravianClient : IBuildingClient
                 url = $"{url}{separator}category={categoryIndex.Value}";
             }
             await GotoAsync(url, cancellationToken);
-            await PauseForManualStepIfVisibleAsync($"Manual verification on slot {slotId} construct page.", cancellationToken);
 
             // Confirmed already-built guard: a stale construct task can target a slot that already holds the
             // building — e.g. a special fixed slot (Rally Point slot 39 / Wall slot 40 exist from founding)
@@ -1812,7 +1806,6 @@ public sealed partial class TravianClient : IBuildingClient
             }
 
             await GotoAsync(Paths.Buildings, cancellationToken);
-            await PauseForManualStepIfVisibleAsync($"Manual verification while verifying slot {slotId} construction state.", cancellationToken);
             var slots = await ReadBuildingInfosAsync(cancellationToken);
             if (slots.TryGetValue(slotId, out var slotInfo))
             {
@@ -2040,7 +2033,6 @@ public sealed partial class TravianClient : IBuildingClient
         CancellationToken cancellationToken)
     {
         await GotoAsync(Paths.BuildBySlot(mainBuildingSlotId), cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the main building.", cancellationToken);
 
         var selected = await _page.EvaluateAsync<bool>(
             """
@@ -2228,7 +2220,6 @@ public sealed partial class TravianClient : IBuildingClient
     // language-independent markup. Never defaults to "on".
     private async Task<string> EvaluatePlusStateOnCurrentPageAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading Travian Plus status.", cancellationToken);
 
         try
         {
@@ -2735,9 +2726,6 @@ public sealed partial class TravianClient : IBuildingClient
             Notify($"{operationLabel} expected construct choices for slot {slotId}/gid {gid}, but current url is '{_page.Url}'. Reopening attempt {attempt}/2.");
             await GotoAsync(constructUrl, cancellationToken);
             await EnsureLoggedInAsync();
-            await PauseForManualStepIfVisibleAsync(
-                $"Manual verification while reopening construct page for slot {slotId}.",
-                cancellationToken);
         }
 
         throw new InvalidOperationException(

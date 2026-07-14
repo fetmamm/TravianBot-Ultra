@@ -84,7 +84,6 @@ public sealed partial class TravianClient
         if (!IsCurrentUrlForPath(Paths.Resources))
         {
             await GotoAsync(Paths.Resources, cancellationToken);
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the village overview.", cancellationToken);
         }
 
         await EnsureLoggedInAsync();
@@ -100,7 +99,6 @@ public sealed partial class TravianClient
         if (!IsCurrentUrlForPath(Paths.Resources))
         {
             await GotoAsync(Paths.Resources, cancellationToken);
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the village overview.", cancellationToken);
         }
 
         await EnsureLoggedInAsync();
@@ -132,7 +130,6 @@ public sealed partial class TravianClient
                 await GotoAsync(Paths.Resources, cancellationToken);
             }
 
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading account info.", cancellationToken);
             await EnsureLoggedInAsync();
 
             IReadOnlyList<Village> villages;
@@ -176,7 +173,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     {
         Notify("ReadAccountAnalysisSnapshotAsync started");
         await GotoAsync(Paths.Resources, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading account analysis.", cancellationToken);
         await EnsureLoggedInAsync();
         await RefreshCapitalStateForActiveVillageAsync(cancellationToken);
 
@@ -203,7 +199,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
     private async Task<(int? Gold, int? Silver)> ReadCurrencyAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading gold/silver.", cancellationToken);
         try
         {
             await _page.WaitForFunctionAsync(
@@ -477,7 +472,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             return cached;
         }
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading tribe.", cancellationToken);
         var value = await _page.EvaluateAsync<string>(
             """
             () => {
@@ -580,7 +574,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             return true;
         }
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading gold club status.", cancellationToken);
         var enabled = await _page.EvaluateAsync<bool>(
             """
             () => {

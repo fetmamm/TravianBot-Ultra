@@ -111,7 +111,6 @@ public sealed partial class TravianClient : IHeroClient
         }
 
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared on adventure detail page.", cancellationToken);
 
         var returnSeconds = await ReadHeroReturnSecondsAsync(cancellationToken);
 
@@ -128,7 +127,6 @@ public sealed partial class TravianClient : IHeroClient
         }
 
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after dispatching hero.", cancellationToken);
 
         // Land back on dorf1 after dispatch so the next status read happens on a fresh page.
         await EnsureFreshDorf1ForHeroAsync(forceReload: false, cancellationToken);
@@ -210,7 +208,6 @@ public sealed partial class TravianClient : IHeroClient
     private async Task OpenAdventureListWithFallbackAsync(CancellationToken cancellationToken)
     {
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening adventures list.", cancellationToken);
 
         if (await HasAdventureEntryOnPageAsync(cancellationToken))
         {
@@ -219,7 +216,6 @@ public sealed partial class TravianClient : IHeroClient
 
         await GotoAsync(HeroAdventuresPath, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared on hero adventures page.", cancellationToken);
         if (await HasAdventureEntryOnPageAsync(cancellationToken))
         {
             return;
@@ -239,7 +235,6 @@ public sealed partial class TravianClient : IHeroClient
         {
             await GotoAsync(HeroAdventuresPath, cancellationToken);
             await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared on hero adventures page.", cancellationToken);
             if (await IsHeroAdventuresPageAsync(cancellationToken))
             {
                 return;
@@ -252,7 +247,6 @@ public sealed partial class TravianClient : IHeroClient
 
         await GotoAsync(HeroAdventuresPath, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared on hero adventures page.", cancellationToken);
     }
 
     private async Task<bool> IsHeroAdventuresPageAsync(CancellationToken cancellationToken)
@@ -442,7 +436,6 @@ public sealed partial class TravianClient : IHeroClient
         if (adventureHintCount > 0 && !inVillage)
         {
             await OpenHeroAdventuresPageAsync(cancellationToken);
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared on adventures page.", cancellationToken);
             adventureCount = await CountAdventureRowsAsync(cancellationToken);
             status = await ReadHeroStatusAsync(cancellationToken);
             hpPercent ??= status.HpPercent;

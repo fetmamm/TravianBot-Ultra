@@ -11,7 +11,6 @@ public sealed partial class TravianClient
     private async Task<(bool Sent, int DurationSeconds, int ReturnSeconds)> TrySendHeroToAdventureAsync(string pickOrder, CancellationToken cancellationToken)
     {
         await OpenHeroAdventuresPageAsync(cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening adventures.", cancellationToken);
 
         // The adventures list on official Travian (T4.6) is React-rendered and is often not in the
         // DOM yet right after navigation. Wait for the adventure rows (Explore buttons) — or the
@@ -112,7 +111,6 @@ public sealed partial class TravianClient
         // (class "...continue...") and does NOT navigate — the modal needs a moment to
         // render, so poll for the confirm button before giving up.
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared on adventure detail page.", cancellationToken);
         var fallbackReturnFromDetail = await ReadAdventureReturnSecondsAsync(cancellationToken) ?? fallbackReturnSeconds;
         Notify($"[adventure] picked {pickOrder} adventure, duration={duration}s, hero return ETA={fallbackReturnFromDetail}s");
 
@@ -148,7 +146,6 @@ public sealed partial class TravianClient
         }
 
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after starting hero adventure.", cancellationToken);
         var dispatched = await IsHeroAdventureActivePageAsync(cancellationToken);
         var returnSeconds = await ReadAdventureReturnSecondsAsync(cancellationToken) ?? fallbackReturnFromDetail;
         Notify($"[adventure] dispatch confirmed={dispatched}, hero return ETA={returnSeconds}s");
@@ -185,7 +182,6 @@ public sealed partial class TravianClient
     private async Task<AdventureSelectionPreviewJs?> ReadSelectedAdventureBeforeBonusAsync(string pickOrder, CancellationToken cancellationToken)
     {
         await OpenHeroAdventuresPageAsync(cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading adventure difficulty.", cancellationToken);
 
         try
         {

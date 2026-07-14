@@ -388,7 +388,6 @@ public sealed partial class TravianClient
         }
 
         Notify($"[production-bonus] {resource}: clicked the free +15% video button.");
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the production bonus video.", cancellationToken);
 
         // The info dialog, ad player and completion detection are the shared Travian bonus-video overlay
         // (#videoFeature / #videoArea), identical to construct-faster — reuse it.

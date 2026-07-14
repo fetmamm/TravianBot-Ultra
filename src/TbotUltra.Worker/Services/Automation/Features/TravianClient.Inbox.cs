@@ -22,7 +22,6 @@ public sealed partial class TravianClient
         Notify("[inbox] marking messages as read");
         await EnsureLoggedInAsync();
         await GotoAsync(MessagesPath, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening messages.", cancellationToken);
         return await TryMarkMessagesAsReadAcrossPagesAsync(
             markSelectors:
             [
@@ -46,7 +45,6 @@ public sealed partial class TravianClient
         Notify("[inbox] marking reports as read");
         await EnsureLoggedInAsync();
         await GotoAsync(ReportsPath, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening reports.", cancellationToken);
         return await TryMarkInboxItemsAsReadAsync(
             markSelectors:
             [
@@ -68,7 +66,6 @@ public sealed partial class TravianClient
 
     private async Task<InboxUnreadCountsJs> ReadUnreadInboxCountsAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading inbox counters.", cancellationToken);
 
         var result = await _page.EvaluateAsync<InboxUnreadCountsJs>(
             """
@@ -141,7 +138,6 @@ public sealed partial class TravianClient
                 return changed;
             }
 
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening next messages page.", cancellationToken);
         }
 
         Notify("[inbox] stopped marking as read — page limit reached");
@@ -226,7 +222,6 @@ public sealed partial class TravianClient
 
         if (clicked)
         {
-            await PauseForManualStepIfVisibleAsync($"Manual verification appeared while marking {label} as read.", cancellationToken);
             await Task.Delay(300, cancellationToken);
         }
 

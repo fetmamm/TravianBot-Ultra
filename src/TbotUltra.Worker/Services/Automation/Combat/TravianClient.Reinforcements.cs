@@ -315,14 +315,12 @@ public sealed partial class TravianClient
         }
 
         await WaitForManualAttackCompletionAsync(cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after sending reinforcement.", cancellationToken);
         await EnsureLoggedInAsync();
         return new ReinforcementSendAttemptResult(true, null);
     }
 
     private async Task<string?> ReadReinforcementFormErrorAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading reinforcement error.", cancellationToken);
         try
         {
             return await _page.EvaluateAsync<string?>(
@@ -344,13 +342,11 @@ public sealed partial class TravianClient
     {
         Notify($"[reinforce:verbose] waiting before {stepName}");
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync($"Manual verification appeared before reinforcement {stepName}.", cancellationToken);
         await Task.Delay(500, cancellationToken);
     }
 
     private async Task<bool> TryFillReinforcementTargetAsync(Village targetVillage, CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while filling reinforcement target.", cancellationToken);
         var filled = await _page.EvaluateAsync<bool>(
             """
             ({ targetName, x, y }) => {
@@ -395,7 +391,6 @@ public sealed partial class TravianClient
 
     private async Task<bool> TrySelectReinforcementModeAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while selecting reinforcement mode.", cancellationToken);
         return await _page.EvaluateAsync<bool>(
             """
             () => {

@@ -93,7 +93,6 @@ public sealed partial class TravianClient
             }
 
             await GotoAsync($"/build.php?id={marketplace.SlotId.Value}&t=5", cancellationToken);
-            await PauseForManualStepIfVisibleAsync($"Manual verification appeared while opening Marketplace in '{sourceVillage.Name}'.", cancellationToken);
             await EnsureLoggedInAsync();
 
             var merchantState = await ReadMarketplaceMerchantStateAsync(cancellationToken);
@@ -286,7 +285,6 @@ public sealed partial class TravianClient
 
     private async Task<ResourceTransferMerchantState> ReadMarketplaceMerchantStateAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading Marketplace merchants.", cancellationToken);
         var state = await _page.EvaluateAsync<ResourceTransferMerchantStateJs>(
             """
             () => {
@@ -357,7 +355,6 @@ public sealed partial class TravianClient
             return false;
         }
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while confirming resource transfer.", cancellationToken);
         await Task.Delay(300, cancellationToken);
         return await ClickMarketplaceConfirmButtonAsync(cancellationToken);
     }
@@ -417,7 +414,6 @@ public sealed partial class TravianClient
                 crop = shipment.Crop,
             });
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while filling resource transfer form.", cancellationToken);
         return filled;
     }
 
@@ -472,7 +468,6 @@ public sealed partial class TravianClient
 
                 await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
                 await button.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
-                await PauseForManualStepIfVisibleAsync("Manual verification appeared after sending resource transfer.", cancellationToken);
                 return true;
             }
 

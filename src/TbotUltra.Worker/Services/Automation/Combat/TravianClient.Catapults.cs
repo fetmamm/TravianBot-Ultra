@@ -122,7 +122,6 @@ public sealed partial class TravianClient : ICombatClient
             }
 
             await Task.Delay(250, cancellationToken);
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared after sending catapult waves.", cancellationToken);
             await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
             // Only mention failures when there are any: the word "failed" trips the alarm panel,
@@ -162,7 +161,6 @@ public sealed partial class TravianClient : ICombatClient
         await EnsureRallyPointAndOpenSendTroopsPageAsync(cancellationToken, allowReuseCurrentPage: true);
         await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
             .WaitAsync(cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while refreshing send troops.", cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         if (!await IsSendTroopsPageAsync(cancellationToken))

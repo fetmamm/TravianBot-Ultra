@@ -19,12 +19,10 @@ public sealed partial class TravianClient
     private async Task<bool?> ReadIsCapitalAsync(string villageName, CancellationToken cancellationToken)
     {
         Notify("[ReadIsCapitalAsync] started for village.");
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading capital state.", cancellationToken);
         var previousUrl = _page.Url;
         try
         {
             await GotoAsync(Paths.PlayerProfile, cancellationToken);
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading player profile.", cancellationToken);
             var result = await _page.EvaluateAsync<string>(
                 """
                 (vName) => {

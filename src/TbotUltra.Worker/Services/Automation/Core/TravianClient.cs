@@ -16,23 +16,6 @@ public sealed partial class TravianClient
 {
     private const int OfficialFarmListCapacity = 100;
     private const int MaxFarmsPerFarmList = 120;
-    private static readonly string[] CaptchaDetectionSelectors =
-    [
-        "input[name*='captcha' i]",
-        "input[id*='captcha' i]",
-        "input[placeholder*='captcha' i]",
-        "img[src*='captcha' i]",
-        "iframe[src*='captcha' i]",
-        "iframe[src*='recaptcha' i]",
-        "iframe[src*='hcaptcha' i]",
-        "iframe[src*='challenges.cloudflare.com' i]",
-        ".g-recaptcha",
-        ".h-captcha",
-        ".cf-turnstile",
-        "#cf-challenge-running",
-        "[class*='captcha' i]",
-        "[id*='captcha' i]",
-    ];
     private readonly IPage _page;
     private readonly BotOptions _config;
     private readonly AccountOptions _account;
@@ -48,7 +31,6 @@ public sealed partial class TravianClient
     private readonly Func<IPage, CancellationToken, Task>? _cleanupAfterBonusVideoAsync;
     private readonly Func<Func<IPage, CancellationToken, Task<string>>, CancellationToken, Task<string>>? _runInIsolatedBonusVideoBrowserAsync;
     private DateTimeOffset? _serverTimeUtc;
-    private DateTimeOffset _lastManualVerificationScreenshotAt = DateTimeOffset.MinValue;
     private string? _cachedTribe;
     private readonly TravianSessionCache _session;
     private static readonly TimeSpan ResourceReadLogInterval = TimeSpan.FromMinutes(2);

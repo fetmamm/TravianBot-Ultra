@@ -12,7 +12,6 @@ public sealed partial class TravianClient
         if (allowNavigationToResourcePage && !IsCurrentUrlForPath(Paths.Resources))
         {
             await GotoAsync(Paths.Resources, cancellationToken);
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening resource fields.", cancellationToken);
         }
 
         await EnsureLoggedInAsync();
@@ -28,7 +27,6 @@ public sealed partial class TravianClient
     {
         Notify("[resources:verbose] ReadCurrentPageStorageStatusAsync started");
         await EnsureLoggedInAsync();
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared before reading storage status.", cancellationToken);
 
         var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
         var cachedSnapshot = TryGetCachedVillageResourceSnapshot(activeVillage);
@@ -130,7 +128,6 @@ public sealed partial class TravianClient
         {
             Notify("ReadCurrentPageResourceProductionPerHourAsync: current page is not dorf1, navigating to resource fields first.");
             await GotoAsync(Paths.Resources, cancellationToken);
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening resource fields for production read.", cancellationToken);
             await EnsureLoggedInAsync();
         }
 
@@ -156,7 +153,6 @@ public sealed partial class TravianClient
         Notify($"[NavigateToPageAndReadHtmlAsync] opening {normalizedPath}");
         await EnsureLoggedInAsync();
         await GotoAsync(normalizedPath, cancellationToken);
-        await PauseForManualStepIfVisibleAsync($"Manual verification appeared while opening {normalizedPath}.", cancellationToken);
         return await ReadCurrentPageHtmlAsync(cancellationToken);
     }
 
@@ -209,7 +205,6 @@ public sealed partial class TravianClient
 
     private async Task<VillageStatus> ReadCurrentVillageResourceStatusAsync(CancellationToken cancellationToken, bool allowNavigationToResourcePage)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared before reading resource status.", cancellationToken);
         var villages = await ReadVillagesPreferCacheAsync(cancellationToken);
         var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
         // Read the hero adventure indicator from the current page (cheap, no navigation) so the
@@ -320,7 +315,6 @@ public sealed partial class TravianClient
         for (var attempt = 1; attempt <= attempts; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading resource snapshot.", cancellationToken);
 
             var snapshot = await _page.EvaluateAsync<ResourceSnapshotDomReadResult>(
                 """
@@ -514,7 +508,6 @@ public sealed partial class TravianClient
         for (var attempt = 1; attempt <= 4; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while waiting for resource widgets.", cancellationToken);
 
             try
             {
@@ -582,7 +575,6 @@ public sealed partial class TravianClient
 
     private async Task<string> ReadResourceSnapshotDiagnosticsAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading resource diagnostics.", cancellationToken);
 
         try
         {
@@ -616,7 +608,6 @@ public sealed partial class TravianClient
 
     private async Task<IReadOnlyDictionary<string, string>> ReadResourcesAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading resources.", cancellationToken);
         var raw = await _page.EvaluateAsync<Dictionary<string, string>>(
             """
             () => {
@@ -692,7 +683,6 @@ public sealed partial class TravianClient
         for (var attempt = 1; attempt <= attempts; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading production rates.", cancellationToken);
 
             var snapshot = await _page.EvaluateAsync<ResourceSnapshotDomReadResult>(
                 """

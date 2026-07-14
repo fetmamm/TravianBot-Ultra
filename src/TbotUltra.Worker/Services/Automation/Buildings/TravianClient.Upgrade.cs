@@ -36,7 +36,6 @@ public sealed partial class TravianClient
             await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
         }, cancellationToken: cancellationToken);
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after clicking detected upgrade candidate.", cancellationToken);
     }
 
     private async Task<bool> TryClickOfficialPrimaryUpgradeButtonAsync(int slotId, CancellationToken cancellationToken)
@@ -64,7 +63,6 @@ public sealed partial class TravianClient
                     await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
                     await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
                 }, cancellationToken: cancellationToken);
-                await PauseForManualStepIfVisibleAsync("Manual verification appeared after clicking official upgrade button.", cancellationToken);
                 return true;
             }
             catch (Exception ex)
@@ -84,7 +82,6 @@ public sealed partial class TravianClient
 
     private async Task<int?> ReadUpgradeDurationSecondsOnCurrentPageAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading upgrade duration.", cancellationToken);
         var rawJson = await _page.EvaluateAsync<string>(
             """
             () => {

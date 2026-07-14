@@ -79,7 +79,6 @@ public sealed partial class TravianClient
                 Notify("[herohome] home village missing for dead/reviving hero; reading hero attributes.");
                 await GotoAsync(HeroAttributesPath, cancellationToken);
                 await WaitForPageReadyAsync(cancellationToken);
-                await PauseForManualStepIfVisibleAsync("Manual verification appeared while resolving hero home village.", cancellationToken);
                 await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
                 var heroHome = await ReadHeroHomeVillageInfoAsync(cancellationToken);
@@ -158,7 +157,6 @@ public sealed partial class TravianClient
             await GotoAsync(Paths.Resources, cancellationToken);
         }
 
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening dorf1 for hero check.", cancellationToken);
         await EnsureLoggedInAsync();
         if (!forceReload || !onDorf1)
         {
@@ -169,7 +167,6 @@ public sealed partial class TravianClient
         await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
             .WaitAsync(cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while refreshing dorf1 for hero check.", cancellationToken);
     }
 
     private async Task<HeroSidebarStatusJs> ReadHeroSidebarStatusAsync(CancellationToken cancellationToken)
@@ -239,7 +236,6 @@ public sealed partial class TravianClient
         Notify("[hero:verbose] ReadHeroReturnFromRallyPoint starting");
         await GotoAsync(RallyPointTroopsPath, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening rally point.", cancellationToken);
 
         var raw = await _page.EvaluateAsync<string?>(
             """
@@ -600,7 +596,6 @@ public sealed partial class TravianClient
 
         await GotoAsync(HeroAttributesPath, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero attributes.", cancellationToken);
         await EnsureLoggedInAsync();
 
         if (adventureCount is null)
@@ -677,7 +672,6 @@ public sealed partial class TravianClient
 
     private async Task<HeroStatus> ReadHeroStatusAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading hero status.", cancellationToken);
         var rawJson = await _page.EvaluateAsync<string>(
             """
             () => {

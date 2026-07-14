@@ -762,7 +762,6 @@ public sealed partial class TravianClient : ISessionClient
                 });
                 await DelayBeforeClickAsync(cancellationToken, reason);
                 await candidate.ClickAsync(new LocatorClickOptions { Timeout = timeoutMs ?? _config.TimeoutMs });
-                await PauseForManualStepIfVisibleAsync("Manual verification appeared after click.", cancellationToken);
                 return true;
             }
             catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))

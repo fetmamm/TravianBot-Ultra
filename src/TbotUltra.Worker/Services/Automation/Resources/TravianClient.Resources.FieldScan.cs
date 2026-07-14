@@ -8,7 +8,6 @@ public sealed partial class TravianClient
 {
     private async Task<IReadOnlyList<ResourceField>> ReadResourceFieldsAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading resource fields.", cancellationToken);
         await WaitForResourceFieldsHydratedAsync(cancellationToken);
 
         // Primary scan: read the image map (#rx) area links and the #village_map level

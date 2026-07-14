@@ -71,7 +71,6 @@ public sealed partial class TravianClient
         }
 
         await GotoAsync(Paths.BuildBySlot(brewerySlotId.Value), cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading brewery celebration status.", cancellationToken);
         await EnsureLoggedInAsync();
 
         var pageStatus = await ReadBreweryCelebrationStatusFromCurrentPageAsync(cancellationToken);
@@ -95,7 +94,6 @@ public sealed partial class TravianClient
             if (!IsCurrentUrlForPath(Paths.Buildings))
             {
                 await GotoAsync(Paths.Buildings, cancellationToken);
-                await PauseForManualStepIfVisibleAsync("Manual verification appeared while probing brewery slot on dorf2.", cancellationToken);
                 await EnsureLoggedInAsync();
             }
 
@@ -269,12 +267,10 @@ public sealed partial class TravianClient
         if (!string.IsNullOrWhiteSpace(startHref))
         {
             await GotoAsync(startHref, cancellationToken);
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared after starting brewery celebration.", cancellationToken);
             await EnsureLoggedInAsync();
         }
 
         await GotoAsync(Paths.BuildBySlot(status.BrewerySlotId.Value), cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after navigating back to brewery.", cancellationToken);
         await EnsureLoggedInAsync();
 
         var startedStatus = await ReadBreweryCelebrationStatusFromCurrentPageAsync(cancellationToken);

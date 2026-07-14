@@ -41,7 +41,6 @@ public sealed partial class TravianClient
 
         await GotoAsync(HeroInventoryPath, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening hero inventory for ointments.", cancellationToken);
 
         var info = await ReadHeroOintmentInventoryInfoAsync(cancellationToken);
         if (!info.Found || info.Count <= 0)
@@ -267,4 +266,3 @@ public sealed partial class TravianClient
     }
 
 }
-

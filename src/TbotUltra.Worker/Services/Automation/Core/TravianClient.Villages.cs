@@ -19,7 +19,6 @@ public sealed partial class TravianClient
         Notify("[scan] all-village status scan starting");
         var returnVillageName = await TryReadActiveVillageNameSafeAsync(cancellationToken);
         await GotoAsync(Paths.Resources, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while opening the village overview.", cancellationToken);
         await EnsureLoggedInAsync();
 
         var villages = await ReadVillagesAsync(cancellationToken);
@@ -47,9 +46,6 @@ public sealed partial class TravianClient
                     await GotoAsync(Paths.Resources, cancellationToken);
                 }
 
-                await PauseForManualStepIfVisibleAsync(
-                    $"Manual verification appeared while switching to village '{village.Name}'.",
-                    cancellationToken);
                 await EnsureLoggedInAsync();
                 await ApplyActionDelayAsync(cancellationToken);
                 statuses.Add(await ReadCurrentVillageStatusAsync(cancellationToken));
@@ -163,7 +159,6 @@ public sealed partial class TravianClient
             await EnsureLoggedInAsync(force: true, cancellationToken);
         }
 
-        await PauseForManualStepIfVisibleAsync($"Manual verification appeared while switching to village '{villageName}'.", cancellationToken);
         await EnsureLoggedInAsync();
         var activeVillageAfterSwitch = await TryReadActiveVillageNameSafeAsync(cancellationToken);
         var activeMatchesRequested = string.IsNullOrWhiteSpace(villageName)
@@ -624,7 +619,6 @@ public sealed partial class TravianClient
         IReadOnlyList<Village>? knownVillages = null,
         IReadOnlyList<Building>? knownBuildings = null)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared before reading village status.", cancellationToken);
         // Read the village list from the sidebar/cache instead of navigating to the profile (spieler.php).
         // On a village switch we only need dorf1/dorf2 of the target village for status; the profile was
         // only used to enumerate villages and re-check the capital — capital comes from cache here. This
@@ -804,7 +798,6 @@ public sealed partial class TravianClient
 
     private async Task<IReadOnlyList<Village>> ReadVillagesFromCurrentPageAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading villages from current page.", cancellationToken);
 
         var raw = await _page.EvaluateAsync<SidebarVillageJs[]>(
             """
@@ -968,7 +961,6 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken,
         bool restorePreviousUrl = true)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading villages.", cancellationToken);
         var previousUrl = _page.Url;
         string? activeVillageBeforeProfile = null;
         IReadOnlyList<Village> sidebarOrder = [];
@@ -987,7 +979,6 @@ public sealed partial class TravianClient
             }
 
             await GotoAsync(Paths.PlayerProfile, cancellationToken);
-            await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading villages on spieler.php.", cancellationToken);
             await EnsureLoggedInAsync();
 
             // The profile can render the villages table client-side, and the
@@ -1296,7 +1287,6 @@ public sealed partial class TravianClient
 
     private async Task<(int? X, int? Y)> TryReadActiveVillageCoordsFromCurrentPageAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading active village coordinates.", cancellationToken);
 
         var coord = await _page.EvaluateAsync<ActiveVillageCoordJs>(
             """
@@ -1378,7 +1368,6 @@ public sealed partial class TravianClient
 
     private async Task<(long? Warehouse, long? Granary)> ReadStorageCapacitiesAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading storage capacity.", cancellationToken);
         var raw = await _page.EvaluateAsync<Dictionary<string, string>>(
             """
             () => {
@@ -1433,7 +1422,6 @@ public sealed partial class TravianClient
 
     private async Task<string> ReadActiveVillageNameAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading the active village.", cancellationToken);
         var value = await _page.EvaluateAsync<string>(
             """
             () => {

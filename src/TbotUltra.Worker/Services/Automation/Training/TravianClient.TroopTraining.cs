@@ -378,7 +378,6 @@ public sealed partial class TravianClient
 
         Notify($"[troops:verbose] queue scan:navigating to {buildingName} slot {building.SlotId.Value}.");
         await GotoAsync(Paths.BuildBySlot(building.SlotId.Value), cancellationToken);
-        await PauseForManualStepIfVisibleAsync($"Manual verification appeared while reading the {buildingName} queue.", cancellationToken);
         await EnsureLoggedInAsync();
 
         var queueItems = await ReadTroopTrainingQueueFromCurrentPageAsync(cancellationToken);
@@ -424,7 +423,6 @@ public sealed partial class TravianClient
 
         Notify($"[troops:verbose]navigating to {candidate.Request.BuildingName} slot {candidate.QueueStatus.SlotId.Value}.");
         await GotoAsync(Paths.BuildBySlot(candidate.QueueStatus.SlotId.Value), cancellationToken);
-        await PauseForManualStepIfVisibleAsync($"Manual verification appeared while opening the {candidate.Request.BuildingName}.", cancellationToken);
         await EnsureLoggedInAsync();
         Notify($"[troops:verbose]page after navigation url='{_page.Url}'.");
 
@@ -588,7 +586,6 @@ public sealed partial class TravianClient
         }
 
         await Task.Delay(300, cancellationToken);
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared after starting troop training.", cancellationToken);
         Notify($"[troops:verbose]page after submit url='{_page.Url}'.");
         var resourcesAfterSubmit = await ReadVillageResourcesFromCurrentPageAsync(cancellationToken);
         Notify($"[troops:verbose]resources after submit wood={resourcesAfterSubmit["wood"]}, clay={resourcesAfterSubmit["clay"]}, iron={resourcesAfterSubmit["iron"]}, crop={resourcesAfterSubmit["crop"]}.");
@@ -992,7 +989,6 @@ public sealed partial class TravianClient
 
     private async Task<IReadOnlyList<BuildQueueItem>> ReadTroopTrainingQueueFromCurrentPageAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading the troop training queue.", cancellationToken);
         var rawJson = await _page.EvaluateAsync<string>(
             """
             () => {
@@ -1072,7 +1068,6 @@ public sealed partial class TravianClient
 
     private async Task<TroopUnitBuildInfo> ReadTroopUnitBuildInfoFromCurrentPageAsync(string inputName, CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading troop build costs.", cancellationToken);
         Notify($"[troops:verbose]reading troop unit build info for input '{inputName}'.");
         var rawJson = await _page.EvaluateAsync<string>(
             """
@@ -1147,7 +1142,6 @@ public sealed partial class TravianClient
 
     private async Task<bool> SubmitTroopTrainingFromCurrentPageAsync(string inputName, int amount, bool useMaxShortcut, CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while submitting troop training.", cancellationToken);
         Notify($"[troops:verbose] submit:locating input '{inputName}'. amount={amount}, useMaxShortcut={useMaxShortcut}.");
         var input = _page.Locator($"input[name='{inputName}'], input[id='{inputName}']").First;
         if (await input.CountAsync() <= 0)

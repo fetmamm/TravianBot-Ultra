@@ -11,7 +11,6 @@ public sealed partial class TravianClient
 {
     private async Task<IReadOnlyList<BuildQueueItem>> ReadBuildQueueAsync(CancellationToken cancellationToken)
     {
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading the build queue.", cancellationToken);
         var rawJson = await _page.EvaluateAsync<string>(
             """
             () => {
@@ -114,7 +113,6 @@ public sealed partial class TravianClient
         }
 
         LogFunctionStarted();
-        await PauseForManualStepIfVisibleAsync("Manual verification appeared while reading active constructions.", cancellationToken);
         _lastActiveConstructionsFromOverview = false;
 
         var raw = await ReadActiveConstructionsOnCurrentPageAsync();
