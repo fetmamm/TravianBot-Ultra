@@ -58,6 +58,11 @@ public partial class MainWindow
 
     private void StartContinuousLoopRunner()
     {
+        if (BlockIfActiveAccountOnHold("Continuous loop"))
+        {
+            return;
+        }
+
         if (BlockIfSessionSleeping("Continuous loop"))
         {
             return;

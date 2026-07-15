@@ -637,31 +637,33 @@ public sealed partial class TravianClient : IFarmingClient
             .Where(row => !string.IsNullOrWhiteSpace(row.Name))
             .Select(row =>
             {
-                var remainingSeconds = ResolveFarmListRemainingSeconds(row.TimerText, row.Disabled);
+                var timer = ResolveFarmListRemaining(row.TimerText, row.Disabled);
                 return new FarmListOverview(
                     Name: row.Name!,
                     ActiveFarmCount: Math.Min(MaxFarmsPerFarmList, Math.Max(0, row.ActiveFarmCount ?? 0)),
                     TotalFarmCount: Math.Min(MaxFarmsPerFarmList, Math.Max(0, row.TotalFarmCount ?? 0)),
-                    RemainingSeconds: remainingSeconds,
+                    RemainingSeconds: timer.RemainingSeconds,
                     ListId: string.IsNullOrWhiteSpace(row.Lid) ? null : row.Lid!.Trim(),
                     Capacity: row.Capacity,
                     FarmCoordinates: row.FarmCoordinates ?? [],
-                    Finish: remainingSeconds is > 0 ? TimerSnapshot.FromRemaining(remainingSeconds.Value) : null);
+                    Finish: timer.RemainingSeconds is > 0 ? TimerSnapshot.FromRemaining(timer.RemainingSeconds.Value) : null,
+                    TimerIsEstimated: timer.IsEstimated);
             })
             .ToList();
     }
 
-    private static int? ResolveFarmListRemainingSeconds(string? timerText, bool disabled)
+    internal static (int? RemainingSeconds, bool IsEstimated) ResolveFarmListRemaining(string? timerText, bool disabled)
     {
         var seconds = TravianParsing.ParseDurationToSeconds(timerText);
         if (seconds is > 0)
         {
-            return seconds;
+            return (seconds, false);
         }
 
         // The Start Raid button is disabled while a raid timer is running. If we could not parse
-        // the exact countdown text, still report a running timer so the UI does not show "Ready".
-        return disabled ? 1 : seconds;
+        // the exact countdown text, use a conservative one-minute retry instead of the old 1-second
+        // sentinel. The sentinel caused a tight read/defer loop while the button remained disabled.
+        return disabled ? (60, true) : (seconds, false);
     }
 
     private async Task WaitForDispatchLimitToClearAsync(CancellationToken cancellationToken)

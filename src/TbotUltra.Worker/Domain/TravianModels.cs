@@ -267,7 +267,8 @@ public sealed record FarmListOverview(
     string? ListId = null,
     int? Capacity = null,
     IReadOnlyList<string>? FarmCoordinates = null,
-    TimerSnapshot? Finish = null);
+    TimerSnapshot? Finish = null,
+    bool TimerIsEstimated = false);
 
 public sealed record FarmListLossDeactivationResult(
     int RowsFound,

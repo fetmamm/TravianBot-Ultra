@@ -71,6 +71,29 @@
                                    Margin="0,6,0,0"
                                    Foreground="{DynamicResource TextMutedBrush}"
                                     Text="-" />
+                        <Border x:Name="AccountHoldBorder"
+                                Margin="0,7,0,0"
+                                Padding="7"
+                                CornerRadius="5"
+                                Background="{DynamicResource DangerBgBrush}"
+                                BorderBrush="{DynamicResource DangerBorderBrush}"
+                                BorderThickness="1"
+                                Visibility="Collapsed">
+                            <StackPanel>
+                                <TextBlock Text="Automation stopped"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource DangerTextBrush}" />
+                                <TextBlock x:Name="AccountHoldTextBlock"
+                                           Margin="0,3,0,6"
+                                           TextWrapping="Wrap"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <Button x:Name="ReenableAccountButton"
+                                        Content="Re-enable account"
+                                        HorizontalAlignment="Left"
+                                        Padding="8,3"
+                                        Click="ReenableAccountButton_Click" />
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </Border>
 

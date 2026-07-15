@@ -7,6 +7,7 @@ using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
 
@@ -26,6 +27,12 @@ public partial class MainWindow
     private async Task ExecuteLoginFlowAsync()
     {
         AppendLog("[login] ***** Login started. *****");
+        if (BlockIfActiveAccountOnHold("Login"))
+        {
+            AppendLog("[login] ***** Login finished. *****");
+            return;
+        }
+
         if (BlockIfSessionSleeping("Login"))
         {
             return;
@@ -252,6 +259,13 @@ public partial class MainWindow
             ToggleUiBusy(false);
             retryAfterLanguageFix = await HandleUnexpectedTravianLanguageAsync(ex);
         }
+        catch (AccountAccessException ex)
+        {
+            BrowserInfoTextBlock.Text = "Browser: account stopped";
+            StatusTextBlock.Text = "Automation stopped for this account. Manual review is required.";
+            await HoldAccountAutomationAsync(ex);
+            CompleteOperation(operationId, operationSw, "Account automation stopped for manual review.");
+        }
         catch (Exception ex)
         {
             BrowserInfoTextBlock.Text = "Browser: error";
@@ -263,6 +277,7 @@ public partial class MainWindow
         {
             HideBusyOverlay();
             ToggleUiBusy(false);
+            RefreshAccountHoldUi();
             DisposeOperationCts();
             _loginInProgress = false;
         }

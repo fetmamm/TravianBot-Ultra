@@ -215,7 +215,7 @@ public sealed partial class TravianClient
         }
         catch (TimeoutException ex)
         {
-            Notify($"[production-bonus] ALARM: could not inspect +15% bonuses because {ex.Message}");
+            Notify($"[production-bonus] WARNING: inspection unavailable: {ex.Message}");
             throw;
         }
         catch (Exception ex)
@@ -248,7 +248,7 @@ public sealed partial class TravianClient
         }
         catch (TimeoutException ex)
         {
-            Notify($"[production-bonus] ALARM: could not inspect +15% bonuses because {ex.Message}");
+            Notify($"[production-bonus] WARNING: inspection unavailable: {ex.Message}");
             return $"Production bonus: scan could not complete ({ex.Message}).";
         }
         catch (Exception ex)

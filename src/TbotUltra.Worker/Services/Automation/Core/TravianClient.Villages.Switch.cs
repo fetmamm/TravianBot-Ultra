@@ -95,7 +95,7 @@ public sealed partial class TravianClient
         // A village switch must land on a logged-in game page. A contaminated/stale switch URL can hit
         // the site root, which the server serves as the login page (looks like a logout). Detect that
         // here and recover via the normal login flow instead of silently reading the wrong village.
-        if ((await LoginStateAsync()) != "logged_in")
+        if ((await LoginStateAsync()) != AccountAccessState.LoggedIn)
         {
             Notify($"[village-switch] landed on a non-game page after switching to {requestedLabel} — recovering via login.");
             await EnsureLoggedInAsync(force: true, cancellationToken);
@@ -459,4 +459,3 @@ public sealed partial class TravianClient
 
 
 }
-

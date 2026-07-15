@@ -689,6 +689,10 @@ public partial class MainWindow
         {
             throw;
         }
+        catch (AccountAccessException ex)
+        {
+            await HoldAccountAutomationAsync(ex);
+        }
         catch (Exception ex)
         {
             // Keep it queued (attempt already counted) for a later pass; a transient nav/read error must not
@@ -1521,6 +1525,10 @@ public partial class MainWindow
         {
             throw;
         }
+        catch (AccountAccessException ex)
+        {
+            await HoldAccountAutomationAsync(ex);
+        }
         catch (Exception ex)
         {
             _lastContinuousKeepAliveFailureUtc = DateTimeOffset.UtcNow;
@@ -1658,6 +1666,11 @@ public partial class MainWindow
             }
             catch (OperationCanceledException)
             {
+                break;
+            }
+            catch (AccountAccessException ex)
+            {
+                await HoldAccountAutomationAsync(ex);
                 break;
             }
             catch (Exception ex) when (IsTransientConnectionFailure(ex))
@@ -1834,13 +1847,21 @@ public partial class MainWindow
             return totalSeconds;
         }
 
+        // A concrete waitDelay is a scheduler deadline (queue_wait_seconds, construction timer,
+        // farm-list cooldown, etc.). Action pacing must never shorten it: doing so woke the loop
+        // every 4-25 seconds even when the next item was deferred for minutes or hours, causing
+        // repeated status reads and farm-list polling. Pacing only supplies the delay when the
+        // scheduler has no real deadline and is performing a routine idle pass.
+        if (waitDelay is not null)
+        {
+            return totalSeconds;
+        }
+
         var minMs = (int)Math.Round(Math.Max(0, options.ActionPacingLoopMinSeconds) * 1000);
         var maxMs = (int)Math.Round(Math.Max(options.ActionPacingLoopMinSeconds, options.ActionPacingLoopMaxSeconds) * 1000);
         var pacingSeconds = Random.Shared.Next(minMs, maxMs + 1) / 1000.0;
         var pacingTotalSeconds = Math.Max(1, (int)Math.Ceiling(pacingSeconds));
-        return waitDelay is null
-            ? pacingTotalSeconds
-            : Math.Min(totalSeconds, pacingTotalSeconds);
+        return pacingTotalSeconds;
     }
 
     // Occasional human-like "stepped away from the computer" pause. Called at the top of a loop

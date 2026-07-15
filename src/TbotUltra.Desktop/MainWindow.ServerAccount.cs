@@ -131,6 +131,8 @@ public partial class MainWindow
             {
                 _suppressAccountSelectionChange = false;
             }
+
+            RefreshAccountHoldUi();
         }
         catch (Exception ex)
         {

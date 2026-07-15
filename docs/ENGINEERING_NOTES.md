@@ -190,6 +190,15 @@ Common endpoints:
 - Verify bundled runtime files and startup dependencies from the publish directory, not the developer tree.
 - Authenticode signing is intentionally not required.
 
+## Account access, queue deadlines, and alarms
+
+- A known queue deadline is authoritative and must never be shortened by action pacing. Pacing only controls loop passes without a known deadline.
+- An unreadable disabled farmlist timer is an estimated 60-second wait. Exact farmlist timers receive a random 5-15 second rendering margin.
+- Account access is classified as `LoggedIn`, `LoggedOut`, `Unavailable`, `Restricted`, `Challenge`, or `Unknown`. Verify `Unknown` once on canonical `/dorf1.php`; network failures are `Unavailable` and do not count toward restriction.
+- `Restricted`, `Challenge`, or three consecutive verified `Unknown` states create a persistent account-specific automation hold. Stop only that account's loop/session, retain its queue/settings, and require manual re-enable after review.
+- Write an alarm to the session log only when its 30-minute deduplication window starts. Identical repeats update the visible occurrence count instead of writing another alarm line.
+- Expected bonus-video fallback is a warning. A production-bonus task may surface at most its final task failure as an alarm during one run.
+
 ## Support status
 
 | Area | Status | Notes |

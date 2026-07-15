@@ -25,6 +25,24 @@ public sealed class ContinuousLoopNetworkBackoffTests
     }
 
     [Fact]
+    public void ResolveWaitSeconds_QueueDeadlineIsNotShortenedByActionPacing()
+    {
+        var options = new BotOptions
+        {
+            ActionPacingEnabled = true,
+            ActionPacingLoopMinSeconds = 4,
+            ActionPacingLoopMaxSeconds = 25,
+        };
+
+        var seconds = MainWindow.ResolveContinuousLoopWaitSeconds(
+            TimeSpan.FromSeconds(4177),
+            options,
+            networkBackoff: false);
+
+        Assert.Equal(4177, seconds);
+    }
+
+    [Fact]
     public void IsTransientConnectionFailure_AcceptsNavigationAndUnknownPageState()
     {
         Assert.True(MainWindow.IsTransientConnectionFailure(

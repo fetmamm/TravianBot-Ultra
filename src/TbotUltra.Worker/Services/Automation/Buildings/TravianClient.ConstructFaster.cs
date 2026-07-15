@@ -102,7 +102,7 @@ public sealed partial class TravianClient
             }
         }
 
-        Notify($"ALARM: construct-faster video failed after {ConstructFasterMaxVideoAttempts} attempts (last video: {lastVideoResult ?? "no result"}, evidence: {lastEvidence ?? "none"}) — building normally.");
+        Notify($"[construct-faster] WARNING: video unavailable after {ConstructFasterMaxVideoAttempts} attempts (last video: {lastVideoResult ?? "no result"}, evidence: {lastEvidence ?? "none"}) — building normally.");
         if (navigatedForVerification)
         {
             await RestoreBuildPageAfterConstructFasterFallbackAsync(slotId, restorePath, cancellationToken);

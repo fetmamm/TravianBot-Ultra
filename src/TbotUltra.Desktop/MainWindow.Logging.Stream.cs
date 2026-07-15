@@ -134,7 +134,7 @@ public partial class MainWindow
                         Category = isAlarm ? LogCategory.Errors : LogClassifier.Classify(part),
                         IsVerbose = LogClassifier.IsVerbose(part),
                     });
-                    if (isAlarm || ShouldWriteLineToSessionLog(part))
+                    if (!isAlarm && ShouldWriteLineToSessionLog(part))
                     {
                         logLinesForSessionLog.Add(line);
                     }
@@ -177,17 +177,44 @@ public partial class MainWindow
                     if (isAlarm)
                     {
                         var isAcknowledgedAlarm = IsAutoAcknowledgedAlarmMessage(part);
-                        _alarmEntries.Insert(0, new AlarmEntryRow
+                        var nowUtc = DateTimeOffset.UtcNow;
+                        var accountKey = _accountStore.ActiveAccountName();
+                        var signature = $"{accountKey}|{part}";
+                        var existingAlarm = _alarmEntries.FirstOrDefault(entry =>
+                            string.Equals(entry.Signature, signature, StringComparison.Ordinal)
+                            && nowUtc - entry.LastSeenUtc <= TimeSpan.FromMinutes(30));
+                        if (existingAlarm is not null)
                         {
-                            Text = line,
-                            IsAcknowledged = isAcknowledgedAlarm,
-                        });
-                        if (!isAcknowledgedAlarm)
-                        {
-                            _unacknowledgedAlarmCount += 1;
+                            existingAlarm.OccurrenceCount++;
+                            existingAlarm.LastSeenUtc = nowUtc;
+                            existingAlarm.Text =
+                                $"{line} (x{existingAlarm.OccurrenceCount}, first {existingAlarm.FirstSeenUtc.ToLocalTime():HH:mm:ss})";
+                            if (existingAlarm.IsAcknowledged && !isAcknowledgedAlarm)
+                            {
+                                existingAlarm.IsAcknowledged = false;
+                                _unacknowledgedAlarmCount += 1;
+                            }
                         }
+                        else
+                        {
+                            _alarmEntries.Insert(0, new AlarmEntryRow
+                            {
+                                Text = line,
+                                Signature = signature,
+                                FirstSeenUtc = nowUtc,
+                                LastSeenUtc = nowUtc,
+                                IsAcknowledged = isAcknowledgedAlarm,
+                            });
+                            if (!isAcknowledgedAlarm)
+                            {
+                                _unacknowledgedAlarmCount += 1;
+                            }
 
-                        alarmLinesForSessionLog.Add(line);
+                            // Alarm rows are also normal terminal rows, but the session file must
+                            // contain the event only once. Repeated identical alarms inside the
+                            // coalescing window update the UI count and are not appended again.
+                            logLinesForSessionLog.Add(line);
+                        }
                     }
 
                 }
@@ -196,6 +223,8 @@ public partial class MainWindow
             TrimToMaxEntries(_terminalEntries, 1000);
             TrimToMaxEntries(_alarmEntries, 200);
             TryAppendSessionLogLines(logLinesForSessionLog, alarmLinesForSessionLog);
+            AlarmListBox.Items.Refresh();
+            _logsPopupAlarmList?.Items.Refresh();
 
             if (lastRawMessage is not null)
             {
@@ -492,7 +521,7 @@ public partial class MainWindow
         }
     }
 
-    private static bool IsAlarmMessage(string message)
+    internal static bool IsAlarmMessage(string message)
     {
         if (string.IsNullOrWhiteSpace(message))
         {
@@ -501,6 +530,11 @@ public partial class MainWindow
 
         var value = message.ToLowerInvariant();
         if (IsAutoAcknowledgedAlarmMessage(message))
+        {
+            return true;
+        }
+
+        if (value.Contains("alarm:"))
         {
             return true;
         }
@@ -518,6 +552,12 @@ public partial class MainWindow
         // "[login:verbose] waiting for login confirmation (timeout=180s ...)") that would otherwise
         // trip the keyword check below.
         if (value.Contains(":verbose]"))
+        {
+            return false;
+        }
+
+        if ((value.Contains("[construct-faster]") && value.Contains("video unavailable"))
+            || (value.Contains("[production-bonus]") && value.Contains("inspection unavailable")))
         {
             return false;
         }
@@ -581,11 +621,6 @@ public partial class MainWindow
         }
 
         if (value.Contains("] fail"))
-        {
-            return true;
-        }
-
-        if (value.Contains("alarm:"))
         {
             return true;
         }

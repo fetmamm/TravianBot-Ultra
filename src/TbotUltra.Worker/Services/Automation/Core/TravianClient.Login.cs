@@ -35,7 +35,8 @@ public sealed partial class TravianClient : ISessionClient
 
         Notify($"[login] Account='{_account.Name}' server='{ServerUrl}' — starting");
         var state = await LoginStateAsync();
-        if (state == "logged_in")
+        ThrowIfAccountAccessBlocked(state);
+        if (state == AccountAccessState.LoggedIn)
         {
             MarkSessionLoggedIn();
             Notify($"[login] already logged in as '{_account.Name}'");
@@ -43,11 +44,12 @@ public sealed partial class TravianClient : ISessionClient
             return;
         }
 
-        if (state == "unknown" && IsLikelyGamePageUrl(_page.Url))
+        if (state == AccountAccessState.Unknown)
         {
             Notify("[login] state unknown on game page; rechecking dorf1 before opening login page.");
-            await GotoAsync(Paths.Resources, cancellationToken);
-            if (await IsLoggedInAsync())
+            state = await VerifyUnknownAccessStateAsync(cancellationToken);
+            ThrowIfAccountAccessBlocked(state);
+            if (state == AccountAccessState.LoggedIn)
             {
                 MarkSessionLoggedIn();
                 Notify($"[login] already logged in as '{_account.Name}' after dorf1 recheck");
@@ -98,6 +100,7 @@ public sealed partial class TravianClient : ISessionClient
         var loggedIn = await WaitUntilLoggedInAsync(cancellationToken);
         if (!loggedIn)
         {
+            ThrowIfAccountAccessBlocked(await LoginStateAsync());
             throw new InvalidOperationException("Login did not complete successfully.");
         }
         await EnsureExpectedLanguageIfEnabledAsync(cancellationToken);
@@ -152,6 +155,7 @@ public sealed partial class TravianClient : ISessionClient
     {
         _lastEnsureLoggedInAt = DateTimeOffset.UtcNow;
         _lastEnsureLoggedInSucceeded = true;
+        _session.ConsecutiveUnknownAccessStates = 0;
     }
 
     private async Task ConfirmExpectedLanguageIfEnabledAndRefreshAccountSignalsAsync(CancellationToken cancellationToken)
@@ -351,15 +355,15 @@ public sealed partial class TravianClient : ISessionClient
             // Unknown/unavailable states remain transient failures; an explicit logged-out state
             // is the only state that starts the normal Official login flow.
             var state = await LoginStateAsync();
-            if (state == "unknown")
+            if (state == AccountAccessState.Unknown)
             {
-                Notify("[ensure-logged-in] state unknown; retrying login-state check before failing.");
-                await Task.Delay(Random.Shared.Next(800, 1400), cancellationToken);
-                state = await LoginStateAsync();
+                Notify("[ensure-logged-in] state unknown; verifying the canonical village page before failing.");
+                state = await VerifyUnknownAccessStateAsync(cancellationToken);
                 Notify($"[ensure-logged-in] retry state={state} url='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
             }
 
-            if (state == "logged_in")
+            ThrowIfAccountAccessBlocked(state);
+            if (state == AccountAccessState.LoggedIn)
             {
                 _lastEnsureLoggedInAt = DateTimeOffset.UtcNow;
                 _lastEnsureLoggedInSucceeded = true;
@@ -371,7 +375,7 @@ public sealed partial class TravianClient : ISessionClient
 
                 return;
             }
-            if (state == "logged_out")
+            if (state == AccountAccessState.LoggedOut)
             {
                 Notify("[ensure-logged-in] session expired — attempting auto-relogin");
                 try
@@ -397,13 +401,13 @@ public sealed partial class TravianClient : ISessionClient
                 return;
             }
 
-            if (state == "unavailable")
+            if (state == AccountAccessState.Unavailable)
             {
                 throw new TransientNavigationException(
                     $"Travian page is unavailable while checking login state. Url='{_page.Url}'.");
             }
 
-            throw new InvalidOperationException($"Not logged in. Current page state is '{state}'.");
+            throw new InvalidOperationException($"Not logged in. Current page state is '{FormatAccessState(state)}'.");
         }
         if (_suppressEnsureUiSyncDepth <= 0)
         {
@@ -413,10 +417,10 @@ public sealed partial class TravianClient : ISessionClient
 
     private async Task<bool> IsLoggedInAsync()
     {
-        return (await LoginStateAsync()) == "logged_in";
+        return (await LoginStateAsync()) == AccountAccessState.LoggedIn;
     }
 
-    private async Task<string> LoginStateAsync()
+    private async Task<AccountAccessState> LoginStateAsync()
     {
         try
         {
@@ -429,18 +433,24 @@ public sealed partial class TravianClient : ISessionClient
                 || currentUrl.StartsWith("about:neterror", StringComparison.Ordinal))
             {
                 Notify($"[ensure-logged-in] browser network error page detected url='{_page.Url}'.");
-                return "unavailable";
+                return AccountAccessState.Unavailable;
             }
 
             if (await _page.Locator("body.neterror, #main-frame-error, .error-code").CountAsync() > 0)
             {
                 Notify($"[ensure-logged-in] browser network error DOM detected url='{_page.Url}'.");
-                return "unavailable";
+                return AccountAccessState.Unavailable;
+            }
+
+            var explicitState = await ProbeExplicitAccountAccessStateAsync(currentUrl);
+            if (explicitState is not null)
+            {
+                return explicitState.Value;
             }
 
             if (currentUrl.Contains("login.php", StringComparison.Ordinal))
             {
-                return "logged_out";
+                return AccountAccessState.LoggedOut;
             }
 
             await TryDismissContinuePromptAsync();
@@ -458,7 +468,7 @@ public sealed partial class TravianClient : ISessionClient
                 {
                     if (await _page.Locator(selector).CountAsync() > 0)
                     {
-                        return "logged_in";
+                        return AccountAccessState.LoggedIn;
                     }
                 }
 
@@ -466,7 +476,7 @@ public sealed partial class TravianClient : ISessionClient
                 {
                     if (await _page.Locator(selector).CountAsync() > 0)
                     {
-                        return "logged_out";
+                        return AccountAccessState.LoggedOut;
                     }
                 }
 
@@ -478,14 +488,78 @@ public sealed partial class TravianClient : ISessionClient
             }
 
             Notify("Login state is unknown");
-            return "unknown";
+            return AccountAccessState.Unknown;
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
         {
             Notify("Page navigated while checking login state. State is unknown.");
-            return "unknown";
+            return AccountAccessState.Unknown;
         }
     }
+
+    private async Task<AccountAccessState?> ProbeExplicitAccountAccessStateAsync(string currentUrl)
+    {
+        var captchaInputPresent = await HasAnySelectorAsync(Selectors.AccountChallengeInputField);
+        var pageSignal = await _page.EvaluateAsync<string>(
+            """
+            () => {
+              const title = (document.title || '').toLowerCase();
+              const text = (document.body?.innerText || '').slice(0, 12000).toLowerCase();
+              return `${title}\n${text}`;
+            }
+            """);
+        return AccountAccessClassifier.ClassifyExplicit(currentUrl, pageSignal, captchaInputPresent);
+    }
+
+    private async Task<AccountAccessState> VerifyUnknownAccessStateAsync(CancellationToken cancellationToken)
+    {
+        AccountAccessState state;
+        try
+        {
+            await GotoAsync(Paths.Resources, cancellationToken);
+            state = await LoginStateAsync();
+        }
+        catch (TransientNavigationException)
+        {
+            _session.ConsecutiveUnknownAccessStates = 0;
+            return AccountAccessState.Unavailable;
+        }
+
+        var circuitState = AccountAccessClassifier.RegisterVerifiedState(
+            _session.ConsecutiveUnknownAccessStates,
+            state);
+        _session.ConsecutiveUnknownAccessStates = circuitState.ConsecutiveUnknown;
+        if (state != AccountAccessState.Unknown)
+        {
+            return state;
+        }
+
+        Notify($"[account-access] canonical page remained unknown ({_session.ConsecutiveUnknownAccessStates}/3).");
+        if (circuitState.Stop)
+        {
+            throw new AccountAccessException(
+                _account.Name,
+                AccountAccessState.Unknown,
+                "The canonical village page remained in an unknown access state after three verified checks.");
+        }
+
+        return state;
+    }
+
+    private void ThrowIfAccountAccessBlocked(AccountAccessState state)
+    {
+        if (state is not (AccountAccessState.Restricted or AccountAccessState.Challenge))
+        {
+            return;
+        }
+
+        var reason = state == AccountAccessState.Restricted
+            ? "Travian displayed an explicit account restriction."
+            : "Travian displayed a security challenge that requires manual review.";
+        throw new AccountAccessException(_account.Name, state, reason);
+    }
+
+    private static string FormatAccessState(AccountAccessState state) => state.ToString().ToLowerInvariant();
 
     // Fills the login form the way a person would: type the username, pause briefly, type the
     // password, pause again before submitting. A short random 100-200ms wait between the steps is
@@ -802,6 +876,8 @@ public sealed partial class TravianClient : ISessionClient
                     Notify($"[login:verbose] login confirmed after {pollCount} poll(s)");
                     return true;
                 }
+
+                ThrowIfAccountAccessBlocked(await LoginStateAsync());
 
                 // Fail fast on an explicit credential/account error instead of waiting the full
                 // login timeout (which can be minutes).

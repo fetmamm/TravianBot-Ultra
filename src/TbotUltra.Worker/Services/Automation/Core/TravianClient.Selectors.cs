@@ -74,6 +74,20 @@ public sealed partial class TravianClient
             "input[id*='answer' i]",
         };
 
+        // Strict subset used for automatic account holds. The broader CaptchaInputField list is
+        // useful for the interactive captcha flow, but generic "answer" inputs are not strong
+        // enough evidence to stop an account.
+        public static readonly string[] AccountChallengeInputField =
+        {
+            "input[name='captcha_answer']",
+            "input[id='captcha_answer']",
+            "input[type='number'].captcha-input",
+            "input[id*='captcha' i]",
+            "input[name*='captcha' i]",
+            "input[name*='verification' i]",
+            "input[id*='verification' i]",
+        };
+
         public static readonly string[] LoginButton =
         {
             "button[type='submit']",

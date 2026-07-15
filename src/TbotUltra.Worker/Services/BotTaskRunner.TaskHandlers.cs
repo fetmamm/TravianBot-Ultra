@@ -348,8 +348,12 @@ public sealed partial class BotTaskRunner
         context.Log($"Continuous farming selected farmlist index={currentIndex + 1}/{matchingLists.Count} name='{current.Name}'.");
         if (current.RemainingSeconds is > 0)
         {
-            var waitSeconds = Math.Max(1, current.RemainingSeconds.Value);
-            context.Log($"Continuous farming: selected list '{current.Name}' is not ready. Remaining time={waitSeconds}s.");
+            // Exact page timers get a small render margin so the next read does not land on the
+            // disabled-button boundary. An estimated timer already includes a conservative minute.
+            var renderMarginSeconds = current.TimerIsEstimated ? 0 : Random.Shared.Next(5, 16);
+            var waitSeconds = Math.Max(1, current.RemainingSeconds.Value + renderMarginSeconds);
+            var estimateSuffix = current.TimerIsEstimated ? " (estimated)" : $" + {renderMarginSeconds}s render margin";
+            context.Log($"Continuous farming: selected list '{current.Name}' is not ready. Remaining time={waitSeconds}s{estimateSuffix}.");
             throw BuildContinuousFarmDefer($"Selected farm list '{current.Name}' is not ready.", waitSeconds, currentIndex);
         }
 

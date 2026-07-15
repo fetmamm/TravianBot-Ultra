@@ -605,6 +605,16 @@ public partial class MainWindow
         Stopwatch timer,
         QueueExecutionMode mode)
     {
+        if (ex is AccountAccessException accessException)
+        {
+            _botService.MarkQueueItemDeferred(item.Id, TimeSpan.Zero);
+            await HoldAccountAutomationAsync(accessException);
+            AppendLog(
+                $"{logPrefix} STOPPED {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                "account requires manual review; queued item kept");
+            return false;
+        }
+
         if (IsTransientConnectionFailure(ex))
         {
             var retryDelay = NextTransientNavigationRetryDelay();

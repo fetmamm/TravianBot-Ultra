@@ -98,6 +98,7 @@ public partial class MainWindow : Window
     private readonly HeroAttributeSnapshotStore _heroAttributeSnapshotStore;
     private readonly ManualFarmingPreferenceStore _manualFarmingPreferenceStore;
     private readonly AccountDeletionService _accountDeletionService;
+    private readonly AccountAutomationHoldStore _accountAutomationHoldStore;
     private readonly ServerCatalogStore _serverCatalogStore;
     private readonly IDesktopBotService _botService;
     private readonly DispatcherTimer _clockTimer;
@@ -400,6 +401,7 @@ public partial class MainWindow : Window
 
         _accountProvider = new EnvAccountProvider(_envPath);
         _accountStore = new EnvAccountStore(_envPath);
+        _accountAutomationHoldStore = new AccountAutomationHoldStore(_projectRoot, AppendLog);
         _botConfigStore = new BotConfigStore(_botConfigPath, _projectRoot, () => _accountStore.ActiveAccountName());
         _villageSettingsStore = new VillageSettingsStore(_projectRoot, () => _accountStore.ActiveAccountName(), AppendLog);
         _travcoListStore = new TravcoListStore(_projectRoot, () => _accountStore.ActiveAccountName(), AppendLog);
@@ -624,8 +626,25 @@ public partial class MainWindow : Window
         AppendLog($"[ui] Unhandled exception in UI handler: {e.Exception.Message}");
     }
 
-    internal Task GuardUiAsync(Func<Task> action, [CallerMemberName] string caller = "")
-        => AsyncUi.GuardAsync(action, AppendLog, caller);
+    internal async Task GuardUiAsync(Func<Task> action, [CallerMemberName] string caller = "")
+    {
+        try
+        {
+            await action();
+        }
+        catch (OperationCanceledException)
+        {
+            // Cancellation is normal control flow for UI operations.
+        }
+        catch (AccountAccessException ex)
+        {
+            await HoldAccountAutomationAsync(ex);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[ui] Unhandled exception in {caller}: {ex.Message}");
+        }
+    }
 
     private void TryApplyWindowIcon()
     {
@@ -683,6 +702,7 @@ public partial class MainWindow : Window
         _queueServerTimeOffset = ResolveQueueServerTimeOffset();
         UpdateClockText();
         RefreshAccountPicker();
+        RefreshAccountHoldUi();
         SyncServerFromActiveAccount();
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
         var storedAutoCelebration = TryGetStoredAutoCelebrationPreference();

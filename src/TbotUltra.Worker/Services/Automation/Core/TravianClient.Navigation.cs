@@ -139,6 +139,12 @@ public sealed partial class TravianClient
                 return false;
             }
 
+            var explicitAccessState = await ProbeExplicitAccountAccessStateAsync(_page.Url.ToLowerInvariant());
+            if (explicitAccessState is AccountAccessState.Restricted or AccountAccessState.Challenge)
+            {
+                return true;
+            }
+
             foreach (var selector in Selectors.LoggedInIndicators.Concat(Selectors.LoggedOutIndicators))
             {
                 if (await _page.Locator(selector).CountAsync() > 0)

@@ -12,6 +12,11 @@ public partial class MainWindow
 
     private void StartLoopButton_Click(object sender, RoutedEventArgs e)
     {
+        if (BlockIfActiveAccountOnHold("Start bot"))
+        {
+            return;
+        }
+
         if (BlockIfSessionSleeping("Start bot"))
         {
             return;
