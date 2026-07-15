@@ -19,6 +19,7 @@ public sealed class HeroPayloadApplierTests
             [BotOptionPayloadKeys.HeroContinuousAdventures] = "true",
             [BotOptionPayloadKeys.IncreaseAdventuresToHard] = "true",
             [BotOptionPayloadKeys.ReduceAdventureTime] = "true",
+            [BotOptionPayloadKeys.HeroAdventureVideoChancePercent] = "150",
             [BotOptionPayloadKeys.AutoCollectTasksEnabled] = "false",
             [BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled] = "false",
             [BotOptionPayloadKeys.ProductionBonusVideoEnabled] = "false",
@@ -44,6 +45,7 @@ public sealed class HeroPayloadApplierTests
         Assert.True(result.HeroContinuousAdventures);
         Assert.True(result.IncreaseAdventuresToHard);
         Assert.True(result.ReduceAdventureTime);
+        Assert.Equal(100, result.HeroAdventureVideoChancePercent);
         Assert.False(result.AutoCollectTasksEnabled);
         Assert.False(result.AutoCollectDailyQuestsEnabled);
         Assert.False(result.ProductionBonusVideoEnabled);

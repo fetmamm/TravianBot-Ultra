@@ -58,6 +58,7 @@ public sealed class HeroViewModel : BaseViewModel
     private bool _continuousAdventures;
     private bool _increaseAdventuresToHard;
     private bool _reduceAdventureTime;
+    private int _adventureVideoChancePercent = 70;
 
     /// <summary>
     /// Optional sink for [ui-apply] trace lines. Defaulted to a no-op so
@@ -315,6 +316,13 @@ public sealed class HeroViewModel : BaseViewModel
         set => SetProperty(ref _reduceAdventureTime, value);
     }
 
+    /// <summary>Independent chance to run each enabled Hard or -25% adventure video.</summary>
+    public int AdventureVideoChancePercent
+    {
+        get => _adventureVideoChancePercent;
+        set => SetProperty(ref _adventureVideoChancePercent, Math.Clamp(value, 0, 100));
+    }
+
     /// <summary>String form of the adventure pick order, "top" or "shortest".</summary>
     public string AdventurePickOrder => IsAdventurePickTop ? "top" : "shortest";
 
@@ -342,6 +350,7 @@ public sealed class HeroViewModel : BaseViewModel
         ContinuousAdventures = options.HeroContinuousAdventures;
         IncreaseAdventuresToHard = options.IncreaseAdventuresToHard;
         ReduceAdventureTime = options.ReduceAdventureTime;
+        AdventureVideoChancePercent = options.HeroAdventureVideoChancePercent;
         HeroResourceMaxUseEnabled = options.HeroResourceMaxUseEnabled;
         HeroResourceMaxUsePerResource = options.HeroResourceMaxUsePerResource;
         HeroResourceUseConstruction = options.HeroResourceUseConstruction;

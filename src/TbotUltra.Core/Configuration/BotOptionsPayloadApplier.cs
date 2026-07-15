@@ -35,6 +35,7 @@ public static class BotOptionsPayloadApplier
         var heroContinuousAdventures = hero.ContinuousAdventures;
         var increaseAdventuresToHard = hero.IncreaseAdventuresToHard;
         var reduceAdventureTime = hero.ReduceAdventureTime;
+        var heroAdventureVideoChancePercent = hero.AdventureVideoChancePercent;
         var autoCollectTasksEnabled = hero.AutoCollectTasksEnabled;
         var autoCollectDailyQuestsEnabled = hero.AutoCollectDailyQuestsEnabled;
         var productionBonusVideoEnabled = hero.ProductionBonusVideoEnabled;
@@ -321,6 +322,7 @@ public static class BotOptionsPayloadApplier
             HeroContinuousAdventures = heroContinuousAdventures,
             IncreaseAdventuresToHard = increaseAdventuresToHard,
             ReduceAdventureTime = reduceAdventureTime,
+            HeroAdventureVideoChancePercent = heroAdventureVideoChancePercent,
             AutoCollectTasksEnabled = autoCollectTasksEnabled,
             AutoCollectDailyQuestsEnabled = autoCollectDailyQuestsEnabled,
             ProductionBonusVideoEnabled = productionBonusVideoEnabled,

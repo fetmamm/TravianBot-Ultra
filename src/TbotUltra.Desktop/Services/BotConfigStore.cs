@@ -46,6 +46,7 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.HeroContinuousAdventures,
         BotOptionPayloadKeys.IncreaseAdventuresToHard,
         BotOptionPayloadKeys.ReduceAdventureTime,
+        BotOptionPayloadKeys.HeroAdventureVideoChancePercent,
         BotOptionPayloadKeys.AutoCollectTasksEnabled,
         BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled,
         BotOptionPayloadKeys.ProductionBonusVideoEnabled,

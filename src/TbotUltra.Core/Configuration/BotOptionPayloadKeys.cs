@@ -97,6 +97,7 @@ public static class BotOptionPayloadKeys
     public const string HeroContinuousAdventures = "hero_continuous_adventures";
     public const string IncreaseAdventuresToHard = "increase_adventures_to_hard";
     public const string ReduceAdventureTime = "reduce_adventure_time";
+    public const string HeroAdventureVideoChancePercent = "hero_adventure_video_chance_percent";
     public const string AutoCollectTasksEnabled = "auto_collect_tasks_enabled";
     public const string AutoCollectDailyQuestsEnabled = "auto_collect_daily_quests_enabled";
     // Randomized delay (seconds) between internal clicks/steps in the auto-collect tasks/daily-quests

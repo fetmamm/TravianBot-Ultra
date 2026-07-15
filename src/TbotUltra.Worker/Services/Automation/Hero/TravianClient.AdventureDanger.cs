@@ -9,6 +9,7 @@ public sealed partial class TravianClient
     // acts as the fail-safe when no ad ever loads.
     private const int AdventureVideoTimeoutSeconds = 60;
     private const int AdventureVideoPollIntervalMs = 3000;
+    internal const int AdventureVideoMinimumAttemptSeconds = 45;
 
     // CSS class on the videoFeatureBonusBox for each bonus on the hero adventures page.
     private const string AdventureDifficultyBoxClass = "adventureDifficulty";
@@ -19,14 +20,38 @@ public sealed partial class TravianClient
     /// page). Official Travian (T4.6) only.
     /// </summary>
     public Task<string> IncreaseAdventuresToHardAsync(CancellationToken cancellationToken = default)
-        => RunAdventureVideoBonusAsync(AdventureDifficultyBoxClass, "Increased adventure danger (hard)", cancellationToken);
+        => RunAdventureVideoBonusWithChanceAsync(
+            AdventureDifficultyBoxClass,
+            "Increased adventure danger (hard)",
+            cancellationToken);
 
     /// <summary>
     /// Activates the "Reduce adventure duration by 25%" bonus video (top box on the adventures page).
     /// Official Travian (T4.6) only.
     /// </summary>
     public Task<string> ReduceAdventuresTimeAsync(CancellationToken cancellationToken = default)
-        => RunAdventureVideoBonusAsync(AdventureDurationBoxClass, "Reduced adventure duration (-25%)", cancellationToken);
+        => RunAdventureVideoBonusWithChanceAsync(
+            AdventureDurationBoxClass,
+            "Reduced adventure duration (-25%)",
+            cancellationToken);
+
+    private async Task<string> RunAdventureVideoBonusWithChanceAsync(
+        string boxClass,
+        string label,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var decision = AdventureVideoChanceDecision.Evaluate(
+            _config.HeroAdventureVideoChancePercent,
+            Random.Shared.Next(0, 100));
+        Notify($"[adventure-video] chance gate — {label}: {decision.Reason}; decision={(decision.RunVideo ? "run" : "skip")}.");
+        if (!decision.RunVideo)
+        {
+            return $"{label}: skipped by {decision.ChancePercent}% chance gate (roll {decision.Roll}).";
+        }
+
+        return await RunAdventureVideoBonusAsync(boxClass, label, cancellationToken);
+    }
 
     /// <summary>
     /// Shared driver for the hero-adventures bonus videos. Opens adventures, clicks the box's
@@ -507,7 +532,8 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken)
     {
         var playerReady = false;
-        for (var attempt = 1; attempt <= 16; attempt++)
+        var playerLoadDeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(AdventureVideoMinimumAttemptSeconds);
+        while (DateTimeOffset.UtcNow < playerLoadDeadlineUtc)
         {
             cancellationToken.ThrowIfCancellationRequested();
             // Consent can appear late (when the ad is first requested), so keep accepting it while we wait
@@ -833,7 +859,7 @@ public sealed partial class TravianClient
                 return true;
             }
 
-            if ((DateTimeOffset.UtcNow - startUtc).TotalSeconds >= 8
+            if (AdventureVideoAttemptMayAbort((DateTimeOffset.UtcNow - startUtc).TotalSeconds)
                 && await TryReadVisibleBonusVideoFailureAsync(cancellationToken) is { } visibleFailure)
             {
                 Notify($"[adventure-video:verbose] {label}: {visibleFailure}; stopping video wait early.");
@@ -860,6 +886,9 @@ public sealed partial class TravianClient
 
         return false;
     }
+
+    internal static bool AdventureVideoAttemptMayAbort(double elapsedSeconds)
+        => elapsedSeconds >= AdventureVideoMinimumAttemptSeconds;
 
     private async Task<bool> IsAdventureVideoDialogOpenAsync(CancellationToken cancellationToken)
     {

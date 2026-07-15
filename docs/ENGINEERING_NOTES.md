@@ -1,6 +1,6 @@
 # Engineering Notes
 
-Last updated: 2026-07-14
+Last updated: 2026-07-15
 
 Read this file before changing selectors, paths, browser behavior, account state, or server logic.
 Keep it short and current. Move implementation history to `docs/history/` or an ADR.
@@ -114,6 +114,10 @@ Common endpoints:
 - Bonus-video traffic must use the account's current route; never bypass the proxy or change IP only for video.
 - Isolated bonus video has separate 60s setup and 120s action caps. Expected ad/provider failure must not
   block construction, hero dispatch, or other automation.
+- Hero-adventure bonus videos must receive at least 45 seconds to load/play before a missing-player or
+  visible provider-error state may abort the attempt.
+- Hard and -25% hero-adventure videos share an account-scoped 0-100% chance setting (default 70%);
+  evaluate an independent random roll whenever either enabled function is invoked.
 - Classify video failures and apply account+proxy cooldown: network 10m, no-ad/cookies 20m, timeout 30m,
   stale isolated session 5m, missing codec 6h. Known failures do not get an immediate second attempt.
 - Production-bonus inspection is complete only when the Advantages tab contains one box for each of

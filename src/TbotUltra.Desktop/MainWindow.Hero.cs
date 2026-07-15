@@ -76,6 +76,7 @@ public partial class MainWindow
             config[BotOptionPayloadKeys.HeroContinuousAdventures] = _heroViewModel.ContinuousAdventures;
             config[BotOptionPayloadKeys.IncreaseAdventuresToHard] = _heroViewModel.IncreaseAdventuresToHard;
             config[BotOptionPayloadKeys.ReduceAdventureTime] = _heroViewModel.ReduceAdventureTime;
+            config[BotOptionPayloadKeys.HeroAdventureVideoChancePercent] = _heroViewModel.AdventureVideoChancePercent;
             _botConfigStore.Save(config);
         }
         catch (Exception ex)

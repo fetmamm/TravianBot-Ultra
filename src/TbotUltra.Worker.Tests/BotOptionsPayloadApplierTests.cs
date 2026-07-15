@@ -600,6 +600,7 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.Equal(0.6, options.CollectStepDelayMinSeconds);
         Assert.Equal(2.0, options.CollectStepDelayMaxSeconds);
         Assert.False(options.IncreaseAdventuresToHard);
+        Assert.Equal(70, options.HeroAdventureVideoChancePercent);
     }
 
     [Fact]

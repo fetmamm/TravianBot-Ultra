@@ -515,6 +515,10 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ReduceAdventureTime)]
     public bool ReduceAdventureTime { get; init; }
 
+    /// <summary>Independent chance (0-100) to run each enabled hero-adventure bonus video.</summary>
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroAdventureVideoChancePercent)]
+    public int HeroAdventureVideoChancePercent { get; init; } = 70;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.AutoCollectTasksEnabled)]
     public bool AutoCollectTasksEnabled { get; init; }
 

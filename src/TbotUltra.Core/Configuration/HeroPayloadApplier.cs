@@ -10,6 +10,7 @@ internal sealed record HeroPayloadValues(
     bool ContinuousAdventures,
     bool IncreaseAdventuresToHard,
     bool ReduceAdventureTime,
+    int AdventureVideoChancePercent,
     bool AutoCollectTasksEnabled,
     bool AutoCollectDailyQuestsEnabled,
     bool ProductionBonusVideoEnabled,
@@ -37,6 +38,7 @@ internal static class HeroPayloadApplier
             source.HeroContinuousAdventures,
             source.IncreaseAdventuresToHard,
             source.ReduceAdventureTime,
+            source.HeroAdventureVideoChancePercent,
             source.AutoCollectTasksEnabled,
             source.AutoCollectDailyQuestsEnabled,
             source.ProductionBonusVideoEnabled,
@@ -80,6 +82,8 @@ internal static class HeroPayloadApplier
                 result = result with { IncreaseAdventuresToHard = increaseHard };
             else if (TryReadBool(key, value, BotOptionPayloadKeys.ReduceAdventureTime, out var reduceTime))
                 result = result with { ReduceAdventureTime = reduceTime };
+            else if (TryReadInt(key, value, BotOptionPayloadKeys.HeroAdventureVideoChancePercent, out var videoChance))
+                result = result with { AdventureVideoChancePercent = Math.Clamp(videoChance, 0, 100) };
             else if (TryReadBool(key, value, BotOptionPayloadKeys.AutoCollectTasksEnabled, out var collectTasks))
                 result = result with { AutoCollectTasksEnabled = collectTasks };
             else if (TryReadBool(key, value, BotOptionPayloadKeys.AutoCollectDailyQuestsEnabled, out var collectQuests))

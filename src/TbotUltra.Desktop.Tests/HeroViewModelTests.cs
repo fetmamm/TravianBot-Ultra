@@ -53,6 +53,23 @@ public sealed class HeroViewModelTests
     }
 
     [Fact]
+    public void AdventureVideoChancePercent_DefaultsLoadsAndClamps()
+    {
+        var vm = new HeroViewModel();
+
+        Assert.Equal(70, vm.AdventureVideoChancePercent);
+
+        vm.LoadSettingsFromConfig(new BotOptions { HeroAdventureVideoChancePercent = 35 });
+        Assert.Equal(35, vm.AdventureVideoChancePercent);
+
+        vm.AdventureVideoChancePercent = -1;
+        Assert.Equal(0, vm.AdventureVideoChancePercent);
+
+        vm.AdventureVideoChancePercent = 101;
+        Assert.Equal(100, vm.AdventureVideoChancePercent);
+    }
+
+    [Fact]
     public void ResetRuntimeState_ClearsPreviousAccountValues()
     {
         var vm = new HeroViewModel();

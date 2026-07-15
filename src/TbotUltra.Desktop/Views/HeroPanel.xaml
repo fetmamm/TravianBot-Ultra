@@ -78,10 +78,30 @@
                                     <CheckBox Content="Auto revive" IsChecked="{Binding AutoRevive}" Margin="0,0,0,6" />
                                     <CheckBox Content="Auto assign attribute points" IsChecked="{Binding AutoAssignPoints}" Margin="0,0,0,6" />
                                     <CheckBox Content="Auto use ointments" IsChecked="{Binding AutoUseOintments}" Margin="0,0,0,6" />
-                                    <CheckBox Content="Increase adventures to hard"
-                                              IsChecked="{Binding IncreaseAdventuresToHard}"
-                                              Margin="0,0,0,6"
-                                              ToolTip="When on, the adventure function first watches the bonus video to raise the next adventure's danger to hard (Official Travian only). Skipped automatically if it is already active." />
+                                    <Grid Margin="0,0,0,6">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="Auto" />
+                                        </Grid.ColumnDefinitions>
+                                        <CheckBox Grid.Column="0"
+                                                  Content="Increase adventures to hard"
+                                                  IsChecked="{Binding IncreaseAdventuresToHard}"
+                                                  VerticalAlignment="Center"
+                                                  ToolTip="When on, the adventure function may watch the bonus video to raise the next adventure's danger to hard. The percentage is rolled independently for every Hard and -25% video invocation." />
+                                        <StackPanel Grid.Column="1"
+                                                    Orientation="Horizontal"
+                                                    Margin="8,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip="Chance to run each enabled Hero Adventure bonus video. Applies independently to Hard and Reduce adventure time 25%. Default: 70%.">
+                                            <TextBox Width="42"
+                                                     Padding="5,2"
+                                                     TextAlignment="Right"
+                                                     Text="{Binding AdventureVideoChancePercent, UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBlock Text="%"
+                                                       Margin="4,0,0,0"
+                                                       VerticalAlignment="Center" />
+                                        </StackPanel>
+                                    </Grid>
                                     <CheckBox Content="Reduce adventure time 25%"
                                               IsChecked="{Binding ReduceAdventureTime}"
                                               ToolTip="When on, the adventure function also watches the bonus video to reduce the next adventure's duration by 25% (after the increase-danger step). Official Travian only. Skipped automatically if it is already active." />

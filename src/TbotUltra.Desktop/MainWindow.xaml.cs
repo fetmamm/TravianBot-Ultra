@@ -1425,7 +1425,8 @@ public partial class MainWindow : Window
             or nameof(HeroViewModel.IsAdventurePickShortest)
             or nameof(HeroViewModel.ContinuousAdventures)
             or nameof(HeroViewModel.IncreaseAdventuresToHard)
-            or nameof(HeroViewModel.ReduceAdventureTime)))
+            or nameof(HeroViewModel.ReduceAdventureTime)
+            or nameof(HeroViewModel.AdventureVideoChancePercent)))
         {
             return;
         }
