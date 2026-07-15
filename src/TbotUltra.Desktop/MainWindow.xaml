@@ -133,13 +133,13 @@
                             <Ellipse x:Name="ProxyStatusIndicator"
                                      Width="10"
                                      Height="10"
-                                     Fill="{DynamicResource TextMutedBrush}"
+                                     Fill="{DynamicResource WarningTextBrush}"
                                      VerticalAlignment="Top"
                                      Margin="0,4,7,0" />
                             <StackPanel Grid.Column="1" Orientation="Horizontal">
                                 <TextBlock x:Name="ProxyStatusTextBlock"
                                            Text="No proxy is used"
-                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           Foreground="{DynamicResource WarningTextBrush}"
                                            VerticalAlignment="Center" />
                                 <TextBlock x:Name="ProxyStatusDetailTextBlock"
                                            Margin="5,0,0,0"

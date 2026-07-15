@@ -198,7 +198,7 @@ public partial class MainWindow
             _proxyStatusIp = string.Empty;
             _proxyStatusCountry = string.Empty;
             _proxyStatusCts?.Cancel();
-            SetProxyStatusVisual("TextMutedBrush", "No proxy is used", detail: null);
+            SetProxyStatusVisual("WarningTextBrush", "No proxy is used", detail: null);
             return;
         }
 
@@ -224,7 +224,7 @@ public partial class MainWindow
         }
         else
         {
-            SetProxyStatusVisual("TextMutedBrush", "No proxy is used", "IP: Checking…");
+            SetProxyStatusVisual("WarningTextBrush", "No proxy is used", "IP: Checking…");
         }
 
         _ = RefreshConnectionIdentityAsync(lookupKey, enabled ? server : null);
@@ -234,7 +234,7 @@ public partial class MainWindow
     {
         if (!isProxy)
         {
-            SetProxyStatusVisual("TextMutedBrush", "No proxy is used", $"IP: {ip}");
+            SetProxyStatusVisual("WarningTextBrush", "No proxy is used", $"IP: {ip}");
             return;
         }
 
@@ -299,7 +299,7 @@ public partial class MainWindow
         }
         else if (string.IsNullOrWhiteSpace(proxyServer))
         {
-            SetProxyStatusVisual("TextMutedBrush", "No proxy is used", "IP: Unknown");
+            SetProxyStatusVisual("WarningTextBrush", "No proxy is used", "IP: Unknown");
         }
         else
         {
