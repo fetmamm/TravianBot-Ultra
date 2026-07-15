@@ -219,7 +219,7 @@
                         <DataGridTemplateColumn Header="Slot" Width="82">
                             <DataGridTemplateColumn.CellTemplate>
                                 <DataTemplate>
-                                    <ComboBox ItemsSource="{Binding DataContext.SlotOptions, RelativeSource={RelativeSource AncestorType=Window}}"
+                                    <ComboBox ItemsSource="{Binding SlotOptions}"
                                               SelectedItem="{Binding SlotText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                                               IsEnabled="{Binding IsSlotSelectable}" />
                                 </DataTemplate>

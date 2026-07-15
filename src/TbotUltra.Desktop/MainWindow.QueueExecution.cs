@@ -478,6 +478,15 @@ public partial class MainWindow
     {
         _botService.MarkQueueItemSucceeded(item.Id);
 
+        if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+            && TryExtractPayloadInt(
+                executionResult.LastTask?.Message,
+                BotOptionPayloadKeys.BuildingConstructSlotId,
+                out var effectiveConstructSlot))
+        {
+            RebindPendingBuildingTemplateStep(item, effectiveConstructSlot);
+        }
+
         // Confirmed already-built construct: the worker found the target slot already holds the building, so
         // the task can never construct. Remove it from the queue (not leave it as junk) — the user wants a
         // construct whose building already exists cleared out, and the worker only returns this after a live
@@ -863,6 +872,12 @@ public partial class MainWindow
                             $"id={item.Id} task='{item.TaskName}' " +
                             $"reason='{updatedPayload.GetValueOrDefault(BotOptionPayloadKeys.UpgradeDeferReason, "-")}'");
                     }
+                }
+
+                if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+                    && TryExtractPayloadInt(ex.Message, BotOptionPayloadKeys.BuildingConstructSlotId, out var effectiveConstructSlot))
+                {
+                    RebindPendingBuildingTemplateStep(item, effectiveConstructSlot);
                 }
 
                 if (IsConstructionQueueTask(item.TaskName))

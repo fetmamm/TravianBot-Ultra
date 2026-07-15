@@ -77,6 +77,45 @@ public sealed class JsonQueueStore : IQueueStore
         }
     }
 
+    public IReadOnlyList<QueueItem> AddBatch(IReadOnlyList<QueueItemCreateRequest> requests)
+    {
+        ArgumentNullException.ThrowIfNull(requests);
+        foreach (var request in requests)
+        {
+            if (!TaskCatalog.IsAllowed(request.TaskName))
+            {
+                throw new InvalidOperationException($"Task '{request.TaskName}' is not allowed.");
+            }
+
+            if (request.MaxRetries < 0)
+            {
+                throw new InvalidOperationException("Max retries must be >= 0.");
+            }
+        }
+
+        if (requests.Count == 0)
+        {
+            return [];
+        }
+
+        lock (_sync)
+        {
+            var items = LoadMutable();
+            var created = requests
+                .Select(request => CreateQueueItem(
+                    request.TaskName,
+                    null,
+                    request.Payload,
+                    request.Priority,
+                    request.MaxRetries,
+                    isRuntimeOnly: false))
+                .ToList();
+            items.AddRange(created);
+            SaveMutable(items);
+            return created.Select(Clone).ToList();
+        }
+    }
+
     public QueueItem AddRuntime(string taskName, string displayName, Dictionary<string, string>? payload, int priority, int maxRetries)
     {
         if (string.IsNullOrWhiteSpace(taskName))

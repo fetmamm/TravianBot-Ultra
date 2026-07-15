@@ -62,6 +62,38 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     }
 
     [Fact]
+    public void AddBatch_ValidatesWholeBatchBeforePersisting()
+    {
+        var store = new JsonQueueStore(_queuePath);
+        var requests = new QueueItemCreateRequest[]
+        {
+            new("status", null, 0, 3),
+            new("not_allowed", null, 0, 3),
+        };
+
+        Assert.Throws<InvalidOperationException>(() => store.AddBatch(requests));
+        Assert.Empty(store.GetAll());
+    }
+
+    [Fact]
+    public void AddBatch_PersistsItemsTogetherInInputOrder()
+    {
+        var store = new JsonQueueStore(_queuePath);
+        var requests = new QueueItemCreateRequest[]
+        {
+            new("status", new Dictionary<string, string> { ["step"] = "1" }, 0, 3),
+            new("scan_all_villages", new Dictionary<string, string> { ["step"] = "2" }, 0, 3),
+        };
+
+        var created = store.AddBatch(requests);
+        var stored = store.GetAll();
+
+        Assert.Equal(2, created.Count);
+        Assert.Equal(created.Select(item => item.Id), stored.Select(item => item.Id));
+        Assert.Equal(["1", "2"], stored.Select(item => item.Payload["step"]));
+    }
+
+    [Fact]
     public void PauseAndResume_ChangesEligibility()
     {
         var store = new JsonQueueStore(_queuePath);

@@ -7,6 +7,7 @@ public interface IQueueStore
     IReadOnlyList<QueueItem> GetAll();
     void Clear();
     QueueItem Add(string taskName, Dictionary<string, string>? payload, int priority, int maxRetries);
+    IReadOnlyList<QueueItem> AddBatch(IReadOnlyList<QueueItemCreateRequest> requests);
     QueueItem AddRuntime(string taskName, string displayName, Dictionary<string, string>? payload, int priority, int maxRetries);
     bool Remove(Guid id);
     bool MoveUp(Guid id);

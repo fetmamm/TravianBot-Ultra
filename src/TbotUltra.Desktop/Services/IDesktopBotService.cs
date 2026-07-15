@@ -7,6 +7,7 @@ namespace TbotUltra.Desktop.Services;
 public interface IDesktopBotService
 {
     QueueItem Enqueue(string taskName, Dictionary<string, string>? payload, int priority, int maxRetries);
+    IReadOnlyList<QueueItem> EnqueueBatch(IReadOnlyList<QueueItemCreateRequest> requests);
     QueueItem EnqueueRuntime(string taskName, string displayName, Dictionary<string, string>? payload, int priority, int maxRetries);
     bool RemoveQueueItem(Guid id);
     bool MoveQueueItemUp(Guid id);

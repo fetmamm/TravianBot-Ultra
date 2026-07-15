@@ -76,10 +76,13 @@ public sealed class BuildingTemplatePlanner
             var row = planRows[rowIndex];
             if (row.Kind == BuildingTemplateRowKind.AllResources)
             {
-                var target = Math.Max(1, row.TargetLevel);
+                var target = Math.Clamp(row.TargetLevel, 1, 20);
                 var resourceActions = PlanResources(row, status, state, target, serverSpeed, mainBuildingLevel, warnings);
                 actions.AddRange(resourceActions);
-                state.ApplyResources(ResourceScope(row), target);
+                if (resourceActions.Count > 0)
+                {
+                    state.ApplyResources(ResourceScope(row), target);
+                }
                 foreach (var resourceAction in resourceActions)
                 {
                     AddTotals(resourceAction);
@@ -89,10 +92,9 @@ public sealed class BuildingTemplatePlanner
 
             if (!TryResolveBuilding(row, status.Tribe, warnings, out var gid, out var name, out var skipped))
             {
-                if (!skipped)
-                {
-                    errors.Add($"Row {RowLabel(row)} has no valid building.");
-                }
+                errors.Add(skipped
+                    ? $"Row {RowLabel(row)} cannot be queued for tribe {status.Tribe}."
+                    : $"Row {RowLabel(row)} has no valid building.");
                 continue;
             }
 
@@ -144,6 +146,8 @@ public sealed class BuildingTemplatePlanner
             }
 
             var construct = PlanConstruct(slotId.Value, gid, name, serverSpeed, mainBuildingLevel);
+            var templateStepId = Guid.NewGuid().ToString("N");
+            construct.Payload[BotOptionPayloadKeys.BuildingTemplateStepId] = templateStepId;
             actions.Add(construct);
             AddTotals(construct);
             state.ApplyBuilding(slotId.Value, gid, name, Math.Max(1, targetLevel));
@@ -151,6 +155,7 @@ public sealed class BuildingTemplatePlanner
             if (targetLevel > 1)
             {
                 var upgrade = PlanBuildingUpgrade(slotId.Value, gid, name, 1, targetLevel, serverSpeed, mainBuildingLevel);
+                upgrade.Payload[BotOptionPayloadKeys.BuildingTemplateStepId] = templateStepId;
                 actions.Add(upgrade);
                 AddTotals(upgrade);
             }
@@ -399,12 +404,16 @@ public sealed class BuildingTemplatePlanner
         List<string> warnings)
     {
         var scope = ResourceScope(row);
-        return scope == "all"
-            ? [PlanAllResources(row, status, state, targetLevel, serverSpeed, mainBuildingLevel, warnings)]
-            : PlanResourceGroup(status, state, scope, targetLevel, serverSpeed, mainBuildingLevel, warnings);
+        if (scope != "all")
+        {
+            return PlanResourceGroup(status, state, scope, targetLevel, serverSpeed, mainBuildingLevel, warnings);
+        }
+
+        var action = PlanAllResources(row, status, state, targetLevel, serverSpeed, mainBuildingLevel, warnings);
+        return action is null ? [] : [action];
     }
 
-    private static BuildingTemplatePlanAction PlanAllResources(
+    private static BuildingTemplatePlanAction? PlanAllResources(
         BuildingTemplateRow row,
         VillageStatus status,
         ProjectedVillageState state,
@@ -415,9 +424,14 @@ public sealed class BuildingTemplatePlanner
     {
         double seconds = 0;
         long wood = 0, clay = 0, iron = 0, crop = 0;
+        var needsUpgrade = false;
         foreach (var field in status.ResourceFields)
         {
             var currentLevel = state.ResourceLevel(field.Name, field.FieldType, field.Level ?? 0);
+            if (currentLevel < targetLevel)
+            {
+                needsUpgrade = true;
+            }
             var gid = BuildingCatalogService.GidForName(field.Name)
                 ?? BuildingCatalogService.GidForName(field.FieldType);
             if (gid is null)
@@ -440,6 +454,12 @@ public sealed class BuildingTemplatePlanner
                 iron += stats.Iron;
                 crop += stats.Crop;
             }
+        }
+
+        if (!needsUpgrade)
+        {
+            warnings.Add($"All resources already meet level {targetLevel} or no resource fields were loaded.");
+            return null;
         }
 
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

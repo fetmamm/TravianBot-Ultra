@@ -185,15 +185,28 @@ public partial class MainWindow
 
     private void QueueBuildingTemplatePlan(BuildingTemplatePlanResult plan)
     {
-        var queued = 0;
-        QueueItem? lastItem = null;
-        foreach (var action in plan.Actions)
+        var prepared = plan.Actions.Select(action =>
         {
             var payload = new Dictionary<string, string>(action.Payload, StringComparer.OrdinalIgnoreCase);
             ApplySelectedVillageToPayload(payload);
-            lastItem = _botService.Enqueue(action.TaskName, payload, priority: 0, maxRetries: 3);
-            queued++;
+            return (Action: action, Request: new QueueItemCreateRequest(action.TaskName, payload, 0, 3));
+        }).ToList();
 
+        IReadOnlyList<QueueItem> created;
+        try
+        {
+            created = _botService.EnqueueBatch(prepared.Select(item => item.Request).ToList());
+        }
+        catch (Exception ex)
+        {
+            BuildingsInfoTextBlock.Text = $"Could not queue template: {ex.Message}";
+            AppendLog($"[building-template] atomic queue insert failed; no template rows were added: {ex.Message}");
+            return;
+        }
+
+        foreach (var item in prepared)
+        {
+            var action = item.Action;
             if (string.Equals(action.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
                 && action.Gid is int constructGid)
             {
@@ -207,13 +220,13 @@ public partial class MainWindow
             }
         }
 
-        RequestQueueUiRefresh(selectId: lastItem?.Id);
+        RequestQueueUiRefresh(selectId: created.LastOrDefault()?.Id);
         TriggerQueueAutoRunFromEnqueue();
         var warningSuffix = plan.Warnings.Count > 0
             ? $" Warnings: {string.Join(" ", plan.Warnings.Take(2))}"
             : string.Empty;
-        BuildingsInfoTextBlock.Text = $"Queued building template: {queued} item(s).{warningSuffix}";
-        AppendLog($"Building template queued {queued} item(s).{warningSuffix}");
+        BuildingsInfoTextBlock.Text = $"Queued building template: {created.Count} item(s).{warningSuffix}";
+        AppendLog($"Building template queued atomically: {created.Count} item(s).{warningSuffix}");
     }
 
     internal void BuildingSlotCircleButton_Click(object sender, RoutedEventArgs e)

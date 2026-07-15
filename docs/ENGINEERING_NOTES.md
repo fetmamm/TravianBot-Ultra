@@ -172,6 +172,8 @@ Common endpoints:
   a confirmation that can insert the complete ordered prerequisite chain, and tribe-incompatible or otherwise impossible is red/disabled.
 - Auto-assigned template buildings must not consume ordinary slots explicitly reserved by later rows. Template constructs may fall back
   to a currently free, non-reserved ordinary slot if their planned slot becomes occupied before execution.
+- Persist template resource scopes exactly, insert a template plan into the queue atomically, and correlate construct/upgrade rows so a
+  runtime slot fallback rebinds the dependent upgrade before it can execute. Invalid template JSON must be quarantined before replacement.
 - “Construct faster” controls are not build/upgrade actions.
 - Construct-faster applies to both building slots and resource fields; verify results on `dorf2` and `dorf1` respectively before normal-click fallback.
 - Town Hall celebration rows must calculate resource shortfall before clicking; generic research/hero-transfer links are not start actions.

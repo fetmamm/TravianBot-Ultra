@@ -1,6 +1,7 @@
 using System.Collections.ObjectModel;
 using System.Collections.Specialized;
 using System.ComponentModel;
+using System.IO;
 using System.Runtime.CompilerServices;
 using System.Windows;
 using System.Windows.Controls;
@@ -31,14 +32,13 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
     private string _totalConstructFasterTimeText = "Time (25%) -";
     private string _validationSummaryText = string.Empty;
     private bool _isRefreshingPlanPreview;
+    private string? _templateLoadWarning;
 
     public ObservableCollection<BuildingTemplate> Templates { get; } = [];
     public ObservableCollection<BuildingTemplateRowView> Rows { get; } = [];
     public ObservableCollection<BuildingTemplateTargetOption> BuildingOptions { get; } = [];
     public ObservableCollection<BuildingTemplateTargetOption> ResourceOptions { get; } = [];
     public IReadOnlyList<string> RowKinds { get; } = ["Building", "Add resources"];
-    public IReadOnlyList<string> SlotOptions { get; } =
-        ["Auto", .. Enumerable.Range(19, 22).Select(item => item.ToString())];
     public IReadOnlyList<string> LevelOptions { get; } =
         Enumerable.Range(1, 20).Select(item => item.ToString()).ToList();
 
@@ -54,6 +54,12 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
             if (ReferenceEquals(_selectedTemplate, value))
             {
                 return;
+            }
+
+            if (_selectedTemplate is not null)
+            {
+                _selectedTemplate.Rows = BuildTemplateRowsFromUi().ToList();
+                _selectedTemplate.UpdatedAtUtc = DateTimeOffset.UtcNow;
             }
 
             _selectedTemplate = value;
@@ -164,7 +170,9 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
     private void LoadTemplates()
     {
         Templates.Clear();
-        foreach (var template in _store.Load())
+        var loadedTemplates = _store.Load();
+        _templateLoadWarning = _store.LastLoadWarning;
+        foreach (var template in loadedTemplates)
         {
             Templates.Add(template);
         }
@@ -288,11 +296,9 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
 
     private void AddBuildingRowButton_Click(object sender, RoutedEventArgs e)
     {
-        var building = BuildingOptions.FirstOrDefault();
         AddRowView(new BuildingTemplateRowView
         {
             Kind = "Building",
-            Target = building,
             SlotText = "Auto",
             TargetLevel = "1",
         });
@@ -496,8 +502,17 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
             }
         }
 
-        _store.Save(Templates.ToList());
-        return true;
+        try
+        {
+            _store.Save(Templates.ToList());
+            _templateLoadWarning = null;
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            StatusText = $"Could not save templates: {ex.Message}";
+            return false;
+        }
     }
 
     private IReadOnlyList<BuildingTemplateRow> BuildTemplateRowsFromUi()
@@ -540,6 +555,10 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
                 : plan.Warnings.Count > 0
                     ? plan.Warnings[0]
                     : "Ready.";
+            if (!string.IsNullOrWhiteSpace(_templateLoadWarning))
+            {
+                StatusText = $"{_templateLoadWarning} {StatusText}";
+            }
         }
         finally
         {
@@ -708,12 +727,9 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
 
             if (SetProperty(ref _target, value))
             {
-                if (value?.FixedSlotId is int fixedSlot)
-                {
-                    SlotText = fixedSlot.ToString();
-                }
-
+                ApplyTargetSlotSelection(value);
                 OnPropertyChanged(nameof(IsSlotSelectable));
+                OnPropertyChanged(nameof(SlotOptions));
             }
         }
     }
@@ -744,6 +760,9 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
 
     public bool IsBuildingRow => string.Equals(Kind, "Building", StringComparison.OrdinalIgnoreCase);
     public bool IsSlotSelectable => IsBuildingRow && Target?.FixedSlotId is null;
+    public IReadOnlyList<string> SlotOptions => Target?.FixedSlotId is int fixedSlot
+        ? [fixedSlot.ToString()]
+        : ["Auto", .. Enumerable.Range(19, 20).Select(item => item.ToString())];
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -765,13 +784,10 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
         if (!ReferenceEquals(_target, selectedTarget))
         {
             _target = selectedTarget;
-            if (selectedTarget?.FixedSlotId is int fixedSlot)
-            {
-                SlotText = fixedSlot.ToString();
-            }
-
+            ApplyTargetSlotSelection(selectedTarget);
             OnPropertyChanged(nameof(Target));
             OnPropertyChanged(nameof(IsSlotSelectable));
+            OnPropertyChanged(nameof(SlotOptions));
         }
     }
 
@@ -817,7 +833,7 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
             Gid = isAllResources ? null : Target?.Gid,
             BuildingName = isAllResources ? Target?.Name ?? string.Empty : Target?.Name ?? string.Empty,
             PreferredSlotId = isAllResources ? null : slotId,
-            TargetLevel = Math.Max(1, targetLevel),
+            TargetLevel = Math.Clamp(targetLevel, 1, 20),
             ResourceScope = isAllResources ? Target?.ResourceScope ?? "all" : "all",
             ResourceStrategy = "lowest",
         };
@@ -837,6 +853,21 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
         if (Target is null || !options.Any(item => Equals(item, Target)))
         {
             Target = options.FirstOrDefault(item => item.IsSelectable) ?? options.FirstOrDefault();
+        }
+    }
+
+    private void ApplyTargetSlotSelection(BuildingTemplateTargetOption? target)
+    {
+        if (target?.FixedSlotId is int fixedSlot)
+        {
+            SlotText = fixedSlot.ToString();
+            return;
+        }
+
+        if (!string.Equals(SlotText, "Auto", StringComparison.OrdinalIgnoreCase)
+            && (!int.TryParse(SlotText, out var slotId) || slotId is < 19 or > 38))
+        {
+            SlotText = "Auto";
         }
     }
 

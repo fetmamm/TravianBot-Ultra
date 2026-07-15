@@ -1160,7 +1160,7 @@ public partial class MainWindow
             {
                 var item = orderedGroupItems[index];
                 return IsBuildingUpgradeForSlot(item, out var upgradeSlotId)
-                    && HasEarlierPendingConstructForSlot(orderedGroupItems, index, upgradeSlotId);
+                    && HasEarlierPendingConstructForSlot(orderedGroupItems, index, item, upgradeSlotId);
             });
         skipReason = selection.SkipReason;
 
@@ -1377,16 +1377,30 @@ public partial class MainWindow
         }
     }
 
-    private static bool HasEarlierPendingConstructForSlot(IReadOnlyList<QueueItem> orderedItems, int beforeIndex, int slotId)
+    private static bool HasEarlierPendingConstructForSlot(
+        IReadOnlyList<QueueItem> orderedItems,
+        int beforeIndex,
+        QueueItem upgrade,
+        int slotId)
     {
+        upgrade.Payload.TryGetValue(BotOptionPayloadKeys.BuildingTemplateStepId, out var upgradeStepId);
         for (var index = 0; index < beforeIndex; index++)
         {
             var earlier = orderedItems[index];
             if (earlier.Status == QueueStatus.Pending
-                && IsBuildingConstructForSlot(earlier, out var constructSlotId)
-                && constructSlotId == slotId)
+                && IsBuildingConstructForSlot(earlier, out var constructSlotId))
             {
-                return true;
+                if (constructSlotId == slotId)
+                {
+                    return true;
+                }
+
+                if (!string.IsNullOrWhiteSpace(upgradeStepId)
+                    && earlier.Payload.TryGetValue(BotOptionPayloadKeys.BuildingTemplateStepId, out var constructStepId)
+                    && string.Equals(constructStepId, upgradeStepId, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
             }
         }
 

@@ -17,3 +17,9 @@ public sealed class QueueItem
     public DateTimeOffset UpdatedAt { get; set; } = DateTimeOffset.UtcNow;
 
 }
+
+public sealed record QueueItemCreateRequest(
+    string TaskName,
+    Dictionary<string, string>? Payload,
+    int Priority,
+    int MaxRetries);

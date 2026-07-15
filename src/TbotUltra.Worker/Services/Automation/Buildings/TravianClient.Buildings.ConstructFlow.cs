@@ -39,6 +39,9 @@ public sealed partial class TravianClient : IBuildingClient
         var constructionNpcTradeAttempted = false;
         var heroTransferAttempted = false;
 
+        string WithEffectiveSlot(string message)
+            => $"{message} {BotOptionPayloadKeys.BuildingConstructSlotId}={slotId}";
+
         for (var attempt = 0; attempt < safetyCap; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -48,7 +51,7 @@ public sealed partial class TravianClient : IBuildingClient
             var deferMessage = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, attempt, cancellationToken);
             if (deferMessage is not null)
             {
-                return deferMessage;
+                return WithEffectiveSlot(deferMessage);
             }
 
             // Step 1: open the slot's construction page on the right category tab so the building's
@@ -84,11 +87,11 @@ public sealed partial class TravianClient : IBuildingClient
                     }
 
                     Notify($"[construct] template slot {slotId} became occupied and no non-reserved free slot is available; deferring.");
-                    return $"Slot {slotId}: occupied by {built.Name}; no non-reserved free building slot is available. queue_wait_seconds=60";
+                    return WithEffectiveSlot($"Slot {slotId}: occupied by {built.Name}; no non-reserved free building slot is available. queue_wait_seconds=60");
                 }
 
                 Notify($"[construct] slot {slotId} already holds '{built.Name}' level {built.Level} — confirmed already built; removing task from queue.");
-                return $"Construct skipped: {buildingName} already exists at slot {slotId} (confirmed '{built.Name}' level {built.Level}). Removing from queue.";
+                return WithEffectiveSlot($"Construct skipped: {buildingName} already exists at slot {slotId} (confirmed '{built.Name}' level {built.Level}). Removing from queue.");
             }
 
             // Server-appended gid guard: on Official, build.php?id=N for an OCCUPIED slot redirects to
@@ -127,7 +130,7 @@ public sealed partial class TravianClient : IBuildingClient
                 {
                     var waitSeconds = await ReadQueuedBuildingWaitSecondsAsync(buildingName, 60, cancellationToken);
                     Notify($"[construct] slot {slotId} already holds gid {gid} ({buildingName}), still under construction — deferring {waitSeconds}s until it completes.");
-                    return $"Slot {slotId}: {buildingName} construction already in progress (slot already holds gid {gid}). queue_wait_seconds={waitSeconds}";
+                    return WithEffectiveSlot($"Slot {slotId}: {buildingName} construction already in progress (slot already holds gid {gid}). queue_wait_seconds={waitSeconds}");
                 }
 
                 if (occupiedGid > 0 && allowSlotFallback && slotId is >= 19 and <= 38)
@@ -142,7 +145,7 @@ public sealed partial class TravianClient : IBuildingClient
                     }
 
                     Notify($"[construct] template slot {slotId} became occupied and no non-reserved free slot is available; deferring.");
-                    return $"Slot {slotId}: occupied by gid {occupiedGid}; no non-reserved free building slot is available. queue_wait_seconds=60";
+                    return WithEffectiveSlot($"Slot {slotId}: occupied by gid {occupiedGid}; no non-reserved free building slot is available. queue_wait_seconds=60");
                 }
             }
 
@@ -194,7 +197,7 @@ public sealed partial class TravianClient : IBuildingClient
                     // cannot make it buildable until the prerequisite exists.
                     var waitSeconds = UpgradeMath.ClampResourceWaitSeconds(null);
                     Notify($"Slot {slotId}: {buildingName} not buildable yet — missing {missingRequirements}.");
-                    return $"Slot {slotId}: {buildingName} cannot be built yet. Missing requirements: {missingRequirements}. Upgrades performed: 0. queue_wait_seconds={waitSeconds}";
+                    return WithEffectiveSlot($"Slot {slotId}: {buildingName} cannot be built yet. Missing requirements: {missingRequirements}. Upgrades performed: 0. queue_wait_seconds={waitSeconds}");
                 }
 
                 if (blockedByResources)
@@ -214,7 +217,7 @@ public sealed partial class TravianClient : IBuildingClient
                     var queueDefer = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, attempt, cancellationToken);
                     if (queueDefer is not null)
                     {
-                        return queueDefer;
+                        return WithEffectiveSlot(queueDefer);
                     }
 
                     var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
@@ -231,7 +234,7 @@ public sealed partial class TravianClient : IBuildingClient
                         }
                     }
 
-                    return UpgradeResourceWaitCalculator.BuildBlockedResultMessage(snapshot);
+                    return WithEffectiveSlot(UpgradeResourceWaitCalculator.BuildBlockedResultMessage(snapshot));
                 }
 
                 var waitAfterBusy = await WaitForConstructionSlotIfBusyAsync(ConstructionKind.Building, cancellationToken);
@@ -243,7 +246,7 @@ public sealed partial class TravianClient : IBuildingClient
                 var existingProgress = await DetectConstructProgressAsync(slotId, gid, buildingName, buildQueueBefore, 1, cancellationToken);
                 if (existingProgress.Started)
                 {
-                    return $"Queued {buildingName} in slot {slotId}. Evidence: {existingProgress.Evidence}.";
+                    return WithEffectiveSlot($"Queued {buildingName} in slot {slotId}. Evidence: {existingProgress.Evidence}.");
                 }
 
                 // Queue/progress verification navigates away from the construct page. Re-open and verify
@@ -265,7 +268,7 @@ public sealed partial class TravianClient : IBuildingClient
             if (!clicked)
             {
                 await CaptureFailureArtifactsAsync($"construct-slot-{slotId}-gid-{gid}-no-click", cancellationToken);
-                return $"Slot {slotId}: verified construct page but could not find an actionable 'Construct building' button for gid {gid}.";
+                return WithEffectiveSlot($"Slot {slotId}: verified construct page but could not find an actionable 'Construct building' button for gid {gid}.");
             }
 
             if (populationDelta is int popDelta)
@@ -282,19 +285,19 @@ public sealed partial class TravianClient : IBuildingClient
                 var dorf2Level = await ProbeSlotLevelOnDorf2Async(slotId, cancellationToken);
                 if (dorf2Level is int confirmedLevel && confirmedLevel >= 1)
                 {
-                    return $"Constructed {buildingName} in slot {slotId} (confirmed level {confirmedLevel} on dorf2).{constructFasterResultNote}";
+                    return WithEffectiveSlot($"Constructed {buildingName} in slot {slotId} (confirmed level {confirmedLevel} on dorf2).{constructFasterResultNote}");
                 }
 
                 var waitMs = UpgradeResourceWaitCalculator.ComputePostActionWaitMs(durationSeconds);
                 var waitSeconds = Math.Max(1, (int)Math.Ceiling(waitMs / 1000d));
                 Notify($"Slot {slotId}: construct click did not confirm immediately ({progress.Evidence}). Deferring {waitSeconds}s before retry.");
-                return $"Slot {slotId}: construct click did not confirm immediately ({progress.Evidence}). queue_wait_seconds={waitSeconds}";
+                return WithEffectiveSlot($"Slot {slotId}: construct click did not confirm immediately ({progress.Evidence}). queue_wait_seconds={waitSeconds}");
             }
 
-            return $"Queued {buildingName} in slot {slotId}. Evidence: {progress.Evidence}.{constructFasterResultNote}";
+            return WithEffectiveSlot($"Queued {buildingName} in slot {slotId}. Evidence: {progress.Evidence}.{constructFasterResultNote}");
         }
 
-        return $"Slot {slotId}: hit safety cap while trying to queue {buildingName}.";
+        return WithEffectiveSlot($"Slot {slotId}: hit safety cap while trying to queue {buildingName}.");
     }
 
     private async Task<(bool Started, string Evidence)> DetectConstructProgressAsync(

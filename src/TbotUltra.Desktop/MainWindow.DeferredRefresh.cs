@@ -59,6 +59,18 @@ public partial class MainWindow
         return changed;
     }
 
+    private static bool TryExtractPayloadInt(string? message, string key, out int value)
+    {
+        value = 0;
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        var match = Regex.Match(message, $@"(?<!\S){Regex.Escape(key)}=(?<value>\d+)", RegexOptions.IgnoreCase);
+        return match.Success && int.TryParse(match.Groups["value"].Value, out value);
+    }
+
     private void TriggerDeferredConstructionWaitRefresh(VillageStatus status, string source)
     {
         if (_deferredConstructionRefreshRunning)

@@ -70,6 +70,9 @@ public static class BotOptionPayloadKeys
     public const string BuildingConstructName = "building_construct_name";
     public const string BuildingConstructAllowSlotFallback = "building_construct_allow_slot_fallback";
     public const string BuildingConstructFallbackExcludedSlots = "building_construct_fallback_excluded_slots";
+    // Correlates a template construct with its dependent upgrade so a runtime slot fallback can
+    // rebind the whole step instead of upgrading the originally planned slot.
+    public const string BuildingTemplateStepId = "building_template_step_id";
     public const string ConstructFasterEnabled = "construct_faster_enabled";
     public const string ConstructFasterMinBuildTimeEnabled = "construct_faster_min_build_time_enabled";
     public const string ConstructFasterMinBuildMinutes = "construct_faster_min_build_minutes";

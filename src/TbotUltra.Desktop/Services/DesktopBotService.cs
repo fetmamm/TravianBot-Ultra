@@ -25,6 +25,11 @@ public sealed class DesktopBotService : IDesktopBotService
         return _queueStore.Add(taskName, payload, priority, maxRetries);
     }
 
+    public IReadOnlyList<QueueItem> EnqueueBatch(IReadOnlyList<QueueItemCreateRequest> requests)
+    {
+        return _queueStore.AddBatch(requests);
+    }
+
     public QueueItem EnqueueRuntime(string taskName, string displayName, Dictionary<string, string>? payload, int priority, int maxRetries)
     {
         return _queueStore.AddRuntime(taskName, displayName, payload, priority, maxRetries);

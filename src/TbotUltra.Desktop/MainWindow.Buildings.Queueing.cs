@@ -81,6 +81,56 @@ public partial class MainWindow
             && TryReadBuildingUpgradePayload(item.Payload, out slotId, out _);
     }
 
+    private void RebindPendingBuildingTemplateStep(QueueItem source, int effectiveSlotId)
+    {
+        if (effectiveSlotId is < 19 or > 38
+            || !source.Payload.TryGetValue(BotOptionPayloadKeys.BuildingTemplateStepId, out var stepId)
+            || string.IsNullOrWhiteSpace(stepId))
+        {
+            return;
+        }
+
+        foreach (var dependent in _botService.GetQueueItemsForDisplay()
+                     .Where(item => item.Id != source.Id && item.Status == QueueStatus.Pending)
+                     .Where(item => item.Payload.TryGetValue(BotOptionPayloadKeys.BuildingTemplateStepId, out var candidate)
+                         && string.Equals(candidate, stepId, StringComparison.OrdinalIgnoreCase)))
+        {
+            var payload = new Dictionary<string, string>(dependent.Payload, StringComparer.OrdinalIgnoreCase);
+            if (string.Equals(dependent.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase))
+            {
+                if (TryReadBuildingUpgradePayload(dependent.Payload, out var currentSlotId, out _)
+                    && currentSlotId == effectiveSlotId)
+                {
+                    continue;
+                }
+                payload[BotOptionPayloadKeys.BuildingUpgradeSlotId] = effectiveSlotId.ToString();
+            }
+            else if (string.Equals(dependent.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase))
+            {
+                if (TryReadBuildingConstructPayload(dependent.Payload, out var currentSlotId, out _, out _)
+                    && currentSlotId == effectiveSlotId)
+                {
+                    continue;
+                }
+                payload[BotOptionPayloadKeys.BuildingConstructSlotId] = effectiveSlotId.ToString();
+            }
+            else
+            {
+                continue;
+            }
+
+            if (_botService.UpdatePendingQueueItem(dependent.Id, payload, priority: null))
+            {
+                dependent.Payload = payload;
+                AppendLog($"[building-template] rebound step {stepId} to runtime slot {effectiveSlotId}.");
+            }
+            else
+            {
+                AppendLog($"[building-template] could not persist runtime slot {effectiveSlotId} for step {stepId}.");
+            }
+        }
+    }
+
     // After a queue item is removed, queued buildings can lose a prerequisite (e.g. removing Main
     // Building level 3 leaves a queued Barracks construct that can no longer be built, or removing a
     // construct orphans the upgrades queued for that empty slot). Re-validate the remaining building

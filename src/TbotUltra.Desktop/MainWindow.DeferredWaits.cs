@@ -379,6 +379,7 @@ public partial class MainWindow
         BotOptionPayloadKeys.UpgradeWaitReason,
         BotOptionPayloadKeys.QueueHumanizeExtraSeconds,
         BotOptionPayloadKeys.ContinuousFarmNextListIndex,
+        BotOptionPayloadKeys.BuildingConstructSlotId,
     ];
 
     private static readonly IReadOnlyDictionary<string, string> DeferredRequirementKeys = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)

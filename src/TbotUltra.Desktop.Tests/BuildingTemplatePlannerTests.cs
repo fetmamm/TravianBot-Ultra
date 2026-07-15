@@ -188,7 +188,7 @@ public sealed class BuildingTemplatePlannerTests
     }
 
     [Fact]
-    public void Plan_UnsupportedTribeSpecificBuilding_IsSkippedWithWarning()
+    public void Plan_UnsupportedTribeSpecificBuilding_IsRejected()
     {
         var status = Status("Gauls");
         var result = _planner.Plan(
@@ -197,9 +197,46 @@ public sealed class BuildingTemplatePlannerTests
             serverSpeed: 1,
             mainBuildingLevel: 1);
 
-        Assert.Empty(result.Errors);
+        Assert.NotEmpty(result.Errors);
         Assert.Empty(result.Actions);
         Assert.Contains(result.Warnings, item => item.Contains("Brewery", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Plan_AllResourcesAlreadyAtTarget_DoesNotQueueNoOp()
+    {
+        var fields = ResourceFields()
+            .Select(field => field with { Level = 5 })
+            .ToList();
+        var status = Status("Teutons") with { ResourceFields = fields };
+
+        var result = _planner.Plan([AllResources(5)], status, 1, 1);
+
+        Assert.Empty(result.Actions);
+        Assert.Contains(result.Warnings, item => item.Contains("already meet", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Plan_ConstructAndUpgradeShareStableTemplateStepId()
+    {
+        var row = Row(10, "Warehouse", 5);
+        var result = _planner.Plan([row], Status("Teutons"), 1, 1);
+        var construct = Assert.Single(result.Actions, item => item.TaskName == "construct_building");
+        var upgrade = Assert.Single(result.Actions, item => item.TaskName == "upgrade_building_to_level");
+
+        Assert.True(Guid.TryParseExact(
+            construct.Payload[BotOptionPayloadKeys.BuildingTemplateStepId],
+            "N",
+            out _));
+        Assert.Equal(
+            construct.Payload[BotOptionPayloadKeys.BuildingTemplateStepId],
+            upgrade.Payload[BotOptionPayloadKeys.BuildingTemplateStepId]);
+
+        var secondPlan = _planner.Plan([row], Status("Teutons"), 1, 1);
+        var secondConstruct = Assert.Single(secondPlan.Actions, item => item.TaskName == "construct_building");
+        Assert.NotEqual(
+            construct.Payload[BotOptionPayloadKeys.BuildingTemplateStepId],
+            secondConstruct.Payload[BotOptionPayloadKeys.BuildingTemplateStepId]);
     }
 
     [Fact]
@@ -330,6 +367,25 @@ public sealed class BuildingTemplatePlannerTests
         Assert.Same(available, row.Target);
         Assert.True(missing.CanInvoke);
         Assert.False(missing.IsSelectable);
+    }
+
+    [Fact]
+    public void RowView_SlotOptions_KeepSpecialSlotsFixedAndOrdinarySlotsValid()
+    {
+        var rallyPoint = new BuildingTemplateTargetOption(16, "Rally Point", "Military", null, 39);
+        var warehouse = new BuildingTemplateTargetOption(10, "Warehouse", "Infrastructure", null, null);
+        var row = new BuildingTemplateRowView { Target = rallyPoint };
+
+        Assert.Equal("39", row.SlotText);
+        Assert.Equal(["39"], row.SlotOptions);
+        Assert.False(row.IsSlotSelectable);
+
+        row.Target = warehouse;
+
+        Assert.Equal("Auto", row.SlotText);
+        Assert.DoesNotContain("39", row.SlotOptions);
+        Assert.DoesNotContain("40", row.SlotOptions);
+        Assert.True(row.IsSlotSelectable);
     }
 
     private static BuildingTemplateRow Row(int gid, string name, int level, int? preferredSlot = null)

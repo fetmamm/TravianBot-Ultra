@@ -34,6 +34,13 @@ public sealed class BuildingTemplateStoreTests
                     PreferredSlotId = 19,
                     TargetLevel = 3,
                 },
+                new BuildingTemplateRow
+                {
+                    Kind = BuildingTemplateRowKind.AllResources,
+                    BuildingName = "All Woodcutters",
+                    ResourceScope = "wood",
+                    TargetLevel = 99,
+                },
             ],
         };
 
@@ -43,12 +50,14 @@ public sealed class BuildingTemplateStoreTests
         Assert.Single(loaded);
         Assert.Equal("Starter", loaded[0].Name);
         Assert.Equal("Teutons", loaded[0].CreatedByTribe);
-        Assert.Single(loaded[0].Rows);
+        Assert.Equal(2, loaded[0].Rows.Count);
         Assert.Equal(15, loaded[0].Rows[0].Gid);
+        Assert.Equal("wood", loaded[0].Rows[1].ResourceScope);
+        Assert.Equal(20, loaded[0].Rows[1].TargetLevel);
     }
 
     [Fact]
-    public void Load_CorruptJson_ReturnsEmpty()
+    public void Load_CorruptJson_QuarantinesFileBeforeReturningEmpty()
     {
         var root = TempRoot();
         var config = Path.Combine(root, "config");
@@ -57,6 +66,9 @@ public sealed class BuildingTemplateStoreTests
         var store = new BuildingTemplateStore(root);
 
         Assert.Empty(store.Load());
+        Assert.NotNull(store.LastLoadWarning);
+        Assert.False(File.Exists(Path.Combine(config, "building_templates.json")));
+        Assert.Single(Directory.GetFiles(config, "building_templates.json.corrupt-*"));
     }
 
     private static string TempRoot()

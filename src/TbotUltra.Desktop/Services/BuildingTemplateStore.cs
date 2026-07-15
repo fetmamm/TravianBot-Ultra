@@ -8,6 +8,9 @@ namespace TbotUltra.Desktop.Services;
 public sealed class BuildingTemplateStore
 {
     private readonly string _path;
+    private bool _saveBlockedByLoadFailure;
+
+    public string? LastLoadWarning { get; private set; }
 
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -28,6 +31,8 @@ public sealed class BuildingTemplateStore
 
     public IReadOnlyList<BuildingTemplate> Load()
     {
+        LastLoadWarning = null;
+        _saveBlockedByLoadFailure = false;
         if (!File.Exists(_path))
         {
             return [];
@@ -39,22 +44,45 @@ public sealed class BuildingTemplateStore
             var file = JsonSerializer.Deserialize<BuildingTemplateFile>(raw, JsonOptions);
             return Normalize(file?.Templates ?? []);
         }
-        catch (JsonException)
+        catch (JsonException ex)
         {
+            var quarantinePath = $"{_path}.corrupt-{DateTimeOffset.UtcNow:yyyyMMdd-HHmmssfff}";
+            try
+            {
+                File.Move(_path, quarantinePath);
+                LastLoadWarning =
+                    $"The template file contained invalid JSON and was moved to '{Path.GetFileName(quarantinePath)}'.";
+                return [];
+            }
+            catch (Exception moveEx) when (moveEx is IOException or UnauthorizedAccessException)
+            {
+                _saveBlockedByLoadFailure = true;
+                LastLoadWarning =
+                    $"The template file is invalid and could not be quarantined ({ex.Message}). Saving is disabled to protect it.";
+                return [];
+            }
+        }
+        catch (IOException ex)
+        {
+            _saveBlockedByLoadFailure = true;
+            LastLoadWarning = $"The template file could not be read ({ex.Message}). Saving is disabled to protect it.";
             return [];
         }
-        catch (IOException)
+        catch (UnauthorizedAccessException ex)
         {
-            return [];
-        }
-        catch (UnauthorizedAccessException)
-        {
+            _saveBlockedByLoadFailure = true;
+            LastLoadWarning = $"The template file could not be accessed ({ex.Message}). Saving is disabled to protect it.";
             return [];
         }
     }
 
     public void Save(IReadOnlyList<BuildingTemplate> templates)
     {
+        if (_saveBlockedByLoadFailure)
+        {
+            throw new IOException("Templates cannot be saved until the existing template file can be read or quarantined.");
+        }
+
         var directory = Path.GetDirectoryName(_path);
         if (!string.IsNullOrWhiteSpace(directory))
         {
@@ -92,7 +120,8 @@ public sealed class BuildingTemplateStore
                         Gid = row.Gid,
                         BuildingName = row.BuildingName?.Trim() ?? string.Empty,
                         PreferredSlotId = row.PreferredSlotId is >= 19 and <= 40 ? row.PreferredSlotId : null,
-                        TargetLevel = Math.Max(1, row.TargetLevel),
+                        TargetLevel = Math.Clamp(row.TargetLevel, 1, 20),
+                        ResourceScope = NormalizeResourceScope(row.ResourceScope),
                         ResourceStrategy = string.IsNullOrWhiteSpace(row.ResourceStrategy)
                             ? "lowest"
                             : row.ResourceStrategy.Trim(),
@@ -102,6 +131,18 @@ public sealed class BuildingTemplateStore
         }
 
         return result;
+    }
+
+    private static string NormalizeResourceScope(string? value)
+    {
+        if (string.IsNullOrWhiteSpace(value)) return "all";
+        if (value.Contains("Wood", StringComparison.OrdinalIgnoreCase)) return "wood";
+        if (value.Contains("Clay", StringComparison.OrdinalIgnoreCase)) return "clay";
+        if (value.Contains("Iron", StringComparison.OrdinalIgnoreCase)) return "iron";
+        if (value.Contains("Crop", StringComparison.OrdinalIgnoreCase)) return "crop";
+        return string.Equals(value, "all", StringComparison.OrdinalIgnoreCase)
+            ? "all"
+            : value.Trim().ToLowerInvariant();
     }
 
     private sealed record BuildingTemplateFile(List<BuildingTemplate> Templates);
