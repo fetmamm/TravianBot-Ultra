@@ -117,7 +117,9 @@ public sealed partial class BotTaskRunner
             context.Options.BuildingConstructSlotId.Value,
             context.Options.BuildingConstructGid.Value,
             buildingName,
-            context.CancellationToken);
+            context.CancellationToken,
+            context.Options.BuildingConstructAllowSlotFallback,
+            context.Options.BuildingConstructFallbackExcludedSlots);
         context.Log(result);
         context.RecordTaskResult("construct_building", result);
         ThrowIfTaskBlocked("construct_building", result);
@@ -485,6 +487,7 @@ public sealed partial class BotTaskRunner
         context.Log(result);
         // Record so the desktop can read the production_bonus=... state token off LastTask.Message.
         context.RecordTaskResult("activate_production_bonus", result);
+        ThrowIfTaskBlocked("activate_production_bonus", result);
     }
 
     private static void ThrowIfTaskBlocked(string taskName, string result)

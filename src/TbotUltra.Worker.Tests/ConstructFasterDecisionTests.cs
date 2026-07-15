@@ -7,6 +7,39 @@ namespace TbotUltra.Worker.Tests;
 public sealed class ConstructFasterDecisionTests
 {
     [Fact]
+    public void ResolveVerifiedOutcome_DoesNotClaimBonusWhenVideoFailed()
+    {
+        var result = ConstructFasterDecision.ResolveVerifiedOutcome(
+            videoCompleted: false,
+            targetConstructionVerified: true);
+
+        Assert.True(result.ActionRegistered);
+        Assert.False(result.BonusConfirmed);
+    }
+
+    [Fact]
+    public void ResolveVerifiedOutcome_ConfirmsBonusAfterCompletedVideo()
+    {
+        var result = ConstructFasterDecision.ResolveVerifiedOutcome(
+            videoCompleted: true,
+            targetConstructionVerified: true);
+
+        Assert.True(result.ActionRegistered);
+        Assert.True(result.BonusConfirmed);
+    }
+
+    [Fact]
+    public void ResolveVerifiedOutcome_RejectsCompletedVideoWithoutTargetQueueEvidence()
+    {
+        var result = ConstructFasterDecision.ResolveVerifiedOutcome(
+            videoCompleted: true,
+            targetConstructionVerified: false);
+
+        Assert.False(result.ActionRegistered);
+        Assert.False(result.BonusConfirmed);
+    }
+
+    [Fact]
     public void Evaluate_DisabledFeature_Skips()
     {
         var result = ConstructFasterDecision.Evaluate(

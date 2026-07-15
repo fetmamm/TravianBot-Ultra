@@ -16,6 +16,7 @@ public sealed class BonusVideoFailureClassifierTests
     [Theory]
     [InlineData("Are you using an ad blocker or declining third-party cookies?")]
     [InlineData("video player did not open (likely no ad available or blocked)")]
+    [InlineData("ad provider visibly reported no ad, ad blocking, or rejected third-party cookies")]
     public void Classify_RecognizesAdAvailabilityFailure(string message)
     {
         var kind = BonusVideoFailureClassifier.Classify(message);
@@ -33,6 +34,16 @@ public sealed class BonusVideoFailureClassifierTests
         Assert.Equal(BonusVideoFailureKind.Timeout, kind);
         Assert.False(BonusVideoFailureClassifier.ShouldRetryImmediately(kind));
         Assert.Equal(TimeSpan.FromMinutes(30), BonusVideoFailureClassifier.Cooldown(kind));
+    }
+
+    [Fact]
+    public void BonusVideoCooldownException_ReportsRemainingSeconds()
+    {
+        var now = new DateTimeOffset(2026, 7, 15, 20, 17, 21, TimeSpan.Zero);
+        var exception = new BonusVideoCooldownException(now.AddSeconds(99.1), BonusVideoFailureKind.NoAdOrCookies);
+
+        Assert.Equal(BonusVideoFailureKind.NoAdOrCookies, exception.Kind);
+        Assert.Equal(100, exception.RemainingSeconds(now));
     }
 
     [Fact]

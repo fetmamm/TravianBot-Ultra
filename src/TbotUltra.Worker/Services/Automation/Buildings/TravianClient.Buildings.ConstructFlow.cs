@@ -15,7 +15,13 @@ namespace TbotUltra.Worker.Services;
 public sealed partial class TravianClient : IBuildingClient
 {
 
-    public async Task<string> ConstructBuildingAsync(int slotId, int gid, string name, CancellationToken cancellationToken = default)
+    public async Task<string> ConstructBuildingAsync(
+        int slotId,
+        int gid,
+        string name,
+        CancellationToken cancellationToken = default,
+        bool allowSlotFallback = false,
+        string? fallbackExcludedSlots = null)
     {
         using var navDiagnostics = BeginConstructionNavigationDiagnostics($"construct_building slot={slotId} gid={gid}");
         Notify($"[construct] starting — slot={slotId}, gid={gid}");
@@ -66,46 +72,77 @@ public sealed partial class TravianClient : IBuildingClient
             var existingBuilding = await TryReadExistingBuildingOnSlotBuildPageAsync(slotId);
             if (existingBuilding is { Level: >= 1 } built)
             {
+                if (allowSlotFallback && slotId is >= 19 and <= 38)
+                {
+                    var excludedSlots = ParseBuildingSlotIds(fallbackExcludedSlots);
+                    var fallbackSlot = await FindFreeOrdinaryBuildingSlotAsync(excludedSlots, cancellationToken);
+                    if (fallbackSlot is int freeSlot)
+                    {
+                        Notify($"[construct] template slot {slotId} became occupied by '{built.Name}' level {built.Level}; falling back to free slot {freeSlot} for {buildingName}.");
+                        slotId = freeSlot;
+                        continue;
+                    }
+
+                    Notify($"[construct] template slot {slotId} became occupied and no non-reserved free slot is available; deferring.");
+                    return $"Slot {slotId}: occupied by {built.Name}; no non-reserved free building slot is available. queue_wait_seconds=60";
+                }
+
                 Notify($"[construct] slot {slotId} already holds '{built.Name}' level {built.Level} — confirmed already built; removing task from queue.");
                 return $"Construct skipped: {buildingName} already exists at slot {slotId} (confirmed '{built.Name}' level {built.Level}). Removing from queue.";
             }
 
             // Server-appended gid guard: on Official, build.php?id=N for an OCCUPIED slot redirects to
             // ...&gid=<existing building>. The bot never puts gid= in the construct url itself, so a
-            // matching gid here proves the slot already holds this building — typically level 0 because
-            // an earlier click landed but its confirmation was missed, so the level>=1 guard above does
-            // not fire. The construct-choice page will never load in that state; defer until the
-            // construction completes instead of burning retries into an ALARM.
+            // gid here proves the slot is occupied — often level 0 because a click landed but its
+            // confirmation was missed. The requested gid is deferred until construction completes;
+            // a different gid may move a template construct to a non-reserved free slot.
             if (existingBuilding is null)
             {
-                var slotOccupiedByRequestedGid = false;
+                int? occupiedGid = null;
                 try
                 {
-                    slotOccupiedByRequestedGid = await _page.EvaluateAsync<bool>(
+                    occupiedGid = await _page.EvaluateAsync<int?>(
                         """
-                        ({ slotId, gid }) => {
+                        (slotId) => {
                           const url = window.location.href;
-                          if (!/build\.php/i.test(url)) return false;
+                          if (!/build\.php/i.test(url)) return null;
                           const idMatch = url.match(/[?&]id=(\d+)/);
-                          if (!idMatch || Number(idMatch[1]) !== slotId) return false;
+                          if (!idMatch || Number(idMatch[1]) !== slotId) return null;
                           const gidMatch = url.match(/[?&]gid=(\d+)/);
-                          if (!gidMatch || Number(gidMatch[1]) !== gid) return false;
+                          if (!gidMatch) return null;
                           // A construct-choice page offers contracts; an occupied slot's page does not.
-                          return !document.querySelector('[id^="contract_building"], #contract_building');
+                          return document.querySelector('[id^="contract_building"], #contract_building')
+                            ? null
+                            : Number(gidMatch[1]);
                         }
                         """,
-                        new { slotId, gid });
+                        slotId);
                 }
                 catch (Exception ex) when (IsTransientExecutionContextException(ex))
                 {
                     Notify($"[construct] slot {slotId} occupied-gid check hit transient navigation: {ex.Message}");
                 }
 
-                if (slotOccupiedByRequestedGid)
+                if (occupiedGid == gid)
                 {
                     var waitSeconds = await ReadQueuedBuildingWaitSecondsAsync(buildingName, 60, cancellationToken);
                     Notify($"[construct] slot {slotId} already holds gid {gid} ({buildingName}), still under construction — deferring {waitSeconds}s until it completes.");
                     return $"Slot {slotId}: {buildingName} construction already in progress (slot already holds gid {gid}). queue_wait_seconds={waitSeconds}";
+                }
+
+                if (occupiedGid > 0 && allowSlotFallback && slotId is >= 19 and <= 38)
+                {
+                    var excludedSlots = ParseBuildingSlotIds(fallbackExcludedSlots);
+                    var fallbackSlot = await FindFreeOrdinaryBuildingSlotAsync(excludedSlots, cancellationToken);
+                    if (fallbackSlot is int freeSlot)
+                    {
+                        Notify($"[construct] template slot {slotId} became occupied by gid {occupiedGid}; falling back to free slot {freeSlot} for {buildingName}.");
+                        slotId = freeSlot;
+                        continue;
+                    }
+
+                    Notify($"[construct] template slot {slotId} became occupied and no non-reserved free slot is available; deferring.");
+                    return $"Slot {slotId}: occupied by gid {occupiedGid}; no non-reserved free building slot is available. queue_wait_seconds=60";
                 }
             }
 
@@ -122,7 +159,7 @@ public sealed partial class TravianClient : IBuildingClient
             var populationDelta = pageAnalysis.PopulationDelta;
 
             // Step 3: click the "Construct building" button (scoped to this gid when possible).
-            var clicked = await TryUseConstructFasterForBuildAsync(
+            var constructFaster = await TryUseConstructFasterForBuildAsync(
                 slotId,
                 gid,
                 buildingName,
@@ -132,7 +169,8 @@ public sealed partial class TravianClient : IBuildingClient
                 durationSeconds,
                 url,
                 cancellationToken);
-            var usedConstructFasterVideo = clicked;
+            var clicked = constructFaster.ActionRegistered;
+            var usedConstructFasterVideo = constructFaster.BonusConfirmed;
             if (!clicked)
             {
                 clicked = await ClickConstructBuildingButtonAsync(gid, cancellationToken);
@@ -486,6 +524,34 @@ public sealed partial class TravianClient : IBuildingClient
             return false;
         }
     }
+
+    private async Task<int?> FindFreeOrdinaryBuildingSlotAsync(
+        IReadOnlySet<int> excludedSlots,
+        CancellationToken cancellationToken)
+    {
+        var buildings = await ReadBuildingsAsync(cancellationToken);
+        var occupiedSlots = buildings
+            .Where(item => item.SlotId is >= 19 and <= 38)
+            .Where(item => (item.Gid ?? 0) > 0
+                || (item.Level ?? 0) > 0
+                || (!string.IsNullOrWhiteSpace(item.Name)
+                    && !string.Equals(item.Name, "Empty", StringComparison.OrdinalIgnoreCase)
+                    && !string.Equals(item.Name, "Unknown", StringComparison.OrdinalIgnoreCase)))
+            .Select(item => item.SlotId!.Value)
+            .ToHashSet();
+        return Enumerable.Range(19, 20)
+            .FirstOrDefault(slot => !occupiedSlots.Contains(slot) && !excludedSlots.Contains(slot)) is int match && match > 0
+                ? match
+                : null;
+    }
+
+    private static HashSet<int> ParseBuildingSlotIds(string? value)
+        => string.IsNullOrWhiteSpace(value)
+            ? []
+            : value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(item => int.TryParse(item, out var slot) ? slot : 0)
+                .Where(slot => slot is >= 19 and <= 38)
+                .ToHashSet();
 
     /// <summary>
     /// On the construct-choice page Official renders unmet prerequisites for a building as

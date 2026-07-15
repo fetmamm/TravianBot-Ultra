@@ -23,6 +23,8 @@ public sealed class ConstructionPayloadApplierTests
             [BotOptionPayloadKeys.BuildingConstructSlotId] = "21",
             [BotOptionPayloadKeys.BuildingConstructGid] = "23",
             [BotOptionPayloadKeys.BuildingConstructName] = "Cranny",
+            [BotOptionPayloadKeys.BuildingConstructAllowSlotFallback] = "true",
+            [BotOptionPayloadKeys.BuildingConstructFallbackExcludedSlots] = "19,31",
             [BotOptionPayloadKeys.ConstructFasterEnabled] = "true",
             [BotOptionPayloadKeys.ConstructFasterMinBuildTimeEnabled] = "false",
             [BotOptionPayloadKeys.ConstructFasterMinBuildMinutes] = "-1",
@@ -48,6 +50,8 @@ public sealed class ConstructionPayloadApplierTests
         Assert.Equal(21, result.BuildingConstructSlotId);
         Assert.Equal(23, result.BuildingConstructGid);
         Assert.Equal("Cranny", result.BuildingConstructName);
+        Assert.True(result.BuildingConstructAllowSlotFallback);
+        Assert.Equal("19,31", result.BuildingConstructFallbackExcludedSlots);
         Assert.True(result.ConstructFasterEnabled);
         Assert.False(result.ConstructFasterMinBuildTimeEnabled);
         Assert.Equal(0, result.ConstructFasterMinBuildMinutes);

@@ -25,7 +25,13 @@ public interface IBuildingClient
 
     Task<string> UpgradeBuildingToMaxAsync(int slotId, int maxAttempts = 30, CancellationToken cancellationToken = default);
 
-    Task<string> ConstructBuildingAsync(int slotId, int gid, string name, CancellationToken cancellationToken = default);
+    Task<string> ConstructBuildingAsync(
+        int slotId,
+        int gid,
+        string name,
+        CancellationToken cancellationToken = default,
+        bool allowSlotFallback = false,
+        string? fallbackExcludedSlots = null);
 
     Task<string> UpgradeSelectedTroopsAtSmithyAsync(
         IReadOnlyList<SmithyTroopTarget> targets,

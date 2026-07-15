@@ -182,6 +182,15 @@ public sealed partial class TravianClient
                     {
                         throw;
                     }
+                    catch (BonusVideoCooldownException ex)
+                    {
+                        var waitSeconds = ex.RemainingSeconds(DateTimeOffset.UtcNow) + 5;
+                        Notify(
+                            $"[production-bonus] video cooldown active after {BonusVideoFailureClassifier.Format(ex.Kind)}; "
+                            + $"deferring {waitSeconds}s without changing production timers.");
+                        return $"Production bonus: video cooldown active after {BonusVideoFailureClassifier.Format(ex.Kind)}. "
+                            + $"queue_wait_seconds={waitSeconds}";
+                    }
                     catch (Exception ex)
                     {
                         Notify($"[production-bonus:verbose] {resource}: isolated bonus video failed and was skipped: {ex.GetType().Name}: {ex.Message}");

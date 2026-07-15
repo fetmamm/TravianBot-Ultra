@@ -19,7 +19,16 @@ public sealed partial class TravianClient
         string Text,
         string Classes);
 
-    private async Task<bool> TryUseConstructFasterForBuildAsync(
+    private sealed record ConstructFasterAttemptResult(
+        bool ActionRegistered,
+        bool BonusConfirmed,
+        string Evidence)
+    {
+        internal static ConstructFasterAttemptResult Skipped(string evidence)
+            => new(false, false, evidence);
+    }
+
+    private async Task<ConstructFasterAttemptResult> TryUseConstructFasterForBuildAsync(
         int slotId,
         int? gid,
         string buildingName,
@@ -46,12 +55,12 @@ public sealed partial class TravianClient
             restorePageAsync: token => RestoreBuildPageAfterConstructFasterFallbackAsync(slotId, restorePath, token),
             cancellationToken);
 
-    private async Task<bool> TryUseConstructFasterForResourceAsync(
+    private async Task<ConstructFasterAttemptResult> TryUseConstructFasterForResourceAsync(
         int slotId,
         string resourceName,
         int previousLevel,
         int targetLevel,
-        string queueFingerprintBefore,
+        IReadOnlyList<BuildQueueItem> buildQueueBefore,
         int durationSeconds,
         CancellationToken cancellationToken)
         => await TryUseConstructFasterAsync(
@@ -62,15 +71,16 @@ public sealed partial class TravianClient
             "resource",
             verifyResultAsync: token => VerifyConstructFasterResultOnDorf1Async(
                 slotId,
+                resourceName,
                 previousLevel,
                 targetLevel,
-                queueFingerprintBefore,
+                buildQueueBefore,
                 durationSeconds,
                 token),
             restorePageAsync: token => RestoreBuildPageAfterConstructFasterFallbackAsync(slotId, restorePath: null, token),
             cancellationToken);
 
-    private async Task<bool> TryUseConstructFasterAsync(
+    private async Task<ConstructFasterAttemptResult> TryUseConstructFasterAsync(
         int slotId,
         int? gid,
         string targetName,
@@ -96,7 +106,7 @@ public sealed partial class TravianClient
                 Notify($"[construct-faster] skipped — {decision.Reason}.");
             }
 
-            return false;
+            return ConstructFasterAttemptResult.Skipped(decision.Reason);
         }
 
         string? lastVideoResult = null;
@@ -104,15 +114,24 @@ public sealed partial class TravianClient
         var navigatedForVerification = false;
         for (var attempt = 1; attempt <= ConstructFasterMaxVideoAttempts; attempt++)
         {
+            var videoCompleted = false;
             try
             {
                 Notify($"[construct-faster] starting — kind={constructionKind}, slot={slotId}, gid={gid?.ToString(CultureInfo.InvariantCulture) ?? "unknown"}, duration={durationSeconds}s, attempt={attempt}/{ConstructFasterMaxVideoAttempts}, reason={decision.Reason}.");
                 lastVideoResult = await RunConstructFasterVideoAsync(slotId, gid, targetName, cancellationToken);
+                videoCompleted = true;
                 Notify($"[construct-faster] video flow completed: {lastVideoResult}");
             }
             catch (OperationCanceledException)
             {
                 throw;
+            }
+            catch (BonusVideoCooldownException ex)
+            {
+                Notify(
+                    "[construct-faster] skipped video — shared account/proxy cooldown active after "
+                    + $"{BonusVideoFailureClassifier.Format(ex.Kind)}; building normally.");
+                return ConstructFasterAttemptResult.Skipped($"video cooldown after {ex.Kind}");
             }
             catch (Exception ex)
             {
@@ -125,8 +144,24 @@ public sealed partial class TravianClient
             lastEvidence = verification.Evidence;
             if (verification.Success)
             {
-                Notify($"[construct-faster] success — slot={slotId}, evidence={verification.Evidence}.");
-                return true;
+                var outcome = ConstructFasterDecision.ResolveVerifiedOutcome(
+                    videoCompleted,
+                    targetConstructionVerified: verification.Success);
+                if (videoCompleted)
+                {
+                    Notify($"[construct-faster] success — slot={slotId}, evidence={verification.Evidence}.");
+                }
+                else
+                {
+                    Notify(
+                        $"[construct-faster] construction registered but 25% bonus was not confirmed — "
+                        + $"slot={slotId}, evidence={verification.Evidence}.");
+                }
+
+                return new ConstructFasterAttemptResult(
+                    outcome.ActionRegistered,
+                    outcome.BonusConfirmed,
+                    verification.Evidence);
             }
 
             if (attempt < ConstructFasterMaxVideoAttempts)
@@ -151,14 +186,15 @@ public sealed partial class TravianClient
             await restorePageAsync(cancellationToken);
         }
 
-        return false;
+        return ConstructFasterAttemptResult.Skipped(lastEvidence ?? lastVideoResult ?? "no result");
     }
 
     private async Task<(bool Success, string Evidence)> VerifyConstructFasterResultOnDorf1Async(
         int slotId,
+        string resourceName,
         int previousLevel,
         int targetLevel,
-        string queueFingerprintBefore,
+        IReadOnlyList<BuildQueueItem> buildQueueBefore,
         int expectedWaitSeconds,
         CancellationToken cancellationToken)
     {
@@ -169,7 +205,9 @@ public sealed partial class TravianClient
             var progress = await WaitForResourceLevelAdvanceAsync(
                 slotId,
                 previousLevel,
-                queueFingerprintBefore,
+                resourceName,
+                targetLevel,
+                buildQueueBefore,
                 expectedWaitSeconds,
                 cancellationToken);
             if (progress.Advanced || progress.QueuedOrInProgress)
@@ -555,7 +593,7 @@ public sealed partial class TravianClient
             if (elapsedSeconds >= 8 && await TryReadVisibleBonusVideoFailureAsync(cancellationToken) is { } visibleFailure)
             {
                 Notify($"[construct-faster:verbose] {visibleFailure}; stopping video wait early.");
-                return false;
+                throw new InvalidOperationException(visibleFailure);
             }
 
             var dialogOpen = GetBoolean(root, "dialogOpen");

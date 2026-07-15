@@ -167,10 +167,39 @@
                                 <DataTemplate>
                                     <ComboBox ItemsSource="{Binding TargetOptionsView}"
                                               SelectedItem="{Binding Target, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
-                                              DisplayMemberPath="Name"
                                               ScrollViewer.CanContentScroll="False"
                                               VirtualizingPanel.IsVirtualizing="False"
                                               MaxDropDownHeight="360">
+                                        <ComboBox.ItemContainerStyle>
+                                            <Style TargetType="ComboBoxItem"
+                                                   BasedOn="{StaticResource {x:Type ComboBoxItem}}">
+                                                <Setter Property="IsEnabled" Value="{Binding CanInvoke}" />
+                                                <Setter Property="ToolTip" Value="{Binding AvailabilityReason}" />
+                                                <EventSetter Event="PreviewMouseLeftButtonDown"
+                                                             Handler="BuildingOption_PreviewMouseLeftButtonDown" />
+                                            </Style>
+                                        </ComboBox.ItemContainerStyle>
+                                        <ComboBox.ItemTemplate>
+                                            <DataTemplate>
+                                                <TextBlock Text="{Binding Name}">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding Availability}"
+                                                                             Value="MissingRequirements">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
+                                                                </DataTrigger>
+                                                                <DataTrigger Binding="{Binding Availability}"
+                                                                             Value="Unavailable">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource DangerTextBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </DataTemplate>
+                                        </ComboBox.ItemTemplate>
                                         <ComboBox.GroupStyle>
                                             <GroupStyle>
                                                 <GroupStyle.HeaderTemplate>

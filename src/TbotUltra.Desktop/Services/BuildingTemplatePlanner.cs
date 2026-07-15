@@ -32,6 +32,21 @@ public sealed record BuildingTemplatePlanResult(
     public bool CanQueue => Errors.Count == 0 && Actions.Count > 0;
 }
 
+public enum BuildingTemplateAvailability
+{
+    Available,
+    MissingRequirements,
+    Unavailable,
+}
+
+public sealed record BuildingTemplateAvailabilityResult(
+    BuildingTemplateAvailability Availability,
+    string Reason);
+
+public sealed record BuildingTemplatePrerequisitePlan(
+    IReadOnlyList<BuildingTemplateRow> Rows,
+    IReadOnlyList<string> Blockers);
+
 public sealed class BuildingTemplatePlanner
 {
     private static readonly HashSet<int> WallGids = [31, 32, 33, 42, 43];
@@ -55,8 +70,10 @@ public sealed class BuildingTemplatePlanner
         double totalSeconds = 0;
         long totalWood = 0, totalClay = 0, totalIron = 0, totalCrop = 0;
 
-        foreach (var row in rows ?? [])
+        var planRows = rows ?? [];
+        for (var rowIndex = 0; rowIndex < planRows.Count; rowIndex++)
         {
+            var row = planRows[rowIndex];
             if (row.Kind == BuildingTemplateRowKind.AllResources)
             {
                 var target = Math.Max(1, row.TargetLevel);
@@ -106,7 +123,14 @@ public sealed class BuildingTemplatePlanner
                 continue;
             }
 
-            var slotId = ResolveSlot(row.PreferredSlotId, gid, state);
+            var futureReservedSlots = planRows
+                .Skip(rowIndex + 1)
+                .Where(item => item.Kind == BuildingTemplateRowKind.Building)
+                .Select(item => item.PreferredSlotId)
+                .OfType<int>()
+                .Where(slot => slot is >= 19 and <= 38)
+                .ToHashSet();
+            var slotId = ResolveSlot(row.PreferredSlotId, gid, state, futureReservedSlots);
             if (slotId is null)
             {
                 warnings.Add($"Skipped {name}: no valid free building slot is available.");
@@ -132,6 +156,7 @@ public sealed class BuildingTemplatePlanner
             }
         }
 
+        AddTemplateSlotFallbackMetadata(actions);
         return new BuildingTemplatePlanResult(actions, warnings, errors, totalSeconds, totalWood, totalClay, totalIron, totalCrop);
 
         void AddTotals(BuildingTemplatePlanAction action)
@@ -142,6 +167,226 @@ public sealed class BuildingTemplatePlanner
             totalIron += action.Iron;
             totalCrop += action.Crop;
         }
+    }
+
+    private static void AddTemplateSlotFallbackMetadata(IReadOnlyList<BuildingTemplatePlanAction> actions)
+    {
+        for (var index = 0; index < actions.Count; index++)
+        {
+            var action = actions[index];
+            if (!string.Equals(action.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+                || action.SlotId is < 19 or > 38)
+            {
+                continue;
+            }
+
+            var futureSlots = actions
+                .Skip(index + 1)
+                .Where(item => string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase))
+                .Select(item => item.SlotId)
+                .Where(slot => slot is >= 19 and <= 38)
+                .Distinct()
+                .OrderBy(slot => slot);
+            action.Payload[BotOptionPayloadKeys.BuildingConstructAllowSlotFallback] = bool.TrueString;
+            action.Payload[BotOptionPayloadKeys.BuildingConstructFallbackExcludedSlots] = string.Join(",", futureSlots);
+        }
+    }
+
+    public BuildingTemplateAvailabilityResult EvaluateBuildingAvailability(
+        int gid,
+        IReadOnlyList<BuildingTemplateRow> precedingRows,
+        VillageStatus status,
+        double serverSpeed,
+        int mainBuildingLevel)
+    {
+        var entry = BuildingCatalogService.GetFullCatalog(status.Tribe).FirstOrDefault(item => item.Gid == gid);
+        if (entry is null || UnsupportedPlanGids.Contains(gid))
+        {
+            return new(BuildingTemplateAvailability.Unavailable, "This building cannot be used in a template.");
+        }
+
+        if (!entry.MatchesPlayerTribe)
+        {
+            return new(
+                BuildingTemplateAvailability.Unavailable,
+                $"Only available for {entry.RequiredTribe ?? "another tribe"}.");
+        }
+
+        var state = BuildProjectedState(precedingRows, status, serverSpeed, mainBuildingLevel);
+
+        var missing = MissingRequirements(entry.Requirements, state);
+        if (missing.Count > 0)
+        {
+            return new(
+                BuildingTemplateAvailability.MissingRequirements,
+                $"Requires {string.Join(", ", missing.Select(item => $"{item.Name} {item.Level}+"))} before this row.");
+        }
+
+        if (state.FindExistingBuilding(gid, entry.Name) is not null)
+        {
+            return new(BuildingTemplateAvailability.Available, "Available: the building already exists.");
+        }
+
+        if (!CanConstructNew(gid, entry.Name, status, state, out var reason))
+        {
+            return new(BuildingTemplateAvailability.Unavailable, reason);
+        }
+
+        if (ResolveSlot(null, gid, state, reservedSlots: null) is null)
+        {
+            return new(BuildingTemplateAvailability.Unavailable, "No valid free building slot is available.");
+        }
+
+        return new(BuildingTemplateAvailability.Available, "Available to build at this point in the template.");
+    }
+
+    public BuildingTemplatePrerequisitePlan PlanMissingPrerequisites(
+        int gid,
+        IReadOnlyList<BuildingTemplateRow> precedingRows,
+        VillageStatus status,
+        double serverSpeed,
+        int mainBuildingLevel,
+        int? reservedSlotId = null)
+    {
+        var rows = new List<BuildingTemplateRow>();
+        var blockers = new List<string>();
+        var stack = new HashSet<int>();
+        var state = BuildProjectedState(precedingRows, status, serverSpeed, mainBuildingLevel);
+        var reservedSlots = reservedSlotId is >= 19 and <= 38
+            ? new HashSet<int> { reservedSlotId.Value }
+            : [];
+
+        foreach (var requirement in BuildingCatalogService.RequirementsFor(gid))
+        {
+            EnsureRequirement(requirement);
+        }
+
+        return new BuildingTemplatePrerequisitePlan(rows, blockers);
+
+        void EnsureRequirement(BuildingRequirementEntry requirement)
+        {
+            if (state.LevelForRequirement(requirement.Name) >= requirement.Level)
+            {
+                return;
+            }
+
+            var requirementGid = BuildingCatalogService.GidForName(requirement.Name);
+            if (requirementGid is null)
+            {
+                blockers.Add($"Cannot resolve prerequisite {requirement.Name} {requirement.Level}+.");
+                return;
+            }
+
+            if (requirementGid is >= 1 and <= 4)
+            {
+                var scope = ResourceScopeForRequirement(requirement.Name);
+                rows.Add(new BuildingTemplateRow
+                {
+                    Kind = BuildingTemplateRowKind.AllResources,
+                    BuildingName = ResourceScopeDisplayName(scope),
+                    TargetLevel = requirement.Level,
+                    ResourceScope = scope,
+                    ResourceStrategy = "lowest",
+                });
+                state.ApplyResources(scope, requirement.Level);
+                return;
+            }
+
+            EnsureBuilding(requirementGid.Value, requirement.Level);
+        }
+
+        void EnsureBuilding(int requirementGid, int targetLevel)
+        {
+            var entry = BuildingCatalogService.GetFullCatalog(status.Tribe)
+                .FirstOrDefault(item => item.Gid == requirementGid);
+            if (entry is null || !entry.MatchesPlayerTribe || UnsupportedPlanGids.Contains(requirementGid))
+            {
+                blockers.Add($"{BuildingCatalogService.NameForGid(requirementGid)} is not available for {status.Tribe}.");
+                return;
+            }
+
+            if (!stack.Add(requirementGid))
+            {
+                blockers.Add($"Circular prerequisite detected for {entry.Name}.");
+                return;
+            }
+
+            var blockerCountBeforeNestedRequirements = blockers.Count;
+            foreach (var nestedRequirement in entry.Requirements)
+            {
+                EnsureRequirement(nestedRequirement);
+            }
+            stack.Remove(requirementGid);
+
+            if (blockers.Count > blockerCountBeforeNestedRequirements)
+            {
+                return;
+            }
+
+            if (state.LevelForRequirement(entry.Name) >= targetLevel)
+            {
+                return;
+            }
+
+            var existing = state.FindExistingBuilding(requirementGid, entry.Name);
+            int? projectedSlot;
+            if (existing is not null)
+            {
+                projectedSlot = existing.Value.SlotId;
+            }
+            else
+            {
+                if (!CanConstructNew(requirementGid, entry.Name, status, state, out var reason))
+                {
+                    blockers.Add(reason);
+                    return;
+                }
+
+                projectedSlot = ResolveSlot(null, requirementGid, state, reservedSlots);
+                if (projectedSlot is null)
+                {
+                    blockers.Add($"No free building slot is available for prerequisite {entry.Name}.");
+                    return;
+                }
+            }
+
+            rows.Add(new BuildingTemplateRow
+            {
+                Kind = BuildingTemplateRowKind.Building,
+                Gid = requirementGid,
+                BuildingName = entry.Name,
+                PreferredSlotId = existing?.SlotId,
+                TargetLevel = targetLevel,
+                ResourceScope = "all",
+                ResourceStrategy = "lowest",
+            });
+            state.ApplyBuilding(projectedSlot.Value, requirementGid, entry.Name, targetLevel);
+        }
+    }
+
+    private ProjectedVillageState BuildProjectedState(
+        IReadOnlyList<BuildingTemplateRow> rows,
+        VillageStatus status,
+        double serverSpeed,
+        int mainBuildingLevel)
+    {
+        var state = ProjectedVillageState.From(status);
+        foreach (var row in rows.Where(item => item.Kind == BuildingTemplateRowKind.AllResources))
+        {
+            state.ApplyResources(ResourceScope(row), Math.Max(1, row.TargetLevel));
+        }
+
+        var plan = Plan(rows, status, serverSpeed, mainBuildingLevel);
+        foreach (var action in plan.Actions.Where(item => item.Gid.HasValue))
+        {
+            state.ApplyBuilding(
+                action.SlotId,
+                action.Gid!.Value,
+                BuildingCatalogService.NameForGid(action.Gid.Value),
+                Math.Max(1, action.TargetLevel ?? 1));
+        }
+
+        return state;
     }
 
     private static IReadOnlyList<BuildingTemplatePlanAction> PlanResources(
@@ -407,7 +652,11 @@ public sealed class BuildingTemplatePlanner
         return true;
     }
 
-    private static int? ResolveSlot(int? preferredSlotId, int gid, ProjectedVillageState state)
+    private static int? ResolveSlot(
+        int? preferredSlotId,
+        int gid,
+        ProjectedVillageState state,
+        IReadOnlySet<int>? reservedSlots)
     {
         if (gid == 16)
         {
@@ -424,12 +673,14 @@ public sealed class BuildingTemplatePlanner
         {
             var ordered = validSlots.Where(slot => slot >= preferred)
                 .Concat(validSlots.Where(slot => slot < preferred));
-            return ordered.FirstOrDefault(slot => state.IsSlotFree(slot, gid)) is int match && match > 0
+            return ordered.FirstOrDefault(slot => state.IsSlotFree(slot, gid)
+                    && (slot == preferred || reservedSlots?.Contains(slot) != true)) is int match && match > 0
                 ? match
                 : null;
         }
 
-        return validSlots.FirstOrDefault(slot => state.IsSlotFree(slot, gid)) is int autoMatch && autoMatch > 0
+        return validSlots.FirstOrDefault(slot => state.IsSlotFree(slot, gid)
+                && reservedSlots?.Contains(slot) != true) is int autoMatch && autoMatch > 0
             ? autoMatch
             : null;
     }
@@ -666,4 +917,13 @@ public sealed class BuildingTemplatePlanner
             "crop" => "Cropland",
             _ => "All resources",
         };
+
+    private static string ResourceScopeForRequirement(string name)
+    {
+        if (name.Contains("Wood", StringComparison.OrdinalIgnoreCase)) return "wood";
+        if (name.Contains("Clay", StringComparison.OrdinalIgnoreCase)) return "clay";
+        if (name.Contains("Iron", StringComparison.OrdinalIgnoreCase)) return "iron";
+        if (name.Contains("Crop", StringComparison.OrdinalIgnoreCase)) return "crop";
+        return "all";
+    }
 }

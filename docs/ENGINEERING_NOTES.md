@@ -120,6 +120,10 @@ Common endpoints:
   evaluate an independent random roll whenever either enabled function is invoked.
 - Classify video failures and apply account+proxy cooldown: network 10m, no-ad/cookies 20m, timeout 30m,
   stale isolated session 5m, missing codec 6h. Known failures do not get an immediate second attempt.
+- Preserve the typed video failure and cooldown deadline across features. Production bonus must defer to
+  that deadline without replacing its saved timers or treating an unattempted video as a four-hour failure.
+- Construct-faster success requires both confirmed video completion and target-specific construction evidence:
+  the exact slot/level must be newly queued versus the pre-video snapshot, or complete immediately.
 - Production-bonus inspection is complete only when the Advantages tab contains one box for each of
   lumber, clay, iron, and crop. An empty/partial React render must be retried, never classified as
   "nothing to activate"; after two 30s render attempts it is an alarm/task failure.
@@ -164,6 +168,10 @@ Common endpoints:
 - Check storage, prerequisites, available slot, and resources before clicking Build/Upgrade.
 - Existing buildings and level-zero construction sites are distinct cases.
 - Building-type selectors must be exact enough to avoid upgrading the wrong slot.
+- Building-template choices are evaluated at their row position: available is green/selectable, missing prerequisites is yellow and opens
+  a confirmation that can insert the complete ordered prerequisite chain, and tribe-incompatible or otherwise impossible is red/disabled.
+- Auto-assigned template buildings must not consume ordinary slots explicitly reserved by later rows. Template constructs may fall back
+  to a currently free, non-reserved ordinary slot if their planned slot becomes occupied before execution.
 - “Construct faster” controls are not build/upgrade actions.
 - Construct-faster applies to both building slots and resource fields; verify results on `dorf2` and `dorf1` respectively before normal-click fallback.
 - Town Hall celebration rows must calculate resource shortfall before clicking; generic research/hero-transfer links are not start actions.

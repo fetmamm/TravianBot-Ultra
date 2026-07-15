@@ -95,7 +95,7 @@ public sealed partial class TravianClient : IBuildingClient
             var populationDelta = pageAnalysis.PopulationDelta;
 
             // Step 5: click the "Upgrade to level N" button.
-            var clicked = await TryUseConstructFasterForBuildAsync(
+            var constructFaster = await TryUseConstructFasterForBuildAsync(
                 slotId,
                 ParseGidFromBuildingCode(info.BuildingCode),
                 buildingName,
@@ -105,7 +105,8 @@ public sealed partial class TravianClient : IBuildingClient
                 durationSeconds,
                 null,
                 cancellationToken);
-            var usedConstructFasterVideo = clicked;
+            var clicked = constructFaster.ActionRegistered;
+            var usedConstructFasterVideo = constructFaster.BonusConfirmed;
             if (!clicked)
             {
                 clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
@@ -167,7 +168,7 @@ public sealed partial class TravianClient : IBuildingClient
                                 _config.ActionPacingPageLoadMaxSeconds,
                                 cancellationToken,
                                 "after hero transfer reload");
-                            clicked = await TryUseConstructFasterForBuildAsync(
+                            var retryConstructFaster = await TryUseConstructFasterForBuildAsync(
                                 slotId,
                                 ParseGidFromBuildingCode(info.BuildingCode),
                                 buildingName,
@@ -177,6 +178,8 @@ public sealed partial class TravianClient : IBuildingClient
                                 durationSeconds,
                                 null,
                                 cancellationToken);
+                            clicked = retryConstructFaster.ActionRegistered;
+                            usedConstructFasterVideo |= retryConstructFaster.BonusConfirmed;
                             if (!clicked)
                             {
                                 clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
@@ -847,7 +850,7 @@ public sealed partial class TravianClient : IBuildingClient
             var populationDelta = pageAnalysis.PopulationDelta;
 
             // Step 5: click "Upgrade to level N".
-            var clicked = await TryUseConstructFasterForBuildAsync(
+            var constructFaster = await TryUseConstructFasterForBuildAsync(
                 slotId,
                 gid,
                 buildingName,
@@ -857,7 +860,8 @@ public sealed partial class TravianClient : IBuildingClient
                 durationSeconds,
                 null,
                 cancellationToken);
-            var usedConstructFasterVideo = clicked;
+            var clicked = constructFaster.ActionRegistered;
+            var usedConstructFasterVideo = constructFaster.BonusConfirmed;
             if (!clicked)
             {
                 clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);
@@ -919,7 +923,7 @@ public sealed partial class TravianClient : IBuildingClient
                                 _config.ActionPacingPageLoadMaxSeconds,
                                 cancellationToken,
                                 "after hero transfer reload");
-                            clicked = await TryUseConstructFasterForBuildAsync(
+                            var retryConstructFaster = await TryUseConstructFasterForBuildAsync(
                                 slotId,
                                 gid,
                                 buildingName,
@@ -929,6 +933,8 @@ public sealed partial class TravianClient : IBuildingClient
                                 durationSeconds,
                                 null,
                                 cancellationToken);
+                            clicked = retryConstructFaster.ActionRegistered;
+                            usedConstructFasterVideo |= retryConstructFaster.BonusConfirmed;
                             if (!clicked)
                             {
                                 clicked = await ClickUpgradeToLevelButtonAsync(slotId, nextLevel, cancellationToken);

@@ -44,4 +44,30 @@ public sealed class ResourceConstructionQueueMatcherTests
 
         Assert.Equal(5, level);
     }
+
+    [Fact]
+    public void HighestQueuedLevelForSlot_UsesCompactBuildQueueFallback()
+    {
+        var queue = new[]
+        {
+            new BuildQueueItem("Iron mine level 8", "00:04:21", SlotId: 4),
+        };
+
+        var level = ResourceConstructionQueueMatcher.HighestQueuedLevelForSlot(queue, 4, "Iron mine", 7);
+
+        Assert.Equal(8, level);
+    }
+
+    [Fact]
+    public void HighestQueuedLevelForSlot_DoesNotUseUnrelatedQueueChange()
+    {
+        var queue = new[]
+        {
+            new BuildQueueItem("Clay pit level 8", "00:04:21", SlotId: 5),
+        };
+
+        var level = ResourceConstructionQueueMatcher.HighestQueuedLevelForSlot(queue, 4, "Iron mine", 7);
+
+        Assert.Equal(7, level);
+    }
 }

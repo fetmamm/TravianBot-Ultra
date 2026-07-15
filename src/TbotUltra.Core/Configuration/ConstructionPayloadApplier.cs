@@ -14,6 +14,8 @@ internal sealed record ConstructionPayloadValues(
     int? BuildingConstructSlotId,
     int? BuildingConstructGid,
     string BuildingConstructName,
+    bool BuildingConstructAllowSlotFallback,
+    string BuildingConstructFallbackExcludedSlots,
     bool ConstructFasterEnabled,
     bool ConstructFasterMinBuildTimeEnabled,
     int ConstructFasterMinBuildMinutes,
@@ -41,6 +43,8 @@ internal static class ConstructionPayloadApplier
             source.BuildingConstructSlotId,
             source.BuildingConstructGid,
             source.BuildingConstructName,
+            source.BuildingConstructAllowSlotFallback,
+            source.BuildingConstructFallbackExcludedSlots,
             source.ConstructFasterEnabled,
             source.ConstructFasterMinBuildTimeEnabled,
             source.ConstructFasterMinBuildMinutes,
@@ -86,6 +90,10 @@ internal static class ConstructionPayloadApplier
                 result = result with { BuildingConstructGid = constructGid };
             else if (key.Equals(BotOptionPayloadKeys.BuildingConstructName, StringComparison.OrdinalIgnoreCase))
                 result = result with { BuildingConstructName = value };
+            else if (TryReadBool(key, value, BotOptionPayloadKeys.BuildingConstructAllowSlotFallback, out var allowSlotFallback))
+                result = result with { BuildingConstructAllowSlotFallback = allowSlotFallback };
+            else if (key.Equals(BotOptionPayloadKeys.BuildingConstructFallbackExcludedSlots, StringComparison.OrdinalIgnoreCase))
+                result = result with { BuildingConstructFallbackExcludedSlots = value };
             else if (TryReadBool(key, value, BotOptionPayloadKeys.ConstructFasterEnabled, out var faster))
                 result = result with { ConstructFasterEnabled = faster };
             else if (TryReadBool(key, value, BotOptionPayloadKeys.ConstructFasterMinBuildTimeEnabled, out var minTimeEnabled))

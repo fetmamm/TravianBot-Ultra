@@ -1,3 +1,4 @@
+using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
@@ -199,6 +200,136 @@ public sealed class BuildingTemplatePlannerTests
         Assert.Empty(result.Errors);
         Assert.Empty(result.Actions);
         Assert.Contains(result.Warnings, item => item.Contains("Brewery", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void EvaluateBuildingAvailability_DistinguishesAvailableMissingRequirementsAndWrongTribe()
+    {
+        var status = Status("Teutons", Building(30, "Main Building", 1, 15));
+
+        var available = _planner.EvaluateBuildingAvailability(23, [], status, 1, 1);
+        var missingRequirements = _planner.EvaluateBuildingAvailability(20, [], status, 1, 1);
+        var wrongTribe = _planner.EvaluateBuildingAvailability(41, [], status, 1, 1);
+
+        Assert.Equal(BuildingTemplateAvailability.Available, available.Availability);
+        Assert.Equal(BuildingTemplateAvailability.MissingRequirements, missingRequirements.Availability);
+        Assert.Equal(BuildingTemplateAvailability.Unavailable, wrongTribe.Availability);
+    }
+
+    [Fact]
+    public void EvaluateBuildingAvailability_CountsOnlyEarlierTemplatePrerequisites()
+    {
+        var status = Status("Teutons", Building(30, "Main Building", 3, 15));
+        var precedingRows = new[]
+        {
+            Row(16, "Rally Point", 1, preferredSlot: 39),
+            Row(19, "Barracks", 3),
+            Row(22, "Academy", 5),
+            Row(13, "Smithy", 3),
+        };
+
+        var result = _planner.EvaluateBuildingAvailability(20, precedingRows, status, 1, 3);
+
+        Assert.Equal(BuildingTemplateAvailability.Available, result.Availability);
+    }
+
+    [Fact]
+    public void Plan_AutoSlot_DoesNotConsumeLaterExplicitSlot()
+    {
+        var status = Status("Teutons", Building(30, "Main Building", 1, 15));
+        var result = _planner.Plan(
+            [
+                Row(10, "Warehouse", 1),
+                Row(11, "Granary", 1, preferredSlot: 19),
+            ],
+            status,
+            serverSpeed: 1,
+            mainBuildingLevel: 1);
+
+        Assert.Empty(result.Errors);
+        var constructs = result.Actions.Where(item => item.TaskName == "construct_building").ToList();
+        Assert.Equal(20, constructs[0].SlotId);
+        Assert.Equal(19, constructs[1].SlotId);
+        Assert.Equal("19", constructs[0].Payload[BotOptionPayloadKeys.BuildingConstructFallbackExcludedSlots]);
+        Assert.Equal(bool.TrueString, constructs[0].Payload[BotOptionPayloadKeys.BuildingConstructAllowSlotFallback]);
+    }
+
+    [Fact]
+    public void PlanMissingPrerequisites_ProducesBuildableStableChainInDependencyOrder()
+    {
+        var status = Status("Teutons", Building(30, "Main Building", 1, 15));
+
+        var prerequisites = _planner.PlanMissingPrerequisites(20, [], status, 1, 1, reservedSlotId: 31);
+        var rows = prerequisites.Rows.Append(Row(20, "Stable", 1, preferredSlot: 31)).ToList();
+        var result = _planner.Plan(rows, status, 1, 1);
+
+        Assert.Empty(prerequisites.Blockers);
+        Assert.NotEmpty(prerequisites.Rows);
+        Assert.Empty(result.Errors);
+        Assert.Equal(31, result.Actions.Last(item => item.DisplayName.Contains("Stable", StringComparison.OrdinalIgnoreCase)).SlotId);
+        var prerequisiteRows = prerequisites.Rows.ToList();
+        Assert.True(
+            prerequisiteRows.FindIndex(item => item.Gid == 19)
+            < prerequisiteRows.FindIndex(item => item.Gid == 22));
+    }
+
+    [Fact]
+    public void PlanMissingPrerequisites_DoesNotAddAlreadySatisfiedRows()
+    {
+        var status = Status(
+            "Teutons",
+            Building(30, "Main Building", 3, 15),
+            Building(39, "Rally Point", 1, 16),
+            Building(19, "Barracks", 3, 19),
+            Building(20, "Academy", 5, 22),
+            Building(21, "Smithy", 3, 13));
+
+        var prerequisites = _planner.PlanMissingPrerequisites(20, [], status, 1, 3);
+
+        Assert.Empty(prerequisites.Blockers);
+        Assert.Empty(prerequisites.Rows);
+    }
+
+    [Fact]
+    public void PlanMissingPrerequisites_IncludesRequiredResourceUpgrades()
+    {
+        var status = Status("Teutons", Building(30, "Main Building", 1, 15));
+
+        var prerequisites = _planner.PlanMissingPrerequisites(5, [], status, 1, 1);
+        var result = _planner.Plan(
+            prerequisites.Rows.Append(Row(5, "Sawmill", 1)).ToList(),
+            status,
+            1,
+            1);
+
+        Assert.Empty(prerequisites.Blockers);
+        Assert.Contains(
+            prerequisites.Rows,
+            item => item.Kind == BuildingTemplateRowKind.AllResources
+                && item.ResourceScope == "wood"
+                && item.TargetLevel >= 10);
+        Assert.Empty(result.Errors);
+    }
+
+    [Fact]
+    public void RowView_MissingRequirementOption_IsInvokableButNotDirectlySelectable()
+    {
+        var available = new BuildingTemplateTargetOption(23, "Cranny", "Infrastructure", null, null);
+        var missing = new BuildingTemplateTargetOption(
+            20,
+            "Stable",
+            "Military",
+            null,
+            null,
+            BuildingTemplateAvailability.MissingRequirements,
+            "Requires Academy 5+.");
+        var row = new BuildingTemplateRowView { Target = available };
+
+        row.Target = missing;
+
+        Assert.Same(available, row.Target);
+        Assert.True(missing.CanInvoke);
+        Assert.False(missing.IsSelectable);
     }
 
     private static BuildingTemplateRow Row(int gid, string name, int level, int? preferredSlot = null)

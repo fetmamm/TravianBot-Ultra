@@ -632,6 +632,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     [InlineData("Resource slot 1 blocked (BlockedByQueue): workers busy.", true)]
     [InlineData("Building cannot be built yet. Missing requirements.", true)]
     [InlineData("Slot 20 reports max level reached.", true)]
+    [InlineData("Production bonus: video cooldown active. queue_wait_seconds=125", true)]
     [InlineData("Slot 20: already at level 3.", false)]
     [InlineData("", false)]
     public void BotTaskRunner_IsBlockedTaskResult_MatchesKnownFormats(string result, bool expected)

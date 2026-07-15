@@ -77,7 +77,7 @@ public sealed partial class TravianClient
                     return humanizeDefer;
                 }
 
-                var queueFingerprintBefore = BuildQueueFingerprints.Identity(snapshot.BuildQueue);
+                var buildQueueBefore = snapshot.BuildQueue;
                 var actionability = await AnalyzeUpgradeActionabilityAsync(
                     slotId,
                     cancellationToken,
@@ -152,15 +152,16 @@ public sealed partial class TravianClient
                 var expectedWaitSeconds = pageAnalysis.DurationSeconds;
                 // Read the population this level grants before clicking (page changes after).
                 var populationDelta = pageAnalysis.PopulationDelta;
-                var usedConstructFasterVideo = await TryUseConstructFasterForResourceAsync(
+                var constructFaster = await TryUseConstructFasterForResourceAsync(
                     slotId,
                     resourceName,
                     currentLevel.Value,
                     Math.Min(effectiveTarget, highestKnownLevel + 1),
-                    queueFingerprintBefore,
+                    buildQueueBefore,
                     expectedWaitSeconds,
                     cancellationToken);
-                if (!usedConstructFasterVideo)
+                var usedConstructFasterVideo = constructFaster.BonusConfirmed;
+                if (!constructFaster.ActionRegistered)
                 {
                     await ClickDetectedUpgradeCandidateAsync(slotId, actionability.CandidateIndex, cancellationToken);
                     await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
@@ -175,7 +176,9 @@ public sealed partial class TravianClient
                 var progress = await WaitForResourceLevelAdvanceAsync(
                     slotId,
                     currentLevel.Value,
-                    queueFingerprintBefore,
+                    resourceName,
+                    Math.Min(effectiveTarget, highestKnownLevel + 1),
+                    buildQueueBefore,
                     expectedWaitSeconds,
                     cancellationToken);
                 if (progress.Advanced)
@@ -247,6 +250,7 @@ public sealed partial class TravianClient
                     cancellationToken,
                     "Manual verification appeared while reading resource fields.");
                 var resourceFields = await ReadResourceFieldsAsync(cancellationToken);
+                var buildQueueAtScan = await ReadBuildQueueAsync(cancellationToken);
                 // Note: each successful upgrade is already announced by WaitForResourceLevelAdvanceAsync
                 // at the moment the level advances. We deliberately do NOT diff levels again here, as
                 // that produced a duplicate "Resource slot N level increased ..." line per upgrade.
@@ -378,7 +382,6 @@ public sealed partial class TravianClient
                     {
                         attemptedAny = true;
                         Notify($"[UpgradeAllResourcesToLevelAsync] clicking upgrade for slot={slot} from level={level} toward target={effectiveTarget}.");
-                        var queueFingerprintBefore = BuildQueueFingerprints.Identity(await ReadBuildQueueAsync(cancellationToken));
                         var pageAnalysis = await ReadConstructionPageAnalysisAsync(
                             slot,
                             "resource bulk upgrade pre-click",
@@ -387,15 +390,16 @@ public sealed partial class TravianClient
                         // Read the population this level grants before clicking (page changes after).
                         var populationDelta = pageAnalysis.PopulationDelta;
                         var nextLevel = Math.Min(effectiveTarget, highestQueuedLevel + 1);
-                        var usedConstructFasterVideo = await TryUseConstructFasterForResourceAsync(
+                        var constructFaster = await TryUseConstructFasterForResourceAsync(
                             slot,
                             resourceName,
                             level,
                             nextLevel,
-                            queueFingerprintBefore,
+                            buildQueueAtScan,
                             rawUpgradeSeconds,
                             cancellationToken);
-                        if (!usedConstructFasterVideo)
+                        var usedConstructFasterVideo = constructFaster.BonusConfirmed;
+                        if (!constructFaster.ActionRegistered)
                         {
                             await ClickDetectedUpgradeCandidateAsync(slot, actionability.CandidateIndex, cancellationToken);
                             await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
@@ -410,7 +414,9 @@ public sealed partial class TravianClient
                         var progress = await WaitForResourceLevelAdvanceAsync(
                             slot,
                             level,
-                            queueFingerprintBefore,
+                            resourceName,
+                            nextLevel,
+                            buildQueueAtScan,
                             rawUpgradeSeconds,
                             cancellationToken);
                         Notify($"[UpgradeAllResourcesToLevelAsync] slot={slot} click result advanced={progress.Advanced} queued={progress.QueuedOrInProgress} evidence={progress.Evidence}.");
@@ -572,10 +578,13 @@ public sealed partial class TravianClient
     private async Task<UpgradeProgressResult> WaitForResourceLevelAdvanceAsync(
         int slotId,
         int previousLevel,
-        string queueFingerprintBefore,
+        string resourceName,
+        int targetLevel,
+        IReadOnlyList<BuildQueueItem> buildQueueBefore,
         int? expectedWaitSeconds,
         CancellationToken cancellationToken)
     {
+        var queueFingerprintBefore = BuildQueueFingerprints.Identity(buildQueueBefore);
         ResourceProgressSnapshot? latestSnapshot = null;
         for (var i = 0; i < 4; i++)
         {
@@ -589,9 +598,26 @@ public sealed partial class TravianClient
                 return new UpgradeProgressResult(true, false, "level advanced");
             }
 
+            var targetQueueItem = BuildQueueFingerprints.FindNewTargetBuilding(
+                buildQueueBefore,
+                latestSnapshot.BuildQueue,
+                resourceName,
+                slotId,
+                gid: null,
+                targetLevel);
+            if (targetQueueItem is not null)
+            {
+                return new UpgradeProgressResult(
+                    false,
+                    true,
+                    $"resource queue added slot {slotId} {resourceName} level {targetLevel}");
+            }
+
             if (i == 0 && HasResourceQueueProgress(queueFingerprintBefore, latestSnapshot))
             {
-                return new UpgradeProgressResult(false, true, "queue changed");
+                Notify(
+                    $"Resource progress check for slot {slotId}: queue changed but no new "
+                    + $"{resourceName} level {targetLevel} entry was found.");
             }
         }
 
@@ -603,7 +629,9 @@ public sealed partial class TravianClient
         var queueFingerprintAfter = BuildQueueFingerprints.Identity(latestSnapshot.BuildQueue);
         if (!string.Equals(queueFingerprintBefore, queueFingerprintAfter, StringComparison.Ordinal))
         {
-            return new UpgradeProgressResult(false, true, "queue changed");
+            Notify(
+                $"Resource progress check for slot {slotId}: final queue changed but no new "
+                + $"{resourceName} level {targetLevel} entry was found.");
         }
 
         var waitSeconds = ComputeResourceUpgradeWaitSeconds(expectedWaitSeconds);
@@ -694,7 +722,25 @@ public sealed partial class TravianClient
         try
         {
             var active = await ReadActiveConstructionsAsync(cancellationToken);
-            return ResourceConstructionQueueMatcher.HighestQueuedLevelForSlot(active, slotId, resourceName, currentLevel);
+            var activeLevel = ResourceConstructionQueueMatcher.HighestQueuedLevelForSlot(
+                active,
+                slotId,
+                resourceName,
+                currentLevel);
+            if (activeLevel > currentLevel)
+            {
+                return activeLevel;
+            }
+
+            // Some Official queue variants expose the resource reliably in the compact build queue but
+            // omit kind/slot metadata from the active-construction parser. Use that same-page identity as
+            // a conservative fallback so an already queued level is not offered repeatedly.
+            var buildQueue = await ReadBuildQueueAsync(cancellationToken);
+            return ResourceConstructionQueueMatcher.HighestQueuedLevelForSlot(
+                buildQueue,
+                slotId,
+                resourceName,
+                currentLevel);
         }
         catch
         {

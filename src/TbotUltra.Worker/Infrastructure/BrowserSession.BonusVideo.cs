@@ -22,9 +22,7 @@ public sealed partial class BrowserSession
         if (BonusVideoCooldownByRoute.TryGetValue(cooldownKey, out var cooldown)
             && cooldown.UntilUtc > DateTimeOffset.UtcNow)
         {
-            throw new InvalidOperationException(
-                $"Bonus-video attempts are paused until {cooldown.UntilUtc.ToLocalTime():HH:mm} "
-                + $"for this account/proxy after {FormatBonusVideoFailureKind(cooldown.Kind)}.");
+            throw new BonusVideoCooldownException(cooldown.UntilUtc, cooldown.Kind);
         }
 
         BonusVideoCooldownByRoute.TryRemove(cooldownKey, out _);
@@ -163,16 +161,7 @@ public sealed partial class BrowserSession
     }
 
     private static string FormatBonusVideoFailureKind(BonusVideoFailureKind kind)
-        => kind switch
-        {
-            BonusVideoFailureKind.NoAdOrCookies => "no ad or third-party-cookie rejection",
-            BonusVideoFailureKind.Network => "ad-network failure",
-            BonusVideoFailureKind.Session => "stale isolated session",
-            BonusVideoFailureKind.Codec => "missing video codec",
-            BonusVideoFailureKind.Timeout => "video timeout",
-            BonusVideoFailureKind.Unavailable => "unavailable video feature",
-            _ => "unknown video failure",
-        };
+        => BonusVideoFailureClassifier.Format(kind);
 
     public async Task<IPage> OpenIsolatedExternalPageAsync(CancellationToken cancellationToken = default)
     {

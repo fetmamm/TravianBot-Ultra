@@ -17,6 +17,20 @@ internal static class ResourceConstructionQueueMatcher
         return Math.Max(currentLevel, highestQueuedLevel);
     }
 
+    internal static int HighestQueuedLevelForSlot(
+        IReadOnlyList<BuildQueueItem> buildQueue,
+        int slotId,
+        string resourceName,
+        int currentLevel)
+    {
+        var matchingLevels = buildQueue
+            .Where(item =>
+                item.SlotId == slotId
+                || (item.SlotId is null && BuildQueueFingerprints.TextMatchesBuilding(item.Text, resourceName)))
+            .Select(item => BuildQueueFingerprints.TryReadLevel(item.Text) ?? 0);
+        return Math.Max(currentLevel, matchingLevels.DefaultIfEmpty(0).Max());
+    }
+
     internal static IReadOnlyList<ActiveConstruction> MatchForResourceSlot(
         IReadOnlyList<ActiveConstruction> activeConstructions,
         int? slotId,

@@ -58,6 +58,13 @@ public partial class MainWindow
         var states = ProductionBonusDomParser.ParseResultToken(message);
         if (states.Count == 0)
         {
+            if (message?.Contains("queue_wait_seconds=", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                // Worker deferred to the shared video cooldown. Preserve existing timers; no production
+                // video was attempted, so this is not a failed activation and needs no extra backoff.
+                return;
+            }
+
             // The run produced no state token (e.g. skipped, or the verify read failed). If nothing is
             // remembered yet, stamp a short backoff so the loop does not re-queue on every tick.
             StampProductionBonusBackoffIfEmpty(account);

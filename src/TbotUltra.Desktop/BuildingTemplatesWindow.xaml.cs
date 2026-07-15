@@ -3,7 +3,9 @@ using System.Collections.Specialized;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Windows;
+using System.Windows.Controls;
 using System.Windows.Data;
+using System.Windows.Input;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
@@ -28,6 +30,7 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
     private string _totalTimeText = "Time -";
     private string _totalConstructFasterTimeText = "Time (25%) -";
     private string _validationSummaryText = string.Empty;
+    private bool _isRefreshingPlanPreview;
 
     public ObservableCollection<BuildingTemplate> Templates { get; } = [];
     public ObservableCollection<BuildingTemplateRowView> Rows { get; } = [];
@@ -231,12 +234,16 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
     private void AddRowView(BuildingTemplateRowView row)
     {
         row.SetOptionSources(BuildingOptions, ResourceOptions);
-        row.PropertyChanged += Row_PropertyChanged;
         Rows.Add(row);
     }
 
     private void Row_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (_isRefreshingPlanPreview)
+        {
+            return;
+        }
+
         RefreshPlanPreview();
     }
 
@@ -300,6 +307,88 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
             SlotText = "Auto",
             TargetLevel = "1",
         });
+    }
+
+    private void BuildingOption_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (sender is not ComboBoxItem item
+            || item.DataContext is not BuildingTemplateTargetOption option
+            || option.Availability != BuildingTemplateAvailability.MissingRequirements
+            || ItemsControl.ItemsControlFromItemContainer(item) is not ComboBox comboBox
+            || comboBox.DataContext is not BuildingTemplateRowView targetRow
+            || option.Gid is not int gid)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        comboBox.IsDropDownOpen = false;
+
+        var targetIndex = Rows.IndexOf(targetRow);
+        if (targetIndex < 0)
+        {
+            return;
+        }
+
+        var precedingRows = Rows.Take(targetIndex).Select(row => row.ToTemplateRow()).ToList();
+        var reservedSlotId = int.TryParse(targetRow.SlotText, out var parsedSlot) ? parsedSlot : (int?)null;
+        var prerequisitePlan = _planner.PlanMissingPrerequisites(
+            gid,
+            precedingRows,
+            _status,
+            _serverSpeed,
+            _mainBuildingLevel,
+            reservedSlotId);
+        if (prerequisitePlan.Blockers.Count > 0)
+        {
+            AppDialog.Show(
+                this,
+                $"{option.Name} cannot be added because its prerequisite chain could not be created:\n\n{string.Join("\n", prerequisitePlan.Blockers)}",
+                "Missing building requirements",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return;
+        }
+
+        var requiredRows = prerequisitePlan.Rows
+            .Select(row => $"  • {row.BuildingName} to level {row.TargetLevel}")
+            .ToList();
+        var message =
+            $"{option.Name} cannot be selected yet because its requirements are not fulfilled.\n\n" +
+            $"The following rows will be inserted before {option.Name}:\n{string.Join("\n", requiredRows)}\n\n" +
+            "Build the required buildings first?";
+        var choice = AppDialog.ShowCustom(
+            this,
+            message,
+            "Missing building requirements",
+            [("Build required buildings", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.Cancel)],
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel,
+            MessageBoxResult.Cancel);
+        if (choice != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        foreach (var prerequisite in prerequisitePlan.Rows)
+        {
+            var rowView = BuildingTemplateRowView.From(prerequisite, BuildingOptions, ResourceOptions);
+            rowView.SetOptionSources(BuildingOptions, ResourceOptions);
+            Rows.Insert(targetIndex++, rowView);
+        }
+
+        RefreshPlanPreview();
+        var nowAvailable = targetRow.TargetOptionsView
+            .Cast<BuildingTemplateTargetOption>()
+            .FirstOrDefault(candidate => candidate.Gid == gid && candidate.IsSelectable);
+        if (nowAvailable is null)
+        {
+            StatusText = $"Could not make {option.Name} available after inserting its requirements.";
+            return;
+        }
+
+        targetRow.Target = nowAvailable;
+        StatusText = $"Inserted {prerequisitePlan.Rows.Count} prerequisite row(s) before {option.Name}.";
     }
 
     private void RemoveRowButton_Click(object sender, RoutedEventArgs e)
@@ -416,38 +505,80 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
 
     private void RefreshPlanPreview(BuildingTemplatePlanResult? existingPlan = null)
     {
-        var plan = existingPlan ?? _planner.Plan(BuildTemplateRowsFromUi(), _status, _serverSpeed, _mainBuildingLevel);
-        var rowById = Rows.ToDictionary(row => row.Id);
-        foreach (var row in Rows)
+        if (_isRefreshingPlanPreview)
         {
-            row.Status = string.Empty;
+            return;
         }
 
-        foreach (var error in plan.Errors)
+        _isRefreshingPlanPreview = true;
+        try
         {
-            // Errors are also shown in the summary; keep row status lightweight.
-        }
+            RefreshBuildingOptionAvailability();
+            var plan = existingPlan ?? _planner.Plan(BuildTemplateRowsFromUi(), _status, _serverSpeed, _mainBuildingLevel);
+            foreach (var row in Rows)
+            {
+                row.Status = string.Empty;
+            }
 
-        TotalWoodText = plan.Actions.Count > 0 ? QueueItemRowFactory.FormatResourceAmount(plan.Wood) : "-";
-        TotalClayText = plan.Actions.Count > 0 ? QueueItemRowFactory.FormatResourceAmount(plan.Clay) : "-";
-        TotalIronText = plan.Actions.Count > 0 ? QueueItemRowFactory.FormatResourceAmount(plan.Iron) : "-";
-        TotalCropText = plan.Actions.Count > 0 ? QueueItemRowFactory.FormatResourceAmount(plan.Crop) : "-";
-        TotalTimeText = plan.Actions.Count > 0
-            ? $"Time {QueueItemRowFactory.FormatBuildDuration(plan.Seconds)}"
-            : "Time -";
-        TotalConstructFasterTimeText = plan.Actions.Count > 0
-            ? $"Time (25%) {QueueItemRowFactory.FormatBuildDuration(plan.Seconds * 0.75)}"
-            : "Time (25%) -";
-        ValidationSummaryText = plan.Errors.Count > 0
-            ? $"{plan.Errors.Count} error(s)"
-            : plan.Warnings.Count > 0
-                ? $"{plan.Warnings.Count} warning(s)"
-                : string.Empty;
-        StatusText = plan.Errors.Count > 0
-            ? plan.Errors[0]
-            : plan.Warnings.Count > 0
-                ? plan.Warnings[0]
-                : "Ready.";
+            TotalWoodText = plan.Actions.Count > 0 ? QueueItemRowFactory.FormatResourceAmount(plan.Wood) : "-";
+            TotalClayText = plan.Actions.Count > 0 ? QueueItemRowFactory.FormatResourceAmount(plan.Clay) : "-";
+            TotalIronText = plan.Actions.Count > 0 ? QueueItemRowFactory.FormatResourceAmount(plan.Iron) : "-";
+            TotalCropText = plan.Actions.Count > 0 ? QueueItemRowFactory.FormatResourceAmount(plan.Crop) : "-";
+            TotalTimeText = plan.Actions.Count > 0
+                ? $"Time {QueueItemRowFactory.FormatBuildDuration(plan.Seconds)}"
+                : "Time -";
+            TotalConstructFasterTimeText = plan.Actions.Count > 0
+                ? $"Time (25%) {QueueItemRowFactory.FormatBuildDuration(plan.Seconds * 0.75)}"
+                : "Time (25%) -";
+            ValidationSummaryText = plan.Errors.Count > 0
+                ? $"{plan.Errors.Count} error(s)"
+                : plan.Warnings.Count > 0
+                    ? $"{plan.Warnings.Count} warning(s)"
+                    : string.Empty;
+            StatusText = plan.Errors.Count > 0
+                ? plan.Errors[0]
+                : plan.Warnings.Count > 0
+                    ? plan.Warnings[0]
+                    : "Ready.";
+        }
+        finally
+        {
+            _isRefreshingPlanPreview = false;
+        }
+    }
+
+    private void RefreshBuildingOptionAvailability()
+    {
+        for (var rowIndex = 0; rowIndex < Rows.Count; rowIndex++)
+        {
+            var row = Rows[rowIndex];
+            if (!row.IsBuildingRow)
+            {
+                continue;
+            }
+
+            var precedingRows = Rows.Take(rowIndex).Select(item => item.ToTemplateRow()).ToList();
+            var options = BuildingOptions.Select(option =>
+            {
+                if (option.Gid is not int gid)
+                {
+                    return option;
+                }
+
+                var result = _planner.EvaluateBuildingAvailability(
+                    gid,
+                    precedingRows,
+                    _status,
+                    _serverSpeed,
+                    _mainBuildingLevel);
+                return option with
+                {
+                    Availability = result.Availability,
+                    AvailabilityReason = result.Reason,
+                };
+            }).ToList();
+            row.SetOptionSources(options, ResourceOptions);
+        }
     }
 
     private void RefreshIndexes()
@@ -522,7 +653,13 @@ public sealed record BuildingTemplateTargetOption(
     string Name,
     string Category,
     string? ResourceScope,
-    int? FixedSlotId);
+    int? FixedSlotId,
+    BuildingTemplateAvailability Availability = BuildingTemplateAvailability.Available,
+    string AvailabilityReason = "Available")
+{
+    public bool IsSelectable => Availability == BuildingTemplateAvailability.Available;
+    public bool CanInvoke => Availability != BuildingTemplateAvailability.Unavailable;
+}
 
 public sealed class BuildingTemplateRowView : INotifyPropertyChanged
 {
@@ -564,6 +701,11 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
         get => _target;
         set
         {
+            if (value is { IsSelectable: false })
+            {
+                return;
+            }
+
             if (SetProperty(ref _target, value))
             {
                 if (value?.FixedSlotId is int fixedSlot)
@@ -609,10 +751,28 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
         IReadOnlyList<BuildingTemplateTargetOption> buildingOptions,
         IReadOnlyList<BuildingTemplateTargetOption> resourceOptions)
     {
+        var currentGid = Target?.Gid;
+        var currentResourceScope = Target?.ResourceScope;
         _buildingOptions = buildingOptions;
         _resourceOptions = resourceOptions;
         RefreshTargetOptionsView();
-        EnsureTargetMatchesKind();
+
+        var options = IsBuildingRow ? _buildingOptions : _resourceOptions;
+        var matchingTarget = IsBuildingRow
+            ? options.FirstOrDefault(item => item.Gid == currentGid)
+            : options.FirstOrDefault(item => string.Equals(item.ResourceScope, currentResourceScope, StringComparison.OrdinalIgnoreCase));
+        var selectedTarget = matchingTarget ?? options.FirstOrDefault(item => item.IsSelectable) ?? options.FirstOrDefault();
+        if (!ReferenceEquals(_target, selectedTarget))
+        {
+            _target = selectedTarget;
+            if (selectedTarget?.FixedSlotId is int fixedSlot)
+            {
+                SlotText = fixedSlot.ToString();
+            }
+
+            OnPropertyChanged(nameof(Target));
+            OnPropertyChanged(nameof(IsSlotSelectable));
+        }
     }
 
     public static BuildingTemplateRowView From(
@@ -676,7 +836,7 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
         var options = IsBuildingRow ? _buildingOptions : _resourceOptions;
         if (Target is null || !options.Any(item => Equals(item, Target)))
         {
-            Target = options.FirstOrDefault();
+            Target = options.FirstOrDefault(item => item.IsSelectable) ?? options.FirstOrDefault();
         }
     }
 

@@ -4,8 +4,19 @@ namespace TbotUltra.Worker.Services;
 
 internal sealed record ConstructFasterDecisionResult(bool UseVideo, string Reason);
 
+internal sealed record ConstructFasterVerificationDecisionResult(
+    bool ActionRegistered,
+    bool BonusConfirmed);
+
 internal static class ConstructFasterDecision
 {
+    internal static ConstructFasterVerificationDecisionResult ResolveVerifiedOutcome(
+        bool videoCompleted,
+        bool targetConstructionVerified)
+        => new(
+            ActionRegistered: targetConstructionVerified,
+            BonusConfirmed: videoCompleted && targetConstructionVerified);
+
     public static ConstructFasterDecisionResult Evaluate(
         BotOptions options,
         int durationSeconds,

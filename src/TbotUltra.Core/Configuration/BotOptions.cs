@@ -457,6 +457,12 @@ public sealed class BotOptions
     [ConfigurationKeyName("building_construct_name")]
     public string BuildingConstructName { get; init; } = string.Empty;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.BuildingConstructAllowSlotFallback)]
+    public bool BuildingConstructAllowSlotFallback { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.BuildingConstructFallbackExcludedSlots)]
+    public string BuildingConstructFallbackExcludedSlots { get; init; } = string.Empty;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructFasterEnabled)]
     public bool ConstructFasterEnabled { get; init; }
 

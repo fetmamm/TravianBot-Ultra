@@ -306,6 +306,8 @@ public static class BotOptionsPayloadApplier
             BuildingConstructSlotId = buildingConstructSlotId,
             BuildingConstructGid = buildingConstructGid,
             BuildingConstructName = buildingConstructName,
+            BuildingConstructAllowSlotFallback = construction.BuildingConstructAllowSlotFallback,
+            BuildingConstructFallbackExcludedSlots = construction.BuildingConstructFallbackExcludedSlots,
             ConstructFasterEnabled = constructFasterEnabled,
             ConstructFasterMinBuildTimeEnabled = constructFasterMinBuildTimeEnabled,
             ConstructFasterMinBuildMinutes = constructFasterMinBuildMinutes,
