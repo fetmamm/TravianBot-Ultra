@@ -152,10 +152,22 @@ public sealed partial class TravianClient
                 var expectedWaitSeconds = pageAnalysis.DurationSeconds;
                 // Read the population this level grants before clicking (page changes after).
                 var populationDelta = pageAnalysis.PopulationDelta;
-                await ClickDetectedUpgradeCandidateAsync(slotId, actionability.CandidateIndex, cancellationToken);
-                await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
+                var usedConstructFasterVideo = await TryUseConstructFasterForResourceAsync(
+                    slotId,
+                    resourceName,
+                    currentLevel.Value,
+                    Math.Min(effectiveTarget, highestKnownLevel + 1),
+                    queueFingerprintBefore,
+                    expectedWaitSeconds,
+                    cancellationToken);
+                if (!usedConstructFasterVideo)
+                {
+                    await ClickDetectedUpgradeCandidateAsync(slotId, actionability.CandidateIndex, cancellationToken);
+                    await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
+                }
                 await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
                 upgrades += 1;
+                Notify($"[resources] {(usedConstructFasterVideo ? "25% faster video ok" : "click ok")} — slot={slotId} '{resourceName}' lvl {currentLevel} → {Math.Min(effectiveTarget, highestKnownLevel + 1)} queued (duration~{expectedWaitSeconds}s).");
                 if (populationDelta is int popDelta)
                 {
                     await AddPopulationToActiveVillageCacheAsync(popDelta, cancellationToken);
@@ -374,10 +386,23 @@ public sealed partial class TravianClient
                         var rawUpgradeSeconds = pageAnalysis.DurationSeconds;
                         // Read the population this level grants before clicking (page changes after).
                         var populationDelta = pageAnalysis.PopulationDelta;
-                        await ClickDetectedUpgradeCandidateAsync(slot, actionability.CandidateIndex, cancellationToken);
-                        await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
+                        var nextLevel = Math.Min(effectiveTarget, highestQueuedLevel + 1);
+                        var usedConstructFasterVideo = await TryUseConstructFasterForResourceAsync(
+                            slot,
+                            resourceName,
+                            level,
+                            nextLevel,
+                            queueFingerprintBefore,
+                            rawUpgradeSeconds,
+                            cancellationToken);
+                        if (!usedConstructFasterVideo)
+                        {
+                            await ClickDetectedUpgradeCandidateAsync(slot, actionability.CandidateIndex, cancellationToken);
+                            await NavigateToResourceFieldsAfterUpgradeClickAsync(cancellationToken);
+                        }
                         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
                         upgrades += 1;
+                        Notify($"[resources] {(usedConstructFasterVideo ? "25% faster video ok" : "click ok")} — slot={slot} '{resourceName}' lvl {level} → {nextLevel} queued (duration~{rawUpgradeSeconds}s).");
                         if (populationDelta is int popDelta)
                         {
                             await AddPopulationToActiveVillageCacheAsync(popDelta, cancellationToken);

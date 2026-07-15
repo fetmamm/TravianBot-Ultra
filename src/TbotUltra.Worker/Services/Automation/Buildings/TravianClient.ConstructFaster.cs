@@ -29,6 +29,56 @@ public sealed partial class TravianClient
         int durationSeconds,
         string? restorePath,
         CancellationToken cancellationToken)
+        => await TryUseConstructFasterAsync(
+            slotId,
+            gid,
+            buildingName,
+            durationSeconds,
+            "building",
+            verifyResultAsync: token => VerifyConstructFasterResultOnDorf2Async(
+                slotId,
+                previousLevel,
+                buildingName,
+                targetLevel,
+                buildQueueBefore,
+                gid,
+                token),
+            restorePageAsync: token => RestoreBuildPageAfterConstructFasterFallbackAsync(slotId, restorePath, token),
+            cancellationToken);
+
+    private async Task<bool> TryUseConstructFasterForResourceAsync(
+        int slotId,
+        string resourceName,
+        int previousLevel,
+        int targetLevel,
+        string queueFingerprintBefore,
+        int durationSeconds,
+        CancellationToken cancellationToken)
+        => await TryUseConstructFasterAsync(
+            slotId,
+            gid: null,
+            resourceName,
+            durationSeconds,
+            "resource",
+            verifyResultAsync: token => VerifyConstructFasterResultOnDorf1Async(
+                slotId,
+                previousLevel,
+                targetLevel,
+                queueFingerprintBefore,
+                durationSeconds,
+                token),
+            restorePageAsync: token => RestoreBuildPageAfterConstructFasterFallbackAsync(slotId, restorePath: null, token),
+            cancellationToken);
+
+    private async Task<bool> TryUseConstructFasterAsync(
+        int slotId,
+        int? gid,
+        string targetName,
+        int durationSeconds,
+        string constructionKind,
+        Func<CancellationToken, Task<(bool Success, string Evidence)>> verifyResultAsync,
+        Func<CancellationToken, Task> restorePageAsync,
+        CancellationToken cancellationToken)
     {
         var state = await ReadConstructFasterButtonStateAsync(cancellationToken);
         var randomRoll = _config.ConstructFasterRandomEnabled ? Random.Shared.Next(0, 100) : (int?)null;
@@ -56,8 +106,8 @@ public sealed partial class TravianClient
         {
             try
             {
-                Notify($"[construct-faster] starting — slot={slotId}, gid={gid?.ToString(CultureInfo.InvariantCulture) ?? "unknown"}, duration={durationSeconds}s, attempt={attempt}/{ConstructFasterMaxVideoAttempts}, reason={decision.Reason}.");
-                lastVideoResult = await RunConstructFasterVideoAsync(slotId, gid, buildingName, cancellationToken);
+                Notify($"[construct-faster] starting — kind={constructionKind}, slot={slotId}, gid={gid?.ToString(CultureInfo.InvariantCulture) ?? "unknown"}, duration={durationSeconds}s, attempt={attempt}/{ConstructFasterMaxVideoAttempts}, reason={decision.Reason}.");
+                lastVideoResult = await RunConstructFasterVideoAsync(slotId, gid, targetName, cancellationToken);
                 Notify($"[construct-faster] video flow completed: {lastVideoResult}");
             }
             catch (OperationCanceledException)
@@ -71,14 +121,7 @@ public sealed partial class TravianClient
             }
 
             navigatedForVerification = true;
-            var verification = await VerifyConstructFasterResultOnDorf2Async(
-                slotId,
-                previousLevel,
-                buildingName,
-                targetLevel,
-                buildQueueBefore,
-                gid,
-                cancellationToken);
+            var verification = await verifyResultAsync(cancellationToken);
             lastEvidence = verification.Evidence;
             if (verification.Success)
             {
@@ -105,10 +148,45 @@ public sealed partial class TravianClient
         Notify($"[construct-faster] WARNING: video unavailable after {ConstructFasterMaxVideoAttempts} attempts (last video: {lastVideoResult ?? "no result"}, evidence: {lastEvidence ?? "none"}) — building normally.");
         if (navigatedForVerification)
         {
-            await RestoreBuildPageAfterConstructFasterFallbackAsync(slotId, restorePath, cancellationToken);
+            await restorePageAsync(cancellationToken);
         }
 
         return false;
+    }
+
+    private async Task<(bool Success, string Evidence)> VerifyConstructFasterResultOnDorf1Async(
+        int slotId,
+        int previousLevel,
+        int targetLevel,
+        string queueFingerprintBefore,
+        int expectedWaitSeconds,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            Notify($"[construct-faster] verifying resource result on fresh dorf1 — slot={slotId}.");
+            await GotoAsync(ResolveConstructFasterVerificationPath(ConstructionKind.Resource), cancellationToken);
+            var progress = await WaitForResourceLevelAdvanceAsync(
+                slotId,
+                previousLevel,
+                queueFingerprintBefore,
+                expectedWaitSeconds,
+                cancellationToken);
+            if (progress.Advanced || progress.QueuedOrInProgress)
+            {
+                return (true, progress.Evidence);
+            }
+
+            return (false, $"target level {targetLevel} not queued or reached: {progress.Evidence}");
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (!ShouldRethrowConstructFasterVerificationFailure(ex))
+        {
+            return (false, $"resource verification failed: {ex.Message}");
+        }
     }
 
     private async Task<(bool Success, string Evidence)> VerifyConstructFasterResultOnDorf2Async(
@@ -123,7 +201,7 @@ public sealed partial class TravianClient
         try
         {
             Notify($"[construct-faster] verifying result on fresh dorf2 — slot={slotId}.");
-            await GotoAsync(Paths.Buildings, cancellationToken);
+            await GotoAsync(ResolveConstructFasterVerificationPath(ConstructionKind.Building), cancellationToken);
             var progress = await WaitForBuildingLevelAdvanceAsync(
                 slotId,
                 previousLevel,
@@ -273,7 +351,7 @@ public sealed partial class TravianClient
         return $"{buildingName}: construct-faster video completed.";
     }
 
-    private static string BuildConstructFasterPath(int slotId, int? gid)
+    internal static string BuildConstructFasterPath(int slotId, int? gid)
     {
         var path = Paths.BuildBySlot(slotId);
         if (gid is int value && value > 0)
@@ -283,6 +361,9 @@ public sealed partial class TravianClient
 
         return path;
     }
+
+    internal static string ResolveConstructFasterVerificationPath(ConstructionKind constructionKind)
+        => constructionKind == ConstructionKind.Resource ? Paths.Resources : Paths.Buildings;
 
     private async Task<ConstructFasterButtonState> ReadConstructFasterButtonStateAsync(CancellationToken cancellationToken)
     {

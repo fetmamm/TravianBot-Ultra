@@ -161,6 +161,7 @@ Common endpoints:
 - Existing buildings and level-zero construction sites are distinct cases.
 - Building-type selectors must be exact enough to avoid upgrading the wrong slot.
 - “Construct faster” controls are not build/upgrade actions.
+- Construct-faster applies to both building slots and resource fields; verify results on `dorf2` and `dorf1` respectively before normal-click fallback.
 - Town Hall celebration rows must calculate resource shortfall before clicking; generic research/hero-transfer links are not start actions.
 - Mutually exclusive building rules must be evaluated before queue execution.
 - GID 13 and other special buildings must use the catalog and verified Official behavior.
