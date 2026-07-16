@@ -2,6 +2,8 @@
 
 Analysera loggfilen och identifiera möjligheter att minska onödiga navigeringar, sidbesök, omladdningar, sidläsningar och duplicerade åtgärder.
 
+Logfil: "C:\Users\jespe\Documents\GitHub\Tbot_ultra_new\logs\TbotUltra_Log_20260716_221725.txt"
+
 Målet är inte att göra programmet snabbare, utan att göra funktionerna smartare, mer mänskliga och att minska onödigt beteende.
 
 Leta särskilt efter:
