@@ -47,13 +47,11 @@ public sealed partial class TravianClient
                 }
                 return null;
               };
-              const selectors = [
-                '.buildingList li',
-                '#building_contract li',
-                '.underConstruction',
-                '.buildDuration',
-                'table.buildingList tr'
-              ];
+              // Official exposes authoritative queue rows through .buildingList li on dorf1/dorf2.
+              // Do not fall back to .underConstruction (overview slot marker), .buildDuration
+              // (timer fragment), or #building_contract (empty-slot building choices): none is a
+              // queue row and transient rendering otherwise looks like an unrelated queue change.
+              const selectors = ['.buildingList li'];
 
               // Each matched element is one active construction. Count them per element (NOT deduped by
               // text): two simultaneous upgrades of the same building/field have identical text and must

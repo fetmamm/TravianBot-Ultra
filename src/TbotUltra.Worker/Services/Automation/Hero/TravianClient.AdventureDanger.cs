@@ -70,32 +70,20 @@ public sealed partial class TravianClient
 
             if (_runInIsolatedBonusVideoBrowserAsync is not null)
             {
-                var earlyResult = await TryReadAdventureVideoEarlyResultAsync(boxClass, label, cancellationToken);
-                if (earlyResult is not null)
-                {
-                    return earlyResult;
-                }
-
-                try
-                {
-                    return await _runInIsolatedBonusVideoBrowserAsync(
-                        async (videoPage, videoCancellationToken) =>
-                        {
-                            var videoClient = CreateIsolatedBonusVideoClient(videoPage);
-                            return await videoClient.RunAdventureVideoBonusInCurrentBrowserAsync(
-                                boxClass,
-                                label,
-                                videoCancellationToken,
-                                isIsolated: true);
-                        },
-                        cancellationToken);
-                }
-                finally
-                {
-                    // Always return the main browser to dorf1, even when the isolated video threw, so the rest
-                    // of the hero flow never continues sitting on the adventures page (videoFeature box).
-                    await ReturnMainPageAfterIsolatedBonusVideoAsync();
-                }
+                // The disposable browser performs its own state check before playing. Keep the main browser
+                // on its current page so the following hero dispatch can reuse adventures without a
+                // duplicate main-page load or a dorf1 -> adventures bounce.
+                return await _runInIsolatedBonusVideoBrowserAsync(
+                    async (videoPage, videoCancellationToken) =>
+                    {
+                        var videoClient = CreateIsolatedBonusVideoClient(videoPage);
+                        return await videoClient.RunAdventureVideoBonusInCurrentBrowserAsync(
+                            boxClass,
+                            label,
+                            videoCancellationToken,
+                            isIsolated: true);
+                    },
+                    cancellationToken);
             }
 
             // Fallback for tests/non-session callers. Normal Official runs use the isolated video browser
@@ -152,29 +140,6 @@ public sealed partial class TravianClient
         return await RunAdventureVideoBonusCoreAsync(boxClass, label, cancellationToken);
     }
 
-    private async Task<string?> TryReadAdventureVideoEarlyResultAsync(
-        string boxClass,
-        string label,
-        CancellationToken cancellationToken)
-    {
-        await OpenHeroAdventuresPageAsync(cancellationToken);
-
-        var state = await ReadAdventureVideoStateAsync(boxClass, cancellationToken);
-        Notify($"[adventure-video] {label}: box state before isolated browser: {state}");
-        if (state == "active")
-        {
-            return $"{label} is already active for the next adventure.";
-        }
-
-        if (state == "missing")
-        {
-            return $"{label}: the bonus video feature was not found on the adventures page.";
-        }
-
-        Notify($"[adventure-video] {label}: video appears available; opening isolated video browser.");
-        return null;
-    }
-
     private TravianClient CreateIsolatedBonusVideoClient(IPage page)
     {
         return new TravianClient(
@@ -188,17 +153,19 @@ public sealed partial class TravianClient
             sessionCache: _session);
     }
 
+    // Shared by production-bonus video cleanup. Adventure videos intentionally keep the main page
+    // in place because their following action is another adventures-page interaction.
     private async Task ReturnMainPageAfterIsolatedBonusVideoAsync()
     {
         using var navigateCts = new CancellationTokenSource(TimeSpan.FromSeconds(20));
         try
         {
             await GotoAsync(Paths.Resources, navigateCts.Token);
-            Notify("[adventure-video] main browser returned to dorf1 after isolated video browser.");
+            Notify("[bonus-video] main browser returned to dorf1 after isolated video browser.");
         }
         catch (Exception ex)
         {
-            Notify($"[adventure-video] main browser could not return to dorf1 after isolated video browser: {ex.Message}");
+            Notify($"[bonus-video] main browser could not return to dorf1 after isolated video browser: {ex.Message}");
         }
     }
 

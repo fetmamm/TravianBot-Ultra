@@ -181,6 +181,7 @@ Common endpoints:
 ## Construction and queue invariants
 
 - `ActiveConstructions` is the source of truth for occupied construction slots.
+- Official queue rows on `dorf1`/`dorf2` expose name, level, and timer but may omit slot/gid identity; correlate by slot when present and otherwise by normalized name plus level/count. `.underConstruction`, `.buildDuration`, and `#building_contract` are not queue rows.
 - Track construction state per village and per slot/category.
 - A full queue is a normal blocked state, not an exception.
 - Check storage, prerequisites, available slot, and resources before clicking Build/Upgrade.
@@ -194,6 +195,7 @@ Common endpoints:
   runtime slot fallback rebinds the dependent upgrade before it can execute. Invalid template JSON must be quarantined before replacement.
 - “Construct faster” controls are not build/upgrade actions.
 - Construct-faster applies to both building slots and resource fields; verify results on `dorf2` and `dorf1` respectively before normal-click fallback.
+- After a successful hero-resource transfer, resource upgrades must re-evaluate the current build page instead of returning to `dorf1` and repeating queue/humanize gates.
 - Town Hall celebration rows must calculate resource shortfall before clicking; generic research/hero-transfer links are not start actions.
 - Mutually exclusive building rules must be evaluated before queue execution.
 - GID 13 and other special buildings must use the catalog and verified Official behavior.
@@ -264,6 +266,11 @@ Common endpoints:
 | Vikings | Unsupported | Excluded by product decision |
 
 ## Official support recipe
+
+- Continuous scheduling drains ready work across groups in the active browser village before switching villages. If that village has an allowed pending task due within 90 seconds, keep the village and wait; global tasks do not require a switch.
+- Building upgrades reuse a valid current build page. From `dorf2.php`, open the target through its visible slot link; direct `build.php?id=N` navigation is a fallback when the overview link is unavailable or fails.
+- Isolated adventure-video flows check bonus state in the disposable browser. They must not preload the same page in the main browser or force the main browser to `dorf1`; the following hero action reuses its current/adventures page.
+- `hero_manage` treats the global hero widget's away state as authoritative before hero-page navigation. Use a visible return timer when available; otherwise defer five minutes without opening adventures only to reconfirm away state.
 
 When adding or repairing automation:
 

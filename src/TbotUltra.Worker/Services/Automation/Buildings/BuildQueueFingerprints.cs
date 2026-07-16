@@ -126,7 +126,15 @@ internal static class BuildQueueFingerprints
         int? gid,
         int targetLevel)
     {
-        if (item.SlotId != slotId)
+        if (item.SlotId is int actualSlotId && actualSlotId != slotId)
+        {
+            return false;
+        }
+
+        // Current Official queue rows contain name, level and timer but no slot/gid link.
+        // When slot identity is absent, require the normalized name instead. The before/after
+        // occurrence count in FindNewTargetBuilding still proves that a matching row was added.
+        if (item.SlotId is null && !TextMatchesBuilding(item.Text, buildingName))
         {
             return false;
         }

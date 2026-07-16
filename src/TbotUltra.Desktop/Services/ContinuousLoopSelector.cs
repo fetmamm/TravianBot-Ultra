@@ -42,6 +42,8 @@ internal sealed record ContinuousLoopGroupSelectionResult(
 /// </summary>
 internal static class ContinuousLoopSelector
 {
+    internal static readonly TimeSpan ShortVillageDeferThreshold = TimeSpan.FromSeconds(90);
+
     internal static ContinuousLoopUtilitySelectionResult SelectUtility(
         ContinuousLoopUtilitySelectionInput input)
     {
@@ -142,6 +144,43 @@ internal static class ContinuousLoopSelector
                 string.Equals(item.TaskName, "spend_hero_attribute_points", StringComparison.OrdinalIgnoreCase)
                 && item.Status == QueueStatus.Pending
                 && item.NextAttemptAt <= now);
+    }
+
+    internal static IReadOnlyList<QueueItem> SelectVillageItems(
+        IReadOnlyList<QueueItem> orderedItems,
+        IReadOnlyDictionary<Guid, string?> villageKeys,
+        string villageKey,
+        bool includeVillageLess = false)
+    {
+        return orderedItems
+            .Where(item => villageKeys.TryGetValue(item.Id, out var itemVillageKey)
+                && (string.Equals(itemVillageKey, villageKey, StringComparison.OrdinalIgnoreCase)
+                    || (includeVillageLess && string.IsNullOrWhiteSpace(itemVillageKey))))
+            .ToList();
+    }
+
+    internal static DateTimeOffset? ResolveShortVillageHoldUntil(
+        IEnumerable<ContinuousLoopSelectionCandidate> candidates,
+        string? activeVillageKey,
+        DateTimeOffset now)
+    {
+        if (string.IsNullOrWhiteSpace(activeVillageKey))
+        {
+            return null;
+        }
+
+        var holdUntil = candidates
+            .Where(candidate =>
+                candidate.IsAllowedByAutomationSettings
+                && !IsUtilityTask(candidate.Item.TaskName)
+                && candidate.Item.Status == QueueStatus.Pending
+                && candidate.Item.NextAttemptAt > now
+                && candidate.Item.NextAttemptAt <= now.Add(ShortVillageDeferThreshold)
+                && string.Equals(candidate.VillageKey, activeVillageKey, StringComparison.OrdinalIgnoreCase))
+            .Select(candidate => (DateTimeOffset?)candidate.Item.NextAttemptAt)
+            .Min();
+
+        return holdUntil;
     }
 
     internal static TimeSpan ResolveReinforcementSendDelay(

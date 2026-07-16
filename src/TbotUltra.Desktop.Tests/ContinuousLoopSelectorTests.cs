@@ -197,6 +197,64 @@ public sealed class ContinuousLoopSelectorTests
         Assert.Same(attributeTask, result.Item);
     }
 
+    [Fact]
+    public void SelectVillageItems_KeepsOnlyActiveVillageInSchedulerOrder()
+    {
+        var first = Item("first", QueueStatus.Pending, 0);
+        var other = Item("other", QueueStatus.Pending, 0);
+        var second = Item("second", QueueStatus.Pending, 0);
+        var villageKeys = new Dictionary<Guid, string?>
+        {
+            [first.Id] = "a",
+            [other.Id] = "b",
+            [second.Id] = "A",
+        };
+
+        var result = ContinuousLoopSelector.SelectVillageItems([first, other, second], villageKeys, "a");
+
+        Assert.Equal([first, second], result);
+    }
+
+    [Fact]
+    public void SelectVillageItems_CanIncludeGlobalHeroWorkWithoutVillageSwitch()
+    {
+        var active = Item("active", QueueStatus.Pending, 0);
+        var global = Item("hero_manage", QueueStatus.Pending, 0);
+        var other = Item("other", QueueStatus.Pending, 0);
+        var villageKeys = new Dictionary<Guid, string?>
+        {
+            [active.Id] = "a",
+            [global.Id] = null,
+            [other.Id] = "b",
+        };
+
+        var result = ContinuousLoopSelector.SelectVillageItems(
+            [active, global, other],
+            villageKeys,
+            "a",
+            includeVillageLess: true);
+
+        Assert.Equal([active, global], result);
+    }
+
+    [Theory]
+    [InlineData(90, true)]
+    [InlineData(91, false)]
+    public void ResolveShortVillageHoldUntil_OnlyHoldsActiveVillageForShortDefer(
+        int secondsUntilReady,
+        bool expectedHold)
+    {
+        var activeDeferred = Item("active", QueueStatus.Pending, secondsUntilReady);
+        var otherDeferred = Item("other", QueueStatus.Pending, 30);
+
+        var result = ContinuousLoopSelector.ResolveShortVillageHoldUntil(
+            [Candidate(activeDeferred, "a"), Candidate(otherDeferred, "b")],
+            "a",
+            Now);
+
+        Assert.Equal(expectedHold, result is not null);
+    }
+
     private static ContinuousLoopSelectionCandidate Candidate(
         QueueItem item,
         string? villageKey,

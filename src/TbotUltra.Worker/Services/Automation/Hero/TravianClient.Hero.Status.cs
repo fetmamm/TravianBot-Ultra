@@ -349,47 +349,6 @@ public sealed partial class TravianClient
         }
     }
 
-    /// <summary>
-    /// When the hero is on an adventure, opens the adventures page and reads the return ETA so the
-    /// loop can defer instead of re-querying every tick. Official Travian (T4.6) shows the countdown
-    /// as "Arrival in <span class='timerReact'>00:04:20</span>" on /hero/adventures.
-    /// </summary>
-    private async Task<int?> ReadHeroReturnEtaWhenAwayAsync(CancellationToken cancellationToken)
-    {
-        try
-        {
-            if (!IsCurrentUrlForPath(Paths.HeroAdventures))
-            {
-                await GotoAsync(Paths.HeroAdventures, cancellationToken);
-                await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-                await EnsureLoggedInAsync();
-            }
-
-            // The away countdown (.heroState span.timerReact / "Arrival in 00:05:30") is
-            // React-rendered and not in the DOM immediately after navigation. Wait for it to
-            // appear, otherwise the read returns null and the caller falls back to a flat guess.
-            try
-            {
-                await _page.WaitForFunctionAsync(
-                    """
-                    () => !!document.querySelector('.heroState .timerReact, span.timerReact, .timerReact')
-                       || /arrival\s+in\s+\d/i.test(document.body?.innerText || '')
-                    """,
-                    null,
-                    new PageWaitForFunctionOptions { Timeout = 5000 });
-            }
-            catch (TimeoutException)
-            {
-            }
-
-            return await ReadHeroReturnSecondsAsync(cancellationToken);
-        }
-        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
-        {
-            return null;
-        }
-    }
-
     // Official Travian (T4.6): the hero HP percent is shown on /hero/attributes as an integer
     // percent in a .value div (e.g. "96%"); attribute bonuses there are decimals like "0.0%".
     private async Task<int?> ReadHeroHpPercentOfficialAsync(CancellationToken cancellationToken)

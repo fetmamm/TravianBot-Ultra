@@ -433,14 +433,6 @@ public sealed partial class TravianClient : IHeroClient
 
         var heroReturnWaitSeconds = status.SecondsUntilReturn;
         var adventureCount = adventureHintCount;
-        if (adventureHintCount > 0 && !inVillage)
-        {
-            await OpenHeroAdventuresPageAsync(cancellationToken);
-            adventureCount = await CountAdventureRowsAsync(cancellationToken);
-            status = await ReadHeroStatusAsync(cancellationToken);
-            hpPercent ??= status.HpPercent;
-            heroReturnWaitSeconds = status.SecondsUntilReturn;
-        }
 
         if (hpPercent is >= 0 && hpPercent >= minHpThreshold)
         {
@@ -557,13 +549,9 @@ public sealed partial class TravianClient : IHeroClient
         else if (!inVillage && !status.IsDead)
         {
             actions.Add("adventure_skipped_hero_away");
-            // The hero is away (on an adventure/attack). Read the return ETA — regardless of the
-            // adventure count — so the loop defers until the hero is home instead of re-queueing
-            // hero_manage every tick, and the dashboard shows the return timer instead of "Ready".
-            if (heroReturnWaitSeconds is not > 0)
-            {
-                heroReturnWaitSeconds = await ReadHeroReturnEtaWhenAwayAsync(cancellationToken);
-            }
+            // Away is already authoritative in the global hero widget. Keep the current page instead of
+            // opening adventures only to reconfirm it; use its timer when exposed, otherwise poll safely.
+            heroReturnWaitSeconds ??= HeroAdventureBlockedRetrySeconds;
         }
         else if (adventureCount > 0 && !canSendByHp)
         {

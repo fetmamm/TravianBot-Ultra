@@ -78,6 +78,7 @@ public sealed partial class TravianClient
                 }
 
                 var buildQueueBefore = snapshot.BuildQueue;
+            ReevaluateCurrentSlot:
                 var actionability = await AnalyzeUpgradeActionabilityAsync(
                     slotId,
                     cancellationToken,
@@ -117,7 +118,8 @@ public sealed partial class TravianClient
                         Notify($"[resources] hero-transfer offer key={offerKey} label='{label}'.");
                         if (await TryHeroResourceTransferForConstructionAsync(label, cancellationToken))
                         {
-                            continue;
+                            Notify($"[resources] hero transfer completed for slot={slotId}; rechecking same build page before navigating away.");
+                            goto ReevaluateCurrentSlot;
                         }
                     }
                 }

@@ -275,6 +275,49 @@ public sealed class TravianClientHelperTests
     }
 
     [Fact]
+    public void BuildQueueFindNewTargetBuilding_MatchesOfficialRowWithoutSlotIdentity()
+    {
+        IReadOnlyList<BuildQueueItem> before =
+        [
+            new BuildQueueItem("Stable Level 13 0:25:36 hrs. done at 21:18", "0:25:36"),
+        ];
+        IReadOnlyList<BuildQueueItem> after =
+        [
+            new BuildQueueItem("Stable Level 13 0:25:30 hrs. done at 21:18", "0:25:30"),
+            new BuildQueueItem("Marketplace Level 13 1:08:26 hrs. done at 22:01", "1:08:26"),
+        ];
+
+        var match = BuildQueueFingerprints.FindNewTargetBuilding(
+            before,
+            after,
+            "Marketplace",
+            slotId: 31,
+            gid: 17,
+            targetLevel: 13);
+
+        Assert.NotNull(match);
+        Assert.Null(match.SlotId);
+    }
+
+    [Fact]
+    public void BuildQueueFindNewTargetBuilding_DoesNotMatchOtherOfficialRowWithoutSlotIdentity()
+    {
+        IReadOnlyList<BuildQueueItem> before = [];
+        IReadOnlyList<BuildQueueItem> after =
+        [
+            new BuildQueueItem("Marketplace Level 13 1:08:26 hrs. done at 22:01", "1:08:26"),
+        ];
+
+        Assert.Null(BuildQueueFingerprints.FindNewTargetBuilding(
+            before,
+            after,
+            "Stable",
+            slotId: 29,
+            gid: 20,
+            targetLevel: 13));
+    }
+
+    [Fact]
     public void BuildQueueFindNewBuildingByName_DoesNotTreatExistingRowAsNew()
     {
         IReadOnlyList<BuildQueueItem> before =

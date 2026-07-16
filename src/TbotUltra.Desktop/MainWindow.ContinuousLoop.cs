@@ -839,6 +839,69 @@ public partial class MainWindow
             return null;
         }
 
+        // Finish ready work in the browser's current village before considering another village. This
+        // avoids repeated village switches when different automation groups are interleaved.
+        if (!string.IsNullOrWhiteSpace(_activeWorkingVillageKey))
+        {
+            foreach (var group in orderedGroups)
+            {
+                var activeVillageItems = ContinuousLoopSelector.SelectVillageItems(
+                    selectionPlan.OrderedItemsByGroup[group],
+                    villageKeysByItemId,
+                    _activeWorkingVillageKey,
+                    includeVillageLess: group == QueueGroup.Hero);
+                if (activeVillageItems.Count == 0)
+                {
+                    continue;
+                }
+
+                QueueItem? activeVillageCandidate;
+                if (group == QueueGroup.Construction)
+                {
+                    activeVillageCandidate = SelectNextConstructionQueueItem(
+                        activeVillageItems,
+                        now,
+                        out _,
+                        preview);
+                    if (activeVillageCandidate is not null
+                        && !IsConstructionGroupReady(
+                            allowWorkerValidationForReadyItem: true,
+                            suppressLog: preview))
+                    {
+                        activeVillageCandidate = null;
+                    }
+                }
+                else
+                {
+                    activeVillageCandidate = group == QueueGroup.Hero
+                        ? ContinuousLoopSelector.SelectReadyHeroGroupItem(activeVillageItems, now)
+                        : ContinuousLoopSelector.SelectReadyGroupHead(activeVillageItems, now);
+                }
+
+                if (activeVillageCandidate is not null)
+                {
+                    return activeVillageCandidate;
+                }
+            }
+
+            var holdUntil = ContinuousLoopSelector.ResolveShortVillageHoldUntil(
+                selectionCandidates,
+                _activeWorkingVillageKey,
+                now);
+            if (holdUntil is not null)
+            {
+                if (!preview)
+                {
+                    AppendLoopPickVerbose(
+                        $"[loop-pick:verbose] holding current village for short defer until "
+                        + $"'{FormatQueueServerTime(holdUntil.Value)}'",
+                        $"short-village-hold:{_activeWorkingVillageKey}:{holdUntil.Value.UtcTicks}");
+                }
+
+                return null;
+            }
+        }
+
         string? lastSkipReason = null;
         foreach (var group in orderedGroups)
         {

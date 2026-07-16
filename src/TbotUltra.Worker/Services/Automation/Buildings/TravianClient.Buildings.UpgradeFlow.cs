@@ -649,7 +649,10 @@ public sealed partial class TravianClient : IBuildingClient
     {
         if (!TravianUrls.IsBuildPageForSlot(_page.Url, slotId))
         {
-            await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
+            if (!await TryOpenBuildSlotFromOverviewAsync(slotId, cancellationToken))
+            {
+                await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
+            }
         }
         else if (await IsPageMarkedStaleAsync())
         {
@@ -658,6 +661,52 @@ public sealed partial class TravianClient : IBuildingClient
         }
 
         await EnsureExpectedBuildSlotPageAsync(slotId, operationLabel, cancellationToken);
+    }
+
+    private async Task<bool> TryOpenBuildSlotFromOverviewAsync(
+        int slotId,
+        CancellationToken cancellationToken)
+    {
+        if (!Uri.TryCreate(_page.Url, UriKind.Absolute, out var currentUri)
+            || !currentUri.AbsolutePath.EndsWith("/dorf2.php", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        try
+        {
+            var selector = $"a[href$='build.php?id={slotId}'], a[href*='build.php?id={slotId}&'], "
+                + $"area[href$='build.php?id={slotId}'], area[href*='build.php?id={slotId}&']";
+            Notify($"[build:verbose] slot {slotId}: opening via visible dorf2 slot link.");
+            if (!await TryClickFirstVisibleEnabledAsync(
+                    selector,
+                    cancellationToken,
+                    reason: $"open building slot {slotId}"))
+            {
+                Notify($"[build:verbose] slot {slotId}: no visible overview link; using direct fallback.");
+                return false;
+            }
+
+            await WaitForPageReadyAsync(cancellationToken);
+            InvalidateActiveConstructionsCache();
+            await ApplyPacingDelayAsync(
+                _config.ActionPacingPageLoadMinSeconds,
+                _config.ActionPacingPageLoadMaxSeconds,
+                "page-load-pacing",
+                "after building slot click",
+                cancellationToken);
+            await TryDismissContinuePromptAsync(cancellationToken);
+            return TravianUrls.IsBuildPageForSlot(_page.Url, slotId);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            Notify($"[build:verbose] slot {slotId}: overview link failed ({ex.Message}); using direct fallback.");
+            return false;
+        }
     }
 
     private async Task<BuildPageState> DetectBuildPageStateAsync()
@@ -1351,7 +1400,10 @@ public sealed partial class TravianClient : IBuildingClient
             // / a post-click redirect) can leave us on dorf2.php?id=slot, which carries the same id= param
             // as build.php?id=slot. Re-open the slot so the upgrade click targets the build page instead of
             // silently running on the village overview. (Official build.php?id=N also adds &gid=.)
-            await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
+            if (!await TryOpenBuildSlotFromOverviewAsync(slotId, cancellationToken))
+            {
+                await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
+            }
             await EnsureLoggedInAsync();
             if (!TravianUrls.IsBuildPageForSlot(_page.Url, slotId))
             {
