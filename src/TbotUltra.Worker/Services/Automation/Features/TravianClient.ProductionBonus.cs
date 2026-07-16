@@ -11,7 +11,10 @@ namespace TbotUltra.Worker.Services;
 
 public sealed partial class TravianClient
 {
-    private const int ProductionBonusVideoPollIntervalMs = 2000;
+    // Poll once per second so the "video finished" state (ad overlay closed + bonus box active) is noticed
+    // within ~1s instead of up to 2s. The DOM read is cheap; the dominant former delay was the post-play
+    // minute, which the completion check above now skips once the overlay has closed.
+    private const int ProductionBonusVideoPollIntervalMs = 1000;
     private const int AdvantagesRenderAttempts = 60;
     private const int AdvantagesRenderPollIntervalMs = 500;
     private const int AdvantagesOpenAttempts = 2;
@@ -474,6 +477,18 @@ public sealed partial class TravianClient
             var boxActive = GetBoolean(root, "boxActive");
             var dialogOpen = GetBoolean(root, "dialogOpen");
             var hasPlayer = GetBoolean(root, "hasPlayer");
+            // Fast completion: once the +15% box is active AND the ad overlay/player has closed (the page
+            // has returned to the Advantages wizard), the reward is granted and the video is genuinely done.
+            // This is definitive, so we do not hold the browser for the protected post-play minute — which
+            // otherwise adds up to ~40s of idle waiting after a short video. Requiring the overlay to be gone
+            // also guards against a box that reads active while the ad is still playing: we only complete once
+            // the player has actually closed. The minute still guards the provider-FAILURE path below.
+            if (boxActive && !hasPlayer && !dialogOpen)
+            {
+                Notify($"[production-bonus] video completion confirmed after {elapsedSeconds:F1}s — +15% box active and ad overlay closed.");
+                return true;
+            }
+
             if (boxActive && BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds))
             {
                 Notify($"[production-bonus] video completion confirmed after {elapsedSeconds:F1}s post-play — box shows +15% active.");
@@ -484,8 +499,8 @@ public sealed partial class TravianClient
             {
                 earlyRewardLogged = true;
                 Notify(
-                    $"[production-bonus:verbose] +15% reward appeared after {elapsedSeconds:F1}s, but browser remains open " +
-                    $"for the protected post-play minute ({BonusVideoPlaybackPolicy.RemainingGraceSeconds(elapsedSeconds)}s remaining).");
+                    $"[production-bonus:verbose] +15% reward appeared after {elapsedSeconds:F1}s while the ad overlay was still open; " +
+                    $"waiting for it to close (or the protected post-play minute, {BonusVideoPlaybackPolicy.RemainingGraceSeconds(elapsedSeconds)}s remaining).");
             }
 
             if (!dialogOpen && !hasPlayer && !BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds) && !ignoredClosedPlayerLogged)

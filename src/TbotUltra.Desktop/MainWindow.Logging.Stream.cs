@@ -562,6 +562,16 @@ public partial class MainWindow
             return false;
         }
 
+        // Bonus-video ad-network diagnostics ([browser-video:network]) are sanitized telemetry: per-host
+        // block reasons (e.g. ERR_BLOCKED_BY_ORB from our own ad-domain route block) and aggregate
+        // ok/no-content/http-errors/request-failures counters. They are expected noise, never an actionable
+        // failure — the real bonus-video failure classification and cooldowns are handled separately. Without
+        // this the "failed"/"error" keywords below would flag every summary line as a red alarm.
+        if (value.Contains("[browser-video:network]"))
+        {
+            return false;
+        }
+
         if (LogClassifier.IsExpectedFarmListResult(message))
         {
             return false;
