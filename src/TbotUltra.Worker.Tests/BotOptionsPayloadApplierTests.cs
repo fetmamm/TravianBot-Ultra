@@ -35,6 +35,42 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
+    public void FromConfiguration_DetailedBrowserLogging_DefaultsDisabledAndCanEnable()
+    {
+        var defaults = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["server_name"] = "srv",
+                ["base_url"] = "https://example.com",
+            })
+            .Build();
+        var enabled = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                ["server_name"] = "srv",
+                ["base_url"] = "https://example.com",
+                [BotOptionPayloadKeys.DetailedBrowserLoggingEnabled] = "true",
+            })
+            .Build();
+
+        Assert.False(BotOptionsFactory.FromConfiguration(defaults).DetailedBrowserLoggingEnabled);
+        Assert.True(BotOptionsFactory.FromConfiguration(enabled).DetailedBrowserLoggingEnabled);
+    }
+
+    [Fact]
+    public void Apply_PreservesGlobalDetailedBrowserLoggingSetting()
+    {
+        var source = new BotOptions { DetailedBrowserLoggingEnabled = true };
+
+        var result = BotOptionsPayloadApplier.Apply(source, new Dictionary<string, string>
+        {
+            [BotOptionPayloadKeys.TargetVillageName] = "03",
+        });
+
+        Assert.True(result.DetailedBrowserLoggingEnabled);
+    }
+
+    [Fact]
     public void FromConfiguration_AutomaticallyCheckLanguage_CanDisable()
     {
         var configuration = new ConfigurationBuilder()

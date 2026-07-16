@@ -134,6 +134,7 @@ public partial class MainWindow
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
+        var detailedBrowserLoggingBefore = LoadBotOptions().DetailedBrowserLoggingEnabled;
         var detectedResetHour = Services.ProductionBonusStateStore
             .LoadSettings(_projectRoot, _accountStore.ActiveAccountName())
             .DetectedResetHour;
@@ -145,9 +146,16 @@ public partial class MainWindow
         LoadConfigToUi();
         ConfigureSessionPacerFromConfig();
         RefreshUpdateNotificationState();
+        var optionsAfterSettings = LoadBotOptions();
+        if (optionsAfterSettings.DetailedBrowserLoggingEnabled != detailedBrowserLoggingBefore)
+        {
+            AppendLog(optionsAfterSettings.DetailedBrowserLoggingEnabled
+                ? "Detailed browser logging ENABLED (development only). Detailed events start with the next browser operation."
+                : "Detailed browser logging disabled.");
+        }
         if (saved)
         {
-            LogConservativeAutomationWarnings(LoadBotOptions());
+            LogConservativeAutomationWarnings(optionsAfterSettings);
         }
 
         if (window.SleepNowRequested)

@@ -102,15 +102,30 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken = default,
         bool allowNavigationToBuildings = true)
     {
+        using var trace = _browserTrace.BeginOperation(
+            "READ",
+            "active-constructions",
+            $"scope=current-page allowNavigation={allowNavigationToBuildings}");
         // Cache hit collapses the 4-5 calls a single upgrade iteration makes (CheckQueueOrDefer,
         // ReadHighestKnownQueuedBuildingLevel, ReadQueuedBuildingWaitSeconds, level-advance poll)
         // into one network round-trip. GotoAsync invalidates the cache automatically.
         if (_cachedActiveConstructions is not null
             && DateTimeOffset.UtcNow - _cachedActiveConstructionsAt < ActiveConstructionsCacheTtl)
         {
+            var ageMs = (long)(DateTimeOffset.UtcNow - _cachedActiveConstructionsAt).TotalMilliseconds;
             _lastActiveConstructionsFromOverview = _cachedActiveConstructionsFromOverview;
+            _browserTrace.Event(
+                "CACHE",
+                "active-constructions-hit",
+                "hit",
+                $"ageMs={ageMs} count={_cachedActiveConstructions.Count} fromOverview={_cachedActiveConstructionsFromOverview}");
+            trace.Complete(
+                "success",
+                $"source=cache count={_cachedActiveConstructions.Count} ageMs={ageMs}");
             return _cachedActiveConstructions;
         }
+
+        _browserTrace.Event("CACHE", "active-constructions-miss", "miss", "reason=missing-or-expired");
 
         LogFunctionStarted();
         _lastActiveConstructionsFromOverview = false;
@@ -134,7 +149,14 @@ public sealed partial class TravianClient
         {
             // Empty is destructive state. Confirm it twice on a page that actually owns Travian's
             // construction queue before allowing desktop cache merge to clear a prior non-empty list.
-            await Task.Delay(350, cancellationToken);
+            using (var wait = _browserTrace.BeginOperation(
+                       "WAIT",
+                       "confirm-empty-construction-queue",
+                       "plannedMs=350 condition=second-overview-DOM-read"))
+            {
+                await Task.Delay(350, cancellationToken);
+                wait.Complete("success", "actual=delay-completed");
+            }
             raw = await ReadActiveConstructionsOnCurrentPageAsync();
             Notify($"[construction-status:verbose] confirmed empty overview queue with second DOM read.");
         }
@@ -166,6 +188,9 @@ public sealed partial class TravianClient
         _cachedActiveConstructionsAt = DateTimeOffset.UtcNow;
         _cachedActiveConstructionsFromOverview = readFromOverview;
         _lastActiveConstructionsFromOverview = readFromOverview;
+        trace.Complete(
+            "success",
+            $"source=live count={result.Count} fromOverview={readFromOverview}");
         return result;
 
         async Task<List<ActiveConstructionJs>> ReadActiveConstructionsOnCurrentPageAsync()

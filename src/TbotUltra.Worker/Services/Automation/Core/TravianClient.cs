@@ -4,6 +4,7 @@ using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Travian;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Configuration;
+using TbotUltra.Worker.Infrastructure;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 using System.Globalization;
@@ -25,6 +26,7 @@ public sealed partial class TravianClient
     private readonly string _capitalCachePath;
     private readonly HeroAttributeSnapshotStore _heroAttributeSnapshotStore;
     private readonly Action<string>? _statusCallback;
+    private readonly BrowserTraceLogger _browserTrace;
     // Flips the browser session's consentmanager route block on/off; used only by the bonus-video flow,
     // which needs GDPR/TCF consent while the rest of the session keeps it blocked (no stray sync tabs).
     private readonly Action<bool>? _setConsentDomainsAllowed;
@@ -65,6 +67,7 @@ public sealed partial class TravianClient
         _cachedActiveConstructions = null;
         _cachedActiveConstructionsFromOverview = false;
         _lastActiveConstructionsFromOverview = false;
+        _browserTrace?.Event("CACHE", "active-constructions-invalidate", detail: "reason=page state changed");
     }
 
     private void NotifyResourceRead(string message)
@@ -245,7 +248,8 @@ public sealed partial class TravianClient
         Action<bool>? setConsentDomainsAllowed = null,
         Func<IPage, CancellationToken, Task>? cleanupAfterBonusVideoAsync = null,
         Func<Func<IPage, CancellationToken, Task<string>>, CancellationToken, Task<string>>? runInIsolatedBonusVideoBrowserAsync = null,
-        Func<CancellationToken, Task<IPage>>? rotateAfterLobbyLoginAsync = null)
+        Func<CancellationToken, Task<IPage>>? rotateAfterLobbyLoginAsync = null,
+        BrowserTraceLogger? browserTrace = null)
     {
         _page = page;
         _config = config;
@@ -265,12 +269,21 @@ public sealed partial class TravianClient
         _capitalCachePath = AccountStoragePaths.CapitalStatePath(_projectRoot, _account.Name);
         _heroAttributeSnapshotStore = new HeroAttributeSnapshotStore(_projectRoot);
         _statusCallback = statusCallback;
+        _browserTrace = browserTrace ?? new BrowserTraceLogger(config.DetailedBrowserLoggingEnabled, statusCallback);
+        _browserTrace.AttachPage(page, "travian-client");
     }
 
     public string AccountName => _account.Name;
     public string ServerUrl => _config.BaseUrl.TrimEnd('/');
     public string? KnownTribe => IsKnownTribe(_sessionTribe) ? _sessionTribe : IsKnownTribe(_cachedTribe) ? _cachedTribe : null;
     public bool? KnownGoldClubEnabled => _cachedGoldClubEnabled;
+
+    internal BrowserTraceLogger.BrowserTraceFlow BeginBrowserTraceFlow(
+        string? runId,
+        string task,
+        string? village,
+        string action)
+        => _browserTrace.BeginFlow(runId, task, _account.Name, village, action);
     
     private async Task CaptureFailureArtifactsAsync(string label, CancellationToken cancellationToken)
     {

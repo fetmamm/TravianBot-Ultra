@@ -16,14 +16,19 @@ public sealed partial class TravianClient
 {
     public async Task RefreshAccountFeatureSignalsAsync(CancellationToken cancellationToken = default)
     {
+        using var trace = _browserTrace.BeginOperation("REFRESH", "account-feature-signals", "reason=preflight source=live-or-cache");
         // Plus can change during a round. Tribe cannot, and Gold Club only matters as a latched true.
         if (_cachedTravianPlusActive.HasValue
             && (_cachedGoldClubEnabled == true)
             && IsKnownTribe(_sessionTribe)
             && DateTimeOffset.UtcNow - _cachedTribePlusAt < TimeSpan.FromSeconds(60))
         {
+            _browserTrace.Event("CACHE", "account-feature-signals-hit", "hit", "ageSeconds<60 plus=true goldClub=true tribe=known");
+            trace.Complete("success", "source=cache changed=false");
             return;
         }
+
+        _browserTrace.Event("CACHE", "account-feature-signals-miss", "miss", "reason=missing-stale-or-unlatched");
 
         try
         {
@@ -76,10 +81,14 @@ public sealed partial class TravianClient
                 Notify($"Tribe detection failed: {ex.Message}");
             }
         }
+        trace.Complete(
+            "success",
+            $"source=live plus={_cachedTravianPlusActive?.ToString() ?? "unknown"} goldClub={_cachedGoldClubEnabled?.ToString() ?? "unknown"} tribe={_sessionTribe ?? "unknown"}");
     }
 
     public async Task<VillageStatus> ReadVillageStatusAsync(CancellationToken cancellationToken = default)
     {
+        using var trace = _browserTrace.BeginOperation("REFRESH", "village-status", "reason=manual-or-background scope=active-village");
         Notify("ReadVillageStatusAsync started");
         if (!IsCurrentUrlForPath(Paths.Resources))
         {
@@ -87,7 +96,11 @@ public sealed partial class TravianClient
         }
 
         await EnsureLoggedInAsync();
-        return await ReadCurrentVillageStatusAsync(cancellationToken);
+        var result = await ReadCurrentVillageStatusAsync(cancellationToken);
+        trace.Complete(
+            "success",
+            $"village={result.ActiveVillage} resources={result.Resources.Count} buildings={result.Buildings.Count} queue={result.BuildQueue.Count}");
+        return result;
     }
 
     public async Task<VillageStatus> ReadVillageStatusAsync(
@@ -95,6 +108,7 @@ public sealed partial class TravianClient
         IReadOnlyList<Building> knownBuildings,
         CancellationToken cancellationToken = default)
     {
+        using var trace = _browserTrace.BeginOperation("REFRESH", "village-status", "reason=manual-or-background scope=active-village knownState=true");
         Notify("ReadVillageStatusAsync started with known villages/buildings");
         if (!IsCurrentUrlForPath(Paths.Resources))
         {
@@ -102,7 +116,11 @@ public sealed partial class TravianClient
         }
 
         await EnsureLoggedInAsync();
-        return await ReadCurrentVillageStatusAsync(cancellationToken, knownVillages, knownBuildings);
+        var result = await ReadCurrentVillageStatusAsync(cancellationToken, knownVillages, knownBuildings);
+        trace.Complete(
+            "success",
+            $"village={result.ActiveVillage} resources={result.Resources.Count} buildings={result.Buildings.Count} queue={result.BuildQueue.Count}");
+        return result;
     }
 
     public async Task<AccountSnapshot> ReadAccountSnapshotAsync(
@@ -113,6 +131,10 @@ public sealed partial class TravianClient
         bool skipOverviewNavigation = false,
         CancellationToken cancellationToken = default)
     {
+        using var trace = _browserTrace.BeginOperation(
+            "REFRESH",
+            "account-snapshot",
+            $"forceVillages={forceRefreshVillages} preferCurrentPage={preferCurrentPageVillages} skipOverview={skipOverviewNavigation}");
         Notify("ReadAccountSnapshotAsync started");
         if (suppressEnsureUiSync)
         {
@@ -153,12 +175,14 @@ public sealed partial class TravianClient
                     : await ReadVillagesAsync(cancellationToken);
             }
 
-            return new AccountSnapshot(
+            var result = new AccountSnapshot(
                 Tribe: await ReadTribeAsync(cancellationToken),
                 ActiveVillage: await ReadActiveVillageNameAsync(cancellationToken),
                 VillageCount: villages.Count,
                 Villages: villages,
                 ServerTimeUtc: _serverTimeUtc);
+            trace.Complete("success", $"villageCount={result.VillageCount} activeVillage={result.ActiveVillage}");
+            return result;
         }
         finally
         {

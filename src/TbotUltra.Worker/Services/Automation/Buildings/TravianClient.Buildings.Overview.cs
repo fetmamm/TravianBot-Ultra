@@ -10,6 +10,7 @@ public sealed partial class TravianClient
 {
     private async Task<IReadOnlyList<Building>> ReadBuildingsAsync(CancellationToken cancellationToken)
     {
+        using var trace = _browserTrace.BeginOperation("READ", "buildings-overview", "scope=dorf2");
         await GotoAsync(Paths.Buildings, cancellationToken);
 
         await EnsureLoggedInAsync();
@@ -20,7 +21,7 @@ public sealed partial class TravianClient
             buildingsBySlot = await ReadBuildingInfosAsync(cancellationToken);
         }, cancellationToken: cancellationToken);
 
-        return buildingsBySlot.Values
+        var result = buildingsBySlot.Values
             .OrderBy(item => item.SlotId)
             .Select(item => new Building(
                 item.SlotId,
@@ -29,6 +30,8 @@ public sealed partial class TravianClient
                 ResolveUrl(Paths.BuildBySlot(item.SlotId)),
                 ParseGidFromBuildingCode(item.BuildingCode)))
             .ToList();
+        trace.Complete("success", $"source=live count={result.Count}");
+        return result;
     }
 
     private async Task<Dictionary<int, BuildingInfo>> ReadBuildingInfosAsync(CancellationToken cancellationToken)

@@ -16,6 +16,7 @@ public sealed partial class TravianClient
 {
     private async Task<IReadOnlyList<Village>> ReadVillagesAsync(CancellationToken cancellationToken)
     {
+        using var trace = _browserTrace.BeginOperation("READ", "villages", "scope=account source=cache-or-profile");
         Notify("[scan:verbose] ReadVillagesAsync started");
         // Only navigate to spieler.php when the population cache has been explicitly invalidated
         // (i.e. on a real village switch, where SwitchToVillageAsync resets the timestamp to
@@ -25,8 +26,17 @@ public sealed partial class TravianClient
         var populationInvalidated = _cachedVillagesPopulationAt == DateTimeOffset.MinValue;
         if (_cachedVillages is { Count: > 0 } cached && !populationInvalidated)
         {
+            var ageMs = (long)(DateTimeOffset.UtcNow - _cachedVillagesAt).TotalMilliseconds;
+            _browserTrace.Event("CACHE", "villages-hit", "hit", $"ageMs={ageMs} count={cached.Count} populationInvalidated=false");
+            trace.Complete("success", $"source=cache count={cached.Count} ageMs={ageMs}");
             return cached;
         }
+
+        _browserTrace.Event(
+            "CACHE",
+            "villages-miss",
+            "miss",
+            $"reason={(populationInvalidated ? "population-invalidated" : "missing")}");
 
         var villages = await ReadVillagesFromServerAsync(cancellationToken);
         if (villages.Count > 0)
@@ -39,6 +49,7 @@ public sealed partial class TravianClient
             }
         }
         Notify("[scan:verbose] ReadVillagesAsync finished");
+        trace.Complete("success", $"source=profile count={villages.Count}");
         return villages;
     }
 
@@ -48,11 +59,17 @@ public sealed partial class TravianClient
     // appear to the user as an unnecessary refresh.
     private async Task<IReadOnlyList<Village>> ReadVillagesPreferCacheAsync(CancellationToken cancellationToken)
     {
+        using var trace = _browserTrace.BeginOperation("READ", "villages-prefer-cache", "scope=account source=cache-or-sidebar");
         if (_cachedVillages is { Count: > 0 } cached
             && DateTimeOffset.UtcNow - _cachedVillagesAt < VillagesCacheTtl)
         {
+            var ageMs = (long)(DateTimeOffset.UtcNow - _cachedVillagesAt).TotalMilliseconds;
+            _browserTrace.Event("CACHE", "villages-hit", "hit", $"ageMs={ageMs} count={cached.Count}");
+            trace.Complete("success", $"source=fresh-cache count={cached.Count} ageMs={ageMs}");
             return cached;
         }
+
+        _browserTrace.Event("CACHE", "villages-miss", "miss", "reason=missing-or-expired checking=sidebar");
 
         try
         {
@@ -91,11 +108,13 @@ public sealed partial class TravianClient
                         .ToList();
                     _cachedVillages = merged;
                     _cachedVillagesAt = DateTimeOffset.UtcNow;
+                    trace.Complete("success", $"source=sidebar-merged count={merged.Count}");
                     return merged;
                 }
 
                 _cachedVillages = sidebar.ToList();
                 _cachedVillagesAt = DateTimeOffset.UtcNow;
+                trace.Complete("success", $"source=sidebar count={sidebar.Count}");
                 return sidebar;
             }
         }
@@ -106,10 +125,15 @@ public sealed partial class TravianClient
 
         if (_cachedVillages is { Count: > 0 } stale)
         {
+            var ageMs = (long)(DateTimeOffset.UtcNow - _cachedVillagesAt).TotalMilliseconds;
+            _browserTrace.Event("CACHE", "villages-hit", "hit", $"ageMs={ageMs} count={stale.Count} stale=true reason=sidebar-empty-or-failed");
+            trace.Complete("success", $"source=stale-cache count={stale.Count} ageMs={ageMs}");
             return stale;
         }
 
-        return await ReadVillagesAsync(cancellationToken);
+        var profile = await ReadVillagesAsync(cancellationToken);
+        trace.Complete("success", $"source=profile-fallback count={profile.Count}");
+        return profile;
     }
 
     private async Task<IReadOnlyList<Village>> ReadVillagesFromCurrentPageAsync(CancellationToken cancellationToken)
@@ -727,4 +751,3 @@ public sealed partial class TravianClient
     }
 
 }
-

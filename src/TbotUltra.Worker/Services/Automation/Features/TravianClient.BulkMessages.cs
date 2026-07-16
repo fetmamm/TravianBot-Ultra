@@ -252,14 +252,12 @@ public sealed partial class TravianClient
     // robot-instant. Kept modest (0.15-0.45s) so the React form stays stable between fields. Respects
     // the global action-pacing on/off switch (no delay when pacing is disabled).
     private Task DelayBeforeBulkFieldAsync(CancellationToken cancellationToken, string reason)
-    {
-        if (!_config.ActionPacingEnabled)
-        {
-            return Task.CompletedTask;
-        }
-
-        return ActionPacer.FromOptions(_config, Notify).DelayAsync(0.15, 0.45, cancellationToken, $"Bulk field: {reason}");
-    }
+        => ApplyPacingDelayAsync(
+            0.15,
+            0.45,
+            "bulk-field-pacing",
+            $"Bulk field: {reason}",
+            cancellationToken);
 
     private async Task FillBulkMessageFieldAsync(ILocator field, string value, string label, CancellationToken cancellationToken)
     {

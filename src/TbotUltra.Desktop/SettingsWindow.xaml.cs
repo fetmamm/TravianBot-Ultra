@@ -16,6 +16,7 @@ public partial class SettingsWindow : Window
     // Server-local hour the bot auto-detected for the active account (null when not yet detected). Display-only.
     private readonly int? _detectedDailyResetHour;
     private readonly Func<JsonObject, string?>? _validateBeforeSave;
+    private bool _suppressDetailedBrowserLoggingConfirmation;
 
     // Set when the user confirms "Sleep now"; MainWindow reads it after ShowDialog to trigger the sleep.
     public bool SleepNowRequested { get; private set; }
@@ -44,6 +45,16 @@ public partial class SettingsWindow : Window
         DontNotifyNewVersionCheckBox.IsChecked = _config[BotOptionPayloadKeys.DontNotifyNewVersion]?.GetValue<bool>() ?? false;
         QuickReloginCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginQuickReloginEnabled]?.GetValue<bool>() ?? true;
         AutomaticallyCheckLanguageCheckBox.IsChecked = _config[BotOptionPayloadKeys.AutomaticallyCheckLanguage]?.GetValue<bool>() ?? true;
+        _suppressDetailedBrowserLoggingConfirmation = true;
+        try
+        {
+            DetailedBrowserLoggingCheckBox.IsChecked =
+                _config[BotOptionPayloadKeys.DetailedBrowserLoggingEnabled]?.GetValue<bool>() ?? false;
+        }
+        finally
+        {
+            _suppressDetailedBrowserLoggingConfirmation = false;
+        }
         AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
         LoadDailyServerResetToUi();
         LoadPacingConfigToUi();
@@ -138,6 +149,7 @@ public partial class SettingsWindow : Window
             _config[BotOptionPayloadKeys.DontNotifyNewVersion] = DontNotifyNewVersionCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginQuickReloginEnabled] = QuickReloginCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.AutomaticallyCheckLanguage] = AutomaticallyCheckLanguageCheckBox.IsChecked == true;
+            _config[BotOptionPayloadKeys.DetailedBrowserLoggingEnabled] = DetailedBrowserLoggingCheckBox.IsChecked == true;
             _config["allow_silver_spending"] = AllowSilverSpendingCheckBox.IsChecked == true;
             SaveDailyServerResetFromUi();
             SavePacingConfigFromUi();
@@ -251,6 +263,42 @@ public partial class SettingsWindow : Window
     private void SilverLimitSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         UpdateLimitLabels();
+    }
+
+    private void DetailedBrowserLoggingCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_suppressDetailedBrowserLoggingConfirmation
+            || DetailedBrowserLoggingCheckBox.IsChecked != true)
+        {
+            return;
+        }
+
+        var result = AppDialog.ShowCustom(
+            this,
+            "Detailed browser logging is intended only for development and troubleshooting. " +
+            "It records high-volume technical details about browser actions, navigation, reloads, " +
+            "refreshes, reads, waits, retries, and cache decisions. This can create large log files " +
+            "and may slightly affect performance. Do not enable it during normal use.",
+            "Enable detailed browser logging?",
+            [("Toggle ON", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.Cancel)],
+            MessageBoxImage.Warning,
+            MessageBoxResult.Cancel,
+            MessageBoxResult.Cancel,
+            MessageBoxResult.Yes);
+        if (result == MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        _suppressDetailedBrowserLoggingConfirmation = true;
+        try
+        {
+            DetailedBrowserLoggingCheckBox.IsChecked = false;
+        }
+        finally
+        {
+            _suppressDetailedBrowserLoggingConfirmation = false;
+        }
     }
 
     private void ResetPacingButton_Click(object sender, RoutedEventArgs e)

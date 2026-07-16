@@ -90,8 +90,11 @@ public sealed partial class TravianClient
                     Notify(
                         $"[farm-list-create] '{name}' was not visible after Save; refreshing " +
                         $"({attempt}/2).");
-                    await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
-                        .WaitAsync(cancellationToken);
+                    await ReloadPageTracedAsync(
+                        _page,
+                        "farm list not visible after save",
+                        new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded },
+                        cancellationToken);
                     await WaitForPageReadyAsync(cancellationToken);
                     await WaitForOfficialFarmListRenderAsync(cancellationToken);
                     verified = await HasOfficialFarmListNameAsync(name, cancellationToken);

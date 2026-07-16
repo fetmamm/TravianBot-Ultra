@@ -39,7 +39,8 @@ public sealed class QueueExecutor
                 log,
                 tasksOverride: [item.TaskName],
                 accountName: null,
-                cancellationToken: cancellationToken);
+                cancellationToken: cancellationToken,
+                traceRunId: item.Id.ToString());
             log($"[queue] DONE id={item.Id} task='{item.TaskName}'{village} in {sw.Elapsed.TotalSeconds:F1}s");
             return result;
         }

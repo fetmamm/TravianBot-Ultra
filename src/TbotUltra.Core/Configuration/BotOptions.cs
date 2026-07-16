@@ -88,6 +88,9 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.AutomaticallyCheckLanguage)]
     public bool AutomaticallyCheckLanguage { get; init; } = true;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.DetailedBrowserLoggingEnabled)]
+    public bool DetailedBrowserLoggingEnabled { get; init; }
+
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksEnabled)]
     public bool TroopTrainingBarracksEnabled { get; init; }
 

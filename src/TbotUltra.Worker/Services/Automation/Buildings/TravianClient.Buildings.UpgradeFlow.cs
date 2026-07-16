@@ -163,11 +163,12 @@ public sealed partial class TravianClient : IBuildingClient
                             // before falling back to the normal button; resource shortage can disable the video
                             // button until this point.
                             await EnsureExpectedBuildSlotPageAsync(slotId, "upgrade after hero transfer", cancellationToken);
-                            await ActionPacer.FromOptions(_config, Notify).DelayAsync(
+                            await ApplyPacingDelayAsync(
                                 _config.ActionPacingPageLoadMinSeconds,
                                 _config.ActionPacingPageLoadMaxSeconds,
-                                cancellationToken,
-                                "after hero transfer reload");
+                                "page-load-pacing",
+                                "after hero transfer reload",
+                                cancellationToken);
                             var retryConstructFaster = await TryUseConstructFasterForBuildAsync(
                                 slotId,
                                 ParseGidFromBuildingCode(info.BuildingCode),
@@ -918,11 +919,12 @@ public sealed partial class TravianClient : IBuildingClient
                             // before falling back to the normal button; resource shortage can disable the video
                             // button until this point.
                             await EnsureExpectedBuildSlotPageAsync(slotId, "upgrade after hero transfer", cancellationToken);
-                            await ActionPacer.FromOptions(_config, Notify).DelayAsync(
+                            await ApplyPacingDelayAsync(
                                 _config.ActionPacingPageLoadMinSeconds,
                                 _config.ActionPacingPageLoadMaxSeconds,
-                                cancellationToken,
-                                "after hero transfer reload");
+                                "page-load-pacing",
+                                "after hero transfer reload",
+                                cancellationToken);
                             var retryConstructFaster = await TryUseConstructFasterForBuildAsync(
                                 slotId,
                                 gid,
@@ -1096,8 +1098,11 @@ public sealed partial class TravianClient : IBuildingClient
                 {
                     stalePageReloads += 1;
                     Notify($"Build queue page is stale (Travian auto-reload failed); reloading (attempt {stalePageReloads}/2).");
-                    await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
-                        .WaitAsync(cancellationToken);
+                    await ReloadPageTracedAsync(
+                        _page,
+                        $"stale build queue attempt {stalePageReloads}/2",
+                        new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded },
+                        cancellationToken);
                     InvalidateActiveConstructionsCache();
                     i--; // re-run this iteration after the reload
                     continue;

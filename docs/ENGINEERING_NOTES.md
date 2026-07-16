@@ -219,6 +219,14 @@ Common endpoints:
 - Do not let an incomplete refresh erase the last valid snapshot without an explicit reason.
 - Apply configured pacing to browser actions; do not add unbounded sleeps.
 - Retry only transient failures and cap attempts.
+- Detailed browser logging is a global development-only setting and must remain OFF by default. Its
+  `[browser-trace:verbose]` records belong in the normal session log and must pass through the central
+  sanitizer; never log credentials, cookies, tokens, headers, storage state, or complete HTML/JSON.
+- Travian navigation and reload mutations must use the traced navigation adapter. Existing DOM mutations
+  are observed centrally through the browser-session action observer; new browser mutations must use a
+  traced action path and may not increase the source-guard baseline.
+- Trace semantic reads and decisions, not every request or internal DOM poll. Every trace flow/operation
+  must emit exactly one end event, including cancellation and exception paths.
 - Construction follows the visible queue order per village for both manual and template rows. A deferred
   head row holds every later construction row in that village; another village may still run. Automatic
   requirement repair may insert or promote prerequisites ahead of the blocked row only after a live read

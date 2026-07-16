@@ -29,6 +29,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
     private readonly AccountOptions _account;
     private readonly string _projectRoot;
     private readonly Action<string>? _log;
+    private readonly BrowserTraceLogger _browserTrace;
     private readonly object _transientExternalOriginsGate = new();
     private readonly HashSet<string> _transientExternalOrigins = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _isolatedExternalContextsGate = new();
@@ -50,6 +51,48 @@ public sealed partial class BrowserSession : IAsyncDisposable
         _account = account;
         _projectRoot = projectRoot;
         _log = log;
+        _browserTrace = new BrowserTraceLogger(config.DetailedBrowserLoggingEnabled, log);
+    }
+
+    public BrowserTraceLogger BrowserTrace => _browserTrace;
+
+    public async Task SetDetailedBrowserLoggingAsync(
+        bool enabled,
+        CancellationToken cancellationToken = default)
+    {
+        if (_browserTrace.Enabled == enabled)
+        {
+            return;
+        }
+
+        var context = _context;
+        if (context is null)
+        {
+            _browserTrace.SetEnabled(enabled);
+            return;
+        }
+
+        var browserValue = enabled ? "true" : "false";
+        await context.AddInitScriptAsync($"window.__tbotDetailedBrowserLoggingEnabled = {browserValue};");
+        foreach (var page in context.Pages.ToArray())
+        {
+            if (page.IsClosed)
+            {
+                continue;
+            }
+
+            try
+            {
+                await page.EvaluateAsync("enabled => { window.__tbotDetailedBrowserLoggingEnabled = enabled; }", enabled)
+                    .WaitAsync(cancellationToken);
+            }
+            catch (PlaywrightException) when (page.IsClosed)
+            {
+                // A transient popup may close while the setting is propagated.
+            }
+        }
+
+        _browserTrace.SetEnabled(enabled);
     }
 
     /// <summary>When true, consentmanager.net requests are allowed through the route block. Kept false
@@ -120,6 +163,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
         }
 
         _context = await browser.NewContextAsync(contextOptions);
+        _browserTrace.Event("PAGE_CONTEXT", "main-context-opened", detail: $"storageStateLoaded={File.Exists(StorageStatePath)}");
         _context.SetDefaultTimeout(_config.TimeoutMs);
         await _context.RouteAsync("**/*", async route =>
         {
@@ -216,7 +260,46 @@ public sealed partial class BrowserSession : IAsyncDisposable
             })();
             """);
 
+        await _context.AddInitScriptAsync(
+            $"window.__tbotDetailedBrowserLoggingEnabled = {(_browserTrace.Enabled ? "true" : "false")};");
+
+        // Capture successful, user-visible DOM actions from both real Playwright interactions and
+        // verified JavaScript/React fallbacks. No field values are emitted and the trace sink drops
+        // these console messages immediately while detailed browser logging is disabled.
+        await _context.AddInitScriptAsync(
+            """
+            (() => {
+              if (window.__tbotBrowserTraceInstalled) return;
+              window.__tbotBrowserTraceInstalled = true;
+              const prefix = '__TBOT_BROWSER_TRACE__';
+              const describe = (node) => {
+                if (!(node instanceof Element)) return '-';
+                const id = node.id ? `#${node.id}` : '';
+                const name = node.getAttribute('name');
+                const role = node.getAttribute('role');
+                return `${node.tagName.toLowerCase()}${id}${name ? `[name=${name}]` : ''}${role ? `[role=${role}]` : ''}`;
+              };
+              const emit = (event) => {
+                if (window.__tbotDetailedBrowserLoggingEnabled !== true) return;
+                const node = event.target instanceof Element ? event.target : null;
+                const field = node?.getAttribute('name') || node?.id || node?.getAttribute('aria-label') || '-';
+                const rawValue = node && 'value' in node ? String(node.value ?? '') : '';
+                console.debug(prefix + JSON.stringify({
+                  event: event.type,
+                  target: describe(node),
+                  field,
+                  valueLength: rawValue.length,
+                  trusted: event.isTrusted === true
+                }));
+              };
+              document.addEventListener('click', emit, true);
+              document.addEventListener('change', emit, true);
+              document.addEventListener('submit', emit, true);
+            })();
+            """);
+
         var page = await _context.NewPageAsync();
+        _browserTrace.AttachPage(page, "main-context");
         _log?.Invoke($"[browser] main page created pages={_context.Pages.Count} url='{page.Url}'");
         page.Popup += async (_, popup) =>
         {
@@ -243,6 +326,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
         // never in this Travian context.
         _context.Page += (_, popup) =>
         {
+            _browserTrace.AttachPage(popup, "main-context-page-event");
             if (ReferenceEquals(popup, page))
             {
                 return;
@@ -366,6 +450,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
         }
 
         await previousContext.CloseAsync();
+        _browserTrace.Event("PAGE_CONTEXT", "lobby-context-closed", detail: "reason=clean-game-context-opened");
         _log?.Invoke("[browser] lobby context closed after the clean game context opened; Chromium stayed running.");
         return cleanPage;
     }
@@ -525,6 +610,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        _browserTrace.Event("PAGE_CONTEXT", "browser-session-closing", detail: "reason=dispose");
         var context = _context;
         var browser = _browser;
         var playwright = _playwright;
@@ -590,8 +676,11 @@ public sealed partial class BrowserSession : IAsyncDisposable
 
         if (cleanupFailure is not null)
         {
+            _browserTrace.Event("ERROR", "browser-session-close", "failed", cleanupFailure.Message);
             throw new InvalidOperationException("Browser session cleanup did not complete cleanly.", cleanupFailure);
         }
+
+        _browserTrace.Event("PAGE_CONTEXT", "browser-session-closed", detail: "result=success");
     }
 
     // Pin Playwright to the driver and browsers shipped inside the app folder. PLAYWRIGHT_DRIVER_PATH

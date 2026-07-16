@@ -164,8 +164,11 @@ public sealed partial class TravianClient
         }
 
         Notify("[hero:verbose] reloading dorf1 to refresh hero sidebar");
-        await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
-            .WaitAsync(cancellationToken);
+        await ReloadPageTracedAsync(
+            _page,
+            "refresh hero sidebar",
+            new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded },
+            cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
     }
 

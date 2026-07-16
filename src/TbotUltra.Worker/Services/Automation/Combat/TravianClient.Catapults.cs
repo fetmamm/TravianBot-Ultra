@@ -159,8 +159,11 @@ public sealed partial class TravianClient : ICombatClient
     private async Task RefreshCatapultSendTroopsPageAsync(CancellationToken cancellationToken)
     {
         await EnsureRallyPointAndOpenSendTroopsPageAsync(cancellationToken, allowReuseCurrentPage: true);
-        await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
-            .WaitAsync(cancellationToken);
+        await ReloadPageTracedAsync(
+            _page,
+            "refresh catapult send-troops page",
+            new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded },
+            cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         if (!await IsSendTroopsPageAsync(cancellationToken))
@@ -406,15 +409,39 @@ public sealed partial class TravianClient : ICombatClient
             ? pathOrUrl
             : $"{_config.BaseUrl.TrimEnd('/')}/{pathOrUrl.TrimStart('/')}";
 
-        var response = await page.GotoAsync(url, new PageGotoOptions
+        _browserTrace.AttachPage(page, "catapult-context");
+        using var trace = _browserTrace.BeginOperation(
+            "NAV",
+            "goto-catapult-context",
+            $"from={page.Url} target={url}",
+            url);
+        try
+        {
+            var response = await page.GotoAsync(url, new PageGotoOptions
             {
                 WaitUntil = WaitUntilState.DOMContentLoaded,
                 Timeout = _config.TimeoutMs,
             })
             .WaitAsync(cancellationToken);
-        if (response is not null && response.Headers.TryGetValue("date", out var dateHeader))
+            if (response is not null && response.Headers.TryGetValue("date", out var dateHeader))
+            {
+                RecordServerTime(dateHeader);
+            }
+
+            trace.Complete(
+                "success",
+                $"status={response?.Status.ToString() ?? "none"} loadState=DOMContentLoaded",
+                page.Url);
+        }
+        catch (OperationCanceledException)
         {
-            RecordServerTime(dateHeader);
+            trace.Complete("canceled", url: page.Url);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            trace.Complete("failed", $"{ex.GetType().Name}: {ex.Message}", page.Url);
+            throw;
         }
     }
 

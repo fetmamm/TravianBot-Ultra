@@ -50,12 +50,14 @@ public sealed partial class BrowserSession
                 ViewportSize = ViewportSize.NoViewport,
                 StorageState = stateJson,
             }).WaitAsync(phaseTimeout.Token);
+            _browserTrace.Event("PAGE_CONTEXT", "bonus-video-context-opened", detail: "isolatedBrowser=true");
             videoContext.SetDefaultTimeout(_config.TimeoutMs);
             networkDiagnostics = new BonusVideoNetworkDiagnostics(_log);
             videoContext.RequestFailed += networkDiagnostics.OnRequestFailed;
             videoContext.Response += networkDiagnostics.OnResponse;
             videoContext.Page += (_, page) =>
             {
+                _browserTrace.AttachPage(page, "bonus-video-context");
                 _log?.Invoke($"[browser-video] page event pages={videoContext.Pages.Count} initialUrl='{page.Url}'");
                 page.Close += (_, _) =>
                 {
@@ -64,6 +66,7 @@ public sealed partial class BrowserSession
             };
 
             var page = await videoContext.NewPageAsync().WaitAsync(phaseTimeout.Token);
+            _browserTrace.AttachPage(page, "bonus-video-main");
             _log?.Invoke("[browser-video] isolated bonus-video browser opened.");
 
             phaseTimeout.Dispose();
@@ -138,9 +141,11 @@ public sealed partial class BrowserSession
                     // same thing down in ~1s. Nothing reads state back from this browser, so there is
                     // nothing to flush. The timeout stays as a safety net against a wedged browser close.
                     await videoBrowser.CloseAsync().WaitAsync(IsolatedBonusVideoCloseTimeout);
+                    _browserTrace.Event("PAGE_CONTEXT", "bonus-video-context-closed", detail: $"reason={closeReason}");
                 }
                 catch (Exception ex)
                 {
+                    _browserTrace.Event("ERROR", "bonus-video-context-close", "failed", ex.Message);
                     _log?.Invoke($"[browser-video] browser cleanup failed: {ex.Message}");
                 }
             }
@@ -200,6 +205,7 @@ public sealed partial class BrowserSession
         try
         {
             var page = await context.NewPageAsync();
+            _browserTrace.AttachPage(page, "isolated-external-context");
             _log?.Invoke($"[browser] isolated external page created url='{page.Url}'");
             return page;
         }
@@ -442,12 +448,26 @@ public sealed partial class BrowserSession
             return;
         }
 
-        await mainPage.GotoAsync("about:blank", new PageGotoOptions
+        using var trace = _browserTrace.BeginOperation(
+            "NAV",
+            "goto-about-blank",
+            $"reason=bonus-video-cleanup from={mainPage.Url}",
+            "about:blank");
+        try
         {
-            WaitUntil = WaitUntilState.DOMContentLoaded,
-            Timeout = 3000,
-        });
-        _log?.Invoke("[browser] bonus-video cleanup navigated main page to about:blank.");
+            await mainPage.GotoAsync("about:blank", new PageGotoOptions
+            {
+                WaitUntil = WaitUntilState.DOMContentLoaded,
+                Timeout = 3000,
+            });
+            trace.Complete("success", "loadState=DOMContentLoaded", mainPage.Url);
+            _log?.Invoke("[browser] bonus-video cleanup navigated main page to about:blank.");
+        }
+        catch (Exception ex)
+        {
+            trace.Complete("failed", $"{ex.GetType().Name}: {ex.Message}", mainPage.Url);
+            throw;
+        }
     }
 
     private async Task ClearFirstPartyConsentCookiesAsync(IPage? mainPage)

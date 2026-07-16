@@ -425,11 +425,15 @@ public sealed partial class TravianClient
             {
                 try
                 {
-                    await _page.ReloadAsync(new PageReloadOptions
-                    {
-                        WaitUntil = WaitUntilState.DOMContentLoaded,
-                        Timeout = _config.TimeoutMs,
-                    }).WaitAsync(cancellationToken);
+                    await ReloadPageTracedAsync(
+                        _page,
+                        "incomplete resource snapshot",
+                        new PageReloadOptions
+                        {
+                            WaitUntil = WaitUntilState.DOMContentLoaded,
+                            Timeout = _config.TimeoutMs,
+                        },
+                        cancellationToken);
                     await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
                     await WaitForResourceSnapshotWidgetsAsync(cancellationToken);
                 }
@@ -551,11 +555,15 @@ public sealed partial class TravianClient
             {
                 try
                 {
-                    await _page.ReloadAsync(new PageReloadOptions
-                    {
-                        WaitUntil = WaitUntilState.DOMContentLoaded,
-                        Timeout = _config.TimeoutMs,
-                    }).WaitAsync(cancellationToken);
+                    await ReloadPageTracedAsync(
+                        _page,
+                        "resource widgets not ready",
+                        new PageReloadOptions
+                        {
+                            WaitUntil = WaitUntilState.DOMContentLoaded,
+                            Timeout = _config.TimeoutMs,
+                        },
+                        cancellationToken);
                     await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
                     continue;
                 }
@@ -608,6 +616,7 @@ public sealed partial class TravianClient
 
     private async Task<IReadOnlyDictionary<string, string>> ReadResourcesAsync(CancellationToken cancellationToken)
     {
+        using var trace = _browserTrace.BeginOperation("READ", "stock-bar-resources", "scope=current-page source=live");
         var raw = await _page.EvaluateAsync<Dictionary<string, string>>(
             """
             () => {
@@ -659,6 +668,9 @@ public sealed partial class TravianClient
         {
             Notify($"[resources:verbose] ReadResourcesAsync — wood={result.GetValueOrDefault("wood", "-")} clay={result.GetValueOrDefault("clay", "-")} iron={result.GetValueOrDefault("iron", "-")} crop={result.GetValueOrDefault("crop", "-")}");
         }
+        trace.Complete(
+            "success",
+            $"count={result.Count} wood={result.GetValueOrDefault("wood", "-")} clay={result.GetValueOrDefault("clay", "-")} iron={result.GetValueOrDefault("iron", "-")} crop={result.GetValueOrDefault("crop", "-")}");
         return result;
     }
 
@@ -745,11 +757,15 @@ public sealed partial class TravianClient
             {
                 try
                 {
-                    await _page.ReloadAsync(new PageReloadOptions
-                    {
-                        WaitUntil = WaitUntilState.DOMContentLoaded,
-                        Timeout = _config.TimeoutMs,
-                    }).WaitAsync(cancellationToken);
+                    await ReloadPageTracedAsync(
+                        _page,
+                        "incomplete resource production read",
+                        new PageReloadOptions
+                        {
+                            WaitUntil = WaitUntilState.DOMContentLoaded,
+                            Timeout = _config.TimeoutMs,
+                        },
+                        cancellationToken);
                     await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
                     await WaitForResourceSnapshotWidgetsAsync(cancellationToken);
                 }

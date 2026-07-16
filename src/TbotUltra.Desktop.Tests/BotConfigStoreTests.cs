@@ -129,6 +129,48 @@ public sealed class BotConfigStoreTests : IDisposable
     }
 
     [Fact]
+    public void Save_DetailedBrowserLogging_RemainsGlobalAcrossAccounts()
+    {
+        WriteJson(
+            _configPath,
+            new JsonObject
+            {
+                ["server_name"] = "Global",
+                ["base_url"] = "https://example.com",
+            });
+        var store = CreateStore();
+        var config = store.Load();
+        config[BotOptionPayloadKeys.DetailedBrowserLoggingEnabled] = true;
+
+        store.Save(config);
+
+        _activeAccount = "bob";
+        Assert.True(store.Load()[BotOptionPayloadKeys.DetailedBrowserLoggingEnabled]!.GetValue<bool>());
+        var global = JsonNode.Parse(File.ReadAllText(_configPath))!.AsObject();
+        Assert.True(global[BotOptionPayloadKeys.DetailedBrowserLoggingEnabled]!.GetValue<bool>());
+        var account = JsonNode.Parse(File.ReadAllText(AccountStoragePaths.AccountSettingsPath(_root, "alice")))!.AsObject();
+        Assert.False(account.ContainsKey(BotOptionPayloadKeys.DetailedBrowserLoggingEnabled));
+    }
+
+    [Fact]
+    public void ResetSettingsToDefaults_RemovesDetailedBrowserLoggingSetting()
+    {
+        WriteJson(
+            _configPath,
+            new JsonObject
+            {
+                ["server_name"] = "Global",
+                ["base_url"] = "https://example.com",
+                [BotOptionPayloadKeys.DetailedBrowserLoggingEnabled] = true,
+            });
+        var store = CreateStore();
+
+        store.ResetSettingsToDefaults();
+
+        Assert.False(store.Load().ContainsKey(BotOptionPayloadKeys.DetailedBrowserLoggingEnabled));
+    }
+
+    [Fact]
     public void Save_PreservesHeroPrioritySeparatelyPerAccount()
     {
         WriteJson(

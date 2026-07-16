@@ -702,8 +702,11 @@ public sealed partial class TravianClient
     {
         try
         {
-            await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
-                .WaitAsync(cancellationToken);
+            await ReloadPageTracedAsync(
+                _page,
+                "refresh Smithy page",
+                new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded },
+                cancellationToken);
         }
         catch (Exception ex) when (IsTransientExecutionContextException(ex))
         {

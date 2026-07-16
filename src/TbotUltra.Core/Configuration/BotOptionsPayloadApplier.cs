@@ -184,6 +184,7 @@ public static class BotOptionsPayloadApplier
             PostLoginAnalyzeBrewery = postLoginAnalyzeBrewery,
             PostLoginAnalyzeNewVillages = postLoginAnalyzeNewVillages,
             AutomaticallyCheckLanguage = automaticallyCheckLanguage,
+            DetailedBrowserLoggingEnabled = source.DetailedBrowserLoggingEnabled,
             TroopTrainingBarracksEnabled = troopTrainingBarracksEnabled,
             TroopTrainingBarracksTroopType = troopTrainingBarracksTroopType,
             TroopTrainingBarracksMaxQueueHours = troopTrainingBarracksMaxQueueHours,

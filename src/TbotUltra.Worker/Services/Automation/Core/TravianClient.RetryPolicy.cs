@@ -83,8 +83,9 @@ public sealed partial class TravianClient
                 if (ex is PlaywrightException pwx && IsTransientExecutionContextError(pwx) && attempt < attempts)
                 {
                     await TryDismissContinuePromptAsync();
+                    _browserTrace.Event("RETRY", label, "retry", $"attempt={attempt}/{attempts} cause=transient navigation context backoffMs={250 * attempt}");
                     Notify($"[retry:verbose] {label} hit transient navigation context on attempt {attempt}/{attempts}. Retrying...");
-                    await Task.Delay(250 * attempt, cancellationToken);
+                    await DelayForRetryAsync(250 * attempt, label, cancellationToken);
                     continue;
                 }
 
@@ -94,8 +95,10 @@ public sealed partial class TravianClient
                 }
 
                 await TryDismissContinuePromptAsync();
+                var backoffMs = (IsTimeoutError(ex) ? 5000 : 400) * attempt;
+                _browserTrace.Event("RETRY", label, "retry", $"attempt={attempt}/{attempts} cause={ex.Message} backoffMs={backoffMs}");
                 Notify($"[retry:verbose] {label} failed on attempt {attempt}/{attempts}. Retrying...");
-                await Task.Delay((IsTimeoutError(ex) ? 5000 : 400) * attempt, cancellationToken);
+                await DelayForRetryAsync(backoffMs, label, cancellationToken);
             }
         }
 
@@ -124,8 +127,9 @@ public sealed partial class TravianClient
                 if (IsTransientExecutionContextException(ex) && attempt < attempts)
                 {
                     await TryDismissContinuePromptAsync();
+                    _browserTrace.Event("RETRY", label, "retry", $"attempt={attempt}/{attempts} cause=transient navigation context backoffMs={250 * attempt}");
                     Notify($"[retry:verbose] {label} hit transient navigation context on attempt {attempt}/{attempts}. Retrying...");
-                    await Task.Delay(250 * attempt, cancellationToken);
+                    await DelayForRetryAsync(250 * attempt, label, cancellationToken);
                     continue;
                 }
 
@@ -135,12 +139,29 @@ public sealed partial class TravianClient
                 }
 
                 await TryDismissContinuePromptAsync();
+                var backoffMs = (IsTimeoutError(ex) ? 5000 : 400) * attempt;
+                _browserTrace.Event("RETRY", label, "retry", $"attempt={attempt}/{attempts} cause={ex.Message} backoffMs={backoffMs}");
                 Notify($"[retry:verbose] {label} failed on attempt {attempt}/{attempts}. Retrying...");
-                await Task.Delay((IsTimeoutError(ex) ? 5000 : 400) * attempt, cancellationToken);
+                await DelayForRetryAsync(backoffMs, label, cancellationToken);
             }
         }
 
         throw new InvalidOperationException($"{label} failed after {attempts} attempts: {lastError?.Message}", lastError);
+    }
+
+    private async Task DelayForRetryAsync(int delayMs, string label, CancellationToken cancellationToken)
+    {
+        using var trace = _browserTrace.BeginOperation("WAIT", "retry-backoff", $"operation={label} plannedMs={delayMs}");
+        try
+        {
+            await Task.Delay(delayMs, cancellationToken);
+            trace.Complete("success", $"plannedMs={delayMs}");
+        }
+        catch (OperationCanceledException)
+        {
+            trace.Complete("canceled", $"plannedMs={delayMs}");
+            throw;
+        }
     }
 
 }

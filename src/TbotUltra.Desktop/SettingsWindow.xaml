@@ -65,6 +65,14 @@
                                 <ContentControl Style="{StaticResource SettingInfoIconStyle}"
                                                 ToolTip="Checks that Travian is set to English before automation parses pages. Turn off only if the language guard itself causes problems." />
                             </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <CheckBox x:Name="DetailedBrowserLoggingCheckBox"
+                                          Content="Detailed browser logging (development only)"
+                                          Checked="DetailedBrowserLoggingCheckBox_Changed"
+                                          Unchecked="DetailedBrowserLoggingCheckBox_Changed" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="Development only. Records detailed browser actions, navigation, reloads, refreshes, reads, waits, retries, and cache decisions. This can create large log files and slightly affect performance. Keep this OFF during normal use." />
+                            </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8" VerticalAlignment="Center">
                                 <CheckBox x:Name="DailyServerResetOverrideCheckBox"
                                           Content="Daily server reset (manual)"

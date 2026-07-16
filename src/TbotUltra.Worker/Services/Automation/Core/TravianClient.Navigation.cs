@@ -16,22 +16,16 @@ namespace TbotUltra.Worker.Services;
 public sealed partial class TravianClient
 {
 // Helper för action pacing klick
-    private Task DelayBeforeClickAsync(
+    private async Task DelayBeforeClickAsync(
         CancellationToken cancellationToken,
         string? reason = null)
     {
-        if (!_config.ActionPacingEnabled)
-        {
-            return Task.CompletedTask;
-        }
-
-        // Default reason so the click-pacing delay is always logged (e.g. [pacing] Click: waiting 2.3s),
-        // while callers that pass their own reason keep it.
-        return ActionPacer.FromOptions(_config, Notify).DelayAsync(
+        await ApplyPacingDelayAsync(
             _config.ActionPacingClickMinSeconds,
             _config.ActionPacingClickMaxSeconds,
-            cancellationToken,
-            string.IsNullOrWhiteSpace(reason) ? "Click" : $"Click: {reason}");
+            "click-pacing",
+            string.IsNullOrWhiteSpace(reason) ? "Click" : $"Click: {reason}",
+            cancellationToken);
     }
 
     // Types a value into an input the way a person would: focus (real mouse click), clear, then enter the
@@ -40,20 +34,40 @@ public sealed partial class TravianClient
     // only costing a few hundred ms for short values like coordinates or troop counts.
     private async Task TypeHumanlyAsync(ILocator input, string value, CancellationToken cancellationToken)
     {
-        await input.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
-        await input.FillAsync(string.Empty, new LocatorFillOptions { Timeout = _config.TimeoutMs });
+        var field = input.ToString() ?? "unknown-input";
+        using var trace = _browserTrace.BeginOperation(
+            "INPUT",
+            "type-humanly",
+            $"field={field} {BrowserTraceSanitizer.FormatInputValue(field, value)}");
+        try
+        {
+            await input.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
+            await input.FillAsync(string.Empty, new LocatorFillOptions { Timeout = _config.TimeoutMs });
         // Small settle so the clear commits before typing (a too-fast type races the field's reset). Then
         // select any residual the field re-populated with — some Travian inputs reset an emptied field to
         // "0" — so the first keystroke REPLACES it instead of landing in front of it (which produced e.g.
         // "098" when re-typing into a reused Add-target form).
-        await Task.Delay(Random.Shared.Next(20, 45), cancellationToken);
-        await input.PressAsync("Control+A");
+            await Task.Delay(Random.Shared.Next(20, 45), cancellationToken);
+            await input.PressAsync("Control+A");
         // One randomized delay-per-keystroke per field, so different fields are typed at a slightly
         // different speed (e.g. ~45-110 ms/char) rather than a constant machine-like rhythm.
-        await input.PressSequentiallyAsync(
-            value,
-            new LocatorPressSequentiallyOptions { Delay = Random.Shared.Next(45, 110) });
-        cancellationToken.ThrowIfCancellationRequested();
+            var keyDelay = Random.Shared.Next(45, 110);
+            await input.PressSequentiallyAsync(
+                value,
+                new LocatorPressSequentiallyOptions { Delay = keyDelay });
+            cancellationToken.ThrowIfCancellationRequested();
+            trace.Complete("success", $"keyDelayMs={keyDelay}");
+        }
+        catch (OperationCanceledException)
+        {
+            trace.Complete("canceled");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            trace.Complete("failed", $"{ex.GetType().Name}: {ex.Message}");
+            throw;
+        }
     }
 
 // Helper function for waiting on a page to fully load with retries, to mitigate transient timeouts on slow-loading pages.
@@ -62,6 +76,7 @@ public sealed partial class TravianClient
         const int attempts = 4;
         const int timeoutMs = 15000;
 
+        using var trace = _browserTrace.BeginOperation("WAIT", "page-ready", $"attempts={attempts} timeoutMs={timeoutMs}");
         Exception? lastFailure = null;
         for (var attempt = 1; attempt <= attempts; attempt++)
         {
@@ -77,10 +92,12 @@ public sealed partial class TravianClient
                     Timeout = timeoutMs,
                 }).WaitAsync(cancellationToken);
 
+                trace.Complete("success", $"attempt={attempt}");
                 return;
             }
             catch (OperationCanceledException)
             {
+                trace.Complete("canceled", $"attempt={attempt}");
                 throw;
             }
             catch (PlaywrightException ex)
@@ -89,10 +106,15 @@ public sealed partial class TravianClient
                 if (await CurrentPageHasUsableTravianShellAsync(cancellationToken))
                 {
                     Notify($"[WaitForPageReadyAsync] load event timed out, but Travian DOM is usable. Url='{_page.Url}'.");
+                    trace.Complete("recovered", $"attempt={attempt} reason=usable Travian DOM");
                     return;
                 }
+
                 if (attempt < attempts)
+                {
+                    _browserTrace.Event("RETRY", "page-ready", "retry", $"attempt={attempt}/{attempts} cause={ex.Message}");
                     Notify($"[WaitForPageReadyAsync:verbose] Page did not load, retry {attempt + 1}/{attempts}. Timeout: {timeoutMs} ms. Url='{_page.Url}'. {ex.Message}");
+                }
             }
             catch (TimeoutException ex)
             {
@@ -100,18 +122,20 @@ public sealed partial class TravianClient
                 if (await CurrentPageHasUsableTravianShellAsync(cancellationToken))
                 {
                     Notify($"[WaitForPageReadyAsync] load event timed out, but Travian DOM is usable. Url='{_page.Url}'.");
+                    trace.Complete("recovered", $"attempt={attempt} reason=usable Travian DOM");
                     return;
                 }
+
                 if (attempt < attempts)
+                {
+                    _browserTrace.Event("RETRY", "page-ready", "retry", $"attempt={attempt}/{attempts} cause={ex.Message}");
                     Notify($"[WaitForPageReadyAsync:verbose] Page did not load, retry {attempt + 1}/{attempts}. Timeout: {timeoutMs} ms. Url='{_page.Url}'. {ex.Message}");
+                }
             }
         }
 
-        // Don't return silently after exhausting the retries: callers (login, navigation, keep-alive)
-        // would then act on a half-loaded page. Throw so the operation is deferred/retried instead.
-        // lastFailure is kept as InnerException so a fatal disconnect is still seen by
-        // BrowserFailureClassifier (it walks the inner-exception chain) and recreates the session.
         var url = _page.Url;
+        trace.Complete("failed", $"attempts={attempts} lastError={lastFailure?.Message}", url);
         Notify($"[WaitForPageReadyAsync] Page did not load after {attempts} attempts. Url='{url}'.");
         throw new TimeoutException(
             $"Page did not reach a ready state after {attempts} attempts (timeout {timeoutMs} ms each). Url='{url}'.",
@@ -166,11 +190,53 @@ public sealed partial class TravianClient
     // makes the page show wrong/old values. Re-verifies login after the reload.
     public async Task RefreshCurrentPageAsync(CancellationToken cancellationToken = default)
     {
-        Notify($"[keep-alive] refreshing current page to avoid a stale session. Url='{_page.Url}'");
-        await _page.ReloadAsync(new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
-            .WaitAsync(cancellationToken);
-        await WaitForPageReadyAsync(cancellationToken);
-        await EnsureLoggedInAsync();
+        using var trace = _browserTrace.BeginOperation("REFRESH", "keep-alive-current-page", "reason=avoid stale session", _page.Url);
+        try
+        {
+            Notify($"[keep-alive] refreshing current page to avoid a stale session. Url='{_page.Url}'");
+            await ReloadPageTracedAsync(
+                _page,
+                "keep-alive current page",
+                new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded },
+                cancellationToken);
+            await WaitForPageReadyAsync(cancellationToken);
+            await EnsureLoggedInAsync();
+            trace.Complete("success", url: _page.Url);
+        }
+        catch (OperationCanceledException)
+        {
+            trace.Complete("canceled", url: _page.Url);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            trace.Complete("failed", $"{ex.GetType().Name}: {ex.Message}", _page.Url);
+            throw;
+        }
+    }
+
+    private async Task ReloadPageTracedAsync(
+        IPage page,
+        string reason,
+        PageReloadOptions options,
+        CancellationToken cancellationToken)
+    {
+        using var trace = _browserTrace.BeginOperation("NAV", "reload", $"reason={reason}", page.Url);
+        try
+        {
+            var response = await page.ReloadAsync(options).WaitAsync(cancellationToken);
+            trace.Complete("success", $"httpStatus={response?.Status.ToString() ?? "-"}", page.Url);
+        }
+        catch (OperationCanceledException)
+        {
+            trace.Complete("canceled", url: page.Url);
+            throw;
+        }
+        catch (Exception ex)
+        {
+            trace.Complete("failed", $"{ex.GetType().Name}: {ex.Message}", page.Url);
+            throw;
+        }
     }
 
     private async Task GotoAsync(string pathOrUrl, CancellationToken cancellationToken)
@@ -179,56 +245,78 @@ public sealed partial class TravianClient
             ? pathOrUrl
             : $"{_config.BaseUrl.TrimEnd('/')}/{pathOrUrl.TrimStart('/')}";
         var beforeUrl = _page.Url;
-        RecordConstructionNavigation("goto", url);
-        Notify($"[nav] GOTO start target='{url}' from='{beforeUrl}' pages={TryGetPageCountForDiagnostics()}");
+        using var trace = _browserTrace.BeginOperation(
+            "NAV",
+            "goto",
+            $"from={BrowserTraceSanitizer.SanitizeUrl(beforeUrl)} target={BrowserTraceSanitizer.SanitizeUrl(url)}",
+            url);
+        int? httpStatus = null;
         try
         {
-            await RetryAsync($"navigate to {pathOrUrl}", async () =>
+            RecordConstructionNavigation("goto", url);
+            Notify($"[nav] GOTO start target='{url}' from='{beforeUrl}' pages={TryGetPageCountForDiagnostics()}");
+            try
             {
-                var response = await _page.GotoAsync(url, new PageGotoOptions
-                    {
-                        WaitUntil = WaitUntilState.DOMContentLoaded,
-                        Timeout = _config.TimeoutMs,
-                    })
-                    .WaitAsync(cancellationToken);
-                if (response is not null && response.Headers.TryGetValue("date", out var dateHeader))
+                await RetryAsync($"navigate to {pathOrUrl}", async () =>
                 {
-                    RecordServerTime(dateHeader);
-                }
-            }, cancellationToken: cancellationToken);
+                    var response = await _page.GotoAsync(url, new PageGotoOptions
+                        {
+                            WaitUntil = WaitUntilState.DOMContentLoaded,
+                            Timeout = _config.TimeoutMs,
+                        })
+                        .WaitAsync(cancellationToken);
+                    httpStatus = response?.Status;
+                    if (response is not null && response.Headers.TryGetValue("date", out var dateHeader))
+                    {
+                        RecordServerTime(dateHeader);
+                    }
+                }, cancellationToken: cancellationToken);
+            }
+            catch (Exception ex) when (_account.ProxyEnabled && ProxyParser.LooksLikeProxyError(ex.Message))
+            {
+                Notify($"[proxy] Navigation failed through the proxy for account '{_account.Name}' "
+                    + $"(server '{ProxyParser.MaskForLog(_account.ProxyServer)}'). Check the proxy in Manage account. {ex.Message}");
+                throw new TransientNavigationException(
+                    $"Navigation to '{url}' failed because the configured proxy is unavailable.",
+                    ex);
+            }
+            catch (Exception ex) when (IsTimeoutError(ex))
+            {
+                throw new TransientNavigationException(
+                    $"Navigation to '{url}' timed out after safe retries.",
+                    ex);
+            }
+
+            try
+            {
+                await WaitForPageReadyAsync(cancellationToken);
+            }
+            catch (TimeoutException ex)
+            {
+                throw new TransientNavigationException($"Navigation to '{url}' did not reach a ready state.", ex);
+            }
+
+            Notify($"[nav] GOTO done target='{url}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
+            InvalidateActiveConstructionsCache();
+            await ApplyPacingDelayAsync(
+                _config.ActionPacingPageLoadMinSeconds,
+                _config.ActionPacingPageLoadMaxSeconds,
+                "page-load-pacing",
+                "after page load",
+                cancellationToken);
+            await TryDismissContinuePromptAsync(cancellationToken);
+            trace.Complete("success", $"httpStatus={httpStatus?.ToString() ?? "-"} current={BrowserTraceSanitizer.SanitizeUrl(_page.Url)}", _page.Url);
         }
-        catch (Exception ex) when (_account.ProxyEnabled && ProxyParser.LooksLikeProxyError(ex.Message))
+        catch (OperationCanceledException)
         {
-            // Make a dead/misconfigured proxy unmistakable instead of looking like a Travian outage.
-            Notify($"[proxy] Navigation failed through the proxy for account '{_account.Name}' "
-                + $"(server '{ProxyParser.MaskForLog(_account.ProxyServer)}'). Check the proxy in Manage account. {ex.Message}");
-            throw new TransientNavigationException(
-                $"Navigation to '{url}' failed because the configured proxy is unavailable.",
-                ex);
+            trace.Complete("canceled", url: _page.Url);
+            throw;
         }
-        catch (Exception ex) when (IsTimeoutError(ex))
+        catch (Exception ex)
         {
-            throw new TransientNavigationException(
-                $"Navigation to '{url}' timed out after safe retries.",
-                ex);
+            trace.Complete("failed", $"{ex.GetType().Name}: {ex.Message}", _page.Url);
+            throw;
         }
-        
-        try
-        {
-            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        }
-        catch (TimeoutException ex)
-        {
-            throw new TransientNavigationException($"Navigation to '{url}' did not reach a ready state.", ex);
-        }
-        Notify($"[nav] GOTO done target='{url}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
-        InvalidateActiveConstructionsCache();
-        await ActionPacer.FromOptions(_config, Notify).DelayAsync(
-            _config.ActionPacingPageLoadMinSeconds,
-            _config.ActionPacingPageLoadMaxSeconds,
-            cancellationToken,
-            "after page load");
-        await TryDismissContinuePromptAsync(cancellationToken);
     }
 
     // Reloads in place when already on the target path, otherwise navigates to it.
@@ -244,11 +332,12 @@ public sealed partial class TravianClient
             // be dropped here too (the GotoAsync branch already does this). Without this the longer
             // active-constructions TTL could serve pre-reload state at the top of an upgrade iteration.
             InvalidateActiveConstructionsCache();
-            await ActionPacer.FromOptions(_config, Notify).DelayAsync(
+            await ApplyPacingDelayAsync(
                 _config.ActionPacingPageLoadMinSeconds,
                 _config.ActionPacingPageLoadMaxSeconds,
-                cancellationToken,
-                "after page reload");
+                "page-load-pacing",
+                "after page reload",
+                cancellationToken);
         }
         else
         {
@@ -272,12 +361,15 @@ public sealed partial class TravianClient
         {
             try
             {
-                await _page.ReloadAsync(new PageReloadOptions
+                await ReloadPageTracedAsync(
+                    _page,
+                    $"slow-network recovery attempt {attempt + 1}/{timeouts.Length}",
+                    new PageReloadOptions
                     {
                         WaitUntil = WaitUntilState.DOMContentLoaded,
                         Timeout = timeouts[attempt],
-                    })
-                    .WaitAsync(cancellationToken);
+                    },
+                    cancellationToken);
                 return;
             }
             catch (OperationCanceledException)
@@ -298,10 +390,15 @@ public sealed partial class TravianClient
                 if (attempt + 1 < timeouts.Length)
                 {
                     var retryDelay = TimeSpan.FromSeconds(2 + attempt * 3);
+                    _browserTrace.Event(
+                        "RETRY",
+                        "reload",
+                        "retry",
+                        $"attempt={attempt + 1}/{timeouts.Length} timeoutMs={timeouts[attempt]} backoffMs={retryDelay.TotalMilliseconds:0}");
                     Notify(
                         $"[nav] RELOAD transient timeout attempt={attempt + 1}/{timeouts.Length} " +
                         $"timeout={timeouts[attempt]}ms; retrying in {retryDelay.TotalSeconds:F0}s.");
-                    await Task.Delay(retryDelay, cancellationToken);
+                    await DelayForRetryAsync((int)retryDelay.TotalMilliseconds, "reload", cancellationToken);
                 }
             }
         }
@@ -414,11 +511,45 @@ public sealed partial class TravianClient
 
     private async Task ApplyActionDelayAsync(CancellationToken cancellationToken)
     {
-        await ActionPacer.FromOptions(_config, Notify).DelayAsync(
+        await ApplyPacingDelayAsync(
             _config.ActionPacingTaskMinSeconds,
             _config.ActionPacingTaskMaxSeconds,
-            cancellationToken,
-            "between actions");
+            "action-pacing",
+            "between actions",
+            cancellationToken);
+    }
+
+    private async Task ApplyPacingDelayAsync(
+        double minimumSeconds,
+        double maximumSeconds,
+        string action,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        if (!_config.ActionPacingEnabled)
+        {
+            _browserTrace.Event("DECISION", action, "skipped", "reason=action pacing disabled");
+            return;
+        }
+
+        using var trace = _browserTrace.BeginOperation(
+            "WAIT",
+            action,
+            $"reason={reason} plannedRangeSeconds={minimumSeconds:0.###}-{maximumSeconds:0.###}");
+        try
+        {
+            await ActionPacer.FromOptions(_config, Notify).DelayAsync(
+                minimumSeconds,
+                maximumSeconds,
+                cancellationToken,
+                reason);
+            trace.Complete("success");
+        }
+        catch (OperationCanceledException)
+        {
+            trace.Complete("canceled");
+            throw;
+        }
     }
 
     private string? ResolveUrl(string? href)

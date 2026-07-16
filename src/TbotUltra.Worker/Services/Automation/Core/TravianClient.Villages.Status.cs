@@ -16,6 +16,7 @@ public sealed partial class TravianClient
 {
     public async Task<IReadOnlyList<VillageStatus>> ReadAllVillageStatusesAsync(CancellationToken cancellationToken = default)
     {
+        using var trace = _browserTrace.BeginOperation("READ", "all-village-statuses", "scope=account source=live");
         Notify("[scan] all-village status scan starting");
         var returnVillageName = await TryReadActiveVillageNameSafeAsync(cancellationToken);
         await GotoAsync(Paths.Resources, cancellationToken);
@@ -24,7 +25,9 @@ public sealed partial class TravianClient
         var villages = await ReadVillagesAsync(cancellationToken);
         if (villages.Count == 0)
         {
-            return [await ReadCurrentVillageStatusAsync(cancellationToken)];
+            var currentOnly = new[] { await ReadCurrentVillageStatusAsync(cancellationToken) };
+            trace.Complete("success", "count=1 source=current-village-only");
+            return currentOnly;
         }
 
         var statuses = new List<VillageStatus>();
@@ -69,6 +72,7 @@ public sealed partial class TravianClient
             }
         }
 
+        trace.Complete("success", $"count={statuses.Count} expected={villages.Count}");
         return statuses;
     }
 
@@ -77,6 +81,7 @@ public sealed partial class TravianClient
         IReadOnlyList<Village>? knownVillages = null,
         IReadOnlyList<Building>? knownBuildings = null)
     {
+        using var trace = _browserTrace.BeginOperation("READ", "current-village-status", "scope=dorf1-and-dorf2 source=live-and-cache");
         // Read the village list from the sidebar/cache instead of navigating to the profile (spieler.php).
         // On a village switch we only need dorf1/dorf2 of the target village for status; the profile was
         // only used to enumerate villages and re-check the capital — capital comes from cache here. This
@@ -128,7 +133,7 @@ public sealed partial class TravianClient
                 $"activeConstructions={activeConstructions.Count} selected={activeBuildCount}");
         }
 
-        return new VillageStatus(
+        var result = new VillageStatus(
             ActiveVillage: activeVillage,
             Villages: villages,
             Resources: resources,
@@ -154,6 +159,10 @@ public sealed partial class TravianClient
             BuildQueueFinish: remaining is > 0 ? TimerSnapshot.FromRemaining(remaining.Value) : null,
             HeroStatus: heroStatus,
             ActiveConstructionsFromOverview: _lastActiveConstructionsFromOverview);
+        trace.Complete(
+            "success",
+            $"village={result.ActiveVillage} resources={result.Resources.Count} fields={result.ResourceFields.Count} buildings={result.Buildings.Count} queue={result.BuildQueue.Count} activeConstructions={result.ActiveConstructions?.Count ?? 0}");
+        return result;
     }
 
     private async Task<(long? Warehouse, long? Granary)> ReadStorageCapacitiesAsync(CancellationToken cancellationToken)
@@ -212,4 +221,3 @@ public sealed partial class TravianClient
 
 
 }
-

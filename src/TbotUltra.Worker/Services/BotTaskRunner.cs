@@ -117,11 +117,30 @@ public sealed partial class BotTaskRunner
                 cancellationToken,
                 async client =>
                 {
-                    result = await client.ScanMapOasesAsync(
-                        includeOccupied,
-                        selectedTypes,
-                        progress,
-                        cancellationToken);
+                    using var trace = client.BeginBrowserTraceFlow(
+                        null,
+                        "scan-map-oases",
+                        options.TargetVillageName,
+                        "manual-ui-function");
+                    try
+                    {
+                        result = await client.ScanMapOasesAsync(
+                            includeOccupied,
+                            selectedTypes,
+                            progress,
+                            cancellationToken);
+                        trace.Complete("success", $"count={result.Count}");
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        trace.Complete("canceled");
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        trace.Complete("failed", $"{ex.GetType().Name}: {ex.Message}");
+                        throw;
+                    }
                 });
         }
         catch (OperationCanceledException)
@@ -143,7 +162,8 @@ public sealed partial class BotTaskRunner
         Action<string> log,
         IEnumerable<string>? tasksOverride = null,
         string? accountName = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        string? traceRunId = null)
     {
         var tasks = tasksOverride?.ToList() ?? (options.LoopTasks is { Count: > 0 } configuredTasks ? configuredTasks : ["status"]);
         var taskResults = new List<BotTaskResult>();
@@ -156,71 +176,105 @@ public sealed partial class BotTaskRunner
             async client =>
             {
                 var tickSw = System.Diagnostics.Stopwatch.StartNew();
+                using var executionTrace = client.BeginBrowserTraceFlow(
+                    traceRunId,
+                    tasks.Count == 1 ? tasks[0] : "multi-task",
+                    options.TargetVillageName,
+                    "worker-execution");
                 log($"[tick] starting — account='{client.AccountName}' server='{options.ServerName}' targetVillage='{options.TargetVillageName ?? "(default)"}'");
                 log($"[tick] tasks ({tasks.Count}): {string.Join(", ", tasks)}");
-
-                await client.LoginAsync(cancellationToken);
-                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken);
-                var context = new TaskExecutionContext(this, options, client, log, cancellationToken, taskResults.Add);
-                var taskIndex = 0;
-                foreach (var taskName in tasks)
+                try
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    taskIndex++;
-                    if (!TaskCatalog.IsAllowed(taskName))
+                    await client.LoginAsync(cancellationToken);
+                    await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken);
+                    var context = new TaskExecutionContext(this, options, client, log, cancellationToken, taskResults.Add);
+                    var taskIndex = 0;
+                    foreach (var taskName in tasks)
                     {
-                        log($"[tick] task '{taskName}' is not allowed — skipping ({taskIndex}/{tasks.Count})");
-                        continue;
-                    }
-
-                    if (!TaskHandlers.TryGetValue(taskName, out var handler))
-                    {
-                        log($"[tick] task '{taskName}' is allowed but not implemented — skipping ({taskIndex}/{tasks.Count})");
-                        continue;
-                    }
-
-                    var taskSw = System.Diagnostics.Stopwatch.StartNew();
-                    log($"[{taskName} STARTED] ({taskIndex}/{tasks.Count}) on '{client.AccountName}'");
-                    try
-                    {
-                        await handler(context);
-                        log($"[{taskName} COMPLETED] in {taskSw.Elapsed.TotalSeconds:F1}s ({taskIndex}/{tasks.Count})");
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        log($"[{taskName} CANCELED] after {taskSw.Elapsed.TotalSeconds:F1}s ({taskIndex}/{tasks.Count})");
-                        throw;
-                    }
-                    catch (TaskWaitException waitEx)
-                    {
-                        // Not a failure — this is the worker telling the queue "I can't make progress
-                        // right now (resources/queue/cooldown), retry me in N seconds". The outer
-                        // loop already logs a [LOOP n] DEFER line. Don't trip the alarm panel.
-                        log($"[{taskName} DEFERRED] after {taskSw.Elapsed.TotalSeconds:F1}s — wait {waitEx.DelaySeconds}s: {waitEx.Message}");
-                        throw;
-                    }
-                    catch (TaskBlockedPermanentlyException blockedEx)
-                    {
-                        // Permanent block (e.g. building at max, required building missing). Worth
-                        // noting clearly but not the same as an unexpected crash.
-                        log($"[{taskName} BLOCKED] after {taskSw.Elapsed.TotalSeconds:F1}s: {blockedEx.Message}");
-                        throw;
-                    }
-                    catch (Exception ex)
-                    {
-                        if (BrowserFailureClassifier.IsTargetCrash(ex))
+                        cancellationToken.ThrowIfCancellationRequested();
+                        taskIndex++;
+                        if (!TaskCatalog.IsAllowed(taskName))
                         {
-                            log($"[{taskName} DEFERRED] after {taskSw.Elapsed.TotalSeconds:F1}s: Chromium target crashed");
-                        }
-                        else
-                        {
-                            log($"[{taskName} FAILED] after {taskSw.Elapsed.TotalSeconds:F1}s: {ex.GetType().Name}: {ex.Message}");
+                            log($"[tick] task '{taskName}' is not allowed — skipping ({taskIndex}/{tasks.Count})");
+                            continue;
                         }
 
-                        throw;
+                        if (!TaskHandlers.TryGetValue(taskName, out var handler))
+                        {
+                            log($"[tick] task '{taskName}' is allowed but not implemented — skipping ({taskIndex}/{tasks.Count})");
+                            continue;
+                        }
+
+                        var taskSw = System.Diagnostics.Stopwatch.StartNew();
+                        using var taskTrace = client.BeginBrowserTraceFlow(
+                            traceRunId,
+                            taskName,
+                            options.TargetVillageName,
+                            "task-handler");
+                        log($"[{taskName} STARTED] ({taskIndex}/{tasks.Count}) on '{client.AccountName}'");
+                        try
+                        {
+                            await handler(context);
+                            taskTrace.Complete("success");
+                            log($"[{taskName} COMPLETED] in {taskSw.Elapsed.TotalSeconds:F1}s ({taskIndex}/{tasks.Count})");
+                        }
+                        catch (OperationCanceledException)
+                        {
+                            taskTrace.Complete("canceled");
+                            log($"[{taskName} CANCELED] after {taskSw.Elapsed.TotalSeconds:F1}s ({taskIndex}/{tasks.Count})");
+                            throw;
+                        }
+                        catch (TaskWaitException waitEx)
+                        {
+                            taskTrace.Complete("deferred", $"waitSeconds={waitEx.DelaySeconds}");
+                            log($"[{taskName} DEFERRED] after {taskSw.Elapsed.TotalSeconds:F1}s — wait {waitEx.DelaySeconds}s: {waitEx.Message}");
+                            throw;
+                        }
+                        catch (TaskBlockedPermanentlyException blockedEx)
+                        {
+                            taskTrace.Complete("blocked", blockedEx.Message);
+                            log($"[{taskName} BLOCKED] after {taskSw.Elapsed.TotalSeconds:F1}s: {blockedEx.Message}");
+                            throw;
+                        }
+                        catch (Exception ex)
+                        {
+                            taskTrace.Complete("failed", $"{ex.GetType().Name}: {ex.Message}");
+                            if (BrowserFailureClassifier.IsTargetCrash(ex))
+                            {
+                                log($"[{taskName} DEFERRED] after {taskSw.Elapsed.TotalSeconds:F1}s: Chromium target crashed");
+                            }
+                            else
+                            {
+                                log($"[{taskName} FAILED] after {taskSw.Elapsed.TotalSeconds:F1}s: {ex.GetType().Name}: {ex.Message}");
+                            }
+
+                            throw;
+                        }
                     }
+
+                    log($"[tick] completed in {tickSw.Elapsed.TotalSeconds:F1}s ({tasks.Count} task(s)) on '{client.AccountName}'");
+                    executionTrace.Complete("success");
                 }
-                log($"[tick] completed in {tickSw.Elapsed.TotalSeconds:F1}s ({tasks.Count} task(s)) on '{client.AccountName}'");
+                catch (OperationCanceledException)
+                {
+                    executionTrace.Complete("canceled");
+                    throw;
+                }
+                catch (TaskWaitException waitEx)
+                {
+                    executionTrace.Complete("deferred", $"waitSeconds={waitEx.DelaySeconds}");
+                    throw;
+                }
+                catch (TaskBlockedPermanentlyException blockedEx)
+                {
+                    executionTrace.Complete("blocked", blockedEx.Message);
+                    throw;
+                }
+                catch (Exception ex)
+                {
+                    executionTrace.Complete("failed", $"{ex.GetType().Name}: {ex.Message}");
+                    throw;
+                }
             });
         return new BotTaskExecutionResult(taskResults);
     }
@@ -442,11 +496,16 @@ public sealed partial class BotTaskRunner
             SeedStableAccountSignals(_sharedVisibleSessionCache, account, options, log);
         }
 
+        await _sharedVisibleSession!.SetDetailedBrowserLoggingAsync(
+            options.DetailedBrowserLoggingEnabled,
+            cancellationToken);
+
         var sharedClient = CreateClient(_sharedVisiblePage!, options, account, interactive, log, _sharedVisibleSessionCache,
             setConsentDomainsAllowed: allowed => GetRequiredSharedVisibleSession().ConsentDomainsAllowed = allowed,
             cleanupAfterBonusVideoAsync: (page, ct) => GetRequiredSharedVisibleSession().CleanupAfterBonusVideoAsync(page, ct),
             runInIsolatedBonusVideoBrowserAsync: (action, ct) => GetRequiredSharedVisibleSession().RunInIsolatedBonusVideoBrowserAsync(action, ct),
-            rotateAfterLobbyLoginAsync: ct => RotateSharedVisibleContextAfterLobbyLoginAsync(log, ct));
+            rotateAfterLobbyLoginAsync: ct => RotateSharedVisibleContextAfterLobbyLoginAsync(log, ct),
+            browserTrace: GetRequiredSharedVisibleSession().BrowserTrace);
         return new ClientLease(_sharedVisibleSession!, sharedClient, true);
     }
 
@@ -519,7 +578,8 @@ public sealed partial class BotTaskRunner
         Action<bool>? setConsentDomainsAllowed = null,
         Func<IPage, CancellationToken, Task>? cleanupAfterBonusVideoAsync = null,
         Func<Func<IPage, CancellationToken, Task<string>>, CancellationToken, Task<string>>? runInIsolatedBonusVideoBrowserAsync = null,
-        Func<CancellationToken, Task<IPage>>? rotateAfterLobbyLoginAsync = null)
+        Func<CancellationToken, Task<IPage>>? rotateAfterLobbyLoginAsync = null,
+        BrowserTraceLogger? browserTrace = null)
     {
         return new TravianClient(
             page,
@@ -533,7 +593,8 @@ public sealed partial class BotTaskRunner
             setConsentDomainsAllowed: setConsentDomainsAllowed,
             cleanupAfterBonusVideoAsync: cleanupAfterBonusVideoAsync,
             runInIsolatedBonusVideoBrowserAsync: runInIsolatedBonusVideoBrowserAsync,
-            rotateAfterLobbyLoginAsync: rotateAfterLobbyLoginAsync);
+            rotateAfterLobbyLoginAsync: rotateAfterLobbyLoginAsync,
+            browserTrace: browserTrace);
     }
 
     private TravianSessionCache CreateSeededSessionCache(
