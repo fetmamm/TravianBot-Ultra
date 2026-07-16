@@ -97,7 +97,7 @@ public partial class VillageSettingsWindow : Window
                 VillageSettingsDataGrid.Columns.Add(new DataGridTemplateColumn
                 {
                     Header = BuildColumnHeader(
-                        "25% constr.",
+                        "25% construct.",
                         "Construct 25% faster. Enables Official Travian construct-faster bonus videos for this village."),
                     Width = DataGridLength.Auto,
                     CellTemplate = BuildToggleWithGearCellTemplate(
@@ -156,7 +156,7 @@ public partial class VillageSettingsWindow : Window
     private static string ShortColumnTitle(string title) => title switch
     {
         "Hero adv." => "Adventure",
-        "Construction" => "Constr.",
+        "Construction" => "Construct.",
         "Upgrade Troops" => "Smithy",
         "Build Troops" => "Build troops",
         "Reinforcements" => "Reinf.",

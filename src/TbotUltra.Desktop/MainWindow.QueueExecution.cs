@@ -218,7 +218,10 @@ public partial class MainWindow
             var priority = firstPriority == int.MaxValue
                 ? int.MaxValue - index
                 : firstPriority - index;
-            var payload = BuildConstructionRequirementRepairPayload(item, step);
+            var payload = BuildConstructionRequirementRepairPayload(
+                item,
+                step,
+                markAsAutomaticRepair: step.Kind == ConstructionRequirementRepairStepKind.Enqueue);
 
             if (step.Kind == ConstructionRequirementRepairStepKind.Promote
                 && step.ExistingQueueItemId is Guid existingId)
@@ -295,17 +298,20 @@ public partial class MainWindow
         return true;
     }
 
-    private static Dictionary<string, string> BuildConstructionRequirementRepairPayload(
+    internal static Dictionary<string, string> BuildConstructionRequirementRepairPayload(
         QueueItem parent,
-        ConstructionRequirementRepairStep step)
+        ConstructionRequirementRepairStep step,
+        bool markAsAutomaticRepair)
     {
-        var payload = new Dictionary<string, string>(step.Payload, StringComparer.OrdinalIgnoreCase)
+        var payload = new Dictionary<string, string>(step.Payload, StringComparer.OrdinalIgnoreCase);
+        if (markAsAutomaticRepair)
         {
-            [BotOptionPayloadKeys.AutoAddedBy] = BotOptionPayloadKeys.AutoAddedByConstructionRequirementRepair,
-            [BotOptionPayloadKeys.AutoAddedParentId] = parent.Id.ToString(),
-            [BotOptionPayloadKeys.AutoAddedReason] = step.Reason,
-            [BotOptionPayloadKeys.AutoAddedRequirement] = step.RequirementText,
-        };
+            payload[BotOptionPayloadKeys.AutoAddedBy] =
+                BotOptionPayloadKeys.AutoAddedByConstructionRequirementRepair;
+            payload[BotOptionPayloadKeys.AutoAddedParentId] = parent.Id.ToString();
+            payload[BotOptionPayloadKeys.AutoAddedReason] = step.Reason;
+            payload[BotOptionPayloadKeys.AutoAddedRequirement] = step.RequirementText;
+        }
 
         CopyIfPresent(parent.Payload, payload, BotOptionPayloadKeys.TargetVillageName);
         CopyIfPresent(parent.Payload, payload, BotOptionPayloadKeys.TargetVillageUrl);
@@ -357,6 +363,13 @@ public partial class MainWindow
         {
             var constructGuardCanUseCache =
                 await TryRefreshConstructTargetVillageStatusBeforeGuardAsync(item, options, cancellationToken);
+            if (constructGuardCanUseCache
+                && await TryHandleConstructQueueFullBeforeRequirementGuardAsync(item, logPrefix, tickSw))
+            {
+                freshBuildingsRefreshDone = true;
+                return true;
+            }
+
             if (constructGuardCanUseCache
                 && await TryHandleConstructRequirementPreRunGuardAsync(item, logPrefix, tickSw))
             {
@@ -420,6 +433,69 @@ public partial class MainWindow
                 }
             }
         }
+    }
+
+    private async Task<bool> TryHandleConstructQueueFullBeforeRequirementGuardAsync(
+        QueueItem item,
+        string logPrefix,
+        Stopwatch timer)
+    {
+        if (!string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var status = ResolveBuildingStatusForQueueItem(item);
+        if (status is null
+            || ConstructionQueueState.ResolveAvailabilityForItem(status, _travianPlusActive, item)
+                != ConstructionQueueAvailability.Full)
+        {
+            return false;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var delay = ConstructionQueueState.ResolveQueueFullRetryDelay(status, _travianPlusActive, item, now)
+            ?? TimeSpan.FromSeconds(60);
+        var payload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonQueueFull,
+            [BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
+                ConstructionQueueState.CurrentDeferClassificationVersion,
+        };
+        payload.Remove(BotOptionPayloadKeys.RequirementDeferCount);
+
+        if (!_botService.MarkQueueItemDeferred(item.Id, delay))
+        {
+            AppendLog(
+                $"{logPrefix} FAIL {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                "live full build queue was detected before requirement repair, but defer could not be persisted");
+            return false;
+        }
+
+        if (_botService.UpdateDeferredQueueItem(item.Id, payload, delay))
+        {
+            item.Payload = payload;
+        }
+        else
+        {
+            AppendLog(
+                $"[construction-queue] preflight queue-full payload persistence failed " +
+                $"id={item.Id} task='{item.TaskName}'");
+        }
+
+        var villageName = NormalizeVillageName(GetQueueItemVillageName(item)) ?? status.ActiveVillage ?? "-";
+        var retryAt = now + delay;
+        var activeCount = ConstructionQueueState.ResolveCurrentActiveConstructions(status, now).Count;
+        AppendLog(
+            $"[construction-preflight] stopped before requirement repair " +
+            $"id={item.Id} village='{villageName}' active={activeCount} " +
+            $"waitSeconds={delay.TotalSeconds:F0}; queue was not modified.");
+        AppendLog(
+            $"[construction] BUILD QUEUE FULL village='{villageName}'. " +
+            $"Construction order is held until the first active construction finishes. " +
+            $"Next retry: {FormatQueueServerTime(retryAt)} (in {delay.TotalSeconds:F0}s).");
+        await Dispatcher.InvokeAsync(RefreshVillageActivityIndicatorsOnDashboard);
+        return true;
     }
 
     private async Task<bool> TryRefreshConstructTargetVillageStatusBeforeGuardAsync(
@@ -857,7 +933,7 @@ public partial class MainWindow
                         AppendLog(
                             $"[construction-queue:verbose] in-progress defer classified " +
                             $"id={item.Id} task='{item.TaskName}' village='{villageName}' mode={mode} " +
-                            $"retryAt='{FormatQueueServerTime(retryAt)}'; later construction remains eligible.");
+                            $"retryAt='{FormatQueueServerTime(retryAt)}'; later construction is held in queue order.");
                     }
                 }
 

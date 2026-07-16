@@ -219,6 +219,10 @@ Common endpoints:
 - Do not let an incomplete refresh erase the last valid snapshot without an explicit reason.
 - Apply configured pacing to browser actions; do not add unbounded sleeps.
 - Retry only transient failures and cap attempts.
+- Construction follows the visible queue order per village for both manual and template rows. A deferred
+  head row holds every later construction row in that village; another village may still run. Automatic
+  requirement repair may insert or promote prerequisites ahead of the blocked row only after a live read
+  confirms that the relevant Travian build slot is available; a full live build queue must not mutate repairs.
 - Alarms are actionable failures. Expected waiting/blocked states belong in normal logs/status.
 - Avoid alarm loops: deduplicate or rate-limit repeated failures with identical cause.
 - Release builds uploaded to Discord must come from the documented clean publish workflow.

@@ -58,7 +58,7 @@ public sealed class ConstructionQueueSelectorTests
     }
 
     [Fact]
-    public void SelectNext_InProgressTargetAllowsLaterConstruction()
+    public void SelectNext_InProgressTargetHoldsQueueOrder()
     {
         var inProgress = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonInProgress);
         var later = CreateReadyItem();
@@ -68,12 +68,13 @@ public sealed class ConstructionQueueSelectorTests
             Now,
             ConstructionQueueAvailability.Available);
 
-        Assert.Same(later, result.Item);
+        Assert.Null(result.Item);
         Assert.False(result.ForcedLiveValidation);
+        Assert.Contains("holding queue order", result.SkipReason);
     }
 
     [Fact]
-    public void SelectNext_StorageCapacityDependencyAllowsLaterConstruction()
+    public void SelectNext_StorageCapacityDependencyHoldsQueueOrder()
     {
         var capacityWait = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonStorageCapacity);
         var dependency = CreateReadyItem();
@@ -83,11 +84,12 @@ public sealed class ConstructionQueueSelectorTests
             Now,
             ConstructionQueueAvailability.Available);
 
-        Assert.Same(dependency, result.Item);
+        Assert.Null(result.Item);
+        Assert.Contains("holding queue order", result.SkipReason);
     }
 
     [Fact]
-    public void SelectNext_RequirementDependencyAllowsLaterConstruction()
+    public void SelectNext_RequirementDependencyHoldsQueueOrder()
     {
         var requirementWait = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonRequirements);
         var dependency = CreateReadyItem();
@@ -97,7 +99,23 @@ public sealed class ConstructionQueueSelectorTests
             Now,
             ConstructionQueueAvailability.Available);
 
-        Assert.Same(dependency, result.Item);
+        Assert.Null(result.Item);
+        Assert.Contains("holding queue order", result.SkipReason);
+    }
+
+    [Fact]
+    public void SelectNext_LiveFullQueueBlocksReadyHead()
+    {
+        var ready = CreateReadyItem();
+
+        var result = ConstructionQueueSelector.SelectNext(
+            [ready],
+            Now,
+            ConstructionQueueAvailability.Full);
+
+        Assert.Null(result.Item);
+        Assert.Same(ready, result.QueueFullBlocker);
+        Assert.Contains("holding queue order", result.SkipReason);
     }
 
     [Fact]

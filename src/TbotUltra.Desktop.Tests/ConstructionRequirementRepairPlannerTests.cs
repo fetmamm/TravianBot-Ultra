@@ -103,6 +103,56 @@ public sealed class ConstructionRequirementRepairPlannerTests
     }
 
     [Fact]
+    public void RepairPayload_PromotedTemplateItemKeepsOriginalProvenance()
+    {
+        var parent = StableConstruct();
+        var templateStepId = Guid.NewGuid().ToString();
+        var step = new ConstructionRequirementRepairStep(
+            ConstructionRequirementRepairStepKind.Promote,
+            Guid.NewGuid(),
+            "construct_building",
+            new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.BuildingTemplateStepId] = templateStepId,
+            },
+            "Construct Academy",
+            "Academy is required",
+            "Academy level 1");
+
+        var payload = MainWindow.BuildConstructionRequirementRepairPayload(
+            parent,
+            step,
+            markAsAutomaticRepair: false);
+
+        Assert.Equal(templateStepId, payload[BotOptionPayloadKeys.BuildingTemplateStepId]);
+        Assert.False(payload.ContainsKey(BotOptionPayloadKeys.AutoAddedBy));
+    }
+
+    [Fact]
+    public void RepairPayload_NewRepairItemIsMarkedAsAutomatic()
+    {
+        var parent = StableConstruct();
+        var step = new ConstructionRequirementRepairStep(
+            ConstructionRequirementRepairStepKind.Enqueue,
+            null,
+            "construct_building",
+            new BuildingConstructPayload(30, 22, "Academy").ToDictionary(),
+            "Construct Academy",
+            "Academy is required",
+            "Academy level 1");
+
+        var payload = MainWindow.BuildConstructionRequirementRepairPayload(
+            parent,
+            step,
+            markAsAutomaticRepair: true);
+
+        Assert.Equal(
+            BotOptionPayloadKeys.AutoAddedByConstructionRequirementRepair,
+            payload[BotOptionPayloadKeys.AutoAddedBy]);
+        Assert.Equal(parent.Id.ToString(), payload[BotOptionPayloadKeys.AutoAddedParentId]);
+    }
+
+    [Fact]
     public void Plan_NoFreeSlot_BlocksRepair()
     {
         var parent = StableConstruct();

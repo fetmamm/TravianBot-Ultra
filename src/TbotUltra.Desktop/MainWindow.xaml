@@ -562,6 +562,9 @@
                                         Content="Village settings"
                                         Padding="10,4"
                                         Margin="0,0,8,0"
+                                        Background="{DynamicResource SuccessBgBrush}"
+                                        BorderBrush="{DynamicResource SuccessBorderBrush}"
+                                        Foreground="{DynamicResource SuccessTextBrush}"
                                         Click="VillageSettingsButton_Click"
                                         ToolTip="Open per-village settings (hero resources, NPC, build/upgrade troops, farming)." />
                                 <Button x:Name="AccountScanButton"
