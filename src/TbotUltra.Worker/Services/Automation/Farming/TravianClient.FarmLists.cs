@@ -708,6 +708,9 @@ public sealed partial class TravianClient : IFarmingClient
 
     private async Task<FarmListSendAllClickStateJs> TryClickStartAllFarmListsAsync(CancellationToken cancellationToken)
     {
+        // Resolve the start-all button state WITHOUT clicking, so the click itself can be a real, trusted
+        // Playwright click below (pointer movement + full event sequence, isTrusted=true). An empty reason
+        // with listCount>0 means the button is present and enabled; a non-empty reason means not clickable.
         var state = await _page.EvaluateAsync<FarmListSendAllClickStateJs>(
             """
             () => {
@@ -720,10 +723,15 @@ public sealed partial class TravianClient : IFarmingClient
                 return !node || node.disabled || node.getAttribute('disabled') !== null || cls.includes('disabled');
               };
 
+              // Only track lists whose Start button is ENABLED — those are the ones "send all" actually
+              // sends. Lists that are already disabled (empty/no valid targets, or on cooldown) are not
+              // part of this send and must be excluded, otherwise the completion wait below would block
+              // for its full timeout waiting for a button that never re-enables.
               const wrappers = Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper'));
               const listIds = wrappers
-                .filter(wrapper => wrapper.querySelector('button.startFarmList'))
-                .map(readListId)
+                .map(wrapper => ({ wrapper, button: wrapper.querySelector('button.startFarmList') }))
+                .filter(entry => entry.button && !isDisabled(entry.button))
+                .map(entry => readListId(entry.wrapper))
                 .filter(id => id && id.length > 0);
               const allButton = document.querySelector('#rallyPointFarmList button.startAllFarmLists, button.startAllFarmLists');
               if (!allButton) {
@@ -734,13 +742,80 @@ public sealed partial class TravianClient : IFarmingClient
                 return { clicked: false, reason: 'start-all button disabled', listIds, listCount: listIds.length };
               }
 
+              return { clicked: false, reason: '', listIds, listCount: listIds.length };
+            }
+            """).WaitAsync(cancellationToken);
+
+        state ??= new FarmListSendAllClickStateJs { Clicked = false, Reason = "start-all state could not be read" };
+        if (state.ListCount <= 0 || !string.IsNullOrEmpty(state.Reason))
+        {
+            return state;
+        }
+
+        var clicked = await TryRealClickFarmButtonAsync(
+            _page.Locator("#rallyPointFarmList button.startAllFarmLists, button.startAllFarmLists").First,
+            JsDispatchStartAllFarmListsAsync,
+            "start all farm lists",
+            cancellationToken);
+
+        return new FarmListSendAllClickStateJs
+        {
+            Clicked = clicked,
+            Reason = clicked ? string.Empty : "start-all button click did not register",
+            ListIds = state.ListIds,
+            ListCount = state.ListCount,
+        };
+    }
+
+    // Fallback that dispatches synthetic mouse events on the start-all button. Used only when the real
+    // Playwright click above is not actionable (covered/detached), so farm-send behavior never regresses.
+    private async Task<bool> JsDispatchStartAllFarmListsAsync()
+    {
+        return await _page.EvaluateAsync<bool>(
+            """
+            () => {
+              const allButton = document.querySelector('#rallyPointFarmList button.startAllFarmLists, button.startAllFarmLists');
+              if (!allButton) return false;
+              const cls = (allButton.getAttribute('class') || '').toLowerCase();
+              if (allButton.disabled || allButton.getAttribute('disabled') !== null || cls.includes('disabled')) return false;
               allButton.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
               allButton.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
               allButton.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-              return { clicked: true, reason: '', listIds, listCount: listIds.length };
+              return true;
             }
-            """).WaitAsync(cancellationToken);
-        return state ?? new FarmListSendAllClickStateJs { Clicked = false, Reason = "start-all state could not be read" };
+            """);
+    }
+
+    // Clicks a farm-list button with a real, trusted Playwright click (Playwright moves the pointer and
+    // fires the full event sequence, so the click reads as isTrusted). Falls back to the supplied
+    // synthetic-dispatch action only when the real click is not actionable, so behavior never regresses.
+    private async Task<bool> TryRealClickFarmButtonAsync(
+        ILocator button,
+        Func<Task<bool>> jsFallback,
+        string reason,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            if (await button.CountAsync() > 0)
+            {
+                await DelayBeforeClickAsync(cancellationToken, reason);
+                await button.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
+                return true;
+            }
+
+            Notify($"[farm-list] real click target not found ({reason}); using JS dispatch fallback.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (PlaywrightException ex)
+        {
+            Notify($"[farm-list] real click failed ({reason}); using JS dispatch fallback: {ex.Message}");
+        }
+
+        return await jsFallback();
     }
 
     private async Task WaitForFarmListStartButtonsDisabledAsync(IReadOnlyList<string> listIds, CancellationToken cancellationToken)
@@ -765,11 +840,14 @@ public sealed partial class TravianClient : IFarmingClient
             await _page.WaitForFunctionAsync(
                 FarmListStartButtonsEnabledScript,
                 listIds.ToArray(),
-                new PageWaitForFunctionOptions { Timeout = 120000 }).WaitAsync(cancellationToken);
+                new PageWaitForFunctionOptions { Timeout = 60000 }).WaitAsync(cancellationToken);
         }
-        catch (TimeoutException ex)
+        catch (TimeoutException)
         {
-            throw new InvalidOperationException("Start all farmlists did not finish within 120 seconds; Start buttons were still disabled.", ex);
+            // The raids were already dispatched by the click above; a Start button that has not re-enabled
+            // within the timeout (e.g. a list now on cooldown) is not a send failure. Complete the operation
+            // with a warning instead of blocking/alarming.
+            Notify("[farm-list] send-all: some Start buttons had not re-enabled within 60 seconds; treating the send as complete.");
         }
     }
 
@@ -913,6 +991,64 @@ public sealed partial class TravianClient : IFarmingClient
     }
 
     private async Task<bool> TryClickFarmListSendNowAsync(string farmListName, CancellationToken cancellationToken)
+    {
+        // Fast path: resolve the Official wrapper's stable list id, then click its Start button for real
+        // (isTrusted). If the list is missing/disabled or the layout is not the Official one, fall back to
+        // the name-based synthetic-dispatch resolver, which also handles the legacy raid-button layout.
+        var lid = await ResolveOfficialFarmListStartIdAsync(farmListName);
+        if (!string.IsNullOrEmpty(lid))
+        {
+            var button = _page
+                .Locator($"#rallyPointFarmList .farmListWrapper:has(.dragAndDrop[data-list='{lid}']) button.startFarmList")
+                .First;
+            return await TryRealClickFarmButtonAsync(
+                button,
+                () => JsDispatchFarmListSendNowAsync(farmListName),
+                $"start farm list '{farmListName}'",
+                cancellationToken);
+        }
+
+        return await JsDispatchFarmListSendNowAsync(farmListName);
+    }
+
+    // Resolves the stable data-list id of the Official farm-list wrapper whose name matches, but only when
+    // its Start button exists and is enabled. Returns null for a missing/disabled list or a non-Official
+    // layout, which routes the caller to the synthetic-dispatch fallback.
+    private async Task<string?> ResolveOfficialFarmListStartIdAsync(string farmListName)
+    {
+        return await _page.EvaluateAsync<string?>(
+            """
+            (targetName) => {
+              const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const normalizeListName = (value) => normalize(value)
+                .replace(/\(\d+\s*farms?\)/i, '')
+                .replace(/\bdelete\b/ig, '')
+                .trim()
+                .toLowerCase();
+              const target = normalizeListName(targetName);
+              if (!target) return null;
+
+              const wrappers = Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper'));
+              for (const wrapper of wrappers) {
+                const name = normalizeListName(wrapper.querySelector('.farmListName .name')?.textContent || '');
+                if (name !== target) continue;
+
+                const startButton = wrapper.querySelector('button.startFarmList');
+                if (!startButton) return null;
+                const cls = (startButton.className || '').toLowerCase();
+                if (startButton.disabled || cls.includes('disabled')) return null;
+
+                return wrapper.querySelector('.dragAndDrop[data-list]')?.getAttribute('data-list')
+                    || wrapper.querySelector('[data-farm-list-id]')?.getAttribute('data-farm-list-id')
+                    || null;
+              }
+              return null;
+            }
+            """,
+            farmListName);
+    }
+
+    private async Task<bool> JsDispatchFarmListSendNowAsync(string farmListName)
     {
         var clicked = await _page.EvaluateAsync<bool>(
             """

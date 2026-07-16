@@ -83,7 +83,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
             var contextOptions = new BrowserNewContextOptions
             {
                 BaseURL = _config.BaseUrl,
-                ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
+                ViewportSize = ResolveViewportForAccount(_account.Name),
             };
 
         LegacyBrowserStorageAdapter.MigrateIfNeeded(
@@ -125,6 +125,18 @@ public sealed partial class BrowserSession : IAsyncDisposable
         await _context.AddInitScriptAsync(
             """
             (() => {
+              // Clear the WebDriver automation flag in every document. The --disable-blink-features
+              // launch arg already suppresses it, but the real Chrome/Edge channel can still expose it;
+              // redefining it as undefined here guarantees navigator.webdriver never reads true.
+              try {
+                Object.defineProperty(navigator, 'webdriver', {
+                  get: () => undefined,
+                  configurable: true
+                });
+              } catch (_) {
+                try { delete navigator.webdriver; } catch (_) { /* ignore */ }
+              }
+
               const blockedOpen = function () { return null; };
               try {
                 Object.defineProperty(window, 'open', {
@@ -298,6 +310,32 @@ public sealed partial class BrowserSession : IAsyncDisposable
         }
     }
 
+    // Common real desktop viewport (inner window) sizes. A single shared viewport across every account
+    // on one machine is a correlatable fingerprint, so pick one deterministically from the account name:
+    // stable for a given account (does not flicker between sessions) but different between accounts.
+    private static readonly ViewportSize[] CandidateViewportSizes =
+    {
+        new() { Width = 1366, Height = 728 },
+        new() { Width = 1536, Height = 824 },
+        new() { Width = 1440, Height = 789 },
+        new() { Width = 1600, Height = 861 },
+        new() { Width = 1920, Height = 969 },
+        new() { Width = 1280, Height = 689 },
+    };
+
+    private static ViewportSize ResolveViewportForAccount(string accountName)
+    {
+        var key = accountName ?? string.Empty;
+        var hash = 2166136261u;
+        foreach (var ch in key)
+        {
+            hash = (hash ^ ch) * 16777619u;
+        }
+
+        var index = (int)(hash % (uint)CandidateViewportSizes.Length);
+        return CandidateViewportSizes[index];
+    }
+
     private BrowserTypeLaunchOptions CreateChromiumLaunchOptions(bool keepNativePopupBlocker)
     {
         // The live session must always run with a visible window. Headless is forced off here so a
@@ -341,7 +379,14 @@ public sealed partial class BrowserSession : IAsyncDisposable
 
         // Bonus videos require third-party cookies. Disable Chromium's third-party-cookie
         // phaseout so the ad/consent flow can run.
-        launchOptions.Args = new[] { "--disable-features=TrackingProtection3pcd" };
+        // --disable-blink-features=AutomationControlled removes the `navigator.webdriver` automation
+        // flag at the source (the single most common bot tell); an init-script below also clears it as
+        // a belt-and-suspenders fallback for the real Chrome/Edge channel.
+        launchOptions.Args = new[]
+        {
+            "--disable-features=TrackingProtection3pcd",
+            "--disable-blink-features=AutomationControlled",
+        };
 
         // The bonus ad videos are H.264/AAC, which Playwright's bundled open-source Chromium
         // cannot decode ("format is not supported"). Use the system Google Chrome build, which

@@ -67,6 +67,10 @@ Common endpoints:
 - Never reintroduce broad legacy fallbacks merely because they make a test pass.
 - When a selector changes, verify it against live Official HTML or a captured fixture.
 - Keep destructive or state-changing clicks exact; a safe navigation retry is not permission to repeat an action.
+- Prefer a real Playwright `ClickAsync` (trusted, isTrusted=true, moves the pointer) on classic visible
+  buttons; keep synthetic `dispatchEvent` only as an actionability fallback, or for genuine React inputs
+  (native value + input/change) and hidden controls. Farm-list start buttons use this real-click-with-JS-fallback
+  pattern (`TryRealClickFarmButtonAsync`); do not revert them to pure JS dispatch.
 
 ### Navigation and browser lifecycle
 
@@ -76,6 +80,10 @@ Common endpoints:
 - Portable builds must resolve Playwright from the bundled `.playwright` directory.
 - Numeric parsing must handle locale separators and bidirectional Unicode markers.
 - Login automation requires the supported English UI; fail clearly if required markers are absent.
+- Anti-detection browser setup is intentional and must be preserved: launch with
+  `--disable-blink-features=AutomationControlled`, clear `navigator.webdriver` via init-script, and derive
+  the viewport per account (`ResolveViewportForAccount`) so accounts on one machine do not share a fixed
+  fingerprint. Do not revert to a hard-coded viewport or drop the automation flag.
 
 ## Configuration and persisted state
 

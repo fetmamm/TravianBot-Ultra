@@ -1161,22 +1161,10 @@ public sealed partial class TravianClient
                 return false;
             }
 
-            await _page.EvaluateAsync(
-                """
-                (payload) => {
-                  const input = document.querySelector(`input[name="${payload.inputName}"], input[id="${payload.inputName}"]`);
-                  if (!input) {
-                    return false;
-                  }
-
-                  input.value = String(payload.maxAmount);
-                  input.dispatchEvent(new Event('input', { bubbles: true }));
-                  input.dispatchEvent(new Event('change', { bubbles: true }));
-                  return true;
-                }
-                """,
-                new { inputName, maxAmount = maxAmount.Value });
-            Notify($"[troops:verbose] submit:set '{inputName}' directly to max value '{maxAmount.Value}'.");
+            await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
+            await input.ClickAsync();
+            await input.FillAsync(maxAmount.Value.ToString());
+            Notify($"[troops:verbose] submit:filled '{inputName}' with max value '{maxAmount.Value}'.");
         }
         else
         {
