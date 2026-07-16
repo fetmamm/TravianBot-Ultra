@@ -29,4 +29,19 @@ public sealed class LobbyWorldMatcherTests
     {
         Assert.Equal(expected, TravianClient.IsLobbyWorldNameMatch(worldName, serverHost, serverName));
     }
+
+    [Theory]
+    [InlineData("https://ts50.x5.arabics.travian.com/", true)]
+    [InlineData("https://ts50.x5.arabics.travian.com/dorf1.php", true)]
+    [InlineData("https://ts50.x5.arabics.travian.com/dorf2.php", true)]
+    [InlineData("https://ts51.x5.arabics.travian.com/", false)]
+    [InlineData("https://lobby.legends.travian.com/account", false)]
+    public void IsConfiguredGameOrigin_AcceptsConfiguredHostRegardlessOfPath(string landedUrl, bool expected)
+    {
+        Assert.Equal(
+            expected,
+            TravianClient.IsConfiguredGameOrigin(
+                landedUrl,
+                "https://ts50.x5.arabics.travian.com"));
+    }
 }

@@ -90,7 +90,12 @@
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                <TextBlock Grid.Row="0" Grid.Column="0" Text="Username/email" Margin="0,0,8,8" VerticalAlignment="Center" />
+                <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,0,8,8" VerticalAlignment="Center">
+                    <TextBlock Text="Email" VerticalAlignment="Center" />
+                    <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                    Margin="6,0,0,0"
+                                    ToolTip="Tbot Ultra signs in to your Travian lobby account with this email, selects the configured game world, and clicks Play now.&#10;Lobby data is isolated in a clean game context before normal automation begins." />
+                </StackPanel>
                 <TextBox x:Name="UsernameTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" TextChanged="EditorField_Changed" />
 
                 <TextBlock Grid.Row="1" Grid.Column="0" Text="Password" Margin="0,0,8,8" VerticalAlignment="Center" />

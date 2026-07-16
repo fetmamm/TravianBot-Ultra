@@ -35,6 +35,31 @@ public sealed partial class TravianClient
         return await TryHeroResourceTransferOnCurrentBuildPageAsync(label, cancellationToken);
     }
 
+    // Empty construction-slot pages list several building types at once, potentially across different
+    // category tabs. The gid is mandatory here so cost reads and the transfer click can never fall back
+    // to another building row. Existing-building upgrades use the single-building method above.
+    private async Task<bool> TryHeroResourceTransferForNewBuildingAsync(
+        string label,
+        int buildingGid,
+        CancellationToken cancellationToken)
+    {
+        if (!_config.HeroResourceUseConstruction)
+        {
+            return false;
+        }
+
+        if (buildingGid <= 0)
+        {
+            Notify($"[hero-transfer] skip at {label}. Invalid construct building gid={buildingGid}.");
+            return false;
+        }
+
+        return await TryHeroResourceTransferOnCurrentBuildPageAsync(
+            label,
+            cancellationToken,
+            constructBuildingGid: buildingGid);
+    }
+
     // Best-effort hero top-up for the celebration on the current brewery build page. Reuses the generic
     // build-page transfer flow (the brewery page shows the same .inlineIcon.resource.transfer when short
     // on resources). Gated by the per-consumer brewery toggle on top of the master switch.
@@ -83,9 +108,11 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken,
         bool preferTownHallCelebration = false,
         string? townHallCelebrationMode = null,
-        bool preferBreweryCelebration = false)
+        bool preferBreweryCelebration = false,
+        int? constructBuildingGid = null)
     {
         _heroTransferOverLimitWaitSeconds = null;
+        var constructBuildingScopeId = BuildHeroTransferConstructScopeId(constructBuildingGid);
 
         if (!_config.HeroResourceTransferEnabled)
         {
@@ -119,11 +146,15 @@ public sealed partial class TravianClient
                   };
                   const root = args.preferBreweryCelebration
                     ? findBreweryCelebrationScope()
-                    : args.preferTownHallCelebration ? findTownHallCelebrationScope() : document;
+                    : args.preferTownHallCelebration
+                      ? findTownHallCelebrationScope()
+                      : args.constructBuildingScopeId
+                        ? document.getElementById(args.constructBuildingScopeId)
+                        : document;
                   return !!root?.querySelector('.inlineIcon.resource.transfer');
                 }
                 """,
-                new { preferTownHallCelebration, townHallCelebrationMode, preferBreweryCelebration });
+                new { preferTownHallCelebration, townHallCelebrationMode, preferBreweryCelebration, constructBuildingScopeId });
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
         {
@@ -143,7 +174,20 @@ public sealed partial class TravianClient
             cancellationToken,
             preferTownHallCelebration,
             townHallCelebrationMode,
-            preferBreweryCelebration);
+            preferBreweryCelebration,
+            constructBuildingScopeId);
+
+        if (constructBuildingGid is not null && shortfall is null)
+        {
+            Notify($"[hero-transfer] skip at {label}. Could not read costs from exact building row gid={constructBuildingGid}.");
+            return false;
+        }
+
+        if (constructBuildingGid is not null && shortfall is not null)
+        {
+            Notify($"[hero-transfer] exact construct shortfall gid={constructBuildingGid}: "
+                + $"wood={shortfall.Wood} clay={shortfall.Clay} iron={shortfall.Iron} crop={shortfall.Crop}");
+        }
 
         // Hero-use limit gate: if covering any single resource from the hero would pull more than the
         // configured per-resource limit, skip the transfer and defer until the village has produced
@@ -190,6 +234,7 @@ public sealed partial class TravianClient
                 preferTownHallCelebration,
                 townHallCelebrationMode,
                 preferBreweryCelebration,
+                constructBuildingScopeId,
                 cancellationToken);
             if (!opened)
             {
@@ -253,43 +298,33 @@ public sealed partial class TravianClient
             return false;
         }
 
-        // Travian usually auto-fills the amounts. When it opens the dialog with all inputs left at 0,
-        // fill the exact village shortfall manually so the confirm button can become active.
+        // Re-read after the dialog opens because the live top-bar stock can increase between the row
+        // click and the React dialog render. Construction remains scoped to the exact gid row.
+        var refreshedShortfall = await ReadUpgradeShortfallOnBuildPageAsync(
+            cancellationToken,
+            preferTownHallCelebration,
+            townHallCelebrationMode,
+            preferBreweryCelebration,
+            constructBuildingScopeId);
+        if (refreshedShortfall is not null)
+        {
+            shortfall = refreshedShortfall;
+        }
+        else if (constructBuildingGid is not null)
+        {
+            Notify($"[hero-transfer] could not verify exact construct shortfall gid={constructBuildingGid} after opening dialog; closing without transfer.");
+            await TryDismissResourceTransferDialogAsync(cancellationToken);
+            return false;
+        }
+
+        // Travian should auto-fill the exact shortfall for the clicked row. Read it, then correct it
+        // if necessary; a strict verification below prevents a wrong/partial transfer from being sent.
 
         await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
-        HeroInventoryResources? transferred = null;
-        try
+        var transferred = await ReadHeroResourceTransferDialogAmountsAsync();
+        if (transferred is not null)
         {
-            var amountsJson = await _page.EvaluateAsync<string>(
-                """
-                () => {
-                  const dialog = document.querySelector('div.resourceTransferDialog')
-                    || ((document.querySelector('#dialogContent h3')?.textContent || '').trim().toLowerCase() === 'transfer resources'
-                      ? document.querySelector('#dialogContent')
-                      : null);
-                  const read = (name) => {
-                    const input = dialog?.querySelector('input[name="' + name + '"]');
-                    const text = (input?.value || '').replace(/[^0-9]/g, '');
-                    return text ? Number(text) || 0 : 0;
-                  };
-                  return JSON.stringify({ wood: read('lumber'), clay: read('clay'), iron: read('iron'), crop: read('crop') });
-                }
-                """);
-            if (!string.IsNullOrWhiteSpace(amountsJson))
-            {
-                transferred = JsonSerializer.Deserialize<HeroInventoryResources>(
-                    amountsJson,
-                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-            }
-
-            if (transferred is not null)
-            {
-                Notify($"[hero-transfer] auto-filled amounts: wood={transferred.Wood} clay={transferred.Clay} iron={transferred.Iron} crop={transferred.Crop}");
-            }
-        }
-        catch (Exception)
-        {
-            // Logging / cache sync only — ignore failures reading the pre-filled amounts.
+            Notify($"[hero-transfer] auto-filled amounts: wood={transferred.Wood} clay={transferred.Clay} iron={transferred.Iron} crop={transferred.Crop}");
         }
 
         var actualInventory = await ReadHeroInventoryFromTransferDialogAsync(cancellationToken);
@@ -328,6 +363,23 @@ public sealed partial class TravianClient
                 transferred = manualFill;
                 Notify($"[hero-transfer] manually filled amounts: wood={manualFill.Wood} clay={manualFill.Clay} iron={manualFill.Iron} crop={manualFill.Crop}");
             }
+
+            var verifiedAmounts = await ReadHeroResourceTransferDialogAmountsAsync();
+            if (verifiedAmounts is null || !HeroTransferAmountsMatch(verifiedAmounts, shortfall))
+            {
+                var actualText = verifiedAmounts is null
+                    ? "unreadable"
+                    : $"wood={verifiedAmounts.Wood} clay={verifiedAmounts.Clay} iron={verifiedAmounts.Iron} crop={verifiedAmounts.Crop}";
+                Notify($"[hero-transfer] amount verification failed at {label}; expected "
+                    + $"wood={shortfall.Wood} clay={shortfall.Clay} iron={shortfall.Iron} crop={shortfall.Crop}, actual {actualText}. "
+                    + "Closing without transfer.");
+                await TryDismissResourceTransferDialogAsync(cancellationToken);
+                return false;
+            }
+
+            transferred = verifiedAmounts;
+            Notify($"[hero-transfer] verified transfer amounts at {label}: "
+                + $"wood={transferred.Wood} clay={transferred.Clay} iron={transferred.Iron} crop={transferred.Crop}");
         }
 
         bool confirmed;
@@ -424,6 +476,7 @@ public sealed partial class TravianClient
         bool preferTownHallCelebration,
         string? townHallCelebrationMode,
         bool preferBreweryCelebration,
+        string? constructBuildingScopeId,
         CancellationToken cancellationToken)
     {
         await DelayBeforeClickAsync(cancellationToken, "open hero resource transfer");
@@ -458,7 +511,11 @@ public sealed partial class TravianClient
               };
               const root = args.preferBreweryCelebration
                 ? findBreweryCelebrationScope()
-                : args.preferTownHallCelebration ? findTownHallCelebrationScope() : document;
+                : args.preferTownHallCelebration
+                  ? findTownHallCelebrationScope()
+                  : args.constructBuildingScopeId
+                    ? document.getElementById(args.constructBuildingScopeId)
+                    : document;
               const selectors = (args.preferTownHallCelebration || args.preferBreweryCelebration)
                 ? ['.inlineIcon.resource.transfer.fillUp', '.inlineIcon.resource.transfer[onclick]', '.inlineIcon.resource.transfer']
                 : ['.upgradeBlocked .inlineIcon.resource.transfer.fillUp', '.inlineIcon.resource.transfer.fillUp', '.inlineIcon.resource.transfer'];
@@ -475,7 +532,40 @@ public sealed partial class TravianClient
               return false;
             }
             """,
-            new { preferTownHallCelebration, townHallCelebrationMode, preferBreweryCelebration });
+            new { preferTownHallCelebration, townHallCelebrationMode, preferBreweryCelebration, constructBuildingScopeId });
+    }
+
+    private async Task<HeroInventoryResources?> ReadHeroResourceTransferDialogAmountsAsync()
+    {
+        try
+        {
+            var json = await _page.EvaluateAsync<string>(
+                """
+                () => {
+                  const dialog = document.querySelector('div.resourceTransferDialog')
+                    || ((document.querySelector('#dialogContent h3')?.textContent || '').trim().toLowerCase() === 'transfer resources'
+                      ? document.querySelector('#dialogContent')
+                      : null);
+                  if (!dialog) return '';
+                  const read = (name) => {
+                    const input = dialog.querySelector('input[name="' + name + '"]');
+                    const text = (input?.value || '').replace(/[^0-9]/g, '');
+                    return text ? Number(text) || 0 : 0;
+                  };
+                  return JSON.stringify({ wood: read('lumber'), clay: read('clay'), iron: read('iron'), crop: read('crop') });
+                }
+                """);
+            return string.IsNullOrWhiteSpace(json)
+                ? null
+                : JsonSerializer.Deserialize<HeroInventoryResources>(
+                    json,
+                    new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+        }
+        catch (Exception ex) when (ex is PlaywrightException or JsonException)
+        {
+            Notify($"[hero-transfer] transfer amount read failed: {ex.Message}");
+            return null;
+        }
     }
 
     private async Task<bool> TryConfirmHeroResourceTransferDialogAsync(
@@ -570,8 +660,8 @@ public sealed partial class TravianClient
                     current[key] = parse(dialog.querySelector('input[name="' + inputName + '"]')?.value);
                   }
 
-                  const coversShortfall = names.every(([, key]) => current[key] >= (Number(desired[key]) || 0));
-                  if (coversShortfall) {
+                  const matchesShortfall = names.every(([, key]) => current[key] === (Number(desired[key]) || 0));
+                  if (matchesShortfall) {
                     return '';
                   }
 
@@ -788,7 +878,8 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken,
         bool preferTownHallCelebration,
         string? townHallCelebrationMode = null,
-        bool preferBreweryCelebration = false)
+        bool preferBreweryCelebration = false,
+        string? constructBuildingScopeId = null)
     {
         cancellationToken.ThrowIfCancellationRequested();
 
@@ -818,7 +909,11 @@ public sealed partial class TravianClient
                   };
                   const root = args.preferBreweryCelebration
                     ? findBreweryCelebrationScope()
-                    : args.preferTownHallCelebration ? findTownHallCelebrationScope() : document;
+                    : args.preferTownHallCelebration
+                      ? findTownHallCelebrationScope()
+                      : args.constructBuildingScopeId
+                        ? document.getElementById(args.constructBuildingScopeId)
+                        : document;
                   const icon = root?.querySelector('.inlineIcon.resource.transfer[onclick]');
                   if (!icon) return '';
                   const onclick = icon.getAttribute('onclick') || '';
@@ -837,7 +932,7 @@ public sealed partial class TravianClient
                   return JSON.stringify({ wood: short('wood'), clay: short('clay'), iron: short('iron'), crop: short('crop') });
                 }
                 """,
-                new { preferTownHallCelebration, townHallCelebrationMode, preferBreweryCelebration });
+                new { preferTownHallCelebration, townHallCelebrationMode, preferBreweryCelebration, constructBuildingScopeId });
         }
         catch (PlaywrightException)
         {
@@ -917,6 +1012,19 @@ public sealed partial class TravianClient
             && hero.Clay >= shortfall.Clay
             && hero.Iron >= shortfall.Iron
             && hero.Crop >= shortfall.Crop;
+    }
+
+    private static bool HeroTransferAmountsMatch(HeroInventoryResources actual, HeroInventoryResources expected)
+    {
+        return actual.Wood == expected.Wood
+            && actual.Clay == expected.Clay
+            && actual.Iron == expected.Iron
+            && actual.Crop == expected.Crop;
+    }
+
+    internal static string? BuildHeroTransferConstructScopeId(int? gid)
+    {
+        return gid is > 0 ? $"contract_building{gid.Value}" : null;
     }
 
     private string BuildHeroInventoryCacheKey() => $"{AccountName}|{ServerUrl}";

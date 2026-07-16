@@ -6,6 +6,7 @@ namespace TbotUltra.Worker.Services;
 public sealed partial class TravianClient
 {
     private sealed record LobbyWorldCard(string WorldUid, string Name);
+    private string? _pendingLobbyWorldUid;
 
     private async Task<bool> TryLoginThroughLobbyAsync(CancellationToken cancellationToken)
     {
@@ -27,6 +28,7 @@ public sealed partial class TravianClient
                 Notify("[lobby-login] lobby session is not authenticated; submitting credentials.");
                 await FillLoginCredentialsWithPacingAsync(cancellationToken);
                 await ClickLoginButtonAsync(cancellationToken);
+                Notify("[lobby-login] credentials submitted; waiting for the loaded lobby world list.");
                 if (!await WaitForLobbyWorldCardsAsync(cancellationToken))
                 {
                     ThrowIfAccountAccessBlocked(await ReadExplicitLobbyAccessStateAsync());
@@ -56,7 +58,7 @@ public sealed partial class TravianClient
                     .ToList();
                 if (candidates.Count == 0)
                 {
-                    Notify($"[lobby-login] cached world UID '{cachedWorldUid}' is not present in the lobby; using direct fallback.");
+                    Notify($"[lobby-login] cached world UID '{cachedWorldUid}' is not present in the lobby.");
                     return false;
                 }
             }
@@ -95,13 +97,13 @@ public sealed partial class TravianClient
                 }
 
                 await DelayBeforeClickAsync(cancellationToken, "lobby Play now");
-                await playNow.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
-                await WaitForLobbySsoNavigationAsync(cancellationToken);
+                await SuppressConsentUiDuringSsoLandingAsync();
+                await ClickPlayNowAndWaitForGameOriginAsync(playNow, cancellationToken);
 
-                if (IsConfiguredGameHost(_page.Url) && await WaitUntilLoggedInAsync(cancellationToken))
+                if (IsConfiguredGameOrigin(_page.Url))
                 {
-                    analysisStore.SaveWorldUid(_account.Name, ServerUrl, candidate.WorldUid);
-                    Notify($"[lobby-login] verified configured host and saved world UID '{candidate.WorldUid}'.");
+                    _pendingLobbyWorldUid = candidate.WorldUid;
+                    Notify($"[lobby-login] configured game origin committed for world UID '{candidate.WorldUid}'; isolating before game scripts settle.");
                     return true;
                 }
 
@@ -138,13 +140,31 @@ public sealed partial class TravianClient
     private async Task<bool> WaitForLobbyWorldCardsAsync(CancellationToken cancellationToken)
     {
         var deadline = DateTime.UtcNow.AddSeconds(Math.Max(10, _config.ManualLoginTimeoutSeconds));
+        var navigationRetryLogged = false;
         while (DateTime.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ThrowIfAccountAccessBlocked(await ReadExplicitLobbyAccessStateAsync());
-            if (await _page.Locator(Selectors.LobbyGameWorldCard).CountAsync() > 0)
+            try
             {
-                return true;
+                if (await _page.Locator(Selectors.LobbyGameWorldCard).CountAsync() > 0)
+                {
+                    await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded, new PageWaitForLoadStateOptions
+                    {
+                        Timeout = Math.Min(_config.TimeoutMs, 5000),
+                    });
+                    Notify("[lobby-login] lobby world list loaded and ready.");
+                    return true;
+                }
+
+                ThrowIfAccountAccessBlocked(await ReadExplicitLobbyAccessStateAsync());
+            }
+            catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+            {
+                if (!navigationRetryLogged)
+                {
+                    Notify("[lobby-login:verbose] lobby is navigating after credential submit; waiting for the new document.");
+                    navigationRetryLogged = true;
+                }
             }
 
             await Task.Delay(Random.Shared.Next(400, 600), cancellationToken);
@@ -178,37 +198,91 @@ public sealed partial class TravianClient
         return result;
     }
 
-    private async Task WaitForLobbySsoNavigationAsync(CancellationToken cancellationToken)
+    private async Task ClickPlayNowAndWaitForGameOriginAsync(
+        ILocator playNow,
+        CancellationToken cancellationToken)
     {
-        var deadline = DateTime.UtcNow.AddSeconds(30);
-        DateTime? leftLobbyAt = null;
-        while (DateTime.UtcNow < deadline)
+        var gameOriginCommitted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void OnFrameNavigated(object? _, IFrame frame)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (IsConfiguredGameHost(_page.Url))
+            if (ReferenceEquals(frame, _page.MainFrame) && IsConfiguredGameOrigin(frame.Url))
+            {
+                gameOriginCommitted.TrySetResult();
+            }
+        }
+
+        _page.FrameNavigated += OnFrameNavigated;
+        try
+        {
+            await playNow.ClickAsync(new LocatorClickOptions
+            {
+                Timeout = _config.TimeoutMs,
+            });
+            if (IsConfiguredGameOrigin(_page.Url))
             {
                 return;
             }
 
-            if (!IsLobbyAccountUrl(_page.Url))
+            try
             {
-                leftLobbyAt ??= DateTime.UtcNow;
-                if (DateTime.UtcNow - leftLobbyAt >= TimeSpan.FromSeconds(5))
-                {
-                    return;
-                }
+                await gameOriginCommitted.Task.WaitAsync(TimeSpan.FromSeconds(30), cancellationToken);
             }
-
-            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken);
+            catch (TimeoutException)
+            {
+                // The caller reports the final host as an SSO failure.
+            }
+        }
+        finally
+        {
+            _page.FrameNavigated -= OnFrameNavigated;
         }
     }
 
-    private bool IsConfiguredGameHost(string? url)
+    private async Task SuppressConsentUiDuringSsoLandingAsync()
+    {
+        await _page.AddInitScriptAsync(
+            """
+            (() => {
+              const install = () => {
+                const root = document.documentElement;
+                if (!root || document.getElementById('__tbot_sso_consent_suppression')) return;
+                const style = document.createElement('style');
+                style.id = '__tbot_sso_consent_suppression';
+                style.textContent = `
+                  #cmpbox, .cmpbox, [class*="cmpbox" i],
+                  iframe[src*="consentmanager" i],
+                  [id*="consent" i][role="dialog"],
+                  [class*="consent" i][role="dialog"] {
+                    display: none !important;
+                    visibility: hidden !important;
+                    opacity: 0 !important;
+                  }
+                `;
+                root.prepend(style);
+              };
+              install();
+              if (!document.documentElement) {
+                new MutationObserver((_, observer) => {
+                  if (document.documentElement) {
+                    install();
+                    observer.disconnect();
+                  }
+                }).observe(document, { childList: true, subtree: true });
+              }
+            })();
+            """);
+    }
+
+    private bool IsConfiguredGameOrigin(string? url)
+        => IsConfiguredGameOrigin(url, ServerUrl);
+
+    internal static bool IsConfiguredGameOrigin(string? url, string serverUrl)
     {
         return Uri.TryCreate(url, UriKind.Absolute, out var landed)
-            && Uri.TryCreate(ServerUrl, UriKind.Absolute, out var configured)
+            && Uri.TryCreate(serverUrl, UriKind.Absolute, out var configured)
+            && landed.Scheme.Equals(configured.Scheme, StringComparison.OrdinalIgnoreCase)
             && landed.Host.Equals(configured.Host, StringComparison.OrdinalIgnoreCase)
-            && landed.AbsolutePath.Equals(Paths.Resources, StringComparison.OrdinalIgnoreCase);
+            && landed.Port == configured.Port;
     }
 
     private static string SanitizeHost(string? url)

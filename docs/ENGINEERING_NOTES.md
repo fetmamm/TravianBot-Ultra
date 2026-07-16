@@ -76,7 +76,10 @@ Common endpoints:
 
 - Treat `DOMContentLoaded` as sufficient when the required page marker is checked afterward.
 - Session pacing sleep must save StorageState and close the browser without calling Travian logout; manual logout and account switching remain explicit logout flows.
-- Full login is lobby-first (`lobby.legends.travian.com/account`) with direct game-server login as fallback. Select the owned world by cached lobby wuid when available, verify the landed game host before accepting SSO, and store newly learned wuid in the per-account analysis snapshot.
+- In-app browser shutdowns (sleep, proxy handover, reset, account/browser changes) may retain filtered auth state for resumption. A real desktop-process startup and user-triggered app exit must delete every account's saved Playwright auth state; startup cleanup also covers crashes where exit cleanup could not run.
+- Full login always starts at the lobby (`lobby.legends.travian.com/account`); never probe or submit credentials on the configured game server first, and do not use direct game-server login as fallback. Select the owned world by cached lobby wuid when available, accept any authenticated path on the configured game origin (`/`, `dorf1`, `dorf2`, etc.), and store newly learned wuid in the per-account analysis snapshot.
+- After submitting lobby credentials, treat execution-context destruction as an expected navigation transition and wait for the rendered owned-world card marker before continuing. Both the lobby login submit and `Play now` must use normal action-pacing click delays.
+- After lobby SSO commits a navigation to the configured game origin, do not wait for the old context to render or prove the game shell. Suppress the known CMP overlay before `Play now`, save filtered auth state without slow live-origin cleanup, open a clean game context in the same Chromium process, then close the lobby context and verify login there. Creating the replacement first keeps a browser window present throughout; this early context boundary prevents the first consent-stack flash and removes lobby scripts/service workers because storage filtering alone does not clear live page/runtime state.
 - Saved browser state may retain Travian lobby/auth hosts needed for SSO, but must still remove sibling game-server state and consent storage.
 - Detect browser crash/closed-page errors and surface a specific diagnostic message.
 - Popup handling must account for isolated browser contexts and popup blockers.
@@ -84,9 +87,9 @@ Common endpoints:
 - Numeric parsing must handle locale separators and bidirectional Unicode markers.
 - Login automation requires the supported English UI; fail clearly if required markers are absent.
 - Anti-detection browser setup is intentional and must be preserved: launch with
-  `--disable-blink-features=AutomationControlled`, clear `navigator.webdriver` via init-script, and derive
-  the viewport per account (`ResolveViewportForAccount`) so accounts on one machine do not share a fixed
-  fingerprint. Do not revert to a hard-coded viewport or drop the automation flag.
+  `--disable-blink-features=AutomationControlled`, clear `navigator.webdriver` via init-script, launch headed
+  Chrome maximized, and use `ViewportSize.NoViewport` so the viewport follows the user's real screen/work area.
+  Do not reintroduce hard-coded viewport dimensions or drop the automation flag.
 
 ## Configuration and persisted state
 
@@ -207,6 +210,8 @@ Common endpoints:
 - Troop/hero ownership and current location are separate facts.
 - React inputs may require native value assignment plus input/change events.
 - Never select the first matching button globally when multiple dialogs/widgets can exist.
+- On an empty Official building slot, hero-resource cost reads and transfer clicks must be scoped to
+  `#contract_building{gid}`; the page contains one transfer control per available building type.
 
 ## Caching, pacing, and logging
 

@@ -47,7 +47,7 @@ public sealed partial class BrowserSession
             videoContext = await videoBrowser.NewContextAsync(new BrowserNewContextOptions
             {
                 BaseURL = _config.BaseUrl,
-                ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
+                ViewportSize = ViewportSize.NoViewport,
                 StorageState = stateJson,
             }).WaitAsync(phaseTimeout.Token);
             videoContext.SetDefaultTimeout(_config.TimeoutMs);
@@ -188,7 +188,7 @@ public sealed partial class BrowserSession
 
         var context = await _browser.NewContextAsync(new BrowserNewContextOptions
         {
-            ViewportSize = new ViewportSize { Width = 1366, Height = 900 },
+            ViewportSize = ViewportSize.NoViewport,
         });
         context.SetDefaultTimeout(_config.TimeoutMs);
 

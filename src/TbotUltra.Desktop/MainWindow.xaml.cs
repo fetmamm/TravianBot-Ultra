@@ -390,6 +390,7 @@ public partial class MainWindow : Window
         _serverCatalogPath = Path.Combine(_projectRoot, "config", "servers.user.json");
         _sessionLogPath = Path.Combine(_projectRoot, "logs", $"TbotUltra_Log_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
         InitializeSessionLogFile();
+        BrowserStatePersistence.ClearAllSavedStates(_projectRoot, AppendLog);
         if (BuildingCatalogService.CatalogLoadError is { } catalogError)
         {
             AppendLog($"ALARM: {catalogError} Construction cost/time estimates are disabled.");

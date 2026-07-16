@@ -1,5 +1,6 @@
 using System;
 using System.Windows;
+using TbotUltra.Worker.Infrastructure;
 
 namespace TbotUltra.Desktop;
 
@@ -212,6 +213,11 @@ public partial class MainWindow
             {
                 AppendLog("Shutdown timeout while closing browser session. Continuing app exit.");
             }
+
+            // Sleep, proxy rotation and other in-app browser changes keep auth state so the session can
+            // resume. A real process exit is the trust boundary: remove every account's saved cookies and
+            // localStorage so a later program launch always starts with a fresh lobby authentication.
+            BrowserStatePersistence.ClearAllSavedStates(_projectRoot, AppendLog);
 
             if (ShouldClearQueueOnShutdown())
             {

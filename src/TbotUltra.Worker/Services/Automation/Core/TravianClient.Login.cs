@@ -16,12 +16,6 @@ namespace TbotUltra.Worker.Services;
 // declared on this partial to co-locate the contract with the domain it covers.
 public sealed partial class TravianClient : ISessionClient
 {
-    // Post-login the game shell is already confirmed (WaitUntilLoggedInAsync), so give the browser 'load'
-    // event only a short best-effort window to settle CSS/images. Travian's login landing page pulls in
-    // third-party ad/consent/video iframes that can stall 'load' indefinitely; blocking the full
-    // _config.TimeoutMs (~20s) here just wasted time and false-alarmed on an already-loaded page.
-    private const int PostLoginLoadSettleTimeoutMs = 5000;
-
     // Login function
     public async Task LoginAsync(CancellationToken cancellationToken = default)
     {
@@ -34,132 +28,69 @@ public sealed partial class TravianClient : ISessionClient
         }
 
         Notify($"[login] Account='{_account.Name}' server='{ServerUrl}' — starting");
-        var state = await LoginStateAsync();
-        ThrowIfAccountAccessBlocked(state);
-        if (state == AccountAccessState.LoggedIn)
+        if (IsConfiguredGameOrigin(_page.Url))
         {
-            MarkSessionLoggedIn();
-            Notify($"[login] already logged in as '{_account.Name}'");
-            await ConfirmExpectedLanguageIfEnabledAndRefreshAccountSignalsAsync(cancellationToken);
-            return;
-        }
-
-        if (state == AccountAccessState.Unknown)
-        {
-            Notify("[login] state unknown on game page; rechecking dorf1 before opening login page.");
-            state = await VerifyUnknownAccessStateAsync(cancellationToken);
+            var state = await LoginStateAsync();
             ThrowIfAccountAccessBlocked(state);
             if (state == AccountAccessState.LoggedIn)
             {
                 MarkSessionLoggedIn();
-                Notify($"[login] already logged in as '{_account.Name}' after dorf1 recheck");
+                Notify($"[login] already logged in as '{_account.Name}'");
                 await ConfirmExpectedLanguageIfEnabledAndRefreshAccountSignalsAsync(cancellationToken);
                 return;
+            }
+
+            if (state == AccountAccessState.Unknown)
+            {
+                Notify("[login] state unknown on an existing game page; rechecking dorf1 before opening the lobby.");
+                state = await VerifyUnknownAccessStateAsync(cancellationToken);
+                ThrowIfAccountAccessBlocked(state);
+                if (state == AccountAccessState.LoggedIn)
+                {
+                    MarkSessionLoggedIn();
+                    Notify($"[login] already logged in as '{_account.Name}' after dorf1 recheck");
+                    await ConfirmExpectedLanguageIfEnabledAndRefreshAccountSignalsAsync(cancellationToken);
+                    return;
+                }
             }
         }
 
         if (await TryLoginThroughLobbyAsync(cancellationToken))
         {
+            if (_rotateAfterLobbyLoginAsync is not null)
+            {
+                Notify("[lobby-login] SSO confirmed; isolating lobby state before normal game automation.");
+                _page = await _rotateAfterLobbyLoginAsync(cancellationToken);
+                await GotoAsync(Paths.Resources, cancellationToken);
+                if (!await WaitUntilLoggedInAsync(cancellationToken))
+                {
+                    ThrowIfAccountAccessBlocked(await LoginStateAsync());
+                    throw new InvalidOperationException("Lobby login state did not survive the clean browser-context rotation.");
+                }
+
+                Notify("[lobby-login] clean game context verified in the existing browser.");
+            }
+            else if (!await WaitUntilLoggedInAsync(cancellationToken))
+            {
+                throw new InvalidOperationException("Lobby login did not produce an authenticated game session.");
+            }
+
+            if (!string.IsNullOrWhiteSpace(_pendingLobbyWorldUid))
+            {
+                var worldUid = _pendingLobbyWorldUid;
+                _pendingLobbyWorldUid = null;
+                new AccountAnalysisStore(_projectRoot).SaveWorldUid(_account.Name, ServerUrl, worldUid);
+                Notify($"[lobby-login] clean game context verified and world UID '{worldUid}' saved.");
+            }
+
             MarkSessionLoggedIn();
             Notify($"[login] success ({_account.Name}) — entered through the Travian lobby");
             await ConfirmExpectedLanguageIfEnabledAndRefreshAccountSignalsAsync(cancellationToken);
             return;
         }
 
-        Notify("[login] lobby flow unavailable or did not reach the configured world; falling back to direct server login.");
-        await GotoAsync(Paths.Login, cancellationToken);
-        await WaitForPageReadyAsync(cancellationToken);
-
-        var loggedInFromCurrentPage = await TryLoginUsingCurrentPageAsync(cancellationToken);
-        if (loggedInFromCurrentPage)
-        {
-            MarkSessionLoggedIn();
-            Notify($"[login] success ({_account.Name}) — used existing page form");
-            await RefreshAccountFeatureSignalsAsync(cancellationToken);
-            return;
-        }
-
-        await GotoAsync(Paths.Login, cancellationToken);
-        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        if (await IsLoggedInAsync())
-        {
-            MarkSessionLoggedIn();
-            Notify($"[login] success ({_account.Name}) — already authenticated after opening login page");
-            await ConfirmExpectedLanguageIfEnabledAndRefreshAccountSignalsAsync(cancellationToken);
-            return;
-        }
-
-        // Tolerate a slow-loading login page: wait for the form to appear before filling it.
-        if (!await WaitForAnySelectorAsync(Selectors.LoginUsernameField, TimeSpan.FromSeconds(15), cancellationToken))
-        {
-            // Maybe a redirect logged us in while the login page was loading.
-            if (await IsLoggedInAsync())
-            {
-                MarkSessionLoggedIn();
-                await ConfirmExpectedLanguageIfEnabledAndRefreshAccountSignalsAsync(cancellationToken);
-                return;
-            }
-
-            throw new InvalidOperationException("Login form did not load (the page may be slow or unavailable).");
-        }
-
-        await FillLoginCredentialsWithPacingAsync(cancellationToken);
-
-        await ClickLoginButtonAsync(cancellationToken);
-        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-
-        var loggedIn = await WaitUntilLoggedInAsync(cancellationToken);
-        if (!loggedIn)
-        {
-            ThrowIfAccountAccessBlocked(await LoginStateAsync());
-            throw new InvalidOperationException("Login did not complete successfully.");
-        }
-        await EnsureExpectedLanguageIfEnabledAsync(cancellationToken);
-
-        // Settle the post-login landing page (dorf1) before any task navigates away. DOMContentLoaded
-        // fires before stylesheets/scripts finish, which made the bot switch pages half-loaded and
-        // produced transient 'unknown' login-state reads; wait for it first (fast and reliable), then
-        // give the full 'load' event only a SHORT best-effort chance to settle CSS/images.
-        try
-        {
-            await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded, new PageWaitForLoadStateOptions
-            {
-                Timeout = _config.TimeoutMs,
-            });
-
-            // The game is already confirmed ready (DOM parsed above + logged-in shell via
-            // WaitUntilLoggedInAsync), so a 'load' that never fires because of stalled ad/consent
-            // resources is benign — log it verbose and proceed instead of blocking + false-alarming.
-            try
-            {
-                await _page.WaitForLoadStateAsync(LoadState.Load, new PageWaitForLoadStateOptions
-                {
-                    Timeout = PostLoginLoadSettleTimeoutMs,
-                });
-                Notify("[login] page successfully loaded.");
-            }
-            catch (PlaywrightException)
-            {
-                Notify("[login:verbose] full 'load' event did not fire within the settle window (third-party ad/consent resources still pending); DOM is ready, proceeding.");
-            }
-
-            await ActionPacer.FromOptions(_config, Notify).DelayAsync(
-                _config.ActionPacingPageLoadMinSeconds,
-                _config.ActionPacingPageLoadMaxSeconds,
-                cancellationToken,
-                "login: after page load");
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            Notify($"[login:verbose] post-login page settle did not complete: {ex.Message}");
-        }
-        Notify($"[login] success ({_account.Name}) — submitted credentials and confirmed");
-        MarkSessionLoggedIn();
-        await RefreshAccountFeatureSignalsAsync(cancellationToken);
+        throw new InvalidOperationException(
+            "Login through the Travian lobby did not reach the configured game world. Direct server login is disabled.");
     }
 
     private void MarkSessionLoggedIn()
@@ -184,32 +115,6 @@ public sealed partial class TravianClient : ISessionClient
         }
 
         await EnsureExpectedLanguageAsync(cancellationToken);
-    }
-
-    private async Task<bool> TryLoginUsingCurrentPageAsync(CancellationToken cancellationToken)
-    {
-        var hasUsernameField = await HasAnySelectorAsync(Selectors.LoginUsernameField);
-        var hasPasswordField = await HasAnySelectorAsync(Selectors.LoginPasswordField);
-
-        if (!hasUsernameField || !hasPasswordField)
-        {
-            return false;
-        }
-
-        Notify($"[login] form already on current page — submitting inline for {_account.Name}");
-
-        await FillLoginCredentialsWithPacingAsync(cancellationToken);
-
-        await ClickLoginButtonAsync(cancellationToken);
-
-        var loggedIn = await WaitUntilLoggedInAsync(cancellationToken);
-        if (loggedIn)
-        {
-            await EnsureExpectedLanguageIfEnabledAsync(cancellationToken);
-            Notify($"[login] success ({_account.Name}) — inline form submitted");
-        }
-
-        return loggedIn;
     }
 
     public async Task LogoutAsync(CancellationToken cancellationToken = default)
@@ -641,7 +546,7 @@ public sealed partial class TravianClient : ISessionClient
 
             await RetryAsync($"click login selector {selector}", async () =>
             {
-                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
+                await DelayBeforeClickAsync(cancellationToken, "lobby login submit");
                 await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
             }, cancellationToken: cancellationToken);
             Notify("Clicked login button.");
@@ -660,6 +565,7 @@ public sealed partial class TravianClient : ISessionClient
 
             try
             {
+                await DelayBeforeClickAsync(cancellationToken, "lobby login submit via Enter");
                 await passwordField.PressAsync("Enter", new LocatorPressOptions { Timeout = _config.TimeoutMs });
                 Notify("Login button not found; submitted the form via Enter.");
                 return;

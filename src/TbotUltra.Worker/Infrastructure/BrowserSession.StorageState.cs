@@ -8,7 +8,7 @@ namespace TbotUltra.Worker.Infrastructure;
 
 public sealed partial class BrowserSession
 {
-    public async Task SaveStateAsync()
+    public async Task SaveStateAsync(bool clearTransientOrigins = true)
     {
         if (_context is null)
         {
@@ -31,7 +31,10 @@ public sealed partial class BrowserSession
             // session can otherwise persist in this account's saved state and keep triggering
             // cross-server popups on every login. Keep the account's own host plus shared
             // parent-domain cookies (which login may need), and drop only foreign siblings.
-            await ClearTransientExternalStorageOriginsAsync(force: false);
+            if (clearTransientOrigins)
+            {
+                await ClearTransientExternalStorageOriginsAsync(force: false);
+            }
             var stateJson = await _context.StorageStateAsync();
             stateJson = FilterForeignSubdomainState(stateJson);
             await File.WriteAllTextAsync(tempPath, stateJson);

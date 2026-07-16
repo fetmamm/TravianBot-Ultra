@@ -79,12 +79,36 @@ public sealed partial class BrowserSession : IAsyncDisposable
         {
             _playwright = await Playwright.CreateAsync();
             _browser = await _playwright.Chromium.LaunchAsync(CreateChromiumLaunchOptions(keepNativePopupBlocker: true));
-
-            var contextOptions = new BrowserNewContextOptions
+            return await OpenMainContextPageAsync(cancellationToken);
+        }
+        catch
+        {
+            try
             {
-                BaseURL = _config.BaseUrl,
-                ViewportSize = ResolveViewportForAccount(_account.Name),
-            };
+                await DisposeAsync();
+            }
+            catch (Exception cleanupEx)
+            {
+                _log?.Invoke($"[browser] cleanup after failed initialization also failed: {cleanupEx.Message}");
+            }
+
+            throw;
+        }
+    }
+
+    private async Task<IPage> OpenMainContextPageAsync(CancellationToken cancellationToken)
+    {
+        var browser = _browser
+            ?? throw new InvalidOperationException("Chromium is not open.");
+        cancellationToken.ThrowIfCancellationRequested();
+
+        var contextOptions = new BrowserNewContextOptions
+        {
+            BaseURL = _config.BaseUrl,
+            // Let headed Chrome use the real maximized window area instead of emulating a fixed
+            // viewport that may be larger than the user's monitor.
+            ViewportSize = ViewportSize.NoViewport,
+        };
 
         LegacyBrowserStorageAdapter.MigrateIfNeeded(
             AccountStoragePaths.LegacyBrowserStatePath(_projectRoot, _account.Name),
@@ -95,7 +119,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
             contextOptions.StorageStatePath = StorageStatePath;
         }
 
-        _context = await _browser.NewContextAsync(contextOptions);
+        _context = await browser.NewContextAsync(contextOptions);
         _context.SetDefaultTimeout(_config.TimeoutMs);
         await _context.RouteAsync("**/*", async route =>
         {
@@ -293,47 +317,57 @@ public sealed partial class BrowserSession : IAsyncDisposable
             _ = TryCloseStrayTabAsync("page-initial");
         };
 
-            return page;
+        return page;
+    }
+
+    public async Task<IPage> RotateMainContextFromSavedStateAsync(CancellationToken cancellationToken = default)
+    {
+        var previousContext = _context
+            ?? throw new InvalidOperationException("The main browser context is not open.");
+
+        // The lobby context is about to be destroyed, so do not spend time clearing its live external
+        // origins. The serialized state is still filtered below; skipping live cleanup closes the SSO
+        // landing context before its first-party consent bootstrap can become visible.
+        await SaveStateAsync(clearTransientOrigins: false);
+        cancellationToken.ThrowIfCancellationRequested();
+
+        _context = null;
+        ConsentDomainsAllowed = false;
+        lock (_transientExternalOriginsGate)
+        {
+            _transientExternalOrigins.Clear();
+        }
+
+        IPage cleanPage;
+        try
+        {
+            // Create the replacement before closing the lobby context so the Chromium process always
+            // has a visible window; only the isolated context changes, not the browser process.
+            cleanPage = await OpenMainContextPageAsync(cancellationToken);
         }
         catch
         {
-            try
+            var failedReplacementContext = _context;
+            _context = previousContext;
+            if (failedReplacementContext is not null
+                && !ReferenceEquals(failedReplacementContext, previousContext))
             {
-                await DisposeAsync();
-            }
-            catch (Exception cleanupEx)
-            {
-                _log?.Invoke($"[browser] cleanup after failed initialization also failed: {cleanupEx.Message}");
+                try
+                {
+                    await failedReplacementContext.CloseAsync();
+                }
+                catch
+                {
+                    // The original context remains usable; surface the context-creation failure.
+                }
             }
 
             throw;
         }
-    }
 
-    // Common real desktop viewport (inner window) sizes. A single shared viewport across every account
-    // on one machine is a correlatable fingerprint, so pick one deterministically from the account name:
-    // stable for a given account (does not flicker between sessions) but different between accounts.
-    private static readonly ViewportSize[] CandidateViewportSizes =
-    {
-        new() { Width = 1366, Height = 728 },
-        new() { Width = 1536, Height = 824 },
-        new() { Width = 1440, Height = 789 },
-        new() { Width = 1600, Height = 861 },
-        new() { Width = 1920, Height = 969 },
-        new() { Width = 1280, Height = 689 },
-    };
-
-    private static ViewportSize ResolveViewportForAccount(string accountName)
-    {
-        var key = accountName ?? string.Empty;
-        var hash = 2166136261u;
-        foreach (var ch in key)
-        {
-            hash = (hash ^ ch) * 16777619u;
-        }
-
-        var index = (int)(hash % (uint)CandidateViewportSizes.Length);
-        return CandidateViewportSizes[index];
+        await previousContext.CloseAsync();
+        _log?.Invoke("[browser] lobby context closed after the clean game context opened; Chromium stayed running.");
+        return cleanPage;
     }
 
     private BrowserTypeLaunchOptions CreateChromiumLaunchOptions(bool keepNativePopupBlocker)
@@ -386,6 +420,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
         {
             "--disable-features=TrackingProtection3pcd",
             "--disable-blink-features=AutomationControlled",
+            "--start-maximized",
         };
 
         // The bonus ad videos are H.264/AAC, which Playwright's bundled open-source Chromium

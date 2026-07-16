@@ -16,7 +16,7 @@ public sealed partial class TravianClient
 {
     private const int OfficialFarmListCapacity = 100;
     private const int MaxFarmsPerFarmList = 120;
-    private readonly IPage _page;
+    private IPage _page;
     private readonly BotOptions _config;
     private readonly AccountOptions _account;
     private readonly bool _interactive;
@@ -30,6 +30,7 @@ public sealed partial class TravianClient
     private readonly Action<bool>? _setConsentDomainsAllowed;
     private readonly Func<IPage, CancellationToken, Task>? _cleanupAfterBonusVideoAsync;
     private readonly Func<Func<IPage, CancellationToken, Task<string>>, CancellationToken, Task<string>>? _runInIsolatedBonusVideoBrowserAsync;
+    private readonly Func<CancellationToken, Task<IPage>>? _rotateAfterLobbyLoginAsync;
     private DateTimeOffset? _serverTimeUtc;
     private string? _cachedTribe;
     private readonly TravianSessionCache _session;
@@ -243,13 +244,15 @@ public sealed partial class TravianClient
         TravianSessionCache? sessionCache = null,
         Action<bool>? setConsentDomainsAllowed = null,
         Func<IPage, CancellationToken, Task>? cleanupAfterBonusVideoAsync = null,
-        Func<Func<IPage, CancellationToken, Task<string>>, CancellationToken, Task<string>>? runInIsolatedBonusVideoBrowserAsync = null)
+        Func<Func<IPage, CancellationToken, Task<string>>, CancellationToken, Task<string>>? runInIsolatedBonusVideoBrowserAsync = null,
+        Func<CancellationToken, Task<IPage>>? rotateAfterLobbyLoginAsync = null)
     {
         _page = page;
         _config = config;
         _setConsentDomainsAllowed = setConsentDomainsAllowed;
         _cleanupAfterBonusVideoAsync = cleanupAfterBonusVideoAsync;
         _runInIsolatedBonusVideoBrowserAsync = runInIsolatedBonusVideoBrowserAsync;
+        _rotateAfterLobbyLoginAsync = rotateAfterLobbyLoginAsync;
         _account = account;
         _interactive = interactive;
         _browserVisible = browserVisible;

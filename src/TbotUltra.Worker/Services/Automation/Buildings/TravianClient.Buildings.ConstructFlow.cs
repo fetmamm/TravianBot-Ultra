@@ -205,7 +205,10 @@ public sealed partial class TravianClient : IBuildingClient
                     if (!heroTransferAttempted)
                     {
                         heroTransferAttempted = true;
-                        if (await TryHeroResourceTransferForConstructionAsync($"Building slot {slotId} construct {buildingName}", cancellationToken))
+                        if (await TryHeroResourceTransferForNewBuildingAsync(
+                            $"Building slot {slotId} construct {buildingName}",
+                            gid,
+                            cancellationToken))
                         {
                             continue;
                         }

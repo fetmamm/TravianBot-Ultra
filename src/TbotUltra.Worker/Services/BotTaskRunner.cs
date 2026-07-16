@@ -442,12 +442,41 @@ public sealed partial class BotTaskRunner
             SeedStableAccountSignals(_sharedVisibleSessionCache, account, options, log);
         }
 
-        var sharedVisibleSession = _sharedVisibleSession!;
         var sharedClient = CreateClient(_sharedVisiblePage!, options, account, interactive, log, _sharedVisibleSessionCache,
-            setConsentDomainsAllowed: allowed => sharedVisibleSession.ConsentDomainsAllowed = allowed,
-            cleanupAfterBonusVideoAsync: sharedVisibleSession.CleanupAfterBonusVideoAsync,
-            runInIsolatedBonusVideoBrowserAsync: (action, ct) => sharedVisibleSession.RunInIsolatedBonusVideoBrowserAsync(action, ct));
-        return new ClientLease(sharedVisibleSession, sharedClient, true);
+            setConsentDomainsAllowed: allowed => GetRequiredSharedVisibleSession().ConsentDomainsAllowed = allowed,
+            cleanupAfterBonusVideoAsync: (page, ct) => GetRequiredSharedVisibleSession().CleanupAfterBonusVideoAsync(page, ct),
+            runInIsolatedBonusVideoBrowserAsync: (action, ct) => GetRequiredSharedVisibleSession().RunInIsolatedBonusVideoBrowserAsync(action, ct),
+            rotateAfterLobbyLoginAsync: ct => RotateSharedVisibleContextAfterLobbyLoginAsync(log, ct));
+        return new ClientLease(_sharedVisibleSession!, sharedClient, true);
+    }
+
+    private BrowserSession GetRequiredSharedVisibleSession()
+    {
+        return _sharedVisibleSession
+            ?? throw new InvalidOperationException("The shared browser session is not available.");
+    }
+
+    private async Task<IPage> RotateSharedVisibleContextAfterLobbyLoginAsync(
+        Action<string> log,
+        CancellationToken cancellationToken)
+    {
+        var session = GetRequiredSharedVisibleSession();
+        log("[browser-session] lobby SSO confirmed; rotating to a clean game context while keeping Chromium open.");
+        _sharedVisiblePage = null;
+        _travcoPage = null;
+
+        try
+        {
+            var cleanPage = await session.RotateMainContextFromSavedStateAsync(cancellationToken);
+            _sharedVisiblePage = cleanPage;
+            log("[browser-session] clean post-lobby game context opened in the existing Chromium process.");
+            return cleanPage;
+        }
+        catch
+        {
+            _sharedVisiblePage = null;
+            throw;
+        }
     }
 
     private int TryGetSharedPageCount()
@@ -489,7 +518,8 @@ public sealed partial class BotTaskRunner
         TravianSessionCache? sessionCache = null,
         Action<bool>? setConsentDomainsAllowed = null,
         Func<IPage, CancellationToken, Task>? cleanupAfterBonusVideoAsync = null,
-        Func<Func<IPage, CancellationToken, Task<string>>, CancellationToken, Task<string>>? runInIsolatedBonusVideoBrowserAsync = null)
+        Func<Func<IPage, CancellationToken, Task<string>>, CancellationToken, Task<string>>? runInIsolatedBonusVideoBrowserAsync = null,
+        Func<CancellationToken, Task<IPage>>? rotateAfterLobbyLoginAsync = null)
     {
         return new TravianClient(
             page,
@@ -502,7 +532,8 @@ public sealed partial class BotTaskRunner
             sessionCache: sessionCache,
             setConsentDomainsAllowed: setConsentDomainsAllowed,
             cleanupAfterBonusVideoAsync: cleanupAfterBonusVideoAsync,
-            runInIsolatedBonusVideoBrowserAsync: runInIsolatedBonusVideoBrowserAsync);
+            runInIsolatedBonusVideoBrowserAsync: runInIsolatedBonusVideoBrowserAsync,
+            rotateAfterLobbyLoginAsync: rotateAfterLobbyLoginAsync);
     }
 
     private TravianSessionCache CreateSeededSessionCache(
@@ -543,11 +574,14 @@ public sealed partial class BotTaskRunner
 
     private async Task FinalizeLeaseAsync(ClientLease lease, Action<string> log, BrowserStateSaveMode saveStateMode = BrowserStateSaveMode.Always)
     {
+        var activeSession = lease.KeepOpen
+            ? _sharedVisibleSession ?? lease.Session
+            : lease.Session;
         if (saveStateMode == BrowserStateSaveMode.Always)
         {
             try
             {
-                await lease.Session.SaveStateAsync();
+                await activeSession.SaveStateAsync();
             }
             catch (Exception ex)
             {
@@ -557,7 +591,7 @@ public sealed partial class BotTaskRunner
 
         if (!lease.KeepOpen)
         {
-            await lease.Session.DisposeAsync();
+            await activeSession.DisposeAsync();
         }
     }
 
@@ -566,9 +600,12 @@ public sealed partial class BotTaskRunner
         lease.Invalidated = true;
         log("[browser-session] Chromium target crashed. Discarding shared session; next operation will open a fresh browser.");
 
+        var activeSession = lease.KeepOpen
+            ? _sharedVisibleSession ?? lease.Session
+            : lease.Session;
         try
         {
-            await lease.Session.DisposeAsync();
+            await activeSession.DisposeAsync();
         }
         catch (Exception ex)
         {
@@ -576,7 +613,7 @@ public sealed partial class BotTaskRunner
         }
         finally
         {
-            if (ReferenceEquals(_sharedVisibleSession, lease.Session))
+            if (ReferenceEquals(_sharedVisibleSession, activeSession))
             {
                 _sharedVisibleSession = null;
                 _sharedVisiblePage = null;
