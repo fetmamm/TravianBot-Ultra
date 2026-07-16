@@ -219,10 +219,9 @@ public partial class MainWindow
             _loopController.CancelAutoQueueRun();
             _loopController.CancelLoop();
 
-            // Disable background session work BEFORE logout (mirrors ResetForAccountSwitchAsync). While
+            // Disable background session work BEFORE closing the browser (mirrors ResetForAccountSwitchAsync). While
             // these stay true, the ~20s resource-refresh tick can slip onto the session gate during/after
-            // logout and silently log the account back in — especially if logout throws before
-            // LogoutCoreAsync clears them. Flipping them here makes the background ticks bail immediately.
+            // shutdown is running, a background tick could otherwise open or reuse the session.
             _isLoggedIn = false;
             _browserSessionLikelyOpen = false;
             _inboxAutoEnabled = false;
@@ -230,18 +229,15 @@ public partial class MainWindow
 
             var operationId = BeginOperation("Session sleep");
             var operationSw = System.Diagnostics.Stopwatch.StartNew();
-            // Deliberately independent of the canceled session scope: sleep must still log out
-            // after automation has been drained. Logout owns its own bounded shutdown path.
-            var operationToken = CancellationToken.None;
             ToggleUiBusy(true);
             try
             {
-                await LogoutCoreAsync(operationId, operationToken, clearSavedSession: false);
-                CompleteOperation(operationId, operationSw, "Session sleep logout completed.");
+                await CloseBrowserForSleepAsync(operationId);
+                CompleteOperation(operationId, operationSw, "Session sleep browser close completed.");
             }
             catch (Exception ex)
             {
-                AppendLog($"[pacing] session logout failed: {ex.Message}");
+                AppendLog($"[pacing] session browser close failed: {ex.Message}");
             }
             finally
             {
@@ -250,15 +246,6 @@ public partial class MainWindow
 
             if (_pendingProxyChangeAtSleep is { } pendingProxy)
             {
-                try
-                {
-                    await _botService.ShutdownAsync(AppendLog);
-                }
-                catch (Exception ex)
-                {
-                    AppendLog($"[proxy-change] browser shutdown at sleep failed; fresh login will still replace it: {ex.Message}");
-                }
-
                 _accountStore.SaveAccount(pendingProxy, setActive: false);
                 _pendingProxyChangeAtSleep = null;
                 AppendLog("[proxy-change] pending proxy activated at session sleep; next wake will start a fresh browser.");

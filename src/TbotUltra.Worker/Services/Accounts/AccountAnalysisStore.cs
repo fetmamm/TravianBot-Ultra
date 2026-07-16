@@ -123,6 +123,32 @@ public sealed class AccountAnalysisStore
         }
     }
 
+    public void SaveWorldUid(string accountName, string serverUrl, string worldUid)
+    {
+        if (!Guid.TryParse(worldUid, out _))
+        {
+            throw new ArgumentException("World UID must be a GUID.", nameof(worldUid));
+        }
+
+        TryLoad(accountName, out var existing, serverUrl);
+        var snapshot = existing is null
+            ? new AccountAnalysisSnapshot(
+                SchemaVersion: 0,
+                AnalyzedAtUtc: DateTimeOffset.UtcNow,
+                AccountName: accountName,
+                ServerUrl: serverUrl,
+                Tribe: "Unknown",
+                GoldClubEnabled: false,
+                BuildingCatalog: [],
+                WorldUid: worldUid)
+            : existing with
+            {
+                AnalyzedAtUtc = DateTimeOffset.UtcNow,
+                WorldUid = worldUid,
+            };
+        Save(snapshot);
+    }
+
     public void Delete(string accountName, string? serverUrl = null)
     {
         DeleteFileIfExists(GetFilePath(accountName, serverUrl));

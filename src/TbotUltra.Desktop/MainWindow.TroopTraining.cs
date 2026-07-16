@@ -107,7 +107,8 @@ public partial class MainWindow
                 BuildingCatalog: existing?.BuildingCatalog ?? [],
                 AutoCelebrationEnabled: enabled,
                 AutomationLoopEnabledGroups: existing?.AutomationLoopEnabledGroups,
-                AutomationLoopVisibleGroups: existing?.AutomationLoopVisibleGroups);
+                AutomationLoopVisibleGroups: existing?.AutomationLoopVisibleGroups,
+                WorldUid: existing?.WorldUid);
             _accountAnalysisStore.Save(snapshot);
         }
         catch (Exception ex)

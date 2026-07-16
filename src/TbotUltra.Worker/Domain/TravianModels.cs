@@ -30,7 +30,8 @@ public sealed record AccountAnalysisSnapshot(
     IReadOnlyList<TribeBuildingCatalogEntry> BuildingCatalog,
     bool? AutoCelebrationEnabled = null,
     IReadOnlyList<string>? AutomationLoopEnabledGroups = null,
-    IReadOnlyList<string>? AutomationLoopVisibleGroups = null);
+    IReadOnlyList<string>? AutomationLoopVisibleGroups = null,
+    string? WorldUid = null);
 
 public sealed record TribeBuildingCatalogEntry(
     int Gid,

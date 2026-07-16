@@ -58,6 +58,17 @@ public sealed partial class TravianClient : ISessionClient
             }
         }
 
+        if (await TryLoginThroughLobbyAsync(cancellationToken))
+        {
+            MarkSessionLoggedIn();
+            Notify($"[login] success ({_account.Name}) — entered through the Travian lobby");
+            await ConfirmExpectedLanguageIfEnabledAndRefreshAccountSignalsAsync(cancellationToken);
+            return;
+        }
+
+        Notify("[login] lobby flow unavailable or did not reach the configured world; falling back to direct server login.");
+        await GotoAsync(Paths.Login, cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken);
 
         var loggedInFromCurrentPage = await TryLoginUsingCurrentPageAsync(cancellationToken);
         if (loggedInFromCurrentPage)
@@ -297,6 +308,11 @@ public sealed partial class TravianClient : ISessionClient
     {
         cancellationToken.ThrowIfCancellationRequested();
         var currentUrl = _page.Url.ToLowerInvariant();
+        if (IsLobbyAccountUrl(currentUrl))
+        {
+            return true;
+        }
+
         if (currentUrl.Contains("login.php", StringComparison.Ordinal))
         {
             return true;
@@ -322,6 +338,13 @@ public sealed partial class TravianClient : ISessionClient
         }
 
         return false;
+    }
+
+    internal static bool IsLobbyAccountUrl(string? url)
+    {
+        return Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            && uri.Host.Equals("lobby.legends.travian.com", StringComparison.OrdinalIgnoreCase)
+            && uri.AbsolutePath.StartsWith("/account", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<bool> CheckLoggedInAsync(CancellationToken cancellationToken = default)
@@ -561,10 +584,9 @@ public sealed partial class TravianClient : ISessionClient
 
     private static string FormatAccessState(AccountAccessState state) => state.ToString().ToLowerInvariant();
 
-    // Fills the login form the way a person would: type the username, pause briefly, type the
-    // password, pause again before submitting. A short random 100-200ms wait between the steps is
-    // enough to avoid the instant fill+submit look. Shared by the dedicated login page flow and the
-    // inline "form already on page" flow.
+    // Fills the login form the way a person would: focus and type each credential character by
+    // character, with a pause between fields and before submitting. Shared by the lobby, dedicated
+    // login page, and inline "form already on page" flows.
     private async Task FillLoginCredentialsWithPacingAsync(CancellationToken cancellationToken)
     {
         await FillFirstAvailableAsync(Selectors.LoginUsernameField, _account.Username, cancellationToken);
@@ -584,9 +606,9 @@ public sealed partial class TravianClient : ISessionClient
                 continue;
             }
 
-            await RetryAsync($"fill {selector}", async () =>
+            await RetryAsync($"type {selector}", async () =>
             {
-                await locator.FillAsync(value, new LocatorFillOptions { Timeout = _config.TimeoutMs });
+                await TypeHumanlyAsync(locator, value, cancellationToken);
             }, cancellationToken: cancellationToken);
             return;
         }

@@ -138,6 +138,41 @@ public sealed class AccountAnalysisStoreTests : IDisposable
         Assert.Empty(Directory.EnumerateFiles(directory, "*.tmp"));
     }
 
+    [Fact]
+    public void SaveWorldUid_PreservesExistingAnalysis()
+    {
+        var snapshot = new AccountAnalysisSnapshot(
+            SchemaVersion: 1,
+            AnalyzedAtUtc: DateTimeOffset.UtcNow,
+            AccountName: "main",
+            ServerUrl: "https://ts50.x5.arabics.travian.com",
+            Tribe: "Romans",
+            GoldClubEnabled: true,
+            BuildingCatalog: [],
+            AutoCelebrationEnabled: true);
+        _store.Save(snapshot);
+
+        var worldUid = Guid.NewGuid().ToString();
+        _store.SaveWorldUid(snapshot.AccountName, snapshot.ServerUrl, worldUid);
+
+        Assert.True(_store.TryLoad(snapshot.AccountName, out var loaded, snapshot.ServerUrl));
+        Assert.Equal(worldUid, loaded!.WorldUid);
+        Assert.Equal("Romans", loaded.Tribe);
+        Assert.True(loaded.GoldClubEnabled);
+        Assert.True(loaded.AutoCelebrationEnabled);
+    }
+
+    [Fact]
+    public void SaveWorldUid_WithoutAnalysis_DoesNotMarkAccountAnalyzed()
+    {
+        var serverUrl = "https://ts50.x5.arabics.travian.com";
+        _store.SaveWorldUid("new-account", serverUrl, Guid.NewGuid().ToString());
+
+        Assert.True(_store.TryLoad("new-account", out var loaded, serverUrl));
+        Assert.Equal(0, loaded!.SchemaVersion);
+        Assert.False(_store.IsAnalyzed("new-account", serverUrl));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

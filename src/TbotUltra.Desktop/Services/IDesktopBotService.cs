@@ -97,5 +97,6 @@ public interface IDesktopBotService
     Task<TravcoScrapeResult> ScrapeAllTravcoPagesAsync(Action<string> log, IProgress<(int CurrentPage, int TotalPages)> progress, CancellationToken cancellationToken);
     Task CloseTravcoTabAsync(Action<string> log);
     bool ConsumeBrowserClosedByUserSignal();
+    Task SaveBrowserStateAsync(Action<string> log);
     Task ShutdownAsync(Action<string> log);
 }

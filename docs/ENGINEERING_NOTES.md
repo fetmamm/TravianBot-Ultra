@@ -75,6 +75,9 @@ Common endpoints:
 ### Navigation and browser lifecycle
 
 - Treat `DOMContentLoaded` as sufficient when the required page marker is checked afterward.
+- Session pacing sleep must save StorageState and close the browser without calling Travian logout; manual logout and account switching remain explicit logout flows.
+- Full login is lobby-first (`lobby.legends.travian.com/account`) with direct game-server login as fallback. Select the owned world by cached lobby wuid when available, verify the landed game host before accepting SSO, and store newly learned wuid in the per-account analysis snapshot.
+- Saved browser state may retain Travian lobby/auth hosts needed for SSO, but must still remove sibling game-server state and consent storage.
 - Detect browser crash/closed-page errors and surface a specific diagnostic message.
 - Popup handling must account for isolated browser contexts and popup blockers.
 - Portable builds must resolve Playwright from the bundled `.playwright` directory.

@@ -287,6 +287,26 @@ public sealed partial class BotTaskRunner
         }
     }
 
+    public async Task SaveBrowserStateAsync(Action<string>? log = null)
+    {
+        await _sessionGate.WaitAsync();
+        try
+        {
+            if (_sharedVisibleSession is null)
+            {
+                log?.Invoke("[browser-session] state save skipped: no shared browser is open.");
+                return;
+            }
+
+            await _sharedVisibleSession.SaveStateAsync();
+            log?.Invoke("[browser-session] state saved before browser close.");
+        }
+        finally
+        {
+            _sessionGate.Release();
+        }
+    }
+
     private async Task ExecuteWithClientAsync(
         BotOptions options,
         Action<string> log,

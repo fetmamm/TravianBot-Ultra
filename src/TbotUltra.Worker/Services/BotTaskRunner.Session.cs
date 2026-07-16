@@ -262,7 +262,8 @@ public sealed partial class BotTaskRunner
             BuildingCatalog: existing?.BuildingCatalog ?? (IsKnownTribe(tribe) ? BuildingCatalogService.GetCatalogForTribe(tribe) : []),
             AutoCelebrationEnabled: existing?.AutoCelebrationEnabled,
             AutomationLoopEnabledGroups: existing?.AutomationLoopEnabledGroups,
-            AutomationLoopVisibleGroups: existing?.AutomationLoopVisibleGroups);
+            AutomationLoopVisibleGroups: existing?.AutomationLoopVisibleGroups,
+            WorldUid: existing?.WorldUid);
 
         _accountAnalysisStore.Save(completed);
         log($"[cache] stable account signals saved for '{completed.AccountName}' (tribe={completed.Tribe}, goldclub={completed.GoldClubEnabled}).");
@@ -325,7 +326,8 @@ public sealed partial class BotTaskRunner
             BuildingCatalog: existing?.BuildingCatalog ?? [],
             AutoCelebrationEnabled: existing?.AutoCelebrationEnabled,
             AutomationLoopEnabledGroups: existing?.AutomationLoopEnabledGroups,
-            AutomationLoopVisibleGroups: existing?.AutomationLoopVisibleGroups);
+            AutomationLoopVisibleGroups: existing?.AutomationLoopVisibleGroups,
+            WorldUid: existing?.WorldUid);
 
         _accountAnalysisStore.Save(completed);
         log($"Gold Club activated and saved for '{completed.AccountName}'.");

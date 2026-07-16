@@ -150,7 +150,7 @@ public sealed partial class BrowserSession
             || n.StartsWith("_gcl", StringComparison.Ordinal);
     }
 
-    private static bool KeepHostForAccount(string cookieDomainOrHost, string accountHost)
+    internal static bool KeepHostForAccount(string cookieDomainOrHost, string accountHost)
     {
         var d = cookieDomainOrHost.TrimStart('.').ToLowerInvariant();
         if (string.IsNullOrEmpty(d))
@@ -160,9 +160,19 @@ public sealed partial class BrowserSession
 
         // Keep: exact host, a parent/shared domain of the account host, or a sub-host of it.
         // Drop: sibling subdomains (different server on the same shared base domain).
-        return d == accountHost
+        return IsTravianLobbyOrAuthHost(d)
+            || d == accountHost
             || accountHost.EndsWith("." + d, StringComparison.Ordinal)
             || d.EndsWith("." + accountHost, StringComparison.Ordinal);
+    }
+
+    private static bool IsTravianLobbyOrAuthHost(string host)
+    {
+        return host.Equals("legends.travian.com", StringComparison.Ordinal)
+            || host.EndsWith(".legends.travian.com", StringComparison.Ordinal)
+            || host.Equals("auth.travian.com", StringComparison.Ordinal)
+            || host.Equals("login.travian.com", StringComparison.Ordinal)
+            || host.Equals("accounts.travian.com", StringComparison.Ordinal);
     }
 
     private static async Task ReplaceStorageStateWithRetryAsync(string sourcePath, string targetPath)

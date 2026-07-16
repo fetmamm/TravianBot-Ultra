@@ -389,6 +389,11 @@ public partial class MainWindow
             }
         }
 
+        ResetLoggedOutUiState();
+    }
+
+    private void ResetLoggedOutUiState()
+    {
         StatusTextBlock.Text = "Logged out.";
         UpdateLoginButtonsVisual(false);
         _isLoggedIn = false;
@@ -398,6 +403,30 @@ public partial class MainWindow
         _lastResourceStatusForUi = null;
         _resourcesViewModel.ResetStorageForecasts();
         UpdateInboxButtons(0, 0);
+    }
+
+    private async Task CloseBrowserForSleepAsync(string operationId)
+    {
+        var options = ApplySelectedVillageToOptions(LoadBotOptions());
+        AppendLog($"[{operationId}] INFO server={options.ServerName}");
+
+        try
+        {
+            await _botService.SaveBrowserStateAsync(AppendLog);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[pacing] browser state save before sleep failed; closing with the last saved state: {ex.Message}");
+        }
+
+        try
+        {
+            await _botService.ShutdownAsync(AppendLog);
+        }
+        finally
+        {
+            ResetLoggedOutUiState();
+        }
     }
 
     private async void AccountsButton_Click(object sender, RoutedEventArgs e)

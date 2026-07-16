@@ -453,6 +453,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.ConsumeBrowserClosedByUserSignal();
     }
 
+    public Task SaveBrowserStateAsync(Action<string> log)
+    {
+        return _taskRunner.SaveBrowserStateAsync(log);
+    }
+
     public Task ShutdownAsync(Action<string> log)
     {
         return _taskRunner.ShutdownAsync(log);

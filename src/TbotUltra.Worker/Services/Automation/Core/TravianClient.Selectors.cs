@@ -6,6 +6,7 @@ public sealed partial class TravianClient
     {
         public const string Resources = "/dorf1.php";
         public const string Login = "/login.php";
+        public const string LobbyAccount = "https://lobby.legends.travian.com/account";
         public const string Buildings = "/dorf2.php";
         public const string Options = "/options";
         public const string PlayerProfile = "/spieler.php";
@@ -41,6 +42,10 @@ public sealed partial class TravianClient
 
     private static class Selectors
     {
+        public const string LobbyGameWorldCard = "div.gameworld.owner[data-wuid]";
+        public const string LobbyGameWorldName = ".gameworldName";
+        public const string LobbyPlayNowButton = "button.playNow";
+
         public static readonly string[] LoginUsernameField =
         {
             "input[name='name']",
