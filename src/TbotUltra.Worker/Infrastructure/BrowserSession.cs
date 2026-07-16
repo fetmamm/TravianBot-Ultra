@@ -15,7 +15,8 @@ public sealed partial class BrowserSession : IAsyncDisposable
     // Setup and playback have separate caps. Slow proxies no longer consume the playback budget while
     // Chrome starts/navigates, but either phase still has a firm bound so video can never stall automation.
     private static readonly TimeSpan IsolatedBonusVideoSetupMaxDuration = TimeSpan.FromSeconds(60);
-    private static readonly TimeSpan IsolatedBonusVideoActionMaxDuration = TimeSpan.FromSeconds(120);
+    private static readonly TimeSpan IsolatedBonusVideoActionMaxDuration =
+        TimeSpan.FromSeconds(BonusVideoPlaybackPolicy.IsolatedActionTimeoutSeconds);
     // Upper bound on tearing down the isolated bonus-video browser, so a wedged CloseAsync cannot itself
     // re-stall the calling task. A leaked browser process is recoverable; an infinite stall is not.
     private static readonly TimeSpan IsolatedBonusVideoCloseTimeout = TimeSpan.FromSeconds(10);

@@ -3,6 +3,7 @@ using Microsoft.Playwright;
 using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Worker.Configuration;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Worker.Infrastructure;
 
@@ -31,6 +32,7 @@ public sealed partial class BrowserSession
         IBrowserContext? videoContext = null;
         Task<T>? actionTask = null;
         BonusVideoNetworkDiagnostics? networkDiagnostics = null;
+        var closeReason = "setup did not complete";
         CancellationTokenSource? phaseTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         phaseTimeout.CancelAfter(IsolatedBonusVideoSetupMaxDuration);
         try
@@ -87,15 +89,25 @@ public sealed partial class BrowserSession
                 SetBonusVideoCooldown(cooldownKey, resultKind);
             }
 
+            closeReason = resultKind == BonusVideoFailureKind.None
+                ? "action completed successfully"
+                : $"action completed with {FormatBonusVideoFailureKind(resultKind)}";
+
             return result;
         }
         catch (OperationCanceledException) when (phaseTimeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
         {
             var setupPhase = actionTask is null;
             var limit = setupPhase ? IsolatedBonusVideoSetupMaxDuration : IsolatedBonusVideoActionMaxDuration;
+            closeReason = $"{(setupPhase ? "setup" : "action")} hard timeout after {limit.TotalSeconds:0}s";
             SetBonusVideoCooldown(cooldownKey, BonusVideoFailureKind.Timeout);
             _log?.Invoke($"[browser-video] video {(setupPhase ? "setup" : "action")} exceeded {limit.TotalSeconds:0}s hard cap — aborting.");
             throw new TimeoutException($"Bonus-video {(setupPhase ? "setup" : "action")} exceeded {limit.TotalSeconds:0}s and was aborted.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            closeReason = "cancel or program shutdown";
+            throw;
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -106,6 +118,9 @@ public sealed partial class BrowserSession
             }
 
             SetBonusVideoCooldown(cooldownKey, kind);
+            closeReason = BrowserFailureClassifier.IsTargetCrash(ex)
+                ? "browser closed or crashed"
+                : $"action failed with {FormatBonusVideoFailureKind(kind)}";
             throw;
         }
         finally
@@ -138,7 +153,7 @@ public sealed partial class BrowserSession
                 _ = actionTask.ContinueWith(static t => { _ = t.Exception; }, TaskScheduler.Default);
             }
 
-            _log?.Invoke("[browser-video] isolated bonus-video browser closed.");
+            _log?.Invoke($"[browser-video] isolated bonus-video browser closed reason='{closeReason}'.");
         }
     }
 

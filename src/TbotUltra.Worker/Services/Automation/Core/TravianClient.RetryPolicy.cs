@@ -16,6 +16,21 @@ public sealed partial class TravianClient
             || value.Contains("navigation interrupted");
     }
 
+    private static bool IsBonusVideoNavigationTransition(PlaywrightException ex)
+    {
+        if (BrowserFailureClassifier.IsTargetCrash(ex))
+        {
+            return false;
+        }
+
+        var value = ex.Message?.ToLowerInvariant() ?? string.Empty;
+        return value.Contains("execution context was destroyed")
+            || value.Contains("cannot find context with specified id")
+            || value.Contains("err_aborted")
+            || value.Contains("frame was detached")
+            || value.Contains("navigation interrupted");
+    }
+
     private static bool IsTransientExecutionContextException(Exception ex)
     {
         if (ex is PlaywrightException playwrightException && IsTransientExecutionContextError(playwrightException))

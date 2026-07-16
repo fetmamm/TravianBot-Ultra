@@ -11,11 +11,7 @@ namespace TbotUltra.Worker.Services;
 
 public sealed partial class TravianClient
 {
-    private const int ProductionBonusVideoTimeoutSeconds = 75;
     private const int ProductionBonusVideoPollIntervalMs = 2000;
-    // Minimum playthrough before a closed player counts as "done", so an ad that has not started yet is
-    // never mistaken for a completed one.
-    private const int ProductionBonusVideoMinPlaySeconds = 20;
     private const int AdvantagesRenderAttempts = 60;
     private const int AdvantagesRenderPollIntervalMs = 500;
     private const int AdvantagesOpenAttempts = 2;
@@ -405,7 +401,8 @@ public sealed partial class TravianClient
             return $"{resource}: the video info dialog did not confirm.";
         }
 
-        if (!await StartConstructFasterVideoAsync(cancellationToken))
+        var playClickedAtUtc = await StartConstructFasterVideoAsync(cancellationToken);
+        if (playClickedAtUtc is null)
         {
             if (!await IsH264PlaybackSupportedAsync(cancellationToken))
             {
@@ -416,7 +413,10 @@ public sealed partial class TravianClient
             return $"{resource}: the bonus video player did not open (likely no ad available or blocked).";
         }
 
-        var completed = await WaitForProductionBonusVideoCompletionAsync(cls, cancellationToken);
+        var completed = await WaitForProductionBonusVideoCompletionAsync(
+            cls,
+            playClickedAtUtc.Value,
+            cancellationToken);
         return completed
             ? $"{resource}: +15% production video completed."
             : $"{resource}: bonus video ran but completion was not confirmed.";
@@ -425,12 +425,18 @@ public sealed partial class TravianClient
     // Waits for the +15% video to actually play through. Unlike construct-faster we must NOT treat a
     // dorf1/dorf2 URL as completion: the payment wizard is a React overlay ON dorf1, so the URL is already
     // dorf1 and that check fires instantly (the browser then closes before the ad even starts). Instead we
-    // succeed when the resource box turns active (+15% timer appears) or the video player has closed after a
-    // real minimum playthrough.
-    private async Task<bool> WaitForProductionBonusVideoCompletionAsync(string cls, CancellationToken cancellationToken)
+    // succeed only when the resource box turns active (+15% timer appears), after the shared protected
+    // post-play minute has elapsed.
+    private async Task<bool> WaitForProductionBonusVideoCompletionAsync(
+        string cls,
+        DateTimeOffset playClickedAtUtc,
+        CancellationToken cancellationToken)
     {
-        var startUtc = DateTimeOffset.UtcNow;
-        var deadlineUtc = startUtc.AddSeconds(ProductionBonusVideoTimeoutSeconds);
+        var deadlineUtc = playClickedAtUtc.AddSeconds(BonusVideoPlaybackPolicy.PostPlayTimeoutSeconds);
+        var consecutiveProviderFailures = 0;
+        var earlyRewardLogged = false;
+        var ignoredProviderLogged = false;
+        var ignoredClosedPlayerLogged = false;
         while (DateTimeOffset.UtcNow < deadlineUtc)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -457,32 +463,65 @@ public sealed partial class TravianClient
                     """,
                     cls);
             }
-            catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+            catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
             {
                 continue;
             }
 
             using var doc = JsonDocument.Parse(rawJson ?? "{}");
             var root = doc.RootElement;
-            if (GetBoolean(root, "boxActive"))
+            var elapsedSeconds = (DateTimeOffset.UtcNow - playClickedAtUtc).TotalSeconds;
+            var boxActive = GetBoolean(root, "boxActive");
+            var dialogOpen = GetBoolean(root, "dialogOpen");
+            var hasPlayer = GetBoolean(root, "hasPlayer");
+            if (boxActive && BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds))
             {
-                Notify("[production-bonus] video completion confirmed — box shows +15% active.");
+                Notify($"[production-bonus] video completion confirmed after {elapsedSeconds:F1}s post-play — box shows +15% active.");
                 return true;
             }
 
-            var elapsedSeconds = (DateTimeOffset.UtcNow - startUtc).TotalSeconds;
-            if (elapsedSeconds >= 8 && await TryReadVisibleBonusVideoFailureAsync(cancellationToken) is { } visibleFailure)
+            if (boxActive && !earlyRewardLogged)
             {
-                Notify($"[production-bonus:verbose] {visibleFailure}; stopping video wait early.");
-                return false;
+                earlyRewardLogged = true;
+                Notify(
+                    $"[production-bonus:verbose] +15% reward appeared after {elapsedSeconds:F1}s, but browser remains open " +
+                    $"for the protected post-play minute ({BonusVideoPlaybackPolicy.RemainingGraceSeconds(elapsedSeconds)}s remaining).");
             }
 
-            if (elapsedSeconds >= ProductionBonusVideoMinPlaySeconds
-                && !GetBoolean(root, "dialogOpen")
-                && !GetBoolean(root, "hasPlayer"))
+            if (!dialogOpen && !hasPlayer && !BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds) && !ignoredClosedPlayerLogged)
             {
-                Notify("[production-bonus] video completion inferred — player closed after playthrough.");
-                return true;
+                ignoredClosedPlayerLogged = true;
+                Notify(
+                    $"[production-bonus:verbose] closed/missing player ignored during protected post-play minute " +
+                    $"({BonusVideoPlaybackPolicy.RemainingGraceSeconds(elapsedSeconds)}s remaining).");
+            }
+
+            var visibleFailure = await TryReadVisibleBonusVideoFailureAsync(cancellationToken);
+            if (visibleFailure is not null)
+            {
+                consecutiveProviderFailures++;
+                if (BonusVideoPlaybackPolicy.MayAcceptProviderFailure(
+                        elapsedSeconds,
+                        consecutiveProviderFailures,
+                        hasPlayer))
+                {
+                    Notify(
+                        $"[production-bonus:verbose] provider failure confirmed after {elapsedSeconds:F1}s " +
+                        $"post-play confirmations={consecutiveProviderFailures} playerPresent={hasPlayer}.");
+                    return false;
+                }
+
+                if (!BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds) && !ignoredProviderLogged)
+                {
+                    ignoredProviderLogged = true;
+                    Notify(
+                        $"[production-bonus:verbose] ignored provider text during protected post-play minute " +
+                        $"({BonusVideoPlaybackPolicy.RemainingGraceSeconds(elapsedSeconds)}s remaining).");
+                }
+            }
+            else
+            {
+                consecutiveProviderFailures = 0;
             }
         }
 

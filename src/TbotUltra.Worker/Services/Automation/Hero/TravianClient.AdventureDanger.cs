@@ -5,11 +5,8 @@ namespace TbotUltra.Worker.Services;
 
 public sealed partial class TravianClient
 {
-    // Ad videos usually run 15-30s; 60s covers the playthrough plus the reload/return round-trip and
-    // acts as the fail-safe when no ad ever loads.
-    private const int AdventureVideoTimeoutSeconds = 60;
     private const int AdventureVideoPollIntervalMs = 3000;
-    internal const int AdventureVideoMinimumAttemptSeconds = 45;
+    private const int BonusVideoPlayerLoadTimeoutSeconds = 45;
 
     // CSS class on the videoFeatureBonusBox for each bonus on the hero adventures page.
     private const string AdventureDifficultyBoxClass = "adventureDifficulty";
@@ -360,7 +357,8 @@ public sealed partial class TravianClient
             return $"{label}: the video info dialog did not appear or its 'Watch video' button could not be clicked.";
         }
 
-        if (!await StartAdventureVideoAsync(label, cancellationToken))
+        var playClickedAtUtc = await StartAdventureVideoAsync(label, cancellationToken);
+        if (playClickedAtUtc is null)
         {
             // Distinguish a missing-codec machine from a transient "no ad" so the user gets an actionable
             // message instead of retrying forever on a browser that can never decode the H.264/AAC ad.
@@ -377,7 +375,11 @@ public sealed partial class TravianClient
         // ... adventure" state. Poll for that, using the timeout as the fail-safe. We deliberately do
         // not try to detect the ad-blocker/"force reload" notice — it stays in the DOM behind the
         // playing video and produced false failures even on successful runs.
-        var confirmed = await WaitForAdventureVideoActiveAsync(boxClass, label, cancellationToken);
+        var confirmed = await WaitForAdventureVideoActiveAsync(
+            boxClass,
+            label,
+            playClickedAtUtc.Value,
+            cancellationToken);
         await LogAdventureVideoBoxHtmlAsync(boxClass, label, "after waiting for reward", cancellationToken);
 
         if (confirmed)
@@ -393,7 +395,7 @@ public sealed partial class TravianClient
                 + "Google Chrome on this machine so the bonus videos can run.";
         }
 
-        return $"{label}: bonus video ran but activation was not confirmed within {AdventureVideoTimeoutSeconds}s.";
+        return $"{label}: bonus video ran but activation was not confirmed within {BonusVideoPlaybackPolicy.PostPlayTimeoutSeconds}s after play.";
     }
 
     /// <summary>
@@ -429,7 +431,7 @@ public sealed partial class TravianClient
                 """,
                 boxClass);
         }
-        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
         {
             return "other";
         }
@@ -520,34 +522,46 @@ public sealed partial class TravianClient
     /// Waits for the ad video iframe (<c>#videoArea</c>) to appear, then clicks the centered play
     /// button with a real (trusted) mouse gesture. The button lives inside the cross-origin ad iframe
     /// and the browser autoplay policy ignores scripted element.click()/video.play(); only a genuine
-    /// input event starts playback, and the button is centered in the iframe. Returns false when the
+    /// input event starts playback, and the button is centered in the iframe. Returns null when the
     /// player never appears (ad blocked / no inventory).
     /// </summary>
-    private async Task<bool> StartAdventureVideoAsync(string label, CancellationToken cancellationToken)
+    private async Task<DateTimeOffset?> StartAdventureVideoAsync(string label, CancellationToken cancellationToken)
         => await StartBonusVideoPlayerAsync(label, "[adventure-video:verbose]", cancellationToken);
 
-    private async Task<bool> StartBonusVideoPlayerAsync(
+    private async Task<DateTimeOffset?> StartBonusVideoPlayerAsync(
         string label,
         string logPrefix,
         CancellationToken cancellationToken)
     {
         var playerReady = false;
-        var playerLoadDeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(AdventureVideoMinimumAttemptSeconds);
+        var playerNavigationLogged = false;
+        var playerLoadDeadlineUtc = DateTimeOffset.UtcNow.AddSeconds(BonusVideoPlayerLoadTimeoutSeconds);
         while (DateTimeOffset.UtcNow < playerLoadDeadlineUtc)
         {
             cancellationToken.ThrowIfCancellationRequested();
             // Consent can appear late (when the ad is first requested), so keep accepting it while we wait
             // for the player — without consent the ad iframe never renders in consent regions.
             await AcceptConsentManagerIfPresentAsync(cancellationToken, logPrefix);
-            playerReady = await _page.EvaluateAsync<bool>(
-                """
-                () => {
-                  const dlg = document.querySelector('#videoFeature');
-                  const showing = dlg && String(dlg.className || '').includes('showVideo');
-                  const iframe = document.querySelector('#videoArea, #videoFeature iframe');
-                  return !!(showing && iframe);
+            try
+            {
+                playerReady = await _page.EvaluateAsync<bool>(
+                    """
+                    () => {
+                      const dlg = document.querySelector('#videoFeature');
+                      const showing = dlg && String(dlg.className || '').includes('showVideo');
+                      const iframe = document.querySelector('#videoArea, #videoFeature iframe');
+                      return !!(showing && iframe);
+                    }
+                    """);
+            }
+            catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
+            {
+                if (!playerNavigationLogged)
+                {
+                    playerNavigationLogged = true;
+                    Notify($"{logPrefix} {label}: player load hit a navigation transition; continuing within the pre-play phase.");
                 }
-                """);
+            }
             if (playerReady)
             {
                 break;
@@ -559,7 +573,7 @@ public sealed partial class TravianClient
         if (!playerReady)
         {
             Notify($"{logPrefix} {label}: video player iframe did not appear.");
-            return false;
+            return null;
         }
 
         // Let the ad frame load its player (the centered play button) before clicking it.
@@ -572,6 +586,7 @@ public sealed partial class TravianClient
         // a click is never sent into an already-playing ad (which could toggle pause).
         for (var clickAttempt = 1; clickAttempt <= 2; clickAttempt++)
         {
+            DateTimeOffset? clickConfirmedAtUtc = null;
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
@@ -587,6 +602,7 @@ public sealed partial class TravianClient
                         }
 
                         await play.ClickAsync(new LocatorClickOptions { Timeout = 3000 });
+                        clickConfirmedAtUtc = DateTimeOffset.UtcNow;
                         clickedPlayControl = true;
                         Notify($"{logPrefix} {label}: clicked the visible ad-player play button attempt={clickAttempt}.");
                         break;
@@ -608,7 +624,7 @@ public sealed partial class TravianClient
                     if (visibleFailure is not null)
                     {
                         Notify($"{logPrefix} {label}: {visibleFailure}");
-                        return false;
+                        return null;
                     }
 
                     var area = _page.Locator("#videoArea, #videoFeature iframe").First;
@@ -619,20 +635,28 @@ public sealed partial class TravianClient
                     if (box is null)
                     {
                         Notify($"{logPrefix} {label}: could not locate the video area to click play.");
-                        return false;
+                        return null;
                     }
 
                     var x = box.X + box.Width / 2;
                     var y = box.Y + box.Height / 2;
                     await _page.Mouse.ClickAsync(x, y);
+                    clickConfirmedAtUtc = DateTimeOffset.UtcNow;
                     Notify($"{logPrefix} {label}: actual play control was not found; clicked the video-area center fallback ({x:0},{y:0}) attempt={clickAttempt}.");
                     await MuteBonusVideoAsync(label, logPrefix, cancellationToken);
                 }
             }
-            catch (PlaywrightException ex)
+            catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
             {
-                Notify($"{logPrefix} {label}: could not click the play button: {ex.Message}");
-                return false;
+                if (clickConfirmedAtUtc is null)
+                {
+                    Notify($"{logPrefix} {label}: player navigated before play could be confirmed; retrying: {ex.Message}");
+                    continue;
+                }
+
+                Notify(
+                    $"{logPrefix} {label}: ignored player navigation after confirmed play; " +
+                    "the protected post-play minute remains active.");
             }
 
             // If a consent overlay intercepted the click, accept it and click once more; otherwise the click
@@ -640,13 +664,19 @@ public sealed partial class TravianClient
             await Task.Delay(1000, cancellationToken);
             if (!await AcceptConsentManagerIfPresentAsync(cancellationToken, logPrefix))
             {
-                break;
+                var confirmedAtUtc = clickConfirmedAtUtc ?? DateTimeOffset.UtcNow;
+                Notify(
+                    $"{logPrefix} {label}: play confirmed; post-play protection started " +
+                    $"minimum={BonusVideoPlaybackPolicy.MinimumPostPlaySeconds}s " +
+                    $"timeout={BonusVideoPlaybackPolicy.PostPlayTimeoutSeconds}s.");
+                return confirmedAtUtc;
             }
 
             Notify($"{logPrefix} {label}: consent dialog intercepted the click; accepted and retrying.");
         }
 
-        return true;
+        Notify($"{logPrefix} {label}: play could not be confirmed after consent retry.");
+        return null;
     }
 
     private async Task<string?> TryReadVisibleBonusVideoFailureAsync(CancellationToken cancellationToken)
@@ -682,7 +712,7 @@ public sealed partial class TravianClient
                         return "ad provider visibly reported no ad, ad blocking, or rejected third-party cookies";
                     }
                 }
-                catch (PlaywrightException)
+                catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
                 {
                     // Diagnostic only. Frame can navigate/detach while ad player starts.
                 }
@@ -774,7 +804,7 @@ public sealed partial class TravianClient
                 return true;
             }
         }
-        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
         {
             // Page mid-navigation; the next poll retries.
         }
@@ -796,7 +826,7 @@ public sealed partial class TravianClient
                     return true;
                 }
             }
-            catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+            catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
             {
                 // Frame detached/navigating; ignore and let the next poll retry.
             }
@@ -827,7 +857,7 @@ public sealed partial class TravianClient
                 }
                 """);
         }
-        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
         {
             // Unknown on a transient read — don't mislead with a codec error.
             return true;
@@ -835,45 +865,82 @@ public sealed partial class TravianClient
     }
 
     /// <summary>
-    /// Polls until the bonus box reports "active" (reward applied) or the timeout elapses. The reward
-    /// is granted server-side after the video completes; the box may update in place or only after a
-    /// reload, so a reload is issued partway through. A visibly rendered provider error stops the
-    /// wait early; hidden fallback text is ignored so a real playing ad is never false-failed.
+    /// Polls until the bonus box reports "active" (reward applied) or the shared post-play timeout
+    /// elapses. No DOM/provider signal may finish the attempt during the first protected minute.
     /// </summary>
-    private async Task<bool> WaitForAdventureVideoActiveAsync(string boxClass, string label, CancellationToken cancellationToken)
+    private async Task<bool> WaitForAdventureVideoActiveAsync(
+        string boxClass,
+        string label,
+        DateTimeOffset playClickedAtUtc,
+        CancellationToken cancellationToken)
     {
-        var startUtc = DateTimeOffset.UtcNow;
-        var deadlineUtc = startUtc.AddSeconds(AdventureVideoTimeoutSeconds);
+        var deadlineUtc = playClickedAtUtc.AddSeconds(BonusVideoPlaybackPolicy.PostPlayTimeoutSeconds);
         const int maxReloads = 2;
         var reloadCount = 0;
-        var lastReloadUtc = startUtc;
+        var lastReloadUtc = playClickedAtUtc;
+        var consecutiveProviderFailures = 0;
+        var earlyRewardLogged = false;
+        var ignoredProviderLogged = false;
         while (DateTimeOffset.UtcNow < deadlineUtc)
         {
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Delay(AdventureVideoPollIntervalMs, cancellationToken);
 
+            var now = DateTimeOffset.UtcNow;
+            var elapsedSeconds = (now - playClickedAtUtc).TotalSeconds;
             var state = await ReadAdventureVideoStateAsync(boxClass, cancellationToken);
             if (state == "active")
             {
-                Notify($"[adventure-video] {label}: reward confirmed — the bonus is now active.");
-                return true;
+                if (BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds))
+                {
+                    Notify($"[adventure-video] {label}: reward confirmed after {elapsedSeconds:F1}s post-play — the bonus is now active.");
+                    return true;
+                }
+
+                if (!earlyRewardLogged)
+                {
+                    earlyRewardLogged = true;
+                    Notify(
+                        $"[adventure-video:verbose] {label}: reward appeared after {elapsedSeconds:F1}s, " +
+                        $"but browser remains open for the protected post-play minute " +
+                        $"({BonusVideoPlaybackPolicy.RemainingGraceSeconds(elapsedSeconds)}s remaining).");
+                }
             }
 
-            if (AdventureVideoAttemptMayAbort((DateTimeOffset.UtcNow - startUtc).TotalSeconds)
-                && await TryReadVisibleBonusVideoFailureAsync(cancellationToken) is { } visibleFailure)
+            var visibleFailure = await TryReadVisibleBonusVideoFailureAsync(cancellationToken);
+            if (visibleFailure is not null)
             {
-                Notify($"[adventure-video:verbose] {label}: {visibleFailure}; stopping video wait early.");
-                return false;
+                consecutiveProviderFailures++;
+                var playerPresent = await IsBonusVideoPlayerPresentAsync(cancellationToken);
+                if (BonusVideoPlaybackPolicy.MayAcceptProviderFailure(
+                        elapsedSeconds,
+                        consecutiveProviderFailures,
+                        playerPresent))
+                {
+                    Notify(
+                        $"[adventure-video:verbose] {label}: provider failure confirmed after {elapsedSeconds:F1}s " +
+                        $"post-play confirmations={consecutiveProviderFailures} playerPresent={playerPresent}; closing attempt.");
+                    return false;
+                }
+
+                if (!BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds) && !ignoredProviderLogged)
+                {
+                    ignoredProviderLogged = true;
+                    Notify(
+                        $"[adventure-video:verbose] {label}: ignored provider text during protected post-play minute " +
+                        $"({BonusVideoPlaybackPolicy.RemainingGraceSeconds(elapsedSeconds)}s remaining).");
+                }
+            }
+            else
+            {
+                consecutiveProviderFailures = 0;
             }
 
             // Once the player has closed, reload the adventures page so the box reflects the granted reward.
-            // Reload up to twice, spaced out: with a single reload a reward that lands late (long ad, or the
-            // dialog only closing near the end) was missed and falsely reported as "not confirmed".
-            var now = DateTimeOffset.UtcNow;
-            var elapsedSeconds = (now - startUtc).TotalSeconds;
+            // Never reload during the protected minute because that could interrupt a slow-starting video.
             var sinceReloadSeconds = (now - lastReloadUtc).TotalSeconds;
             if (reloadCount < maxReloads
-                && elapsedSeconds >= AdventureVideoTimeoutSeconds / 3.0
+                && BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds)
                 && sinceReloadSeconds >= 15
                 && !await IsAdventureVideoDialogOpenAsync(cancellationToken))
             {
@@ -887,9 +954,6 @@ public sealed partial class TravianClient
         return false;
     }
 
-    internal static bool AdventureVideoAttemptMayAbort(double elapsedSeconds)
-        => elapsedSeconds >= AdventureVideoMinimumAttemptSeconds;
-
     private async Task<bool> IsAdventureVideoDialogOpenAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -897,9 +961,24 @@ public sealed partial class TravianClient
         {
             return await _page.EvaluateAsync<bool>("() => !!document.querySelector('#videoFeature')");
         }
-        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
         {
             return false;
+        }
+    }
+
+    private async Task<bool> IsBonusVideoPlayerPresentAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            return await _page.EvaluateAsync<bool>(
+                "() => !!document.querySelector('#videoArea, #videoFeature iframe')");
+        }
+        catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
+        {
+            // Unknown presence must not turn a provider help-text false positive into an immediate failure.
+            return true;
         }
     }
 
@@ -923,7 +1002,7 @@ public sealed partial class TravianClient
                 boxClass);
             Notify($"[adventure-video:diag] {label} box {when}: {(string.IsNullOrWhiteSpace(html) ? "(not found)" : html)}");
         }
-        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
         {
             // Diagnostic only — ignore transient navigation.
         }

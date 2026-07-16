@@ -9,7 +9,6 @@ namespace TbotUltra.Worker.Services;
 public sealed partial class TravianClient
 {
     private const string ConstructFasterButtonSelector = ".upgradeButtonsContainer .section2 button.videoFeatureButton";
-    private const int ConstructFasterVideoTimeoutSeconds = 75;
     private const int ConstructFasterVideoPollIntervalMs = 2000;
     private const int ConstructFasterMaxVideoAttempts = 2;
 
@@ -365,7 +364,8 @@ public sealed partial class TravianClient
             throw new InvalidOperationException("video info dialog did not confirm");
         }
 
-        if (!await StartConstructFasterVideoAsync(cancellationToken))
+        var playClickedAtUtc = await StartConstructFasterVideoAsync(cancellationToken);
+        if (playClickedAtUtc is null)
         {
             if (!await IsH264PlaybackSupportedAsync(cancellationToken))
             {
@@ -375,7 +375,9 @@ public sealed partial class TravianClient
             throw new InvalidOperationException("video player did not open");
         }
 
-        var completed = await WaitForConstructFasterVideoCompletionAsync(cancellationToken);
+        var completed = await WaitForConstructFasterVideoCompletionAsync(
+            playClickedAtUtc.Value,
+            cancellationToken);
         if (!completed)
         {
             if (!await IsH264PlaybackSupportedAsync(cancellationToken))
@@ -383,7 +385,8 @@ public sealed partial class TravianClient
                 throw new InvalidOperationException("browser cannot play H.264/AAC ad video");
             }
 
-            throw new InvalidOperationException($"video completion not confirmed within {ConstructFasterVideoTimeoutSeconds}s");
+            throw new InvalidOperationException(
+                $"video completion not confirmed within {BonusVideoPlaybackPolicy.PostPlayTimeoutSeconds}s after play");
         }
 
         return $"{buildingName}: construct-faster video completed.";
@@ -557,51 +560,91 @@ public sealed partial class TravianClient
         }
     }
 
-    private async Task<bool> StartConstructFasterVideoAsync(CancellationToken cancellationToken)
+    private async Task<DateTimeOffset?> StartConstructFasterVideoAsync(CancellationToken cancellationToken)
         => await StartBonusVideoPlayerAsync("construct-faster", "[construct-faster:verbose]", cancellationToken);
 
-    private async Task<bool> WaitForConstructFasterVideoCompletionAsync(CancellationToken cancellationToken)
+    private async Task<bool> WaitForConstructFasterVideoCompletionAsync(
+        DateTimeOffset playClickedAtUtc,
+        CancellationToken cancellationToken)
     {
-        var startUtc = DateTimeOffset.UtcNow;
-        var deadlineUtc = startUtc.AddSeconds(ConstructFasterVideoTimeoutSeconds);
+        var deadlineUtc = playClickedAtUtc.AddSeconds(BonusVideoPlaybackPolicy.PostPlayTimeoutSeconds);
+        var consecutiveProviderFailures = 0;
+        var earlyCompletionLogged = false;
+        var ignoredProviderLogged = false;
         while (DateTimeOffset.UtcNow < deadlineUtc)
         {
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Delay(ConstructFasterVideoPollIntervalMs, cancellationToken);
 
-            var rawJson = await _page.EvaluateAsync<string>(
-                """
-                () => {
-                  const url = window.location.href;
-                  const dialog = document.querySelector('#videoFeature');
-                  const dialogOpen = !!dialog && !String(dialog.className || '').includes('hide');
-                  const hasPlayer = !!document.querySelector('#videoArea, #videoFeature iframe');
-                  const onVillage = /\/dorf[12]\.php/i.test(url);
-                  return JSON.stringify({ url, dialogOpen, hasPlayer, onVillage });
-                }
-                """);
+            string rawJson;
+            try
+            {
+                rawJson = await _page.EvaluateAsync<string>(
+                    """
+                    () => {
+                      const url = window.location.href;
+                      const dialog = document.querySelector('#videoFeature');
+                      const dialogOpen = !!dialog && !String(dialog.className || '').includes('hide');
+                      const hasPlayer = !!document.querySelector('#videoArea, #videoFeature iframe');
+                      const onVillage = /\/dorf[12]\.php/i.test(url);
+                      return JSON.stringify({ url, dialogOpen, hasPlayer, onVillage });
+                    }
+                    """);
+            }
+            catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
+            {
+                continue;
+            }
 
             using var doc = JsonDocument.Parse(rawJson ?? "{}");
             var root = doc.RootElement;
-            if (GetBoolean(root, "onVillage"))
-            {
-                Notify("[construct-faster] video completion confirmed by village redirect.");
-                return true;
-            }
-
-            var elapsedSeconds = (DateTimeOffset.UtcNow - startUtc).TotalSeconds;
-            if (elapsedSeconds >= 8 && await TryReadVisibleBonusVideoFailureAsync(cancellationToken) is { } visibleFailure)
-            {
-                Notify($"[construct-faster:verbose] {visibleFailure}; stopping video wait early.");
-                throw new InvalidOperationException(visibleFailure);
-            }
-
+            var elapsedSeconds = (DateTimeOffset.UtcNow - playClickedAtUtc).TotalSeconds;
+            var onVillage = GetBoolean(root, "onVillage");
             var dialogOpen = GetBoolean(root, "dialogOpen");
             var hasPlayer = GetBoolean(root, "hasPlayer");
-            if (elapsedSeconds >= 20 && !dialogOpen && !hasPlayer)
+            var completionSignal = onVillage || (!dialogOpen && !hasPlayer);
+            if (completionSignal && BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds))
             {
-                Notify("[construct-faster] video completion inferred from closed video dialog.");
+                Notify(
+                    $"[construct-faster] video completion signal accepted after {elapsedSeconds:F1}s post-play " +
+                    $"villageRedirect={onVillage} dialogOpen={dialogOpen} playerPresent={hasPlayer}.");
                 return true;
+            }
+
+            if (completionSignal && !earlyCompletionLogged)
+            {
+                earlyCompletionLogged = true;
+                Notify(
+                    $"[construct-faster:verbose] completion signal ignored after {elapsedSeconds:F1}s; " +
+                    $"protected post-play minute has {BonusVideoPlaybackPolicy.RemainingGraceSeconds(elapsedSeconds)}s remaining.");
+            }
+
+            var visibleFailure = await TryReadVisibleBonusVideoFailureAsync(cancellationToken);
+            if (visibleFailure is not null)
+            {
+                consecutiveProviderFailures++;
+                if (BonusVideoPlaybackPolicy.MayAcceptProviderFailure(
+                        elapsedSeconds,
+                        consecutiveProviderFailures,
+                        hasPlayer))
+                {
+                    Notify(
+                        $"[construct-faster:verbose] provider failure confirmed after {elapsedSeconds:F1}s " +
+                        $"post-play confirmations={consecutiveProviderFailures} playerPresent={hasPlayer}.");
+                    throw new InvalidOperationException(visibleFailure);
+                }
+
+                if (!BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds) && !ignoredProviderLogged)
+                {
+                    ignoredProviderLogged = true;
+                    Notify(
+                        $"[construct-faster:verbose] ignored provider text during protected post-play minute " +
+                        $"({BonusVideoPlaybackPolicy.RemainingGraceSeconds(elapsedSeconds)}s remaining).");
+                }
+            }
+            else
+            {
+                consecutiveProviderFailures = 0;
             }
         }
 

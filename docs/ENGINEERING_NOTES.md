@@ -112,10 +112,14 @@ Common endpoints:
 - Do not log credentials or embed them in user-visible URLs.
 - Keep browser and HTTP-client proxy behavior aligned.
 - Bonus-video traffic must use the account's current route; never bypass the proxy or change IP only for video.
-- Isolated bonus video has separate 60s setup and 120s action caps. Expected ad/provider failure must not
+- Isolated bonus video has separate 60s setup and 240s action caps. Expected ad/provider failure must not
   block construction, hero dispatch, or other automation.
-- Hero-adventure bonus videos must receive at least 45 seconds to load/play before a missing-player or
-  visible provider-error state may abort the attempt.
+- Construct, resource, production, and both hero bonus videos share one post-play policy: the protected
+  60-second interval starts only after a trusted play click succeeds, and the post-play verification timeout
+  is 120 seconds. Missing iframe/dialog, missing reward, or visible provider help/error text cannot end the
+  attempt during the protected minute. Afterward, provider failure needs two consecutive confirmations while
+  the player is present, or one confirmation when the player is demonstrably absent. Cancel, shutdown, and a
+  closed/crashed browser may still abort immediately.
 - Hard and -25% hero-adventure videos share an account-scoped 0-100% chance setting (default 70%);
   evaluate an independent random roll whenever either enabled function is invoked.
 - Classify video failures and apply account+proxy cooldown: network 10m, no-ad/cookies 20m, timeout 30m,
