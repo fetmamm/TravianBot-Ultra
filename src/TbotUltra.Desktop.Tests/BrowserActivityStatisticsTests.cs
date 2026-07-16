@@ -109,6 +109,20 @@ public sealed class BrowserActivityStatisticsTests : IDisposable
         Assert.Equal(0, BrowserActivityStatisticsStore.Load(_root, "alice").Metric(BrowserActivityStatisticsParser.Navigations));
     }
 
+    [Fact]
+    public void Store_QuarantinesCorruptLifetimeFile()
+    {
+        var path = AccountStoragePaths.BrowserActivityStatisticsPath(_root, "alice");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, "{ invalid json");
+
+        var result = BrowserActivityStatisticsStore.Load(_root, "alice");
+
+        Assert.Equal(0, result.Metric(BrowserActivityStatisticsParser.Navigations));
+        Assert.False(File.Exists(path));
+        Assert.Single(Directory.GetFiles(Path.GetDirectoryName(path)!, "browser_activity_statistics.json.corrupt-*"));
+    }
+
     private static string Trace(string eventName, string action, string result, long durationMs)
         => $"[browser-trace:verbose] run=abc seq=1 task='task' account='account' village='03' event={eventName} action='{action}' result={result} elapsedMs=10 durationMs={durationMs} url='https://example.com/dorf1.php' detail='-'";
 

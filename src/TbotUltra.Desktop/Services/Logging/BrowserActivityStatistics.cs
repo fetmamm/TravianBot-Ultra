@@ -310,11 +310,26 @@ internal static class BrowserActivityStatisticsStore
                 var snapshot = JsonSerializer.Deserialize<BrowserActivityStatisticsSnapshot>(File.ReadAllText(path), JsonOptions)
                                ?? new BrowserActivityStatisticsSnapshot();
                 snapshot.Metrics = new Dictionary<string, long>(snapshot.Metrics ?? [], StringComparer.OrdinalIgnoreCase);
-                snapshot.Destinations = new Dictionary<string, BrowserDestinationCounters>(snapshot.Destinations ?? [], StringComparer.OrdinalIgnoreCase);
+                snapshot.Destinations = new Dictionary<string, BrowserDestinationCounters>(
+                    (snapshot.Destinations ?? [])
+                    .Where(item => !string.IsNullOrWhiteSpace(item.Key) && item.Value is not null),
+                    StringComparer.OrdinalIgnoreCase);
                 return snapshot;
             }
             catch
             {
+                try
+                {
+                    File.Move(
+                        path,
+                        $"{path}.corrupt-{DateTimeOffset.UtcNow:yyyyMMddHHmmss}",
+                        overwrite: true);
+                }
+                catch
+                {
+                    // Preserve the unreadable file if quarantine itself is blocked.
+                }
+
                 return new BrowserActivityStatisticsSnapshot();
             }
         }

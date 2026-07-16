@@ -143,6 +143,7 @@ public partial class MainWindow
 
     private void ClearBrowserStatisticsSessionButton_Click(object sender, RoutedEventArgs e)
     {
+        FlushPendingLogsBeforeClearingBrowserStatistics();
         var accountName = _accountStore.ActiveAccountName();
         if (string.IsNullOrWhiteSpace(accountName))
         {
@@ -159,6 +160,7 @@ public partial class MainWindow
 
     private void ClearBrowserStatisticsLifetimeButton_Click(object sender, RoutedEventArgs e)
     {
+        FlushPendingLogsBeforeClearingBrowserStatistics();
         var accountName = _accountStore.ActiveAccountName();
         if (string.IsNullOrWhiteSpace(accountName))
         {
@@ -231,4 +233,20 @@ public partial class MainWindow
 
     private static string FormatStatisticsDate(DateTimeOffset? value)
         => value.HasValue ? value.Value.ToLocalTime().ToString("yyyy-MM-dd HH:mm:ss") : "not recorded";
+
+    private void FlushPendingLogsBeforeClearingBrowserStatistics()
+    {
+        while (true)
+        {
+            lock (_pendingLogSync)
+            {
+                if (_pendingLogMessages.Count == 0)
+                {
+                    return;
+                }
+            }
+
+            FlushPendingLogsToUi();
+        }
+    }
 }
