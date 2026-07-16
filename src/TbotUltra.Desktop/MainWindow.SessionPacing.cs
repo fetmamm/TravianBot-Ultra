@@ -202,6 +202,14 @@ public partial class MainWindow
             return;
         }
 
+        // Give a due/running pre-sleep fill construction start a short, bounded chance to finish so
+        // the final build slot is occupied before the browser closes. The loop is still running here
+        // (the pacer only raised SleepStarting; BeginSleep happens below).
+        if (!manual)
+        {
+            await WaitBrieflyForPreSleepFillItemsAsync();
+        }
+
         _sessionPacingSleepInProgress = true;
         try
         {

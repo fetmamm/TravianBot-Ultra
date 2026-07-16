@@ -473,6 +473,16 @@ public sealed partial class TravianClient
             var slotKey = $"{villageToken}:{kind}:{slotId}";
             var now = DateTimeOffset.UtcNow;
 
+            // Pre-sleep fill: the desktop rescheduled this item to a random time right before a
+            // session-pacing sleep (the human pause was served by that reschedule). Start immediately
+            // so the slot is occupied when the sleep begins.
+            if (_config.ConstructionPreSleepFill)
+            {
+                _session.ConstructionHumanizeUntilBySlot.Remove(slotKey);
+                Notify($"[construction-humanize] slot {slotId}: pre-sleep fill — starting without an extra delay.");
+                return null;
+            }
+
             // Retry after a delay we already scheduled for THIS build: let it proceed (or wait out the
             // small remainder). Without this the % case would recompute and defer forever behind a live
             // build, since the slot is still free each retry.

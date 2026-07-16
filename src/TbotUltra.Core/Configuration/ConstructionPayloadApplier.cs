@@ -23,7 +23,8 @@ internal sealed record ConstructionPayloadValues(
     int ConstructFasterRandomChancePercent,
     string TargetBuildingSlotOrName,
     int? TargetLevel,
-    string UpgradeSelectorProfile);
+    string UpgradeSelectorProfile,
+    bool ConstructionPreSleepFill);
 
 internal static class ConstructionPayloadApplier
 {
@@ -52,7 +53,8 @@ internal static class ConstructionPayloadApplier
             source.ConstructFasterRandomChancePercent,
             source.TargetBuildingSlotOrName,
             source.TargetLevel,
-            source.UpgradeSelectorProfile);
+            source.UpgradeSelectorProfile,
+            source.ConstructionPreSleepFill);
 
         if (payload is null)
             return result;
@@ -110,6 +112,8 @@ internal static class ConstructionPayloadApplier
                 result = result with { TargetLevel = targetLevel };
             else if (key.Equals(BotOptionPayloadKeys.UpgradeSelectorProfile, StringComparison.OrdinalIgnoreCase))
                 result = result with { UpgradeSelectorProfile = value };
+            else if (TryReadBool(key, value, BotOptionPayloadKeys.ConstructionPreSleepFill, out var preSleepFill))
+                result = result with { ConstructionPreSleepFill = preSleepFill };
         }
 
         return result;

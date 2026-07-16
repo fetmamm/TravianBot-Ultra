@@ -69,4 +69,16 @@ public static class PacingDefaults
     public const double ConstructionHumanizeMaxDelayMinutes = 25.0;
     public const double ConstructionHumanizeNoPlusMinMinutes = 0.5;
     public const double ConstructionHumanizeNoPlusMaxMinutes = 3.0;
+
+    // Pre-sleep fill (part of the construction start delay feature): shortly before a session-pacing
+    // sleep, pull humanize-deferred construction starts forward so every build slot that CAN be
+    // filled is occupied when the sleep begins. The window scales with how many villages have queued
+    // construction work (villages * PerVillageMinutes, clamped to [WindowMin, WindowMax]);
+    // rescheduled starts land at a random time inside the window, at least MarginMinutes before the
+    // sleep. SleepHoldMaxMinutes bounds how long an automatic sleep may wait for a final fill item.
+    public const int PreSleepFillPerVillageMinutes = 2;
+    public const int PreSleepFillWindowMinMinutes = 15;
+    public const int PreSleepFillWindowMaxMinutes = 45;
+    public const int PreSleepFillMarginMinutes = 2;
+    public const int PreSleepFillSleepHoldMaxMinutes = 3;
 }

@@ -42,6 +42,7 @@ public static class BotOptionPayloadKeys
     public const string UpgradeDeferReasonResources = "resources";
     public const string UpgradeDeferReasonRequirements = "requirements";
     public const string UpgradeDeferReasonStorageCapacity = "storage_capacity";
+    public const string UpgradeDeferReasonHumanize = "humanize";
     public const string UpgradeDeferReasonRetry = "retry";
     // Consecutive requirement-defer counter. Requirement defers do not consume Retries (the prerequisite
     // could still arrive), so this bounds how long an item whose prerequisite never comes keeps retrying
@@ -271,4 +272,9 @@ public static class BotOptionPayloadKeys
     public const string ConstructionHumanizeMaxDelayMinutes = "construction_humanize_max_delay_minutes";
     public const string ConstructionHumanizeNoPlusMinMinutes = "construction_humanize_no_plus_min_minutes";
     public const string ConstructionHumanizeNoPlusMaxMinutes = "construction_humanize_no_plus_max_minutes";
+
+    // Per-queue-item flag: the pre-sleep fill sweep (part of the construction start delay feature)
+    // rescheduled this item into the window right before a session-pacing sleep, so the worker's
+    // humanize gate should start the build immediately instead of deferring again.
+    public const string ConstructionPreSleepFill = "construction_pre_sleep_fill";
 }

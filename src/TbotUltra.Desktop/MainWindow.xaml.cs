@@ -449,6 +449,7 @@ public partial class MainWindow : Window
                 UpdateSessionActivityState();
                 UpdateClockText(serverNow);
                 UpdateSessionPacingUi();
+                TickPreSleepConstructionFill();
                 HandleBrowserClosedSignal();
                 TickFarmListCountdowns();
                 if (dashboardTabSelected)

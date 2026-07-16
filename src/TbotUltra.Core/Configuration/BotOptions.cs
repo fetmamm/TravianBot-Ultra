@@ -406,6 +406,10 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionHumanizeNoPlusMaxMinutes)]
     public double ConstructionHumanizeNoPlusMaxMinutes { get; init; } = PacingDefaults.ConstructionHumanizeNoPlusMaxMinutes;
 
+    // Per-queue-item flag set by the desktop's pre-sleep fill sweep; never stored in bot.json.
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionPreSleepFill)]
+    public bool ConstructionPreSleepFill { get; init; }
+
     [ConfigurationKeyName(BotOptionPayloadKeys.TargetVillageName)]
     public string TargetVillageName { get; init; } = string.Empty;
 

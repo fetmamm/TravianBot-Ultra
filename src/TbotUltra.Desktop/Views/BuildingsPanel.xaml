@@ -172,75 +172,85 @@
             </ScrollViewer>
         </Grid>
 
-        <!-- Right column: placeholder card for upcoming construction settings. -->
-        <Border Grid.Column="1"
-                VerticalAlignment="Top"
-                Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="1"
-                CornerRadius="9"
-                Padding="12">
-            <StackPanel>
-                <TextBlock Text="Construction settings"
-                           FontSize="16"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           Margin="0,0,0,6" />
-                <TextBlock Text="These places is great for following buildings (optional)"
-                           Foreground="{DynamicResource TextSubtleBrush}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,10" />
-                <TextBlock Text="Slot 22 - Barracks"
-                           Foreground="{DynamicResource TextSubtleBrush}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,10" />
-                <TextBlock Text="Slot 29 - Stable"
-                           Foreground="{DynamicResource TextSubtleBrush}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,10" />
-                <TextBlock Text="Slot 31 - Marketplace"
-                           Foreground="{DynamicResource TextSubtleBrush}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,10" />
-                <TextBlock Text="Slot 21 - Workshop"
-                           Foreground="{DynamicResource TextSubtleBrush}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,10" />
-                <TextBlock Text="Slot 11 - Hospital"
-                           Foreground="{DynamicResource TextSubtleBrush}"
-                           FontSize="12"
-                           TextWrapping="Wrap"
-                           Margin="0,0,0,10" />
-                <Button Content="Building templates"
-                        Height="30"
-                        Margin="0,4,0,0"
-                        Background="{DynamicResource AccentBrush}"
-                        Foreground="White"
-                        BorderBrush="{DynamicResource AccentBrush}"
-                        ToolTip="Create, save, and queue reusable building templates for the selected village."
-                        Click="BuildingTemplatesButton_Click" />
+        <!-- Right column: construction settings, split into two cards (placements + timing). -->
+        <StackPanel Grid.Column="1" VerticalAlignment="Top">
+            <Border Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="9"
+                    Padding="14,12">
+                <StackPanel>
+                    <TextBlock Text="Construction settings"
+                               FontSize="15"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <TextBlock Text="Recommended placements for these buildings (optional):"
+                               Foreground="{DynamicResource TextSubtleBrush}"
+                               FontSize="12"
+                               TextWrapping="Wrap"
+                               Margin="0,4,0,8" />
+                    <ItemsControl>
+                        <ItemsControl.Items>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <TextBlock Text="Slot 22" Width="52" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="Barracks" FontSize="12" Foreground="{DynamicResource TextSubtleBrush}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <TextBlock Text="Slot 29" Width="52" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="Stable" FontSize="12" Foreground="{DynamicResource TextSubtleBrush}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <TextBlock Text="Slot 31" Width="52" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="Marketplace" FontSize="12" Foreground="{DynamicResource TextSubtleBrush}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <TextBlock Text="Slot 21" Width="52" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="Workshop" FontSize="12" Foreground="{DynamicResource TextSubtleBrush}" />
+                            </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,5">
+                                <TextBlock Text="Slot 11" Width="52" FontSize="12" FontWeight="SemiBold" Foreground="{DynamicResource TextSecondaryBrush}" />
+                                <TextBlock Text="Hospital" FontSize="12" Foreground="{DynamicResource TextSubtleBrush}" />
+                            </StackPanel>
+                        </ItemsControl.Items>
+                    </ItemsControl>
+                    <Button Content="Building templates"
+                            Height="30"
+                            Margin="0,8,0,0"
+                            Background="{DynamicResource PrimaryButtonBrush}"
+                            Foreground="{DynamicResource OnAccentBrush}"
+                            BorderBrush="{DynamicResource AccentBrush}"
+                            FontWeight="SemiBold"
+                            ToolTip="Create, save, and queue reusable building templates for the selected village."
+                            Click="BuildingTemplatesButton_Click" />
+                </StackPanel>
+            </Border>
 
-                <!-- Human-like pause before starting the next construction. -->
-                <Separator Margin="0,14,0,10" Background="{DynamicResource BorderBrush}" />
+            <!-- Human-like pause before starting the next construction + pre-sleep fill. -->
+            <Border Margin="0,10,0,0"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1"
+                    CornerRadius="9"
+                    Padding="14,12">
+                <StackPanel>
                 <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                     <CheckBox x:Name="ConstructionHumanizeCheckBox"
-                              Content="Construction start delay"
-                              Foreground="{DynamicResource TextPrimaryBrush}"
-                              FontWeight="SemiBold"
+                              Style="{DynamicResource ToggleSwitchBlueStyle}"
                               VerticalAlignment="Center"
                               IsChecked="True"
                               Checked="ConstructionHumanizeSetting_Changed"
                               Unchecked="ConstructionHumanizeSetting_Changed" />
+                    <TextBlock Text="Construction start delay"
+                               Foreground="{DynamicResource TextPrimaryBrush}"
+                               FontSize="15"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center"
+                               Margin="8,0,0,0" />
                     <ContentControl Style="{StaticResource SettingInfoIconStyle}">
                         <ContentControl.ToolTip>
                             <ToolTip MaxWidth="320">
                                 <TextBlock TextWrapping="Wrap"
-                                           Text="Wait a bit before starting the next construction instead of reacting the instant a slot frees. Off = builds start immediately, as before." />
+                                           Text="Wait a bit before starting the next construction instead of reacting the instant a slot frees. Shortly before a session-pacing sleep, delayed starts are pulled forward automatically so every build slot that can be filled is occupied when the sleep begins. Off = builds start immediately, as before." />
                             </ToolTip>
                         </ContentControl.ToolTip>
                     </ContentControl>
@@ -302,7 +312,8 @@
                     <TextBox x:Name="ConstructionHumanizeNoPlusMaxTextBox" Grid.Row="3" Grid.Column="2" Height="24"
                              Margin="6,2,0,2" LostFocus="ConstructionHumanizeSetting_Changed" />
                 </Grid>
-            </StackPanel>
-        </Border>
+                </StackPanel>
+            </Border>
+        </StackPanel>
     </Grid>
 </UserControl>

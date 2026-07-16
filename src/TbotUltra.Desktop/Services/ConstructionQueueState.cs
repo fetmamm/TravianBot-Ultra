@@ -25,6 +25,7 @@ public enum ConstructionDeferReason
     Resources,
     Requirements,
     StorageCapacity,
+    Humanize,
     Retry,
 }
 
@@ -75,6 +76,14 @@ public static class ConstructionQueueState
                 || message.Contains("upgrade_required_", StringComparison.OrdinalIgnoreCase));
     }
 
+    // The worker's humanize gate deferred this start (slot free, only waiting out the human pause).
+    // These are the items the pre-sleep fill sweep may pull forward so the slot is used before sleep.
+    public static bool IsConstructionHumanizeDeferMessage(string? message)
+    {
+        return !string.IsNullOrWhiteSpace(message)
+            && message.Contains("humanized construction start delay", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static bool IsConstructionStorageCapacityDeferMessage(string? message)
     {
         return !string.IsNullOrWhiteSpace(message)
@@ -123,6 +132,11 @@ public static class ConstructionQueueState
         return ResolveDeferReason(item) == ConstructionDeferReason.Requirements;
     }
 
+    public static bool IsConstructionHumanizeDeferred(QueueItem item)
+    {
+        return ResolveDeferReason(item) == ConstructionDeferReason.Humanize;
+    }
+
     public static bool BlocksAdditionalConstruction(QueueItem queueOccupancyDeferredItem)
     {
         return IsQueueOccupancyDeferred(queueOccupancyDeferredItem);
@@ -158,6 +172,11 @@ public static class ConstructionQueueState
         if (string.Equals(reason, BotOptionPayloadKeys.UpgradeDeferReasonStorageCapacity, StringComparison.OrdinalIgnoreCase))
         {
             return ConstructionDeferReason.StorageCapacity;
+        }
+
+        if (string.Equals(reason, BotOptionPayloadKeys.UpgradeDeferReasonHumanize, StringComparison.OrdinalIgnoreCase))
+        {
+            return ConstructionDeferReason.Humanize;
         }
 
         return ConstructionDeferReason.Retry;

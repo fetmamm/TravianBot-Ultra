@@ -12,6 +12,7 @@ public partial class AppDialog : Window
     private readonly MessageBoxResult _defaultResult;
     private readonly MessageBoxResult _cancelResult;
     private readonly MessageBoxResult? _successResult;
+    private readonly MessageBoxResult? _accentResult;
     private readonly IReadOnlyList<(string Label, MessageBoxResult Result)>? _customButtons;
     private MessageBoxResult _result;
     private bool _resultChosen;
@@ -25,7 +26,8 @@ public partial class AppDialog : Window
         MessageBoxResult defaultResult,
         MessageBoxResult? cancelResult = null,
         IReadOnlyList<(string Label, MessageBoxResult Result)>? customButtons = null,
-        MessageBoxResult? successResult = null)
+        MessageBoxResult? successResult = null,
+        MessageBoxResult? accentResult = null)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
@@ -36,6 +38,7 @@ public partial class AppDialog : Window
         _buttons = buttons;
         _customButtons = customButtons;
         _successResult = successResult;
+        _accentResult = accentResult;
         _defaultResult = defaultResult;
         _cancelResult = ResolveCancelResult(buttons, cancelResult, customButtons);
         _result = ResolveDefaultResult(buttons, defaultResult, customButtons);
@@ -50,8 +53,10 @@ public partial class AppDialog : Window
         MessageBoxButton buttons,
         MessageBoxImage icon,
         MessageBoxResult defaultResult,
-        MessageBoxResult? cancelResult = null)
-        : this(owner, string.Empty, title, buttons, icon, defaultResult, cancelResult)
+        MessageBoxResult? cancelResult = null,
+        IReadOnlyList<(string Label, MessageBoxResult Result)>? customButtons = null,
+        MessageBoxResult? accentResult = null)
+        : this(owner, string.Empty, title, buttons, icon, defaultResult, cancelResult, customButtons, successResult: null, accentResult)
     {
         MessageContentControl.Content = content;
     }
@@ -147,6 +152,32 @@ public partial class AppDialog : Window
         return dialog._result;
     }
 
+    // Custom-button dialog with rich WPF content instead of a plain text message. accentResult marks
+    // the button that should get the app's primary accent styling (e.g. the affirmative action).
+    public static MessageBoxResult ShowCustomContent(
+        Window? owner,
+        object content,
+        string title,
+        IReadOnlyList<(string Label, MessageBoxResult Result)> buttons,
+        MessageBoxImage icon,
+        MessageBoxResult defaultResult,
+        MessageBoxResult cancelResult,
+        MessageBoxResult? accentResult = null)
+    {
+        var dialog = new AppDialog(
+            owner,
+            content,
+            title,
+            MessageBoxButton.OK,
+            icon,
+            defaultResult,
+            cancelResult,
+            buttons,
+            accentResult);
+        _ = dialog.ShowDialog();
+        return dialog._result;
+    }
+
     public static MessageBoxResult ShowContent(
         Window? owner,
         object content,
@@ -182,6 +213,13 @@ public partial class AppDialog : Window
                 button.Background = FindResource("SuccessBrush") as Brush;
                 button.BorderBrush = FindResource("SuccessBrush") as Brush;
                 button.Foreground = Brushes.White;
+                button.FontWeight = FontWeights.SemiBold;
+            }
+            else if (result == _accentResult)
+            {
+                button.SetResourceReference(Control.BackgroundProperty, "PrimaryButtonBrush");
+                button.SetResourceReference(Control.BorderBrushProperty, "AccentBrush");
+                button.SetResourceReference(Control.ForegroundProperty, "OnAccentBrush");
                 button.FontWeight = FontWeights.SemiBold;
             }
 

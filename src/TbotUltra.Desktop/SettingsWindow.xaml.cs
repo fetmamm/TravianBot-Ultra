@@ -273,18 +273,15 @@ public partial class SettingsWindow : Window
             return;
         }
 
-        var result = AppDialog.ShowCustom(
+        var result = AppDialog.ShowCustomContent(
             this,
-            "Detailed browser logging is intended only for development and troubleshooting. " +
-            "It records high-volume technical details about browser actions, navigation, reloads, " +
-            "refreshes, reads, waits, retries, and cache decisions. This can create large log files " +
-            "and may slightly affect performance. Do not enable it during normal use.",
+            BuildDetailedBrowserLoggingConfirmContent(),
             "Enable detailed browser logging?",
             [("Toggle ON", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.Cancel)],
             MessageBoxImage.Warning,
             MessageBoxResult.Cancel,
             MessageBoxResult.Cancel,
-            MessageBoxResult.Yes);
+            accentResult: MessageBoxResult.Yes);
         if (result == MessageBoxResult.Yes)
         {
             return;
@@ -299,6 +296,66 @@ public partial class SettingsWindow : Window
         {
             _suppressDetailedBrowserLoggingConfirmation = false;
         }
+    }
+
+    // Structured content for the detailed-browser-logging confirmation dialog (headline, bullet list
+    // and a warning note) instead of one long text paragraph. Brushes are set via resource references
+    // so the dialog follows the active theme.
+    private static StackPanel BuildDetailedBrowserLoggingConfirmContent()
+    {
+        static TextBlock CreateText(string text, string foregroundResource, double topMargin = 0)
+        {
+            var block = new TextBlock
+            {
+                Text = text,
+                TextWrapping = TextWrapping.Wrap,
+                FontSize = 13,
+                Margin = new Thickness(0, topMargin, 0, 0),
+            };
+            block.SetResourceReference(TextBlock.ForegroundProperty, foregroundResource);
+            return block;
+        }
+
+        var panel = new StackPanel();
+
+        var headline = CreateText("Development and troubleshooting only", "TextPrimaryBrush");
+        headline.FontSize = 14;
+        headline.FontWeight = FontWeights.SemiBold;
+        panel.Children.Add(headline);
+
+        panel.Children.Add(CreateText(
+            "Records high-volume technical details about browser activity:",
+            "TextSecondaryBrush",
+            topMargin: 8));
+        foreach (var line in new[]
+                 {
+                     "Navigation, reloads and refreshes",
+                     "Page reads, waits and retries",
+                     "Cache decisions",
+                 })
+        {
+            var bullet = CreateText($"•  {line}", "TextSecondaryBrush", topMargin: 4);
+            bullet.Margin = new Thickness(10, 4, 0, 0);
+            panel.Children.Add(bullet);
+        }
+
+        var noteText = CreateText(
+            "Can create large log files and may slightly affect performance. Do not enable during normal use.",
+            "TextSecondaryBrush");
+        noteText.FontSize = 12;
+        var noteBorder = new Border
+        {
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(1),
+            Padding = new Thickness(10, 8, 10, 8),
+            Margin = new Thickness(0, 12, 0, 0),
+            Child = noteText,
+        };
+        noteBorder.SetResourceReference(Border.BackgroundProperty, "SurfaceBrush");
+        noteBorder.SetResourceReference(Border.BorderBrushProperty, "BorderBrush");
+        panel.Children.Add(noteBorder);
+
+        return panel;
     }
 
     private void ResetPacingButton_Click(object sender, RoutedEventArgs e)

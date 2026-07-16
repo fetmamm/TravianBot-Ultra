@@ -846,10 +846,16 @@ public partial class MainWindow
                                         ? BotOptionPayloadKeys.UpgradeDeferReasonRequirements
                                         : ConstructionQueueState.IsConstructionResourceDeferMessage(ex.Message)
                                             ? BotOptionPayloadKeys.UpgradeDeferReasonResources
-                                            : BotOptionPayloadKeys.UpgradeDeferReasonRetry;
+                                            : ConstructionQueueState.IsConstructionHumanizeDeferMessage(ex.Message)
+                                                ? BotOptionPayloadKeys.UpgradeDeferReasonHumanize
+                                                : BotOptionPayloadKeys.UpgradeDeferReasonRetry;
                     updatedPayload[BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
                         ConstructionQueueState.CurrentDeferClassificationVersion;
                     payloadChanged = true;
+
+                    // The pre-sleep fill flag is valid for exactly one execution attempt — this attempt
+                    // just ran, so drop it. The sweep re-flags the item if it defers into the window again.
+                    updatedPayload.Remove(BotOptionPayloadKeys.ConstructionPreSleepFill);
 
                     // Safety net for an unsatisfiable requirement. Requirement defers don't consume Retries
                     // (the prerequisite could still arrive), so without a bound a construct whose prerequisite
