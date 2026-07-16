@@ -224,7 +224,9 @@ public sealed partial class TravianClient
         using var trace = _browserTrace.BeginOperation("NAV", "reload", $"reason={reason}", page.Url);
         try
         {
+            Notify($"[nav] RELOAD start target='{reason}' current='{page.Url}' pages={TryGetPageCountForDiagnostics()}");
             var response = await page.ReloadAsync(options).WaitAsync(cancellationToken);
+            Notify($"[nav] RELOAD done target='{reason}' current='{page.Url}' pages={TryGetPageCountForDiagnostics()}");
             trace.Complete("success", $"httpStatus={response?.Status.ToString() ?? "-"}", page.Url);
         }
         catch (OperationCanceledException)
@@ -325,9 +327,7 @@ public sealed partial class TravianClient
         if (IsCurrentUrlForPath(pathOrUrl))
         {
             RecordConstructionNavigation("reload", pathOrUrl);
-            Notify($"[nav] RELOAD start target='{pathOrUrl}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
             await ReloadCurrentPageWithSlowNetworkRecoveryAsync(pathOrUrl, cancellationToken);
-            Notify($"[nav] RELOAD done target='{pathOrUrl}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
             // A reload replaces page content just like a navigation, so any page-derived cache must
             // be dropped here too (the GotoAsync branch already does this). Without this the longer
             // active-constructions TTL could serve pre-reload state at the top of an upgrade iteration.

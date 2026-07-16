@@ -91,6 +91,11 @@ public partial class MainWindow
 
     private void ClearCurrentLogButton_Click(object sender, RoutedEventArgs e)
     {
+        if (TerminalAlarmTabControl.SelectedIndex == 2)
+        {
+            return;
+        }
+
         var alarmsSelected = TerminalAlarmTabControl.SelectedIndex == 1;
         if (alarmsSelected)
         {
@@ -108,6 +113,17 @@ public partial class MainWindow
 
     private void CopyCurrentTabButton_Click(object sender, RoutedEventArgs e)
     {
+        if (TerminalAlarmTabControl.SelectedIndex == 2)
+        {
+            Clipboard.SetText(BuildBrowserStatisticsReport());
+            StatusTextBlock.Text = "Browser statistics copied to clipboard.";
+            CopyFeedbackTextBlock.Text = "Copied";
+            CopyFeedbackTextBlock.Visibility = Visibility.Visible;
+            _copyFeedbackTimer.Stop();
+            _copyFeedbackTimer.Start();
+            return;
+        }
+
         var alertsTabSelected = TerminalAlarmTabControl.SelectedIndex == 1;
         var list = alertsTabSelected ? AlarmListBox : TerminalListBox;
         var selectedLines = alertsTabSelected
@@ -138,13 +154,21 @@ public partial class MainWindow
         var hasAlarms = _unacknowledgedAlarmCount > 0;
         var hasAlarmEntries = _alarmEntries.Count > 0;
         var alarmTabSelected = TerminalAlarmTabControl.SelectedIndex == 1;
+        var statisticsTabSelected = TerminalAlarmTabControl.SelectedIndex == 2;
+        LogFilterPanel.Visibility = statisticsTabSelected ? Visibility.Collapsed : Visibility.Visible;
         var activeList = alarmTabSelected ? AlarmListBox : TerminalListBox;
-        var hasSelection = activeList.SelectedItems.Count > 0;
+        var hasSelection = !statisticsTabSelected && activeList.SelectedItems.Count > 0;
         AcknowledgeAlarmButton.IsEnabled = hasAlarms;
+        AcknowledgeAlarmButton.Visibility = statisticsTabSelected ? Visibility.Collapsed : Visibility.Visible;
         SetAcknowledgeAlarmButtonHighlight(hasAlarms && alarmTabSelected);
-        CopyCurrentTabButton.IsEnabled = alarmTabSelected ? hasAlarmEntries : _terminalEntries.Count > 0;
-        CopyCurrentTabButton.ToolTip = alarmTabSelected ? "Copy alerts" : "Copy terminal";
+        CopyCurrentTabButton.IsEnabled = statisticsTabSelected || (alarmTabSelected ? hasAlarmEntries : _terminalEntries.Count > 0);
+        CopyCurrentTabButton.ToolTip = statisticsTabSelected ? "Copy browser statistics" : alarmTabSelected ? "Copy alerts" : "Copy terminal";
+        ClearCurrentLogButton.Visibility = statisticsTabSelected ? Visibility.Collapsed : Visibility.Visible;
         ClearCurrentLogButton.IsEnabled = alarmTabSelected ? hasAlarmEntries : _terminalEntries.Count > 0;
+        if (statisticsTabSelected)
+        {
+            RefreshBrowserStatisticsUi();
+        }
 
         if (hasAlarms)
         {
@@ -559,12 +583,59 @@ public partial class MainWindow
         });
         popupAlarmList.ItemTemplate.VisualTree.SetValue(TextBlock.StyleProperty, popupAlarmStyle);
 
+        var popupStatisticsTextBox = new TextBox
+        {
+            IsReadOnly = true,
+            AcceptsReturn = true,
+            AcceptsTab = true,
+            FontFamily = new FontFamily("Consolas"),
+            FontSize = 13,
+            Text = BuildBrowserStatisticsReport(),
+            TextWrapping = TextWrapping.NoWrap,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+        };
+        _logsPopupStatisticsTextBox = popupStatisticsTextBox;
+        var popupClearSessionStatisticsButton = new Button
+        {
+            Content = "Clear session",
+            Margin = new Thickness(0, 0, 8, 0),
+            Padding = new Thickness(10, 4, 10, 4),
+        };
+        popupClearSessionStatisticsButton.Click += ClearBrowserStatisticsSessionButton_Click;
+        var popupClearLifetimeStatisticsButton = new Button
+        {
+            Content = "Clear lifetime",
+            Padding = new Thickness(10, 4, 10, 4),
+        };
+        popupClearLifetimeStatisticsButton.Click += ClearBrowserStatisticsLifetimeButton_Click;
+        var popupStatisticsHeader = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 0, 0, 8),
+        };
+        popupStatisticsHeader.Children.Add(popupClearSessionStatisticsButton);
+        popupStatisticsHeader.Children.Add(popupClearLifetimeStatisticsButton);
+        var popupStatisticsRoot = new Grid();
+        popupStatisticsRoot.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        popupStatisticsRoot.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        popupStatisticsRoot.Children.Add(popupStatisticsHeader);
+        Grid.SetRow(popupStatisticsTextBox, 1);
+        popupStatisticsRoot.Children.Add(popupStatisticsTextBox);
+
         popupTab.Items.Add(new TabItem { Header = "Log", Content = popupLogList });
         popupTab.Items.Add(new TabItem { Header = "Alarms", Content = popupAlarmList });
+        popupTab.Items.Add(new TabItem { Header = "Statistics", Content = popupStatisticsRoot });
 
         var clearButton = new Button { Content = "Clear", Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(10, 4, 10, 4), Height = 30 };
         clearButton.Click += (_, _) =>
         {
+            if (popupTab.SelectedIndex == 2)
+            {
+                return;
+            }
+
             if (popupTab.SelectedIndex == 1)
             {
                 _alarmEntries.Clear();
@@ -587,6 +658,12 @@ public partial class MainWindow
         var copyButton = new Button { Content = "Copy", Margin = new Thickness(0, 0, 8, 0), Padding = new Thickness(10, 4, 10, 4), Height = 30 };
         copyButton.Click += (_, _) =>
         {
+            if (popupTab.SelectedIndex == 2)
+            {
+                Clipboard.SetText(BuildBrowserStatisticsReport());
+                return;
+            }
+
             var selected = popupTab.SelectedIndex == 1
                 ? popupAlarmList.SelectedItems.Cast<AlarmEntryRow>().Select(item => item.Text).ToList()
                 : popupLogList.SelectedItems.Cast<TerminalEntryRow>().Select(item => item.Text).ToList();
@@ -613,6 +690,16 @@ public partial class MainWindow
         footer.Children.Add(copyButton);
         footer.Children.Add(clearButton);
         footer.Children.Add(closeButton);
+        popupTab.SelectionChanged += (_, _) =>
+        {
+            var statisticsSelected = popupTab.SelectedIndex == 2;
+            acknowledgeButton.Visibility = popupTab.SelectedIndex == 1 ? Visibility.Visible : Visibility.Collapsed;
+            clearButton.Visibility = statisticsSelected ? Visibility.Collapsed : Visibility.Visible;
+            if (statisticsSelected)
+            {
+                popupStatisticsTextBox.Text = BuildBrowserStatisticsReport();
+            }
+        };
 
         var root = new Grid();
         root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
@@ -657,6 +744,7 @@ public partial class MainWindow
             _logsPopupWindow = null;
             _logsPopupLogList = null;
             _logsPopupAlarmList = null;
+            _logsPopupStatisticsTextBox = null;
         };
         closeButton.Click += (_, _) => _logsPopupWindow?.Close();
         _logsPopupWindow.Show();

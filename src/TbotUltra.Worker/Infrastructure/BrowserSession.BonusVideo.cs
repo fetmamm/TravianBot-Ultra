@@ -461,6 +461,7 @@ public sealed partial class BrowserSession
                 Timeout = 3000,
             });
             trace.Complete("success", "loadState=DOMContentLoaded", mainPage.Url);
+            _log?.Invoke($"[nav] GOTO done target='bonus-video-cleanup' current='{mainPage.Url}' pages={TryGetPageCount()}");
             _log?.Invoke("[browser] bonus-video cleanup navigated main page to about:blank.");
         }
         catch (Exception ex)

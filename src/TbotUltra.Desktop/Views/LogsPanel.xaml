@@ -7,7 +7,7 @@
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
-        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8" VerticalAlignment="Center">
+        <StackPanel x:Name="LogFilterPanel" Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8" VerticalAlignment="Center">
             <TextBlock Text="Filter:" VerticalAlignment="Center" Foreground="{DynamicResource TextSecondaryBrush}" FontWeight="SemiBold" Margin="0,0,8,0" />
             <ComboBox x:Name="LogCategoryFilterComboBox"
                       Width="140"
@@ -92,6 +92,90 @@
                             </DataTemplate>
                         </ListBox.ItemTemplate>
                     </ListBox>
+                </Border>
+            </TabItem>
+            <TabItem x:Name="StatisticsTabItem" Header="Statistics">
+                <Border Background="{DynamicResource SurfaceBrush}" Padding="12">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="2*" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="3*" />
+                        </Grid.RowDefinitions>
+
+                        <Grid Grid.Row="0" Margin="0,0,0,10">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <StackPanel>
+                                <TextBlock x:Name="BrowserStatisticsAccountTextBlock"
+                                           Text="Browser statistics"
+                                           FontSize="15"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <TextBlock x:Name="BrowserStatisticsPeriodTextBlock"
+                                           Margin="0,3,0,0"
+                                           Foreground="{DynamicResource TextMutedBrush}"
+                                           Text="Session and lifetime activity for the active account." />
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                <Button x:Name="ClearBrowserStatisticsSessionButton"
+                                        Content="Clear session"
+                                        Margin="0,0,8,0"
+                                        Padding="10,4"
+                                        Click="ClearBrowserStatisticsSessionButton_Click" />
+                                <Button x:Name="ClearBrowserStatisticsLifetimeButton"
+                                        Content="Clear lifetime"
+                                        Padding="10,4"
+                                        Click="ClearBrowserStatisticsLifetimeButton_Click" />
+                            </StackPanel>
+                        </Grid>
+
+                        <DataGrid x:Name="BrowserStatisticsSummaryDataGrid"
+                                  Grid.Row="1"
+                                  AutoGenerateColumns="False"
+                                  IsReadOnly="True"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  CanUserReorderColumns="False"
+                                  HeadersVisibility="Column"
+                                  GridLinesVisibility="Horizontal"
+                                  SelectionMode="Single"
+                                  Margin="0,0,0,10">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Metric" Binding="{Binding Metric}" Width="*" />
+                                <DataGridTextColumn Header="Session" Binding="{Binding Session}" Width="120" />
+                                <DataGridTextColumn Header="Lifetime" Binding="{Binding Lifetime}" Width="120" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+
+                        <TextBlock Grid.Row="2"
+                                   Text="Navigation destinations"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                   Margin="0,0,0,6" />
+
+                        <DataGrid x:Name="BrowserStatisticsDestinationDataGrid"
+                                  Grid.Row="3"
+                                  AutoGenerateColumns="False"
+                                  IsReadOnly="True"
+                                  CanUserAddRows="False"
+                                  CanUserDeleteRows="False"
+                                  CanUserReorderColumns="False"
+                                  HeadersVisibility="Column"
+                                  GridLinesVisibility="Horizontal"
+                                  SelectionMode="Single">
+                            <DataGrid.Columns>
+                                <DataGridTextColumn Header="Destination" Binding="{Binding Destination}" Width="*" />
+                                <DataGridTextColumn Header="Session nav" Binding="{Binding SessionNavigations}" Width="90" />
+                                <DataGridTextColumn Header="Session reload" Binding="{Binding SessionReloads}" Width="100" />
+                                <DataGridTextColumn Header="Lifetime nav" Binding="{Binding LifetimeNavigations}" Width="90" />
+                                <DataGridTextColumn Header="Lifetime reload" Binding="{Binding LifetimeReloads}" Width="100" />
+                            </DataGrid.Columns>
+                        </DataGrid>
+                    </Grid>
                 </Border>
             </TabItem>
         </TabControl>

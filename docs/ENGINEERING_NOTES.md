@@ -227,6 +227,10 @@ Common endpoints:
   traced action path and may not increase the source-guard baseline.
 - Trace semantic reads and decisions, not every request or internal DOM poll. Every trace flow/operation
   must emit exactly one end event, including cancellation and exception paths.
+- Browser activity statistics are account-scoped: lifetime counters persist under the account directory,
+  while session counters live only for the current desktop process (or until manually cleared). Always-on
+  `[nav]`/`[browser]` milestones drive navigation totals; detailed trace may add diagnostic action/read/wait
+  counters but must not double-count normal navigation destinations.
 - Construction follows the visible queue order per village for both manual and template rows. A deferred
   head row holds every later construction row in that village; another village may still run. Automatic
   requirement repair may insert or promote prerequisites ahead of the blocked row only after a live read

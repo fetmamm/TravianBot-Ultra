@@ -107,6 +107,7 @@ public partial class MainWindow
 
             string? lastRawMessage = null;
             string? lastPrimaryPart = null;
+            var browserStatisticsChanged = false;
             foreach (var message in messages)
             {
                 lastRawMessage = message;
@@ -126,6 +127,7 @@ public partial class MainWindow
 
                 foreach (var part in parts)
                 {
+                    browserStatisticsChanged |= TryRecordBrowserActivityStatistics(part);
                     var line = $"[{GetServerNow():yyyy-MM-dd HH:mm:ss}] {part}";
                     var isAlarm = IsAlarmMessage(part);
                     _terminalEntries.Insert(0, new TerminalEntryRow
@@ -222,6 +224,10 @@ public partial class MainWindow
 
             TrimToMaxEntries(_terminalEntries, 1000);
             TrimToMaxEntries(_alarmEntries, 200);
+            if (browserStatisticsChanged)
+            {
+                PersistAndRefreshBrowserActivityStatistics();
+            }
             TryAppendSessionLogLines(logLinesForSessionLog, alarmLinesForSessionLog);
             AlarmListBox.Items.Refresh();
             _logsPopupAlarmList?.Items.Refresh();

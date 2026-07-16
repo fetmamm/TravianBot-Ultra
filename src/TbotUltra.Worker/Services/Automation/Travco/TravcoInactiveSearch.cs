@@ -31,6 +31,7 @@ public static class TravcoInactiveSearch
         log?.Invoke("[travco] opening inactive search.");
         await page.GotoAsync(InactiveSearchUrl, new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
             .WaitAsync(cancellationToken);
+        log?.Invoke($"[nav] GOTO done target='{InactiveSearchUrl}' current='{page.Url}' pages={page.Context.Pages.Count}");
 
         var pageSize = Math.Clamp(resultsPerPage, 10, 100).ToString();
         var pageSizeSelect = page.Locator("#id_page_size");

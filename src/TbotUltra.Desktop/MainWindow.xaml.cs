@@ -238,6 +238,7 @@ public partial class MainWindow : Window
     private Window? _queuePopupWindow;
     private ListBox? _logsPopupLogList;
     private ListBox? _logsPopupAlarmList;
+    private TextBox? _logsPopupStatisticsTextBox;
     private Button? _activeSidebarButton;
     private Guid? _pendingQueueUiSelectId;
     private volatile bool _autoQueueRunning;
@@ -540,6 +541,7 @@ public partial class MainWindow : Window
         _alarmView = CollectionViewSource.GetDefaultView(_alarmEntries);
         _alarmView.Filter = AlarmEntryFilter;
         AlarmListBox.ItemsSource = _alarmView;
+        RefreshBrowserStatisticsUi();
         TravianBuildQueueDataGrid.ItemsSource = _travianBuildQueueRows;
         TravianSmithyQueueDataGrid.ItemsSource = _travianSmithyQueueRows;
         UpdateNpcTradeStatsUi();

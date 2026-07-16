@@ -463,6 +463,7 @@ public partial class MainWindow
             && !_accountSwitchInProgress
             && !_loginInProgress)
         {
+            RefreshBrowserStatisticsUi();
             _accountSwitchInProgress = true;
             try
             {
@@ -678,6 +679,7 @@ public partial class MainWindow
             await ResetForAccountSwitchAsync(previousOptions, previousLoggedIn);
 
             _accountStore.SetActive(selected.Name);
+            RefreshBrowserStatisticsUi();
             RecoverAndRefreshActiveAccountQueue();
             AppendLog($"Active account changed to '{selected.Name}'. Previous session closed and state reset.");
             ResetVillageSelectionUi();

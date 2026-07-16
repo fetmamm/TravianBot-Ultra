@@ -417,6 +417,7 @@ public sealed partial class TravianClient : ICombatClient
             url);
         try
         {
+            Notify($"[nav] GOTO start target='{url}' from='{page.Url}' pages={page.Context.Pages.Count}");
             var response = await page.GotoAsync(url, new PageGotoOptions
             {
                 WaitUntil = WaitUntilState.DOMContentLoaded,
@@ -427,6 +428,8 @@ public sealed partial class TravianClient : ICombatClient
             {
                 RecordServerTime(dateHeader);
             }
+
+            Notify($"[nav] GOTO done target='{url}' current='{page.Url}' pages={page.Context.Pages.Count}");
 
             trace.Complete(
                 "success",

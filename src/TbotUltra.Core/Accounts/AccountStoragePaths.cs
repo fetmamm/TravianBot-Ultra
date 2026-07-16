@@ -108,6 +108,11 @@ public static class AccountStoragePaths
         return Path.Combine(AccountDirectory(projectRoot, accountName), "proxy_usage.json");
     }
 
+    public static string BrowserActivityStatisticsPath(string projectRoot, string accountName)
+    {
+        return Path.Combine(AccountDirectory(projectRoot, accountName), "browser_activity_statistics.json");
+    }
+
     public static string ProxyPlanPath(string projectRoot, string accountName)
     {
         return Path.Combine(AccountDirectory(projectRoot, accountName), "proxy_plan.json");
