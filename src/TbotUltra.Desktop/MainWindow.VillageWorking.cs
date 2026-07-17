@@ -555,7 +555,7 @@ public partial class MainWindow
             _lastBuildingStatus = status;
             PopulateBuildingsTab(status);
             BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{status.ActiveVillage}'");
-            SetTribeText(status.Tribe);
+            ApplyVillageTribeToUiIfSelected(status);
             VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
             ApplyAutomationLoopGroupsForSelectedVillage();
             ApplyConstructionTimerFromStatus(status);
@@ -781,6 +781,7 @@ public partial class MainWindow
             }
             status = status with
             {
+                Tribe = TroopCatalog.IsKnownTribe(status.Tribe) ? status.Tribe : existing.Tribe,
                 TroopTrainingQueues = status.TroopTrainingQueues is null
                     ? existing.TroopTrainingQueues
                     : TroopTrainingQueueState.PreserveKnownActiveQueue(
@@ -816,10 +817,15 @@ public partial class MainWindow
         if (Dispatcher.CheckAccess())
         {
             RefreshVillageActivityIndicatorsOnDashboard();
+            ApplyVillageTribeToUiIfSelected(status);
         }
         else
         {
-            _ = Dispatcher.BeginInvoke(RefreshVillageActivityIndicatorsOnDashboard);
+            _ = Dispatcher.BeginInvoke(() =>
+            {
+                RefreshVillageActivityIndicatorsOnDashboard();
+                ApplyVillageTribeToUiIfSelected(status);
+            });
         }
     }
 
@@ -1116,6 +1122,7 @@ public partial class MainWindow
         _buildingLastQueuedConstructBySlot.Clear();
 
         var name = NormalizeVillageName(selected.Name);
+        ApplySelectedVillageTribeFromCache(selected);
         if (name is not null && _villageStatusCacheByName.TryGetValue(name, out var cached))
         {
             ApplyResourceRowsAndVillageStatus(cached, includeQueuedTargets: true);
@@ -1159,6 +1166,22 @@ public partial class MainWindow
             name is not null && _villageStatusCacheByName.TryGetValue(name, out var timerStatus) ? timerStatus : null);
         // Light up Switch village when the selected village differs from the one the bot works in.
         UpdateSwitchVillageButtonHighlight();
+    }
+
+    private void ApplySelectedVillageTribeFromCache(VillageSelectionItem selected)
+    {
+        var name = NormalizeVillageName(selected.Name);
+        var tribe = name is not null
+            && _villageStatusCacheByName.TryGetValue(name, out var cached)
+            && TroopCatalog.IsKnownTribe(cached.Tribe)
+                ? cached.Tribe
+                : selected.Tribe;
+
+        SetTribeText(tribe);
+        if (TroopCatalog.IsKnownTribe(tribe))
+        {
+            ApplyTroopTrainingTribeState(tribe);
+        }
     }
 
     // Clears the buildings/resources detail for a selected village that has no cached read yet, so stale
@@ -1240,7 +1263,7 @@ public partial class MainWindow
             CacheVillageStatus(status, selected.Name);
 
             BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{selected.Name}'");
-            SetTribeText(status.Tribe);
+            ApplyVillageTribeToUiIfSelected(status);
             VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
             SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage, selected.Name);
             SetActiveWorkingVillage(key, selected.Name);

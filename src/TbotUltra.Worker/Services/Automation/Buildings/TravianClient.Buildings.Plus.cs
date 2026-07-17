@@ -18,7 +18,7 @@ public sealed partial class TravianClient : IBuildingClient
     public Task<string> ReadTribeOnlyAsync(CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
-        return ReadTribeAsync(cancellationToken);
+        return ReadActiveVillageTribeAsync(cancellationToken);
     }
 
     public async Task<bool> IsTravianPlusActiveAsync(CancellationToken cancellationToken = default)

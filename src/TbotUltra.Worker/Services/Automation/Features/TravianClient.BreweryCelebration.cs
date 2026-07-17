@@ -14,7 +14,7 @@ public sealed partial class TravianClient
         LogFunctionStarted();
         await EnsureLoggedInAsync();
 
-        var tribe = await ReadTribeAsync(cancellationToken);
+        var tribe = await ReadActiveVillageTribeAsync(cancellationToken);
         if (!string.Equals(tribe, "Teutons", StringComparison.OrdinalIgnoreCase))
         {
             return new BreweryCelebrationStatus(

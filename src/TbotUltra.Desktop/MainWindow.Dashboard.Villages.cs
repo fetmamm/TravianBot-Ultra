@@ -96,6 +96,11 @@ public partial class MainWindow
             ApplyTroopTrainingForSelectedVillage();
         }
 
+        if (VillageComboBox.SelectedItem is VillageSelectionItem selectedVillage)
+        {
+            ApplySelectedVillageTribeFromCache(selectedVillage);
+        }
+
         // Mirror the picker into the Queue tab's village dropdown so both stay in sync.
         SyncQueueVillagePicker(VillageComboBox.SelectedItem as VillageSelectionItem);
         ApplyConstructFasterConfigToUi();
@@ -397,7 +402,8 @@ public partial class MainWindow
                     village.Population,
                     village.CropFields,
                     existing,
-                    preferExistingPopulation: !isActiveVillage);
+                    preferExistingPopulation: !isActiveVillage,
+                    tribe: village.Tribe);
             })
             .ToList();
 
@@ -564,7 +570,8 @@ public partial class MainWindow
         int? population,
         int? cropFields,
         VillageSelectionItem? existing,
-        bool preferExistingPopulation = false)
+        bool preferExistingPopulation = false,
+        string? tribe = null)
     {
         // Population is driven by the live [ui-sync] path (incremental upgrades + real spieler reads).
         // Status/resource-refresh updates carry a frozen/stale population, so for those we keep the
@@ -582,6 +589,7 @@ public partial class MainWindow
             CoordY = coordY ?? existing?.CoordY,
             Population = resolvedPopulation,
             CropFields = cropFields ?? existing?.CropFields,
+            Tribe = TroopCatalog.IsKnownTribe(tribe) ? tribe! : existing?.Tribe ?? "Unknown",
         };
     }
 

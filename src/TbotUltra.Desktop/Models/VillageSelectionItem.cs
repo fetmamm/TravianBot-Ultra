@@ -13,6 +13,7 @@ public sealed class VillageSelectionItem : INotifyPropertyChanged
     public int? CoordY { get; init; }
     public int? Population { get; init; }
     public int? CropFields { get; init; }
+    public string Tribe { get; init; } = "Unknown";
 
     // Dashboard overview indicators, filled from the per-village status cache. Build slots reflect the
     // construction queue (2 normally, 3 for Romans); troop slots are Barracks/Stable/Workshop. Settable

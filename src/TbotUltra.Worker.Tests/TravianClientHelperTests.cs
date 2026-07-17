@@ -1073,6 +1073,33 @@ public sealed class TravianClientHelperTests
             resolvedVillageName: "SLANGENS"));
     }
 
+    [Fact]
+    public void EnrichActiveVillageTribe_ChangesOnlyTheActiveVillage()
+    {
+        Village[] villages =
+        [
+            new("Gaul village", "dorf1.php?newdid=1", Tribe: "Gauls"),
+            new("Roman village", "dorf1.php?newdid=2"),
+        ];
+
+        var enriched = TravianClient.EnrichActiveVillageTribe(villages, "Roman village", "Romans");
+
+        Assert.Equal("Gauls", enriched[0].Tribe);
+        Assert.Equal("Romans", enriched[1].Tribe);
+    }
+
+    [Fact]
+    public void SessionCache_KeepsAccountAndVillageTribesSeparate()
+    {
+        var cache = new TravianSessionCache { AccountTribe = "Gauls" };
+        cache.VillageTribes["did:1"] = "Gauls";
+        cache.VillageTribes["did:2"] = "Romans";
+
+        Assert.Equal("Gauls", cache.AccountTribe);
+        Assert.Equal("Gauls", cache.VillageTribes["did:1"]);
+        Assert.Equal("Romans", cache.VillageTribes["did:2"]);
+    }
+
     private static VillageStatus MakeStatusWithBuildings(params Building[] buildings) =>
         new(
             ActiveVillage: "Test",

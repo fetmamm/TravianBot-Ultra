@@ -82,4 +82,28 @@ public sealed class TroopTrainingQuickSettingsTests
 
         Assert.Equal(30, row.FallbackCooldownSeconds);
     }
+
+    [Fact]
+    public void VillageRows_UseTheirOwnTribeTroops()
+    {
+        var source = BuildSourcePayload();
+        var roman = new TroopTrainingQuickVillageRow("roman", "Roman village", true, source, "Romans");
+        var gaul = new TroopTrainingQuickVillageRow("gaul", "Gaul village", true, source, "Gauls");
+
+        Assert.Contains("Legionnaire", roman.Barracks.TroopOptions);
+        Assert.DoesNotContain("Phalanx", roman.Barracks.TroopOptions);
+        Assert.Contains("Phalanx", gaul.Barracks.TroopOptions);
+        Assert.DoesNotContain("Legionnaire", gaul.Barracks.TroopOptions);
+    }
+
+    [Fact]
+    public void UnknownVillageTribe_DisablesTrainingWithoutGenericFallbackTroops()
+    {
+        var row = new TroopTrainingQuickVillageRow("unknown", "Unscanned", true, BuildSourcePayload(), "Unknown");
+
+        Assert.False(row.IsBuildTroopsEnabled);
+        Assert.Empty(row.Barracks.TroopOptions);
+        Assert.Empty(row.Stable.TroopOptions);
+        Assert.Empty(row.Workshop.TroopOptions);
+    }
 }

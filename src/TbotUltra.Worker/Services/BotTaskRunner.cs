@@ -618,9 +618,9 @@ public sealed partial class BotTaskRunner
             return;
         }
 
-        if (IsKnownTribe(analysis?.Tribe) && !IsKnownTribe(sessionCache.SessionTribe))
+        if (IsKnownTribe(analysis?.Tribe) && !IsKnownTribe(sessionCache.AccountTribe))
         {
-            sessionCache.SessionTribe = analysis!.Tribe;
+            sessionCache.AccountTribe = analysis!.Tribe;
             sessionCache.CachedTribePlusAt = DateTimeOffset.UtcNow;
             log($"[cache] tribe='{analysis.Tribe}' loaded for '{account.Name}'.");
         }

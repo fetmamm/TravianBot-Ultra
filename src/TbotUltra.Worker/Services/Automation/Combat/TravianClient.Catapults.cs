@@ -47,7 +47,13 @@ public sealed partial class TravianClient : ICombatClient
             await EnsureRallyPointAndOpenSendTroopsPageAsync(cancellationToken, allowReuseCurrentPage: true);
         }
 
-        var tribe = await ReadTribeAsync(cancellationToken);
+        var tribe = await ReadActiveVillageTribeAsync(cancellationToken);
+        if (!TroopCatalog.IsKnownTribe(tribe))
+        {
+            Notify("[tribe] catapult setup deferred because the active village tribe is unknown.");
+            return new CatapultWaveSetupInfo(new Dictionary<string, long>(), await TryReadRallyPointLevelAsync(cancellationToken));
+        }
+
         var availableTroops = await ReadAvailableTroopsOnCurrentSendTroopsPageAsync(tribe, cancellationToken);
         var rallyPointLevel = await TryReadRallyPointLevelAsync(cancellationToken);
         return new CatapultWaveSetupInfo(availableTroops, rallyPointLevel);
@@ -62,7 +68,12 @@ public sealed partial class TravianClient : ICombatClient
 
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         await EnsureRallyPointAndOpenSendTroopsPageAsync(cancellationToken, allowReuseCurrentPage: true);
-        var tribe = await ReadTribeAsync(cancellationToken);
+        var tribe = await ReadActiveVillageTribeAsync(cancellationToken);
+        if (!TroopCatalog.IsKnownTribe(tribe))
+        {
+            throw new InvalidOperationException("Catapult waves require a known tribe for the active village. Scan the village and try again.");
+        }
+
         var availableTroops = await ReadAvailableTroopsOnCurrentSendTroopsPageAsync(tribe, cancellationToken);
         CatapultWavePlanner.ValidateAvailability(plan, request.WaveCount, availableTroops);
 

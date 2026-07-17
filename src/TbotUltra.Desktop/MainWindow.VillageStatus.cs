@@ -32,7 +32,7 @@ public partial class MainWindow
 
         BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{status.ActiveVillage}'");
 
-        SetTribeText(status.Tribe);
+        ApplyVillageTribeToUiIfSelected(status);
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
         SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage);
         await RefreshResourceSnapshotForUiAsync(options, cancellationToken);

@@ -45,7 +45,6 @@ public sealed partial class TravianClient
             return "Reinforcements require at least one source village.";
         }
 
-        var tribe = await ReadTribeAsync(cancellationToken);
         var sentCount = 0;
         var skippedCount = 0;
         var noAvailableTroopsCount = 0;
@@ -79,6 +78,14 @@ public sealed partial class TravianClient
             Notify($"[reinforce:verbose] opening Rally Point in '{sourceVillage.Name}'");
             await SwitchToVillageAsync(sourceVillage.Name, sourceVillage.Url, cancellationToken, skipFeatureRefresh: true);
             await EnsureRallyPointAndOpenSendTroopsPageAsync(cancellationToken, allowReuseCurrentPage: false);
+
+            var tribe = await ReadActiveVillageTribeAsync(cancellationToken);
+            if (!TroopCatalog.IsKnownTribe(tribe))
+            {
+                skippedCount++;
+                Notify($"[tribe] reinforcement skipped for '{sourceVillage.Name}' because its village tribe is unknown.");
+                continue;
+            }
 
             var resolvedAmounts = await ResolveReinforcementAmountsAsync(tribe, troopRules, cancellationToken);
             if (resolvedAmounts.Count == 0)

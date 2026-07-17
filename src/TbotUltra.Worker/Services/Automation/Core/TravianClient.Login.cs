@@ -120,8 +120,9 @@ public sealed partial class TravianClient : ISessionClient
     public async Task LogoutAsync(CancellationToken cancellationToken = default)
     {
         Notify($"[logout] account='{_account.Name}' — starting");
-        _sessionTribe = null;
-        _cachedTribe = null;
+        _accountTribe = null;
+        _cachedAccountTribe = null;
+        _session.VillageTribes.Clear();
         _cachedGoldClubEnabled = null;
         await GotoAsync(Paths.Resources, cancellationToken);
         if (!await IsLoggedInAsync())

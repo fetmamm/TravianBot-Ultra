@@ -34,7 +34,7 @@ public sealed partial class TravianClient
     private readonly Func<Func<IPage, CancellationToken, Task<string>>, CancellationToken, Task<string>>? _runInIsolatedBonusVideoBrowserAsync;
     private readonly Func<CancellationToken, Task<IPage>>? _rotateAfterLobbyLoginAsync;
     private DateTimeOffset? _serverTimeUtc;
-    private string? _cachedTribe;
+    private string? _cachedAccountTribe;
     private readonly TravianSessionCache _session;
     private static readonly TimeSpan ResourceReadLogInterval = TimeSpan.FromMinutes(2);
     // These caches are backed by the shared session cache (_session) so they survive across the
@@ -45,7 +45,7 @@ public sealed partial class TravianClient
     private int? _cachedGold { get => _session.CachedGold; set => _session.CachedGold = value; }
     private int? _cachedSilver { get => _session.CachedSilver; set => _session.CachedSilver = value; }
     private DateTimeOffset _cachedCurrencyAt { get => _session.CachedCurrencyAt; set => _session.CachedCurrencyAt = value; }
-    private string? _sessionTribe { get => _session.SessionTribe; set => _session.SessionTribe = value; }
+    private string? _accountTribe { get => _session.AccountTribe; set => _session.AccountTribe = value; }
 
     // Short-lived cache for ReadActiveConstructionsAsync. One upgrade-to-max iteration makes
     // several pre-click reads of the SAME dorf2 page state (e.g. ReadHighestKnownQueuedBuildingLevel
@@ -288,7 +288,7 @@ public sealed partial class TravianClient
 
     public string AccountName => _account.Name;
     public string ServerUrl => _config.BaseUrl.TrimEnd('/');
-    public string? KnownTribe => IsKnownTribe(_sessionTribe) ? _sessionTribe : IsKnownTribe(_cachedTribe) ? _cachedTribe : null;
+    public string? KnownAccountTribe => IsKnownTribe(_accountTribe) ? _accountTribe : IsKnownTribe(_cachedAccountTribe) ? _cachedAccountTribe : null;
     public bool? KnownGoldClubEnabled => _cachedGoldClubEnabled;
 
     internal BrowserTraceLogger.BrowserTraceFlow BeginBrowserTraceFlow(

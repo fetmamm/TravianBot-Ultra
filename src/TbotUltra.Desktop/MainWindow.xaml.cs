@@ -996,7 +996,7 @@ public partial class MainWindow : Window
         PopulateBuildingsTab(status);
 
         BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{status.ActiveVillage}'");
-        SetTribeText(status.Tribe);
+        ApplyVillageTribeToUiIfSelected(status);
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
         ReconcileConfirmedVillageList(status.Villages, "post_login");
         // Apply the landing village's per-village automation-group override to the dashboard cards. Without
@@ -1518,8 +1518,7 @@ public partial class MainWindow : Window
         UpdateActiveVillageResourceMaxLevel(status);
         _resourcesViewModel.ApplyStorageForecasts(status);
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
-        SetTribeText(status.Tribe);
-        ApplyTroopTrainingTribeState(status.Tribe);
+        ApplyVillageTribeToUiIfSelected(status);
         LastScanInfoTextBlock.Text = $"Last scan: {GetServerNow():HH:mm:ss}";
         var capitalText = status.IsCapital == true ? "Yes" : status.IsCapital == false ? "No" : "Unknown";
         var goldText = status.Gold?.ToString() ?? "-";

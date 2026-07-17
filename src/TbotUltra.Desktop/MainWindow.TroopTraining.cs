@@ -43,25 +43,31 @@ public partial class MainWindow
 
     private string ResolveStoredTroopTrainingTribe()
     {
-        try
+        var selectedName = GetSelectedVillageName();
+        return ResolveVillageTribeByName(selectedName);
+    }
+
+    private string ResolveVillageTribeByName(string? villageName)
+    {
+        var normalizedName = NormalizeVillageName(villageName);
+        if (normalizedName is not null
+            && _villageStatusCacheByName.TryGetValue(normalizedName, out var status)
+            && TroopCatalog.IsKnownTribe(status.Tribe))
         {
-            var accountName = _accountStore.ActiveAccountName();
-            // Only trust a stored tribe that maps to a real tribe — a snapshot written while the
-            // tribe was unresolved can carry "Unknown", which must not poison the dropdowns.
-            if (!string.IsNullOrWhiteSpace(accountName)
-                && _accountAnalysisStore.TryLoad(accountName, out var analysis, GetActiveAccountServerUrl())
-                && analysis is not null
-                && TroopCatalog.IsKnownTribe(analysis.Tribe))
-            {
-                return analysis.Tribe;
-            }
-        }
-        catch
-        {
-            // Ignore temporary analysis read failures.
+            return status.Tribe;
         }
 
-        return TribeInfoTextBlock?.Text?.Replace("Tribe:", string.Empty, StringComparison.OrdinalIgnoreCase).Trim() ?? "Unknown";
+        var item = (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>)?
+            .FirstOrDefault(candidate => string.Equals(
+                NormalizeVillageName(candidate.Name),
+                normalizedName,
+                StringComparison.OrdinalIgnoreCase));
+        if (TroopCatalog.IsKnownTribe(item?.Tribe))
+        {
+            return item!.Tribe;
+        }
+
+        return "Unknown";
     }
 
     private (bool? Value, bool HasValue) TryGetStoredAutoCelebrationPreference()
@@ -119,9 +125,8 @@ public partial class MainWindow
 
     private bool _troopTribeUnknownSkipLogged;
 
-    // Tribe value to write into an account-analysis snapshot: keep a known existing tribe, otherwise
-    // only write a freshly resolved tribe when it is real — never persist "Unknown", which would
-    // poison later dropdown rebuilds with the generic fallback troop list.
+    // Account analysis stores the permanent avatar tribe. Never fill it from the selected village:
+    // mixed-tribe servers allow those values to differ.
     private string ResolveTribeForSnapshotWrite(string? existingTribe)
     {
         if (TroopCatalog.IsKnownTribe(existingTribe))
@@ -129,8 +134,7 @@ public partial class MainWindow
             return existingTribe!;
         }
 
-        var resolved = ResolveStoredTroopTrainingTribe();
-        return TroopCatalog.IsKnownTribe(resolved) ? resolved : string.Empty;
+        return string.Empty;
     }
 
     private void ApplyTroopTrainingTribeState(string? tribe)
@@ -254,7 +258,7 @@ public partial class MainWindow
             [],
             [],
             [],
-            Tribe: ResolveStoredTroopTrainingTribe(),
+            Tribe: ResolveVillageTribeByName(capital.Name),
             VillageCount: 1,
             IsCapital: true);
     }
@@ -868,15 +872,6 @@ public partial class MainWindow
             return;
         }
 
-        var tribe = ResolveStoredTroopTrainingTribe();
-        var troopOptions = TroopCatalog.ResolveTroopTypesForTribe(tribe);
-        if (troopOptions.Count == 0)
-        {
-            _troopTrainingViewModel.InfoText = "Could not determine the tribe's troops yet. Scan the account first.";
-            AppendLog("Troop settings: no troops resolved for the current tribe.");
-            return;
-        }
-
         var villages = GetAllVillageKeyInfos();
         if (villages.Count == 0)
         {
@@ -890,6 +885,7 @@ public partial class MainWindow
         var rows = new List<TroopTrainingQuickVillageRow>(villages.Count);
         foreach (var village in villages)
         {
+            var tribe = ResolveVillageTribeByName(village.Name);
             var saved = TroopTrainingSettingsStore.Load(_projectRoot, account, village.Key);
             // When the village has an override, overlay it on the global options so the row opens on that
             // village's own settings; otherwise it opens on the global defaults.
@@ -993,17 +989,34 @@ public partial class MainWindow
             return;
         }
 
-        var keys = GetAllVillageKeyInfos().Select(info => info.Key).ToList();
+        var sourceTribe = ResolveStoredTroopTrainingTribe();
+        if (!TroopCatalog.IsKnownTribe(sourceTribe))
+        {
+            _troopTrainingViewModel.InfoText = "Scan the selected village before syncing troop training.";
+            AppendLog("Sync troop settings: selected village tribe is unknown.");
+            return;
+        }
+
+        var allVillages = GetAllVillageKeyInfos();
+        var matchingVillages = allVillages
+            .Where(info => string.Equals(ResolveVillageTribeByName(info.Name), sourceTribe, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var skippedVillages = allVillages
+            .Where(info => !matchingVillages.Contains(info))
+            .Select(info => info.Name)
+            .ToList();
+        var keys = matchingVillages.Select(info => info.Key).ToList();
         if (keys.Count == 0)
         {
-            _troopTrainingViewModel.InfoText = "Load villages before syncing troop training.";
-            AppendLog("Sync troop settings: no villages loaded.");
+            _troopTrainingViewModel.InfoText = "No villages with the selected village's tribe are loaded.";
+            AppendLog($"Sync troop settings: no villages loaded for tribe '{sourceTribe}'.");
             return;
         }
 
         var confirm = AppDialog.Show(
             this,
-            $"Sync the troop-training settings shown here to all {keys.Count} village(s)? This overwrites each village's build-troops settings.",
+            $"Sync the troop-training settings shown here to {keys.Count} {sourceTribe} village(s)? "
+            + $"{skippedVillages.Count} village(s) with another or unknown tribe will be skipped.",
             "Sync troop settings",
             System.Windows.MessageBoxButton.YesNo,
             System.Windows.MessageBoxImage.Question,
@@ -1014,9 +1027,10 @@ public partial class MainWindow
         }
 
         TroopTrainingSettingsStore.SaveForVillages(_projectRoot, account, keys, _troopTrainingViewModel.BuildVillageTrainingPayload());
-        var removed = RemoveTroopTrainingQueueItemsForVillage(null);
-        _troopTrainingViewModel.InfoText = $"Synced troop-training settings to {keys.Count} village(s).";
+        var removed = matchingVillages.Sum(village => RemoveTroopTrainingQueueItemsForVillage(village.Name));
+        _troopTrainingViewModel.InfoText = $"Synced troop-training settings to {keys.Count} {sourceTribe} village(s); skipped {skippedVillages.Count}.";
         AppendLog($"Synced troop-training settings to {keys.Count} village(s). "
+            + $"Skipped {skippedVillages.Count}: {string.Join(", ", skippedVillages)}. "
             + $"Cleared {removed} queued build_troops task(s) to apply the change.");
     }
 

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Windows.Threading;
+using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
 
@@ -86,10 +87,6 @@ public partial class MainWindow
         new(@"\[goldclub\]\s*active=(True|False)\b",
             System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
 
-    private static readonly System.Text.RegularExpressions.Regex TribeRegex =
-        new(@"\[tribe\]\s*([A-Za-z]+)\b",
-            System.Text.RegularExpressions.RegexOptions.Compiled);
-
     private static readonly System.Text.RegularExpressions.Regex UiSyncRegex =
         new(@"\[ui-sync\]\s*(\{.*\})",
             System.Text.RegularExpressions.RegexOptions.Compiled | System.Text.RegularExpressions.RegexOptions.IgnoreCase);
@@ -119,14 +116,6 @@ public partial class MainWindow
             UpdateGoldClubInfo(active ? true : false);
         }
 
-        var tribeMatch = TribeRegex.Match(line);
-        if (tribeMatch.Success)
-        {
-            var tribe = tribeMatch.Groups[1].Value;
-            SetTribeText(tribe);
-            ApplyTroopTrainingTribeState(tribe);
-        }
-
         var uiSyncMatch = UiSyncRegex.Match(line);
         if (uiSyncMatch.Success)
         {
@@ -144,23 +133,31 @@ public partial class MainWindow
         }
     }
 
-    // Tribe is fixed per account, so once a real tribe is shown never let a later partial/unknown read
-    // blank it (status reads sometimes carry Tribe="Unknown"/empty and were blipping the topbar to "-").
+    // The top-bar tribe follows the village selected in the UI. Unknown must clear the previous value so
+    // selecting an unscanned village never leaves another village's tribe visible.
     private void SetTribeText(string? tribe)
     {
         var trimmed = tribe?.Trim();
         var meaningful = !string.IsNullOrWhiteSpace(trimmed)
             && !string.Equals(trimmed, "Unknown", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(trimmed, "-", StringComparison.Ordinal);
-        if (!meaningful)
+        var value = meaningful ? trimmed! : "-";
+
+        if (!string.Equals(TribeInfoTextBlock.Text?.Trim(), value, StringComparison.OrdinalIgnoreCase))
+        {
+            TribeInfoTextBlock.Text = value;
+        }
+    }
+
+    private void ApplyVillageTribeToUiIfSelected(VillageStatus status)
+    {
+        if (!IsStatusForSelectedVillage(status))
         {
             return;
         }
 
-        if (!string.Equals(TribeInfoTextBlock.Text?.Trim(), trimmed, StringComparison.OrdinalIgnoreCase))
-        {
-            TribeInfoTextBlock.Text = trimmed;
-        }
+        SetTribeText(status.Tribe);
+        ApplyTroopTrainingTribeState(status.Tribe);
     }
 
     private void TryApplyUiSyncPayload(string rawJson)

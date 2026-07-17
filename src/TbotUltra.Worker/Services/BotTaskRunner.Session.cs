@@ -240,8 +240,8 @@ public sealed partial class BotTaskRunner
     {
         _accountAnalysisStore.TryLoad(client.AccountName, out var existing, client.ServerUrl);
 
-        var tribe = IsKnownTribe(client.KnownTribe)
-            ? client.KnownTribe!
+        var tribe = IsKnownTribe(client.KnownAccountTribe)
+            ? client.KnownAccountTribe!
             : IsKnownTribe(fallbackTribe)
                 ? fallbackTribe!
                 : existing?.Tribe ?? "Unknown";

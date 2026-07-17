@@ -204,6 +204,13 @@ Common endpoints:
 
 ## Village, hero, and React pitfalls
 
+- Account tribe and village tribe are separate concepts on Official special servers. Read the permanent
+  account/avatar tribe from the player profile, but resolve construction, buildings and troops from the
+  verified active village's tribe on `dorf1`/`dorf2`.
+- Cache village tribe by stable village identity (`newdid`, otherwise coordinates); never use account tribe
+  or another village's tribe as fallback for a tribe-dependent click. Unknown village tribe is a deferred state.
+- The desktop Tribe metric follows the village selected by the user, not a different village temporarily
+  opened by background automation. Single-tribe worlds therefore keep their existing visible behavior.
 - Village switching uses stable village identifiers and coordinates; visible names may collide.
 - Verify the active village after switching before performing state-changing actions.
 - Missing villages in a refresh are quarantined until confirmed, not immediately deleted.

@@ -133,6 +133,8 @@ public sealed partial class TravianClient
                 $"activeConstructions={activeConstructions.Count} selected={activeBuildCount}");
         }
 
+        var villageTribe = await ReadActiveVillageTribeAsync(cancellationToken);
+        villages = EnrichActiveVillageTribe(villages, activeVillage, villageTribe);
         var result = new VillageStatus(
             ActiveVillage: activeVillage,
             Villages: villages,
@@ -140,7 +142,7 @@ public sealed partial class TravianClient
             ResourceFields: resourceFields,
             Buildings: buildings,
             BuildQueue: buildQueue,
-            Tribe: await ReadTribeAsync(cancellationToken),
+            Tribe: villageTribe,
             VillageCount: villages.Count,
             Gold: currency.Gold,
             Silver: currency.Silver,

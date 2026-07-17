@@ -715,20 +715,32 @@ public partial class MainWindow
 
     private void SyncReinforcementSettingsToOtherVillages(string sourceVillageName, IEnumerable<ReinforcementTroopRule> rules)
     {
-        var targetVillages = _reinforcementVillages
+        var sourceTribe = ResolveVillageTribeByName(sourceVillageName);
+        if (!TroopCatalog.IsKnownTribe(sourceTribe))
+        {
+            AppDialog.Show(this, "Scan the source village before syncing troop settings.", "Sync settings", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
+        }
+
+        var otherVillages = _reinforcementVillages
             .Where(village => !string.Equals(village.Name, sourceVillageName, StringComparison.OrdinalIgnoreCase))
             .Where(village => !string.IsNullOrWhiteSpace(village.Name))
             .Where(village => !village.IsTarget)
             .ToList();
+        var targetVillages = otherVillages
+            .Where(village => string.Equals(ResolveVillageTribeByName(village.Name), sourceTribe, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var skippedCount = otherVillages.Count - targetVillages.Count;
         if (targetVillages.Count == 0)
         {
-            AppDialog.Show(this, "There are no other villages to sync.", "Sync settings", MessageBoxButton.OK, MessageBoxImage.Information);
+            AppDialog.Show(this, $"There are no other {sourceTribe} villages to sync.", "Sync settings", MessageBoxButton.OK, MessageBoxImage.Information);
             return;
         }
 
         var result = AppDialog.Show(
             this,
-            $"Sync these troop settings to {targetVillages.Count} other village(s)? Existing troop settings for those villages will be replaced.",
+            $"Sync these troop settings to {targetVillages.Count} other {sourceTribe} village(s)? "
+            + $"{skippedCount} village(s) with another or unknown tribe will be skipped.",
             "Sync settings",
             MessageBoxButton.YesNo,
             MessageBoxImage.Question);
@@ -796,7 +808,7 @@ public partial class MainWindow
             return null;
         }
 
-        var raw = TribeInfoTextBlock?.Text?.Replace("Tribe:", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
+        var raw = ResolveStoredTroopTrainingTribe();
         return IsKnownReinforcementTribe(raw) ? raw : null;
     }
 

@@ -169,6 +169,22 @@ public sealed class VillageCacheStoreTests : IDisposable
         Assert.Empty(CreateStore().Load());
     }
 
+    [Fact]
+    public void SaveThenLoad_PreservesDifferentTribesPerVillage()
+    {
+        var statuses = new Dictionary<string, VillageStatus>
+        {
+            ["Gaul village"] = MakeStatus("Gaul village") with { Tribe = "Gauls" },
+            ["Roman village"] = MakeStatus("Roman village") with { Tribe = "Romans" },
+        };
+
+        CreateStore().Save(statuses);
+        var loaded = CreateStore().Load();
+
+        Assert.Equal("Gauls", loaded["Gaul village"].Tribe);
+        Assert.Equal("Romans", loaded["Roman village"].Tribe);
+    }
+
     private VillageCacheStore CreateStore() => new(_root, () => _activeAccount);
 
     public void Dispose()

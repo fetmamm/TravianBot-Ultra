@@ -63,6 +63,7 @@ public sealed partial class TravianClient
                 $"activeConstructions={activeConstructions.Count} selected={activeBuildCount}");
         }
 
+        var villageTribe = await ReadActiveVillageTribeAsync(cancellationToken);
         return new VillageStatus(
             ActiveVillage: activeVillage,
             Villages: [],
@@ -70,7 +71,7 @@ public sealed partial class TravianClient
             ResourceFields: cachedSnapshot?.ResourceFields ?? [],
             Buildings: [],
             BuildQueue: buildQueue,
-            Tribe: string.Empty,
+            Tribe: villageTribe,
             VillageCount: 0,
             IsBuildingInProgress: activeBuildCount > 0,
             ActiveBuildCount: activeBuildCount,
@@ -275,6 +276,8 @@ public sealed partial class TravianClient
             capacities,
             productionByHour);
 
+        var villageTribe = await ReadActiveVillageTribeAsync(cancellationToken);
+        villages = EnrichActiveVillageTribe(villages, activeVillage, villageTribe);
         return new VillageStatus(
             ActiveVillage: activeVillage,
             Villages: villages,
@@ -282,7 +285,7 @@ public sealed partial class TravianClient
             ResourceFields: resourceFields,
             Buildings: [],
             BuildQueue: buildQueue,
-            Tribe: await ReadTribeAsync(cancellationToken),
+            Tribe: villageTribe,
             VillageCount: villages.Count,
             Gold: currency.Gold,
             Silver: currency.Silver,

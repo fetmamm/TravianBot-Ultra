@@ -9,7 +9,8 @@ public sealed record Village(
     int? CoordX = null,
     int? CoordY = null,
     int? Population = null,
-    int? CropFields = null);
+    int? CropFields = null,
+    string Tribe = "Unknown");
 
 public sealed record AccountSnapshot(
     string Tribe,

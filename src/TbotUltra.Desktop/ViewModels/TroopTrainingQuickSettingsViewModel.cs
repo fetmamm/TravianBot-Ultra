@@ -25,7 +25,7 @@ public sealed class TroopTrainingQuickVillageRow : BaseViewModel
     {
         VillageKey = villageKey;
         VillageName = string.IsNullOrWhiteSpace(villageName) ? villageKey : villageName.Trim();
-        _isBuildTroopsEnabled = isBuildTroopsEnabled;
+        _isBuildTroopsEnabled = isBuildTroopsEnabled && TroopCatalog.IsKnownTribe(tribe);
         BasePayload = basePayload;
 
         // Each training building only trains its own troops, so resolve the dropdown per building
@@ -139,7 +139,9 @@ public sealed class TroopTrainingQuickVillageRow : BaseViewModel
         string? tribe)
     {
         var building = TroopTrainingQuickSettings.BuildingPayloadFor(payload, buildingType);
-        var troopOptions = TroopCatalog.ResolveTroopTypesForTribe(tribe, buildingType);
+        var troopOptions = TroopCatalog.IsKnownTribe(tribe)
+            ? TroopCatalog.ResolveTroopTypesForTribe(tribe, buildingType)
+            : [];
 
         // Reuse the Troops tab's row model so the popup gets the same normalization
         // (min<=max timed clamp, mode helper properties) and binding surface for free.

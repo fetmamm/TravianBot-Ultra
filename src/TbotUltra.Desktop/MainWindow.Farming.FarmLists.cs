@@ -726,29 +726,7 @@ public partial class MainWindow
 
     private string ResolveCurrentTribeForFarming()
     {
-        var tribeFromUi = TribeInfoTextBlock.Text?.Replace("Tribe:", string.Empty, StringComparison.OrdinalIgnoreCase).Trim();
-        if (!string.IsNullOrWhiteSpace(tribeFromUi) && !string.Equals(tribeFromUi, "-", StringComparison.OrdinalIgnoreCase))
-        {
-            return tribeFromUi;
-        }
-
-        try
-        {
-            var accountName = _accountStore.ActiveAccountName();
-            if (!string.IsNullOrWhiteSpace(accountName)
-                && _accountAnalysisStore.TryLoad(accountName, out var analysis, GetActiveAccountServerUrl())
-                && analysis is not null
-                && !string.IsNullOrWhiteSpace(analysis.Tribe))
-            {
-                return analysis.Tribe;
-            }
-        }
-        catch
-        {
-            // Ignore lookup errors and use fallback tribe.
-        }
-
-        return "Unknown";
+        return ResolveStoredTroopTrainingTribe();
     }
 
     private async void CreateFarmListButton_Click(object sender, RoutedEventArgs e)

@@ -17,13 +17,12 @@ public sealed partial class TravianClient
     public async Task RefreshAccountFeatureSignalsAsync(CancellationToken cancellationToken = default)
     {
         using var trace = _browserTrace.BeginOperation("REFRESH", "account-feature-signals", "reason=preflight source=live-or-cache");
-        // Plus can change during a round. Tribe cannot, and Gold Club only matters as a latched true.
+        // Plus can change during a round. The account tribe cannot, and Gold Club only matters as a latched true.
         if (_cachedTravianPlusActive.HasValue
             && (_cachedGoldClubEnabled == true)
-            && IsKnownTribe(_sessionTribe)
             && DateTimeOffset.UtcNow - _cachedTribePlusAt < TimeSpan.FromSeconds(60))
         {
-            _browserTrace.Event("CACHE", "account-feature-signals-hit", "hit", "ageSeconds<60 plus=true goldClub=true tribe=known");
+            _browserTrace.Event("CACHE", "account-feature-signals-hit", "hit", "ageSeconds<60 plus=true goldClub=true");
             trace.Complete("success", "source=cache changed=false");
             return;
         }
@@ -63,27 +62,9 @@ public sealed partial class TravianClient
             }
         }
 
-        if (!IsKnownTribe(_sessionTribe))
-        {
-            try
-            {
-                var tribe = await ReadTribeAsync(cancellationToken);
-                if (IsKnownTribe(tribe))
-                {
-                    _sessionTribe = tribe;
-                    _cachedTribe = tribe;
-                    _cachedTribePlusAt = DateTimeOffset.UtcNow;
-                    Notify($"[tribe] {tribe}");
-                }
-            }
-            catch (Exception ex)
-            {
-                Notify($"Tribe detection failed: {ex.Message}");
-            }
-        }
         trace.Complete(
             "success",
-            $"source=live plus={_cachedTravianPlusActive?.ToString() ?? "unknown"} goldClub={_cachedGoldClubEnabled?.ToString() ?? "unknown"} tribe={_sessionTribe ?? "unknown"}");
+            $"source=live plus={_cachedTravianPlusActive?.ToString() ?? "unknown"} goldClub={_cachedGoldClubEnabled?.ToString() ?? "unknown"} accountTribe={_accountTribe ?? "unknown"}");
     }
 
     public async Task<VillageStatus> ReadVillageStatusAsync(CancellationToken cancellationToken = default)
@@ -176,7 +157,7 @@ public sealed partial class TravianClient
             }
 
             var result = new AccountSnapshot(
-                Tribe: await ReadTribeAsync(cancellationToken),
+                Tribe: await ReadAccountTribeAsync(cancellationToken),
                 ActiveVillage: await ReadActiveVillageNameAsync(cancellationToken),
                 VillageCount: villages.Count,
                 Villages: villages,
@@ -200,7 +181,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         await EnsureLoggedInAsync();
         await RefreshCapitalStateForActiveVillageAsync(cancellationToken);
 
-        var tribe = await ReadTribeAsync(cancellationToken);
+        var tribe = await ReadAccountTribeAsync(cancellationToken);
         var goldClubEnabled = await ReadGoldClubEnabledAsync(cancellationToken);
         var catalog = BuildingCatalogService.GetCatalogForTribe(tribe);
 
@@ -488,17 +469,178 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         return null;
     }
 
-    private async Task<string> ReadTribeAsync(CancellationToken cancellationToken)
+    private async Task<string> ReadAccountTribeAsync(CancellationToken cancellationToken)
     {
-        var cached = KnownTribe;
+        var cached = KnownAccountTribe;
         if (!string.IsNullOrWhiteSpace(cached))
         {
             return cached;
         }
 
+        var previousUrl = _page.Url;
+        try
+        {
+            if (!IsCurrentUrlForPath(Paths.PlayerProfile))
+            {
+                await GotoAsync(Paths.PlayerProfile, cancellationToken);
+                await EnsureLoggedInAsync();
+            }
+
+            var value = await DetectTribeFromCurrentPageAsync(includeVillageBuildings: false);
+            if (!IsKnownTribe(value))
+            {
+                return "Unknown";
+            }
+
+            _accountTribe = value;
+            _cachedAccountTribe = value;
+            _cachedTribePlusAt = DateTimeOffset.UtcNow;
+            Notify($"[tribe] account={value} source=profile");
+            return value;
+        }
+        finally
+        {
+            if (!string.IsNullOrWhiteSpace(previousUrl)
+                && !string.Equals(_page.Url, previousUrl, StringComparison.OrdinalIgnoreCase))
+            {
+                await GotoAsync(previousUrl, cancellationToken);
+            }
+        }
+    }
+
+    private async Task CaptureAccountTribeFromCurrentProfileAsync()
+    {
+        var value = await DetectTribeFromCurrentPageAsync(includeVillageBuildings: false);
+        if (!IsKnownTribe(value))
+        {
+            return;
+        }
+
+        _accountTribe = value;
+        _cachedAccountTribe = value;
+        _cachedTribePlusAt = DateTimeOffset.UtcNow;
+        Notify($"[tribe] account={value} source=profile");
+    }
+
+    private async Task<string> ReadActiveVillageTribeAsync(CancellationToken cancellationToken)
+    {
+        var (cacheKey, activeVillage) = await ResolveActiveVillageTribeCacheKeyAsync(cancellationToken);
+        if (!string.IsNullOrWhiteSpace(cacheKey)
+            && _session.VillageTribes.TryGetValue(cacheKey, out var cached)
+            && IsKnownTribe(cached))
+        {
+            return cached;
+        }
+
+        var value = await DetectTribeFromCurrentPageAsync(includeVillageBuildings: true);
+        if (!IsKnownTribe(value))
+        {
+            Notify($"[tribe] village='{activeVillage ?? "unknown"}' key='{cacheKey ?? "unknown"}' tribe=Unknown source=live");
+            return "Unknown";
+        }
+
+        if (!string.IsNullOrWhiteSpace(cacheKey))
+        {
+            _session.VillageTribes[cacheKey] = value;
+        }
+
+        if (_cachedVillages is { Count: > 0 })
+        {
+            _cachedVillages = _cachedVillages
+                .Select(village => IsSameVillageIdentity(village, cacheKey, activeVillage)
+                    ? village with { Tribe = value }
+                    : village)
+                .ToList();
+        }
+
+        Notify($"[tribe] village='{activeVillage ?? "unknown"}' key='{cacheKey ?? "unknown"}' tribe={value} source=live");
+        return value;
+    }
+
+    private async Task<(string? CacheKey, string? ActiveVillage)> ResolveActiveVillageTribeCacheKeyAsync(CancellationToken cancellationToken)
+    {
+        var activeVillage = await TryReadActiveVillageNameSafeAsync(cancellationToken);
+        var activeDid = await _page.EvaluateAsync<string?>(
+            """
+            () => document.querySelector(
+              '#sidebarBoxVillageList .listEntry.village.active[data-did], ' +
+              '#sidebarBoxVillagelist .listEntry.village.active[data-did], ' +
+              '.listEntry.village.active[data-did]')?.getAttribute('data-did') || null
+            """);
+        if (int.TryParse(activeDid, out var did))
+        {
+            return ($"did:{did}", activeVillage);
+        }
+
+        var coords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+        if (coords.Item1.HasValue && coords.Item2.HasValue)
+        {
+            return ($"xy:{coords.Item1.Value}|{coords.Item2.Value}", activeVillage);
+        }
+
+        var matchingVillages = _cachedVillages?
+            .Where(village => VillageIdentityReconciler.IsSameName(village.Name, activeVillage))
+            .ToList();
+        if (matchingVillages is { Count: 1 })
+        {
+            var cachedDid = TravianUrls.TryParseNewdid(matchingVillages[0].Url);
+            if (cachedDid.HasValue)
+            {
+                return ($"did:{cachedDid.Value}", activeVillage);
+            }
+
+            if (matchingVillages[0].CoordX is int x && matchingVillages[0].CoordY is int y)
+            {
+                return ($"xy:{x}|{y}", activeVillage);
+            }
+        }
+
+        return string.IsNullOrWhiteSpace(activeVillage)
+            ? (null, activeVillage)
+            : ($"name:{activeVillage.Trim().ToLowerInvariant()}", activeVillage);
+    }
+
+    private static bool IsSameVillageIdentity(Village village, string? cacheKey, string? activeVillage)
+    {
+        if (cacheKey?.StartsWith("did:", StringComparison.OrdinalIgnoreCase) == true
+            && int.TryParse(cacheKey.AsSpan(4), out var did))
+        {
+            return TravianUrls.TryParseNewdid(village.Url) == did;
+        }
+
+        if (cacheKey?.StartsWith("xy:", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            return string.Equals(cacheKey, $"xy:{village.CoordX}|{village.CoordY}", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return VillageIdentityReconciler.IsSameName(village.Name, activeVillage);
+    }
+
+    internal static IReadOnlyList<Village> EnrichActiveVillageTribe(
+        IReadOnlyList<Village> villages,
+        string activeVillage,
+        string tribe)
+    {
+        if (!IsKnownTribe(tribe))
+        {
+            return villages;
+        }
+
+        return villages
+            .Select(village => VillageIdentityReconciler.IsSameName(village.Name, activeVillage)
+                ? village with { Tribe = tribe }
+                : village)
+            .ToList();
+    }
+
+    // This parser intentionally has two modes: profile reads resolve the permanent avatar tribe,
+    // while village reads prefer building-slot markers that belong to the active village.
+    private async Task<string> DetectTribeFromCurrentPageAsync(bool includeVillageBuildings)
+    {
+
         var value = await _page.EvaluateAsync<string>(
             """
-            () => {
+            (includeVillageBuildings) => {
               const tribeNames = {
                 1: 'Romans',
                 2: 'Teutons',
@@ -537,29 +679,51 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                 if (/\bspartan\b/.test(c)) return 'Spartans';
                 return null;
               };
-              for (const node of document.querySelectorAll('div.buildingSlot, img.building')) {
-                const fromClass = classNorm(node.getAttribute('class'));
-                if (fromClass) return fromClass;
+              if (includeVillageBuildings) {
+                for (const node of document.querySelectorAll('div.buildingSlot, img.building')) {
+                  const fromClass = classNorm(node.getAttribute('class'));
+                  if (fromClass) return fromClass;
+                }
               }
 
               // Primary: tribe icon img (works directly from dorf1/dorf2).
-              for (const img of document.querySelectorAll('img.nationBig, img[src*="/tribes/"], img[src*="nation"], img[alt]')) {
-                const fromAlt = altNorm(img.getAttribute('alt'));
-                if (fromAlt) return fromAlt;
-                const fromSrc = srcNorm(img.getAttribute('src'));
-                if (fromSrc) return fromSrc;
+                for (const img of document.querySelectorAll('img.nationBig, img[src*="/tribes/"], img[src*="nation"], img[alt]')) {
+                  const fromAlt = altNorm(img.getAttribute('alt'));
+                  if (fromAlt) return fromAlt;
+                  const fromSrc = srcNorm(img.getAttribute('src'));
+                  if (fromSrc) return fromSrc;
+                }
               }
 
               // Note: a bare 'body' catch-all was removed — scanning the whole page text for a
               // tribe word false-matched a stray "roman" on official Travian and got cached.
               // Returning 'Unknown' (not cached, retried on dorf2) is safer than a wrong tribe.
-              const selectors = [
-                '[class*="tribe" i]',
-                '[id*="tribe" i]',
-                '.playerInfo',
-                '#sidebarBoxActiveVillage',
-                '#sidebarBoxVillagelist'
-              ];
+              if (!includeVillageBuildings) {
+                for (const row of document.querySelectorAll('tr')) {
+                  const label = (row.querySelector('th, dt, .label')?.textContent || '').trim();
+                  if (!/^(tribe|nation)$/i.test(label)) continue;
+                  const valueNode = row.querySelector('td, dd, .value');
+                  const text = `${valueNode?.getAttribute('class') || ''} ${valueNode?.textContent || ''}`;
+                  const fromClass = classNorm(text);
+                  if (fromClass) return fromClass;
+                  const tribeMatch = text.match(/tribe[^0-9]*(\d+)/i) || text.match(/tribe(\d+)/i);
+                  if (tribeMatch && tribeNames[Number(tribeMatch[1])]) return tribeNames[Number(tribeMatch[1])];
+                }
+              }
+
+              const selectors = includeVillageBuildings
+                ? [
+                    '[class*="tribe" i]',
+                    '[id*="tribe" i]',
+                    '#sidebarBoxActiveVillage'
+                  ]
+                : [
+                    '#content [class*="tribe" i]',
+                    '#content [id*="tribe" i]',
+                    'main [class*="tribe" i]',
+                    '.playerProfile [class*="tribe" i]',
+                    '.playerInfo'
+                  ];
 
               for (const selector of selectors) {
                 const element = document.querySelector(selector);
@@ -578,16 +742,14 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
 
               return 'Unknown';
             }
-            """);
+            """,
+            includeVillageBuildings);
 
         if (!IsKnownTribe(value))
         {
             return "Unknown";
         }
 
-        _sessionTribe = value;
-        _cachedTribe = value;
-        _cachedTribePlusAt = DateTimeOffset.UtcNow;
         return value;
     }
 

@@ -290,18 +290,8 @@ public sealed partial class TravianClient
 
     private async Task<(string Tribe, bool PlusActive)> GetCachedTribeAndPlusAsync(CancellationToken cancellationToken)
     {
-        // Tribe is immutable for an account — cache for the entire session, only cleared on logout.
-        var tribe = _sessionTribe ?? _cachedTribe;
-        if (string.IsNullOrWhiteSpace(tribe) || string.Equals(tribe, "Unknown", StringComparison.OrdinalIgnoreCase))
-        {
-            tribe = await ReadTribeAsync(cancellationToken);
-            _cachedTribe = tribe;
-            if (!string.IsNullOrWhiteSpace(tribe) && !string.Equals(tribe, "Unknown", StringComparison.OrdinalIgnoreCase))
-            {
-                _sessionTribe = tribe;
-            }
-            _cachedTribePlusAt = DateTimeOffset.UtcNow;
-        }
+        // Construction capacity belongs to the active village tribe, not the avatar/account tribe.
+        var tribe = await ReadActiveVillageTribeAsync(cancellationToken);
 
         var plusActive = await IsTravianPlusActiveAsync(cancellationToken);
         if (_cachedTravianPlusActive != plusActive)
@@ -324,6 +314,12 @@ public sealed partial class TravianClient
         bool allowNavigationToBuildings = true)
     {
         var (tribe, plusActive) = await GetCachedTribeAndPlusAsync(cancellationToken);
+        if (!TbotUltra.Core.Travian.TroopCatalog.IsKnownTribe(tribe))
+        {
+            Notify($"[tribe] construction deferred because the active village tribe is unknown (slot={slotId}, kind={kind}).");
+            return "Construction deferred until the active village tribe can be detected. queue_wait_seconds=60";
+        }
+
         if (!allowNavigationToBuildings)
         {
             InvalidateActiveConstructionsCache();
@@ -629,6 +625,12 @@ public sealed partial class TravianClient
     {
         LogFunctionStarted();
         var (tribe, plusActive) = await GetCachedTribeAndPlusAsync(cancellationToken);
+        if (!TbotUltra.Core.Travian.TroopCatalog.IsKnownTribe(tribe))
+        {
+            Notify("[tribe] construction slot wait deferred because the active village tribe is unknown. queue_wait_seconds=60");
+            return 60;
+        }
+
         var status = await EvaluateConstructionSlotsAsync(tribe, plusActive, cancellationToken);
 
         var canStart = kind == ConstructionKind.Resource ? status.CanStartResource : status.CanStartBuilding;

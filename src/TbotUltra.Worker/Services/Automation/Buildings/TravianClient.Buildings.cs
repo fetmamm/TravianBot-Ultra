@@ -20,7 +20,7 @@ public sealed partial class TravianClient : IBuildingClient
         Notify("[build:verbose] ReadBuildingsStatusAsync started");
         var buildings = await ReadBuildingsAsync(cancellationToken);
         var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
-        var tribe = await ReadTribeAsync(cancellationToken);
+        var tribe = await ReadActiveVillageTribeAsync(cancellationToken);
 
         return new VillageStatus(
             ActiveVillage: activeVillage,

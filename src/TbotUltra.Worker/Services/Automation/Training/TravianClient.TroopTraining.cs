@@ -153,6 +153,12 @@ public sealed partial class TravianClient
 
         var status = await ReadVillageStatusAsync(cancellationToken);
         Notify($"[troops:verbose]activeVillage='{status.ActiveVillage}', tribe='{status.Tribe}', resources={string.Join(", ", status.Resources.Select(pair => $"{pair.Key}={pair.Value}"))}.");
+        if (!TroopCatalog.IsKnownTribe(status.Tribe))
+        {
+            Notify($"[tribe] troop training deferred for '{status.ActiveVillage}' because its village tribe is unknown.");
+            return "Troop training deferred until the active village tribe can be detected.";
+        }
+
         var requests = BuildTroopTrainingRequests(_config, status.Tribe);
         Notify($"[troops:verbose]loaded {requests.Count} building request(s) from config.");
         Notify($"[troops:verbose]requests={string.Join(" | ", requests.Select(item => $"{item.BuildingName}:enabled={item.IsEnabled}:troop='{item.TroopType}':limit='{item.MaxQueueMode}':mode='{item.AmountMode}':keep={item.KeepResourcesPercent}%:runMode='{item.RunMode}':timed={item.TimedMinMinutes}-{item.TimedMaxMinutes}m:minRes={item.MinimumResourcesPercent}%:check=[w={item.CheckWood},c={item.CheckClay},i={item.CheckIron},crop={item.CheckCrop}]"))}.");

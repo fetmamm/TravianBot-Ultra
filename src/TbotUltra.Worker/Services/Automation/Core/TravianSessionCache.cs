@@ -13,7 +13,12 @@ public sealed class TravianSessionCache
     public int? CachedGold { get; set; }
     public int? CachedSilver { get; set; }
     public System.DateTimeOffset CachedCurrencyAt { get; set; } = System.DateTimeOffset.MinValue;
-    public string? SessionTribe { get; set; }
+    /// <summary>The avatar/account tribe selected at registration.</summary>
+    public string? AccountTribe { get; set; }
+
+    /// <summary>Known village tribes keyed by stable did/coordinates (name is session-only fallback).</summary>
+    public System.Collections.Concurrent.ConcurrentDictionary<string, string> VillageTribes { get; } =
+        new(System.StringComparer.OrdinalIgnoreCase);
     public System.DateTimeOffset CachedTribePlusAt { get; set; } = System.DateTimeOffset.MinValue;
 
     public System.DateTimeOffset LastEnsureLoggedInAt { get; set; } = System.DateTimeOffset.MinValue;

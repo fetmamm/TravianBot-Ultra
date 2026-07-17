@@ -105,6 +105,7 @@ Compatible with:
 - Calculate building time and resource cost for buildings + resourcefields
 - Easy update to new version via the app (checks at startup and hourly while open)
 - Create a sanitized diagnostics ZIP from Support for manual bug reports
+- Support for community server with multi-tribe accounts
 
 
 ## Future functions:

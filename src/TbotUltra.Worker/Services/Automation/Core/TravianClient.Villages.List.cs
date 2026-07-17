@@ -103,19 +103,20 @@ public sealed partial class TravianClient
                                 // back to the cached value so non-active villages keep profile data.
                                 Population = v.Population ?? match.Population,
                                 CropFields = match.CropFields,
+                                Tribe = IsKnownTribe(v.Tribe) ? v.Tribe : match.Tribe,
                             };
                         })
                         .ToList();
-                    _cachedVillages = merged;
+                    _cachedVillages = ApplyKnownVillageTribes(merged);
                     _cachedVillagesAt = DateTimeOffset.UtcNow;
                     trace.Complete("success", $"source=sidebar-merged count={merged.Count}");
-                    return merged;
+                    return _cachedVillages;
                 }
 
-                _cachedVillages = sidebar.ToList();
+                _cachedVillages = ApplyKnownVillageTribes(sidebar);
                 _cachedVillagesAt = DateTimeOffset.UtcNow;
                 trace.Complete("success", $"source=sidebar count={sidebar.Count}");
-                return sidebar;
+                return _cachedVillages;
             }
         }
         catch (Exception ex)
@@ -293,8 +294,33 @@ public sealed partial class TravianClient
             return;
         }
 
-        _cachedVillages = villages.ToList();
+        _cachedVillages = ApplyKnownVillageTribes(villages);
         _cachedVillagesAt = DateTimeOffset.UtcNow;
+    }
+
+    private List<Village> ApplyKnownVillageTribes(IReadOnlyList<Village> villages)
+    {
+        return villages.Select(village =>
+        {
+            if (IsKnownTribe(village.Tribe))
+            {
+                return village;
+            }
+
+            var did = TravianUrls.TryParseNewdid(village.Url);
+            if (did.HasValue && _session.VillageTribes.TryGetValue($"did:{did.Value}", out var didTribe))
+            {
+                return village with { Tribe = didTribe };
+            }
+
+            if (village.CoordX.HasValue && village.CoordY.HasValue
+                && _session.VillageTribes.TryGetValue($"xy:{village.CoordX.Value}|{village.CoordY.Value}", out var coordTribe))
+            {
+                return village with { Tribe = coordTribe };
+            }
+
+            return village;
+        }).ToList();
     }
 
     private async Task<IReadOnlyList<Village>> ReadVillagesFromServerAsync(
@@ -320,6 +346,14 @@ public sealed partial class TravianClient
 
             await GotoAsync(Paths.PlayerProfile, cancellationToken);
             await EnsureLoggedInAsync();
+            try
+            {
+                await CaptureAccountTribeFromCurrentProfileAsync();
+            }
+            catch (Exception ex)
+            {
+                Notify($"[tribe] account profile detection failed: {ex.Message}");
+            }
 
             // The profile can render the villages table client-side, and the
             // population cell (td.inhabitants) is filled in slightly after the row shell. Reading
