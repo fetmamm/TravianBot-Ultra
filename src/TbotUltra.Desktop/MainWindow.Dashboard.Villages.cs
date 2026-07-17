@@ -702,11 +702,85 @@ public partial class MainWindow
             OpenTownHallSettingsFromVillageSettings,
             OpenHeroResourceSettingsFromVillageSettings,
             OpenConstructFasterSettingsFromVillageSettings,
-            OnVillageSettingsSaved)
+            OnVillageSettingsSaved,
+            BuildVillageSettingsOverviewSnapshot)
         {
             Owner = this,
         };
         window.ShowDialog();
+    }
+
+    private VillageOverviewSnapshot BuildVillageSettingsOverviewSnapshot()
+    {
+        var source = ((DashboardVillageList.ItemsSource as IEnumerable<VillageSelectionItem>)
+            ?? (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>)
+            ?? Enumerable.Empty<VillageSelectionItem>())
+            .Where(village => !string.IsNullOrWhiteSpace(village.Name)
+                && !string.Equals(village.Name, "-", StringComparison.Ordinal))
+            .ToList();
+        var duplicateNames = source
+            .GroupBy(village => NormalizeVillageName(village.Name) ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var nowUtc = DateTimeOffset.UtcNow;
+        var accountName = _accountStore.ActiveAccountName();
+        var townHallByVillage = TownHallCelebrationStateStore.ReadAllActive(
+            _projectRoot,
+            accountName,
+            nowUtc);
+
+        var villages = source.Select(village =>
+        {
+            var keyInfo = BuildVillageKeyInfo(village);
+            var canonicalKey = _villageSettingsStore.ResolveCanonicalKey(keyInfo.Key) ?? keyInfo.Key;
+            var normalizedName = NormalizeVillageName(village.Name);
+            VillageStatus? status = null;
+            if (normalizedName is not null && !duplicateNames.Contains(normalizedName))
+            {
+                _villageStatusCacheByName.TryGetValue(normalizedName, out status);
+            }
+
+            var enabledGroups = _villageSettingsStore.GetEnabledGroups(keyInfo)
+                ?? VillageSettingsStore.DefaultEnabledGroups;
+            townHallByVillage.TryGetValue(canonicalKey, out var townHall);
+            return new VillageOverviewSource(
+                canonicalKey,
+                village.Name,
+                village.PopText,
+                TroopCatalog.IsKnownTribe(status?.Tribe) ? status!.Tribe : village.Tribe,
+                _villageSettingsStore.GetEnabled(keyInfo),
+                enabledGroups.ToHashSet(StringComparer.OrdinalIgnoreCase),
+                string.Equals(normalizedName, NormalizeVillageName(_heroHomeVillageName), StringComparison.OrdinalIgnoreCase),
+                townHall?.Mode,
+                townHall?.EndsAtUtc,
+                status);
+        }).ToList();
+
+        var queueItems = GetQueueSnapshotForUi().ToList();
+        var tasks = queueItems.Select(item => new PipelineTaskSource(
+            item,
+            BuildQueueDisplayName(item),
+            GetQueueItemVillageKey(item),
+            GetQueueItemCurrentVillageName(item) ?? string.Empty,
+            IsQueueItemAllowedByAutomationSettings(item)))
+            .ToList();
+        var exactNext = SelectNextQueueItemForContinuousLoop(preview: true);
+        var rotationKeys = QueueGroupCatalog.AllGroups.ToDictionary(
+            group => group,
+            group => group == QueueGroup.Construction
+                ? _continuousConstructionRotationVillageKey
+                : GetContinuousGroupRotationVillageKey(group));
+
+        return VillageOverviewFactory.Create(
+            villages,
+            tasks,
+            GetContinuousLoopConsideredGroupsInOrder(),
+            _activeWorkingVillageKey,
+            exactNext,
+            nowUtc,
+            FormatQueueFinishTime,
+            rotationKeys);
     }
 
     private void PersistVillageHeroResourcesFromSettingsRow(VillageSettingsRow row)

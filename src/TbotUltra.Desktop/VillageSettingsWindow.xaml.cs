@@ -1,10 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Markup;
 using System.Windows.Media;
+using System.Windows.Threading;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
@@ -29,6 +31,10 @@ public partial class VillageSettingsWindow : Window
     private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onHeroResourceSettingsRequested;
     private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onConstructFasterSettingsRequested;
     private readonly Action? _onSaved;
+    private readonly Func<VillageOverviewSnapshot>? _overviewSnapshotProvider;
+    private readonly DispatcherTimer? _overviewRefreshTimer;
+    private readonly ObservableCollection<UpcomingTaskRow> _upcomingTaskRows = [];
+    private readonly ObservableCollection<VillageOverviewRow> _overviewVillageRows = [];
 
     public VillageSettingsWindow(
         IReadOnlyList<VillageSettingsRow> rows,
@@ -42,7 +48,8 @@ public partial class VillageSettingsWindow : Window
         Action<IReadOnlyList<VillageSettingsRow>>? onTownHallSettingsRequested = null,
         Action<IReadOnlyList<VillageSettingsRow>>? onHeroResourceSettingsRequested = null,
         Action<IReadOnlyList<VillageSettingsRow>>? onConstructFasterSettingsRequested = null,
-        Action? onSaved = null)
+        Action? onSaved = null,
+        Func<VillageOverviewSnapshot>? overviewSnapshotProvider = null)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
@@ -58,8 +65,66 @@ public partial class VillageSettingsWindow : Window
         _onHeroResourceSettingsRequested = onHeroResourceSettingsRequested;
         _onConstructFasterSettingsRequested = onConstructFasterSettingsRequested;
         _onSaved = onSaved;
+        _overviewSnapshotProvider = overviewSnapshotProvider;
         BuildGroupColumns(rows);
         VillageSettingsDataGrid.ItemsSource = rows;
+        UpcomingTasksDataGrid.ItemsSource = _upcomingTaskRows;
+        VillageOverviewDataGrid.ItemsSource = _overviewVillageRows;
+
+        if (_overviewSnapshotProvider is not null)
+        {
+            RefreshOverview();
+            _overviewRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _overviewRefreshTimer.Tick += (_, _) => RefreshOverview();
+            _overviewRefreshTimer.Start();
+            Closed += (_, _) => _overviewRefreshTimer.Stop();
+        }
+    }
+
+    private void RefreshOverview()
+    {
+        if (_overviewSnapshotProvider is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var snapshot = _overviewSnapshotProvider();
+            OverviewRunningTaskTextBlock.Text = $"Running: {snapshot.RunningTask}";
+            OverviewUpdatedTextBlock.Text = $"Updated {snapshot.CapturedAtUtc.ToLocalTime():HH:mm:ss}";
+            var upcoming = snapshot.UpcomingTasks.ToList();
+            if (upcoming.Count < 5)
+            {
+                upcoming.Add(new UpcomingTaskRow("-", "No more schedulable tasks", "-", "-", "-", "-"));
+            }
+
+            ReplaceRows(_upcomingTaskRows, upcoming);
+            ReplaceRows(_overviewVillageRows, snapshot.Villages);
+        }
+        catch (Exception ex)
+        {
+            OverviewUpdatedTextBlock.Text = $"Overview unavailable: {ex.Message}";
+        }
+    }
+
+    private static void ReplaceRows<T>(ObservableCollection<T> target, IReadOnlyList<T> source)
+    {
+        var sharedCount = Math.Min(target.Count, source.Count);
+        for (var index = 0; index < sharedCount; index++)
+        {
+            target[index] = source[index];
+        }
+
+        while (target.Count > source.Count)
+        {
+            target.RemoveAt(target.Count - 1);
+        }
+
+        for (var index = sharedCount; index < source.Count; index++)
+        {
+            target.Add(source[index]);
+        }
     }
 
     // Adds one blue toggle-switch column per automation group (header = group title + a tooltip icon

@@ -167,6 +167,11 @@ Common endpoints:
 - Disable duplicate action buttons while a command runs and restore them in `finally`.
 - Marshal observable UI collections through the dispatcher.
 - Use immutable/snapshot enumeration when sanitizing or exporting mutable collections.
+- Village settings Overview is read-only and must use the existing per-village cache, absolute timer
+  snapshots, and queue snapshot; opening it must never navigate the browser or trigger a server scan.
+- The Overview task pipeline shows the scheduler's exact read-only next pick followed by at most four
+  explicitly labelled projections. Projected rows may show only real `NextAttemptAt`/timer deadlines,
+  never invented cumulative start times, and projection must not mutate queue or rotation state.
 
 ### Diagnostics export
 

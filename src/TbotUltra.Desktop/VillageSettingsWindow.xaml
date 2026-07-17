@@ -3,10 +3,10 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Village settings"
-        Height="460"
-        SizeToContent="Width"
+        Width="1320"
+        Height="720"
         MinHeight="320"
-        MinWidth="820"
+        MinWidth="920"
         ResizeMode="CanResize"
         WindowStartupLocation="CenterOwner">
     <Grid Margin="12">
@@ -23,8 +23,9 @@
                             ToolTip="Per-village automation. &quot;Auto&quot; turns the village on/off for the bot (off = skipped entirely). &quot;Hero res.&quot; selects which villages may use hero inventory resources. &quot;NPC&quot; selects which villages NPC trade may run in. New villages start with Construction on, Hero res. on, and everything else off; Auto is on only when the account has one village. Saved per account." />
         </StackPanel>
 
+        <TabControl Grid.Row="1">
+            <TabItem Header="Settings">
         <DataGrid x:Name="VillageSettingsDataGrid"
-                  Grid.Row="1"
                   AutoGenerateColumns="False"
                   IsReadOnly="False"
                   CanUserAddRows="False"
@@ -93,6 +94,96 @@
                 <!-- One toggle column per automation group is generated in code-behind (BuildGroupColumns). -->
             </DataGrid.Columns>
         </DataGrid>
+            </TabItem>
+
+            <TabItem Header="Overview">
+                <Grid Margin="8">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
+                        <RowDefinition Height="*" />
+                    </Grid.RowDefinitions>
+
+                    <DockPanel Grid.Row="0" Margin="0,0,0,8">
+                        <StackPanel DockPanel.Dock="Left">
+                            <StackPanel Orientation="Horizontal">
+                                <TextBlock Text="Upcoming tasks" FontSize="16" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                <TextBlock Text="  Live projection" Margin="8,2,0,0"
+                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                            </StackPanel>
+                            <TextBlock x:Name="OverviewRunningTaskTextBlock"
+                                       Text="Running: Nothing running"
+                                       Foreground="{DynamicResource TextSecondaryBrush}"
+                                       Margin="0,3,0,0" />
+                        </StackPanel>
+                        <TextBlock x:Name="OverviewUpdatedTextBlock"
+                                   DockPanel.Dock="Right"
+                                   HorizontalAlignment="Right"
+                                   VerticalAlignment="Bottom"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                    </DockPanel>
+
+                    <DataGrid x:Name="UpcomingTasksDataGrid"
+                              Grid.Row="1"
+                              Height="174"
+                              Margin="0,0,0,10"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              CanUserReorderColumns="False"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="Horizontal"
+                              ScrollViewer.HorizontalScrollBarVisibility="Disabled">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="#" Width="38" Binding="{Binding Position}" />
+                            <DataGridTextColumn Header="Task" Width="2*" Binding="{Binding Task}" />
+                            <DataGridTextColumn Header="Village" Width="*" Binding="{Binding Village}" />
+                            <DataGridTextColumn Header="Group" Width="*" Binding="{Binding Group}" />
+                            <DataGridTextColumn Header="Status / earliest" Width="1.5*" Binding="{Binding Timing}" />
+                            <DataGridTextColumn Header="Source" Width="90" Binding="{Binding Source}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+
+                    <DataGrid x:Name="VillageOverviewDataGrid"
+                              Grid.Row="2"
+                              AutoGenerateColumns="False"
+                              IsReadOnly="True"
+                              CanUserAddRows="False"
+                              CanUserDeleteRows="False"
+                              CanUserReorderColumns="False"
+                              HeadersVisibility="Column"
+                              GridLinesVisibility="All"
+                              FrozenColumnCount="2"
+                              RowHeight="Auto"
+                              ScrollViewer.HorizontalScrollBarVisibility="Auto"
+                              ScrollViewer.VerticalScrollBarVisibility="Auto">
+                        <DataGrid.Resources>
+                            <Style TargetType="TextBlock">
+                                <Setter Property="TextWrapping" Value="Wrap" />
+                                <Setter Property="VerticalAlignment" Value="Top" />
+                                <Setter Property="Margin" Value="3" />
+                            </Style>
+                        </DataGrid.Resources>
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Village" Width="145" Binding="{Binding Village}" />
+                            <DataGridTextColumn Header="Pop" Width="60" Binding="{Binding Population}" />
+                            <DataGridTextColumn Header="Next task" Width="220" Binding="{Binding NextTask}" />
+                            <DataGridTextColumn Header="Construction" Width="280" Binding="{Binding Construction}" />
+                            <DataGridTextColumn Header="Smithy" Width="260" Binding="{Binding Smithy}" />
+                            <DataGridTextColumn Header="Build troops" Width="190" Binding="{Binding BuildTroops}" />
+                            <DataGridTextColumn Header="Farming" Width="190" Binding="{Binding Farming}" />
+                            <DataGridTextColumn Header="Hero" Width="150" Binding="{Binding Hero}" />
+                            <DataGridTextColumn Header="Town Hall" Width="180" Binding="{Binding TownHall}" />
+                            <DataGridTextColumn Header="Brewery" Width="150" Binding="{Binding Brewery}" />
+                            <DataGridTextColumn Header="Resource transfer" Width="190" Binding="{Binding ResourceTransfer}" />
+                            <DataGridTextColumn Header="Reinforcements" Width="190" Binding="{Binding Reinforcements}" />
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </TabItem>
+        </TabControl>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
             <Button Width="100" Content="Close" Click="CloseButton_Click" Margin="0,0,8,0" />

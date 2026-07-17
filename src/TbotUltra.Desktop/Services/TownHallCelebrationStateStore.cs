@@ -70,6 +70,35 @@ public static class TownHallCelebrationStateStore
         }
     }
 
+    public static IReadOnlyDictionary<string, TownHallCelebrationState> ReadAllActive(
+        string projectRoot,
+        string? accountName,
+        DateTimeOffset nowUtc)
+    {
+        var result = new Dictionary<string, TownHallCelebrationState>(StringComparer.OrdinalIgnoreCase);
+        if (string.IsNullOrWhiteSpace(accountName))
+        {
+            return result;
+        }
+
+        lock (FileIoLock)
+        {
+            foreach (var entry in ReadFile(projectRoot, accountName)?.Villages ?? [])
+            {
+                if (entry is null || string.IsNullOrWhiteSpace(entry.Key) || entry.EndsAtUtc <= nowUtc)
+                {
+                    continue;
+                }
+
+                result[entry.Key] = new TownHallCelebrationState(
+                    TownHallCelebrationDefaults.NormalizeMode(entry.Mode),
+                    entry.EndsAtUtc.ToUniversalTime());
+            }
+        }
+
+        return result;
+    }
+
     public static void Save(
         string projectRoot,
         string? accountName,
