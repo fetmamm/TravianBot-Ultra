@@ -267,6 +267,7 @@ public static class BotOptionPayloadKeys
     public const string ActionPacingIdleBrowsePageMessages = "action_pacing_idle_browse_page_messages";
 
     public const string ConstructionHumanizeDelayEnabled = "construction_humanize_delay_enabled";
+    public const string ConstructionHumanizeStateVersion = "construction_humanize_state_version";
     public const string ConstructionHumanizeQueuePercentMin = "construction_humanize_queue_percent_min";
     public const string ConstructionHumanizeQueuePercentMax = "construction_humanize_queue_percent_max";
     public const string ConstructionHumanizeMaxDelayMinutes = "construction_humanize_max_delay_minutes";
@@ -280,4 +281,5 @@ public static class BotOptionPayloadKeys
     // Per-queue-item one-shot override applied after login. It bypasses only the construction
     // humanize gate while the bot fills currently available build slots.
     public const string ConstructionLoginFill = "construction_login_fill";
+    public const string ConstructionLoginFillExpiresAtUnixSeconds = "construction_login_fill_expires_at_unix_seconds";
 }

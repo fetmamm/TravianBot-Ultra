@@ -69,6 +69,7 @@ public static class PacingDefaults
     public const double ConstructionHumanizeMaxDelayMinutes = 25.0;
     public const double ConstructionHumanizeNoPlusMinMinutes = 0.5;
     public const double ConstructionHumanizeNoPlusMaxMinutes = 3.0;
+    public const int ConstructionLoginFillWindowMinutes = 15;
 
     // Pre-sleep fill (part of the construction start delay feature): shortly before a session-pacing
     // sleep, pull humanize-deferred construction starts forward so every build slot that CAN be

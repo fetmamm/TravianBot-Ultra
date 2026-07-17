@@ -249,7 +249,7 @@ internal static class VillageOverviewFactory
         }
         else if (source.Item.NextAttemptAt > nowUtc)
         {
-            timing = $"Earliest {source.Item.NextAttemptAt.ToLocalTime():HH:mm:ss} ({FormatCountdown(source.Item.NextAttemptAt - nowUtc)})";
+            timing = $"Earliest in {FormatCountdown(source.Item.NextAttemptAt - nowUtc)}";
         }
         else if (isExact)
         {
@@ -383,7 +383,7 @@ internal static class VillageOverviewFactory
             hasStatus,
             nowUtc,
             finishTimeFormatter);
-        return string.Join("\n", rows.Select(row => FormatQueueRow(row.Name, row.LevelText, row.CountdownText, row.FinishAtText)));
+        return string.Join("\n", rows.Select(row => FormatQueueRow(row.Name, row.LevelText, row.CountdownText)));
     }
 
     private static string ResolveSmithy(
@@ -410,7 +410,7 @@ internal static class VillageOverviewFactory
             status?.SmithyUpgradeStatus is not null,
             nowUtc,
             finishTimeFormatter);
-        return string.Join("\n", rows.Select(row => FormatQueueRow(row.Name, row.LevelText, row.CountdownText, row.FinishAtText)));
+        return string.Join("\n", rows.Select(row => FormatQueueRow(row.Name, row.LevelText, row.CountdownText)));
     }
 
     private static string ResolveTroopTraining(
@@ -618,7 +618,7 @@ internal static class VillageOverviewFactory
         => tasks.Any(source => source.Item.Group == group
             && source.Item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused);
 
-    private static string FormatQueueRow(string name, string level, string countdown, string finish)
+    private static string FormatQueueRow(string name, string level, string countdown)
     {
         if (string.Equals(name, "Ready", StringComparison.Ordinal)
             || string.Equals(name, "Not loaded", StringComparison.Ordinal))
@@ -626,7 +626,7 @@ internal static class VillageOverviewFactory
             return name;
         }
 
-        return $"{name} · {level} · {countdown} · {finish}";
+        return $"{name} · {level} · {countdown}";
     }
 
     private static string DescribeTask(PipelineTaskSource source)

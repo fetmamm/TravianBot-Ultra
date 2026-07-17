@@ -644,6 +644,58 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     }
 
     [Fact]
+    public void QueueStore_PatchDeferred_PreservesKeysAddedAfterStaleRead()
+    {
+        var store = new JsonQueueStore(_queuePath);
+        var item = store.Add(
+            "construct_building",
+            new Dictionary<string, string> { ["stable"] = "value" },
+            priority: 1,
+            maxRetries: 3);
+        var stale = store.GetAll().Single(candidate => candidate.Id == item.Id);
+
+        Assert.True(store.PatchDeferred(
+            item.Id,
+            new Dictionary<string, string> { [BotOptionPayloadKeys.ConstructionLoginFill] = "true" },
+            null));
+        stale.Payload[BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonResources;
+        Assert.True(store.PatchDeferred(
+            item.Id,
+            new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.UpgradeDeferReason] = stale.Payload[BotOptionPayloadKeys.UpgradeDeferReason],
+            },
+            null));
+
+        var persisted = store.GetAll().Single(candidate => candidate.Id == item.Id);
+        Assert.Equal("value", persisted.Payload["stable"]);
+        Assert.Equal("true", persisted.Payload[BotOptionPayloadKeys.ConstructionLoginFill]);
+        Assert.Equal(BotOptionPayloadKeys.UpgradeDeferReasonResources, persisted.Payload[BotOptionPayloadKeys.UpgradeDeferReason]);
+    }
+
+    [Fact]
+    public void QueueStore_PatchDeferred_SerializesConcurrentDistinctKeys()
+    {
+        var store = new JsonQueueStore(_queuePath);
+        var item = store.Add("construct_building", null, priority: 1, maxRetries: 3);
+
+        Parallel.For(0, 20, index =>
+        {
+            Assert.True(store.PatchDeferred(
+                item.Id,
+                new Dictionary<string, string> { [$"key_{index}"] = index.ToString() },
+                null));
+        });
+
+        var persisted = store.GetAll().Single(candidate => candidate.Id == item.Id);
+        Assert.Equal(20, persisted.Payload.Count);
+        for (var index = 0; index < 20; index++)
+        {
+            Assert.Equal(index.ToString(), persisted.Payload[$"key_{index}"]);
+        }
+    }
+
+    [Fact]
     public void BotTaskRunner_RegistersHandlers_ForEveryAllowedTask()
     {
         var allowed = TbotUltra.Worker.Services.TaskCatalog.AllowedTaskNames;

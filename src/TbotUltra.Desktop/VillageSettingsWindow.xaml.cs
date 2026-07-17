@@ -67,6 +67,7 @@ public partial class VillageSettingsWindow : Window
         _onSaved = onSaved;
         _overviewSnapshotProvider = overviewSnapshotProvider;
         BuildGroupColumns(rows);
+        BuildOverviewColumns();
         VillageSettingsDataGrid.ItemsSource = rows;
         UpcomingTasksDataGrid.ItemsSource = _upcomingTaskRows;
         VillageOverviewDataGrid.ItemsSource = _overviewVillageRows;
@@ -199,6 +200,43 @@ public partial class VillageSettingsWindow : Window
             ? 1
             : 0;
         NpcTradeColumn.DisplayIndex = 3 + groupsBeforeNpc.Count() + constructFasterColumnBeforeNpc;
+    }
+
+    // Builds the per-village overview columns in code so every status cell shares one color-coded template
+    // (OverviewStatusText: Ready green / Waiting amber / Disabled muted). Widths are tuned for the compact
+    // layout left after the population column and absolute finish times were removed.
+    private void BuildOverviewColumns()
+    {
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Village", 130, nameof(VillageOverviewRow.Village), colorize: false));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Next task", 200, nameof(VillageOverviewRow.NextTask)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Construction", 210, nameof(VillageOverviewRow.Construction)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Smithy", 200, nameof(VillageOverviewRow.Smithy)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Build troops", 150, nameof(VillageOverviewRow.BuildTroops)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Farming", 150, nameof(VillageOverviewRow.Farming)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Hero", 140, nameof(VillageOverviewRow.Hero)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Town Hall", 150, nameof(VillageOverviewRow.TownHall)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Brewery", 140, nameof(VillageOverviewRow.Brewery)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Resource transfer", 160, nameof(VillageOverviewRow.ResourceTransfer)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Reinforcements", 150, nameof(VillageOverviewRow.Reinforcements)));
+    }
+
+    // A single overview cell: a wrapping TextBlock whose status text is color-coded per line via the
+    // OverviewStatusText attached property. The Village name column binds plain Text (colorize: false) so a
+    // village name never gets mistaken for a status keyword.
+    private static DataGridTemplateColumn BuildOverviewColumn(string header, double width, string bindingPath, bool colorize = true)
+    {
+        var text = new FrameworkElementFactory(typeof(TextBlock));
+        text.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
+        text.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Top);
+        var binding = new System.Windows.Data.Binding(bindingPath);
+        text.SetBinding(colorize ? OverviewStatusText.TextProperty : TextBlock.TextProperty, binding);
+
+        return new DataGridTemplateColumn
+        {
+            Header = header,
+            Width = new DataGridLength(width),
+            CellTemplate = new DataTemplate { VisualTree = text },
+        };
     }
 
     // Builds a compact column header: small title text with the explanation as tooltip directly on the

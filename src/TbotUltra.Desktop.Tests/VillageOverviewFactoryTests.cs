@@ -62,8 +62,7 @@ public sealed class VillageOverviewFactoryTests
             value => value.ToString("HH:mm:ss"));
 
         Assert.Equal("farm later", snapshot.UpcomingTasks[0].Task);
-        Assert.Contains("Earliest ", snapshot.UpcomingTasks[0].Timing);
-        Assert.Contains("(05:00)", snapshot.UpcomingTasks[0].Timing);
+        Assert.Equal("Earliest in 05:00", snapshot.UpcomingTasks[0].Timing);
         Assert.Equal("paused construction", snapshot.UpcomingTasks[1].Task);
         Assert.Equal("Blocked (paused queue head)", snapshot.UpcomingTasks[1].Timing);
     }
@@ -135,9 +134,11 @@ public sealed class VillageOverviewFactoryTests
             value => value.ToString("HH:mm:ss"));
         var row = Assert.Single(snapshot.Villages);
 
-        Assert.Contains("Warehouse · Level 5 · 01:30 · 12:02:00", row.Construction);
+        Assert.Contains("Warehouse · Level 5 · 01:30", row.Construction);
+        Assert.DoesNotContain("12:02:00", row.Construction);
         Assert.Equal(3, row.Construction.Split('\n').Length);
-        Assert.Contains("Imperian · Level 4 · 02:30 · 12:03:00", row.Smithy);
+        Assert.Contains("Imperian · Level 4 · 02:30", row.Smithy);
+        Assert.DoesNotContain("12:03:00", row.Smithy);
         Assert.Contains("Barracks: 03:30", row.BuildTroops);
         Assert.Contains("Near: 04:30", row.Farming);
         Assert.Equal("Returning: 05:30", row.Hero);

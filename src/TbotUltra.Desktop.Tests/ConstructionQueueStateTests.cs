@@ -37,7 +37,7 @@ public sealed class ConstructionQueueStateTests
     [InlineData("upgrade_all_resources_to_level", true)]
     [InlineData("upgrade_building_to_level", true)]
     [InlineData("upgrade_building_to_max", true)]
-    [InlineData("construct_building", false)]
+    [InlineData("construct_building", true)]
     [InlineData("build_troops", false)]
     public void UsesConstructionHumanizeStartGate_MatchesWorkerFlows(string taskName, bool expected)
     {
@@ -504,10 +504,86 @@ public sealed class ConstructionQueueStateTests
                 [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonResources,
             },
         };
+        var queueWait = new QueueItem
+        {
+            NextAttemptAt = now.AddMinutes(2),
+            Payload = new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonQueueFull,
+            },
+        };
 
         Assert.True(ConstructionQueueState.ShouldPrepareLoginFill(ready, now));
         Assert.True(ConstructionQueueState.ShouldPrepareLoginFill(humanize, now));
+        Assert.True(ConstructionQueueState.ShouldPrepareLoginFill(queueWait, now));
         Assert.False(ConstructionQueueState.ShouldPrepareLoginFill(resourceWait, now));
+    }
+
+    [Fact]
+    public void ResolveHumanizeToggleReset_ReleasesPureHumanizeWait()
+    {
+        var now = new DateTimeOffset(2026, 7, 17, 12, 0, 0, TimeSpan.Zero);
+        var item = new QueueItem
+        {
+            NextAttemptAt = now.AddMinutes(2),
+            Payload = new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonHumanize,
+                [BotOptionPayloadKeys.UpgradeDeferClassificationVersion] = ConstructionQueueState.CurrentDeferClassificationVersion,
+                [BotOptionPayloadKeys.ConstructionLoginFill] = "true",
+            },
+        };
+
+        var result = ConstructionQueueState.ResolveHumanizeToggleReset(item, now);
+
+        Assert.True(result.Changed);
+        Assert.Equal(TimeSpan.Zero, result.Delay);
+        Assert.DoesNotContain(BotOptionPayloadKeys.UpgradeDeferReason, result.Payload.Keys);
+        Assert.DoesNotContain(BotOptionPayloadKeys.ConstructionLoginFill, result.Payload.Keys);
+    }
+
+    [Fact]
+    public void ResolveHumanizeToggleReset_PreservesQueueSlotWait()
+    {
+        var now = new DateTimeOffset(2026, 7, 17, 12, 0, 0, TimeSpan.Zero);
+        var item = new QueueItem
+        {
+            NextAttemptAt = now.AddSeconds(150),
+            Payload = new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonQueueFull,
+                [BotOptionPayloadKeys.QueueHumanizeExtraSeconds] = "50",
+            },
+        };
+
+        var result = ConstructionQueueState.ResolveHumanizeToggleReset(item, now);
+
+        Assert.True(result.Changed);
+        Assert.Equal(TimeSpan.FromSeconds(100), result.Delay);
+        Assert.Equal(BotOptionPayloadKeys.UpgradeDeferReasonQueueFull, result.Payload[BotOptionPayloadKeys.UpgradeDeferReason]);
+        Assert.DoesNotContain(BotOptionPayloadKeys.QueueHumanizeExtraSeconds, result.Payload.Keys);
+    }
+
+    [Fact]
+    public void ResolveHumanizeToggleReset_DoesNotReleaseResourceWait()
+    {
+        var now = new DateTimeOffset(2026, 7, 17, 12, 0, 0, TimeSpan.Zero);
+        var item = new QueueItem
+        {
+            NextAttemptAt = now.AddMinutes(5),
+            Payload = new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonResources,
+                [BotOptionPayloadKeys.ConstructionPreSleepFill] = "true",
+            },
+        };
+
+        var result = ConstructionQueueState.ResolveHumanizeToggleReset(item, now);
+
+        Assert.True(result.Changed);
+        Assert.Null(result.Delay);
+        Assert.Equal(BotOptionPayloadKeys.UpgradeDeferReasonResources, result.Payload[BotOptionPayloadKeys.UpgradeDeferReason]);
+        Assert.DoesNotContain(BotOptionPayloadKeys.ConstructionPreSleepFill, result.Payload.Keys);
     }
 
     private static VillageStatus CreateStatus(

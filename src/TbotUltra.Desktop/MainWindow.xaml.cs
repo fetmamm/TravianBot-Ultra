@@ -173,7 +173,10 @@ public partial class MainWindow : Window
     private bool _resourceProductionRefreshRunning;
     private bool _resourceProductionRefreshPending;
     private bool _resourceTransferScanRunning;
+    private readonly object _deferredConstructionRefreshSync = new();
     private bool _deferredConstructionRefreshRunning;
+    private VillageStatus? _pendingDeferredConstructionRefreshStatus;
+    private string? _pendingDeferredConstructionRefreshSource;
     private bool _deferredTroopTrainingRefreshRunning;
     private VillageStatus? _pendingDeferredTroopTrainingRefreshStatus;
     private string? _pendingDeferredTroopTrainingRefreshSource;

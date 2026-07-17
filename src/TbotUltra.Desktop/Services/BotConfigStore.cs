@@ -117,6 +117,7 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.ActionPacingIdleBrowsePageReports,
         BotOptionPayloadKeys.ActionPacingIdleBrowsePageMessages,
         BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled,
+        BotOptionPayloadKeys.ConstructionHumanizeStateVersion,
         BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMin,
         BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMax,
         BotOptionPayloadKeys.ConstructionHumanizeMaxDelayMinutes,

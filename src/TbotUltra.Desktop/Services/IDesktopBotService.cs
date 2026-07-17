@@ -23,6 +23,11 @@ public interface IDesktopBotService
     bool MarkQueueItemCanceled(Guid id);
     bool MarkQueueItemDeferred(Guid id, TimeSpan delay);
     bool UpdateDeferredQueueItem(Guid id, Dictionary<string, string>? payload, TimeSpan? delay = null);
+    bool PatchDeferredQueueItem(
+        Guid id,
+        IReadOnlyDictionary<string, string>? valuesToSet,
+        IReadOnlyCollection<string>? keysToRemove,
+        TimeSpan? delay = null);
     bool UpdatePendingQueueItem(Guid id, Dictionary<string, string>? payload, int? priority, TimeSpan? delay = null);
     bool MarkQueueItemExecutionFailed(Guid id);
     bool MarkQueueItemPermanentlyFailed(Guid id);

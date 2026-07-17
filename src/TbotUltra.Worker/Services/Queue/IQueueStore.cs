@@ -20,6 +20,11 @@ public interface IQueueStore
     bool MarkCanceled(Guid id);
     bool MarkDeferred(Guid id, TimeSpan delay);
     bool UpdateDeferred(Guid id, Dictionary<string, string>? payload, TimeSpan? delay = null);
+    bool PatchDeferred(
+        Guid id,
+        IReadOnlyDictionary<string, string>? valuesToSet,
+        IReadOnlyCollection<string>? keysToRemove,
+        TimeSpan? delay = null);
     bool UpdatePending(Guid id, Dictionary<string, string>? payload, int? priority, TimeSpan? delay = null);
     bool MarkExecutionFailed(Guid id);
     bool MarkPermanentlyFailed(Guid id);

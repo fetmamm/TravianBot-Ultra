@@ -34,6 +34,7 @@ public sealed class ConstructionPayloadApplierTests
             [BotOptionPayloadKeys.TargetLevel] = "3",
             [BotOptionPayloadKeys.UpgradeSelectorProfile] = "strict_green",
             [BotOptionPayloadKeys.ConstructionLoginFill] = "true",
+            [BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds] = "1784289600",
         };
 
         var result = BotOptionsPayloadApplier.Apply(new BotOptions(), payload);
@@ -62,5 +63,6 @@ public sealed class ConstructionPayloadApplierTests
         Assert.Equal(3, result.TargetLevel);
         Assert.Equal("strict_green", result.UpgradeSelectorProfile);
         Assert.True(result.ConstructionLoginFill);
+        Assert.Equal(1784289600, result.ConstructionLoginFillExpiresAtUnixSeconds);
     }
 }

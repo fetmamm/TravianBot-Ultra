@@ -25,7 +25,8 @@ internal sealed record ConstructionPayloadValues(
     int? TargetLevel,
     string UpgradeSelectorProfile,
     bool ConstructionPreSleepFill,
-    bool ConstructionLoginFill);
+    bool ConstructionLoginFill,
+    long? ConstructionLoginFillExpiresAtUnixSeconds);
 
 internal static class ConstructionPayloadApplier
 {
@@ -56,7 +57,8 @@ internal static class ConstructionPayloadApplier
             source.TargetLevel,
             source.UpgradeSelectorProfile,
             source.ConstructionPreSleepFill,
-            source.ConstructionLoginFill);
+            source.ConstructionLoginFill,
+            source.ConstructionLoginFillExpiresAtUnixSeconds);
 
         if (payload is null)
             return result;
@@ -118,6 +120,8 @@ internal static class ConstructionPayloadApplier
                 result = result with { ConstructionPreSleepFill = preSleepFill };
             else if (TryReadBool(key, value, BotOptionPayloadKeys.ConstructionLoginFill, out var loginFill))
                 result = result with { ConstructionLoginFill = loginFill };
+            else if (TryReadLong(key, value, BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds, out var loginFillExpiry))
+                result = result with { ConstructionLoginFillExpiresAtUnixSeconds = loginFillExpiry };
         }
 
         return result;
@@ -133,5 +137,11 @@ internal static class ConstructionPayloadApplier
     {
         parsed = false;
         return key.Equals(expected, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out parsed);
+    }
+
+    private static bool TryReadLong(string key, string value, string expected, out long parsed)
+    {
+        parsed = 0;
+        return key.Equals(expected, StringComparison.OrdinalIgnoreCase) && long.TryParse(value, out parsed);
     }
 }

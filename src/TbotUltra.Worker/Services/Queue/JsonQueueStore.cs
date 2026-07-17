@@ -370,6 +370,46 @@ public sealed class JsonQueueStore : IQueueStore
         });
     }
 
+    public bool PatchDeferred(
+        Guid id,
+        IReadOnlyDictionary<string, string>? valuesToSet,
+        IReadOnlyCollection<string>? keysToRemove,
+        TimeSpan? delay = null)
+    {
+        return Update(id, item =>
+        {
+            if (item.Status != QueueStatus.Pending)
+            {
+                return false;
+            }
+
+            if (keysToRemove is not null)
+            {
+                foreach (var key in keysToRemove)
+                {
+                    item.Payload.Remove(key);
+                }
+            }
+
+            if (valuesToSet is not null)
+            {
+                foreach (var pair in valuesToSet)
+                {
+                    item.Payload[pair.Key] = pair.Value;
+                }
+            }
+
+            if (delay.HasValue)
+            {
+                var effectiveDelay = delay.Value < TimeSpan.Zero ? TimeSpan.Zero : delay.Value;
+                item.NextAttemptAt = DateTimeOffset.UtcNow.Add(effectiveDelay);
+            }
+
+            item.UpdatedAt = DateTimeOffset.UtcNow;
+            return true;
+        });
+    }
+
     public bool UpdatePending(Guid id, Dictionary<string, string>? payload, int? priority, TimeSpan? delay = null)
     {
         return Update(id, item =>

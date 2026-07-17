@@ -313,6 +313,7 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken,
         bool allowNavigationToBuildings = true)
     {
+        SynchronizeConstructionHumanizeState();
         var (tribe, plusActive) = await GetCachedTribeAndPlusAsync(cancellationToken);
         if (!TbotUltra.Core.Travian.TroopCatalog.IsKnownTribe(tribe))
         {
@@ -456,6 +457,7 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken,
         bool allowNavigationToBuildings = true)
     {
+        SynchronizeConstructionHumanizeState();
         if (!_config.ConstructionHumanizeDelayEnabled)
         {
             return null;
@@ -561,6 +563,7 @@ public sealed partial class TravianClient
         int slotId,
         CancellationToken cancellationToken)
     {
+        SynchronizeConstructionHumanizeState();
         if (!_config.ConstructionHumanizeDelayEnabled)
         {
             return (false, null);
@@ -568,7 +571,11 @@ public sealed partial class TravianClient
 
         var villageToken = await ResolveConstructionHumanizeVillageTokenAsync(cancellationToken);
         var slotKey = $"{villageToken}:{kind}:{slotId}";
-        if (_config.ConstructionPreSleepFill || _config.ConstructionLoginFill)
+        var loginFillActive = ConstructionLoginFillPolicy.IsActive(
+            _config.ConstructionLoginFill,
+            _config.ConstructionLoginFillExpiresAtUnixSeconds,
+            DateTimeOffset.UtcNow);
+        if (_config.ConstructionPreSleepFill || loginFillActive)
         {
             _session.ConstructionHumanizeUntilBySlot.Remove(slotKey);
             var fillReason = _config.ConstructionPreSleepFill ? "pre-sleep fill" : "login fill";
@@ -592,6 +599,14 @@ public sealed partial class TravianClient
 
         Notify($"[construction-humanize] slot {slotId}: {remainingWait}s left before start; overview read skipped. queue_wait_seconds={remainingWait}");
         return (true, $"Slot {slotId}: humanized construction start delay. queue_wait_seconds={remainingWait}");
+    }
+
+    private void SynchronizeConstructionHumanizeState()
+    {
+        if (_session.SynchronizeConstructionHumanizeState(_config.ConstructionHumanizeStateVersion))
+        {
+            Notify($"[construction-humanize] synchronized state version {_config.ConstructionHumanizeStateVersion}; stale session waits cleared.");
+        }
     }
 
     // Key for the per-village humanize transition memory. Non-Romans share one build slot for fields

@@ -34,6 +34,11 @@ public sealed record ConstructionQueueSnapshot(
     int ActiveCount,
     int? RemainingSeconds);
 
+public sealed record ConstructionHumanizeToggleReset(
+    Dictionary<string, string> Payload,
+    TimeSpan? Delay,
+    bool Changed);
+
 public static class ConstructionQueueState
 {
     public const string CurrentDeferClassificationVersion = "3";
@@ -89,7 +94,8 @@ public static class ConstructionQueueState
         return string.Equals(taskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
             || string.Equals(taskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase)
             || string.Equals(taskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase);
+            || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(taskName, "construct_building", StringComparison.OrdinalIgnoreCase);
     }
 
     public static bool IsConstructionStorageCapacityDeferMessage(string? message)
@@ -152,7 +158,35 @@ public static class ConstructionQueueState
             return true;
         }
 
-        return IsQueueOccupancyDeferred(item) && ResolveQueueHumanizeExtraSeconds(item) > 0;
+        return IsQueueOccupancyDeferred(item);
+    }
+
+    public static ConstructionHumanizeToggleReset ResolveHumanizeToggleReset(
+        QueueItem item,
+        DateTimeOffset now)
+    {
+        var payload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase);
+        var changed = payload.Remove(BotOptionPayloadKeys.ConstructionLoginFill);
+        changed |= payload.Remove(BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds);
+        changed |= payload.Remove(BotOptionPayloadKeys.ConstructionPreSleepFill);
+
+        var extraSeconds = ResolveQueueHumanizeExtraSeconds(item);
+        changed |= payload.Remove(BotOptionPayloadKeys.QueueHumanizeExtraSeconds);
+
+        TimeSpan? delay = null;
+        if (IsConstructionHumanizeDeferred(item))
+        {
+            changed |= payload.Remove(BotOptionPayloadKeys.UpgradeDeferReason);
+            changed |= payload.Remove(BotOptionPayloadKeys.UpgradeDeferClassificationVersion);
+            delay = TimeSpan.Zero;
+        }
+        else if (extraSeconds > 0)
+        {
+            var remaining = Math.Max(0, (item.NextAttemptAt - now).TotalSeconds);
+            delay = TimeSpan.FromSeconds(Math.Max(0, remaining - extraSeconds));
+        }
+
+        return new ConstructionHumanizeToggleReset(payload, delay, changed);
     }
 
     public static bool BlocksAdditionalConstruction(QueueItem queueOccupancyDeferredItem)

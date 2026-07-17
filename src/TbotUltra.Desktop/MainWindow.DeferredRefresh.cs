@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 
@@ -73,12 +74,23 @@ public partial class MainWindow
 
     private void TriggerDeferredConstructionWaitRefresh(VillageStatus status, string source)
     {
-        if (_deferredConstructionRefreshRunning)
+        lock (_deferredConstructionRefreshSync)
         {
-            return;
+            if (_deferredConstructionRefreshRunning)
+            {
+                _pendingDeferredConstructionRefreshStatus = status;
+                _pendingDeferredConstructionRefreshSource = source;
+                return;
+            }
+
+            _deferredConstructionRefreshRunning = true;
         }
 
-        _deferredConstructionRefreshRunning = true;
+        RunDeferredConstructionWaitRefresh(status, source);
+    }
+
+    private void RunDeferredConstructionWaitRefresh(VillageStatus status, string source)
+    {
         _backgroundTasks.Run(async cancellationToken =>
         {
             try
@@ -95,7 +107,26 @@ public partial class MainWindow
             }
             finally
             {
-                _deferredConstructionRefreshRunning = false;
+                VillageStatus? pendingStatus;
+                string pendingSource;
+                lock (_deferredConstructionRefreshSync)
+                {
+                    pendingStatus = cancellationToken.IsCancellationRequested
+                        ? null
+                        : _pendingDeferredConstructionRefreshStatus;
+                    pendingSource = _pendingDeferredConstructionRefreshSource ?? "pending_refresh";
+                    _pendingDeferredConstructionRefreshStatus = null;
+                    _pendingDeferredConstructionRefreshSource = null;
+                    if (pendingStatus is null)
+                    {
+                        _deferredConstructionRefreshRunning = false;
+                    }
+                }
+
+                if (pendingStatus is not null)
+                {
+                    RunDeferredConstructionWaitRefresh(pendingStatus, pendingSource);
+                }
             }
         });
     }
@@ -108,22 +139,24 @@ public partial class MainWindow
         // belong to ONE village, so judging another village's deferred upgrade against them is wrong and
         // caused other villages' construction timers to briefly flash "Ready" (reset) then re-defer.
         var statusVillage = NormalizeVillageName(status.ActiveVillage);
+        var statusVillageKey = ResolveStatusVillageKey(status);
+        if (statusVillageKey is null)
+        {
+            AppendLog($"[construction-queue:verbose] skipped deferred refresh because village identity was ambiguous (name='{statusVillage ?? "-"}', source='{source}').");
+            return;
+        }
+
         var deferredItems = _botService
             .GetQueueItemsForDisplay()
             .Where(item => item.Status == QueueStatus.Pending)
             .Where(item => IsConstructionQueueTask(item.TaskName))
-            .Where(item => statusVillage is null
-                || NormalizeVillageName(GetQueueItemVillageName(item)) is not string itemVillage
-                || string.Equals(itemVillage, statusVillage, StringComparison.OrdinalIgnoreCase))
+            .Where(item => string.Equals(GetQueueItemVillageKey(item), statusVillageKey, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
-        ClearConstructionLoginFillForFullSlots(status, statusVillage, deferredItems, source);
+        ClearConstructionLoginFillForFullSlots(status, statusVillageKey, deferredItems, source);
 
         var queueFullItems = deferredItems
             .Where(ConstructionQueueState.IsQueueOccupancyDeferred)
-            .Where(item => statusVillage is not null
-                && NormalizeVillageName(GetQueueItemVillageName(item)) is string itemVillage
-                && string.Equals(itemVillage, statusVillage, StringComparison.OrdinalIgnoreCase))
             .ToList();
         var constructionSnapshot = ConstructionQueueState.ResolveSnapshot(status);
         if (queueFullItems.Count > 0)
@@ -133,7 +166,7 @@ public partial class MainWindow
                 ConstructionQueueState.ResolveQueueFullRetryDelay(status, _travianPlusActive, item, now) == TimeSpan.Zero);
             if (releasableItem is not null)
             {
-                if (_botService.UpdateDeferredQueueItem(releasableItem.Id, releasableItem.Payload, TimeSpan.Zero))
+                if (_botService.PatchDeferredQueueItem(releasableItem.Id, null, null, TimeSpan.Zero))
                 {
                     AppendLog(
                         $"[construction-queue:verbose] live status released queue-full blocker " +
@@ -167,7 +200,7 @@ public partial class MainWindow
                         continue;
                     }
 
-                    if (_botService.UpdateDeferredQueueItem(item.Id, item.Payload, queueFullDelay.Value))
+                    if (_botService.PatchDeferredQueueItem(item.Id, null, null, queueFullDelay.Value))
                     {
                         updatedCount++;
                         largestAdjustmentSeconds = Math.Max(largestAdjustmentSeconds, adjustmentSeconds);
@@ -192,7 +225,7 @@ public partial class MainWindow
                 var block = ResolveStorageCapacityBlock(item.Payload, status, preferLiveStatus: true)
                     ?? ResolveExplicitStorageCapacityBlock(item.Payload, status);
                 if (block is null
-                    && _botService.UpdateDeferredQueueItem(item.Id, item.Payload, TimeSpan.Zero))
+                    && _botService.PatchDeferredQueueItem(item.Id, null, null, TimeSpan.Zero))
                 {
                     AppendLog(
                         $"Deferred upgrade resumed from {source}: storage capacity now satisfies {DescribeDeferredUpgrade(item.Payload)}.");
@@ -220,7 +253,7 @@ public partial class MainWindow
                 // reclassifies as storage_capacity (different reason), so this cannot spin in a retry loop.
                 if (IsVillageResourcesFull(status, currentResources)
                     && (item.NextAttemptAt - DateTimeOffset.UtcNow) > TimeSpan.FromSeconds(5)
-                    && _botService.UpdateDeferredQueueItem(item.Id, item.Payload, TimeSpan.Zero))
+                    && _botService.PatchDeferredQueueItem(item.Id, null, null, TimeSpan.Zero))
                 {
                     AppendLog(
                         $"Deferred upgrade resumed from {source}: {DescribeDeferredUpgrade(item.Payload)} — "
@@ -242,7 +275,7 @@ public partial class MainWindow
                     continue;
                 }
 
-                var changed = _botService.UpdateDeferredQueueItem(item.Id, updatedPayload, TimeSpan.Zero);
+                var changed = PatchDeferredQueuePayload(item, updatedPayload, TimeSpan.Zero);
                 if (changed)
                 {
                     AppendLog($"Deferred upgrade resumed from {source}: {DescribeDeferredUpgrade(item.Payload)} now has enough resources.");
@@ -256,7 +289,7 @@ public partial class MainWindow
             }
 
             var delay = TimeSpan.FromSeconds(evaluation.WaitSeconds);
-            var updated = _botService.UpdateDeferredQueueItem(item.Id, updatedPayload, delay);
+            var updated = PatchDeferredQueuePayload(item, updatedPayload, delay);
             if (updated)
             {
                 AppendLog($"Deferred upgrade wait updated from {source}: {DescribeDeferredUpgrade(item.Payload)} wait={evaluation.WaitSeconds}s reason={evaluation.WaitReason}.");
@@ -280,7 +313,7 @@ public partial class MainWindow
         var resetCount = 0;
         foreach (var item in items)
         {
-            if (_botService.UpdateDeferredQueueItem(item.Id, item.Payload, TimeSpan.Zero))
+            if (_botService.PatchDeferredQueueItem(item.Id, null, null, TimeSpan.Zero))
             {
                 resetCount++;
             }
@@ -294,20 +327,53 @@ public partial class MainWindow
         RefreshQueueUi();
     }
 
-    // A fresh login represents a new player visit. Ready construction rows, plus rows whose only
-    // remaining wait is construction humanization, get one attempt to fill available Travian slots
-    // immediately. Resource, prerequisite and storage waits keep their authoritative deadlines.
+    // A fresh login represents a new player visit. Ready, queue-full and humanize-waiting rows get
+    // one attempt to fill available Travian slots immediately. Resource, prerequisite and storage
+    // waits keep their authoritative deadlines.
     private void PrepareConstructionLoginFill()
     {
         var now = DateTimeOffset.UtcNow;
+        if (!LoadBotOptions().ConstructionHumanizeDelayEnabled)
+        {
+            ApplyConstructionHumanizeToggleTransition(enabled: false);
+            var released = 0;
+            foreach (var item in _botService.GetQueueItemsForDisplay()
+                         .Where(item => item.Status == QueueStatus.Pending)
+                         .Where(item => IsConstructionQueueTask(item.TaskName))
+                         .Where(IsQueueItemAllowedByAutomationSettings)
+                         .Where(ConstructionQueueState.IsQueueOccupancyDeferred))
+            {
+                if (_botService.PatchDeferredQueueItem(
+                        item.Id,
+                        null,
+                        [
+                            BotOptionPayloadKeys.ConstructionLoginFill,
+                            BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds,
+                        ],
+                        TimeSpan.Zero))
+                {
+                    released++;
+                }
+            }
+
+            if (released > 0)
+            {
+                AppendLog($"[construction-login-fill] released {released} stale queue-full row(s) for immediate live validation while humanization is disabled.");
+                Interlocked.Exchange(ref _continuousLoopWakeRequested, 1);
+                RefreshQueueUi();
+            }
+            return;
+        }
+
         var prepared = 0;
+        var expiresAt = now.AddMinutes(PacingDefaults.ConstructionLoginFillWindowMinutes).ToUnixTimeSeconds();
         foreach (var item in _botService.GetQueueItemsForDisplay()
                      .Where(item => item.Status == QueueStatus.Pending)
-                     .Where(item => IsConstructionQueueTask(item.TaskName)))
+                     .Where(item => IsConstructionQueueTask(item.TaskName))
+                     .Where(IsQueueItemAllowedByAutomationSettings))
         {
             var isHumanizeWait = ConstructionQueueState.IsConstructionHumanizeDeferred(item);
-            var hasQueueHumanize = ConstructionQueueState.IsQueueOccupancyDeferred(item)
-                && ConstructionQueueState.ResolveQueueHumanizeExtraSeconds(item) > 0;
+            var isQueueWait = ConstructionQueueState.IsQueueOccupancyDeferred(item);
             if (!ConstructionQueueState.ShouldPrepareLoginFill(item, now))
             {
                 continue;
@@ -316,13 +382,23 @@ public partial class MainWindow
             var payload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase)
             {
                 [BotOptionPayloadKeys.ConstructionLoginFill] = "true",
+                [BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds] = expiresAt.ToString(),
             };
             payload.Remove(BotOptionPayloadKeys.ConstructionPreSleepFill);
             payload.Remove(BotOptionPayloadKeys.QueueHumanizeExtraSeconds);
 
-            var updated = isHumanizeWait || hasQueueHumanize
-                ? _botService.UpdateDeferredQueueItem(item.Id, payload, TimeSpan.Zero)
-                : _botService.UpdateDeferredQueueItem(item.Id, payload);
+            var valuesToSet = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [BotOptionPayloadKeys.ConstructionLoginFill] = "true",
+                [BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds] = expiresAt.ToString(),
+            };
+            string[] keysToRemove =
+            [
+                BotOptionPayloadKeys.ConstructionPreSleepFill,
+                BotOptionPayloadKeys.QueueHumanizeExtraSeconds,
+            ];
+            var delay = isHumanizeWait || isQueueWait ? TimeSpan.Zero : (TimeSpan?)null;
+            var updated = _botService.PatchDeferredQueueItem(item.Id, valuesToSet, keysToRemove, delay);
             if (!updated)
             {
                 AppendLog($"[construction-login-fill] could not prepare id={item.Id} task='{item.TaskName}'.");
@@ -345,7 +421,7 @@ public partial class MainWindow
     // category. Removing the flag here ensures the next online timer completion is humanized normally.
     private void ClearConstructionLoginFillForFullSlots(
         VillageStatus status,
-        string? statusVillage,
+        string? statusVillageKey,
         IEnumerable<QueueItem>? candidates = null,
         string source = "live status")
     {
@@ -355,9 +431,8 @@ public partial class MainWindow
             .Where(item => IsConstructionQueueTask(item.TaskName));
         foreach (var item in items
                      .Where(item => item.Payload.ContainsKey(BotOptionPayloadKeys.ConstructionLoginFill))
-                     .Where(item => statusVillage is null
-                         || NormalizeVillageName(GetQueueItemVillageName(item)) is not string itemVillage
-                         || string.Equals(itemVillage, statusVillage, StringComparison.OrdinalIgnoreCase)))
+                     .Where(item => statusVillageKey is not null
+                         && string.Equals(GetQueueItemVillageKey(item), statusVillageKey, StringComparison.OrdinalIgnoreCase)))
         {
             if (ConstructionQueueState.ResolveAvailabilityForItem(status, _travianPlusActive, item)
                 != ConstructionQueueAvailability.Full)
@@ -367,7 +442,14 @@ public partial class MainWindow
 
             var payload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase);
             payload.Remove(BotOptionPayloadKeys.ConstructionLoginFill);
-            if (_botService.UpdateDeferredQueueItem(item.Id, payload))
+            payload.Remove(BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds);
+            if (_botService.PatchDeferredQueueItem(
+                    item.Id,
+                    null,
+                    [
+                        BotOptionPayloadKeys.ConstructionLoginFill,
+                        BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds,
+                    ]))
             {
                 item.Payload = payload;
                 cleared++;
@@ -378,6 +460,34 @@ public partial class MainWindow
         {
             AppendLog($"[construction-login-fill] completed for {cleared} row(s): live construction category is full (source='{source}').");
         }
+    }
+
+    private string? ResolveStatusVillageKey(VillageStatus status)
+    {
+        var activeName = NormalizeVillageName(status.ActiveVillage);
+        if (activeName is null)
+        {
+            return null;
+        }
+
+        var statusMatches = status.Villages
+            .Where(village => string.Equals(NormalizeVillageName(village.Name), activeName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (statusMatches.Count == 1)
+        {
+            var village = statusMatches[0];
+            var key = GetVillageKey(village.Url, village.CoordX, village.CoordY, village.Name);
+            return _villageSettingsStore.ResolveCanonicalKey(key);
+        }
+
+        var displayedVillages = (DashboardVillageList.ItemsSource as IEnumerable<VillageSelectionItem>)
+            ?? (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>);
+        var displayedMatches = displayedVillages?
+            .Where(village => string.Equals(NormalizeVillageName(village.Name), activeName, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        return displayedMatches?.Count == 1
+            ? _villageSettingsStore.ResolveCanonicalKey(GetVillageKey(displayedMatches[0]))
+            : null;
     }
 
     private void ResetConstructionBuildQueueTimerForManualRefresh()

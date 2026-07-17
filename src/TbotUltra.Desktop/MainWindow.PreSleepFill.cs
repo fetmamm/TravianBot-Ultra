@@ -101,7 +101,14 @@ public partial class MainWindow
                 [BotOptionPayloadKeys.ConstructionPreSleepFill] = "true",
             };
 
-            if (!_botService.UpdateDeferredQueueItem(item.Id, payload, delay))
+            if (!_botService.PatchDeferredQueueItem(
+                    item.Id,
+                    new Dictionary<string, string>
+                    {
+                        [BotOptionPayloadKeys.ConstructionPreSleepFill] = "true",
+                    },
+                    null,
+                    delay))
             {
                 AppendLog($"[pre-sleep-fill] could not reschedule id={item.Id} task='{item.TaskName}'.");
                 continue;
@@ -152,7 +159,14 @@ public partial class MainWindow
         {
             [BotOptionPayloadKeys.ConstructionPreSleepFill] = "true",
         };
-        if (!_botService.UpdateDeferredQueueItem(item.Id, payload, TimeSpan.Zero))
+        if (!_botService.PatchDeferredQueueItem(
+                item.Id,
+                new Dictionary<string, string>
+                {
+                    [BotOptionPayloadKeys.ConstructionPreSleepFill] = "true",
+                },
+                null,
+                TimeSpan.Zero))
         {
             AppendLog($"[pre-sleep-fill] could not mark due item id={item.Id} task='{item.TaskName}'.");
             return;

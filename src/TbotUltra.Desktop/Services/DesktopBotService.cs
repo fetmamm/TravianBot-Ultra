@@ -49,6 +49,11 @@ public sealed class DesktopBotService : IDesktopBotService
     public bool MarkQueueItemCanceled(Guid id) => _queueStore.MarkCanceled(id);
     public bool MarkQueueItemDeferred(Guid id, TimeSpan delay) => _queueStore.MarkDeferred(id, delay);
     public bool UpdateDeferredQueueItem(Guid id, Dictionary<string, string>? payload, TimeSpan? delay = null) => _queueStore.UpdateDeferred(id, payload, delay);
+    public bool PatchDeferredQueueItem(
+        Guid id,
+        IReadOnlyDictionary<string, string>? valuesToSet,
+        IReadOnlyCollection<string>? keysToRemove,
+        TimeSpan? delay = null) => _queueStore.PatchDeferred(id, valuesToSet, keysToRemove, delay);
     public bool UpdatePendingQueueItem(Guid id, Dictionary<string, string>? payload, int? priority, TimeSpan? delay = null) => _queueStore.UpdatePending(id, payload, priority, delay);
     public bool MarkQueueItemExecutionFailed(Guid id) => _queueStore.MarkExecutionFailed(id);
     public bool MarkQueueItemPermanentlyFailed(Guid id) => _queueStore.MarkPermanentlyFailed(id);

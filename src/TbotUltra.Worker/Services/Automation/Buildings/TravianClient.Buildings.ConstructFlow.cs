@@ -54,6 +54,15 @@ public sealed partial class TravianClient : IBuildingClient
                 return WithEffectiveSlot(deferMessage);
             }
 
+            var humanizeDefer = await MaybeGetConstructionHumanizeDeferAsync(
+                ConstructionKind.Building,
+                slotId,
+                cancellationToken);
+            if (humanizeDefer is not null)
+            {
+                return WithEffectiveSlot(humanizeDefer);
+            }
+
             // Step 1: open the slot's construction page on the right category tab so the building's
             // wrapper actually exists in the DOM. Walls (slot 40) ignore category — only one option.
             var url = Paths.BuildBySlot(slotId);

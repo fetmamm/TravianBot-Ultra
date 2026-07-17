@@ -125,6 +125,9 @@ public partial class MainWindow
                     ConstructionQueueState.CurrentDeferClassificationVersion,
             };
             payload.Remove(BotOptionPayloadKeys.RequirementDeferCount);
+            payload.Remove(BotOptionPayloadKeys.ConstructionPreSleepFill);
+            payload.Remove(BotOptionPayloadKeys.ConstructionLoginFill);
+            payload.Remove(BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds);
 
             if (!_botService.MarkQueueItemDeferred(item.Id, delay))
             {
@@ -134,7 +137,19 @@ public partial class MainWindow
                 return false;
             }
 
-            if (_botService.UpdateDeferredQueueItem(item.Id, payload))
+            if (_botService.PatchDeferredQueueItem(
+                    item.Id,
+                    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonRequirements,
+                        [BotOptionPayloadKeys.UpgradeDeferClassificationVersion] = ConstructionQueueState.CurrentDeferClassificationVersion,
+                    },
+                    [
+                        BotOptionPayloadKeys.RequirementDeferCount,
+                        BotOptionPayloadKeys.ConstructionPreSleepFill,
+                        BotOptionPayloadKeys.ConstructionLoginFill,
+                        BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds,
+                    ]))
             {
                 item.Payload = payload;
             }
@@ -269,6 +284,9 @@ public partial class MainWindow
                 ConstructionQueueState.CurrentDeferClassificationVersion,
         };
         parentPayload.Remove(BotOptionPayloadKeys.RequirementDeferCount);
+        parentPayload.Remove(BotOptionPayloadKeys.ConstructionPreSleepFill);
+        parentPayload.Remove(BotOptionPayloadKeys.ConstructionLoginFill);
+        parentPayload.Remove(BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds);
 
         var parentDelay = guardResult.Delay ?? TimeSpan.FromSeconds(60);
         if (!_botService.MarkQueueItemDeferred(item.Id, parentDelay))
@@ -279,7 +297,19 @@ public partial class MainWindow
             return false;
         }
 
-        if (_botService.UpdateDeferredQueueItem(item.Id, parentPayload))
+        if (_botService.PatchDeferredQueueItem(
+                item.Id,
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonRequirements,
+                    [BotOptionPayloadKeys.UpgradeDeferClassificationVersion] = ConstructionQueueState.CurrentDeferClassificationVersion,
+                },
+                [
+                    BotOptionPayloadKeys.RequirementDeferCount,
+                    BotOptionPayloadKeys.ConstructionPreSleepFill,
+                    BotOptionPayloadKeys.ConstructionLoginFill,
+                    BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds,
+                ]))
         {
             item.Payload = parentPayload;
         }
@@ -456,7 +486,7 @@ public partial class MainWindow
 
         ClearConstructionLoginFillForFullSlots(
             status,
-            NormalizeVillageName(GetQueueItemVillageName(item)) ?? NormalizeVillageName(status.ActiveVillage),
+            GetQueueItemVillageKey(item),
             source: "construction preflight");
 
         var now = DateTimeOffset.UtcNow;
@@ -470,6 +500,7 @@ public partial class MainWindow
         };
         payload.Remove(BotOptionPayloadKeys.RequirementDeferCount);
         payload.Remove(BotOptionPayloadKeys.ConstructionLoginFill);
+        payload.Remove(BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds);
 
         if (!_botService.MarkQueueItemDeferred(item.Id, delay))
         {
@@ -479,7 +510,19 @@ public partial class MainWindow
             return false;
         }
 
-        if (_botService.UpdateDeferredQueueItem(item.Id, payload, delay))
+        if (_botService.PatchDeferredQueueItem(
+                item.Id,
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonQueueFull,
+                    [BotOptionPayloadKeys.UpgradeDeferClassificationVersion] = ConstructionQueueState.CurrentDeferClassificationVersion,
+                },
+                [
+                    BotOptionPayloadKeys.RequirementDeferCount,
+                    BotOptionPayloadKeys.ConstructionLoginFill,
+                    BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds,
+                ],
+                delay))
         {
             item.Payload = payload;
         }
@@ -884,6 +927,7 @@ public partial class MainWindow
                     // Login fill lasts only while starts can make progress. Any defer ends the burst;
                     // later retries use the normal online-completion humanize rules.
                     updatedPayload.Remove(BotOptionPayloadKeys.ConstructionLoginFill);
+                    updatedPayload.Remove(BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds);
 
                     // Safety net for an unsatisfiable requirement. Requirement defers don't consume Retries
                     // (the prerequisite could still arrive), so without a bound a construct whose prerequisite
@@ -907,7 +951,7 @@ public partial class MainWindow
                         if (requirementDeferCount >= MaxConsecutiveRequirementDefers
                             && !ConstructHasQueuedOrActivePrerequisite(item, DateTimeOffset.UtcNow))
                         {
-                            var payloadPersisted = _botService.UpdateDeferredQueueItem(item.Id, updatedPayload);
+                            var payloadPersisted = PatchDeferredQueuePayload(item, updatedPayload);
                             item.Payload = updatedPayload;
                             if (!payloadPersisted)
                             {
@@ -973,7 +1017,7 @@ public partial class MainWindow
 
                 if (payloadChanged)
                 {
-                    var payloadPersisted = _botService.UpdateDeferredQueueItem(item.Id, updatedPayload);
+                    var payloadPersisted = PatchDeferredQueuePayload(item, updatedPayload);
                     item.Payload = updatedPayload;
                     if (IsConstructionQueueTask(item.TaskName) && !payloadPersisted)
                     {
@@ -1060,6 +1104,17 @@ public partial class MainWindow
         AppendLog(FormatQueueFailureLog(logPrefix, timer, item, ex, mode));
         RaiseAlarmIfQueueItemPermanentlyFailed(item, ex.Message);
         return true;
+    }
+
+    private bool PatchDeferredQueuePayload(
+        QueueItem item,
+        Dictionary<string, string> updatedPayload,
+        TimeSpan? delay = null)
+    {
+        var keysToRemove = item.Payload.Keys
+            .Where(key => !updatedPayload.ContainsKey(key))
+            .ToArray();
+        return _botService.PatchDeferredQueueItem(item.Id, updatedPayload, keysToRemove, delay);
     }
 
     private static string FormatQueueSuccessLog(string logPrefix, Stopwatch timer, QueueItem item, QueueExecutionMode mode)

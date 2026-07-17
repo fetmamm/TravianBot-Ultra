@@ -166,6 +166,7 @@ Common endpoints:
 - Busy overlays must expose the red Cancel button when the operation supports cancellation.
 - Disable duplicate action buttons while a command runs and restore them in `finally`.
 - Marshal observable UI collections through the dispatcher.
+- Keep `DataGrid.RowHeight` unset (or use `Double.NaN`) for automatic sizing; the string `Auto` is not a valid WPF `Double` value.
 - Use immutable/snapshot enumeration when sanitizing or exporting mutable collections.
 - Village settings Overview is read-only and must use the existing per-village cache, absolute timer
   snapshots, and queue snapshot; opening it must never navigate the browser or trigger a server scan.
@@ -291,6 +292,9 @@ Common endpoints:
 - The shared village-list/sidebar cache lives for one minute; active-village rename reconciliation remains immediate and coordinate-based. Do not shorten the list TTL to the dashboard tick interval.
 - Continuous-loop keep-alive yields when pending work will run within 60 seconds; that task's normal page read/navigation is the freshness action. Overdue-but-blocked work does not suppress keep-alive indefinitely.
 - A humanize-gated construction item naturally due inside the pre-sleep runway receives its one-shot pre-sleep flag before its first worker execution. Queue capacity is still checked live; this prevents a dry overview visit followed by an immediate sweep-triggered rerun.
+- Toggling construction humanization changes a persisted state generation. Worker session deadlines/transition memory from an older generation must be cleared, while queue cleanup removes only the humanized portion of a combined slot wait.
+- Post-login construction fill is a short-lived, expiring per-item override for enabled automation only. Scope live-status cleanup by stable village key, and patch pending payload keys atomically instead of replacing stale payload snapshots.
+- Deferred construction refreshes are single-flight with latest-status coalescing: a status received during an active refresh must run immediately afterward rather than being dropped.
 - For resource-blocked building upgrades, capture the exact wait snapshot before the defensive `dorf2` queue probe. If NPC trade cannot run, finish the defer on `dorf2` without restoring the build page; retain restoration when an actionable NPC attempt still needs that page.
 - Isolated adventure-video flows check bonus state in the disposable browser. They must not preload the same page in the main browser or force the main browser to `dorf1`; the following hero action reuses its current/adventures page.
 - `hero_manage` treats the global hero widget's away state as authoritative before hero-page navigation. Use a visible return timer when available; otherwise defer five minutes without opening adventures only to reconfirm away state.

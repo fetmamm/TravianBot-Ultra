@@ -391,6 +391,9 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled)]
     public bool ConstructionHumanizeDelayEnabled { get; init; } = PacingDefaults.ConstructionHumanizeDelayEnabled;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionHumanizeStateVersion)]
+    public int ConstructionHumanizeStateVersion { get; init; }
+
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMin)]
     public double ConstructionHumanizeQueuePercentMin { get; init; } = PacingDefaults.ConstructionHumanizeQueuePercentMin;
 
@@ -413,6 +416,9 @@ public sealed class BotOptions
     // Per-queue-item flag set after login; never stored in bot.json.
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionLoginFill)]
     public bool ConstructionLoginFill { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds)]
+    public long? ConstructionLoginFillExpiresAtUnixSeconds { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TargetVillageName)]
     public string TargetVillageName { get; init; } = string.Empty;

@@ -59,6 +59,23 @@ public sealed class TravianSessionCache
     // would defer forever). Survives per-operation TravianClient instances like the other caches.
     public System.Collections.Generic.Dictionary<string, System.DateTimeOffset> ConstructionHumanizeUntilBySlot { get; } = new();
 
+    /// <summary>The persisted humanize generation currently represented by the two caches above.</summary>
+    public int? ConstructionHumanizeStateVersion { get; private set; }
+
+    /// <summary>Clears construction pacing memory when the user toggles humanization off or on.</summary>
+    public bool SynchronizeConstructionHumanizeState(int stateVersion)
+    {
+        if (ConstructionHumanizeStateVersion == stateVersion)
+        {
+            return false;
+        }
+
+        ConstructionOngoingByKey.Clear();
+        ConstructionHumanizeUntilBySlot.Clear();
+        ConstructionHumanizeStateVersion = stateVersion;
+        return true;
+    }
+
     // Last value logged per key, so repeated per-tick status echoes (population, adventure counts,
     // language, …) are only re-logged when the value actually changes instead of every refresh.
     private readonly System.Collections.Generic.Dictionary<string, string> _lastLoggedValueByKey = new();
