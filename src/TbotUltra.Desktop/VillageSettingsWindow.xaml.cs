@@ -203,27 +203,29 @@ public partial class VillageSettingsWindow : Window
     }
 
     // Builds the per-village overview columns in code so every status cell shares one color-coded template
-    // (OverviewStatusText: Ready green / Waiting amber / Disabled muted). Widths are tuned for the compact
-    // layout left after the population column and absolute finish times were removed.
+    // (OverviewStatusText: Ready green / Waiting amber / Disabled muted). Columns auto-size to their content
+    // so idle "Disabled" columns stay narrow, capped by a per-column max so a long active line wraps instead
+    // of stretching the whole grid.
     private void BuildOverviewColumns()
     {
-        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Village", 130, nameof(VillageOverviewRow.Village), colorize: false));
-        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Next task", 200, nameof(VillageOverviewRow.NextTask)));
-        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Construction", 210, nameof(VillageOverviewRow.Construction)));
-        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Smithy", 200, nameof(VillageOverviewRow.Smithy)));
-        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Build troops", 150, nameof(VillageOverviewRow.BuildTroops)));
-        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Farming", 150, nameof(VillageOverviewRow.Farming)));
-        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Hero", 140, nameof(VillageOverviewRow.Hero)));
-        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Town Hall", 150, nameof(VillageOverviewRow.TownHall)));
-        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Brewery", 140, nameof(VillageOverviewRow.Brewery)));
-        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Resource transfer", 160, nameof(VillageOverviewRow.ResourceTransfer)));
-        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Reinforcements", 150, nameof(VillageOverviewRow.Reinforcements)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Village", 170, nameof(VillageOverviewRow.Village), colorize: false));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Next task", 240, nameof(VillageOverviewRow.NextTask)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Construction", 220, nameof(VillageOverviewRow.Construction)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Smithy", 220, nameof(VillageOverviewRow.Smithy)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Build troops", 180, nameof(VillageOverviewRow.BuildTroops)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Farming", 220, nameof(VillageOverviewRow.Farming)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Hero", 170, nameof(VillageOverviewRow.Hero)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Town Hall", 170, nameof(VillageOverviewRow.TownHall)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Brewery", 170, nameof(VillageOverviewRow.Brewery)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Resource transfer", 190, nameof(VillageOverviewRow.ResourceTransfer)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Reinforcements", 190, nameof(VillageOverviewRow.Reinforcements)));
     }
 
     // A single overview cell: a wrapping TextBlock whose status text is color-coded per line via the
-    // OverviewStatusText attached property. The Village name column binds plain Text (colorize: false) so a
-    // village name never gets mistaken for a status keyword.
-    private static DataGridTemplateColumn BuildOverviewColumn(string header, double width, string bindingPath, bool colorize = true)
+    // OverviewStatusText attached property. The column auto-sizes to content up to maxWidth (then the text
+    // wraps). The Village name column binds plain Text (colorize: false) so a village name is never mistaken
+    // for a status keyword.
+    private static DataGridTemplateColumn BuildOverviewColumn(string header, double maxWidth, string bindingPath, bool colorize = true)
     {
         var text = new FrameworkElementFactory(typeof(TextBlock));
         text.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
@@ -234,7 +236,9 @@ public partial class VillageSettingsWindow : Window
         return new DataGridTemplateColumn
         {
             Header = header,
-            Width = new DataGridLength(width),
+            Width = DataGridLength.Auto,
+            MinWidth = 60,
+            MaxWidth = maxWidth,
             CellTemplate = new DataTemplate { VisualTree = text },
         };
     }

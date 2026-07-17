@@ -34,10 +34,14 @@ internal static class VillageOverviewFactory
             exactNext,
             nowUtc,
             rotationVillageKeys);
+        var knownVillageKeys = villages
+            .Select(village => village.VillageKey)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var rows = villages
             .Select(village => BuildVillageRow(
                 village,
-                taskSnapshot,
+                ResolveVillageTasks(village, taskSnapshot, knownVillageKeys),
                 orderedGroups,
                 exactNext,
                 nowUtc,
@@ -257,7 +261,7 @@ internal static class VillageOverviewFactory
         }
         else
         {
-            timing = waitsForPrevious ? "Ready · after previous task" : "Ready";
+            timing = waitsForPrevious ? "Ready (after previous task)" : "Ready";
         }
 
         return new UpcomingTaskRow(
@@ -269,17 +273,43 @@ internal static class VillageOverviewFactory
             isExact ? "Exact next" : "Projection");
     }
 
-    private static VillageOverviewRow BuildVillageRow(
+    // Tasks that belong to a village. Primary match is the stable key, but a task whose key matches NO known
+    // village is attributed by its (resolved) display name. This keeps the per-village "Next task" consistent
+    // with the Upcoming tasks list: a task can carry a coordinate key (xy:) while the dashboard row for the
+    // same village only resolves to a name key (name:) when the settings store has not learned its
+    // coordinates, so a key-only join silently drops it and the row wrongly reads "Nothing queued". The name
+    // fallback is gated on "matches no village key" so two villages sharing a name never steal keyed tasks.
+    private static List<PipelineTaskSource> ResolveVillageTasks(
         VillageOverviewSource village,
         IReadOnlyList<PipelineTaskSource> tasks,
+        IReadOnlySet<string> knownVillageKeys)
+    {
+        return tasks
+            .Where(source =>
+            {
+                if (!string.IsNullOrWhiteSpace(source.VillageKey)
+                    && string.Equals(source.VillageKey, village.VillageKey, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+
+                var keyMatchesSomeVillage = !string.IsNullOrWhiteSpace(source.VillageKey)
+                    && knownVillageKeys.Contains(source.VillageKey);
+                return !keyMatchesSomeVillage
+                    && !string.IsNullOrWhiteSpace(source.VillageName)
+                    && string.Equals(source.VillageName, village.Name, StringComparison.OrdinalIgnoreCase);
+            })
+            .ToList();
+    }
+
+    private static VillageOverviewRow BuildVillageRow(
+        VillageOverviewSource village,
+        IReadOnlyList<PipelineTaskSource> villageTasks,
         IReadOnlyList<QueueGroup> orderedGroups,
         QueueItem? exactNext,
         DateTimeOffset nowUtc,
         Func<DateTimeOffset, string> finishTimeFormatter)
     {
-        var villageTasks = tasks
-            .Where(source => string.Equals(source.VillageKey, village.VillageKey, StringComparison.OrdinalIgnoreCase))
-            .ToList();
         var constructionEnabled = IsGroupEnabled(village, QueueGroup.Construction);
         var smithyEnabled = IsGroupEnabled(village, QueueGroup.Troops);
         var troopTrainingEnabled = IsGroupEnabled(village, QueueGroup.TroopTraining);
@@ -626,7 +656,11 @@ internal static class VillageOverviewFactory
             return name;
         }
 
-        return $"{name} · {level} · {countdown}";
+        // Compact form: "Palisade  Lvl 5  05:01" — abbreviate "Level", and separate with spaces (no dots).
+        var shortLevel = level.StartsWith("Level ", StringComparison.Ordinal)
+            ? "Lvl " + level["Level ".Length..]
+            : level;
+        return $"{name}  {shortLevel}  {countdown}";
     }
 
     private static string DescribeTask(PipelineTaskSource source)

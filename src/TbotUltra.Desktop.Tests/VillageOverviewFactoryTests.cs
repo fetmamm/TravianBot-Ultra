@@ -134,10 +134,11 @@ public sealed class VillageOverviewFactoryTests
             value => value.ToString("HH:mm:ss"));
         var row = Assert.Single(snapshot.Villages);
 
-        Assert.Contains("Warehouse · Level 5 · 01:30", row.Construction);
+        Assert.Contains("Warehouse  Lvl 5  01:30", row.Construction);
         Assert.DoesNotContain("12:02:00", row.Construction);
+        Assert.DoesNotContain("Level", row.Construction);
         Assert.Equal(3, row.Construction.Split('\n').Length);
-        Assert.Contains("Imperian · Level 4 · 02:30", row.Smithy);
+        Assert.Contains("Imperian  Lvl 4  02:30", row.Smithy);
         Assert.DoesNotContain("12:03:00", row.Smithy);
         Assert.Contains("Barracks: 03:30", row.BuildTroops);
         Assert.Contains("Near: 04:30", row.Farming);
@@ -228,6 +229,30 @@ public sealed class VillageOverviewFactoryTests
         Assert.StartsWith("Waiting 02:00", rows[1].NextTask);
         Assert.Contains("Warehouse level 6: 02:00", rows[1].Construction);
         Assert.Equal("Small: 10:00", rows[1].TownHall);
+    }
+
+    [Fact]
+    public void Create_AttributesTaskByNameWhenKeyMatchesNoVillage()
+    {
+        var now = new DateTimeOffset(2026, 7, 17, 16, 0, 0, TimeSpan.Zero);
+        // The dashboard row resolved only to a name key (store had no coordinates for it), while the queued
+        // construction task carries the village's coordinate key. The keys differ for the same village, so a
+        // key-only join would wrongly read "Nothing queued" even though the task targets this village.
+        var village = Village("name:02 kong", "02 KONG");
+        var task = Task("Upgrade Stable to level 10", QueueGroup.Construction, "xy:29|-4", now)
+            with { VillageName = "02 KONG" };
+
+        var row = Assert.Single(VillageOverviewFactory.Create(
+            [village],
+            [task],
+            [QueueGroup.Construction],
+            null,
+            null,
+            now,
+            value => value.ToString("HH:mm:ss")).Villages);
+
+        Assert.StartsWith("Ready:", row.NextTask);
+        Assert.Contains("Upgrade Stable to level 10", row.NextTask);
     }
 
     private static PipelineTaskSource Task(

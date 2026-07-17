@@ -109,9 +109,10 @@
                         <StackPanel DockPanel.Dock="Left">
                             <StackPanel Orientation="Horizontal">
                                 <TextBlock Text="Upcoming tasks" FontSize="16" FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Text="  Live projection" Margin="8,2,0,0"
-                                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
+                                                Margin="8,2,0,0"
+                                                ToolTip="Live projection of the next tasks the bot will run, in the order it will pick them across all villages. &quot;Ready&quot; means it can start now; a timer shows when a deferred task becomes eligible. It is a preview and updates as the queue changes." />
                             </StackPanel>
                             <TextBlock x:Name="OverviewRunningTaskTextBlock"
                                        Text="Running: Nothing running"
@@ -125,10 +126,13 @@
                                    Foreground="{DynamicResource TextSecondaryBrush}" />
                     </DockPanel>
 
+                    <!-- Auto columns + left align: the table hugs its content instead of stretching, so
+                         Task/Group/Status stay compact. -->
                     <DataGrid x:Name="UpcomingTasksDataGrid"
                               Grid.Row="1"
                               Height="174"
                               Margin="0,0,0,10"
+                              HorizontalAlignment="Left"
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
                               CanUserAddRows="False"
@@ -138,11 +142,17 @@
                               GridLinesVisibility="Horizontal"
                               ScrollViewer.HorizontalScrollBarVisibility="Disabled">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="#" Width="38" Binding="{Binding Position}" />
-                            <DataGridTextColumn Header="Task" Width="2*" Binding="{Binding Task}" />
-                            <DataGridTextColumn Header="Village" Width="*" Binding="{Binding Village}" />
-                            <DataGridTextColumn Header="Group" Width="*" Binding="{Binding Group}" />
-                            <DataGridTemplateColumn Header="Status" Width="1.5*">
+                            <DataGridTextColumn Header="#" Width="Auto" Binding="{Binding Position}" />
+                            <DataGridTextColumn Header="Task" Width="Auto" MaxWidth="340" Binding="{Binding Task}">
+                                <DataGridTextColumn.ElementStyle>
+                                    <Style TargetType="TextBlock">
+                                        <Setter Property="TextWrapping" Value="Wrap" />
+                                    </Style>
+                                </DataGridTextColumn.ElementStyle>
+                            </DataGridTextColumn>
+                            <DataGridTextColumn Header="Village" Width="Auto" Binding="{Binding Village}" />
+                            <DataGridTextColumn Header="Group" Width="Auto" Binding="{Binding Group}" />
+                            <DataGridTemplateColumn Header="Status" Width="Auto">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <TextBlock local:OverviewStatusText.Text="{Binding Timing}"
@@ -150,14 +160,15 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTextColumn Header="Source" Width="90" Binding="{Binding Source}" />
                         </DataGrid.Columns>
                     </DataGrid>
 
                     <!-- Columns are built in code-behind (BuildOverviewColumns) so every status cell shares
-                         the same color-coded template (Ready green / Waiting amber / Disabled muted). -->
+                         the same color-coded template (Ready green / Waiting amber / Disabled muted) and
+                         auto-sizes to its content (a column full of "Disabled" shrinks; active timers grow). -->
                     <DataGrid x:Name="VillageOverviewDataGrid"
                               Grid.Row="2"
+                              HorizontalAlignment="Left"
                               AutoGenerateColumns="False"
                               IsReadOnly="True"
                               CanUserAddRows="False"

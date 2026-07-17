@@ -62,6 +62,14 @@ public static class OverviewStatusText
     private static Brush? ResolveLineBrush(string line)
     {
         var trimmed = line.TrimStart();
+
+        // "Ready (after previous task)" is ready in itself but queued behind another task, so it will not run
+        // right now. Blue marks it as "queued, runs in turn" — distinct from the task that can start now.
+        if (StartsWith(trimmed, "Ready (after"))
+        {
+            return ThemeColors.Brush("InfoTextBrush");
+        }
+
         if (StartsWith(trimmed, "Ready") || IsExactly(trimmed, "Now"))
         {
             return ThemeColors.Brush("SuccessTextBrush");
