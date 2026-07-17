@@ -483,6 +483,33 @@ public sealed class ConstructionQueueStateTests
         Assert.Equal(TimeSpan.Zero, result);
     }
 
+    [Fact]
+    public void ShouldPrepareLoginFill_OnlyReleasesReadyOrHumanizedConstruction()
+    {
+        var now = new DateTimeOffset(2026, 7, 17, 12, 0, 0, TimeSpan.Zero);
+        var ready = new QueueItem { NextAttemptAt = now };
+        var humanize = new QueueItem
+        {
+            NextAttemptAt = now.AddMinutes(2),
+            Payload = new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonHumanize,
+            },
+        };
+        var resourceWait = new QueueItem
+        {
+            NextAttemptAt = now.AddMinutes(2),
+            Payload = new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonResources,
+            },
+        };
+
+        Assert.True(ConstructionQueueState.ShouldPrepareLoginFill(ready, now));
+        Assert.True(ConstructionQueueState.ShouldPrepareLoginFill(humanize, now));
+        Assert.False(ConstructionQueueState.ShouldPrepareLoginFill(resourceWait, now));
+    }
+
     private static VillageStatus CreateStatus(
         IReadOnlyList<Building> buildings,
         IReadOnlyList<BuildQueueItem> buildQueue,

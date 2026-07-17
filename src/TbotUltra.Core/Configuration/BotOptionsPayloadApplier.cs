@@ -291,6 +291,7 @@ public static class BotOptionsPayloadApplier
             ConstructionHumanizeNoPlusMinMinutes = source.ConstructionHumanizeNoPlusMinMinutes,
             ConstructionHumanizeNoPlusMaxMinutes = source.ConstructionHumanizeNoPlusMaxMinutes,
             ConstructionPreSleepFill = construction.ConstructionPreSleepFill,
+            ConstructionLoginFill = construction.ConstructionLoginFill,
             TargetVillageName = targetVillageName,
             TargetVillageUrl = targetVillageUrl,
             AllowGoldSpending = source.AllowGoldSpending,

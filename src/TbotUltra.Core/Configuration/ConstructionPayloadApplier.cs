@@ -24,7 +24,8 @@ internal sealed record ConstructionPayloadValues(
     string TargetBuildingSlotOrName,
     int? TargetLevel,
     string UpgradeSelectorProfile,
-    bool ConstructionPreSleepFill);
+    bool ConstructionPreSleepFill,
+    bool ConstructionLoginFill);
 
 internal static class ConstructionPayloadApplier
 {
@@ -54,7 +55,8 @@ internal static class ConstructionPayloadApplier
             source.TargetBuildingSlotOrName,
             source.TargetLevel,
             source.UpgradeSelectorProfile,
-            source.ConstructionPreSleepFill);
+            source.ConstructionPreSleepFill,
+            source.ConstructionLoginFill);
 
         if (payload is null)
             return result;
@@ -114,6 +116,8 @@ internal static class ConstructionPayloadApplier
                 result = result with { UpgradeSelectorProfile = value };
             else if (TryReadBool(key, value, BotOptionPayloadKeys.ConstructionPreSleepFill, out var preSleepFill))
                 result = result with { ConstructionPreSleepFill = preSleepFill };
+            else if (TryReadBool(key, value, BotOptionPayloadKeys.ConstructionLoginFill, out var loginFill))
+                result = result with { ConstructionLoginFill = loginFill };
         }
 
         return result;

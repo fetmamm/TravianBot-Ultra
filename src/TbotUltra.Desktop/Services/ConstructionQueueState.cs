@@ -145,6 +145,16 @@ public static class ConstructionQueueState
         return ResolveDeferReason(item) == ConstructionDeferReason.Humanize;
     }
 
+    public static bool ShouldPrepareLoginFill(QueueItem item, DateTimeOffset now)
+    {
+        if (item.NextAttemptAt <= now || IsConstructionHumanizeDeferred(item))
+        {
+            return true;
+        }
+
+        return IsQueueOccupancyDeferred(item) && ResolveQueueHumanizeExtraSeconds(item) > 0;
+    }
+
     public static bool BlocksAdditionalConstruction(QueueItem queueOccupancyDeferredItem)
     {
         return IsQueueOccupancyDeferred(queueOccupancyDeferredItem);

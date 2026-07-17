@@ -196,6 +196,7 @@ Common endpoints:
 - “Construct faster” controls are not build/upgrade actions.
 - Construct-faster applies to both building slots and resource fields; verify results on `dorf2` and `dorf1` respectively before normal-click fallback.
 - After a successful hero-resource transfer, resource upgrades must re-evaluate the current build page instead of returning to `dorf1` and repeating queue/humanize gates.
+- After login, ready construction rows and rows waiting only for construction humanization receive a one-shot login-fill override. They fill available slots without construction humanize delay; any blocked/deferred attempt ends the override, after which an online slot completion uses normal humanization.
 - Town Hall celebration rows must calculate resource shortfall before clicking; generic research/hero-transfer links are not start actions.
 - Mutually exclusive building rules must be evaluated before queue execution.
 - GID 13 and other special buildings must use the catalog and verified Official behavior.

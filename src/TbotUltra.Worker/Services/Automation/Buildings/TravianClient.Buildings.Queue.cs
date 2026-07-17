@@ -568,10 +568,11 @@ public sealed partial class TravianClient
 
         var villageToken = await ResolveConstructionHumanizeVillageTokenAsync(cancellationToken);
         var slotKey = $"{villageToken}:{kind}:{slotId}";
-        if (_config.ConstructionPreSleepFill)
+        if (_config.ConstructionPreSleepFill || _config.ConstructionLoginFill)
         {
             _session.ConstructionHumanizeUntilBySlot.Remove(slotKey);
-            Notify($"[construction-humanize] slot {slotId}: pre-sleep fill — existing delay consumed before page reads.");
+            var fillReason = _config.ConstructionPreSleepFill ? "pre-sleep fill" : "login fill";
+            Notify($"[construction-humanize] slot {slotId}: {fillReason} — existing delay consumed before page reads.");
             return (true, null);
         }
 

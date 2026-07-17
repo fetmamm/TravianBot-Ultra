@@ -454,6 +454,11 @@ public partial class MainWindow
             return false;
         }
 
+        ClearConstructionLoginFillForFullSlots(
+            status,
+            NormalizeVillageName(GetQueueItemVillageName(item)) ?? NormalizeVillageName(status.ActiveVillage),
+            source: "construction preflight");
+
         var now = DateTimeOffset.UtcNow;
         var delay = ConstructionQueueState.ResolveQueueFullRetryDelay(status, _travianPlusActive, item, now)
             ?? TimeSpan.FromSeconds(60);
@@ -464,6 +469,7 @@ public partial class MainWindow
                 ConstructionQueueState.CurrentDeferClassificationVersion,
         };
         payload.Remove(BotOptionPayloadKeys.RequirementDeferCount);
+        payload.Remove(BotOptionPayloadKeys.ConstructionLoginFill);
 
         if (!_botService.MarkQueueItemDeferred(item.Id, delay))
         {
@@ -875,6 +881,9 @@ public partial class MainWindow
                     // The pre-sleep fill flag is valid for exactly one execution attempt — this attempt
                     // just ran, so drop it. The sweep re-flags the item if it defers into the window again.
                     updatedPayload.Remove(BotOptionPayloadKeys.ConstructionPreSleepFill);
+                    // Login fill lasts only while starts can make progress. Any defer ends the burst;
+                    // later retries use the normal online-completion humanize rules.
+                    updatedPayload.Remove(BotOptionPayloadKeys.ConstructionLoginFill);
 
                     // Safety net for an unsatisfiable requirement. Requirement defers don't consume Retries
                     // (the prerequisite could still arrive), so without a bound a construct whose prerequisite

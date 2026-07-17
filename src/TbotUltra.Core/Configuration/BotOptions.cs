@@ -410,6 +410,10 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionPreSleepFill)]
     public bool ConstructionPreSleepFill { get; init; }
 
+    // Per-queue-item flag set after login; never stored in bot.json.
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionLoginFill)]
+    public bool ConstructionLoginFill { get; init; }
+
     [ConfigurationKeyName(BotOptionPayloadKeys.TargetVillageName)]
     public string TargetVillageName { get; init; } = string.Empty;
 

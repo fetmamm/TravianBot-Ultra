@@ -277,4 +277,7 @@ public static class BotOptionPayloadKeys
     // rescheduled this item into the window right before a session-pacing sleep, so the worker's
     // humanize gate should start the build immediately instead of deferring again.
     public const string ConstructionPreSleepFill = "construction_pre_sleep_fill";
+    // Per-queue-item one-shot override applied after login. It bypasses only the construction
+    // humanize gate while the bot fills currently available build slots.
+    public const string ConstructionLoginFill = "construction_login_fill";
 }

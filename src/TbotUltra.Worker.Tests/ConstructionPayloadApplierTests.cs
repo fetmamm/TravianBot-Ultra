@@ -33,6 +33,7 @@ public sealed class ConstructionPayloadApplierTests
             [BotOptionPayloadKeys.TargetBuildingSlotOrName] = "Main Building",
             [BotOptionPayloadKeys.TargetLevel] = "3",
             [BotOptionPayloadKeys.UpgradeSelectorProfile] = "strict_green",
+            [BotOptionPayloadKeys.ConstructionLoginFill] = "true",
         };
 
         var result = BotOptionsPayloadApplier.Apply(new BotOptions(), payload);
@@ -60,5 +61,6 @@ public sealed class ConstructionPayloadApplierTests
         Assert.Equal("Main Building", result.TargetBuildingSlotOrName);
         Assert.Equal(3, result.TargetLevel);
         Assert.Equal("strict_green", result.UpgradeSelectorProfile);
+        Assert.True(result.ConstructionLoginFill);
     }
 }

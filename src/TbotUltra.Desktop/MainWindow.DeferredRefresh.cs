@@ -117,6 +117,8 @@ public partial class MainWindow
                 || string.Equals(itemVillage, statusVillage, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
+        ClearConstructionLoginFillForFullSlots(status, statusVillage, deferredItems, source);
+
         var queueFullItems = deferredItems
             .Where(ConstructionQueueState.IsQueueOccupancyDeferred)
             .Where(item => statusVillage is not null
@@ -290,6 +292,92 @@ public partial class MainWindow
         }
 
         RefreshQueueUi();
+    }
+
+    // A fresh login represents a new player visit. Ready construction rows, plus rows whose only
+    // remaining wait is construction humanization, get one attempt to fill available Travian slots
+    // immediately. Resource, prerequisite and storage waits keep their authoritative deadlines.
+    private void PrepareConstructionLoginFill()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var prepared = 0;
+        foreach (var item in _botService.GetQueueItemsForDisplay()
+                     .Where(item => item.Status == QueueStatus.Pending)
+                     .Where(item => IsConstructionQueueTask(item.TaskName)))
+        {
+            var isHumanizeWait = ConstructionQueueState.IsConstructionHumanizeDeferred(item);
+            var hasQueueHumanize = ConstructionQueueState.IsQueueOccupancyDeferred(item)
+                && ConstructionQueueState.ResolveQueueHumanizeExtraSeconds(item) > 0;
+            if (!ConstructionQueueState.ShouldPrepareLoginFill(item, now))
+            {
+                continue;
+            }
+
+            var payload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase)
+            {
+                [BotOptionPayloadKeys.ConstructionLoginFill] = "true",
+            };
+            payload.Remove(BotOptionPayloadKeys.ConstructionPreSleepFill);
+            payload.Remove(BotOptionPayloadKeys.QueueHumanizeExtraSeconds);
+
+            var updated = isHumanizeWait || hasQueueHumanize
+                ? _botService.UpdateDeferredQueueItem(item.Id, payload, TimeSpan.Zero)
+                : _botService.UpdateDeferredQueueItem(item.Id, payload);
+            if (!updated)
+            {
+                AppendLog($"[construction-login-fill] could not prepare id={item.Id} task='{item.TaskName}'.");
+                continue;
+            }
+
+            item.Payload = payload;
+            prepared++;
+        }
+
+        if (prepared > 0)
+        {
+            AppendLog($"[construction-login-fill] prepared {prepared} construction row(s) to fill available slots without construction start delay.");
+            Interlocked.Exchange(ref _continuousLoopWakeRequested, 1);
+            RefreshQueueUi();
+        }
+    }
+
+    // Once a category is full, the login burst is complete for every later row competing for that
+    // category. Removing the flag here ensures the next online timer completion is humanized normally.
+    private void ClearConstructionLoginFillForFullSlots(
+        VillageStatus status,
+        string? statusVillage,
+        IEnumerable<QueueItem>? candidates = null,
+        string source = "live status")
+    {
+        var cleared = 0;
+        var items = candidates ?? _botService.GetQueueItemsForDisplay()
+            .Where(item => item.Status == QueueStatus.Pending)
+            .Where(item => IsConstructionQueueTask(item.TaskName));
+        foreach (var item in items
+                     .Where(item => item.Payload.ContainsKey(BotOptionPayloadKeys.ConstructionLoginFill))
+                     .Where(item => statusVillage is null
+                         || NormalizeVillageName(GetQueueItemVillageName(item)) is not string itemVillage
+                         || string.Equals(itemVillage, statusVillage, StringComparison.OrdinalIgnoreCase)))
+        {
+            if (ConstructionQueueState.ResolveAvailabilityForItem(status, _travianPlusActive, item)
+                != ConstructionQueueAvailability.Full)
+            {
+                continue;
+            }
+
+            var payload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase);
+            payload.Remove(BotOptionPayloadKeys.ConstructionLoginFill);
+            if (_botService.UpdateDeferredQueueItem(item.Id, payload))
+            {
+                item.Payload = payload;
+                cleared++;
+            }
+        }
+
+        if (cleared > 0)
+        {
+            AppendLog($"[construction-login-fill] completed for {cleared} row(s): live construction category is full (source='{source}').");
+        }
     }
 
     private void ResetConstructionBuildQueueTimerForManualRefresh()
