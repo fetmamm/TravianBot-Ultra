@@ -637,10 +637,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     // while village reads prefer building-slot markers that belong to the active village.
     private async Task<string> DetectTribeFromCurrentPageAsync(bool includeVillageBuildings)
     {
-
-        var value = await _page.EvaluateAsync<string>(
-            """
-            (includeVillageBuildings) => {
+        string value;
+        try
+        {
+            value = await _page.EvaluateAsync<string>(
+                """
+                (includeVillageBuildings) => {
               const tribeNames = {
                 1: 'Romans',
                 2: 'Teutons',
@@ -693,7 +695,6 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                   const fromSrc = srcNorm(img.getAttribute('src'));
                   if (fromSrc) return fromSrc;
                 }
-              }
 
               // Note: a bare 'body' catch-all was removed — scanning the whole page text for a
               // tribe word false-matched a stray "roman" on official Travian and got cached.
@@ -744,6 +745,12 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             }
             """,
             includeVillageBuildings);
+        }
+        catch (PlaywrightException ex) when (!BrowserFailureClassifier.IsTargetCrash(ex))
+        {
+            Notify($"[tribe] live detection failed; continuing with Unknown: {ex.Message}");
+            return "Unknown";
+        }
 
         if (!IsKnownTribe(value))
         {

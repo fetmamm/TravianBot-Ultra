@@ -245,18 +245,23 @@ public sealed partial class BrowserSession : IAsyncDisposable
                 return originalFormSubmit.call(this);
               };
 
-              if (document.readyState === 'loading') {
-                document.addEventListener('DOMContentLoaded', neutralizeTargets, { once: true });
-              } else {
+              const startTargetObserver = () => {
+                const observerTarget = document.documentElement;
+                if (!observerTarget) return;
                 neutralizeTargets();
-              }
+                new MutationObserver(neutralizeTargets).observe(observerTarget, {
+                  childList: true,
+                  subtree: true,
+                  attributes: true,
+                  attributeFilter: ['target']
+                });
+              };
 
-              new MutationObserver(neutralizeTargets).observe(document.documentElement, {
-                childList: true,
-                subtree: true,
-                attributes: true,
-                attributeFilter: ['target']
-              });
+              if (document.readyState === 'loading') {
+                document.addEventListener('DOMContentLoaded', startTargetObserver, { once: true });
+              } else {
+                startTargetObserver();
+              }
             })();
             """);
 

@@ -60,6 +60,31 @@ public sealed class BrowserMutationSourceGuardTests
         Assert.Contains("addEventListener('click'", browserSession);
         Assert.Contains("addEventListener('change'", browserSession);
         Assert.Contains("addEventListener('submit'", browserSession);
+        Assert.Contains("const observerTarget = document.documentElement", browserSession);
+        Assert.Contains("if (!observerTarget) return", browserSession);
+    }
+
+    [Fact]
+    public void TribeDetectionBrowserScript_HasBalancedFunctionBody()
+    {
+        var root = FindRepositoryRoot();
+        var path = Path.Combine(
+            root,
+            "src",
+            "TbotUltra.Worker",
+            "Services",
+            "Automation",
+            "Core",
+            "TravianClient.AccountSnapshot.cs");
+        var source = File.ReadAllText(path);
+        var match = Regex.Match(
+            source,
+            "DetectTribeFromCurrentPageAsync[\\s\\S]*?EvaluateAsync<string>\\(\\s*\"\"\"(?<script>[\\s\\S]*?)\"\"\"",
+            RegexOptions.CultureInvariant);
+
+        Assert.True(match.Success, "Could not locate the tribe detection browser script.");
+        var script = match.Groups["script"].Value;
+        Assert.Equal(script.Count(character => character == '{'), script.Count(character => character == '}'));
     }
 
     private const string DomTraceConsolePrefix = "__TBOT_BROWSER_TRACE__";

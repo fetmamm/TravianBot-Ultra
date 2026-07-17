@@ -221,6 +221,8 @@ Common endpoints:
 - Verify the active village after switching before performing state-changing actions.
 - Missing villages in a refresh are quarantined until confirmed, not immediately deleted.
 - Snapshot objects must be complete enough that consumers do not infer false zero/empty state.
+- Active-village tribe detection is best-effort: malformed/transient page evaluation returns `Unknown`
+  and must not abort the resource snapshot or prevent the desktop UI from loading. Browser crashes still propagate.
 - Hero transfers must scope controls to the active dialog and verify the selected target village.
 - Troop/hero ownership and current location are separate facts.
 - React inputs may require native value assignment plus input/change events.
