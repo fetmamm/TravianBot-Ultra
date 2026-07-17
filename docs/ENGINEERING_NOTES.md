@@ -1,6 +1,6 @@
 # Engineering Notes
 
-Last updated: 2026-07-15
+Last updated: 2026-07-17
 
 Read this file before changing selectors, paths, browser behavior, account state, or server logic.
 Keep it short and current. Move implementation history to `docs/history/` or an ADR.
@@ -269,6 +269,14 @@ Common endpoints:
 
 - Continuous scheduling drains ready work across groups in the active browser village before switching villages. If that village has an allowed pending task due within 90 seconds, keep the village and wait; global tasks do not require a switch.
 - Building upgrades reuse a valid current build page. From `dorf2.php`, open the target through its visible slot link; direct `build.php?id=N` navigation is a fallback when the overview link is unavailable or fails.
+- After a building action returns to a fresh `dorf2.php`, parse that overview directly. Do not reload it merely because the previous build-page snapshot is unavailable; reload only for stale or incomplete overview state.
+- Post-resource-task refreshes read the browser's current working village and update its cache. They must not navigate to the dashboard-selected village between adjacent queue jobs, and one complete current-page resource snapshot also satisfies the storage refresh.
+- The short-lived active-constructions snapshot belongs to the shared visible-browser session, not one `TravianClient` instance. Navigation and construction mutations invalidate it; unrelated readers within the TTL reuse it.
+- A saved per-slot construction-humanize deadline is checked before building overview reads. While time remains, defer without opening `dorf2`; when expired or consumed by pre-sleep fill, still run the normal live queue gate before any click.
+- The shared village-list/sidebar cache lives for one minute; active-village rename reconciliation remains immediate and coordinate-based. Do not shorten the list TTL to the dashboard tick interval.
+- Continuous-loop keep-alive yields when pending work will run within 60 seconds; that task's normal page read/navigation is the freshness action. Overdue-but-blocked work does not suppress keep-alive indefinitely.
+- A humanize-gated construction item naturally due inside the pre-sleep runway receives its one-shot pre-sleep flag before its first worker execution. Queue capacity is still checked live; this prevents a dry overview visit followed by an immediate sweep-triggered rerun.
+- For resource-blocked building upgrades, capture the exact wait snapshot before the defensive `dorf2` queue probe. If NPC trade cannot run, finish the defer on `dorf2` without restoring the build page; retain restoration when an actionable NPC attempt still needs that page.
 - Isolated adventure-video flows check bonus state in the disposable browser. They must not preload the same page in the main browser or force the main browser to `dorf1`; the following hero action reuses its current/adventures page.
 - `hero_manage` treats the global hero widget's away state as authoritative before hero-page navigation. Use a visible return timer when available; otherwise defer five minutes without opening adventures only to reconfirm away state.
 

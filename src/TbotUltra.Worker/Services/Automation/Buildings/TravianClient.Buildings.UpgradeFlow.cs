@@ -40,6 +40,15 @@ public sealed partial class TravianClient : IBuildingClient
 
             try
             {
+            var existingHumanizeDecision = await TryGetExistingConstructionHumanizeDecisionAsync(
+                ConstructionKind.Building,
+                slotId,
+                cancellationToken);
+            if (existingHumanizeDecision.Handled && existingHumanizeDecision.DeferMessage is not null)
+            {
+                return existingHumanizeDecision.DeferMessage;
+            }
+            var skipHumanizeGate = existingHumanizeDecision.Handled;
 
             // Step 1: read this slot's level. Prefer the current build page when it is already
             // the correct non-stale slot; fall back to the dorf2 overview when the page snapshot
@@ -74,7 +83,9 @@ public sealed partial class TravianClient : IBuildingClient
             }
 
             // Human-like defer before starting the next build (see MaybeGetConstructionHumanizeDeferAsync).
-            var humanizeDefer = await MaybeGetConstructionHumanizeDeferAsync(ConstructionKind.Building, slotId, cancellationToken);
+            var humanizeDefer = skipHumanizeGate
+                ? null
+                : await MaybeGetConstructionHumanizeDeferAsync(ConstructionKind.Building, slotId, cancellationToken);
             if (humanizeDefer is not null)
             {
                 return humanizeDefer;
@@ -192,12 +203,28 @@ public sealed partial class TravianClient : IBuildingClient
                 if (!clicked)
                 {
                     // Defense-in-depth for ambiguous/failed transfer states: verify queue capacity before
-                    // NPC trade or defer classification. This probe may navigate to dorf2, so restore the
-                    // slot page afterwards for the remaining build-page reads.
+                    // NPC trade or defer classification. Capture the final resource wait first when no
+                    // NPC attempt can run, so a successful dorf2 probe does not need a build-page restore.
+                    UpgradeResourceWaitSnapshot? blockedSnapshotBeforeQueueGate = null;
+                    var canAttemptNpcTrade = !constructionNpcTradeAttempted
+                        && _config.NpcTradeConstructionEnabled
+                        && _config.AllowGoldSpending;
+                    if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources && !canAttemptNpcTrade)
+                    {
+                        blockedSnapshotBeforeQueueGate = await ReadUpgradeResourceWaitSnapshotAsync(
+                            $"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}",
+                            UpgradeMath.ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
+                            cancellationToken);
+                    }
                     var queueDefer = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, upgrades, cancellationToken);
                     if (queueDefer is not null)
                     {
                         return queueDefer;
+                    }
+                    if (blockedSnapshotBeforeQueueGate is not null)
+                    {
+                        Notify($"[build:verbose] slot {slotId}: resource defer confirmed on dorf2; build-page restore skipped because NPC trade cannot run.");
+                        return UpgradeResourceWaitCalculator.BuildBlockedResultMessage(blockedSnapshotBeforeQueueGate);
                     }
                     await EnsureExpectedBuildSlotPageAsync(slotId, "resource recheck after queue gate", cancellationToken);
                 }
@@ -517,6 +544,13 @@ public sealed partial class TravianClient : IBuildingClient
             Notify($"[build:verbose] slot {slotId}: using current build-page snapshot "
                 + $"name='{currentPageInfo.BuildingName}', level={currentPageInfo.Level}, gid={ParseGidFromBuildingCode(currentPageInfo.BuildingCode)?.ToString(CultureInfo.InvariantCulture) ?? "unknown"}.");
             return currentPageInfo;
+        }
+
+        if (IsCurrentUrlForPath(Paths.Buildings) && !await IsPageMarkedStaleAsync())
+        {
+            Notify($"[build:verbose] slot {slotId}: reading current fresh dorf2 overview without reload.");
+            var currentSlots = await ReadBuildingInfosAsync(cancellationToken);
+            return currentSlots.TryGetValue(slotId, out var currentInfo) ? currentInfo : null;
         }
 
         Notify($"[build:verbose] slot {slotId}: current page snapshot unavailable; reading dorf2 overview.");
@@ -849,6 +883,15 @@ public sealed partial class TravianClient : IBuildingClient
 
             try
             {
+            var existingHumanizeDecision = await TryGetExistingConstructionHumanizeDecisionAsync(
+                ConstructionKind.Building,
+                slotId,
+                cancellationToken);
+            if (existingHumanizeDecision.Handled && existingHumanizeDecision.DeferMessage is not null)
+            {
+                return existingHumanizeDecision.DeferMessage;
+            }
+            var skipHumanizeGate = existingHumanizeDecision.Handled;
 
             // Step 1: read current level + figure out max from catalog. Prefer the current
             // build.php?id=N page when it can prove the slot snapshot, otherwise fall back to dorf2.
@@ -883,7 +926,9 @@ public sealed partial class TravianClient : IBuildingClient
             }
 
             // Human-like defer before starting the next build (see MaybeGetConstructionHumanizeDeferAsync).
-            var humanizeDefer = await MaybeGetConstructionHumanizeDeferAsync(ConstructionKind.Building, slotId, cancellationToken);
+            var humanizeDefer = skipHumanizeGate
+                ? null
+                : await MaybeGetConstructionHumanizeDeferAsync(ConstructionKind.Building, slotId, cancellationToken);
             if (humanizeDefer is not null)
             {
                 return humanizeDefer;
@@ -997,12 +1042,28 @@ public sealed partial class TravianClient : IBuildingClient
                 if (!clicked)
                 {
                     // Defense-in-depth for ambiguous/failed transfer states: verify queue capacity before
-                    // NPC trade or defer classification. This probe may navigate to dorf2, so restore the
-                    // slot page afterwards for the remaining build-page reads.
+                    // NPC trade or defer classification. Capture the final resource wait first when no
+                    // NPC attempt can run, so a successful dorf2 probe does not need a build-page restore.
+                    UpgradeResourceWaitSnapshot? blockedSnapshotBeforeQueueGate = null;
+                    var canAttemptNpcTrade = !constructionNpcTradeAttempted
+                        && _config.NpcTradeConstructionEnabled
+                        && _config.AllowGoldSpending;
+                    if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources && !canAttemptNpcTrade)
+                    {
+                        blockedSnapshotBeforeQueueGate = await ReadUpgradeResourceWaitSnapshotAsync(
+                            $"Building slot {slotId} ({buildingName}) upgrade to level {nextLevel}",
+                            UpgradeMath.ClampResourceWaitSeconds(actionability.QueueWaitSeconds),
+                            cancellationToken);
+                    }
                     var queueDefer = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, upgrades, cancellationToken);
                     if (queueDefer is not null)
                     {
                         return queueDefer;
+                    }
+                    if (blockedSnapshotBeforeQueueGate is not null)
+                    {
+                        Notify($"[build:verbose] slot {slotId}: resource defer confirmed on dorf2; build-page restore skipped because NPC trade cannot run.");
+                        return UpgradeResourceWaitCalculator.BuildBlockedResultMessage(blockedSnapshotBeforeQueueGate);
                     }
                     await EnsureExpectedBuildSlotPageAsync(slotId, "resource recheck after queue gate", cancellationToken);
                 }

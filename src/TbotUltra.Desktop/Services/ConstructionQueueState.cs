@@ -84,6 +84,14 @@ public static class ConstructionQueueState
             && message.Contains("humanized construction start delay", StringComparison.OrdinalIgnoreCase);
     }
 
+    public static bool UsesConstructionHumanizeStartGate(string? taskName)
+    {
+        return string.Equals(taskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(taskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(taskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static bool IsConstructionStorageCapacityDeferMessage(string? message)
     {
         return !string.IsNullOrWhiteSpace(message)

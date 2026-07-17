@@ -12,6 +12,12 @@ internal sealed record ConstructionHumanizeDecision(double DelaySeconds, string 
 /// </summary>
 internal static class ConstructionHumanizeCalculator
 {
+    public static int ResolveExistingWaitSeconds(DateTimeOffset now, DateTimeOffset scheduledUntil)
+    {
+        var remainingSeconds = (scheduledUntil - now).TotalSeconds;
+        return remainingSeconds <= 1 ? 0 : (int)Math.Ceiling(remainingSeconds);
+    }
+
     public static ConstructionHumanizeDecision CalculateAfterFullQueue(
         IReadOnlyList<int> relevantRemainingSeconds,
         int slotFreeWaitSeconds,

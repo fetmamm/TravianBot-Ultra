@@ -1591,6 +1591,14 @@ public partial class MainWindow
             return;
         }
 
+        var nextPendingAt = GetNextContinuousLoopPendingAt();
+        if (ContinuousLoopSelector.ShouldDeferKeepAliveForImminentWork(now, nextPendingAt))
+        {
+            _nextContinuousKeepAliveAtUtc = nextPendingAt!.Value.AddSeconds(5);
+            AppendLog($"[keep-alive:verbose] skipped because queued work is due in {(nextPendingAt.Value - now).TotalSeconds:F0}s; task navigation will refresh the page.");
+            return;
+        }
+
         MarkContinuousBrowserActivity();
 
         try
@@ -1626,13 +1634,21 @@ public partial class MainWindow
         try
         {
             var dueBefore = now.AddSeconds(ContinuousKeepAliveDueSoonSeconds);
-            return GetContinuousLoopRelevantQueueItems()
-                .Any(item => item.Status == QueueStatus.Pending && item.NextAttemptAt <= dueBefore);
+            return GetNextContinuousLoopPendingAt() is DateTimeOffset nextPendingAt
+                && nextPendingAt <= dueBefore;
         }
         catch
         {
             return true;
         }
+    }
+
+    private DateTimeOffset? GetNextContinuousLoopPendingAt()
+    {
+        return GetContinuousLoopRelevantQueueItems()
+            .Where(item => item.Status == QueueStatus.Pending)
+            .Select(item => (DateTimeOffset?)item.NextAttemptAt)
+            .Min();
     }
 
     private static bool IsTransientKeepAliveFailure(Exception ex)

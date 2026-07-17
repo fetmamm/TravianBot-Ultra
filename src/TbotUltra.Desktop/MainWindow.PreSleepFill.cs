@@ -75,14 +75,7 @@ public partial class MainWindow
 
         // Window scales with how many villages have queued construction work: each final start costs
         // roughly a village switch + navigation + retries, so more villages need a longer runway.
-        var villageCount = Math.Max(1, pendingConstruction
-            .Select(item => GetQueueItemVillageKey(item) ?? NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-")
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .Count());
-        var windowMinutes = Math.Clamp(
-            villageCount * PacingDefaults.PreSleepFillPerVillageMinutes,
-            PacingDefaults.PreSleepFillWindowMinMinutes,
-            PacingDefaults.PreSleepFillWindowMaxMinutes);
+        var (villageCount, windowMinutes) = ResolvePreSleepFillWindow(pendingConstruction);
         if (untilSleep > TimeSpan.FromMinutes(windowMinutes))
         {
             return;
@@ -122,6 +115,67 @@ public partial class MainWindow
                 $"window {windowMinutes}m for {villageCount} village(s)).");
             RequestQueueUiRefresh(item.Id);
         }
+    }
+
+    // A construction item that becomes naturally due inside the pre-sleep runway must carry the
+    // override on its first execution. Otherwise it opens dorf2, creates a humanize defer beyond
+    // sleep, and the periodic sweep runs the same item again seconds later.
+    private void MarkDueConstructionForPreSleepFill(QueueItem item)
+    {
+        if (_sessionPacer.Phase != SessionPacerPhase.Running
+            || _sessionPacer.TimeUntilSleep is not { } untilSleep
+            || item.Group != QueueGroup.Construction
+            || item.Status != QueueStatus.Pending
+            || !ConstructionQueueState.UsesConstructionHumanizeStartGate(item.TaskName)
+            || item.Payload.ContainsKey(BotOptionPayloadKeys.ConstructionPreSleepFill))
+        {
+            return;
+        }
+
+        var options = LoadBotOptions();
+        if (!options.ConstructionHumanizeDelayEnabled)
+        {
+            return;
+        }
+
+        var pendingConstruction = _botService.GetQueueItemsForDisplay()
+            .Where(candidate => candidate.Group == QueueGroup.Construction && candidate.Status == QueueStatus.Pending)
+            .Where(IsQueueItemAllowedByAutomationSettings)
+            .ToList();
+        var (villageCount, windowMinutes) = ResolvePreSleepFillWindow(pendingConstruction);
+        if (untilSleep > TimeSpan.FromMinutes(windowMinutes))
+        {
+            return;
+        }
+
+        var payload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.ConstructionPreSleepFill] = "true",
+        };
+        if (!_botService.UpdateDeferredQueueItem(item.Id, payload, TimeSpan.Zero))
+        {
+            AppendLog($"[pre-sleep-fill] could not mark due item id={item.Id} task='{item.TaskName}'.");
+            return;
+        }
+
+        item.Payload = payload;
+        var villageName = NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-";
+        AppendLog(
+            $"[pre-sleep-fill] due construction marked before execution: task='{item.TaskName}' village='{villageName}' " +
+            $"sleep in {untilSleep.TotalSeconds:F0}s (window {windowMinutes}m for {villageCount} village(s)).");
+    }
+
+    private (int VillageCount, int WindowMinutes) ResolvePreSleepFillWindow(IReadOnlyCollection<QueueItem> pendingConstruction)
+    {
+        var villageCount = Math.Max(1, pendingConstruction
+            .Select(item => GetQueueItemVillageKey(item) ?? NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-")
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count());
+        var windowMinutes = Math.Clamp(
+            villageCount * PacingDefaults.PreSleepFillPerVillageMinutes,
+            PacingDefaults.PreSleepFillWindowMinMinutes,
+            PacingDefaults.PreSleepFillWindowMaxMinutes);
+        return (villageCount, windowMinutes);
     }
 
     // Bounded hold before an automatic sleep: if a pre-sleep fill item is due or already running, give

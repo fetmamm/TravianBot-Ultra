@@ -43,6 +43,7 @@ internal sealed record ContinuousLoopGroupSelectionResult(
 internal static class ContinuousLoopSelector
 {
     internal static readonly TimeSpan ShortVillageDeferThreshold = TimeSpan.FromSeconds(90);
+    internal static readonly TimeSpan KeepAliveImminentWorkThreshold = TimeSpan.FromSeconds(60);
 
     internal static ContinuousLoopUtilitySelectionResult SelectUtility(
         ContinuousLoopUtilitySelectionInput input)
@@ -181,6 +182,15 @@ internal static class ContinuousLoopSelector
             .Min();
 
         return holdUntil;
+    }
+
+    internal static bool ShouldDeferKeepAliveForImminentWork(
+        DateTimeOffset now,
+        DateTimeOffset? nextPendingAt)
+    {
+        return nextPendingAt is DateTimeOffset next
+            && next > now
+            && next <= now.Add(KeepAliveImminentWorkThreshold);
     }
 
     internal static TimeSpan ResolveReinforcementSendDelay(

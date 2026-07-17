@@ -345,6 +345,7 @@ public partial class MainWindow
     {
         var tickSw = Stopwatch.StartNew();
         var terminalCountBefore = await Dispatcher.InvokeAsync(() => _terminalEntries.Count);
+        MarkDueConstructionForPreSleepFill(item);
         RefreshConstructFasterPayloadForExecution(item);
         _botService.MarkQueueItemRunning(item.Id);
         // Keep the Dashboard "active village" border on the village this task runs in, so the user can
@@ -580,12 +581,27 @@ public partial class MainWindow
         }
 
         var fullConstructionRefreshDone = false;
+        var resourceStatusRead = false;
         if (IsResourceUpgradeTask(item.TaskName))
         {
             var fastUpdated = await TryApplyFastResourceLevelUpdateAsync(item.TaskName, terminalCountBefore);
             if (!fastUpdated)
             {
-                await LoadResourcesAfterUpgradeAsync(cancellationToken, resourceOnly: true);
+                try
+                {
+                    resourceStatusRead = await RefreshResourceSnapshotForUiAsync(
+                        options,
+                        cancellationToken,
+                        currentPageOnly: true) is not null;
+                    if (resourceStatusRead)
+                    {
+                        AppendLog("[resource-refresh] current-page snapshot used after resource task; selected village was not opened.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AppendLog($"[resource-refresh] current-page snapshot after resource task skipped ({ex.Message}); storage-only refresh will retry without village navigation.");
+                }
             }
         }
 
@@ -601,7 +617,10 @@ public partial class MainWindow
         }
         else if (IsResourceUpgradeTask(item.TaskName))
         {
-            await RefreshCurrentPageStorageStatusAsync(options, "construction_success", cancellationToken);
+            if (!resourceStatusRead)
+            {
+                await RefreshCurrentPageStorageStatusAsync(options, "construction_success", cancellationToken);
+            }
         }
         else if (string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase)
                  || string.Equals(item.TaskName, "spend_hero_attribute_points", StringComparison.OrdinalIgnoreCase))

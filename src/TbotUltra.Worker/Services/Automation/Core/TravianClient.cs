@@ -55,9 +55,21 @@ public sealed partial class TravianClient
     // that needs FRESH state after a click calls InvalidateActiveConstructionsCache() first
     // (e.g. WaitForBuildingLevelAdvanceAsync), and GotoAsync/ReloadOrGotoAsync invalidate automatically
     // on every navigation — so the cache is always re-seeded fresh at the top of each iteration.
-    private IReadOnlyList<ActiveConstruction>? _cachedActiveConstructions;
-    private DateTimeOffset _cachedActiveConstructionsAt = DateTimeOffset.MinValue;
-    private bool _cachedActiveConstructionsFromOverview;
+    private IReadOnlyList<ActiveConstruction>? _cachedActiveConstructions
+    {
+        get => _session.CachedActiveConstructions;
+        set => _session.CachedActiveConstructions = value;
+    }
+    private DateTimeOffset _cachedActiveConstructionsAt
+    {
+        get => _session.CachedActiveConstructionsAt;
+        set => _session.CachedActiveConstructionsAt = value;
+    }
+    private bool _cachedActiveConstructionsFromOverview
+    {
+        get => _session.CachedActiveConstructionsFromOverview;
+        set => _session.CachedActiveConstructionsFromOverview = value;
+    }
     private bool _lastActiveConstructionsFromOverview;
     private static readonly TimeSpan ActiveConstructionsCacheTtl = TimeSpan.FromMilliseconds(2500);
     private ConstructionNavigationDiagnostics? _constructionNavDiagnostics;
@@ -202,9 +214,10 @@ public sealed partial class TravianClient
 
     // Session-level cache for the villages list. Spieler.php is expensive to load, but the
     // prefer-cache path only re-reads the lightweight current-page sidebar (no navigation), so a
-    // short TTL lets the ~20s background refresh pick up renamed/new villages promptly while still
-    // sharing one read across rapid successive calls.
-    private static readonly TimeSpan VillagesCacheTtl = TimeSpan.FromSeconds(15);
+    // one-minute TTL keeps rare village additions reasonably fresh without re-reading the unchanged
+    // sidebar on every ~20s dashboard tick. Active-village renames use coordinate reconciliation on
+    // every tick and therefore do not depend on this TTL.
+    private static readonly TimeSpan VillagesCacheTtl = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan EnsureLoggedInMinInterval = TimeSpan.FromMinutes(1);
     private static readonly TimeSpan UiSyncMinInterval = TimeSpan.FromSeconds(20);
     private static readonly object ResourceStatusCacheSync = new();

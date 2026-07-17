@@ -255,6 +255,22 @@ public sealed class ContinuousLoopSelectorTests
         Assert.Equal(expectedHold, result is not null);
     }
 
+    [Theory]
+    [InlineData(60, true)]
+    [InlineData(61, false)]
+    [InlineData(0, false)]
+    [InlineData(-1, false)]
+    public void ShouldDeferKeepAliveForImminentWork_OnlyDefersForFutureMinute(
+        int secondsUntilReady,
+        bool expected)
+    {
+        var result = ContinuousLoopSelector.ShouldDeferKeepAliveForImminentWork(
+            Now,
+            Now.AddSeconds(secondsUntilReady));
+
+        Assert.Equal(expected, result);
+    }
+
     private static ContinuousLoopSelectionCandidate Candidate(
         QueueItem item,
         string? villageKey,

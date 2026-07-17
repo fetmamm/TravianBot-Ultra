@@ -21,6 +21,12 @@ public sealed class TravianSessionCache
     public int ConsecutiveUnknownAccessStates { get; set; }
     public System.DateTimeOffset LastResourceReadLogAt { get; set; } = System.DateTimeOffset.MinValue;
 
+    // Short-lived construction snapshot shared by the per-operation TravianClient instances that
+    // use the same visible browser. Navigation and construction mutations invalidate it centrally.
+    public System.Collections.Generic.IReadOnlyList<Domain.ActiveConstruction>? CachedActiveConstructions { get; set; }
+    public System.DateTimeOffset CachedActiveConstructionsAt { get; set; } = System.DateTimeOffset.MinValue;
+    public bool CachedActiveConstructionsFromOverview { get; set; }
+
     // Villages list + population cache. Shared so the bylist/population read from spieler.php once
     // survives across per-operation clients (no duplicate spieler navigation at startup) and the
     // population baseline persists between operations.

@@ -467,36 +467,15 @@ public sealed partial class TravianClient
 
         try
         {
+            var existingDecision = await TryGetExistingConstructionHumanizeDecisionAsync(kind, slotId, cancellationToken);
+            if (existingDecision.Handled)
+            {
+                return existingDecision.DeferMessage;
+            }
+
             var villageToken = await ResolveConstructionHumanizeVillageTokenAsync(cancellationToken);
             var slotKey = $"{villageToken}:{kind}:{slotId}";
             var now = DateTimeOffset.UtcNow;
-
-            // Pre-sleep fill: the desktop rescheduled this item to a random time right before a
-            // session-pacing sleep (the human pause was served by that reschedule). Start immediately
-            // so the slot is occupied when the sleep begins.
-            if (_config.ConstructionPreSleepFill)
-            {
-                _session.ConstructionHumanizeUntilBySlot.Remove(slotKey);
-                Notify($"[construction-humanize] slot {slotId}: pre-sleep fill — starting without an extra delay.");
-                return null;
-            }
-
-            // Retry after a delay we already scheduled for THIS build: let it proceed (or wait out the
-            // small remainder). Without this the % case would recompute and defer forever behind a live
-            // build, since the slot is still free each retry.
-            if (_session.ConstructionHumanizeUntilBySlot.TryGetValue(slotKey, out var scheduledUntil))
-            {
-                var remainingSeconds = (scheduledUntil - now).TotalSeconds;
-                if (remainingSeconds <= 1)
-                {
-                    _session.ConstructionHumanizeUntilBySlot.Remove(slotKey);
-                    return null;
-                }
-
-                var remainingWait = (int)Math.Ceiling(remainingSeconds);
-                Notify($"[construction-humanize] slot {slotId}: {remainingWait}s left before start. queue_wait_seconds={remainingWait}");
-                return $"Slot {slotId}: humanized construction start delay. queue_wait_seconds={remainingWait}";
-            }
 
             var (tribe, plusActive) = await GetCachedTribeAndPlusAsync(cancellationToken);
             var status = await EvaluateConstructionSlotsAsync(
@@ -575,6 +554,47 @@ public sealed partial class TravianClient
             Notify($"[construction-humanize] skipped due to error: {ex.Message}");
             return null;
         }
+    }
+
+    // Existing per-slot deadlines are authoritative until they expire. Checking them before any
+    // building-overview read lets a deferred retry return without opening dorf2 merely to rediscover
+    // the same humanized wait. A pre-sleep execution consumes the deadline but still performs the
+    // normal live queue gate before clicking.
+    private async Task<(bool Handled, string? DeferMessage)> TryGetExistingConstructionHumanizeDecisionAsync(
+        ConstructionKind kind,
+        int slotId,
+        CancellationToken cancellationToken)
+    {
+        if (!_config.ConstructionHumanizeDelayEnabled)
+        {
+            return (false, null);
+        }
+
+        var villageToken = await ResolveConstructionHumanizeVillageTokenAsync(cancellationToken);
+        var slotKey = $"{villageToken}:{kind}:{slotId}";
+        if (_config.ConstructionPreSleepFill)
+        {
+            _session.ConstructionHumanizeUntilBySlot.Remove(slotKey);
+            Notify($"[construction-humanize] slot {slotId}: pre-sleep fill — existing delay consumed before page reads.");
+            return (true, null);
+        }
+
+        if (!_session.ConstructionHumanizeUntilBySlot.TryGetValue(slotKey, out var scheduledUntil))
+        {
+            return (false, null);
+        }
+
+        var remainingWait = ConstructionHumanizeCalculator.ResolveExistingWaitSeconds(
+            DateTimeOffset.UtcNow,
+            scheduledUntil);
+        if (remainingWait == 0)
+        {
+            _session.ConstructionHumanizeUntilBySlot.Remove(slotKey);
+            return (true, null);
+        }
+
+        Notify($"[construction-humanize] slot {slotId}: {remainingWait}s left before start; overview read skipped. queue_wait_seconds={remainingWait}");
+        return (true, $"Slot {slotId}: humanized construction start delay. queue_wait_seconds={remainingWait}");
     }
 
     // Key for the per-village humanize transition memory. Non-Romans share one build slot for fields

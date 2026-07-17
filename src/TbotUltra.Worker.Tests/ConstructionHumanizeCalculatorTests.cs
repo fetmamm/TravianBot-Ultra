@@ -5,6 +5,24 @@ namespace TbotUltra.Worker.Tests;
 
 public sealed class ConstructionHumanizeCalculatorTests
 {
+    [Theory]
+    [InlineData(-1, 0)]
+    [InlineData(1, 0)]
+    [InlineData(1.1, 2)]
+    [InlineData(60.1, 61)]
+    public void ResolveExistingWaitSeconds_ExpiresOnceAndRoundsFutureWaitUp(
+        double secondsUntilScheduled,
+        int expected)
+    {
+        var now = new DateTimeOffset(2026, 7, 17, 12, 0, 0, TimeSpan.Zero);
+
+        var result = ConstructionHumanizeCalculator.ResolveExistingWaitSeconds(
+            now,
+            now.AddSeconds(secondsUntilScheduled));
+
+        Assert.Equal(expected, result);
+    }
+
     [Fact]
     public void CalculateAfterFullQueue_UsesRemainingSecondTimerAfterFirstFinishes()
     {

@@ -32,6 +32,18 @@ public sealed class ConstructionQueueStateTests
             "Resource slot 4: queued upgrade toward level 10. queue_wait_seconds=900"));
     }
 
+    [Theory]
+    [InlineData("upgrade_resource_to_level", true)]
+    [InlineData("upgrade_all_resources_to_level", true)]
+    [InlineData("upgrade_building_to_level", true)]
+    [InlineData("upgrade_building_to_max", true)]
+    [InlineData("construct_building", false)]
+    [InlineData("build_troops", false)]
+    public void UsesConstructionHumanizeStartGate_MatchesWorkerFlows(string taskName, bool expected)
+    {
+        Assert.Equal(expected, ConstructionQueueState.UsesConstructionHumanizeStartGate(taskName));
+    }
+
     [Fact]
     public void IsQueueOccupancyDeferMessage_DoesNotClassifyResourceWait()
     {
