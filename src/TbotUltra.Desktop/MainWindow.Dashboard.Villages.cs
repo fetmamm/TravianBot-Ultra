@@ -758,13 +758,52 @@ public partial class MainWindow
         }).ToList();
 
         var queueItems = GetQueueSnapshotForUi().ToList();
-        var tasks = queueItems.Select(item => new PipelineTaskSource(
-            item,
-            BuildQueueDisplayName(item),
-            GetQueueItemVillageKey(item),
-            GetQueueItemCurrentVillageName(item) ?? string.Empty,
-            IsQueueItemAllowedByAutomationSettings(item)))
-            .ToList();
+
+        // Attribute each queue item to a village in the overview list. An item's stable key and the dashboard
+        // row's key can be resolved from different identity sources (coordinate vs name) for the SAME village,
+        // so a raw key-equality join silently drops items and the row reads "Nothing queued" while the item
+        // still shows under its name in Upcoming. Resolve against the actual list here (canonical key first,
+        // then unique village name) and stamp the owning village's exact key/name so the factory join is exact.
+        var villagesByKey = new Dictionary<string, VillageOverviewSource>(StringComparer.OrdinalIgnoreCase);
+        foreach (var village in villages)
+        {
+            villagesByKey[village.VillageKey] = village;
+        }
+
+        var villagesByName = villages
+            .GroupBy(village => NormalizeVillageName(village.Name) ?? string.Empty, StringComparer.OrdinalIgnoreCase)
+            .Where(group => !string.IsNullOrEmpty(group.Key) && group.Count() == 1)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+
+        var attributionMisses = new List<string>();
+        var attributedPendingByKey = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var tasks = queueItems.Select(item =>
+        {
+            var rawKey = GetQueueItemVillageKey(item);
+            var rawName = GetQueueItemCurrentVillageName(item);
+            var owner = ResolveOverviewTaskVillage(rawKey, rawName, villagesByKey, villagesByName);
+            var allowed = IsQueueItemAllowedByAutomationSettings(item);
+            if (owner is null
+                && (!string.IsNullOrWhiteSpace(rawKey) || !string.IsNullOrWhiteSpace(rawName))
+                && allowed)
+            {
+                attributionMisses.Add(
+                    $"group={item.Group} task='{item.TaskName}' key='{rawKey ?? "-"}' name='{rawName ?? "-"}'");
+            }
+            else if (owner is not null && allowed && item.Status == QueueStatus.Pending)
+            {
+                attributedPendingByKey[owner.VillageKey] =
+                    attributedPendingByKey.GetValueOrDefault(owner.VillageKey) + 1;
+            }
+
+            return new PipelineTaskSource(
+                item,
+                BuildQueueDisplayName(item),
+                owner?.VillageKey ?? rawKey,
+                owner?.Name ?? rawName ?? string.Empty,
+                allowed);
+        }).ToList();
+
         var exactNext = SelectNextQueueItemForContinuousLoop(preview: true);
         var rotationKeys = QueueGroupCatalog.AllGroups.ToDictionary(
             group => group,
@@ -772,7 +811,7 @@ public partial class MainWindow
                 ? _continuousConstructionRotationVillageKey
                 : GetContinuousGroupRotationVillageKey(group));
 
-        return VillageOverviewFactory.Create(
+        var snapshot = VillageOverviewFactory.Create(
             villages,
             tasks,
             GetContinuousLoopConsideredGroupsInOrder(),
@@ -781,6 +820,61 @@ public partial class MainWindow
             nowUtc,
             FormatQueueFinishTime,
             rotationKeys);
+
+        LogOverviewAttributionDiagnostics(villages, snapshot, attributionMisses, attributedPendingByKey);
+        return snapshot;
+    }
+
+    // Resolves the overview village a queue item belongs to: canonical key first, then a unique village name.
+    // Returns null when the item cannot be tied to any listed village (surfaced by the diagnostic below).
+    private static VillageOverviewSource? ResolveOverviewTaskVillage(
+        string? rawKey,
+        string? rawName,
+        IReadOnlyDictionary<string, VillageOverviewSource> villagesByKey,
+        IReadOnlyDictionary<string, VillageOverviewSource> villagesByName)
+    {
+        if (!string.IsNullOrWhiteSpace(rawKey) && villagesByKey.TryGetValue(rawKey, out var byKey))
+        {
+            return byKey;
+        }
+
+        var normalizedName = NormalizeVillageName(rawName);
+        if (!string.IsNullOrWhiteSpace(normalizedName) && villagesByName.TryGetValue(normalizedName, out var byName))
+        {
+            return byName;
+        }
+
+        return null;
+    }
+
+    // Diagnostic: makes the per-village overview join observable. For each village it logs the resolved
+    // "Next task" plus how many allowed PENDING queue items were attributed to it — so a row that reads
+    // "Nothing queued" while N>0 pinpoints a factory-side issue, and misses (items that mapped to no listed
+    // village) pinpoint an identity mismatch. Throttled; remove once the overview reads correctly.
+    private DateTimeOffset _lastOverviewAttributionLogUtc = DateTimeOffset.MinValue;
+
+    private void LogOverviewAttributionDiagnostics(
+        IReadOnlyList<VillageOverviewSource> villages,
+        VillageOverviewSnapshot snapshot,
+        IReadOnlyList<string> misses,
+        IReadOnlyDictionary<string, int> attributedPendingByKey)
+    {
+        var now = DateTimeOffset.UtcNow;
+        if (now - _lastOverviewAttributionLogUtc < TimeSpan.FromSeconds(20))
+        {
+            return;
+        }
+
+        _lastOverviewAttributionLogUtc = now;
+        var perVillage = villages.Select(v =>
+        {
+            var row = snapshot.Villages.FirstOrDefault(r => string.Equals(r.Village, v.Name, StringComparison.Ordinal));
+            var pending = attributedPendingByKey.GetValueOrDefault(v.VillageKey);
+            return $"[{v.Name} key={v.VillageKey} next='{row?.NextTask ?? "-"}' attributedPending={pending}]";
+        });
+        AppendLog(
+            $"[overview-attrib] per-village: {string.Join(" ", perVillage)}. " +
+            $"Unmatched({misses.Count}): {(misses.Count == 0 ? "none" : string.Join(" | ", misses.Take(6)))}");
     }
 
     private void PersistVillageHeroResourcesFromSettingsRow(VillageSettingsRow row)

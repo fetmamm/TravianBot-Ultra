@@ -134,6 +134,12 @@ Common endpoints:
   attempt during the protected minute. Afterward, provider failure needs two consecutive confirmations while
   the player is present, or one confirmation when the player is demonstrably absent. Cancel, shutdown, and a
   closed/crashed browser may still abort immediately.
+- Construct-faster exception (WaitForConstructFasterVideoCompletionAsync): a redirect BACK to the village
+  (`onVillage` true with the player gone) is Travian's own post-reward navigation, so it is accepted
+  immediately and bypasses the protected minute — but only after the video was seen active (player loaded or
+  we left the village), so a dialog that is merely opening is never mistaken for a redirect. The weaker
+  "dialog + player both gone, no redirect" signal still waits out the 60-second minute (it can be an ad
+  no-fill that granted nothing).
 - Hard and -25% hero-adventure videos share an account-scoped 0-100% chance setting (default 70%);
   evaluate an independent random roll whenever either enabled function is invoked.
 - Classify video failures and apply account+proxy cooldown: network 10m, no-ad/cookies 20m, timeout 30m,

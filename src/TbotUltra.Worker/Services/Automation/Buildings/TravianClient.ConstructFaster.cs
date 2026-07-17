@@ -571,6 +571,7 @@ public sealed partial class TravianClient
         var consecutiveProviderFailures = 0;
         var earlyCompletionLogged = false;
         var ignoredProviderLogged = false;
+        var videoWasActive = false;
         while (DateTimeOffset.UtcNow < deadlineUtc)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -602,8 +603,29 @@ public sealed partial class TravianClient
             var onVillage = GetBoolean(root, "onVillage");
             var dialogOpen = GetBoolean(root, "dialogOpen");
             var hasPlayer = GetBoolean(root, "hasPlayer");
-            var completionSignal = onVillage || (!dialogOpen && !hasPlayer);
-            if (completionSignal && BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds))
+            if (hasPlayer || !onVillage)
+            {
+                // The player loaded, or we navigated to the ad/video URL: the video genuinely started. Only
+                // after this do we trust a later redirect back to the village as a real completion, so a
+                // dialog that is merely opening (player not loaded yet) is never mistaken for a redirect.
+                videoWasActive = true;
+            }
+
+            // A redirect back to the village with the player gone is Travian's own navigation AFTER the reward
+            // flow finished, so accept it immediately once the video was actually active — no need to wait out
+            // the protected minute. The weaker "dialog + player both gone" signal (no redirect) can also be an
+            // ad no-fill that granted nothing, so it stays gated by the protected post-play minute.
+            var villageRedirectComplete = onVillage && !hasPlayer && videoWasActive;
+            var weakComplete = !dialogOpen && !hasPlayer;
+            if (villageRedirectComplete)
+            {
+                Notify(
+                    $"[construct-faster] video completion accepted via village redirect after {elapsedSeconds:F1}s " +
+                    "post-play (player gone, back on village).");
+                return true;
+            }
+
+            if (weakComplete && BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds))
             {
                 Notify(
                     $"[construct-faster] video completion signal accepted after {elapsedSeconds:F1}s post-play " +
@@ -611,7 +633,7 @@ public sealed partial class TravianClient
                 return true;
             }
 
-            if (completionSignal && !earlyCompletionLogged)
+            if (weakComplete && !earlyCompletionLogged)
             {
                 earlyCompletionLogged = true;
                 Notify(
