@@ -13,6 +13,7 @@ public partial class AppDialog : Window
     private readonly MessageBoxResult _cancelResult;
     private readonly MessageBoxResult? _successResult;
     private readonly MessageBoxResult? _accentResult;
+    private readonly MessageBoxResult? _warningResult;
     private readonly IReadOnlyList<(string Label, MessageBoxResult Result)>? _customButtons;
     private MessageBoxResult _result;
     private bool _resultChosen;
@@ -27,7 +28,8 @@ public partial class AppDialog : Window
         MessageBoxResult? cancelResult = null,
         IReadOnlyList<(string Label, MessageBoxResult Result)>? customButtons = null,
         MessageBoxResult? successResult = null,
-        MessageBoxResult? accentResult = null)
+        MessageBoxResult? accentResult = null,
+        MessageBoxResult? warningResult = null)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
@@ -39,6 +41,7 @@ public partial class AppDialog : Window
         _customButtons = customButtons;
         _successResult = successResult;
         _accentResult = accentResult;
+        _warningResult = warningResult;
         _defaultResult = defaultResult;
         _cancelResult = ResolveCancelResult(buttons, cancelResult, customButtons);
         _result = ResolveDefaultResult(buttons, defaultResult, customButtons);
@@ -55,8 +58,9 @@ public partial class AppDialog : Window
         MessageBoxResult defaultResult,
         MessageBoxResult? cancelResult = null,
         IReadOnlyList<(string Label, MessageBoxResult Result)>? customButtons = null,
-        MessageBoxResult? accentResult = null)
-        : this(owner, string.Empty, title, buttons, icon, defaultResult, cancelResult, customButtons, successResult: null, accentResult)
+        MessageBoxResult? accentResult = null,
+        MessageBoxResult? warningResult = null)
+        : this(owner, string.Empty, title, buttons, icon, defaultResult, cancelResult, customButtons, successResult: null, accentResult, warningResult)
     {
         MessageContentControl.Content = content;
     }
@@ -152,8 +156,8 @@ public partial class AppDialog : Window
         return dialog._result;
     }
 
-    // Custom-button dialog with rich WPF content instead of a plain text message. accentResult marks
-    // the button that should get the app's primary accent styling (e.g. the affirmative action).
+    // Custom-button dialog with rich WPF content instead of a plain text message. The optional result
+    // markers apply the app's primary or warning action styling to the matching button.
     public static MessageBoxResult ShowCustomContent(
         Window? owner,
         object content,
@@ -162,7 +166,8 @@ public partial class AppDialog : Window
         MessageBoxImage icon,
         MessageBoxResult defaultResult,
         MessageBoxResult cancelResult,
-        MessageBoxResult? accentResult = null)
+        MessageBoxResult? accentResult = null,
+        MessageBoxResult? warningResult = null)
     {
         var dialog = new AppDialog(
             owner,
@@ -173,7 +178,8 @@ public partial class AppDialog : Window
             defaultResult,
             cancelResult,
             buttons,
-            accentResult);
+            accentResult,
+            warningResult);
         _ = dialog.ShowDialog();
         return dialog._result;
     }
@@ -220,6 +226,13 @@ public partial class AppDialog : Window
                 button.SetResourceReference(Control.BackgroundProperty, "PrimaryButtonBrush");
                 button.SetResourceReference(Control.BorderBrushProperty, "AccentBrush");
                 button.SetResourceReference(Control.ForegroundProperty, "OnAccentBrush");
+                button.FontWeight = FontWeights.SemiBold;
+            }
+            else if (result == _warningResult)
+            {
+                button.SetResourceReference(Control.BackgroundProperty, "WarningBgBrush");
+                button.SetResourceReference(Control.BorderBrushProperty, "WarningBorderBrush");
+                button.SetResourceReference(Control.ForegroundProperty, "WarningTextBrush");
                 button.FontWeight = FontWeights.SemiBold;
             }
 

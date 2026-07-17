@@ -619,12 +619,11 @@
                                                     <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
                                                     <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
                                                     <Setter Property="BorderThickness" Value="1" />
-                                                    <Setter Property="ToolTip" Value="No construction queued here — consider queuing more" />
+                                                    <Setter Property="ToolTip" Value="{Binding QueueTooltip}" />
                                                     <Style.Triggers>
                                                         <DataTrigger Binding="{Binding HasQueue}" Value="True">
                                                             <Setter Property="Background" Value="{DynamicResource SuccessBrush}" />
                                                             <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
-                                                            <Setter Property="ToolTip" Value="Construction queued in this village" />
                                                         </DataTrigger>
                                                     </Style.Triggers>
                                                 </Style>

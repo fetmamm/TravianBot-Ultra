@@ -155,6 +155,7 @@ public partial class MainWindow
             item.TroopSlots = BuildTroopActivitySlots(status, ResolveTroopTrainingPayloadForVillage(item), GetServerNow());
             item.SmithySlots = BuildSmithyActivitySlots(name, deferredGroups?.Contains(QueueGroup.Troops) == true);
             item.HasQueue = name is not null && queuedVillages.Contains(name);
+            ApplyDashboardQueueTooltip(item);
 
             var isHeroVillage = name is not null
                 && heroHome is not null

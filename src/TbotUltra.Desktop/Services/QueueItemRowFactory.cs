@@ -86,6 +86,10 @@ public static class QueueItemRowFactory
         return $"{span.Seconds}s";
     }
 
+    public static string FormatQueueDurationTooltip(double totalSeconds)
+        => $"Time: {FormatBuildDuration(totalSeconds)}\n"
+            + $"Time (25%): {FormatBuildDuration(totalSeconds * 0.75)}";
+
     public static string FormatResourceAmount(long amount)
         => amount.ToString("N0", CultureInfo.InvariantCulture);
 

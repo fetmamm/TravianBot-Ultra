@@ -281,7 +281,7 @@ public partial class SettingsWindow : Window
             MessageBoxImage.Warning,
             MessageBoxResult.Cancel,
             MessageBoxResult.Cancel,
-            accentResult: MessageBoxResult.Yes);
+            warningResult: MessageBoxResult.Yes);
         if (result == MessageBoxResult.Yes)
         {
             return;

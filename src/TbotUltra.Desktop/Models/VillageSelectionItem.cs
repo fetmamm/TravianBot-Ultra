@@ -69,6 +69,25 @@ public sealed class VillageSelectionItem : INotifyPropertyChanged
         }
     }
 
+    private string _queueTooltip = "No construction queued here — consider queuing more";
+    public string QueueTooltip
+    {
+        get => _queueTooltip;
+        set
+        {
+            var tooltip = string.IsNullOrWhiteSpace(value)
+                ? "No construction queued here — consider queuing more"
+                : value;
+            if (string.Equals(_queueTooltip, tooltip, System.StringComparison.Ordinal))
+            {
+                return;
+            }
+
+            _queueTooltip = tooltip;
+            OnPropertyChanged();
+        }
+    }
+
     // True only for the hero's home village AND when the hero is currently away (adventure/attack/etc).
     // Combined with IsHeroHome this gives the icon three states: dark (not hero's village), green (home),
     // yellow (home village but hero is away).

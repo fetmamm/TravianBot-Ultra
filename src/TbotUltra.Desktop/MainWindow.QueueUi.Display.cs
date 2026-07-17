@@ -11,6 +11,9 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
+    private readonly Dictionary<string, double> _queueEstimateSecondsByVillage =
+        new(StringComparer.OrdinalIgnoreCase);
+
     private string BuildQueueDisplayName(QueueItem item)
     {
         return QueueDisplayNameFormatter.Format(
@@ -83,6 +86,7 @@ public partial class MainWindow
                     row.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused
                     || (row.Status == QueueStatus.Failed && !row.IsRuntimeOnly))
                 .ToList();
+            UpdateDashboardQueueDurationTooltips(activeRows);
             var historyRows = rows
                 .Where(row =>
                     row.Status == QueueStatus.Succeeded
@@ -149,6 +153,61 @@ public partial class MainWindow
         {
             _isRefreshingQueueUi = false;
         }
+    }
+
+    private void UpdateDashboardQueueDurationTooltips(IReadOnlyList<QueueItemRow> rows)
+    {
+        _queueEstimateSecondsByVillage.Clear();
+        var queuedVillages = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in rows)
+        {
+            if (!IsConstructionQueueTask(row.TaskName)
+                || row.Status is not (QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused))
+            {
+                continue;
+            }
+
+            var villageName = NormalizeVillageName(row.VillageName);
+            if (villageName is null)
+            {
+                continue;
+            }
+
+            queuedVillages.Add(villageName);
+            if (!row.HasEstimate)
+            {
+                continue;
+            }
+
+            _queueEstimateSecondsByVillage.TryGetValue(villageName, out var seconds);
+            _queueEstimateSecondsByVillage[villageName] = seconds + row.EstimateSeconds;
+        }
+
+        if (DashboardVillageList.ItemsSource is IEnumerable<VillageSelectionItem> villages)
+        {
+            foreach (var village in villages)
+            {
+                var villageName = NormalizeVillageName(village.Name);
+                village.HasQueue = villageName is not null && queuedVillages.Contains(villageName);
+                ApplyDashboardQueueTooltip(village);
+            }
+        }
+    }
+
+    private void ApplyDashboardQueueTooltip(VillageSelectionItem village)
+    {
+        if (!village.HasQueue)
+        {
+            village.QueueTooltip = "No construction queued here — consider queuing more";
+            return;
+        }
+
+        var villageName = NormalizeVillageName(village.Name);
+        village.QueueTooltip = villageName is not null
+            && _queueEstimateSecondsByVillage.TryGetValue(villageName, out var seconds)
+            && seconds > 0
+                ? QueueItemRowFactory.FormatQueueDurationTooltip(seconds)
+                : "Construction queued in this village\nTime: unavailable\nTime (25%): unavailable";
     }
 
     private void RefreshTravianBuildQueueUi()

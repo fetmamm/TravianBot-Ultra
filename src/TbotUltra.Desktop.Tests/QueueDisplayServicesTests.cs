@@ -121,6 +121,14 @@ public sealed class QueueDisplayServicesTests
         Assert.Equal("[AUTO FIX] Construct Academy to level 1 (slot 30)", row.DisplayName);
     }
 
+    [Fact]
+    public void FormatQueueDurationTooltip_ShowsNormalAndConstructFasterTimes()
+    {
+        var tooltip = QueueItemRowFactory.FormatQueueDurationTooltip(180000);
+
+        Assert.Equal("Time: 2d 2h\nTime (25%): 1d 13h", tooltip);
+    }
+
     private static QueueItem Item(string taskName, Dictionary<string, string> payload, string? displayName = null)
         => new()
         {
