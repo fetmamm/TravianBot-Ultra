@@ -58,18 +58,65 @@ public sealed class ConstructionQueueSelectorTests
     }
 
     [Fact]
-    public void SelectNext_InProgressTargetHoldsQueueOrder()
+    public void SelectNext_InProgressFillsFreeSlotWithNextItem()
     {
+        // The head's build is already queued (in progress) and a slot is free (Travian Plus reports
+        // Available), so the immediate next item in order fills the second slot instead of idling.
         var inProgress = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonInProgress);
-        var later = CreateReadyItem();
+        var next = CreateReadyItem();
 
         var result = ConstructionQueueSelector.SelectNext(
-            [inProgress, later],
+            [inProgress, next],
+            Now,
+            ConstructionQueueAvailability.Available);
+
+        Assert.Same(next, result.Item);
+        Assert.Null(result.QueueFullBlocker);
+    }
+
+    [Fact]
+    public void SelectNext_InProgressHoldsQueueOrderWhenQueueFull()
+    {
+        var inProgress = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonInProgress);
+        var next = CreateReadyItem();
+
+        var result = ConstructionQueueSelector.SelectNext(
+            [inProgress, next],
+            Now,
+            ConstructionQueueAvailability.Full);
+
+        Assert.Null(result.Item);
+        Assert.Contains("holding queue order", result.SkipReason);
+    }
+
+    [Fact]
+    public void SelectNext_InProgressHoldsWhenNextItemNotDue()
+    {
+        var inProgress = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonInProgress);
+        var deferredNext = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonResources);
+
+        var result = ConstructionQueueSelector.SelectNext(
+            [inProgress, deferredNext],
             Now,
             ConstructionQueueAvailability.Available);
 
         Assert.Null(result.Item);
-        Assert.False(result.ForcedLiveValidation);
+        Assert.Contains("holding queue order", result.SkipReason);
+    }
+
+    [Fact]
+    public void SelectNext_InProgressHoldsWhenNextBlockedByDependency()
+    {
+        var inProgress = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonInProgress);
+        var next = CreateReadyItem();
+
+        var result = ConstructionQueueSelector.SelectNext(
+            [inProgress, next],
+            Now,
+            ConstructionQueueAvailability.Available,
+            index => index == 1);
+
+        Assert.Null(result.Item);
         Assert.Contains("holding queue order", result.SkipReason);
     }
 
