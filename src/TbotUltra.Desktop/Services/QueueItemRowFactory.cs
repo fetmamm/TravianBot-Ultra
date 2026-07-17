@@ -38,6 +38,9 @@ public static class QueueItemRowFactory
             DisplayName = displayName,
             TaskName = item.TaskName,
             Status = item.Id == displayRunningId ? QueueStatus.Running : item.Status,
+            IsBuildingInProgress = item.Id != displayRunningId
+                && item.Status == QueueStatus.Pending
+                && ConstructionQueueState.IsConstructionInProgressDeferred(item),
             Retries = item.Retries,
             MaxRetries = item.MaxRetries,
             IsRuntimeOnly = item.IsRuntimeOnly,

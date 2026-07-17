@@ -256,13 +256,17 @@
                     <DataGridTemplateColumn Header="Status" Width="*">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
-                                <TextBlock Text="{Binding Status}">
+                                <TextBlock Text="{Binding StatusText}">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Foreground" Value="{DynamicResource DataGridCellTextBrush}" />
                                             <Style.Triggers>
                                                 <DataTrigger Binding="{Binding Status}" Value="Running">
                                                     <Setter Property="Foreground" Value="{DynamicResource SuccessBrush}" />
+                                                    <Setter Property="FontWeight" Value="SemiBold" />
+                                                </DataTrigger>
+                                                <DataTrigger Binding="{Binding IsBuildingInProgress}" Value="True">
+                                                    <Setter Property="Foreground" Value="{DynamicResource InfoTextBrush}" />
                                                     <Setter Property="FontWeight" Value="SemiBold" />
                                                 </DataTrigger>
                                             </Style.Triggers>

@@ -13,6 +13,12 @@ public sealed class QueueItemRow
     public string DisplayName { get; init; } = string.Empty;
     public string TaskName { get; init; } = string.Empty;
     public QueueStatus Status { get; init; }
+    // True when this is a construction task whose build is already placed in Travian's in-game queue
+    // (deferred with reason InProgress). The queue keeps such an item Pending until it can advance to
+    // its next target level, so the grid surfaces it as "Building" instead of the misleading "Pending".
+    public bool IsBuildingInProgress { get; init; }
+    // Status text for the grid: "Building" while the in-game build is in progress, otherwise the raw status.
+    public string StatusText => IsBuildingInProgress ? "Building" : Status.ToString();
     public int Retries { get; init; }
     public int MaxRetries { get; init; }
     public string RetriesText => $"{Retries}/{MaxRetries}";
