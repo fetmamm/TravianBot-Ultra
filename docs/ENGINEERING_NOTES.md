@@ -212,6 +212,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Verify active village after switching and before state-changing actions. Missing villages are quarantined until
   confirmed, not deleted after one incomplete refresh.
 - Hero ownership and current location are separate. Scope transfers to the active dialog and verify the target.
+- Read an away Hero's ETA from Hero Attributes, never from Rally Point troop movements. Use the displayed timer
+  directly for an explicit return to the home village; double every outbound movement timer (adventure, raid,
+  attack, reinforcement, or another destination) to include the return leg.
 - Empty building slots contain one contract per available type; scope cost reads and transfer clicks to the exact
   `#contract_building{gid}`.
 - Cache only data with an owner, invalidation rule, and safe stale behavior. Incomplete refreshes must not erase

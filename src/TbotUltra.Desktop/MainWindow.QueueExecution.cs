@@ -1046,13 +1046,12 @@ public partial class MainWindow
 
                 await RefreshFarmListsUiAfterAutoSendIfNeededAsync(item, ex.Message);
                 AppendLog($"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | next try in {queueWaitDelay.TotalSeconds:F0}s{constructionSuffix}");
-                // A building-mutation task can start one build (e.g. via hero resource transfer) and then defer
-                // because the NEXT level lacks resources. That deferral skips the success-path construction
-                // refresh, so the cached ActiveBuildCount stays stale (0) and the overview would paint EVERY
-                // idle build slot amber instead of the just-started one green. Re-read the current village's
-                // construction status (the browser is already on it) so the freshly started build is cached
-                // before the icons repaint below.
-                if (IsBuildingMutationTask(item.TaskName) && !isHumanizeDefer)
+                // A building or resource mutation can start one build and then defer because the NEXT level
+                // is blocked. That deferral skips the success-path construction refresh, so the cached live
+                // Travian queue can stay empty even though the worker just observed a full queue. Re-read the
+                // current village's construction status (the browser is already on it) before repainting.
+                if ((IsBuildingMutationTask(item.TaskName) || IsResourceUpgradeTask(item.TaskName))
+                    && !isHumanizeDefer)
                 {
                     try
                     {

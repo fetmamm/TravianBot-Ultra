@@ -406,9 +406,21 @@ public sealed partial class TravianClient
 
                     // Hidden countdown inside the resource-shortage message = seconds until enough resources.
                     let errorWaitSeconds = null;
-                    const errTimer = row.querySelector('.errorMessage .timer');
-                    const errTimerVal = errTimer ? String(errTimer.getAttribute('value') || '') : '';
-                    if (/^\d+$/.test(errTimerVal)) { errorWaitSeconds = parseInt(errTimerVal, 10); }
+                    const errTimer = row.querySelector(
+                      '.errorMessage .timer, .errorMessage .timerReact, .errorMessage [counting="down"]');
+                    const errTimerVal = errTimer
+                      ? String(errTimer.getAttribute('value') || errTimer.getAttribute('data-value') || '')
+                      : '';
+                    if (/^\d+$/.test(errTimerVal)) {
+                      errorWaitSeconds = parseInt(errTimerVal, 10);
+                    } else if (errTimer) {
+                      const parts = clean(errTimer.textContent).split(':').map(Number);
+                      if (parts.length === 3 && parts.every(Number.isFinite)) {
+                        errorWaitSeconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+                      } else if (parts.length === 2 && parts.every(Number.isFinite)) {
+                        errorWaitSeconds = parts[0] * 60 + parts[1];
+                      }
+                    }
 
                     const candidates = Array.from(row.querySelectorAll('button, input[type="submit"], input[type="button"], a'));
                     let researchOnClick = '';
