@@ -33,6 +33,8 @@ public partial class AccountsWindow : Window
     // Custom servers + built-in official servers, in combo display order. The combo's
     // ItemsSource is a grouped view over this list, so selection lookups go through it.
     private List<ServerOption> _comboServers = [];
+    private List<ServerOption> _specialServerOptions = [];
+    private readonly CancellationTokenSource _specialServerLoadCts = new();
     private string _activeAccountName = string.Empty;
     private bool _showPassword;
     private bool _editingExistingAccount;
@@ -71,7 +73,33 @@ public partial class AccountsWindow : Window
         _proxyPlanStore = new AccountProxyPlanStore(_projectRoot);
         _botConfigStore = new BotConfigStore(System.IO.Path.Combine(_projectRoot, "config", "bot.json"), _projectRoot, () => _store.ActiveAccountName());
         SafeRunAccountEditorAction(() => SelectProxyScheme("socks5"), "initialize proxy type");
+        Loaded += AccountsWindow_Loaded;
+        Closed += (_, _) => _specialServerLoadCts.Cancel();
         Reload();
+    }
+
+    private async void AccountsWindow_Loaded(object sender, RoutedEventArgs e)
+    {
+        Loaded -= AccountsWindow_Loaded;
+        try
+        {
+            _specialServerOptions = await OfficialServerDiscoveryService.FetchSpecialServersAsync(_specialServerLoadCts.Token);
+            var selectedName = (ServerComboBox.SelectedItem as ServerOption)?.Name ?? string.Empty;
+            var selectedUrl = (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl ?? string.Empty;
+            EnsureServerListContainsDefaults();
+            if (selectedName.Length > 0 || selectedUrl.Length > 0)
+            {
+                SelectServer(selectedName, selectedUrl);
+            }
+        }
+        catch (OperationCanceledException) when (_specialServerLoadCts.IsCancellationRequested)
+        {
+            // Window closed while the calendar request was running.
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[official-server-discovery] Could not refresh special gameworlds: {ex.Message}");
+        }
     }
 
     private void Reload()
@@ -1086,7 +1114,9 @@ public partial class AccountsWindow : Window
     {
         var password = _showPassword ? PasswordTextBox.Text : PasswordBox.Password;
         var selectedServer = ServerComboBox.SelectedItem as ServerOption;
-        var serverName = selectedServer?.Name ?? _defaultServerName;
+        var serverName = _editingExistingAccount
+            ? _editingOriginalServerName
+            : selectedServer?.Name ?? _defaultServerName;
         var serverUrl = selectedServer?.BaseUrl ?? _defaultServerUrl;
         var proxyScheme = (ProxySchemeComboBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString()
             ?? "socks5";
@@ -1161,23 +1191,13 @@ public partial class AccountsWindow : Window
         RebuildServerComboItems(officialServers);
     }
 
-    // Custom servers first (the user's own entries, e.g. SS-Travi, stay on top), then the
-    // full official catalog grouped by region. Officials are always shown even when a custom
-    // entry has the same URL, so every region group is complete; URL-based selection matches
-    // the custom entry first since it comes earlier in the list.
+    // Current special worlds from Travian's public calendar are shown first, then custom
+    // servers and the built-in regional catalog. A custom entry that matches a discovered
+    // special world is hidden from the picker to avoid showing the same world twice.
     private void RebuildServerComboItems(List<ServerOption> officialServers)
     {
-        var combined = new List<ServerOption>();
-        foreach (var option in _serverOptions.OrderBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
-        {
-            option.Group = OfficialServerCatalog.CustomGroupName;
-            combined.Add(option);
-        }
-
-        combined.AddRange(officialServers);
-
-        _comboServers = combined;
-        var view = new ListCollectionView(combined);
+        _comboServers = OfficialServerCatalog.BuildPickerServers(_serverOptions, _specialServerOptions, officialServers);
+        var view = new ListCollectionView(_comboServers);
         view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(ServerOption.Group)));
         ServerComboBox.ItemsSource = view;
     }

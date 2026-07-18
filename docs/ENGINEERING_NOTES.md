@@ -57,6 +57,12 @@ Published artifacts belong under `artifacts/`, never beside source files.
   or a tool for genuine React/hidden controls. Preserve the farm-list real-click-with-JS-fallback pattern.
 - React inputs may require native value assignment plus `input`/`change` events.
 - Numeric parsing must handle locale separators, Unicode minus, and bidirectional markers.
+- The account server picker loads active and upcoming non-standard Official worlds from Travian Lobby's public
+  `/api/metadata` and `/api/calendar`. Treat any published `.travian.com` URL whose type is not `normal`, or
+  whose host does not match the regular regional `ts{N}.x{speed}.{region}` scheme, as `Special`; ignore entries
+  without a URL.
+- `Special` is the first picker group. Hide a matching user-added duplicate while discovery is available, but
+  keep the persisted custom entry so it remains usable if the calendar cannot be reached later.
 
 ## Configuration and persisted state
 
