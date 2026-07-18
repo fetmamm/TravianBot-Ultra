@@ -648,30 +648,27 @@
                     </Border>
 
                     <Border Style="{StaticResource HeroSettingsCategoryStyle}">
-                        <Grid MinHeight="300">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Border Width="44" Height="44" CornerRadius="22"
-                                        HorizontalAlignment="Center"
-                                        Background="{DynamicResource InfoBgBrush}"
-                                        BorderBrush="{DynamicResource InfoBrush}"
-                                        BorderThickness="1">
-                                    <TextBlock Text="H"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"
-                                               FontSize="16"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource InfoTextBrush}" />
-                                </Border>
-                                <TextBlock Text="Hero settings"
-                                           HorizontalAlignment="Center"
-                                           Margin="0,12,0,4"
-                                           FontSize="16"
-                                           FontWeight="SemiBold" />
-                                <TextBlock Text="No settings in this category yet."
-                                           HorizontalAlignment="Center"
-                                           Foreground="{DynamicResource TextMutedBrush}" />
-                            </StackPanel>
-                        </Grid>
+                        <StackPanel>
+                            <TextBlock Text="Adventure settings" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <Border Style="{StaticResource SettingsGroupBox}" Margin="0,10,0,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <CheckBox Style="{DynamicResource ToggleSwitchBlueStyle}"
+                                              Margin="0,0,12,0"
+                                              IsChecked="{Binding HeroAdventureRestartDelay.IsEnabled, Mode=TwoWay}" />
+                                    <StackPanel Orientation="Horizontal"
+                                                VerticalAlignment="Center"
+                                                IsEnabled="{Binding HeroAdventureRestartDelay.IsEnabled}">
+                                        <TextBlock Text="Restart delay (min)" Width="140" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                        <TextBox Width="56" Text="{Binding HeroAdventureRestartDelay.DelayMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Text="–" Margin="8,0" VerticalAlignment="Center" />
+                                        <TextBox Width="56" Text="{Binding HeroAdventureRestartDelay.DelayMaxMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                        Margin="8,0,0,0"
+                                                        ToolTip="Waits a random time before sending the hero after returning home or after an adventure becomes available." />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                     </Border>
 
                     <Border Style="{StaticResource FarmingSettingsCategoryStyle}">
@@ -702,30 +699,27 @@
                     </Border>
 
                     <Border Style="{StaticResource TroopsSettingsCategoryStyle}">
-                        <Grid MinHeight="300">
-                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
-                                <Border Width="44" Height="44" CornerRadius="22"
-                                        HorizontalAlignment="Center"
-                                        Background="{DynamicResource PurpleBgBrush}"
-                                        BorderBrush="{DynamicResource PurpleBorderBrush}"
-                                        BorderThickness="1">
-                                    <TextBlock Text="T"
-                                               HorizontalAlignment="Center"
-                                               VerticalAlignment="Center"
-                                               FontSize="16"
-                                               FontWeight="SemiBold"
-                                               Foreground="{DynamicResource PurpleTextBrush}" />
-                                </Border>
-                                <TextBlock Text="Troop settings"
-                                           HorizontalAlignment="Center"
-                                           Margin="0,12,0,4"
-                                           FontSize="16"
-                                           FontWeight="SemiBold" />
-                                <TextBlock Text="No settings in this category yet."
-                                           HorizontalAlignment="Center"
-                                           Foreground="{DynamicResource TextMutedBrush}" />
-                            </StackPanel>
-                        </Grid>
+                        <StackPanel>
+                            <TextBlock Text="Smithy upgrade troops" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <Border Style="{StaticResource SettingsGroupBox}" Margin="0,10,0,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <CheckBox Style="{DynamicResource ToggleSwitchBlueStyle}"
+                                              Margin="0,0,12,0"
+                                              IsChecked="{Binding SmithyUpgradeRestartDelay.IsEnabled, Mode=TwoWay}" />
+                                    <StackPanel Orientation="Horizontal"
+                                                VerticalAlignment="Center"
+                                                IsEnabled="{Binding SmithyUpgradeRestartDelay.IsEnabled}">
+                                        <TextBlock Text="Restart delay (min)" Width="140" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                        <TextBox Width="56" Text="{Binding SmithyUpgradeRestartDelay.DelayMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Text="–" Margin="8,0" VerticalAlignment="Center" />
+                                        <TextBox Width="56" Text="{Binding SmithyUpgradeRestartDelay.DelayMaxMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                        Margin="8,0,0,0"
+                                                        ToolTip="Waits after a Smithy queue slot becomes free. An empty queue starts immediately and Travian Plus slots are filled together without a delay between them." />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
                     </Border>
 
                     <Border Style="{StaticResource CelebrationsSettingsCategoryStyle}">
@@ -825,13 +819,16 @@
                                         <RadioButton Content="Two (one queued)" IsChecked="{Binding TownHallQueue.IsTwo, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
-                                        <TextBlock Text="Restart delay (min)" Width="140" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
-                                        <TextBox Width="56" Text="{Binding TownHallQueue.DelayMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Text="–" Margin="8,0" VerticalAlignment="Center" />
-                                        <TextBox Width="56" Text="{Binding TownHallQueue.DelayMaxMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
-                                                        Margin="8,0,0,0"
-                                                        ToolTip="Random waiting time after a Town Hall celebration finishes before the next celebration is started." />
+                                        <CheckBox Style="{DynamicResource ToggleSwitchBlueStyle}" Margin="0,0,12,0" IsChecked="{Binding TownHallQueue.IsRestartDelayEnabled, Mode=TwoWay}" />
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" IsEnabled="{Binding TownHallQueue.IsRestartDelayEnabled}">
+                                            <TextBlock Text="Restart delay (min)" Width="140" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                            <TextBox Width="56" Text="{Binding TownHallQueue.DelayMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBlock Text="–" Margin="8,0" VerticalAlignment="Center" />
+                                            <TextBox Width="56" Text="{Binding TownHallQueue.DelayMaxMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                            Margin="8,0,0,0"
+                                                            ToolTip="Random waiting time after a Town Hall celebration finishes before the next celebration is started." />
+                                        </StackPanel>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
@@ -843,13 +840,16 @@
                             <Border Style="{StaticResource SettingsGroupBox}" Margin="0,10,0,0">
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <TextBlock Text="Restart delay (min)" Width="140" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
-                                        <TextBox Width="56" Text="{Binding BreweryRestartDelay.DelayMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Text="–" Margin="8,0" VerticalAlignment="Center" />
-                                        <TextBox Width="56" Text="{Binding BreweryRestartDelay.DelayMaxMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
-                                                        Margin="8,0,0,0"
-                                                        ToolTip="Random waiting time after a Brewery celebration finishes before the next celebration is started." />
+                                        <CheckBox Style="{DynamicResource ToggleSwitchBlueStyle}" Margin="0,0,12,0" IsChecked="{Binding BreweryRestartDelay.IsEnabled, Mode=TwoWay}" />
+                                        <StackPanel Orientation="Horizontal" VerticalAlignment="Center" IsEnabled="{Binding BreweryRestartDelay.IsEnabled}">
+                                            <TextBlock Text="Restart delay (min)" Width="140" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                            <TextBox Width="56" Text="{Binding BreweryRestartDelay.DelayMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <TextBlock Text="–" Margin="8,0" VerticalAlignment="Center" />
+                                            <TextBox Width="56" Text="{Binding BreweryRestartDelay.DelayMaxMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                            Margin="8,0,0,0"
+                                                            ToolTip="Random waiting time after a Brewery celebration finishes before the next celebration is started." />
+                                        </StackPanel>
                                     </StackPanel>
                                 </StackPanel>
                             </Border>

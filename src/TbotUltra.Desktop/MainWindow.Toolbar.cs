@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Windows;
+using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Worker.Infrastructure;
 
@@ -180,6 +181,7 @@ public partial class MainWindow
         }
         if (saved)
         {
+            ResetChangedRestartDelayTasks(optionsBeforeSettings, optionsAfterSettings);
             if (window.TownHallSettingsChanged)
             {
                 PersistTownHallSettings(window.TownHallResults, villageSettingsRows);
@@ -191,6 +193,53 @@ public partial class MainWindow
         {
             RequestManualSessionSleep();
         }
+    }
+
+    private void ResetChangedRestartDelayTasks(BotOptions before, BotOptions after)
+    {
+        var changedTasks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (before.HeroAdventureRestartDelayEnabled != after.HeroAdventureRestartDelayEnabled
+            || before.HeroAdventureRestartDelayMinMinutes != after.HeroAdventureRestartDelayMinMinutes
+            || before.HeroAdventureRestartDelayMaxMinutes != after.HeroAdventureRestartDelayMaxMinutes)
+        {
+            changedTasks.Add("hero_manage");
+        }
+        if (before.SmithyUpgradeRestartDelayEnabled != after.SmithyUpgradeRestartDelayEnabled
+            || before.SmithyUpgradeRestartDelayMinMinutes != after.SmithyUpgradeRestartDelayMinMinutes
+            || before.SmithyUpgradeRestartDelayMaxMinutes != after.SmithyUpgradeRestartDelayMaxMinutes)
+        {
+            changedTasks.Add("upgrade_troops_at_smithy");
+        }
+        if (before.TownHallCelebrationRestartDelayEnabled != after.TownHallCelebrationRestartDelayEnabled
+            || before.TownHallCelebrationRestartDelayMinMinutes != after.TownHallCelebrationRestartDelayMinMinutes
+            || before.TownHallCelebrationRestartDelayMaxMinutes != after.TownHallCelebrationRestartDelayMaxMinutes)
+        {
+            changedTasks.Add("run_town_hall_celebration");
+        }
+        if (before.BreweryCelebrationRestartDelayEnabled != after.BreweryCelebrationRestartDelayEnabled
+            || before.BreweryCelebrationRestartDelayMinMinutes != after.BreweryCelebrationRestartDelayMinMinutes
+            || before.BreweryCelebrationRestartDelayMaxMinutes != after.BreweryCelebrationRestartDelayMaxMinutes)
+        {
+            changedTasks.Add("run_brewery_celebration");
+        }
+
+        if (changedTasks.Count == 0)
+        {
+            return;
+        }
+
+        var resetCount = 0;
+        foreach (var item in _botService.GetQueueItemsForDisplay()
+                     .Where(item => changedTasks.Contains(item.TaskName)))
+        {
+            if (_botService.PatchDeferredQueueItem(item.Id, null, null, TimeSpan.Zero))
+            {
+                resetCount++;
+            }
+        }
+
+        AppendLog($"Restart-delay settings changed. Released {resetCount} affected deferred task(s) for an immediate re-check.");
+        RefreshQueueUi();
     }
 
     private async void MainWindow_Closing(object? sender, System.ComponentModel.CancelEventArgs e)

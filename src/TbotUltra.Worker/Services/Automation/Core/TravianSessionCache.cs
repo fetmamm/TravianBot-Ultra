@@ -26,6 +26,11 @@ public sealed class TravianSessionCache
     public int ConsecutiveUnknownAccessStates { get; set; }
     public System.DateTimeOffset LastResourceReadLogAt { get; set; } = System.DateTimeOffset.MinValue;
 
+    // Next time hero_manage may dispatch an adventure. Set when an adventure is first observed while
+    // the hero is home, so repeated worker attempts reuse one deadline instead of drawing a new random
+    // delay forever. No deadline is created while the hero is away or no adventure exists.
+    public System.DateTimeOffset? HeroAdventureDispatchNotBeforeUtc { get; set; }
+
     // Short-lived construction snapshot shared by the per-operation TravianClient instances that
     // use the same visible browser. Navigation and construction mutations invalidate it centrally.
     public System.Collections.Generic.IReadOnlyList<Domain.ActiveConstruction>? CachedActiveConstructions { get; set; }

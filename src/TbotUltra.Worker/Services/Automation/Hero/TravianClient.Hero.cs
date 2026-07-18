@@ -488,6 +488,14 @@ public sealed partial class TravianClient : IHeroClient
                 ? hpPercent.Value >= minHpThreshold
                 : inVillage);
         var hpTooLow = false;
+        if (!_config.HeroAdventureRestartDelayEnabled || adventureCount <= 0)
+        {
+            _session.HeroAdventureDispatchNotBeforeUtc = null;
+        }
+
+        var adventureRestartDelayWaitSeconds = adventureCount > 0 && canSendByHp && inVillage
+            ? ResolveHeroAdventureRestartDelayWaitSeconds()
+            : 0;
 
         if (isReviving)
         {
@@ -510,6 +518,12 @@ public sealed partial class TravianClient : IHeroClient
                 + (status.ReviveRemainingSeconds is > 0
                     ? TravianParsing.FormatDuration(status.ReviveRemainingSeconds.Value)
                     : "unknown (5m fallback)"));
+        }
+        else if (adventureRestartDelayWaitSeconds > 0)
+        {
+            actions.Add("adventure_restart_delay");
+            heroReturnWaitSeconds = adventureRestartDelayWaitSeconds;
+            Notify($"[hero] adventure ready — waiting {TravianParsing.FormatDuration(adventureRestartDelayWaitSeconds)} before dispatch.");
         }
         else if (adventureCount > 0 && canSendByHp && inVillage)
         {
@@ -604,6 +618,33 @@ public sealed partial class TravianClient : IHeroClient
 
         return $"{summary}. Actions: {string.Join(", ", actions)}.";
 
+    }
+
+    private int ResolveHeroAdventureRestartDelayWaitSeconds()
+    {
+        if (!_config.HeroAdventureRestartDelayEnabled)
+        {
+            _session.HeroAdventureDispatchNotBeforeUtc = null;
+            return 0;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (_session.HeroAdventureDispatchNotBeforeUtc is DateTimeOffset existing)
+        {
+            if (existing > now)
+            {
+                return Math.Max(1, (int)Math.Ceiling((existing - now).TotalSeconds));
+            }
+
+            _session.HeroAdventureDispatchNotBeforeUtc = null;
+            return 0;
+        }
+
+        var delaySeconds = ResolveRestartDelaySeconds(
+            _config.HeroAdventureRestartDelayMinMinutes,
+            _config.HeroAdventureRestartDelayMaxMinutes);
+        _session.HeroAdventureDispatchNotBeforeUtc = now.AddSeconds(delaySeconds);
+        return Math.Max(1, delaySeconds);
     }
 
     public async Task<string> SpendHeroAttributePointsAsync(

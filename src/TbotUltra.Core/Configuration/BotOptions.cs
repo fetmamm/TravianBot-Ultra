@@ -58,11 +58,35 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.TownHallCelebrationRestartDelayMaxMinutes)]
     public double TownHallCelebrationRestartDelayMaxMinutes { get; init; } = TownHallCelebrationDefaults.DefaultRestartDelayMaxMinutes;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.TownHallCelebrationRestartDelayEnabled)]
+    public bool TownHallCelebrationRestartDelayEnabled { get; init; } = TownHallCelebrationDefaults.DefaultRestartDelayEnabled;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.BreweryCelebrationRestartDelayMinMinutes)]
     public double BreweryCelebrationRestartDelayMinMinutes { get; init; } = BreweryCelebrationDefaults.DefaultRestartDelayMinMinutes;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.BreweryCelebrationRestartDelayMaxMinutes)]
     public double BreweryCelebrationRestartDelayMaxMinutes { get; init; } = BreweryCelebrationDefaults.DefaultRestartDelayMaxMinutes;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.BreweryCelebrationRestartDelayEnabled)]
+    public bool BreweryCelebrationRestartDelayEnabled { get; init; } = BreweryCelebrationDefaults.DefaultRestartDelayEnabled;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroAdventureRestartDelayEnabled)]
+    public bool HeroAdventureRestartDelayEnabled { get; init; } = HeroAdventureRestartDelayDefaults.Enabled;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroAdventureRestartDelayMinMinutes)]
+    public double HeroAdventureRestartDelayMinMinutes { get; init; } = HeroAdventureRestartDelayDefaults.MinMinutes;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroAdventureRestartDelayMaxMinutes)]
+    public double HeroAdventureRestartDelayMaxMinutes { get; init; } = HeroAdventureRestartDelayDefaults.MaxMinutes;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.SmithyUpgradeRestartDelayEnabled)]
+    public bool SmithyUpgradeRestartDelayEnabled { get; init; } = SmithyUpgradeRestartDelayDefaults.Enabled;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.SmithyUpgradeRestartDelayMinMinutes)]
+    public double SmithyUpgradeRestartDelayMinMinutes { get; init; } = SmithyUpgradeRestartDelayDefaults.MinMinutes;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.SmithyUpgradeRestartDelayMaxMinutes)]
+    public double SmithyUpgradeRestartDelayMaxMinutes { get; init; } = SmithyUpgradeRestartDelayDefaults.MaxMinutes;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmDeactivateLosses)]
     public bool ContinuousFarmDeactivateLosses { get; init; }

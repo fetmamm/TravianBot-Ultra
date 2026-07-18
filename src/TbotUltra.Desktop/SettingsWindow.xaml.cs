@@ -35,14 +35,28 @@ public partial class SettingsWindow : Window
 
     public ObservableCollection<TownHallOverviewRow> TownHallRows { get; } = [];
     public TownHallQueueSettings TownHallQueue { get; } = new(
+        TownHallCelebrationDefaults.DefaultRestartDelayEnabled,
         TownHallCelebrationDefaults.DefaultCount,
         TownHallCelebrationDefaults.DefaultRestartDelayMinMinutes,
         TownHallCelebrationDefaults.DefaultRestartDelayMaxMinutes);
-    public CelebrationRestartDelaySettings BreweryRestartDelay { get; } = new(
+    public RestartDelaySettings BreweryRestartDelay { get; } = new(
+        BreweryCelebrationDefaults.DefaultRestartDelayEnabled,
         BreweryCelebrationDefaults.DefaultRestartDelayMinMinutes,
         BreweryCelebrationDefaults.DefaultRestartDelayMaxMinutes,
         BreweryCelebrationDefaults.DefaultRestartDelayMinMinutes,
         BreweryCelebrationDefaults.DefaultRestartDelayMaxMinutes);
+    public RestartDelaySettings HeroAdventureRestartDelay { get; } = new(
+        HeroAdventureRestartDelayDefaults.Enabled,
+        HeroAdventureRestartDelayDefaults.MinMinutes,
+        HeroAdventureRestartDelayDefaults.MaxMinutes,
+        HeroAdventureRestartDelayDefaults.MinMinutes,
+        HeroAdventureRestartDelayDefaults.MaxMinutes);
+    public RestartDelaySettings SmithyUpgradeRestartDelay { get; } = new(
+        SmithyUpgradeRestartDelayDefaults.Enabled,
+        SmithyUpgradeRestartDelayDefaults.MinMinutes,
+        SmithyUpgradeRestartDelayDefaults.MaxMinutes,
+        SmithyUpgradeRestartDelayDefaults.MinMinutes,
+        SmithyUpgradeRestartDelayDefaults.MaxMinutes);
     public IReadOnlyList<TownHallOverviewResult> TownHallResults { get; private set; } = [];
     public bool TownHallSettingsChanged { get; private set; }
 
@@ -127,12 +141,36 @@ public partial class SettingsWindow : Window
         TownHallQueue.DelayMaxMinutes = FormatDelay(ReadDouble(
             BotOptionPayloadKeys.TownHallCelebrationRestartDelayMaxMinutes,
             TownHallCelebrationDefaults.DefaultRestartDelayMaxMinutes));
+        TownHallQueue.IsRestartDelayEnabled =
+            _config[BotOptionPayloadKeys.TownHallCelebrationRestartDelayEnabled]?.GetValue<bool>()
+            ?? TownHallCelebrationDefaults.DefaultRestartDelayEnabled;
+        BreweryRestartDelay.IsEnabled =
+            _config[BotOptionPayloadKeys.BreweryCelebrationRestartDelayEnabled]?.GetValue<bool>()
+            ?? BreweryCelebrationDefaults.DefaultRestartDelayEnabled;
         BreweryRestartDelay.DelayMinMinutes = FormatDelay(ReadDouble(
             BotOptionPayloadKeys.BreweryCelebrationRestartDelayMinMinutes,
             BreweryCelebrationDefaults.DefaultRestartDelayMinMinutes));
         BreweryRestartDelay.DelayMaxMinutes = FormatDelay(ReadDouble(
             BotOptionPayloadKeys.BreweryCelebrationRestartDelayMaxMinutes,
             BreweryCelebrationDefaults.DefaultRestartDelayMaxMinutes));
+        HeroAdventureRestartDelay.IsEnabled =
+            _config[BotOptionPayloadKeys.HeroAdventureRestartDelayEnabled]?.GetValue<bool>()
+            ?? HeroAdventureRestartDelayDefaults.Enabled;
+        HeroAdventureRestartDelay.DelayMinMinutes = FormatDelay(ReadDouble(
+            BotOptionPayloadKeys.HeroAdventureRestartDelayMinMinutes,
+            HeroAdventureRestartDelayDefaults.MinMinutes));
+        HeroAdventureRestartDelay.DelayMaxMinutes = FormatDelay(ReadDouble(
+            BotOptionPayloadKeys.HeroAdventureRestartDelayMaxMinutes,
+            HeroAdventureRestartDelayDefaults.MaxMinutes));
+        SmithyUpgradeRestartDelay.IsEnabled =
+            _config[BotOptionPayloadKeys.SmithyUpgradeRestartDelayEnabled]?.GetValue<bool>()
+            ?? SmithyUpgradeRestartDelayDefaults.Enabled;
+        SmithyUpgradeRestartDelay.DelayMinMinutes = FormatDelay(ReadDouble(
+            BotOptionPayloadKeys.SmithyUpgradeRestartDelayMinMinutes,
+            SmithyUpgradeRestartDelayDefaults.MinMinutes));
+        SmithyUpgradeRestartDelay.DelayMaxMinutes = FormatDelay(ReadDouble(
+            BotOptionPayloadKeys.SmithyUpgradeRestartDelayMaxMinutes,
+            SmithyUpgradeRestartDelayDefaults.MaxMinutes));
         UpdateLimitLabels();
     }
 
@@ -301,10 +339,26 @@ public partial class SettingsWindow : Window
                 TownHallQueue.ResolvedDelayMinMinutes;
             _config[BotOptionPayloadKeys.TownHallCelebrationRestartDelayMaxMinutes] =
                 TownHallQueue.ResolvedDelayMaxMinutes;
+            _config[BotOptionPayloadKeys.TownHallCelebrationRestartDelayEnabled] =
+                TownHallQueue.IsRestartDelayEnabled;
+            _config[BotOptionPayloadKeys.BreweryCelebrationRestartDelayEnabled] =
+                BreweryRestartDelay.IsEnabled;
             _config[BotOptionPayloadKeys.BreweryCelebrationRestartDelayMinMinutes] =
                 BreweryRestartDelay.ResolvedDelayMinMinutes;
             _config[BotOptionPayloadKeys.BreweryCelebrationRestartDelayMaxMinutes] =
                 BreweryRestartDelay.ResolvedDelayMaxMinutes;
+            _config[BotOptionPayloadKeys.HeroAdventureRestartDelayEnabled] =
+                HeroAdventureRestartDelay.IsEnabled;
+            _config[BotOptionPayloadKeys.HeroAdventureRestartDelayMinMinutes] =
+                HeroAdventureRestartDelay.ResolvedDelayMinMinutes;
+            _config[BotOptionPayloadKeys.HeroAdventureRestartDelayMaxMinutes] =
+                HeroAdventureRestartDelay.ResolvedDelayMaxMinutes;
+            _config[BotOptionPayloadKeys.SmithyUpgradeRestartDelayEnabled] =
+                SmithyUpgradeRestartDelay.IsEnabled;
+            _config[BotOptionPayloadKeys.SmithyUpgradeRestartDelayMinMinutes] =
+                SmithyUpgradeRestartDelay.ResolvedDelayMinMinutes;
+            _config[BotOptionPayloadKeys.SmithyUpgradeRestartDelayMaxMinutes] =
+                SmithyUpgradeRestartDelay.ResolvedDelayMaxMinutes;
             SaveDailyServerResetFromUi();
             SavePacingConfigFromUi();
             _config[BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead] =

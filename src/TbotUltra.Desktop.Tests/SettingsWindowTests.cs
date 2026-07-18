@@ -36,8 +36,16 @@ public sealed class SettingsWindowTests : IDisposable
                 var tabs = Assert.IsType<TabControl>(window.FindName("SettingsCategoryTabControl"));
                 Assert.Equal((int)SettingsCategory.Celebrations, tabs.SelectedIndex);
                 Assert.Single(window.TownHallRows);
+                Assert.True(window.TownHallQueue.IsRestartDelayEnabled);
+                Assert.True(window.BreweryRestartDelay.IsEnabled);
                 Assert.Equal("5", window.BreweryRestartDelay.DelayMinMinutes);
                 Assert.Equal("40", window.BreweryRestartDelay.DelayMaxMinutes);
+                Assert.True(window.HeroAdventureRestartDelay.IsEnabled);
+                Assert.Equal("5", window.HeroAdventureRestartDelay.DelayMinMinutes);
+                Assert.Equal("20", window.HeroAdventureRestartDelay.DelayMaxMinutes);
+                Assert.True(window.SmithyUpgradeRestartDelay.IsEnabled);
+                Assert.Equal("10", window.SmithyUpgradeRestartDelay.DelayMinMinutes);
+                Assert.Equal("30", window.SmithyUpgradeRestartDelay.DelayMaxMinutes);
                 Assert.NotNull(window.FindName("GoldLimitSlider"));
                 window.Close();
             }

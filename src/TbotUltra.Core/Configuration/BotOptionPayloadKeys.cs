@@ -137,8 +137,16 @@ public static class BotOptionPayloadKeys
     public const string TownHallCelebrationCount = "town_hall_celebration_count";
     public const string TownHallCelebrationRestartDelayMinMinutes = "town_hall_celebration_restart_delay_min_minutes";
     public const string TownHallCelebrationRestartDelayMaxMinutes = "town_hall_celebration_restart_delay_max_minutes";
+    public const string TownHallCelebrationRestartDelayEnabled = "town_hall_celebration_restart_delay_enabled";
     public const string BreweryCelebrationRestartDelayMinMinutes = "brewery_celebration_restart_delay_min_minutes";
     public const string BreweryCelebrationRestartDelayMaxMinutes = "brewery_celebration_restart_delay_max_minutes";
+    public const string BreweryCelebrationRestartDelayEnabled = "brewery_celebration_restart_delay_enabled";
+    public const string HeroAdventureRestartDelayEnabled = "hero_adventure_restart_delay_enabled";
+    public const string HeroAdventureRestartDelayMinMinutes = "hero_adventure_restart_delay_min_minutes";
+    public const string HeroAdventureRestartDelayMaxMinutes = "hero_adventure_restart_delay_max_minutes";
+    public const string SmithyUpgradeRestartDelayEnabled = "smithy_upgrade_restart_delay_enabled";
+    public const string SmithyUpgradeRestartDelayMinMinutes = "smithy_upgrade_restart_delay_min_minutes";
+    public const string SmithyUpgradeRestartDelayMaxMinutes = "smithy_upgrade_restart_delay_max_minutes";
     public const string ContinuousFarmDeactivateLosses = "continuous_farm_deactivate_losses";
     public const string ContinuousFarmDeactivateOasisLosses = "continuous_farm_deactivate_oasis_losses";
     public const string ContinuousFarmNextListIndex = "continuous_farm_next_list_index";

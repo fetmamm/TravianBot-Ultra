@@ -155,6 +155,7 @@ public sealed partial class BotTaskRunner
     {
         context.Log("[brewery] run_brewery_celebration starting");
         var result = await context.Client.RunBreweryCelebrationAsync(
+            context.Options.BreweryCelebrationRestartDelayEnabled,
             context.Options.BreweryCelebrationRestartDelayMinMinutes,
             context.Options.BreweryCelebrationRestartDelayMaxMinutes,
             context.CancellationToken);
@@ -170,6 +171,7 @@ public sealed partial class BotTaskRunner
         var result = await context.Client.RunTownHallCelebrationAsync(
             mode,
             count,
+            context.Options.TownHallCelebrationRestartDelayEnabled,
             context.Options.TownHallCelebrationRestartDelayMinMinutes,
             context.Options.TownHallCelebrationRestartDelayMaxMinutes,
             context.CancellationToken);

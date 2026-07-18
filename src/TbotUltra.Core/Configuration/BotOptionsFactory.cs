@@ -36,6 +36,10 @@ public static class BotOptionsFactory
             BotOptionPayloadKeys.BreweryCelebrationRestartDelayMinMinutes, BreweryCelebrationDefaults.DefaultRestartDelayMinMinutes);
         var breweryCelebrationRestartDelayMaxMinutes = configuration.GetValue(
             BotOptionPayloadKeys.BreweryCelebrationRestartDelayMaxMinutes, BreweryCelebrationDefaults.DefaultRestartDelayMaxMinutes);
+        var townHallCelebrationRestartDelayEnabled = configuration.GetValue(
+            BotOptionPayloadKeys.TownHallCelebrationRestartDelayEnabled, TownHallCelebrationDefaults.DefaultRestartDelayEnabled);
+        var breweryCelebrationRestartDelayEnabled = configuration.GetValue(
+            BotOptionPayloadKeys.BreweryCelebrationRestartDelayEnabled, BreweryCelebrationDefaults.DefaultRestartDelayEnabled);
 
         var baseUrl = (configuration["base_url"] ?? string.Empty).TrimEnd('/');
         var heroStatPriority = string.IsNullOrWhiteSpace(configuration[BotOptionPayloadKeys.HeroStatPriority])
@@ -62,8 +66,16 @@ public static class BotOptionsFactory
             TownHallCelebrationCount = townHallCelebrationCount,
             TownHallCelebrationRestartDelayMinMinutes = townHallCelebrationRestartDelayMinMinutes,
             TownHallCelebrationRestartDelayMaxMinutes = townHallCelebrationRestartDelayMaxMinutes,
+            TownHallCelebrationRestartDelayEnabled = townHallCelebrationRestartDelayEnabled,
             BreweryCelebrationRestartDelayMinMinutes = breweryCelebrationRestartDelayMinMinutes,
             BreweryCelebrationRestartDelayMaxMinutes = breweryCelebrationRestartDelayMaxMinutes,
+            BreweryCelebrationRestartDelayEnabled = breweryCelebrationRestartDelayEnabled,
+            HeroAdventureRestartDelayEnabled = configuration.GetValue(BotOptionPayloadKeys.HeroAdventureRestartDelayEnabled, HeroAdventureRestartDelayDefaults.Enabled),
+            HeroAdventureRestartDelayMinMinutes = configuration.GetValue(BotOptionPayloadKeys.HeroAdventureRestartDelayMinMinutes, HeroAdventureRestartDelayDefaults.MinMinutes),
+            HeroAdventureRestartDelayMaxMinutes = configuration.GetValue(BotOptionPayloadKeys.HeroAdventureRestartDelayMaxMinutes, HeroAdventureRestartDelayDefaults.MaxMinutes),
+            SmithyUpgradeRestartDelayEnabled = configuration.GetValue(BotOptionPayloadKeys.SmithyUpgradeRestartDelayEnabled, SmithyUpgradeRestartDelayDefaults.Enabled),
+            SmithyUpgradeRestartDelayMinMinutes = configuration.GetValue(BotOptionPayloadKeys.SmithyUpgradeRestartDelayMinMinutes, SmithyUpgradeRestartDelayDefaults.MinMinutes),
+            SmithyUpgradeRestartDelayMaxMinutes = configuration.GetValue(BotOptionPayloadKeys.SmithyUpgradeRestartDelayMaxMinutes, SmithyUpgradeRestartDelayDefaults.MaxMinutes),
             ContinuousFarmDeactivateLosses = configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDeactivateLosses, false),
             ContinuousFarmDeactivateOasisLosses = configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses, false),
             PostLoginAnalyzeFarmlists = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeFarmlists, false),
@@ -261,8 +273,16 @@ public static class BotOptionsFactory
             TownHallCelebrationCount = source.TownHallCelebrationCount,
             TownHallCelebrationRestartDelayMinMinutes = source.TownHallCelebrationRestartDelayMinMinutes,
             TownHallCelebrationRestartDelayMaxMinutes = source.TownHallCelebrationRestartDelayMaxMinutes,
+            TownHallCelebrationRestartDelayEnabled = source.TownHallCelebrationRestartDelayEnabled,
             BreweryCelebrationRestartDelayMinMinutes = source.BreweryCelebrationRestartDelayMinMinutes,
             BreweryCelebrationRestartDelayMaxMinutes = source.BreweryCelebrationRestartDelayMaxMinutes,
+            BreweryCelebrationRestartDelayEnabled = source.BreweryCelebrationRestartDelayEnabled,
+            HeroAdventureRestartDelayEnabled = source.HeroAdventureRestartDelayEnabled,
+            HeroAdventureRestartDelayMinMinutes = source.HeroAdventureRestartDelayMinMinutes,
+            HeroAdventureRestartDelayMaxMinutes = source.HeroAdventureRestartDelayMaxMinutes,
+            SmithyUpgradeRestartDelayEnabled = source.SmithyUpgradeRestartDelayEnabled,
+            SmithyUpgradeRestartDelayMinMinutes = source.SmithyUpgradeRestartDelayMinMinutes,
+            SmithyUpgradeRestartDelayMaxMinutes = source.SmithyUpgradeRestartDelayMaxMinutes,
             ContinuousFarmDeactivateLosses = source.ContinuousFarmDeactivateLosses,
             ContinuousFarmDeactivateOasisLosses = source.ContinuousFarmDeactivateOasisLosses,
             ContinuousFarmNextListIndex = source.ContinuousFarmNextListIndex,

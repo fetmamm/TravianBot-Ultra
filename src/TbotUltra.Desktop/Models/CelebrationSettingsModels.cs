@@ -90,12 +90,14 @@ public sealed class TownHallOverviewRow : INotifyPropertyChanged
 
 public sealed class TownHallQueueSettings : INotifyPropertyChanged
 {
+    private bool _isRestartDelayEnabled;
     private bool _isTwo;
     private string _delayMinMinutes;
     private string _delayMaxMinutes;
 
-    public TownHallQueueSettings(int count, double delayMinMinutes, double delayMaxMinutes)
+    public TownHallQueueSettings(bool restartDelayEnabled, int count, double delayMinMinutes, double delayMaxMinutes)
     {
+        _isRestartDelayEnabled = restartDelayEnabled;
         _isTwo = TownHallCelebrationDefaults.NormalizeCount(count) >= TownHallCelebrationDefaults.MaxCount;
         _delayMinMinutes = FormatMinutes(delayMinMinutes);
         _delayMaxMinutes = FormatMinutes(delayMaxMinutes);
@@ -111,6 +113,21 @@ public sealed class TownHallQueueSettings : INotifyPropertyChanged
     {
         get => _isTwo;
         set { if (value) { SetTwo(true); } }
+    }
+
+    public bool IsRestartDelayEnabled
+    {
+        get => _isRestartDelayEnabled;
+        set
+        {
+            if (_isRestartDelayEnabled == value)
+            {
+                return;
+            }
+
+            _isRestartDelayEnabled = value;
+            OnPropertyChanged();
+        }
     }
 
     public string DelayMinMinutes
@@ -159,23 +176,41 @@ public sealed class TownHallQueueSettings : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 
-public sealed class CelebrationRestartDelaySettings : INotifyPropertyChanged
+public sealed class RestartDelaySettings : INotifyPropertyChanged
 {
+    private bool _isEnabled;
     private readonly double _defaultMinMinutes;
     private readonly double _defaultMaxMinutes;
     private string _delayMinMinutes;
     private string _delayMaxMinutes;
 
-    public CelebrationRestartDelaySettings(
+    public RestartDelaySettings(
+        bool isEnabled,
         double delayMinMinutes,
         double delayMaxMinutes,
         double defaultMinMinutes,
         double defaultMaxMinutes)
     {
+        _isEnabled = isEnabled;
         _defaultMinMinutes = defaultMinMinutes;
         _defaultMaxMinutes = defaultMaxMinutes;
         _delayMinMinutes = FormatMinutes(delayMinMinutes);
         _delayMaxMinutes = FormatMinutes(delayMaxMinutes);
+    }
+
+    public bool IsEnabled
+    {
+        get => _isEnabled;
+        set
+        {
+            if (_isEnabled == value)
+            {
+                return;
+            }
+
+            _isEnabled = value;
+            OnPropertyChanged();
+        }
     }
 
     public string DelayMinMinutes

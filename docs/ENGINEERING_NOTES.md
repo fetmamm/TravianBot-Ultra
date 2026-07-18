@@ -154,6 +154,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   account-wide Gold/Silver limits belong under NPC / Trade. Town Hall and Brewery restart delays include the
   configured random delay after the live celebration timer; a confirmed missing Town Hall disables that village's
   Town Hall group instead of deferring an impossible task.
+- Hero, Town Hall, Brewery, and Smithy restart delays are independently toggleable and enabled by default. Hero
+  reuses one session deadline after returning home or discovering a new adventure. Smithy delays only after an
+  occupied queue slot frees; an empty queue starts immediately and Plus slots are filled together without delay.
 - Account-wide construction behavior, including storage look-ahead and construction start delay, belongs in the
   Construction settings category rather than the Buildings workspace.
 - Secondary explanations use the shared `i` tooltip when permanent text wastes space.

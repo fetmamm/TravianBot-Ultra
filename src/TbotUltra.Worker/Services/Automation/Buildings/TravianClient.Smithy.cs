@@ -304,7 +304,16 @@ public sealed partial class TravianClient
                     var soonestTimer = timers.Where(t => t > 0).DefaultIfEmpty(0).Min();
                     if (soonestTimer > 0)
                     {
-                        waitCandidates.Add(soonestTimer);
+                        var restartDelaySeconds = _config.SmithyUpgradeRestartDelayEnabled
+                            ? ResolveRestartDelaySeconds(
+                                _config.SmithyUpgradeRestartDelayMinMinutes,
+                                _config.SmithyUpgradeRestartDelayMaxMinutes)
+                            : 0;
+                        waitCandidates.Add(soonestTimer + restartDelaySeconds);
+                        if (restartDelaySeconds > 0)
+                        {
+                            Notify($"Smithy: next queue slot frees in {soonestTimer}s; adding {restartDelaySeconds}s restart delay.");
+                        }
                     }
                 }
                 if (minResourceWaitSeconds is int resWait && resWait > 0)

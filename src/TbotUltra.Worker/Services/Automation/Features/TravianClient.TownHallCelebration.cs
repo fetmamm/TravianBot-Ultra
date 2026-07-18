@@ -14,6 +14,7 @@ public sealed partial class TravianClient
     public async Task<string> RunTownHallCelebrationAsync(
         string? requestedMode,
         int targetCount,
+        bool restartDelayEnabled,
         double restartDelayMinMinutes,
         double restartDelayMaxMinutes,
         CancellationToken cancellationToken = default)
@@ -43,7 +44,9 @@ public sealed partial class TravianClient
             Notify("[town-hall] two celebrations requested but Travian Plus is inactive; using one celebration.");
         }
 
-        var restartDelaySeconds = ResolveCelebrationRestartDelaySeconds(restartDelayMinMinutes, restartDelayMaxMinutes);
+        var restartDelaySeconds = restartDelayEnabled
+            ? ResolveRestartDelaySeconds(restartDelayMinMinutes, restartDelayMaxMinutes)
+            : 0;
 
         await GotoAsync(Paths.BuildBySlot(townHallSlotId.Value), cancellationToken);
         await EnsureLoggedInAsync();
@@ -171,7 +174,7 @@ public sealed partial class TravianClient
     }
 
     // Random delay (seconds) in the configured min-max minute range. 0/0 (or max<=0) disables it.
-    internal static int ResolveCelebrationRestartDelaySeconds(double minMinutes, double maxMinutes)
+    internal static int ResolveRestartDelaySeconds(double minMinutes, double maxMinutes)
     {
         var min = Math.Max(0, minMinutes);
         var max = Math.Max(min, maxMinutes);

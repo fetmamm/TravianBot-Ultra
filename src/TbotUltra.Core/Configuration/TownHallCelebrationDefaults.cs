@@ -15,6 +15,7 @@ public static class TownHallCelebrationDefaults
     // not restart the instant the timer hits zero. 0/0 disables it.
     public const double DefaultRestartDelayMinMinutes = 15;
     public const double DefaultRestartDelayMaxMinutes = 75;
+    public const bool DefaultRestartDelayEnabled = true;
 
     public static string NormalizeMode(string? value)
     {
