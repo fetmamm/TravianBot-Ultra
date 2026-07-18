@@ -1,9 +1,10 @@
 # Engineering Notes
 
-Last updated: 2026-07-17
+Last updated: 2026-07-18
 
-Read this file before changing selectors, paths, browser behavior, account state, or server logic.
-Keep it short and current. Move implementation history to `docs/history/` or an ADR.
+Read this file before changing architecture, selectors, paths, browser behavior, persisted state, queueing,
+or server logic. Keep it short and current: durable rules belong here; detailed decisions belong in ADRs;
+implementation history belongs in `docs/history/`.
 
 ## Project overview
 
@@ -28,349 +29,161 @@ Published artifacts belong under `artifacts/`, never beside source files.
 
 ## Active architecture rules
 
-- Official Travian is the only supported server flavor.
-- Do not add legacy, SS-Travi, or runtime flavor-switching code.
-- Keep parsers and calculators pure where possible; cover them with focused unit tests.
+- Official Travian is the only supported server flavor. Do not add SS-Travi, legacy selector fallbacks, or
+  runtime flavor switching. Historical flavor-aware branches are archived, not active conventions.
+- Keep parsers and calculators pure where possible and cover them with focused tests.
 - Keep `TravianClient` methods thin: navigation/clicking plus delegation to parsers or handlers.
-- Preserve existing navigation and click semantics unless the task explicitly changes them.
-- Use handler dictionaries for gid/type-specific behavior instead of expanding switch chains.
-- Desktop code should call Worker services through explicit interfaces and ViewModels.
+- Preserve working navigation and click sequences unless the task explicitly changes them.
+- Prefer handler dictionaries for gid/type behavior instead of growing switch chains.
+- Desktop calls Worker through explicit interfaces and ViewModels; calculations do not belong in code-behind.
 - `LoopController` owns loop lifecycle and cancellation. UI code must not create competing loop state.
-- Long-running UI commands must use the shared busy/guard pattern and restore UI state in `finally`.
+- Long-running UI commands use the shared busy/guard pattern, expose Cancel when supported, and restore UI
+  state in `finally`.
 
-## Official-only browser conventions
+## Official-only paths and selectors
 
-### URLs and paths
-
-- Build Travian URLs through the existing path helpers.
-- Paths are server-root relative and must not inherit an account base-url subdirectory.
-- Normalize the configured base URL before combining it with a path.
-- Keep query strings intact; do not manually concatenate unescaped parameters.
-
-Common endpoints:
-
-| Purpose | Official path |
-|---|---|
-| Village resources | `/dorf1.php` |
-| Village buildings | `/dorf2.php` |
-| Building slot | `/build.php?id={slot}` |
-| Map | `/karte.php` |
-| Reports | `/berichte.php` |
-| Messages | `/messages.php` |
-
-### Selectors
-
-- Scope selectors to the relevant Official page, widget, dialog, or row.
+- Build URLs through existing path helpers. Paths are server-root relative, never relative to an account
+  base-URL subdirectory. Normalize the base URL and preserve escaped query strings.
+- Common paths are `/dorf1.php`, `/dorf2.php`, `/build.php?id={slot}`, `/karte.php`, `/berichte.php`, and
+  `/messages.php`.
+- Scope selectors to the relevant Official page, widget, dialog, row, or building contract.
 - Prefer stable attributes and semantic structure over generated class names.
-- For React views, require visible/actionable elements and scope to the open dialog.
-- Add selector fallbacks only when they are verified Official DOM variants.
-- Never reintroduce broad legacy fallbacks merely because they make a test pass.
-- When a selector changes, verify it against live Official HTML or a captured fixture.
-- Keep destructive or state-changing clicks exact; a safe navigation retry is not permission to repeat an action.
-- Prefer a real Playwright `ClickAsync` (trusted, isTrusted=true, moves the pointer) on classic visible
-  buttons; keep synthetic `dispatchEvent` only as an actionability fallback, or for genuine React inputs
-  (native value + input/change) and hidden controls. Farm-list start buttons use this real-click-with-JS-fallback
-  pattern (`TryRealClickFarmButtonAsync`); do not revert them to pure JS dispatch.
-
-### Navigation and browser lifecycle
-
-- Treat `DOMContentLoaded` as sufficient when the required page marker is checked afterward.
-- Session pacing sleep must save StorageState and close the browser without calling Travian logout; manual logout and account switching remain explicit logout flows.
-- In-app browser shutdowns (sleep, proxy handover, reset, account/browser changes) may retain filtered auth state for resumption. A real desktop-process startup and user-triggered app exit must delete every account's saved Playwright auth state; startup cleanup also covers crashes where exit cleanup could not run.
-- Full login always starts at the lobby (`lobby.legends.travian.com/account`); never probe or submit credentials on the configured game server first, and do not use direct game-server login as fallback. Select the owned world by cached lobby wuid when available, accept any authenticated path on the configured game origin (`/`, `dorf1`, `dorf2`, etc.), and store newly learned wuid in the per-account analysis snapshot.
-- After submitting lobby credentials, treat execution-context destruction as an expected navigation transition and wait for the rendered owned-world card marker before continuing. Both the lobby login submit and `Play now` must use normal action-pacing click delays.
-- After lobby SSO commits a navigation to the configured game origin, do not wait for the old context to render or prove the game shell. Suppress the known CMP overlay before `Play now`, save filtered auth state without slow live-origin cleanup, open a clean game context in the same Chromium process, then close the lobby context and verify login there. Creating the replacement first keeps a browser window present throughout; this early context boundary prevents the first consent-stack flash and removes lobby scripts/service workers because storage filtering alone does not clear live page/runtime state.
-- Saved browser state may retain Travian lobby/auth hosts needed for SSO, but must still remove sibling game-server state and consent storage.
-- Detect browser crash/closed-page errors and surface a specific diagnostic message.
-- Popup handling must account for isolated browser contexts and popup blockers.
-- Portable builds must resolve Playwright from the bundled `.playwright` directory.
-- Numeric parsing must handle locale separators and bidirectional Unicode markers.
-- Login automation requires the supported English UI; fail clearly if required markers are absent.
-- Anti-detection browser setup is intentional and must be preserved: launch with
-  `--disable-blink-features=AutomationControlled`, clear `navigator.webdriver` via init-script, launch headed
-  Chrome maximized, and use `ViewportSize.NoViewport` so the viewport follows the user's real screen/work area.
-  Do not reintroduce hard-coded viewport dimensions or drop the automation flag.
+- Selector changes are additive only for verified Official DOM variants. Do not add broad legacy fallbacks or
+  replace a verified selector without evidence.
+- Verify selector changes against live Official HTML or a captured fixture. React elements must be visible and
+  actionable, and dialog actions must be scoped to the open dialog.
+- State-changing clicks must be exact. Navigation retry does not permit repeating an action.
+- Prefer trusted Playwright clicks for visible classic buttons. Synthetic dispatch is an actionability fallback
+  or a tool for genuine React/hidden controls. Preserve the farm-list real-click-with-JS-fallback pattern.
+- React inputs may require native value assignment plus `input`/`change` events.
+- Numeric parsing must handle locale separators, Unicode minus, and bidirectional markers.
 
 ## Configuration and persisted state
 
-### File ownership
+- `bot.json` is application-wide; account settings are account-scoped; village settings and queue state are
+  village-scoped; runtime snapshots are Worker-owned observations, not user configuration.
+- Use the existing path provider. Never derive data paths from the executable working directory.
+- Interruptible writes use the atomic file helper. Retry bounded transient lock/sharing failures.
+- Quarantine and log corrupt queue/state files instead of silently overwriting them.
+- New settings require the complete pipeline: model, defaults, load/save, ViewModel, UI, and tests.
+- Persist village identity by coordinates/key, not display name. Names may collide or change; queue items retain
+  their target village identity.
+- The village status cache and queue use canonical coordinate keys. Legacy name-keyed entries are migrated only
+  when coordinates can be resolved; active coordinates come from `#villageName[data-x][data-y]`.
+- Queue status transitions are gated. `MarkDeferred` accepts only RUNNING items; Pending items use
+  `UpdateDeferred`/`UpdatePending`. Check the returned boolean.
+- New villages default to Auto enabled. The version-1 migration enables existing villages once; later manual
+  Auto-off choices persist.
 
-| Data | Scope |
-|---|---|
-| `bot.json` | Application-wide settings |
-| Account settings | Account-specific configuration |
-| Village settings | Village-specific automation and queue state |
-| Runtime snapshots | Worker-produced current state, not user configuration |
+## Timing, cancellation, proxy and logging
 
-- Use the existing path provider; do not derive data paths from the executable working directory.
-- Writes that can be interrupted must use the atomic file helper.
-- Retry known transient sharing/lock failures with bounded delays.
-- Corrupt queue/state files must be quarantined and logged, not silently overwritten.
-- New settings require the full pipeline: model, defaults, load/save, ViewModel, UI, tests.
-- New villages default to Auto enabled. The version-1 migration enables all existing villages once;
-  manual Auto-off choices made afterward must persist.
-- Persist stable village identity using coordinates/key, not display name alone.
-- Queue items must retain their target village identity.
-- Deferring a queue item is status-gated: `MarkDeferred` only works on RUNNING items (worker defer path);
-  a PENDING item must use `UpdateDeferred`/`UpdatePending`. Both return false instead of throwing on a
-  status mismatch — never ignore that return value. (Caused the Town Hall "timer restarts at ~30s" bug:
-  a restored celebration item was enqueued Pending and MarkDeferred silently failed, leaving it due
-  immediately on every loop pass.)
-- The per-village status cache (`VillageStatusCache` in memory, `village_cache.json` on disk) is keyed by
-  the canonical coordinate key (`xy:X|Y`) — the same identity as queue.json and the settings store — so a
-  rename cannot orphan an entry and duplicate names cannot collide. Name-based lookups go through the
-  wrapper's name index (`TryGetByName`); legacy name-keyed file entries are re-keyed on load via the
-  entry's own village list, and an entry whose coordinates can't be resolved stays under its name.
-- The active village's exact coordinates come from the sidebar: `#villageName` carries `data-x`/`data-y`
-  (Official T4.6, present on all village pages). `TryReadActiveVillageCoordsFromCurrentPageAsync` reads
-  that attribute first (no text parsing) and status reads stamp it into
-  `VillageStatus.ActiveVillageCoordX/Y`, which `VillageStatusCache` prefers when resolving the cache key —
-  this disambiguates even two villages with identical names.
+- Normalize invalid timing ranges so minimum never exceeds maximum.
+- Pass the active cancellation token through every cancellable operation. Never replace it with
+  `CancellationToken.None`; cancellation is expected control flow, not an alarm.
+- Sleeping/paused state must preserve work and must not start a competing loop.
+- Known queue deadlines are authoritative and may not be shortened by pacing.
+- Proxy settings are account-scoped. Browser, HTTP client, tests, and bonus video use the same effective route.
+  Never log credentials or place them in user-visible URLs.
+- Retry only transient failures with bounded attempts. Apply configured pacing; do not add unbounded sleeps.
+- Alarms represent actionable failures. Expected waiting/blocking is normal status. Deduplicate identical alarms
+  for 30 minutes; repeated occurrences update visible count without another alarm line.
+- Detailed browser logging is development-only and off by default. Trace semantic operations, emit exactly one
+  end event per flow, and sanitize all secrets. Navigation/mutations use the traced adapters.
 
-### Timing and cancellation
+## Browser, login and account access
 
-- Current min/max interval keys are authoritative; obsolete interval keys stay ignored.
-- Default pacing: session run 15-50m, sleep 10-40m; click 0.5-1.5s; page load 0.6-1.8s;
-  idle-break interval 10-60m; idle browse disabled.
-- Normalize invalid ranges so minimum never exceeds maximum.
-- Pass the active cancellation token through every cancellable operation.
-- Do not replace an available token with `CancellationToken.None`.
-- Cancellation is expected control flow: stop cleanly and avoid error alarms.
-- Sleeping/paused state must not lose persisted work or start a second loop.
-
-### Proxy behavior
-
-- Proxy configuration is account-scoped and secret values must be sanitized in diagnostics.
-- Test the proxy using the same effective settings as the browser session.
-- Do not log credentials or embed them in user-visible URLs.
-- Keep browser and HTTP-client proxy behavior aligned.
-- Bonus-video traffic must use the account's current route; never bypass the proxy or change IP only for video.
-- Isolated bonus video has separate 60s setup and 240s action caps. Expected ad/provider failure must not
-  block construction, hero dispatch, or other automation.
-- Construct, resource, production, and both hero bonus videos share one post-play policy: the protected
-  60-second interval starts only after a trusted play click succeeds, and the post-play verification timeout
-  is 120 seconds. Missing iframe/dialog, missing reward, or visible provider help/error text cannot end the
-  attempt during the protected minute. Afterward, provider failure needs two consecutive confirmations while
-  the player is present, or one confirmation when the player is demonstrably absent. Cancel, shutdown, and a
-  closed/crashed browser may still abort immediately.
-- Construct-faster exception (WaitForConstructFasterVideoCompletionAsync): a redirect BACK to the village
-  (`onVillage` true with the player gone) is Travian's own post-reward navigation, so it is accepted
-  immediately and bypasses the protected minute — but only after the video was seen active (player loaded or
-  we left the village), so a dialog that is merely opening is never mistaken for a redirect. The weaker
-  "dialog + player both gone, no redirect" signal still waits out the 60-second minute (it can be an ad
-  no-fill that granted nothing).
-- Hero-adventure exception (WaitForAdventureVideoActiveAsync) and production-bonus (WaitForProductionBonus…):
-  when Travian's own bonus box shows its reward class (`bonusReady`/`bonusReadyText`/"active for next") AND
-  the video dialog/overlay has closed, the reward is server-confirmed and the attempt completes immediately,
-  bypassing the protected minute. Requiring the overlay to be gone guards against a box that momentarily
-  reads active while the ad is still playing. If the box is active but the dialog is still open, the
-  60-second minute remains the fail-safe. The provider-FAILURE path is still fully gated by the minute.
-- Queue build-time/cost estimates: levels for the LOADED village come from `_buildingRows` /
-  `_resourcesViewModel`; every other village falls back to its cached `VillageStatus` (Buildings /
-  ResourceFields) via `ResolveBuildingStatusForQueueItem`. Without that fallback a non-loaded village
-  silently degrades to "target level only, Main Building 1" — a wrong number, not a blank. A village the bot
-  has never read still yields no estimate, which must stay blank. The Village settings Overview
-  "Construction queue" column and the Queue tab totals share these estimates and one village-scoped
-  coverage map, so a repeated upgrade of one slot only counts its own steps.
-- Hard and -25% hero-adventure videos share an account-scoped 0-100% chance setting (default 70%);
-  evaluate an independent random roll whenever either enabled function is invoked.
-- Classify video failures and apply account+proxy cooldown: network 10m, no-ad/cookies 20m, timeout 30m,
-  stale isolated session 5m, missing codec 6h. Known failures do not get an immediate second attempt.
-- Preserve the typed video failure and cooldown deadline across features. Production bonus must defer to
-  that deadline without replacing its saved timers or treating an unattempted video as a four-hour failure.
-- Construct-faster success requires both confirmed video completion and target-specific construction evidence:
-  the exact slot/level must be newly queued versus the pre-video snapshot, or complete immediately.
-- Production-bonus inspection is complete only when the Advantages tab contains one box for each of
-  lumber, clay, iron, and crop. An empty/partial React render must be retried, never classified as
-  "nothing to activate"; after two 30s render attempts it is an alarm/task failure.
-- Video network diagnostics log only sanitized ad host, network error code, status, and aggregate counts; never path/query,
-  credentials, cookies, or tokens.
+- `DOMContentLoaded` is sufficient only when followed by a required page-marker check.
+- Full login starts in the Travian lobby and enters the owned world through SSO; never submit credentials to the
+  configured game server or add direct-server fallback.
+- Preserve filtered SSO state only in in-app session transitions. Real process startup and user exit clear every
+  account's saved Playwright auth state.
+- Preserve the intentional headed/maximized anti-detection setup and `ViewportSize.NoViewport`.
+- Login automation requires English UI and fails clearly when required markers are missing.
+- Account holds are account-specific: restriction, challenge, or repeated verified unknown state stops only that
+  account and preserves its queue/settings until manual re-enable.
+- Detailed lifecycle, SSO, cleanup, and access rules: [browser/session ADR](adr/2026-07-18-browser-session-and-login.md).
 
 ## Feature implementation conventions
 
 ### Core and Worker
 
-- Parse HTML/JSON into domain models before making scheduling decisions.
-- Put resource/time/capacity calculations in Core, not in WPF code-behind.
-- Worker services own browser interaction, retries, and operational logging.
-- Log enough context to identify account, village, operation, and failure stage without exposing secrets.
-- Prefer explicit result types for expected unavailable/blocked states.
+- Parse HTML/JSON into domain models before scheduling decisions.
+- Put resource, time, capacity, prerequisite, and queue calculations in Core.
+- Worker owns browser interaction, timeouts, retries, cancellation, and operational logging.
+- Prefer explicit result types for expected unavailable, deferred, and blocked states.
+- Log account, village, operation, and failure stage without exposing secrets.
 
-### Desktop UI
+### Desktop
 
-- UI text is English.
-- Reuse theme resources and existing controls; do not hard-code a near-match color.
-- Secondary explanations belong in the shared `i` info-icon tooltip when permanent text wastes space.
-- Busy overlays must expose the red Cancel button when the operation supports cancellation.
-- Disable duplicate action buttons while a command runs and restore them in `finally`.
-- Marshal observable UI collections through the dispatcher.
-- Keep `DataGrid.RowHeight` unset (or use `Double.NaN`) for automatic sizing; the string `Auto` is not a valid WPF `Double` value.
-- Use immutable/snapshot enumeration when sanitizing or exporting mutable collections.
-- Village settings Overview is read-only and must use the existing per-village cache, absolute timer
-  snapshots, and queue snapshot; opening it must never navigate the browser or trigger a server scan.
-- The Overview task pipeline shows the scheduler's exact read-only next pick followed by at most four
-  explicitly labelled projections. Projected rows may show only real `NextAttemptAt`/timer deadlines,
-  never invented cumulative start times, and projection must not mutate queue or rotation state.
+- UI text is English. Reuse theme resources and controls; do not hard-code near-match colors.
+- Secondary explanations use the shared `i` tooltip when permanent text wastes space.
+- Disable duplicate commands while running; marshal observable collections through the dispatcher.
+- Keep `DataGrid.RowHeight` unset or `Double.NaN`; the string `Auto` is not a WPF `Double`.
+- Enumerate mutable collections through immutable snapshots when sanitizing/exporting.
+- Village Overview is read-only and uses cache/queue snapshots; opening it never navigates or scans.
+- Overview projections show only real deadlines and never mutate queue or scheduler state.
 
-### Diagnostics export
+### New features
 
-- Diagnostics generation shows the shared busy overlay and a red Cancel button.
-- Cancellation must reach collection, manifest creation, and ZIP creation.
-- The Diagnostics description lives in the shared info-icon tooltip.
-- Sanitize settings, logs, paths, URLs, tokens, cookies, and proxy credentials.
-- Enumerate mutable JSON arrays from a snapshot (`ToList`) before replacing elements.
-- Warn that screenshots can contain visible game data and should be reviewed before sharing.
-- Partial output must not be presented as a successful diagnostics archive.
+1. Capture the relevant Official page/dialog state and identify stable scoped markers.
+2. Add only verified Official selectors and use existing root-relative path helpers.
+3. Parse into domain models; keep decisions/calculations outside browser and WPF code.
+4. Reuse queue, cancellation, pacing, persistence, logging, and busy-state patterns.
+5. Add focused parser/calculator tests and a regression test for the reported failure.
+6. Verify retries, cancellation, secrets, persisted state, and publish output when applicable.
+7. Record durable cross-cutting rules here; put feature decisions in an ADR and history in the archive.
 
 ## Construction and queue invariants
 
-- `ActiveConstructions` is the source of truth for occupied construction slots.
-- Official queue rows on `dorf1`/`dorf2` expose name, level, and timer but may omit slot/gid identity; correlate by slot when present and otherwise by normalized name plus level/count. `.underConstruction`, `.buildDuration`, and `#building_contract` are not queue rows.
-- Track construction state per village and per slot/category.
-- A full queue is a normal blocked state, not an exception.
-- Check storage, prerequisites, available slot, and resources before clicking Build/Upgrade.
-- When an exact construction cost exceeds live storage capacity, insert the Warehouse/Granary dependency
-  at the highest queue priority and target the first level that supplies enough total village capacity;
-  keep the blocked parent deferred until that dependency is complete.
-- Verified Official storage block (SCHILD, 2026-07-18): `#contract .upgradeBlocked > .errorMessage`
-  renders `Extend warehouse first.` / the Granary equivalent. The visible upgrade button remains in the
-  DOM with CSS class `disabled` rather than a native `disabled` attribute; costs remain under
-  `#contract .resourceWrapper .inlineIcon.resource` (`r1Big`-`r4Big`).
-- Existing buildings and level-zero construction sites are distinct cases.
-- Building-type selectors must be exact enough to avoid upgrading the wrong slot.
-- Building-template choices are evaluated at their row position: available is green/selectable, missing prerequisites is yellow and opens
-  a confirmation that can insert the complete ordered prerequisite chain, and tribe-incompatible or otherwise impossible is red/disabled.
-- Auto-assigned template buildings must not consume ordinary slots explicitly reserved by later rows. Template constructs may fall back
-  to a currently free, non-reserved ordinary slot if their planned slot becomes occupied before execution.
-- Persist template resource scopes exactly, insert a template plan into the queue atomically, and correlate construct/upgrade rows so a
-  runtime slot fallback rebinds the dependent upgrade before it can execute. Invalid template JSON must be quarantined before replacement.
-- “Construct faster” controls are not build/upgrade actions.
-- Construct-faster applies to both building slots and resource fields; verify results on `dorf2` and `dorf1` respectively before normal-click fallback.
-- After a successful hero-resource transfer, resource upgrades must re-evaluate the current build page instead of returning to `dorf1` and repeating queue/humanize gates.
-- After login, ready construction rows and rows waiting only for construction humanization receive a one-shot login-fill override. They fill available slots without construction humanize delay; any blocked/deferred attempt ends the override, after which an online slot completion uses normal humanization.
-- Town Hall celebration rows must calculate resource shortfall before clicking; generic research/hero-transfer links are not start actions.
-- Mutually exclusive building rules must be evaluated before queue execution.
-- GID 13 and other special buildings must use the catalog and verified Official behavior.
-- Building catalog data must cover all supported tribes: Romans, Teutons, Gauls, Egyptians, and Huns.
-- Vikings are not supported and require no catalog coverage.
+- `ActiveConstructions` is the source of truth for occupied construction slots. A full queue is a normal blocked
+  state, not an exception.
+- Construction follows visible per-village queue order. A deferred head blocks later construction in that village;
+  verified automatic prerequisite repair may be promoted only when a live slot is available.
+- Check storage, prerequisites, available slots, and resources before a Build/Upgrade click.
+- Storage-capacity blocks create the required Warehouse/Granary dependency at highest queue priority and keep the
+  parent deferred. Bulk resource upgrades project earlier same-village resource/storage work, then split the new
+  goal into increasing targets and atomically insert only the next required storage level immediately before each
+  capacity boundary. Catalog maximums make these stages safe regardless of Smart ordering.
+- Official storage blocks use `.upgradeBlocked > .errorMessage`; disabled actions can remain in the DOM with a
+  CSS `disabled` class. Construction and upgrades share the same `storage_capacity` flow.
+- Correlate Official queue rows by slot when present, otherwise normalized name plus level/count. Do not treat
+  `.underConstruction`, `.buildDuration`, or `#building_contract` as queue rows.
+- Existing buildings and level-zero sites are distinct. Select exact building types and verify active village,
+  target slot, and result before considering an action successful.
+- Templates preserve resource scope, reservations, ordered prerequisites, atomic insertion, and runtime slot
+  rebinding. Tribe-incompatible choices remain disabled.
+- Catalog coverage is required for Romans, Teutons, Gauls, Egyptians, and Huns. Vikings are unsupported.
+- Detailed queue, storage, click, and estimate rules: [construction ADR](adr/2026-06-20-construction-queue.md).
 
-## Village, hero, and React pitfalls
+## Current pitfalls
 
-- Account tribe and village tribe are separate concepts on Official special servers. Read the permanent
-  account/avatar tribe from the player profile, but resolve construction, buildings and troops from the
-  verified active village's tribe on `dorf1`/`dorf2`.
-- Cache village tribe by stable village identity (`newdid`, otherwise coordinates); never use account tribe
-  or another village's tribe as fallback for a tribe-dependent click. Unknown village tribe is a deferred state.
-- The desktop Tribe metric follows the village selected by the user, not a different village temporarily
-  opened by background automation. Single-tribe worlds therefore keep their existing visible behavior.
-- Village switching uses stable village identifiers and coordinates; visible names may collide.
-- Verify the active village after switching before performing state-changing actions.
-- Missing villages in a refresh are quarantined until confirmed, not immediately deleted.
-- Snapshot objects must be complete enough that consumers do not infer false zero/empty state.
-- Active-village tribe detection is best-effort: malformed/transient page evaluation returns `Unknown`
-  and must not abort the resource snapshot or prevent the desktop UI from loading. Browser crashes still propagate.
-- Hero transfers must scope controls to the active dialog and verify the selected target village.
-- Troop/hero ownership and current location are separate facts.
-- React inputs may require native value assignment plus input/change events.
-- Never select the first matching button globally when multiple dialogs/widgets can exist.
-- On an empty Official building slot, hero-resource cost reads and transfer clicks must be scoped to
-  `#contract_building{gid}`; the page contains one transfer control per available building type.
-
-## Caching, pacing, and logging
-
-- Cache only data with a clear owner, invalidation rule, and safe stale behavior.
-- Do not let an incomplete refresh erase the last valid snapshot without an explicit reason.
-- Apply configured pacing to browser actions; do not add unbounded sleeps.
-- Retry only transient failures and cap attempts.
-- Detailed browser logging is a global development-only setting and must remain OFF by default. Its
-  `[browser-trace:verbose]` records belong in the normal session log and must pass through the central
-  sanitizer; never log credentials, cookies, tokens, headers, storage state, or complete HTML/JSON.
-- Travian navigation and reload mutations must use the traced navigation adapter. Existing DOM mutations
-  are observed centrally through the browser-session action observer; new browser mutations must use a
-  traced action path and may not increase the source-guard baseline.
-- Trace semantic reads and decisions, not every request or internal DOM poll. Every trace flow/operation
-  must emit exactly one end event, including cancellation and exception paths.
-- Browser activity statistics are account-scoped: lifetime counters persist under the account directory,
-  while session counters live only for the current desktop process (or until manually cleared). Always-on
-  `[nav]`/`[browser]` milestones drive navigation totals; detailed trace may add diagnostic action/read/wait
-  counters but must not double-count normal navigation destinations.
-- Construction follows the visible queue order per village for both manual and template rows. A deferred
-  head row holds every later construction row in that village; another village may still run. Automatic
-  requirement repair may insert or promote prerequisites ahead of the blocked row only after a live read
-  confirms that the relevant Travian build slot is available; a full live build queue must not mutate repairs.
-- Alarms are actionable failures. Expected waiting/blocked states belong in normal logs/status.
-- Avoid alarm loops: deduplicate or rate-limit repeated failures with identical cause.
-- Release builds uploaded to Discord must come from the documented clean publish workflow.
-- Verify bundled runtime files and startup dependencies from the publish directory, not the developer tree.
-- Authenticode signing is intentionally not required.
-
-## Account access, queue deadlines, and alarms
-
-- A known queue deadline is authoritative and must never be shortened by action pacing. Pacing only controls loop passes without a known deadline.
-- An unreadable disabled farmlist timer is an estimated 60-second wait. Exact farmlist timers receive a random 5-15 second rendering margin.
-- Account access is classified as `LoggedIn`, `LoggedOut`, `Unavailable`, `Restricted`, `Challenge`, or `Unknown`. Verify `Unknown` once on canonical `/dorf1.php`; network failures are `Unavailable` and do not count toward restriction.
-- `Restricted`, `Challenge`, or three consecutive verified `Unknown` states create a persistent account-specific automation hold. Stop only that account's loop/session, retain its queue/settings, and require manual re-enable after review.
-- Write an alarm to the session log only when its 30-minute deduplication window starts. Identical repeats update the visible occurrence count instead of writing another alarm line.
-- Expected bonus-video fallback is a warning. A production-bonus task may surface at most its final task failure as an alarm during one run.
-
-## Support status
-
-| Area | Status | Notes |
-|---|---|---|
-| Official Travian | Supported | English UI and verified Official DOM |
-| SS-Travi/legacy | Unsupported | Do not add fallbacks |
-| Romans | Supported | Building catalog required |
-| Teutons | Supported | Building catalog required |
-| Gauls | Supported | Building catalog required |
-| Egyptians | Supported | Building catalog required |
-| Huns | Supported | Building catalog required |
-| Vikings | Unsupported | Excluded by product decision |
-
-## Official support recipe
-
-- Continuous scheduling drains ready work across groups in the active browser village before switching villages. If that village has an allowed pending task due within 90 seconds, keep the village and wait; global tasks do not require a switch.
-- Building upgrades reuse a valid current build page. From `dorf2.php`, open the target through its visible slot link; direct `build.php?id=N` navigation is a fallback when the overview link is unavailable or fails.
-- After a building action returns to a fresh `dorf2.php`, parse that overview directly. Do not reload it merely because the previous build-page snapshot is unavailable; reload only for stale or incomplete overview state.
-- Post-resource-task refreshes read the browser's current working village and update its cache. They must not navigate to the dashboard-selected village between adjacent queue jobs, and one complete current-page resource snapshot also satisfies the storage refresh.
-- The short-lived active-constructions snapshot belongs to the shared visible-browser session, not one `TravianClient` instance. Navigation and construction mutations invalidate it; unrelated readers within the TTL reuse it.
-- A saved per-slot construction-humanize deadline is checked before building overview reads. While time remains, defer without opening `dorf2`; when expired or consumed by pre-sleep fill, still run the normal live queue gate before any click.
-- The shared village-list/sidebar cache lives for one minute; active-village rename reconciliation remains immediate and coordinate-based. Do not shorten the list TTL to the dashboard tick interval.
-- Continuous-loop keep-alive yields when pending work will run within 60 seconds; that task's normal page read/navigation is the freshness action. Overdue-but-blocked work does not suppress keep-alive indefinitely.
-- A humanize-gated construction item naturally due inside the pre-sleep runway receives its one-shot pre-sleep flag before its first worker execution. Queue capacity is still checked live; this prevents a dry overview visit followed by an immediate sweep-triggered rerun.
-- Toggling construction humanization changes a persisted state generation. Worker session deadlines/transition memory from an older generation must be cleared, while queue cleanup removes only the humanized portion of a combined slot wait.
-- Post-login construction fill is a short-lived, expiring per-item override for enabled automation only. Scope live-status cleanup by stable village key, and patch pending payload keys atomically instead of replacing stale payload snapshots.
-- Deferred construction refreshes are single-flight with latest-status coalescing: a status received during an active refresh must run immediately afterward rather than being dropped.
-- For resource-blocked building upgrades, capture the exact wait snapshot before the defensive `dorf2` queue probe. If NPC trade cannot run, finish the defer on `dorf2` without restoring the build page; retain restoration when an actionable NPC attempt still needs that page.
-- Isolated adventure-video flows check bonus state in the disposable browser. They must not preload the same page in the main browser or force the main browser to `dorf1`; the following hero action reuses its current/adventures page.
-- `hero_manage` treats the global hero widget's away state as authoritative before hero-page navigation. Use a visible return timer when available; otherwise defer five minutes without opening adventures only to reconfirm away state.
-
-When adding or repairing automation:
-
-1. Capture the relevant Official page/dialog state.
-2. Identify a stable scoped marker and actionable selector.
-3. Parse the state into a domain model.
-4. Put decisions/calculations in Core.
-5. Keep browser steps in Worker and UI orchestration in Desktop.
-6. Add focused parser/calculator tests and a regression test for the reported failure.
-7. Verify cancellation, retries, logging, and persisted-state behavior.
-8. Test from the publish output when packaging/runtime behavior is involved.
-9. Record only durable rules here; archive detailed investigation/history.
+- Account tribe and active-village tribe are different on special servers. Cache village tribe by stable identity;
+  unknown tribe is deferred, never borrowed from another village/account.
+- Verify active village after switching and before state-changing actions. Missing villages are quarantined until
+  confirmed, not deleted after one incomplete refresh.
+- Hero ownership and current location are separate. Scope transfers to the active dialog and verify the target.
+- Empty building slots contain one contract per available type; scope cost reads and transfer clicks to the exact
+  `#contract_building{gid}`.
+- Cache only data with an owner, invalidation rule, and safe stale behavior. Incomplete refreshes must not erase
+  the last valid snapshot or fabricate zero/empty state.
+- Browser activity statistics are account-scoped: lifetime counters persist; session counters do not.
+- Farm-list exact timers get a 5-15s render margin; unreadable disabled timers use an estimated 60s wait.
+- Bonus-video failures use shared protected timing, typed cooldowns, account proxy routing, and sanitized logs.
+  See [bonus-video ADR](adr/2026-07-18-bonus-video.md).
+- Diagnostics use shared busy/cancel behavior, sanitize settings/logs/paths/URLs/auth/proxy data, and never present
+  partial output as a successful archive. Screenshots may contain visible game data.
 
 ## Target architecture
 
-- Smaller domain services around construction, farming, hero, map, messages, and account state.
-- Pure parsers/calculators with fixtures independent of Playwright.
+- Smaller domain services for construction, farming, hero, map, messages, and account state.
+- Pure fixture-tested parsers/calculators independent of Playwright.
 - Thin browser adapters with explicit timeouts, cancellation, and result states.
-- ViewModels that expose commands/state without browser or filesystem details.
+- ViewModels exposing commands/state without browser or filesystem details.
 - Central path, persistence, diagnostics, and release-packaging services.
-- Tests split into fast domain tests, fixture-based browser parsing tests, and limited live smoke checks.
+- Fast domain tests, fixture-based parsing tests, and limited live smoke checks.
 
-## Documentation history
+## Architecture decisions
 
-Detailed historical notes are intentionally outside this active guide:
-
-- [Pre-compression snapshot, 2026-07-14](history/engineering-notes-2026-07-14-pre-compression.md)
-- [Engineering notes archive](history/engineering-notes-archive.md)
 - [UI theme](adr/2026-06-03-ui-theme.md)
 - [Multi-village state](adr/2026-06-05-multi-village.md)
 - [Dashboard overview](adr/2026-06-06-dashboard-overview.md)
@@ -381,5 +194,14 @@ Detailed historical notes are intentionally outside this active guide:
 - [Smithy and troop training](adr/2026-06-20-smithy-troop-training.md)
 - [Town Hall celebration](adr/2026-06-20-town-hall-celebration.md)
 - [TravianClient seams](adr/2026-06-25-travianclient-seams.md)
+- [Browser session and login](adr/2026-07-18-browser-session-and-login.md)
+- [Bonus video](adr/2026-07-18-bonus-video.md)
+
+## Arkiverad historik
+
+Äldre beslut och detaljerad historik finns i:
+
+- [Pre-compression snapshot, 2026-07-14](history/engineering-notes-2026-07-14-pre-compression.md)
+- [Engineering notes archive](history/engineering-notes-archive.md)
 
 Before deleting or shortening a rule, confirm that its detail exists in the snapshot, archive, or an ADR.

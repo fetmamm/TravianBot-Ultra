@@ -4,7 +4,7 @@ Du ska refaktorera `ENGINEERING_NOTES.md` så att filen blir kort, aktuell och a
 
 ## Mål
 
-`ENGINEERING_NOTES.md` ska vara maximalt **400 rader**.
+`ENGINEERING_NOTES.md` ska vara maximalt **250 rader**.
 
 Filen ska innehålla det som en utvecklare eller AI-agent behöver läsa innan den gör ändringar i projektet.
 

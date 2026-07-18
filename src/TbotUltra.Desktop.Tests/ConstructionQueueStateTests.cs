@@ -54,6 +54,8 @@ public sealed class ConstructionQueueStateTests
     [Theory]
     [InlineData("Building slot 25 (Residence) upgrade to level 12: blocked by resources. queue_wait_seconds=60 upgrade_wait_reason=storage_capacity upgrade_storage_capacity_kind=warehouse")]
     [InlineData("Resource slot 5 (Clay Pit) upgrade to level 15: Extend warehouse and granary first. queue_wait_seconds=60")]
+    [InlineData("Building slot 28 construct Grain Mill: Extend granary first. queue_wait_seconds=60")]
+    [InlineData("Resource slot 4 upgrade: Extend warehouse first. queue_wait_seconds=60")]
     public void IsConstructionStorageCapacityDeferMessage_RecognizesStorageBlocks(string message)
     {
         Assert.True(ConstructionQueueState.IsConstructionStorageCapacityDeferMessage(message));

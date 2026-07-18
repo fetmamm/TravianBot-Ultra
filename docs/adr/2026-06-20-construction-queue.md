@@ -68,6 +68,12 @@ Aktivt beslut, 2026-06-20. Detaljerna bakom de korta reglerna i
 
 ## Storage-capacity-dependency
 
+- Nar `upgrade_all_resources_to_level` laggs i kon, direkt eller via template, beraknas varje aterstaende
+  faltnivas maxkostnad ur katalogen. Smart-ordningen paverkar inte kapacitetsgranserna. Befintliga bulk-,
+  falt- och Warehouse-/Granary-uppgraderingar tidigare i samma byko projiceras forst. Det nya malet delas
+  sedan i stigande resursmal; endast nasta nodvandiga lagerniva laggs precis fore resurssteget som korsar
+  granssen. Hela etapp-planen laggs atomiskt och varje lagernetapp delar dependency-batch-id med sitt
+  efterfoljande resurssteg.
 - Official `upgradeBlocked` med `Extend warehouse/granary first` ar storage-capacity, inte vanlig
   resource-wait. Worker returnerar `wait_reason=storage_capacity` och desktop later
   `StorageCapacityDependencyPlanner` kopa Warehouse/Granary-dependency fore originaltasken.

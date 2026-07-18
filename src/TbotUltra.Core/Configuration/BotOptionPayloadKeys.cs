@@ -51,7 +51,10 @@ public static class BotOptionPayloadKeys
     public const string StorageDependencyParentId = "storage_dependency_parent_id";
     public const string StorageDependencyItemId = "storage_dependency_item_id";
     public const string StorageDependencyKind = "storage_dependency_kind";
+    public const string StoragePreflightBatchId = "storage_preflight_batch_id";
+    public const string StoragePreflightPlanId = "storage_preflight_plan_id";
     public const string AutoAddedBy = "auto_added_by";
+    public const string AutoAddedByStorageCapacityPreflight = "storage_capacity_preflight";
     public const string AutoAddedReason = "auto_added_reason";
     public const string AutoAddedParentId = "auto_added_parent_id";
     public const string AutoAddedRequirement = "auto_added_requirement";

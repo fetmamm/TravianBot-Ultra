@@ -192,10 +192,58 @@ public partial class MainWindow
             return (Action: action, Request: new QueueItemCreateRequest(action.TaskName, payload, 0, 3));
         }).ToList();
 
+        IReadOnlyList<QueueItemCreateRequest> stagedResourceRequests = [];
+        IReadOnlyList<StoragePreflightUpgrade> storageUpgrades = [];
+        var bulkResourceActions = prepared
+            .Where(item => string.Equals(
+                item.Action.TaskName,
+                "upgrade_all_resources_to_level",
+                StringComparison.OrdinalIgnoreCase))
+            .Where(item => item.Request.Payload is not null
+                && item.Request.Payload.TryGetValue(BotOptionPayloadKeys.ResourceUpgradeTargetLevel, out var rawTarget)
+                && int.TryParse(rawTarget, out _))
+            .ToList();
+        if (bulkResourceActions.Count > 0)
+        {
+            var targetLevel = bulkResourceActions.Max(item =>
+                int.Parse(item.Request.Payload![BotOptionPayloadKeys.ResourceUpgradeTargetLevel]));
+            var parentPayload = bulkResourceActions
+                .OrderByDescending(item => int.Parse(item.Request.Payload![BotOptionPayloadKeys.ResourceUpgradeTargetLevel]))
+                .First()
+                .Request.Payload!;
+            if (!TryPrepareUpgradeAllStoragePreflight(
+                    targetLevel,
+                    parentPayload,
+                    out stagedResourceRequests,
+                    out storageUpgrades))
+            {
+                BuildingsInfoTextBlock.Text = "Building template cancelled by storage capacity preflight.";
+                return;
+            }
+
+        }
+
+        var finalRequests = new List<QueueItemCreateRequest>();
+        var stagedResourcesInserted = false;
+        foreach (var item in prepared)
+        {
+            if (string.Equals(item.Action.TaskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase))
+            {
+                if (!stagedResourcesInserted)
+                {
+                    finalRequests.AddRange(stagedResourceRequests);
+                    stagedResourcesInserted = true;
+                }
+                continue;
+            }
+
+            finalRequests.Add(item.Request);
+        }
+
         IReadOnlyList<QueueItem> created;
         try
         {
-            created = _botService.EnqueueBatch(prepared.Select(item => item.Request).ToList());
+            created = _botService.EnqueueBatch(finalRequests);
         }
         catch (Exception ex)
         {
@@ -203,6 +251,8 @@ public partial class MainWindow
             AppendLog($"[building-template] atomic queue insert failed; no template rows were added: {ex.Message}");
             return;
         }
+
+        ApplyStoragePreflightPendingState(storageUpgrades);
 
         foreach (var item in prepared)
         {
@@ -225,8 +275,11 @@ public partial class MainWindow
         var warningSuffix = plan.Warnings.Count > 0
             ? $" Warnings: {string.Join(" ", plan.Warnings.Take(2))}"
             : string.Empty;
-        BuildingsInfoTextBlock.Text = $"Queued building template: {created.Count} item(s).{warningSuffix}";
-        AppendLog($"Building template queued atomically: {created.Count} item(s).{warningSuffix}");
+        var storageSuffix = storageUpgrades.Count > 0
+            ? $" Added {storageUpgrades.Count} storage prerequisite(s)."
+            : string.Empty;
+        BuildingsInfoTextBlock.Text = $"Queued building template: {created.Count} item(s).{storageSuffix}{warningSuffix}";
+        AppendLog($"Building template queued atomically: {created.Count} item(s).{storageSuffix}{warningSuffix}");
     }
 
     internal void BuildingSlotCircleButton_Click(object sender, RoutedEventArgs e)

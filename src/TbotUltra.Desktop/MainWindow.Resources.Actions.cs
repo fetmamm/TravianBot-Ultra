@@ -1027,13 +1027,33 @@ public partial class MainWindow
         };
 
         ApplySelectedVillageToPayload(payload);
-        var item = _botService.Enqueue("upgrade_all_resources_to_level", payload, priority: 0, maxRetries: 3);
-        RequestQueueUiRefresh(selectId: item.Id);
+        if (!TryPrepareUpgradeAllStoragePreflight(
+                requestedTargetLevel,
+                payload,
+                out var plannedRequests,
+                out var storageUpgrades))
+        {
+            AppendLog($"[{operationId}] CANCELLED | Storage capacity preflight was not accepted.");
+            return;
+        }
+
+        if (plannedRequests.Count == 0)
+        {
+            AppendLog($"[{operationId}] SKIP | All resource fields are already projected to level {requestedTargetLevel}.");
+            return;
+        }
+
+        var created = _botService.EnqueueBatch(plannedRequests);
+        ApplyStoragePreflightPendingState(storageUpgrades);
+        RequestQueueUiRefresh(selectId: created.Last().Id);
         TriggerQueueAutoRunFromEnqueue();
         var strategyText = string.Equals(buildStrategy, "smart", StringComparison.OrdinalIgnoreCase)
             ? "the field of the resource with the least in storage first"
             : "the lowest resource field first";
-        AppendLog($"[{operationId}] OK 0.0s | Queued upgrade-all toward level {requestedTargetLevel}. The worker will upgrade {strategyText}.");
+        var storageText = storageUpgrades.Count == 0
+            ? string.Empty
+            : $" Added {storageUpgrades.Count} storage prerequisite(s) across staged resource targets.";
+        AppendLog($"[{operationId}] OK 0.0s | Queued upgrade-all toward level {requestedTargetLevel}.{storageText} The worker will upgrade {strategyText}.");
     }
 
     private int ResolveSelectedVillageResourceMaxLevel()

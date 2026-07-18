@@ -179,6 +179,11 @@ public static class StorageCapacityDependencyPlanner
         return normalizedMaxLevel;
     }
 
+    internal static long CapacityAtLevel(int level)
+    {
+        return StorageCapacityByLevel[Math.Clamp(level, 0, StorageCapacityByLevel.Length - 1)];
+    }
+
     public static Dictionary<string, string> BuildDependencyPayload(
         StorageDependencyPlan plan,
         Guid parentId,

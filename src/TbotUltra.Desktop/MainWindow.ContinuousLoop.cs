@@ -1233,8 +1233,9 @@ public partial class MainWindow
             index =>
             {
                 var item = orderedGroupItems[index];
-                return IsBuildingUpgradeForSlot(item, out var upgradeSlotId)
-                    && HasEarlierPendingConstructForSlot(orderedGroupItems, index, item, upgradeSlotId);
+                return (IsBuildingUpgradeForSlot(item, out var upgradeSlotId)
+                        && HasEarlierPendingConstructForSlot(orderedGroupItems, index, item, upgradeSlotId))
+                    || HasEarlierStoragePreflightDependency(orderedGroupItems, index);
             });
         skipReason = selection.SkipReason;
 
