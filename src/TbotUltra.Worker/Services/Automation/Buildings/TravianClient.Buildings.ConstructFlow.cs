@@ -69,8 +69,7 @@ public sealed partial class TravianClient : IBuildingClient
             var categoryIndex = BuildingCatalogService.CategoryIndexFor(gid);
             if (categoryIndex.HasValue && slotId != 40)
             {
-                var separator = url.Contains('?') ? '&' : '?';
-                url = $"{url}{separator}category={categoryIndex.Value}";
+                url = Paths.BuildBySlotWithCategory(slotId, categoryIndex.Value);
             }
             await GotoAsync(url, cancellationToken);
 

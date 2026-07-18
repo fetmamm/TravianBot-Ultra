@@ -393,15 +393,7 @@ public sealed partial class TravianClient
     }
 
     internal static string BuildConstructFasterPath(int slotId, int? gid)
-    {
-        var path = Paths.BuildBySlot(slotId);
-        if (gid is int value && value > 0)
-        {
-            path += $"&gid={value.ToString(CultureInfo.InvariantCulture)}";
-        }
-
-        return path;
-    }
+        => Paths.BuildBySlotWithGid(slotId, gid);
 
     internal static string ResolveConstructFasterVerificationPath(ConstructionKind constructionKind)
         => constructionKind == ConstructionKind.Resource ? Paths.Resources : Paths.Buildings;

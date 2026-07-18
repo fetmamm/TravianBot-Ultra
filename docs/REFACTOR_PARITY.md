@@ -36,7 +36,7 @@ the automated parity checks above.
 | `AccountStoragePaths.Legacy*` and their consumers | Active compatibility migration | Keep until a separately approved storage migration retires the old formats |
 | Legacy action-pacing config fallback | Active compatibility migration | Keep and cover with old-only and mixed-config tests |
 | Resource-field compatibility scan | Active Official safety fallback | Keep until Official live evidence and fixtures prove it unnecessary |
-| Direct navigation path literals | Duplicated active path | Route through the existing path helpers without changing page order |
+| Direct navigation path literals | Resolved 2026-07-19 | All build-slot URL composition routes through `Paths` (`BuildBySlotWithGid`, `BuildBySlotWithCategory`); remaining raw `*.php` strings are DOM selectors, not navigation |
 | `BreweryPayload` | Removed 2026-07-19 (production-orphaned) | Deleted; `run_brewery_celebration`, `TaskPayloadKind.Brewery`, and `brewery_auto_celebration_enabled` remain live — the handler reads `BotOptions` directly |
 
 Private/internal code may be deleted only after symbol, XAML, reflection, config-key

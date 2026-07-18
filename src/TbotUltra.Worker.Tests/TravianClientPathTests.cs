@@ -19,5 +19,9 @@ public sealed class TravianClientPathTests
         Assert.Equal("/report", TravianClient.Paths.Reports);
         Assert.Equal("/build.php?id=7", TravianClient.Paths.BuildBySlot(7));
         Assert.Equal("/build.php?id=7&t=5", TravianClient.Paths.BuildBySlotTab(7, 5));
+        Assert.Equal("/build.php?id=7", TravianClient.Paths.BuildBySlotWithGid(7, null));
+        Assert.Equal("/build.php?id=7", TravianClient.Paths.BuildBySlotWithGid(7, 0));
+        Assert.Equal("/build.php?id=23&gid=28", TravianClient.Paths.BuildBySlotWithGid(23, 28));
+        Assert.Equal("/build.php?id=30&category=2", TravianClient.Paths.BuildBySlotWithCategory(30, 2));
     }
 }

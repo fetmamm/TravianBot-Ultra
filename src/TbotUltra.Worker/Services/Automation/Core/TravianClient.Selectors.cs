@@ -31,6 +31,20 @@ public sealed partial class TravianClient
         public static string BuildBySlotTab(int slotId, int tab) =>
             $"/build.php?id={slotId}&t={tab}";
 
+        public static string BuildBySlotWithGid(int slotId, int? gid)
+        {
+            var path = BuildBySlot(slotId);
+            if (gid is int value && value > 0)
+            {
+                path += $"&gid={value.ToString(System.Globalization.CultureInfo.InvariantCulture)}";
+            }
+
+            return path;
+        }
+
+        public static string BuildBySlotWithCategory(int slotId, int categoryIndex) =>
+            $"{BuildBySlot(slotId)}&category={categoryIndex}";
+
         public static string FarmListBySlotId(string lid) =>
             $"/build.php?id=39&gid=16&tt=99&action=showSlot&lid={lid}";
 
