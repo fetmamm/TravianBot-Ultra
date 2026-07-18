@@ -868,6 +868,7 @@ public sealed partial class TravianClient
                 if (!await IsAdventureVideoDialogOpenAsync(cancellationToken))
                 {
                     Notify($"[adventure-video] {label}: reward confirmed after {elapsedSeconds:F1}s post-play — box active and video dialog closed.");
+                    await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay before the flow continues
                     return true;
                 }
 
@@ -876,6 +877,7 @@ public sealed partial class TravianClient
                 if (BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds))
                 {
                     Notify($"[adventure-video] {label}: reward confirmed after {elapsedSeconds:F1}s post-play — the bonus is now active.");
+                    await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay before the flow continues
                     return true;
                 }
 

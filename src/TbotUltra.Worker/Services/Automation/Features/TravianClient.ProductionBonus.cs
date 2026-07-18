@@ -486,12 +486,14 @@ public sealed partial class TravianClient
             if (boxActive && !hasPlayer && !dialogOpen)
             {
                 Notify($"[production-bonus] video completion confirmed after {elapsedSeconds:F1}s — +15% box active and ad overlay closed.");
+                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay before the flow continues
                 return true;
             }
 
             if (boxActive && BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds))
             {
                 Notify($"[production-bonus] video completion confirmed after {elapsedSeconds:F1}s post-play — box shows +15% active.");
+                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay before the flow continues
                 return true;
             }
 

@@ -622,6 +622,7 @@ public sealed partial class TravianClient
                 Notify(
                     $"[construct-faster] video completion accepted via village redirect after {elapsedSeconds:F1}s " +
                     "post-play (player gone, back on village).");
+                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay before the flow continues
                 return true;
             }
 
@@ -630,6 +631,7 @@ public sealed partial class TravianClient
                 Notify(
                     $"[construct-faster] video completion signal accepted after {elapsedSeconds:F1}s post-play " +
                     $"villageRedirect={onVillage} dialogOpen={dialogOpen} playerPresent={hasPlayer}.");
+                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay before the flow continues
                 return true;
             }
 
