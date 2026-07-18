@@ -6,6 +6,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
@@ -737,7 +738,10 @@ public partial class MainWindow
                 {
                     _collectTasksLastQueuedAtByVillage[villageCooldownKey] = now;
                 }
-                AppendLog("Tasks: claimable rewards detected — queued collect_tasks.");
+                payload.TryGetValue(BotOptionPayloadKeys.TargetVillageName, out var targetName);
+                payload.TryGetValue(BotOptionPayloadKeys.TargetVillageKey, out var targetKey);
+                payload.TryGetValue(BotOptionPayloadKeys.TargetVillageUrl, out var targetUrl);
+                AppendLog($"Tasks: claimable rewards detected — queued collect_tasks for village='{targetName}' key='{targetKey}' url='{targetUrl}'.");
             }
         }
         catch (Exception ex)
@@ -796,30 +800,101 @@ public partial class MainWindow
             return null;
         }
 
-        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [BotOptionPayloadKeys.TargetVillageName] = villageName,
-        };
+        var candidates = (observedStatus?.Villages ?? [])
+            .Select(item => new VillageSelectionItem
+            {
+                Name = item.Name,
+                Url = item.Url ?? string.Empty,
+                CoordX = item.CoordX,
+                CoordY = item.CoordY,
+            })
+            .Concat(GetEnabledAutomationVillages())
+            .GroupBy(GetVillageKey, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
 
-        var villageUrl = observedStatus?.Villages
-            .FirstOrDefault(item => string.Equals(
-                NormalizeVillageName(item.Name),
-                villageName,
-                StringComparison.OrdinalIgnoreCase))
-            ?.Url;
-        if (string.IsNullOrWhiteSpace(villageUrl))
+        var payload = BuildUtilityVillagePayload(
+            villageName,
+            observedStatus?.ActiveVillageCoordX,
+            observedStatus?.ActiveVillageCoordY,
+            _activeWorkingVillageKey,
+            candidates);
+        if (payload is null)
         {
-            villageUrl = GetEnabledAutomationVillages()
-                .FirstOrDefault(item => string.Equals(
-                    NormalizeVillageName(item.Name),
-                    villageName,
-                    StringComparison.OrdinalIgnoreCase))
-                ?.Url;
+            AppendLog($"Utility task skipped: current village identity is ambiguous (name='{villageName}', key='{_activeWorkingVillageKey}').");
         }
 
-        if (!string.IsNullOrWhiteSpace(villageUrl))
+        return payload;
+    }
+
+    // Utility checks run on the currently open page. Resolve that exact village by coordinates/key;
+    // a display name is safe only when it identifies exactly one village.
+    internal static Dictionary<string, string>? BuildUtilityVillagePayload(
+        string? activeVillageName,
+        int? activeVillageCoordX,
+        int? activeVillageCoordY,
+        string? activeWorkingVillageKey,
+        IReadOnlyList<VillageSelectionItem> candidates)
+    {
+        var normalizedName = NormalizeVillageName(activeVillageName);
+        if (normalizedName is null)
         {
-            payload[BotOptionPayloadKeys.TargetVillageUrl] = villageUrl;
+            return null;
+        }
+
+        var stableKey = activeVillageCoordX.HasValue && activeVillageCoordY.HasValue
+            ? VillageKey.FromCoords(activeVillageCoordX.Value, activeVillageCoordY.Value)
+            : string.IsNullOrWhiteSpace(activeWorkingVillageKey) ? null : activeWorkingVillageKey.Trim();
+        var distinctCandidates = candidates
+            .Where(candidate => !string.IsNullOrWhiteSpace(candidate.Name))
+            .GroupBy(GetVillageKey, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
+
+        VillageSelectionItem? target = null;
+        if (activeVillageCoordX.HasValue && activeVillageCoordY.HasValue)
+        {
+            target = distinctCandidates.FirstOrDefault(candidate =>
+                candidate.CoordX == activeVillageCoordX
+                && candidate.CoordY == activeVillageCoordY);
+        }
+
+        if (target is null && stableKey is not null)
+        {
+            target = distinctCandidates.FirstOrDefault(candidate => string.Equals(
+                GetVillageKey(candidate),
+                stableKey,
+                StringComparison.OrdinalIgnoreCase));
+        }
+
+        if (target is null)
+        {
+            var nameMatches = distinctCandidates
+                .Where(candidate => string.Equals(
+                    NormalizeVillageName(candidate.Name),
+                    normalizedName,
+                    StringComparison.OrdinalIgnoreCase))
+                .Take(2)
+                .ToList();
+            if (nameMatches.Count != 1)
+            {
+                return null;
+            }
+
+            target = nameMatches[0];
+        }
+
+        var targetKey = activeVillageCoordX.HasValue && activeVillageCoordY.HasValue
+            ? stableKey
+            : GetVillageKey(target);
+        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.TargetVillageName] = target.Name,
+            [BotOptionPayloadKeys.TargetVillageKey] = targetKey!,
+        };
+        if (!string.IsNullOrWhiteSpace(target.Url))
+        {
+            payload[BotOptionPayloadKeys.TargetVillageUrl] = target.Url;
         }
 
         return payload;
@@ -840,6 +915,12 @@ public partial class MainWindow
         if (payload is null)
         {
             return null;
+        }
+
+        if (payload.TryGetValue(BotOptionPayloadKeys.TargetVillageKey, out var villageKey)
+            && !string.IsNullOrWhiteSpace(villageKey))
+        {
+            return villageKey.Trim();
         }
 
         if (payload.TryGetValue(BotOptionPayloadKeys.TargetVillageUrl, out var villageUrl)

@@ -200,6 +200,7 @@ public sealed partial class TravianClient
                 new PageReloadOptions { WaitUntil = WaitUntilState.DOMContentLoaded },
                 cancellationToken);
             await WaitForPageReadyAsync(cancellationToken);
+            await TryDismissOneTimeGoldShopOfferAsync(cancellationToken);
             await EnsureLoggedInAsync();
             trace.Complete("success", url: _page.Url);
         }
@@ -306,6 +307,7 @@ public sealed partial class TravianClient
                 "page-load-pacing",
                 "after page load",
                 cancellationToken);
+            await TryDismissOneTimeGoldShopOfferAsync(cancellationToken);
             await TryDismissContinuePromptAsync(cancellationToken);
             trace.Complete("success", $"httpStatus={httpStatus?.ToString() ?? "-"} current={BrowserTraceSanitizer.SanitizeUrl(_page.Url)}", _page.Url);
         }
@@ -338,6 +340,7 @@ public sealed partial class TravianClient
                 "page-load-pacing",
                 "after page reload",
                 cancellationToken);
+            await TryDismissOneTimeGoldShopOfferAsync(cancellationToken);
         }
         else
         {

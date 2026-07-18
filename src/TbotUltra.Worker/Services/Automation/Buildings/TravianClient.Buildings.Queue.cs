@@ -677,11 +677,23 @@ public sealed partial class TravianClient
     {
         if (TravianUrls.TryParseNewdid(_page.Url) is int newdid)
         {
-            return newdid.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return VillageIdentityReconciler.BuildStableVillageToken(newdid, (null, null), null);
+        }
+
+        var activeDid = await TryReadActiveVillageDidFromCurrentPageAsync(cancellationToken);
+        if (activeDid.HasValue)
+        {
+            return VillageIdentityReconciler.BuildStableVillageToken(activeDid, (null, null), null);
+        }
+
+        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+        if (VillageIdentityReconciler.HasCoordinates(activeCoords))
+        {
+            return VillageIdentityReconciler.BuildStableVillageToken(null, activeCoords, null);
         }
 
         var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
-        return string.IsNullOrWhiteSpace(activeVillage) ? "current" : activeVillage.Trim();
+        return VillageIdentityReconciler.BuildStableVillageToken(null, (null, null), activeVillage);
     }
 
     private static double RandomInRange(double min, double max)

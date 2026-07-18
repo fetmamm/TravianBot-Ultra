@@ -125,6 +125,53 @@ internal static class VillageIdentityReconciler
         return changed ? updated : null;
     }
 
+    internal static IReadOnlyList<Village> EnrichActiveVillageCoordinates(
+        IReadOnlyList<Village> villages,
+        int? activeVillageDid,
+        (int? X, int? Y) activeCoordinates)
+    {
+        if (!activeVillageDid.HasValue && !HasCoordinates(activeCoordinates))
+        {
+            return villages;
+        }
+
+        return villages
+            .Select(village =>
+            {
+                var sameByDid = activeVillageDid.HasValue
+                    && TravianUrls.TryParseNewdid(village.Url) == activeVillageDid;
+                var sameByCoordinates = SameCoordinates(
+                    (village.CoordX, village.CoordY),
+                    activeCoordinates);
+                return sameByDid || sameByCoordinates
+                    ? village with
+                    {
+                        CoordX = village.CoordX ?? activeCoordinates.X,
+                        CoordY = village.CoordY ?? activeCoordinates.Y,
+                    }
+                    : village;
+            })
+            .ToList();
+    }
+
+    internal static string BuildStableVillageToken(
+        int? villageDid,
+        (int? X, int? Y) coordinates,
+        string? fallbackName)
+    {
+        if (villageDid.HasValue)
+        {
+            return villageDid.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+
+        if (HasCoordinates(coordinates))
+        {
+            return $"xy:{coordinates.X}|{coordinates.Y}";
+        }
+
+        return string.IsNullOrWhiteSpace(fallbackName) ? "current" : fallbackName.Trim();
+    }
+
     private static string NormalizeName(string? value)
     {
         if (string.IsNullOrWhiteSpace(value))

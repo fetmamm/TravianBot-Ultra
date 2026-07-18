@@ -112,6 +112,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   account's saved Playwright auth state.
 - Preserve the intentional headed/maximized anti-detection setup and `ViewportSize.NoViewport`.
 - Login automation requires English UI and fails clearly when required markers are missing.
+- The one-time Gold Shop offer is a blocking announcement, not an automation action. Dismiss it after game-page
+  navigation/reload only through the visible `data-context="oneTimeOfferAnnouncement"` dialog; never use a broad
+  dialog-close selector.
 - Synchronize `BotOptions.BaseUrl` from the active account before login and fail fast when their normalized origins
   differ. An account switch invalidates the browser-session generation so a late `OpenPageAsync` cannot resurrect
   the previous account after shutdown.
@@ -209,6 +212,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   the last valid snapshot or fabricate zero/empty state.
 - Construction mutations use the short fresh-read cache; read-only observations may use the longer cache but
   never past a known completion deadline. Navigation and state-changing clicks invalidate both.
+- Construction start-delay transition memory is village-scoped by `data-did` or coordinates, never display name;
+  duplicate village names must not share a humanize deadline.
 - Persisted account analysis may seed the stable village list. Cold start without a snapshot reads the profile;
   later full logins merge the live sidebar so new/renamed villages are found without another profile visit.
 - Browser activity statistics are account-scoped: lifetime counters persist; session counters do not.

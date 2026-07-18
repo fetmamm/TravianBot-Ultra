@@ -305,10 +305,14 @@ public sealed partial class TravianClient
     {
         var previousUrl = _page.Url;
         string? activeVillageBeforeProfile = null;
+        int? activeVillageDidBeforeProfile = null;
+        (int? X, int? Y) activeCoordsBeforeProfile = (null, null);
         IReadOnlyList<Village> sidebarOrder = [];
         try
         {
             activeVillageBeforeProfile = await ReadActiveVillageNameAsync(cancellationToken);
+            activeVillageDidBeforeProfile = await TryReadActiveVillageDidFromCurrentPageAsync(cancellationToken);
+            activeCoordsBeforeProfile = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
             try
             {
                 // The profile table may be population-sorted. Capture the user's Travian sidebar
@@ -369,7 +373,9 @@ public sealed partial class TravianClient
                     return Number.isFinite(parsed) ? parsed : null;
                   };
                   const parseCoords = (textOrHref) => {
-                    const source = textOrHref || '';
+                    const source = clean(textOrHref || '')
+                      .replace(/[‪-‮⁦-⁩‎‏]/g, '')
+                      .replace(/−/g, '-');
                     const xQuery = source.match(/[?&]x=(-?\d+)/i);
                     const yQuery = source.match(/[?&]y=(-?\d+)/i);
                     if (xQuery && yQuery) {
@@ -558,16 +564,21 @@ public sealed partial class TravianClient
 
         if (!string.IsNullOrWhiteSpace(activeVillageBeforeProfile))
         {
-            var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
-            if (activeCoords.X.HasValue && activeCoords.Y.HasValue && _cachedVillages is { Count: > 0 } cachedVillages)
+            var activeCoords = VillageIdentityReconciler.HasCoordinates(activeCoordsBeforeProfile)
+                ? activeCoordsBeforeProfile
+                : await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+            if ((activeVillageDidBeforeProfile.HasValue || VillageIdentityReconciler.HasCoordinates(activeCoords))
+                && _cachedVillages is { Count: > 0 } cachedVillages)
             {
-                var enriched = cachedVillages
-                    .Select(v => string.Equals(v.Name, activeVillageBeforeProfile, StringComparison.Ordinal)
-                        ? v with { CoordX = v.CoordX ?? activeCoords.X, CoordY = v.CoordY ?? activeCoords.Y }
-                        : v)
-                    .ToList();
+                var enriched = VillageIdentityReconciler.EnrichActiveVillageCoordinates(
+                    cachedVillages,
+                    activeVillageDidBeforeProfile,
+                    activeCoords);
                 UpdateCachedVillages(enriched);
-                SaveCachedVillageState(activeVillageBeforeProfile, null, activeCoords.X, activeCoords.Y);
+                if (VillageIdentityReconciler.HasCoordinates(activeCoords))
+                {
+                    SaveCachedVillageState(activeVillageBeforeProfile, null, activeCoords.X, activeCoords.Y);
+                }
                 return enriched;
             }
         }
@@ -650,7 +661,11 @@ public sealed partial class TravianClient
         var coord = await _page.EvaluateAsync<ActiveVillageCoordJs>(
             """
             () => {
-              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const clean = (value) => (value || '')
+                .replace(/[‪-‮⁦-⁩‎‏]/g, '')
+                .replace(/−/g, '-')
+                .replace(/\s+/g, ' ')
+                .trim();
               const parseCoords = (value) => {
                 const source = clean(value);
                 if (!source) return { x: null, y: null };
@@ -735,6 +750,21 @@ public sealed partial class TravianClient
             """);
 
         return (coord?.X, coord?.Y);
+    }
+
+    private async Task<int?> TryReadActiveVillageDidFromCurrentPageAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var rawDid = await _page.EvaluateAsync<string?>(
+            """
+            () => document.querySelector('#villageName input[data-did]')?.getAttribute('data-did')
+              || document.querySelector(
+                '#sidebarBoxVillageList .listEntry.village.active[data-did], ' +
+                '#sidebarBoxVillagelist .listEntry.village.active[data-did], ' +
+                '.listEntry.village.active[data-did]')?.getAttribute('data-did')
+              || null
+            """);
+        return int.TryParse(rawDid, out var did) ? did : null;
     }
 
     private async Task<string> ReadActiveVillageNameAsync(CancellationToken cancellationToken)

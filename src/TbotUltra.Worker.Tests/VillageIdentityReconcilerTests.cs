@@ -72,4 +72,48 @@ public sealed class VillageIdentityReconcilerTests
         Assert.Equal(10, updated[0].CoordX);
         Assert.Equal(30, updated[1].CoordX);
     }
+
+    [Fact]
+    public void EnrichActiveVillageCoordinates_UpdatesOnlyMatchingDidForDuplicateNames()
+    {
+        Village[] villages =
+        [
+            new("New village", "/dorf1.php?newdid=1"),
+            new("New village", "/dorf1.php?newdid=2"),
+        ];
+
+        var updated = VillageIdentityReconciler.EnrichActiveVillageCoordinates(villages, 2, (30, 40));
+
+        Assert.Null(updated[0].CoordX);
+        Assert.Null(updated[0].CoordY);
+        Assert.Equal(30, updated[1].CoordX);
+        Assert.Equal(40, updated[1].CoordY);
+    }
+
+    [Fact]
+    public void EnrichActiveVillageCoordinates_NeverMatchesDuplicateVillagesByName()
+    {
+        Village[] villages =
+        [
+            new("New village", "/dorf1.php?newdid=1", CoordX: 10, CoordY: 20),
+            new("New village", "/dorf1.php?newdid=2"),
+        ];
+
+        var updated = VillageIdentityReconciler.EnrichActiveVillageCoordinates(villages, null, (10, 20));
+
+        Assert.Equal(10, updated[0].CoordX);
+        Assert.Null(updated[1].CoordX);
+    }
+
+    [Fact]
+    public void BuildStableVillageToken_DistinguishesSameNameVillagesByDidOrCoordinates()
+    {
+        var first = VillageIdentityReconciler.BuildStableVillageToken(1, (10, 20), "New village");
+        var second = VillageIdentityReconciler.BuildStableVillageToken(2, (10, 20), "New village");
+        var coordinateFallback = VillageIdentityReconciler.BuildStableVillageToken(null, (30, 40), "New village");
+
+        Assert.Equal("1", first);
+        Assert.Equal("2", second);
+        Assert.Equal("xy:30|40", coordinateFallback);
+    }
 }
