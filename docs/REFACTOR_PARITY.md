@@ -7,7 +7,7 @@ remains the source of truth for behavior and Official-specific constraints.
 
 - Build: 0 warnings, 0 errors (`scripts/Build-Check.ps1`, 2026-07-19).
 - Desktop tests: 527 passed.
-- Worker tests: 839 passed.
+- Worker tests: 838 passed.
 - Public task names, payload keys, config formats and storage paths stay stable.
 
 ## Parity checks
@@ -37,6 +37,7 @@ the automated parity checks above.
 | Legacy action-pacing config fallback | Active compatibility migration | Keep and cover with old-only and mixed-config tests |
 | Resource-field compatibility scan | Active Official safety fallback | Keep until Official live evidence and fixtures prove it unnecessary |
 | Direct navigation path literals | Duplicated active path | Route through the existing path helpers without changing page order |
+| `BreweryPayload` | Removed 2026-07-19 (production-orphaned) | Deleted; `run_brewery_celebration`, `TaskPayloadKind.Brewery`, and `brewery_auto_celebration_enabled` remain live — the handler reads `BotOptions` directly |
 
 Private/internal code may be deleted only after symbol, XAML, reflection, config-key
 and serialized-name searches all show no consumer. A name containing `legacy` is not

@@ -531,22 +531,6 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     }
 
     [Fact]
-    public void BreweryPayload_ParsesAndSerializesDictionary()
-    {
-        var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-        {
-            [BotOptionPayloadKeys.BreweryAutoCelebrationEnabled] = "false",
-        };
-
-        Assert.True(BreweryPayload.TryFromDictionary(payload, out var parsed));
-        Assert.NotNull(parsed);
-        Assert.False(parsed!.AutoCelebrationEnabled);
-        var serialized = parsed.ToDictionary();
-        Assert.Single(serialized);
-        Assert.Equal("false", serialized[BotOptionPayloadKeys.BreweryAutoCelebrationEnabled]);
-    }
-
-    [Fact]
     public void TroopTrainingPayload_ParsesAndSerializesDictionary()
     {
         var payload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
