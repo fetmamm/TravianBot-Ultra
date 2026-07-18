@@ -28,6 +28,31 @@ public partial class MainWindow
     private string? _sessionActivityLabel;
     private DateTimeOffset _sessionActivityStartedUtc;
     private DateTimeOffset _sessionActivityLastPersistUtc;
+    private string? _sessionActivityHistoryCacheAccount;
+    private IReadOnlyList<SessionActivityHistoryEntry> _sessionActivityHistoryCache = [];
+
+    private void RefreshSessionActivityHistoryCache()
+    {
+        var accountName = _uiActiveAccountName;
+        if (string.IsNullOrWhiteSpace(accountName))
+        {
+            _sessionActivityHistoryCacheAccount = accountName;
+            _sessionActivityHistoryCache = [];
+            return;
+        }
+
+        try
+        {
+            _sessionActivityHistoryCache = ReadSessionActivityHistory(_botConfigStore.LoadForAccount(accountName));
+            _sessionActivityHistoryCacheAccount = accountName;
+        }
+        catch (Exception ex)
+        {
+            _sessionActivityHistoryCacheAccount = accountName;
+            _sessionActivityHistoryCache = [];
+            AppendLog($"[activity] could not load timeline: {ex.Message}");
+        }
+    }
 
     private void UpdateSessionActivityState(bool forcePersist = false)
     {
@@ -44,7 +69,7 @@ public partial class MainWindow
             return;
         }
 
-        var accountName = _accountStore.ActiveAccountName();
+        var accountName = _uiActiveAccountName;
         var (state, label) = ResolveCurrentSessionActivityState();
         UpdateProxyUsageState(
             accountName,
@@ -188,6 +213,10 @@ public partial class MainWindow
 
             config[BotOptionPayloadKeys.SessionActivityHistory] = array;
             _botConfigStore.SaveForAccount(accountName, config);
+            if (string.Equals(_sessionActivityHistoryCacheAccount, accountName, StringComparison.OrdinalIgnoreCase))
+            {
+                _sessionActivityHistoryCache = entries;
+            }
         }
         catch (Exception ex)
         {
@@ -198,14 +227,12 @@ public partial class MainWindow
     private IReadOnlyList<SessionActivityHistoryEntry> ReadSessionActivityHistoryWithCurrent(DateTimeOffset nowUtc)
     {
         var entries = new List<SessionActivityHistoryEntry>();
-        try
+        if (!string.Equals(_sessionActivityHistoryCacheAccount, _uiActiveAccountName, StringComparison.OrdinalIgnoreCase))
         {
-            entries.AddRange(ReadSessionActivityHistory(_botConfigStore.Load()));
+            RefreshSessionActivityHistoryCache();
         }
-        catch (Exception ex)
-        {
-            AppendLog($"[activity] could not load timeline: {ex.Message}");
-        }
+
+        entries.AddRange(_sessionActivityHistoryCache);
 
         if (_sessionActivityState is string state && _sessionActivityStartedUtc != default && nowUtc > _sessionActivityStartedUtc)
         {

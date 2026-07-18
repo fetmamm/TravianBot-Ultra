@@ -63,6 +63,10 @@ public partial class MainWindow
                     RefreshTravianBuildQueueUi();
                     RefreshTravianSmithyQueueUi();
                 }
+                else if (ReferenceEquals(targetTab, LogsTabItem))
+                {
+                    RefreshBrowserStatisticsUi();
+                }
             }
         }
         catch (Exception ex)

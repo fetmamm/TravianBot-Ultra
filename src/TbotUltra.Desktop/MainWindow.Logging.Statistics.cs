@@ -8,13 +8,18 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
+    private readonly object _browserStatisticsSaveSync = new();
+    private readonly Dictionary<string, BrowserStatisticsSaveRequest> _pendingBrowserStatisticsSaves =
+        new(StringComparer.OrdinalIgnoreCase);
+    private Task? _browserStatisticsSaveTask;
+    private bool _browserStatisticsSaveRunning;
     private readonly DateTimeOffset _browserStatisticsProgramSessionStartedUtc = DateTimeOffset.UtcNow;
     private readonly Dictionary<string, BrowserActivityStatisticsSnapshot> _browserSessionStatistics = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, BrowserActivityStatisticsSnapshot> _browserLifetimeStatistics = new(StringComparer.OrdinalIgnoreCase);
 
     private bool TryRecordBrowserActivityStatistics(string line)
     {
-        var accountName = _accountStore.ActiveAccountName();
+        var accountName = _uiActiveAccountName;
         if (string.IsNullOrWhiteSpace(accountName))
         {
             return false;
@@ -30,26 +35,90 @@ public partial class MainWindow
 
     private void PersistAndRefreshBrowserActivityStatistics()
     {
-        var accountName = _accountStore.ActiveAccountName();
+        var accountName = _uiActiveAccountName;
         if (string.IsNullOrWhiteSpace(accountName))
         {
             return;
         }
 
-        try
+        var snapshot = CloneBrowserStatistics(GetBrowserLifetimeStatistics(accountName));
+        lock (_browserStatisticsSaveSync)
         {
-            BrowserActivityStatisticsStore.Save(
-                _projectRoot,
-                accountName,
-                GetBrowserLifetimeStatistics(accountName));
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"[browser-statistics] could not save lifetime statistics: {ex.Message}");
+            _pendingBrowserStatisticsSaves[accountName] = new BrowserStatisticsSaveRequest(accountName, snapshot);
+            if (!_browserStatisticsSaveRunning)
+            {
+                _browserStatisticsSaveRunning = true;
+                _browserStatisticsSaveTask = Task.Run(ProcessBrowserStatisticsSaves);
+            }
         }
 
-        RefreshBrowserStatisticsUi();
+        if (IsMainTabSelected(LogsTabItem) || _logsPopupStatisticsTextBox is not null)
+        {
+            RefreshBrowserStatisticsUi();
+        }
     }
+
+    private void ProcessBrowserStatisticsSaves()
+    {
+        while (true)
+        {
+            BrowserStatisticsSaveRequest? request;
+            lock (_browserStatisticsSaveSync)
+            {
+                request = _pendingBrowserStatisticsSaves.Values.FirstOrDefault();
+                if (request is null)
+                {
+                    _browserStatisticsSaveRunning = false;
+                    return;
+                }
+
+                _pendingBrowserStatisticsSaves.Remove(request.AccountName);
+            }
+
+            try
+            {
+                BrowserActivityStatisticsStore.Save(_projectRoot, request.AccountName, request.Snapshot);
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"[browser-statistics] could not save lifetime statistics: {ex}");
+            }
+        }
+    }
+
+    private async Task FlushBrowserStatisticsSavesAsync()
+    {
+        Task? pending;
+        lock (_browserStatisticsSaveSync)
+        {
+            pending = _browserStatisticsSaveTask;
+        }
+
+        if (pending is not null)
+        {
+            await pending.ConfigureAwait(false);
+        }
+    }
+
+    private static BrowserActivityStatisticsSnapshot CloneBrowserStatistics(BrowserActivityStatisticsSnapshot source)
+        => new()
+        {
+            FirstRecordedUtc = source.FirstRecordedUtc,
+            LastRecordedUtc = source.LastRecordedUtc,
+            Metrics = new Dictionary<string, long>(source.Metrics, StringComparer.OrdinalIgnoreCase),
+            Destinations = source.Destinations.ToDictionary(
+                item => item.Key,
+                item => new BrowserDestinationCounters
+                {
+                    Navigations = item.Value.Navigations,
+                    Reloads = item.Value.Reloads,
+                },
+                StringComparer.OrdinalIgnoreCase),
+        };
+
+    private sealed record BrowserStatisticsSaveRequest(
+        string AccountName,
+        BrowserActivityStatisticsSnapshot Snapshot);
 
     private BrowserActivityStatisticsSnapshot GetBrowserSessionStatistics(string accountName)
     {

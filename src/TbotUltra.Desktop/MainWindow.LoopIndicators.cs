@@ -271,15 +271,6 @@ public partial class MainWindow
                 "construction-queue:timer-zero");
         }
 
-        if (IsMainTabSelected(QueueTabItem))
-        {
-            UpdateBuildQueueStatusText();
-            RefreshTravianBuildQueueUi();
-        }
-        else if (IsMainTabSelected(DashboardTabItem))
-        {
-            RefreshVillageActivityIndicatorsOnDashboard();
-        }
     }
 
     private static string FormatCountdown(int seconds)

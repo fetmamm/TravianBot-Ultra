@@ -24,7 +24,13 @@ public sealed class VillageSelectionItem : INotifyPropertyChanged
         get => _buildingSlots;
         set
         {
-            _buildingSlots = value ?? System.Array.Empty<VillageActivitySlot>();
+            var normalized = value ?? System.Array.Empty<VillageActivitySlot>();
+            if (_buildingSlots.SequenceEqual(normalized))
+            {
+                return;
+            }
+
+            _buildingSlots = normalized;
             OnPropertyChanged();
         }
     }
@@ -35,7 +41,13 @@ public sealed class VillageSelectionItem : INotifyPropertyChanged
         get => _troopSlots;
         set
         {
-            _troopSlots = value ?? System.Array.Empty<VillageActivitySlot>();
+            var normalized = value ?? System.Array.Empty<VillageActivitySlot>();
+            if (_troopSlots.SequenceEqual(normalized))
+            {
+                return;
+            }
+
+            _troopSlots = normalized;
             OnPropertyChanged();
         }
     }
@@ -47,7 +59,13 @@ public sealed class VillageSelectionItem : INotifyPropertyChanged
         get => _smithySlots;
         set
         {
-            _smithySlots = value ?? System.Array.Empty<VillageActivitySlot>();
+            var normalized = value ?? System.Array.Empty<VillageActivitySlot>();
+            if (_smithySlots.SequenceEqual(normalized))
+            {
+                return;
+            }
+
+            _smithySlots = normalized;
             OnPropertyChanged();
         }
     }

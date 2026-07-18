@@ -21,6 +21,21 @@ namespace TbotUltra.Desktop;
 // explicit "Switch village" button (or by automation rotating between villages as it runs).
 public partial class MainWindow
 {
+    private readonly Dictionary<string, TroopTrainingPayload> _dashboardTroopTrainingPayloadCache =
+        new(StringComparer.OrdinalIgnoreCase);
+    private TroopTrainingPayload? _dashboardDefaultTroopTrainingPayload;
+
+    private void InvalidateDashboardTroopTrainingPayloadCache()
+        => _dashboardTroopTrainingPayloadCache.Clear();
+
+    private void CacheDashboardTroopTrainingPayload(string? account, string? villageKey, TroopTrainingPayload payload)
+    {
+        if (!string.IsNullOrWhiteSpace(account) && !string.IsNullOrWhiteSpace(villageKey))
+        {
+            _dashboardTroopTrainingPayloadCache[$"{account}|{villageKey}"] = payload;
+        }
+    }
+
     // Last-read status per village, so the dropdown can show a village's buildings/resources for
     // queueing without navigating to it. Keyed by the canonical coordinate key (xy:X|Y — the same
     // identity as queue.json/settings) with name-based lookup for callers that only have a name, so a
@@ -503,10 +518,26 @@ public partial class MainWindow
 
     private TroopTrainingPayload ResolveTroopTrainingPayloadForVillage(VillageSelectionItem item)
     {
-        var account = _accountStore.ActiveAccountName();
+        var account = _uiActiveAccountName;
         var key = GetVillageKey(item);
-        return TroopTrainingSettingsStore.Load(_projectRoot, account, key)
+        var cacheKey = $"{account}|{key}";
+        if (_dashboardTroopTrainingPayloadCache.TryGetValue(cacheKey, out var cached))
+        {
+            return cached;
+        }
+
+        // The presentation pulse must never perform file I/O. Event-driven refreshes populate the
+        // per-village cache; a newly discovered village uses the already-loaded account default for
+        // at most one pulse until its normal village refresh primes the override.
+        if (_isUiPresentationPulse && _dashboardDefaultTroopTrainingPayload is not null)
+        {
+            return _dashboardDefaultTroopTrainingPayload;
+        }
+
+        var payload = TroopTrainingSettingsStore.Load(_projectRoot, account, key)
             ?? TroopTrainingQuickSettings.FromOptions(LoadBotOptions());
+        _dashboardTroopTrainingPayloadCache[cacheKey] = payload;
+        return payload;
     }
 
     private static string FormatTroopTrainingDuration(int seconds)

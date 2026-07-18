@@ -113,11 +113,6 @@ public partial class MainWindow
             RefreshTravianSmithyQueueUi();
             UpdateQueueEstimateTotals(displayedActiveRows);
             SyncPendingResourceTargetsInUi();
-            if (ResolveSelectedVillageBuildingStatus() is { } selectedBuildingStatus)
-            {
-                PopulateBuildingsTab(selectedBuildingStatus);
-            }
-
             if (selectId.HasValue)
             {
                 var selected = displayedActiveRows.FirstOrDefault(item => item.Id == selectId.Value);
@@ -228,15 +223,24 @@ public partial class MainWindow
                 ? 3
                 : 2;
 
-        _travianBuildQueueRows.Clear();
-        foreach (var row in LiveQueueRowFactory.BuildConstructionRows(
+        var rows = LiveQueueRowFactory.BuildConstructionRows(
                      activeConstructions,
                      slotCount,
                      snapshot.Knowledge != ConstructionQueueKnowledge.Unknown,
                      nowUtc,
-                     FormatQueueFinishTime))
+                     FormatQueueFinishTime);
+        var sharedCount = Math.Min(_travianBuildQueueRows.Count, rows.Count);
+        for (var index = 0; index < sharedCount; index++)
         {
-            _travianBuildQueueRows.Add(row);
+            _travianBuildQueueRows[index].ApplySnapshot(rows[index]);
+        }
+        while (_travianBuildQueueRows.Count > rows.Count)
+        {
+            _travianBuildQueueRows.RemoveAt(_travianBuildQueueRows.Count - 1);
+        }
+        for (var index = sharedCount; index < rows.Count; index++)
+        {
+            _travianBuildQueueRows.Add(rows[index]);
         }
     }
 
@@ -248,15 +252,24 @@ public partial class MainWindow
             DateTimeOffset.UtcNow);
         var nowUtc = DateTimeOffset.UtcNow;
 
-        _travianSmithyQueueRows.Clear();
-        foreach (var row in LiveQueueRowFactory.BuildSmithyRows(
+        var rows = LiveQueueRowFactory.BuildSmithyRows(
                      activeUpgrades,
                      slotCount: 2,
                      status?.SmithyUpgradeStatus is not null,
                      nowUtc,
-                     FormatQueueFinishTime))
+                     FormatQueueFinishTime);
+        var sharedCount = Math.Min(_travianSmithyQueueRows.Count, rows.Count);
+        for (var index = 0; index < sharedCount; index++)
         {
-            _travianSmithyQueueRows.Add(row);
+            _travianSmithyQueueRows[index].ApplySnapshot(rows[index]);
+        }
+        while (_travianSmithyQueueRows.Count > rows.Count)
+        {
+            _travianSmithyQueueRows.RemoveAt(_travianSmithyQueueRows.Count - 1);
+        }
+        for (var index = sharedCount; index < rows.Count; index++)
+        {
+            _travianSmithyQueueRows.Add(rows[index]);
         }
     }
 
@@ -310,7 +323,7 @@ public partial class MainWindow
             _queueUiRefreshTimer.Stop();
             var immediateSelectId = _pendingQueueUiSelectId;
             _pendingQueueUiSelectId = null;
-            RefreshQueueUi(immediateSelectId);
+            MeasureUiWork("queue refresh", () => RefreshQueueUi(immediateSelectId));
             return;
         }
 

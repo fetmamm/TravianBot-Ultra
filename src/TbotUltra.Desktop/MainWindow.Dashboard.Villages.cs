@@ -17,6 +17,15 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
+    private string? _villageOverviewTownHallCacheAccount;
+    private IReadOnlyDictionary<string, TownHallCelebrationState>? _villageOverviewTownHallCache;
+
+    private void InvalidateVillageOverviewTownHallCache()
+    {
+        _villageOverviewTownHallCacheAccount = null;
+        _villageOverviewTownHallCache = null;
+    }
+
     private void SyncDashboardVillageUiFromVillages(
         IReadOnlyList<Village> villages,
         string? activeVillageName,
@@ -843,10 +852,17 @@ public partial class MainWindow
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var nowUtc = DateTimeOffset.UtcNow;
         var accountName = _accountStore.ActiveAccountName();
-        var townHallByVillage = TownHallCelebrationStateStore.ReadAllActive(
-            _projectRoot,
-            accountName,
-            nowUtc);
+        if (_villageOverviewTownHallCache is null
+            || !string.Equals(_villageOverviewTownHallCacheAccount, accountName, StringComparison.OrdinalIgnoreCase))
+        {
+            _villageOverviewTownHallCache = TownHallCelebrationStateStore.ReadAllActive(
+                _projectRoot,
+                accountName,
+                nowUtc);
+            _villageOverviewTownHallCacheAccount = accountName;
+        }
+
+        var townHallByVillage = _villageOverviewTownHallCache;
 
         var villages = source.Select(village =>
         {

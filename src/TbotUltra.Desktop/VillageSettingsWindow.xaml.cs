@@ -75,7 +75,7 @@ public partial class VillageSettingsWindow : Window
         if (_overviewSnapshotProvider is not null)
         {
             RefreshOverview();
-            _overviewRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            _overviewRefreshTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
             _overviewRefreshTimer.Tick += (_, _) => RefreshOverview();
             _overviewRefreshTimer.Start();
             Closed += (_, _) => _overviewRefreshTimer.Stop();
@@ -114,7 +114,10 @@ public partial class VillageSettingsWindow : Window
         var sharedCount = Math.Min(target.Count, source.Count);
         for (var index = 0; index < sharedCount; index++)
         {
-            target[index] = source[index];
+            if (!EqualityComparer<T>.Default.Equals(target[index], source[index]))
+            {
+                target[index] = source[index];
+            }
         }
 
         while (target.Count > source.Count)

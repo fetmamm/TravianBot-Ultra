@@ -7,7 +7,7 @@ namespace TbotUltra.Desktop.Models;
 /// Rebuilt from the per-village status cache each time the village list is refreshed, so the type is a
 /// plain immutable value (no change notification needed).
 /// </summary>
-public sealed class VillageActivitySlot
+public sealed record VillageActivitySlot
 {
     public bool IsActive { get; init; }
     // Amber "waiting" state: the village has a deferred/blocked task for this icon (e.g. waiting for

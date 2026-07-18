@@ -39,6 +39,7 @@ public partial class MainWindow : Window
     private const int NonCapitalResourceMaxLevel = 10;
     private const int MaxFarmListsShown = 120;
     private const int MaxLogLinesPerFlush = 220;
+    private static readonly TimeSpan LogUiFlushBudget = TimeSpan.FromMilliseconds(12);
     private const int MaxSessionLogFiles = 5;
     private const int ContinuousLoopMaxSleepSliceSeconds = 1;
     private const int ContinuousInboxCheckIntervalSeconds = 15;
@@ -90,12 +91,15 @@ public partial class MainWindow : Window
     private readonly string _envPath;
     private readonly string _serverCatalogPath;
     private readonly string _sessionLogPath;
+    private readonly SerialFileAppendWriter _sessionLogWriter;
     private readonly BotConfigStore _botConfigStore;
     private readonly VillageSettingsStore _villageSettingsStore;
     private readonly TravcoListStore _travcoListStore;
     private readonly VillageCacheStore _villageCacheStore;
     private readonly IAccountProvider _accountProvider;
     private readonly EnvAccountStore _accountStore;
+    private string _uiActiveAccountName = string.Empty;
+    private AccountEntry? _uiActiveAccount;
     private readonly AccountAnalysisStore _accountAnalysisStore;
     private readonly HeroAttributeSnapshotStore _heroAttributeSnapshotStore;
     private readonly ManualFarmingPreferenceStore _manualFarmingPreferenceStore;
@@ -104,9 +108,9 @@ public partial class MainWindow : Window
     private readonly ServerCatalogStore _serverCatalogStore;
     private readonly IDesktopBotService _botService;
     private readonly DispatcherTimer _clockTimer;
+    private bool _isUiPresentationPulse;
     private readonly DispatcherTimer _copyFeedbackTimer;
     private readonly DispatcherTimer _inboxRefreshTimer;
-    private readonly DispatcherTimer _buildQueueCountdownTimer;
     private readonly DispatcherTimer _resourceSnapshotRefreshTimer;
     private readonly DispatcherTimer _troopTrainingDeferredRefreshDebounceTimer;
     private readonly DispatcherTimer _updateCheckTimer;
@@ -323,7 +327,7 @@ public partial class MainWindow : Window
     private VillageStatus? _lastBuildingStatus;
     private VillageStatus? _lastResourceStatusForUi;
     private readonly object _pendingLogSync = new();
-    private readonly Queue<string> _pendingLogMessages = new();
+    private readonly LinkedList<string> _pendingLogMessages = new();
     private readonly object _sessionLogWriteSync = new();
     // Section markers ("=== ALARMS ===" / "=== LOGS ===") are written once at file init.
     // These guard the per-flush append so they are not re-emitted on every tiny flush.
@@ -396,6 +400,7 @@ public partial class MainWindow : Window
         _serverCatalogPath = Path.Combine(_projectRoot, "config", "servers.user.json");
         _sessionLogPath = Path.Combine(_projectRoot, "logs", $"TbotUltra_Log_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
         InitializeSessionLogFile();
+        _sessionLogWriter = new SerialFileAppendWriter(_sessionLogPath);
         BrowserStatePersistence.ClearAllSavedStates(_projectRoot, AppendLog);
         if (BuildingCatalogService.CatalogLoadError is { } catalogError)
         {
@@ -445,9 +450,11 @@ public partial class MainWindow : Window
             }
         }
 
-        _clockTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _clockTimer = new DispatcherTimer(DispatcherPriority.Background) { Interval = TimeSpan.FromSeconds(1) };
         _clockTimer.Tick += (_, _) =>
         {
+            var uiPulseStopwatch = Stopwatch.StartNew();
+            _isUiPresentationPulse = true;
             try
             {
                 var serverNow = GetServerNow();
@@ -464,6 +471,8 @@ public partial class MainWindow : Window
                     TickAutomationLoopCountdowns();
                 }
 
+                TickBuildQueueCountdown();
+
                 // The "Next task" value runs the loop selector (reads the queue/options). Queue reads now
                 // come from the in-memory cache, so recompute every second; also refreshed on real
                 // queue/group changes via RefreshAutomationLoopDashboardUi.
@@ -471,6 +480,17 @@ public partial class MainWindow : Window
                 _troopTrainingViewModel.TickCountdowns(serverNow);
                 TickSmithyUpgradeCountdown();
                 _resourcesViewModel.TickLiveForecasts();
+
+                if (dashboardTabSelected)
+                {
+                    MeasureUiWork("dashboard projection", RefreshVillageActivityIndicatorsOnDashboard);
+                }
+                else if (IsMainTabSelected(QueueTabItem))
+                {
+                    UpdateBuildQueueStatusText();
+                    RefreshTravianBuildQueueUi();
+                    RefreshTravianSmithyQueueUi();
+                }
 
                 if (IsMainTabSelected(NpcTradeTabItem))
                 {
@@ -492,6 +512,12 @@ public partial class MainWindow : Window
             {
                 Debug.WriteLine($"Clock tick failed: {ex}");
             }
+            finally
+            {
+                uiPulseStopwatch.Stop();
+                _isUiPresentationPulse = false;
+                ReportSlowUiWork("1 Hz UI pulse", uiPulseStopwatch.Elapsed);
+            }
         };
         _clockTimer.Start();
 
@@ -505,9 +531,6 @@ public partial class MainWindow : Window
         _inboxRefreshTimer.Tick += async (_, _) => await HandleInboxRefreshTickAsync();
         _updateCheckTimer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(UpdateCheckIntervalMinutes) };
         _updateCheckTimer.Tick += async (_, _) => await CheckForUpdatesAsync();
-        _buildQueueCountdownTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        _buildQueueCountdownTimer.Tick += (_, _) => TickBuildQueueCountdown();
-        _buildQueueCountdownTimer.Start();
         _resourceSnapshotRefreshTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(Random.Shared.Next(15, 36)) };
         _resourceSnapshotRefreshTimer.Tick += async (_, _) =>
         {
@@ -535,7 +558,7 @@ public partial class MainWindow : Window
             _queueUiRefreshTimer.Stop();
             var selectId = _pendingQueueUiSelectId;
             _pendingQueueUiSelectId = null;
-            RefreshQueueUi(selectId);
+            MeasureUiWork("queue refresh", () => RefreshQueueUi(selectId));
         };
 
         _queueServerTimeOffset = ResolveQueueServerTimeOffset();
@@ -709,12 +732,18 @@ public partial class MainWindow : Window
 
     private void LoadConfigToUi()
     {
+        InvalidateDashboardTroopTrainingPayloadCache();
         _queueServerTimeOffset = ResolveQueueServerTimeOffset();
         UpdateClockText();
         RefreshAccountPicker();
         RefreshAccountHoldUi();
         SyncServerFromActiveAccount();
+        var accountsForUi = _accountStore.ListAccounts();
+        _uiActiveAccount = accountsForUi.FirstOrDefault(account => account.IsActive);
+        _uiActiveAccountName = _uiActiveAccount?.Name ?? string.Empty;
+        RefreshSessionActivityHistoryCache();
         var options = ApplySelectedVillageToOptions(LoadBotOptions());
+        _dashboardDefaultTroopTrainingPayload = TroopTrainingQuickSettings.FromOptions(options);
         var storedAutoCelebration = TryGetStoredAutoCelebrationPreference();
         var hasExplicitAutoCelebrationSetting = storedAutoCelebration.HasValue;
         LoadAutomationLoopTasks(options);

@@ -165,6 +165,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Enumerate mutable collections through immutable snapshots when sanitizing/exporting.
 - Village Overview is read-only and uses cache/queue snapshots; opening it never navigates or scans.
 - Overview projections show only real deadlines and never mutate queue or scheduler state.
+- The 1 Hz presentation pulse must not perform file I/O, replace stable ItemsSource collections, or rebuild
+  unchanged rows. Cache configuration outside the pulse, derive countdowns from absolute deadlines, and apply
+  only changed values; persistence and high-volume log writes run serially off the UI dispatcher.
 
 ### New features
 

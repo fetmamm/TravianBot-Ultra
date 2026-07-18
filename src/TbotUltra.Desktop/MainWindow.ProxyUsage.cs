@@ -109,7 +109,9 @@ public partial class MainWindow
 
     private ProxyUsageIdentity ResolveCurrentProxyUsageIdentity(string accountName)
     {
-        var account = FindAccount(accountName);
+        var account = string.Equals(_uiActiveAccountName, accountName, StringComparison.OrdinalIgnoreCase)
+            ? _uiActiveAccount
+            : FindAccount(accountName);
         if (account?.ProxyEnabled == true
             && ProxyLibraryStore.TryCanonicalize(account.ProxyServer, out var scheme, out var host, out var port))
         {

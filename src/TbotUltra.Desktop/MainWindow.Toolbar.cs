@@ -271,7 +271,6 @@ public partial class MainWindow
             _copyFeedbackTimer.Stop();
             _inboxRefreshTimer.Stop();
             _updateCheckTimer.Stop();
-            _buildQueueCountdownTimer.Stop();
             _resourceSnapshotRefreshTimer.Stop();
             _troopTrainingDeferredRefreshDebounceTimer.Stop();
             _queueUiRefreshTimer.Stop();
@@ -320,6 +319,16 @@ public partial class MainWindow
         }
         finally
         {
+            FlushPendingLogsBeforeClearingBrowserStatistics();
+            try
+            {
+                await FlushBrowserStatisticsSavesAsync();
+                await _sessionLogWriter.DisposeAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Debug.WriteLine($"Could not flush background UI persistence during shutdown: {ex}");
+            }
             _backgroundTasks.Dispose();
             _shutdownCompleted = true;
             _shutdownInProgress = false;

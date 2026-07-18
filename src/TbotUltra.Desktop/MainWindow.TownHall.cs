@@ -41,6 +41,7 @@ public partial class MainWindow
                 enabled: false,
                 QueueGroupCatalog.GetKey(QueueGroup.TownHallCelebration));
             TownHallCelebrationStateStore.Clear(_projectRoot, _accountStore.ActiveAccountName(), villageKey);
+            InvalidateVillageOverviewTownHallCache();
             RefreshAutomationLoopDashboardUi();
         }
 
@@ -116,6 +117,7 @@ public partial class MainWindow
             if (!result.IsTownHallEnabled)
             {
                 TownHallCelebrationStateStore.Clear(_projectRoot, account, result.VillageKey);
+                InvalidateVillageOverviewTownHallCache();
             }
         }
 
@@ -227,6 +229,7 @@ public partial class MainWindow
         var mode = TownHallCelebrationDefaults.NormalizeMode(rawMode);
         var endsAtUtc = DateTimeOffset.UtcNow.AddSeconds(seconds);
         TownHallCelebrationStateStore.Save(_projectRoot, _accountStore.ActiveAccountName(), villageKey, mode, endsAtUtc);
+        InvalidateVillageOverviewTownHallCache();
         AppendLog($"[town-hall] remembered celebration timer for '{NormalizeVillageName(GetQueueItemVillageName(item)) ?? villageKey}' until {FormatQueueServerTime(endsAtUtc)}.");
     }
 }

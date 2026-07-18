@@ -538,14 +538,6 @@ public partial class MainWindow
             .Where(entry => entry.TimeLeftSeconds is > 0)
             .Select(entry => entry.TimeLeftSeconds!.Value)
             .ToList();
-        if (IsMainTabSelected(DashboardTabItem))
-        {
-            RefreshVillageActivityIndicatorsOnDashboard();
-        }
-        else if (IsMainTabSelected(QueueTabItem))
-        {
-            RefreshTravianSmithyQueueUi();
-        }
     }
 
     private void TriggerSmithyUpgradeStatusRefresh(IReadOnlyList<Building>? knownBuildings, string source)
@@ -908,6 +900,7 @@ public partial class MainWindow
         foreach (var result in window.Results)
         {
             TroopTrainingSettingsStore.Save(_projectRoot, account, result.VillageKey, result.Settings);
+            CacheDashboardTroopTrainingPayload(account, result.VillageKey, result.Settings);
             var village = villages.FirstOrDefault(v => string.Equals(v.Key, result.VillageKey, StringComparison.OrdinalIgnoreCase))
                 ?? new VillageSettingsStore.VillageKeyInfo(result.VillageKey, result.VillageName, null, null, false);
             PersistBuildTroopsGroupEnabled(village, result.IsBuildTroopsEnabled, troopTrainingGroupKey);
@@ -1025,7 +1018,12 @@ public partial class MainWindow
             return;
         }
 
-        TroopTrainingSettingsStore.SaveForVillages(_projectRoot, account, keys, _troopTrainingViewModel.BuildVillageTrainingPayload());
+        var syncedPayload = _troopTrainingViewModel.BuildVillageTrainingPayload();
+        TroopTrainingSettingsStore.SaveForVillages(_projectRoot, account, keys, syncedPayload);
+        foreach (var key in keys)
+        {
+            CacheDashboardTroopTrainingPayload(account, key, syncedPayload);
+        }
         var removed = matchingVillages.Sum(village => RemoveTroopTrainingQueueItemsForVillage(village.Name));
         _troopTrainingViewModel.InfoText = $"Synced troop-training settings to {keys.Count} {sourceTribe} village(s); skipped {skippedVillages.Count}.";
         AppendLog($"Synced troop-training settings to {keys.Count} village(s). "
@@ -1090,7 +1088,9 @@ public partial class MainWindow
 
         try
         {
-            TroopTrainingSettingsStore.Save(_projectRoot, account, key, _troopTrainingViewModel.BuildVillageTrainingPayload());
+            var payload = _troopTrainingViewModel.BuildVillageTrainingPayload();
+            TroopTrainingSettingsStore.Save(_projectRoot, account, key, payload);
+            CacheDashboardTroopTrainingPayload(account, key, payload);
         }
         catch (Exception ex)
         {

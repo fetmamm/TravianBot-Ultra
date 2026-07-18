@@ -23,7 +23,7 @@ public partial class MainWindow
         {
             lock (_pendingLogSync)
             {
-                _pendingLogMessages.Enqueue(message ?? string.Empty);
+                _pendingLogMessages.AddLast(message ?? string.Empty);
                 if (_logFlushQueued)
                 {
                     return;
@@ -32,7 +32,7 @@ public partial class MainWindow
                 _logFlushQueued = true;
             }
 
-            _ = Dispatcher.BeginInvoke((Action)FlushPendingLogsToUi, DispatcherPriority.Background);
+            _ = Dispatcher.BeginInvoke((Action)FlushPendingLogsToUiMeasured, DispatcherPriority.Background);
         }
         catch (Exception ex)
         {
@@ -93,7 +93,8 @@ public partial class MainWindow
             {
                 for (var i = 0; i < MaxLogLinesPerFlush && _pendingLogMessages.Count > 0; i++)
                 {
-                    messages.Add(_pendingLogMessages.Dequeue());
+                    messages.Add(_pendingLogMessages.First!.Value);
+                    _pendingLogMessages.RemoveFirst();
                 }
 
                 hasMore = _pendingLogMessages.Count > 0;
@@ -108,8 +109,27 @@ public partial class MainWindow
             string? lastRawMessage = null;
             string? lastPrimaryPart = null;
             var browserStatisticsChanged = false;
-            foreach (var message in messages)
+            var alarmEntriesChanged = false;
+            var flushStopwatch = Stopwatch.StartNew();
+            for (var messageIndex = 0; messageIndex < messages.Count; messageIndex++)
             {
+                if (messageIndex > 0 && flushStopwatch.Elapsed >= LogUiFlushBudget)
+                {
+                    lock (_pendingLogSync)
+                    {
+                        for (var index = messages.Count - 1; index >= messageIndex; index--)
+                        {
+                            _pendingLogMessages.AddFirst(messages[index]);
+                        }
+
+                        hasMore = true;
+                        _logFlushQueued = true;
+                    }
+
+                    break;
+                }
+
+                var message = messages[messageIndex];
                 lastRawMessage = message;
                 var normalized = message.Replace("\r\n", "\n").Replace('\r', '\n');
                 var parts = normalized
@@ -187,6 +207,7 @@ public partial class MainWindow
                             && nowUtc - entry.LastSeenUtc <= TimeSpan.FromMinutes(30));
                         if (existingAlarm is not null)
                         {
+                            alarmEntriesChanged = true;
                             existingAlarm.OccurrenceCount++;
                             existingAlarm.LastSeenUtc = nowUtc;
                             existingAlarm.Text =
@@ -199,6 +220,7 @@ public partial class MainWindow
                         }
                         else
                         {
+                            alarmEntriesChanged = true;
                             _alarmEntries.Insert(0, new AlarmEntryRow
                             {
                                 Text = line,
@@ -229,8 +251,15 @@ public partial class MainWindow
                 PersistAndRefreshBrowserActivityStatistics();
             }
             TryAppendSessionLogLines(logLinesForSessionLog, alarmLinesForSessionLog);
-            AlarmListBox.Items.Refresh();
-            _logsPopupAlarmList?.Items.Refresh();
+            if (alarmEntriesChanged)
+            {
+                if (IsMainTabSelected(LogsTabItem))
+                {
+                    AlarmListBox.Items.Refresh();
+                }
+
+                _logsPopupAlarmList?.Items.Refresh();
+            }
 
             if (lastRawMessage is not null)
             {
@@ -246,7 +275,7 @@ public partial class MainWindow
 
             if (hasMore)
             {
-                _ = Dispatcher.BeginInvoke((Action)FlushPendingLogsToUi, DispatcherPriority.Background);
+                _ = Dispatcher.BeginInvoke((Action)FlushPendingLogsToUiMeasured, DispatcherPriority.Background);
             }
         }
         catch (Exception ex)
@@ -258,6 +287,9 @@ public partial class MainWindow
             }
         }
     }
+
+    private void FlushPendingLogsToUiMeasured()
+        => MeasureUiWork("log UI flush", FlushPendingLogsToUi);
 
     private void UpdateStatusFromVisibleLog(string? fallbackRawMessage = null, string? fallbackPrimaryPart = null)
     {
@@ -379,33 +411,30 @@ public partial class MainWindow
 
         try
         {
-            lock (_sessionLogWriteSync)
+            var content = new List<string>(alarmLines.Count + logLines.Count + 2);
+            if (alarmLines.Count > 0)
             {
-                var content = new List<string>(alarmLines.Count + logLines.Count + 2);
-                if (alarmLines.Count > 0)
+                if (!_sessionLogAlarmsHeaderWritten)
                 {
-                    if (!_sessionLogAlarmsHeaderWritten)
-                    {
-                        content.Add("=== ALARMS ===");
-                        _sessionLogAlarmsHeaderWritten = true;
-                    }
-
-                    content.AddRange(alarmLines);
+                    content.Add("=== ALARMS ===");
+                    _sessionLogAlarmsHeaderWritten = true;
                 }
 
-                if (logLines.Count > 0)
-                {
-                    if (!_sessionLogLogsHeaderWritten)
-                    {
-                        content.Add("=== LOGS ===");
-                        _sessionLogLogsHeaderWritten = true;
-                    }
-
-                    content.AddRange(logLines);
-                }
-
-                File.AppendAllLines(_sessionLogPath, content);
+                content.AddRange(alarmLines);
             }
+
+            if (logLines.Count > 0)
+            {
+                if (!_sessionLogLogsHeaderWritten)
+                {
+                    content.Add("=== LOGS ===");
+                    _sessionLogLogsHeaderWritten = true;
+                }
+
+                content.AddRange(logLines);
+            }
+
+            _sessionLogWriter.Append(content);
         }
         catch (Exception ex)
         {

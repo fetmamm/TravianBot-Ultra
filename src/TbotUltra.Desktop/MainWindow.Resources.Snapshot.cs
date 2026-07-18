@@ -399,7 +399,7 @@ public partial class MainWindow
                     forceCurrentVillage: forceCurrentVillage,
                     currentPageOnly: currentPageOnly);
 
-            await Dispatcher.InvokeAsync(() =>
+            await Dispatcher.InvokeAsync(() => MeasureUiWork("resource snapshot apply", () =>
             {
                 ApplyResourceStatusToUi(status);
                 // Pick up renamed/new villages read from the current page (guarded so it never blanks
@@ -411,7 +411,7 @@ public partial class MainWindow
                 {
                     ApplyHeroAdventureAvailability(adventureCount);
                 }
-            });
+            }));
             return status;
         }
         catch (UnexpectedTravianLanguageException)
