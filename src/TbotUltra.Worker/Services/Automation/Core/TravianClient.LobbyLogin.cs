@@ -1,5 +1,6 @@
 using System.Text.RegularExpressions;
 using Microsoft.Playwright;
+using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Worker.Services;
 
@@ -50,7 +51,7 @@ public sealed partial class TravianClient
                 ? analysis!.WorldUid
                 : null;
 
-            IReadOnlyList<LobbyWorldCard> candidates;
+            IReadOnlyList<LobbyWorldCard> candidates = [];
             if (cachedWorldUid is not null)
             {
                 candidates = cards
@@ -59,10 +60,11 @@ public sealed partial class TravianClient
                 if (candidates.Count == 0)
                 {
                     Notify($"[lobby-login] cached world UID '{cachedWorldUid}' is not present in the lobby.");
-                    return false;
+                    cachedWorldUid = null;
                 }
             }
-            else
+
+            if (cachedWorldUid is null)
             {
                 candidates = cards
                     .Where(card => IsLobbyWorldNameMatch(card.Name, new Uri(ServerUrl).Host, _config.ServerName))
@@ -70,48 +72,25 @@ public sealed partial class TravianClient
                 if (candidates.Count == 0)
                 {
                     Notify($"[lobby-login] no lobby world name matched server '{_config.ServerName}' ({ServerUrl}).");
-                    return false;
                 }
             }
 
             foreach (var candidate in candidates)
             {
-                cancellationToken.ThrowIfCancellationRequested();
-                if (!IsLobbyAccountUrl(_page.Url))
+                if (await TryEnterLobbyWorldAsync(candidate, cancellationToken))
                 {
-                    await GotoAsync(Paths.LobbyAccount, cancellationToken);
-                    if (!await WaitForLobbyWorldCardsAsync(cancellationToken))
-                    {
-                        Notify("[lobby-login] lobby world list did not return after checking a candidate.");
-                        return false;
-                    }
-                }
-
-                Notify($"[lobby-login] trying world '{candidate.Name}' wuid='{candidate.WorldUid}'.");
-                var card = _page.Locator($"{Selectors.LobbyGameWorldCard}[data-wuid='{candidate.WorldUid}']").First;
-                var playNow = card.Locator(Selectors.LobbyPlayNowButton).First;
-                if (await playNow.CountAsync() == 0 || !await playNow.IsVisibleAsync() || !await playNow.IsEnabledAsync())
-                {
-                    Notify($"[lobby-login] Play now is not actionable for '{candidate.Name}'.");
-                    continue;
-                }
-
-                await DelayBeforeClickAsync(cancellationToken, "lobby Play now");
-                await SuppressConsentUiDuringSsoLandingAsync();
-                await ClickPlayNowAndWaitForGameOriginAsync(playNow, cancellationToken);
-
-                if (IsConfiguredGameOrigin(_page.Url))
-                {
-                    _pendingLobbyWorldUid = candidate.WorldUid;
-                    Notify($"[lobby-login] configured game origin committed for world UID '{candidate.WorldUid}'; isolating before game scripts settle.");
                     return true;
                 }
-
-                Notify($"[lobby-login] world '{candidate.Name}' landed on an unexpected or unauthenticated host '{SanitizeHost(_page.Url)}'.");
                 if (cachedWorldUid is not null)
                 {
                     break;
                 }
+            }
+
+            var selected = await RequestLobbyWorldSelectionAsync(cards, cancellationToken);
+            if (selected is not null)
+            {
+                return await TryEnterLobbyWorldAsync(selected, cancellationToken);
             }
 
             return false;
@@ -129,6 +108,76 @@ public sealed partial class TravianClient
             Notify($"[lobby-login] flow failed: {ex.Message}");
             return false;
         }
+    }
+
+    private async Task<LobbyWorldCard?> RequestLobbyWorldSelectionAsync(
+        IReadOnlyList<LobbyWorldCard> cards,
+        CancellationToken cancellationToken)
+    {
+        if (!_interactive || _lobbyWorldSelectionRequested is null)
+        {
+            return null;
+        }
+
+        Notify($"[lobby-login] requesting manual selection from {cards.Count} owned lobby world(s).");
+        var selectedWorldUid = await _lobbyWorldSelectionRequested(
+            new LobbyWorldSelectionRequest(
+                _config.ServerName,
+                ServerUrl,
+                cards.Select(card => new LobbyWorldOption(card.WorldUid, card.Name)).ToList()),
+            cancellationToken);
+        if (string.IsNullOrWhiteSpace(selectedWorldUid))
+        {
+            Notify("[lobby-login] manual world selection was cancelled.");
+            return null;
+        }
+
+        var selected = cards.FirstOrDefault(card =>
+            card.WorldUid.Equals(selectedWorldUid, StringComparison.OrdinalIgnoreCase));
+        if (selected is null)
+        {
+            Notify("[lobby-login] manual world selection returned a world that is no longer present.");
+        }
+        return selected;
+    }
+
+    private async Task<bool> TryEnterLobbyWorldAsync(
+        LobbyWorldCard candidate,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!IsLobbyAccountUrl(_page.Url))
+        {
+            await GotoAsync(Paths.LobbyAccount, cancellationToken);
+            if (!await WaitForLobbyWorldCardsAsync(cancellationToken))
+            {
+                Notify("[lobby-login] lobby world list did not return before selecting a world.");
+                return false;
+            }
+        }
+
+        Notify($"[lobby-login] trying world '{candidate.Name}' wuid='{candidate.WorldUid}'.");
+        var card = _page.Locator($"{Selectors.LobbyGameWorldCard}[data-wuid='{candidate.WorldUid}']").First;
+        var playNow = card.Locator(Selectors.LobbyPlayNowButton).First;
+        if (await playNow.CountAsync() == 0 || !await playNow.IsVisibleAsync() || !await playNow.IsEnabledAsync())
+        {
+            Notify($"[lobby-login] Play now is not actionable for '{candidate.Name}'.");
+            return false;
+        }
+
+        await DelayBeforeClickAsync(cancellationToken, "lobby Play now");
+        await SuppressConsentUiDuringSsoLandingAsync();
+        await ClickPlayNowAndWaitForGameOriginAsync(playNow, cancellationToken);
+
+        if (!IsConfiguredGameOrigin(_page.Url))
+        {
+            Notify($"[lobby-login] world '{candidate.Name}' landed on an unexpected or unauthenticated host '{SanitizeHost(_page.Url)}'.");
+            return false;
+        }
+
+        _pendingLobbyWorldUid = candidate.WorldUid;
+        Notify($"[lobby-login] configured game origin committed for world UID '{candidate.WorldUid}'; isolating before game scripts settle.");
+        return true;
     }
 
     private async Task<AccountAccessState> ReadExplicitLobbyAccessStateAsync()
@@ -290,6 +339,15 @@ public sealed partial class TravianClient
 
     internal static bool IsLobbyWorldNameMatch(string worldName, string serverHost, string? serverName)
     {
+        var worldSpeed = ReadLobbySpeed(worldName);
+        var configuredSpeed = ReadLobbySpeed(serverName ?? string.Empty) ?? ReadLobbySpeed(serverHost);
+        if (worldSpeed is not null
+            && configuredSpeed is not null
+            && !string.Equals(worldSpeed, configuredSpeed, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
         var worldTokens = NormalizeLobbyWorldTokens(worldName);
         if (worldTokens.Count == 0)
         {
@@ -306,11 +364,18 @@ public sealed partial class TravianClient
         return hostTokens.Count > 0 && hostTokens.All(worldTokens.Contains);
     }
 
+    private static string? ReadLobbySpeed(string value)
+    {
+        var match = Regex.Match(value, @"(?:^|[^\p{L}\p{Nd}])x(?<speed>\d+)(?:$|[^\p{L}\p{Nd}])", RegexOptions.IgnoreCase);
+        return match.Success ? match.Groups["speed"].Value : null;
+    }
+
     private static HashSet<string> NormalizeLobbyWorldTokens(string value)
     {
         return Regex.Matches(value.ToLowerInvariant(), @"[\p{L}\p{Nd}]+")
             .Select(match => match.Value)
-            .Where(token => token is not ("server" or "world" or "gameworld" or "travian"))
+            .Where(token => token is not ("server" or "world" or "gameworld" or "travian")
+                && !Regex.IsMatch(token, @"^x\d+$"))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 

@@ -418,6 +418,7 @@ public partial class MainWindow : Window
         _serverCatalogStore = new ServerCatalogStore(_serverCatalogPath);
         var projectContext = new ProjectContext(_projectRoot);
         var taskRunner = new BotTaskRunner(_accountProvider, projectContext);
+        taskRunner.LobbyWorldSelectionRequested = SelectLobbyWorldAsync;
         // One-time migration of the old shared config/queue.json into the active account's per-account
         // queue file. Runs before the store is used so the recover/clear logic below sees the migrated items.
         QueueMigration.MigrateLegacyGlobalQueue(_projectRoot, _accountStore.ActiveAccountName(), AppendLog);

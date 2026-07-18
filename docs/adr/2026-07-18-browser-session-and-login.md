@@ -25,6 +25,10 @@ Active decision, extracted from `ENGINEERING_NOTES.md` on 2026-07-18.
   configured game server first, and do not use direct game-server login as fallback.
 - Select the owned world by cached lobby wuid when available. Accept any authenticated path on the configured
   game origin and store a newly learned wuid in the per-account analysis snapshot.
+- Automatic matching tolerates a speed label omitted from the lobby world name, while an explicit conflicting
+  speed is never accepted. A missing/stale cached wuid or failed automatic match falls back during interactive
+  login to a chooser containing all owned lobby worlds. The chosen wuid is saved only after `Play now` reaches
+  the configured origin, so a wrong selection is not remembered.
 - After credentials are submitted, execution-context destruction is an expected navigation transition. Wait
   for the rendered owned-world card before continuing. Both login submit and `Play now` use normal click pacing.
 - After lobby SSO commits navigation to the game origin, do not wait for the old context to prove the game

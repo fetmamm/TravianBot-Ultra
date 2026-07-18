@@ -99,6 +99,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
   account's saved Playwright auth state.
 - Preserve the intentional headed/maximized anti-detection setup and `ViewportSize.NoViewport`.
 - Login automation requires English UI and fails clearly when required markers are missing.
+- Lobby world matching treats speed labels (`x3`, etc.) as optional display metadata but rejects an explicit
+  conflicting speed. If neither cached wuid nor automatic name/host matching reaches the configured origin,
+  interactive login shows every owned lobby world for manual selection. Persist the selected wuid only after
+  that world lands on the configured game origin; later logins use it directly.
 - Account holds are account-specific: restriction, challenge, or repeated verified unknown state stops only that
   account and preserves its queue/settings until manual re-enable.
 - Detailed lifecycle, SSO, cleanup, and access rules: [browser/session ADR](adr/2026-07-18-browser-session-and-login.md).

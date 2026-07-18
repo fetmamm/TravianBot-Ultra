@@ -216,9 +216,9 @@ public partial class AppDialog : Window
             };
             if (result == _successResult)
             {
-                button.Background = FindResource("SuccessBrush") as Brush;
-                button.BorderBrush = FindResource("SuccessBrush") as Brush;
-                button.Foreground = Brushes.White;
+                button.SetResourceReference(Control.BackgroundProperty, "SuccessBgBrush");
+                button.SetResourceReference(Control.BorderBrushProperty, "SuccessBorderBrush");
+                button.SetResourceReference(Control.ForegroundProperty, "SuccessTextBrush");
                 button.FontWeight = FontWeights.SemiBold;
             }
             else if (result == _accentResult)

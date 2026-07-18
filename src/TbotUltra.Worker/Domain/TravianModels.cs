@@ -21,6 +21,13 @@ public sealed record AccountSnapshot(
 
 public sealed record ReportPngResult(bool IsReportPage, string Url, string? FilePath);
 
+public sealed record LobbyWorldOption(string WorldUid, string Name);
+
+public sealed record LobbyWorldSelectionRequest(
+    string ConfiguredServerName,
+    string ConfiguredServerUrl,
+    IReadOnlyList<LobbyWorldOption> Worlds);
+
 public sealed record AccountAnalysisSnapshot(
     int SchemaVersion,
     DateTimeOffset AnalyzedAtUtc,

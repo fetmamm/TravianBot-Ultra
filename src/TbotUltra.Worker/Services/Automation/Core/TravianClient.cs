@@ -33,6 +33,7 @@ public sealed partial class TravianClient
     private readonly Func<IPage, CancellationToken, Task>? _cleanupAfterBonusVideoAsync;
     private readonly Func<Func<IPage, CancellationToken, Task<string>>, CancellationToken, Task<string>>? _runInIsolatedBonusVideoBrowserAsync;
     private readonly Func<CancellationToken, Task<IPage>>? _rotateAfterLobbyLoginAsync;
+    private readonly Func<LobbyWorldSelectionRequest, CancellationToken, Task<string?>>? _lobbyWorldSelectionRequested;
     private DateTimeOffset? _serverTimeUtc;
     private string? _cachedAccountTribe;
     private readonly TravianSessionCache _session;
@@ -262,6 +263,7 @@ public sealed partial class TravianClient
         Func<IPage, CancellationToken, Task>? cleanupAfterBonusVideoAsync = null,
         Func<Func<IPage, CancellationToken, Task<string>>, CancellationToken, Task<string>>? runInIsolatedBonusVideoBrowserAsync = null,
         Func<CancellationToken, Task<IPage>>? rotateAfterLobbyLoginAsync = null,
+        Func<LobbyWorldSelectionRequest, CancellationToken, Task<string?>>? lobbyWorldSelectionRequested = null,
         BrowserTraceLogger? browserTrace = null)
     {
         _page = page;
@@ -270,6 +272,7 @@ public sealed partial class TravianClient
         _cleanupAfterBonusVideoAsync = cleanupAfterBonusVideoAsync;
         _runInIsolatedBonusVideoBrowserAsync = runInIsolatedBonusVideoBrowserAsync;
         _rotateAfterLobbyLoginAsync = rotateAfterLobbyLoginAsync;
+        _lobbyWorldSelectionRequested = lobbyWorldSelectionRequested;
         _account = account;
         _interactive = interactive;
         _browserVisible = browserVisible;

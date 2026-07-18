@@ -95,6 +95,8 @@ public sealed partial class BotTaskRunner
         _bulkMessageSentCacheStore = new BulkMessageSentCacheStore(projectContext.RootPath);
     }
 
+    public Func<LobbyWorldSelectionRequest, CancellationToken, Task<string?>>? LobbyWorldSelectionRequested { get; set; }
+
     public static IReadOnlyList<string> RegisteredTaskNames => TaskHandlers.Keys.ToList();
 
     public async Task<IReadOnlyList<MapOasisEntry>> ScanMapOasesAsync(
@@ -594,6 +596,7 @@ public sealed partial class BotTaskRunner
             cleanupAfterBonusVideoAsync: cleanupAfterBonusVideoAsync,
             runInIsolatedBonusVideoBrowserAsync: runInIsolatedBonusVideoBrowserAsync,
             rotateAfterLobbyLoginAsync: rotateAfterLobbyLoginAsync,
+            lobbyWorldSelectionRequested: LobbyWorldSelectionRequested,
             browserTrace: browserTrace);
     }
 

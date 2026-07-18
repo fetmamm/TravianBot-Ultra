@@ -63,13 +63,13 @@ public partial class MainWindow
                 this,
                 "The resource plan reaches one or more storage-capacity limits. The required storage " +
                 "upgrades can be inserted step by step, immediately before the resource stage that needs them.\n\n" +
-                string.Join("\n", lines) +
-                "\n\nAlready queued Warehouse/Granary upgrades before this item are included in the calculation.",
+                string.Join("\n", lines),
                 "Storage upgrades required",
                 [("Add required storage upgrades", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.Cancel)],
                 MessageBoxImage.Warning,
                 MessageBoxResult.Yes,
-                MessageBoxResult.Cancel);
+                MessageBoxResult.Cancel,
+                successResult: MessageBoxResult.Yes);
             if (choice != MessageBoxResult.Yes)
             {
                 return false;

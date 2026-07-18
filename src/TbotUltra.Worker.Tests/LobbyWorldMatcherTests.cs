@@ -19,6 +19,9 @@ public sealed class LobbyWorldMatcherTests
     [InlineData("Arabics 50", "ts50.x5.arabics.travian.com", null, true)]
     [InlineData("Arabics 50 x5", "ts50.x5.arabics.travian.com", null, true)]
     [InlineData("Europe 4", "ts4.x1.europe.travian.com", "Europe 4", true)]
+    [InlineData("SCHILD", "schild.x3.netherlands.travian.com", "Schild X3", true)]
+    [InlineData("SCHILD x3", "schild.x3.netherlands.travian.com", "Schild X3", true)]
+    [InlineData("SCHILD x5", "schild.x3.netherlands.travian.com", "Schild X3", false)]
     [InlineData("Arabics 51", "ts50.x5.arabics.travian.com", null, false)]
     [InlineData("Europe 50", "ts50.x5.arabics.travian.com", null, false)]
     public void IsLobbyWorldNameMatch_NormalizesHostAndWorldName(
