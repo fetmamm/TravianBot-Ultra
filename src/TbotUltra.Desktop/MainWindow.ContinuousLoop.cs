@@ -594,7 +594,7 @@ public partial class MainWindow
     }
 
     // Villages discovered at runtime (e.g. the user just founded one) that still need a one-time dorf1/dorf2
-    // analysis so automation knows their layout. Dispatcher-owned (same threading as _villageStatusCacheByName):
+    // analysis so automation knows their layout. Dispatcher-owned (same threading as _villageStatusCache):
     // filled on the UI thread from village reads, drained one-per-loop-pass via Dispatcher round-trips.
     private sealed record PendingVillageAnalysis(string Name, string? Url, int Attempts);
     private readonly Dictionary<string, PendingVillageAnalysis> _villagesPendingFirstAnalysis = new(StringComparer.OrdinalIgnoreCase);
@@ -610,7 +610,7 @@ public partial class MainWindow
             return;
         }
 
-        var missing = NewVillageStartupAnalyzer.FindVillagesWithoutKnownStatus(villages, _villageStatusCacheByName);
+        var missing = NewVillageStartupAnalyzer.FindVillagesWithoutKnownStatus(villages, _villageStatusCache.Snapshot);
         foreach (var village in missing)
         {
             var name = NormalizeVillageName(village.Name);
@@ -625,7 +625,7 @@ public partial class MainWindow
     }
 
     private bool HasCachedDorf1Dorf2Status(string villageName)
-        => _villageStatusCacheByName.TryGetValue(villageName, out var status)
+        => _villageStatusCache.TryGetByName(villageName, out var status)
            && status.ResourceFields is { Count: > 0 }
            && status.Buildings is { Count: > 0 };
 
@@ -1157,7 +1157,7 @@ public partial class MainWindow
         VillageStatus? status = null;
         if (villageName is not null)
         {
-            _villageStatusCacheByName.TryGetValue(villageName, out status);
+            _villageStatusCache.TryGetByName(villageName, out status);
         }
 
         if (status is null
@@ -1351,7 +1351,7 @@ public partial class MainWindow
         VillageStatus? status = null;
         if (villageName is not null)
         {
-            _villageStatusCacheByName.TryGetValue(villageName, out status);
+            _villageStatusCache.TryGetByName(villageName, out status);
         }
 
         var item = villageItems.FirstOrDefault();

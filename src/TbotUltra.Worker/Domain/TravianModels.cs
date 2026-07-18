@@ -247,7 +247,12 @@ public sealed record VillageStatus(
     BreweryCelebrationStatus? BreweryCelebrationStatus = null,
     IReadOnlyList<FarmListOverview>? FarmLists = null,
     HeroStatus? HeroStatus = null,
-    bool ActiveConstructionsFromOverview = false);
+    bool ActiveConstructionsFromOverview = false,
+    // The active village's own coordinates, read from the sidebar (#villageName data-x/data-y). The
+    // exact identity of the village this status belongs to — unlike ActiveVillage (a display name),
+    // coordinates are unique and survive renames, so caches can key on them without name matching.
+    int? ActiveVillageCoordX = null,
+    int? ActiveVillageCoordY = null);
 
 public sealed record InboxStatus(
     int UnreadMessages = 0,

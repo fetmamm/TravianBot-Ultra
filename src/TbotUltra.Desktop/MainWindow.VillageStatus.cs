@@ -46,7 +46,7 @@ public partial class MainWindow
         var selectedVillageName = GetSelectedVillageName();
         var missingVillages = NewVillageStartupAnalyzer.FindVillagesWithoutKnownStatus(
             villages,
-            _villageStatusCacheByName);
+            _villageStatusCache.Snapshot);
         if (missingVillages.Count == 0)
         {
             AppendLog("[new-village-startup] All villages already have cached dorf1/dorf2 status.");

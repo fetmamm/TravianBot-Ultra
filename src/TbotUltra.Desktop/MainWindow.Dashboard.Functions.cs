@@ -67,10 +67,10 @@ public partial class MainWindow
         _heroViewModel.AdventureStatusText = "Status refresh requested.";
 
         VillageStatus? selectedStatus = null;
-        if (_villageStatusCacheByName.TryGetValue(selectedVillageName, out var cachedStatus))
+        if (_villageStatusCache.TryGetByName(selectedVillageName, out var cachedStatus))
         {
             selectedStatus = ClearCachedActivityTimers(cachedStatus);
-            _villageStatusCacheByName[selectedVillageName] = selectedStatus;
+            _villageStatusCache.Set(selectedVillageName, selectedStatus);
         }
 
         if (_lastBuildingStatus is not null &&

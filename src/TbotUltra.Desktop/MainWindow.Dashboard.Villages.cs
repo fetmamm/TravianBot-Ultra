@@ -735,10 +735,13 @@ public partial class MainWindow
             var keyInfo = BuildVillageKeyInfo(village);
             var canonicalKey = _villageSettingsStore.ResolveCanonicalKey(keyInfo.Key) ?? keyInfo.Key;
             var normalizedName = NormalizeVillageName(village.Name);
-            VillageStatus? status = null;
-            if (normalizedName is not null && !duplicateNames.Contains(normalizedName))
+            // Coordinate key first: exact even when two villages share a name. The guarded name lookup
+            // only remains as a fallback for entries whose coordinates were never resolvable.
+            if (!_villageStatusCache.TryGetByKey(canonicalKey, out VillageStatus? status)
+                && normalizedName is not null
+                && !duplicateNames.Contains(normalizedName))
             {
-                _villageStatusCacheByName.TryGetValue(normalizedName, out status);
+                _villageStatusCache.TryGetByName(normalizedName, out status);
             }
 
             var enabledGroups = _villageSettingsStore.GetEnabledGroups(keyInfo)

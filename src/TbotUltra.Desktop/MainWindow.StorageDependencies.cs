@@ -219,7 +219,7 @@ public partial class MainWindow
     {
         var villageName = NormalizeVillageName(GetQueueItemVillageName(item));
         if (villageName is not null
-            && _villageStatusCacheByName.TryGetValue(villageName, out var cached))
+            && _villageStatusCache.TryGetByName(villageName, out var cached))
         {
             return cached;
         }

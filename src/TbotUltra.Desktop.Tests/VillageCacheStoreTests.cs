@@ -16,11 +16,11 @@ public sealed class VillageCacheStoreTests : IDisposable
         Directory.CreateDirectory(_root);
     }
 
-    private static VillageStatus MakeStatus(string name)
+    private static VillageStatus MakeStatus(string name, int coordX = 1, int coordY = 2)
     {
         return new VillageStatus(
             ActiveVillage: name,
-            Villages: new[] { new Village(name, $"dorf1.php?newdid=1", IsCapital: false, CoordX: 1, CoordY: 2) },
+            Villages: new[] { new Village(name, $"dorf1.php?newdid=1", IsCapital: false, CoordX: coordX, CoordY: coordY) },
             Resources: new Dictionary<string, string> { ["wood"] = "999" },
             ResourceFields: new[] { new ResourceField(1, "wood", "Woodcutter", 5, "build.php?id=1") },
             Buildings: new[] { new Building(26, "Main Building", 3, "build.php?id=26", 15) },
@@ -38,16 +38,16 @@ public sealed class VillageCacheStoreTests : IDisposable
         var store = CreateStore();
         var cache = new Dictionary<string, VillageStatus>(StringComparer.OrdinalIgnoreCase)
         {
-            ["GREZ"] = MakeStatus("GREZ"),
-            ["SLAV"] = MakeStatus("SLAV"),
+            ["xy:1|2"] = MakeStatus("GREZ", 1, 2),
+            ["xy:3|4"] = MakeStatus("SLAV", 3, 4),
         };
 
         store.Save(cache);
         var loaded = CreateStore().Load();
 
         Assert.Equal(2, loaded.Count);
-        Assert.True(loaded.ContainsKey("GREZ"));
-        var grez = loaded["GREZ"];
+        Assert.True(loaded.ContainsKey("xy:1|2"));
+        var grez = loaded["xy:1|2"];
         // Durable structure preserved.
         Assert.Single(grez.Buildings);
         Assert.Equal("Main Building", grez.Buildings[0].Name);
@@ -88,8 +88,8 @@ public sealed class VillageCacheStoreTests : IDisposable
             ],
         };
 
-        CreateStore().Save(new Dictionary<string, VillageStatus> { ["GREZ"] = status });
-        var loaded = CreateStore().Load()["GREZ"];
+        CreateStore().Save(new Dictionary<string, VillageStatus> { ["xy:1|2"] = status });
+        var loaded = CreateStore().Load()["xy:1|2"];
 
         Assert.Single(loaded.ActiveConstructions!);
         Assert.InRange(loaded.ActiveConstructions![0].TimeLeftSeconds!.Value, 1, 120);
@@ -114,8 +114,8 @@ public sealed class VillageCacheStoreTests : IDisposable
         };
 
         new VillageCacheStore(_root, () => _activeAccount, logs.Add)
-            .Save(new Dictionary<string, VillageStatus> { ["GREZ"] = status });
-        var loaded = new VillageCacheStore(_root, () => _activeAccount, logs.Add).Load()["GREZ"];
+            .Save(new Dictionary<string, VillageStatus> { ["xy:1|2"] = status });
+        var loaded = new VillageCacheStore(_root, () => _activeAccount, logs.Add).Load()["xy:1|2"];
 
         Assert.Single(loaded.ActiveConstructions!);
         Assert.Null(loaded.BuildQueueRemainingSeconds);
@@ -144,8 +144,8 @@ public sealed class VillageCacheStoreTests : IDisposable
                 ActiveUpgrades: [new ActiveSmithyUpgrade("Phalanx", 4, 120, finish)]),
         };
 
-        CreateStore().Save(new Dictionary<string, VillageStatus> { ["GREZ"] = status });
-        var loaded = CreateStore().Load()["GREZ"].SmithyUpgradeStatus!;
+        CreateStore().Save(new Dictionary<string, VillageStatus> { ["xy:1|2"] = status });
+        var loaded = CreateStore().Load()["xy:1|2"].SmithyUpgradeStatus!;
 
         var active = Assert.Single(loaded.ActiveUpgrades!);
         Assert.Equal("Phalanx", active.Name);
@@ -174,15 +174,39 @@ public sealed class VillageCacheStoreTests : IDisposable
     {
         var statuses = new Dictionary<string, VillageStatus>
         {
-            ["Gaul village"] = MakeStatus("Gaul village") with { Tribe = "Gauls" },
-            ["Roman village"] = MakeStatus("Roman village") with { Tribe = "Romans" },
+            ["xy:1|2"] = MakeStatus("Gaul village", 1, 2) with { Tribe = "Gauls" },
+            ["xy:3|4"] = MakeStatus("Roman village", 3, 4) with { Tribe = "Romans" },
         };
 
         CreateStore().Save(statuses);
         var loaded = CreateStore().Load();
 
-        Assert.Equal("Gauls", loaded["Gaul village"].Tribe);
-        Assert.Equal("Romans", loaded["Roman village"].Tribe);
+        Assert.Equal("Gauls", loaded["xy:1|2"].Tribe);
+        Assert.Equal("Romans", loaded["xy:3|4"].Tribe);
+    }
+
+    [Fact]
+    public void Load_MigratesLegacyNameKeysToCoordinateKeys()
+    {
+        // Legacy files were keyed by village name; the coordinates live in each entry's own village
+        // list. "GREZ" resolves and is re-keyed; "Lost village" has no coordinates and stays put.
+        var noCoords = MakeStatus("Lost village") with
+        {
+            Villages = new[] { new Village("Lost village", "dorf1.php?newdid=9") },
+        };
+
+        CreateStore().Save(new Dictionary<string, VillageStatus>
+        {
+            ["GREZ"] = MakeStatus("GREZ", 5, -7),
+            ["Lost village"] = noCoords,
+        });
+        var loaded = CreateStore().Load();
+
+        Assert.Equal(2, loaded.Count);
+        Assert.True(loaded.ContainsKey("xy:5|-7"));
+        Assert.False(loaded.ContainsKey("GREZ"));
+        Assert.Equal("GREZ", loaded["xy:5|-7"].ActiveVillage);
+        Assert.True(loaded.ContainsKey("Lost village"));
     }
 
     private VillageCacheStore CreateStore() => new(_root, () => _activeAccount);

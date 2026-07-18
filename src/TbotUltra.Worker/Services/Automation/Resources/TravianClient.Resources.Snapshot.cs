@@ -64,6 +64,7 @@ public sealed partial class TravianClient
         }
 
         var villageTribe = await ReadActiveVillageTribeAsync(cancellationToken);
+        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
         return new VillageStatus(
             ActiveVillage: activeVillage,
             Villages: [],
@@ -84,7 +85,9 @@ public sealed partial class TravianClient
             ResourceStorageForecasts: forecasts,
             ActiveConstructions: activeConstructions,
             BuildQueueFinish: remaining is > 0 ? TimerSnapshot.FromRemaining(remaining.Value) : null,
-            ActiveConstructionsFromOverview: _lastActiveConstructionsFromOverview);
+            ActiveConstructionsFromOverview: _lastActiveConstructionsFromOverview,
+            ActiveVillageCoordX: activeCoords.X,
+            ActiveVillageCoordY: activeCoords.Y);
     }
 
     public async Task<IReadOnlyList<VillageStatus>> ReadAllVillageResourceStatusesAsync(CancellationToken cancellationToken = default)
@@ -278,6 +281,7 @@ public sealed partial class TravianClient
 
         var villageTribe = await ReadActiveVillageTribeAsync(cancellationToken);
         villages = EnrichActiveVillageTribe(villages, activeVillage, villageTribe);
+        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
         return new VillageStatus(
             ActiveVillage: activeVillage,
             Villages: villages,
@@ -303,7 +307,9 @@ public sealed partial class TravianClient
             AdventureCount: adventureCount,
             ActiveConstructions: activeConstructions,
             BuildQueueFinish: remaining is > 0 ? TimerSnapshot.FromRemaining(remaining.Value) : null,
-            ActiveConstructionsFromOverview: _lastActiveConstructionsFromOverview);
+            ActiveConstructionsFromOverview: _lastActiveConstructionsFromOverview,
+            ActiveVillageCoordX: activeCoords.X,
+            ActiveVillageCoordY: activeCoords.Y);
     }
 
     private async Task<(

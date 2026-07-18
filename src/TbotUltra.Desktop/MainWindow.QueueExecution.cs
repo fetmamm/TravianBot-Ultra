@@ -28,7 +28,7 @@ public partial class MainWindow
     private bool VillageHasActiveConstruction(QueueItem item)
     {
         var name = NormalizeVillageName(GetQueueItemVillageName(item));
-        var status = name is not null && _villageStatusCacheByName.TryGetValue(name, out var cached)
+        var status = name is not null && _villageStatusCache.TryGetByName(name, out var cached)
             ? cached
             : _lastBuildingStatus;
         return status is not null

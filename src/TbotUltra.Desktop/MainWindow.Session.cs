@@ -874,7 +874,7 @@ public partial class MainWindow
         _travcoListStore.InvalidateCache();
         // Drop the in-memory per-village buildings/fields cache so the next account doesn't show the
         // previous account's villages. The on-disk village_cache.json per account is kept.
-        _villageStatusCacheByName.Clear();
+        _villageStatusCache.Clear();
         _buildingRows.Clear();
         _buildingCatalogOptions.Clear();
         _demolishableBuildings.Clear();

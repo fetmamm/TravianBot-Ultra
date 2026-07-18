@@ -689,12 +689,24 @@ public sealed partial class TravianClient
                 };
               };
 
+              // Exact source first: the sidebar's active-village box carries the coordinates as data
+              // attributes (#villageName data-x/data-y on Official T4.6) — no text parsing needed.
+              const villageNameBox = document.querySelector('#villageName[data-x][data-y]');
+              if (villageNameBox) {
+                const x = Number.parseInt(villageNameBox.getAttribute('data-x'), 10);
+                const y = Number.parseInt(villageNameBox.getAttribute('data-y'), 10);
+                if (Number.isFinite(x) && Number.isFinite(y)) {
+                  return { x, y };
+                }
+              }
+
               const candidates = [];
               const selectors = [
                 '#villageNameField',
                 '.villageNameField',
                 '#sidebarBoxVillagelist .active',
                 '#sidebarBoxVillagelist .active a[href*="newdid"]',
+                '.listEntry.village.active',
                 '#content h1',
                 '.boxTitle'
               ];

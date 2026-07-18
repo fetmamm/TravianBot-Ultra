@@ -12,7 +12,10 @@ namespace TbotUltra.Desktop.Services;
 /// Account-scoped persistence of each village's last-read buildings + resource fields, so a village
 /// scan is remembered across program restarts (the user gets something to work on without re-scanning
 /// everything every launch). Stored per account in <c>config/accounts/&lt;account&gt;/village_cache.json</c>,
-/// keyed by village name.
+/// keyed by the canonical coordinate key (<c>xy:X|Y</c> — the same identity queue.json and the settings
+/// store use, so an in-game rename cannot orphan an entry and duplicate names cannot collide). Legacy
+/// name-keyed entries are re-keyed on load via the entry's own village list; an entry whose coordinates
+/// cannot be resolved stays under its name so nothing is lost.
 ///
 /// Only the durable structure (buildings, resource fields, village list, tribe, capital flag) is saved.
 /// Volatile values that change constantly (current resource amounts, storage capacities, build-queue
@@ -64,15 +67,40 @@ public sealed class VillageCacheStore
             var raw = ReadAllTextShared(path);
             var file = JsonSerializer.Deserialize<VillageCacheFile>(raw, SerializerOptions);
             var result = new Dictionary<string, VillageStatus>(System.StringComparer.OrdinalIgnoreCase);
+            var migratedCount = 0;
             if (file?.Villages is not null)
             {
                 foreach (var pair in file.Villages)
                 {
-                    if (!string.IsNullOrWhiteSpace(pair.Key) && pair.Value is not null)
+                    if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value is null)
                     {
-                        result[pair.Key] = ReconcileTimers(pair.Key, pair.Value, DateTimeOffset.UtcNow);
+                        continue;
                     }
+
+                    // One-time migration of legacy name-keyed entries onto the canonical coordinate key,
+                    // resolved from the entry's own village list. Unresolvable (or colliding) entries stay
+                    // under their name key so nothing is dropped.
+                    var key = pair.Key;
+                    if (!VillageStatusCache.IsCoordinateKey(key))
+                    {
+                        var coordinateKey = VillageStatusCache.TryResolveCoordinateKey(key, pair.Value);
+                        if (coordinateKey is not null
+                            && !file.Villages.ContainsKey(coordinateKey)
+                            && !result.ContainsKey(coordinateKey))
+                        {
+                            key = coordinateKey;
+                            migratedCount++;
+                        }
+                    }
+
+                    var label = string.IsNullOrWhiteSpace(pair.Value.ActiveVillage) ? key : pair.Value.ActiveVillage;
+                    result[key] = ReconcileTimers(label, pair.Value, DateTimeOffset.UtcNow);
                 }
+            }
+
+            if (migratedCount > 0)
+            {
+                _log?.Invoke($"[village-cache] migrated {migratedCount} legacy name-keyed entr(y/ies) to coordinate keys.");
             }
 
             return result;
@@ -83,17 +111,18 @@ public sealed class VillageCacheStore
         }
     }
 
-    /// <summary>Persists the per-village statuses for the active account (volatile values stripped).</summary>
-    public void Save(IReadOnlyDictionary<string, VillageStatus> villagesByName)
+    /// <summary>Persists the per-village statuses for the active account (volatile values stripped).
+    /// Keys are persisted as given — callers pass the canonical-keyed snapshot.</summary>
+    public void Save(IReadOnlyDictionary<string, VillageStatus> villagesByKey)
     {
         var account = GetActiveAccountName();
-        if (string.IsNullOrWhiteSpace(account) || villagesByName is null || villagesByName.Count == 0)
+        if (string.IsNullOrWhiteSpace(account) || villagesByKey is null || villagesByKey.Count == 0)
         {
             return;
         }
 
         var file = new VillageCacheFile();
-        foreach (var pair in villagesByName)
+        foreach (var pair in villagesByKey)
         {
             if (!string.IsNullOrWhiteSpace(pair.Key) && pair.Value is not null)
             {

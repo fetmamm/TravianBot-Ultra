@@ -13,19 +13,47 @@ public static class NewVillageStartupAnalyzer
             return [];
         }
 
-        var knownNames = new HashSet<string>(
-            (cachedStatuses ?? new Dictionary<string, VillageStatus>())
-                .Where(pair => HasKnownDorf1AndDorf2Status(pair.Value))
-                .Select(pair => NormalizeName(pair.Key))
-                .OfType<string>(),
-            StringComparer.OrdinalIgnoreCase);
+        // Cache entries are canonically keyed by coordinates (xy:X|Y); legacy entries by name. Collect
+        // both the keys and each entry's own village name so either identity marks a village as known.
+        var known = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in cachedStatuses ?? new Dictionary<string, VillageStatus>())
+        {
+            if (!HasKnownDorf1AndDorf2Status(pair.Value) || NormalizeName(pair.Key) is not string key)
+            {
+                continue;
+            }
 
+            known.Add(key);
+            if (NormalizeName(pair.Value.ActiveVillage) is string name)
+            {
+                known.Add(name);
+            }
+        }
+
+        // Deduplicate by coordinate key when coordinates are known, so two villages sharing a name are
+        // each scanned; name grouping remains only for villages without coordinates.
         return villages
             .Where(village => village is not null && NormalizeName(village.Name) is not null)
-            .GroupBy(village => NormalizeName(village.Name)!, StringComparer.OrdinalIgnoreCase)
+            .GroupBy(
+                village => village.CoordX.HasValue && village.CoordY.HasValue
+                    ? VillageKey.FromCoords(village.CoordX.Value, village.CoordY.Value)
+                    : NormalizeName(village.Name)!,
+                StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
-            .Where(village => !knownNames.Contains(NormalizeName(village.Name)!))
+            .Where(village => !IsKnown(village, known))
             .ToList();
+    }
+
+    private static bool IsKnown(Village village, HashSet<string> known)
+    {
+        if (village.CoordX.HasValue
+            && village.CoordY.HasValue
+            && known.Contains(VillageKey.FromCoords(village.CoordX.Value, village.CoordY.Value)))
+        {
+            return true;
+        }
+
+        return NormalizeName(village.Name) is string name && known.Contains(name);
     }
 
     private static bool HasKnownDorf1AndDorf2Status(VillageStatus? status)

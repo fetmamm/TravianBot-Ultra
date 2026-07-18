@@ -21,6 +21,7 @@ public sealed partial class TravianClient : IBuildingClient
         var buildings = await ReadBuildingsAsync(cancellationToken);
         var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
         var tribe = await ReadActiveVillageTribeAsync(cancellationToken);
+        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
 
         return new VillageStatus(
             ActiveVillage: activeVillage,
@@ -32,7 +33,9 @@ public sealed partial class TravianClient : IBuildingClient
             Tribe: tribe,
             VillageCount: 0,
             IsCapital: TryGetCachedCapitalState(activeVillage),
-            ServerTimeUtc: _serverTimeUtc);
+            ServerTimeUtc: _serverTimeUtc,
+            ActiveVillageCoordX: activeCoords.X,
+            ActiveVillageCoordY: activeCoords.Y);
     }
 
     internal static IReadOnlyList<Building> ParseBuildingOverviewHtmlForTests(string html)

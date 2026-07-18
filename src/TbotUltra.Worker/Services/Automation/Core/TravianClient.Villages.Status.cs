@@ -135,6 +135,9 @@ public sealed partial class TravianClient
 
         var villageTribe = await ReadActiveVillageTribeAsync(cancellationToken);
         villages = EnrichActiveVillageTribe(villages, activeVillage, villageTribe);
+        // The sidebar's own data-x/data-y for the active village: the exact identity this status
+        // belongs to, so Desktop caches can key by coordinates without name matching.
+        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
         var result = new VillageStatus(
             ActiveVillage: activeVillage,
             Villages: villages,
@@ -160,7 +163,9 @@ public sealed partial class TravianClient
             ActiveConstructions: activeConstructions,
             BuildQueueFinish: remaining is > 0 ? TimerSnapshot.FromRemaining(remaining.Value) : null,
             HeroStatus: heroStatus,
-            ActiveConstructionsFromOverview: _lastActiveConstructionsFromOverview);
+            ActiveConstructionsFromOverview: _lastActiveConstructionsFromOverview,
+            ActiveVillageCoordX: activeCoords.X,
+            ActiveVillageCoordY: activeCoords.Y);
         trace.Complete(
             "success",
             $"village={result.ActiveVillage} resources={result.Resources.Count} fields={result.ResourceFields.Count} buildings={result.Buildings.Count} queue={result.BuildQueue.Count} activeConstructions={result.ActiveConstructions?.Count ?? 0}");

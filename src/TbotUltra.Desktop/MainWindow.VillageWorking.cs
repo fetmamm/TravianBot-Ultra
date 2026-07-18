@@ -21,10 +21,11 @@ namespace TbotUltra.Desktop;
 // explicit "Switch village" button (or by automation rotating between villages as it runs).
 public partial class MainWindow
 {
-    // Last-read status per village NAME, so the dropdown can show a village's buildings/resources for
-    // queueing without navigating to it. Keyed by name (the identity reads + dropdown agree on) so a
-    // url/newdid difference between reads can never split or collide a village's cache entry.
-    private readonly Dictionary<string, VillageStatus> _villageStatusCacheByName = new(StringComparer.OrdinalIgnoreCase);
+    // Last-read status per village, so the dropdown can show a village's buildings/resources for
+    // queueing without navigating to it. Keyed by the canonical coordinate key (xy:X|Y — the same
+    // identity as queue.json/settings) with name-based lookup for callers that only have a name, so a
+    // rename or duplicate names can never split or collide a village's cache entry.
+    private readonly VillageStatusCache _villageStatusCache = new();
 
     private static string? NormalizeVillageName(string? name)
     {
@@ -108,7 +109,7 @@ public partial class MainWindow
 
     private bool ResolveIsRomansTribe()
     {
-        foreach (var status in _villageStatusCacheByName.Values)
+        foreach (var status in _villageStatusCache.Values)
         {
             if (!string.IsNullOrWhiteSpace(status.Tribe)
                 && status.Tribe.Contains("Roman", StringComparison.OrdinalIgnoreCase))
@@ -141,7 +142,7 @@ public partial class MainWindow
             VillageStatus? status = null;
             if (name is not null)
             {
-                _villageStatusCacheByName.TryGetValue(name, out status);
+                _villageStatusCache.TryGetByName(name, out status);
             }
 
             HashSet<QueueGroup>? deferredGroups = null;
@@ -322,7 +323,7 @@ public partial class MainWindow
             .OrderBy(entry => entry.TimeLeftSeconds)
             .ToList();
         var name = NormalizeVillageName(_activeWorkingVillageName);
-        if (name is not null && _villageStatusCacheByName.TryGetValue(name, out var cached))
+        if (name is not null && _villageStatusCache.TryGetByName(name, out var cached))
         {
             var existing = cached.SmithyUpgradeStatus;
             var incoming = new SmithyUpgradeStatus(
@@ -341,8 +342,8 @@ public partial class MainWindow
                 ActiveUpgradeFinishes: activeUpgrades.Select(entry => entry.Finish!).ToList(),
                 ActiveUpgrades: activeUpgrades);
             var preserved = SmithyQueueState.PreserveKnownActiveQueue(incoming, existing, DateTimeOffset.UtcNow);
-            _villageStatusCacheByName[name] = cached with { SmithyUpgradeStatus = preserved };
-            _villageCacheStore.Save(_villageStatusCacheByName);
+            _villageStatusCache.Set(name, cached with { SmithyUpgradeStatus = preserved });
+            _villageCacheStore.Save(_villageStatusCache.Snapshot);
 
             var selectedName = NormalizeVillageName(GetSelectedVillageName());
             if (selectedName is null
@@ -358,7 +359,7 @@ public partial class MainWindow
     private IReadOnlyList<ActiveSmithyUpgrade> ResolveActiveSmithyQueue(string? villageName)
     {
         var name = NormalizeVillageName(villageName);
-        if (name is null || !_villageStatusCacheByName.TryGetValue(name, out var status))
+        if (name is null || !_villageStatusCache.TryGetByName(name, out var status))
         {
             return [];
         }
@@ -765,7 +766,7 @@ public partial class MainWindow
         // 20s; lighter refreshes still update memory.
         var isFullRead = status.Buildings is { Count: > 0 } || status.ResourceFields is { Count: > 0 };
 
-        if (_villageStatusCacheByName.TryGetValue(name, out var existing))
+        if (_villageStatusCache.TryGetByName(name, out var existing))
         {
             var now = DateTimeOffset.UtcNow;
             status = ConstructionQueueState.PreserveKnownConstructionState(status, existing);
@@ -806,11 +807,11 @@ public partial class MainWindow
             }
         }
 
-        _villageStatusCacheByName[name] = status;
+        _villageStatusCache.Set(name, status);
 
         if (isFullRead)
         {
-            _villageCacheStore.Save(_villageStatusCacheByName);
+            _villageCacheStore.Save(_villageStatusCache.Snapshot);
         }
 
         // Repaint the Dashboard village-list overview (Buildings/Troops slots) from the refreshed cache.
@@ -836,7 +837,7 @@ public partial class MainWindow
     // "no data" until the next Switch village.
     private void MigrateRenamedVillageStatusCacheEntries(IReadOnlyList<VillageSettingsStore.VillageKeyInfo> keyInfos)
     {
-        if (keyInfos is null || keyInfos.Count == 0 || _villageStatusCacheByName.Count == 0)
+        if (keyInfos is null || keyInfos.Count == 0 || _villageStatusCache.Count == 0)
         {
             return;
         }
@@ -853,33 +854,21 @@ public partial class MainWindow
 
     private void MigrateVillageStatusCacheKey(string? oldName, string? newName)
     {
-        var oldKey = NormalizeVillageName(oldName);
-        var newKey = NormalizeVillageName(newName);
-        if (oldKey is null || newKey is null || string.Equals(oldKey, newKey, StringComparison.OrdinalIgnoreCase))
+        // Canonical (coordinate-keyed) entries survive a rename by construction; MigrateName only moves
+        // the name-based lookup (and re-keys any legacy name-keyed entry). No-op when nothing was cached.
+        if (!_villageStatusCache.MigrateName(oldName, newName))
         {
             return;
         }
 
-        if (!_villageStatusCacheByName.TryGetValue(oldKey, out var status))
-        {
-            return;
-        }
-
-        _villageStatusCacheByName.Remove(oldKey);
-        // Keep a fresher entry already stored under the new name; otherwise carry the cached read across.
-        if (!_villageStatusCacheByName.ContainsKey(newKey))
-        {
-            _villageStatusCacheByName[newKey] = status;
-        }
-
-        _villageCacheStore.Save(_villageStatusCacheByName);
+        _villageCacheStore.Save(_villageStatusCache.Snapshot);
         AppendLog($"[village-rename] migrated cached village status '{oldName}' -> '{newName}'.");
     }
 
     private void UpdateCachedTimerStatus(string? villageName, Func<VillageStatus, VillageStatus> update)
     {
         var name = NormalizeVillageName(villageName);
-        if (name is null || !_villageStatusCacheByName.TryGetValue(name, out var existing))
+        if (name is null || !_villageStatusCache.TryGetByName(name, out var existing))
         {
             return;
         }
@@ -897,8 +886,8 @@ public partial class MainWindow
             };
         }
 
-        _villageStatusCacheByName[name] = updated;
-        _villageCacheStore.Save(_villageStatusCacheByName);
+        _villageStatusCache.Set(name, updated);
+        _villageCacheStore.Save(_villageStatusCache.Snapshot);
     }
 
     // Loads the per-village buildings/resource-field cache persisted for the active account so a village
@@ -909,20 +898,12 @@ public partial class MainWindow
         AppendLog("[LoadVillageCacheForActiveAccount] Started");       
         try
         {
-            var loaded = _villageCacheStore.Load();
-            _villageStatusCacheByName.Clear();
-            foreach (var pair in loaded)
-            {
-                var name = NormalizeVillageName(pair.Key);
-                if (name is not null && pair.Value is not null)
-                {
-                    _villageStatusCacheByName[name] = pair.Value;
-                }
-            }
+            // The store returns canonical (coordinate) keys, migrating legacy name keys on the fly.
+            _villageStatusCache.LoadFrom(_villageCacheStore.Load());
 
-            if (_villageStatusCacheByName.Count > 0)
+            if (_villageStatusCache.Count > 0)
             {
-                AppendLog($"Loaded cached buildings/fields for {_villageStatusCacheByName.Count} village(s).");
+                AppendLog($"Loaded cached buildings/fields for {_villageStatusCache.Count} village(s).");
             }
         }
         catch (Exception ex)
@@ -1123,7 +1104,7 @@ public partial class MainWindow
 
         var name = NormalizeVillageName(selected.Name);
         ApplySelectedVillageTribeFromCache(selected);
-        if (name is not null && _villageStatusCacheByName.TryGetValue(name, out var cached))
+        if (name is not null && _villageStatusCache.TryGetByName(name, out var cached))
         {
             ApplyResourceRowsAndVillageStatus(cached, includeQueuedTargets: true);
             // Storage bars must follow the selected village too (they were staying on the previous one).
@@ -1163,7 +1144,7 @@ public partial class MainWindow
         // Load this village's troop-training override into the Troops tab so it tracks the selection.
         ApplyTroopTrainingForSelectedVillage();
         ApplyConstructionTimerFromStatus(
-            name is not null && _villageStatusCacheByName.TryGetValue(name, out var timerStatus) ? timerStatus : null);
+            name is not null && _villageStatusCache.TryGetByName(name, out var timerStatus) ? timerStatus : null);
         // Light up Switch village when the selected village differs from the one the bot works in.
         UpdateSwitchVillageButtonHighlight();
     }
@@ -1172,7 +1153,7 @@ public partial class MainWindow
     {
         var name = NormalizeVillageName(selected.Name);
         var tribe = name is not null
-            && _villageStatusCacheByName.TryGetValue(name, out var cached)
+            && _villageStatusCache.TryGetByName(name, out var cached)
             && TroopCatalog.IsKnownTribe(cached.Tribe)
                 ? cached.Tribe
                 : selected.Tribe;

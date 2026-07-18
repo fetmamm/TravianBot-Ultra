@@ -628,7 +628,7 @@ public partial class MainWindow
         VillageStatus? status = null;
         if (selectedVillage is not null)
         {
-            _villageStatusCacheByName.TryGetValue(selectedVillage, out status);
+            _villageStatusCache.TryGetByName(selectedVillage, out status);
         }
 
         var snapshot = ConstructionQueueState.ResolveSnapshot(status, now);

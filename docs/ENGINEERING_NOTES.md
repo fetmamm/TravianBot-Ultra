@@ -109,6 +109,16 @@ Common endpoints:
 - New settings require the full pipeline: model, defaults, load/save, ViewModel, UI, tests.
 - Persist stable village identity using coordinates/key, not display name alone.
 - Queue items must retain their target village identity.
+- The per-village status cache (`VillageStatusCache` in memory, `village_cache.json` on disk) is keyed by
+  the canonical coordinate key (`xy:X|Y`) — the same identity as queue.json and the settings store — so a
+  rename cannot orphan an entry and duplicate names cannot collide. Name-based lookups go through the
+  wrapper's name index (`TryGetByName`); legacy name-keyed file entries are re-keyed on load via the
+  entry's own village list, and an entry whose coordinates can't be resolved stays under its name.
+- The active village's exact coordinates come from the sidebar: `#villageName` carries `data-x`/`data-y`
+  (Official T4.6, present on all village pages). `TryReadActiveVillageCoordsFromCurrentPageAsync` reads
+  that attribute first (no text parsing) and status reads stamp it into
+  `VillageStatus.ActiveVillageCoordX/Y`, which `VillageStatusCache` prefers when resolving the cache key —
+  this disambiguates even two villages with identical names.
 
 ### Timing and cancellation
 

@@ -215,7 +215,7 @@ public partial class MainWindow
         var selectedName = NormalizeVillageName(GetSelectedVillageName());
         VillageStatus? status = null;
         var hasStatus = selectedName is not null
-            && _villageStatusCacheByName.TryGetValue(selectedName, out status);
+            && _villageStatusCache.TryGetByName(selectedName, out status);
         var nowUtc = DateTimeOffset.UtcNow;
         var snapshot = ConstructionQueueState.ResolveSnapshot(status, nowUtc);
         var activeConstructions = snapshot.Knowledge == ConstructionQueueKnowledge.Active
@@ -247,7 +247,7 @@ public partial class MainWindow
         var selectedName = NormalizeVillageName(GetSelectedVillageName());
         VillageStatus? status = null;
         var hasStatus = selectedName is not null
-            && _villageStatusCacheByName.TryGetValue(selectedName, out status);
+            && _villageStatusCache.TryGetByName(selectedName, out status);
         var activeUpgrades = SmithyQueueState.ResolveActiveUpgrades(
             status?.SmithyUpgradeStatus,
             DateTimeOffset.UtcNow);

@@ -336,7 +336,7 @@ public partial class MainWindow
             return _lastBuildingStatus;
         }
 
-        return _villageStatusCacheByName.TryGetValue(name, out var cached) ? cached : null;
+        return _villageStatusCache.TryGetByName(name, out var cached) ? cached : null;
     }
 
     // Building status for the village a queue item targets: live snapshot for the selected (or village-less)
@@ -351,7 +351,7 @@ public partial class MainWindow
             return ResolveSelectedVillageBuildingStatus();
         }
 
-        return _villageStatusCacheByName.TryGetValue(villageName, out var cached) ? cached : null;
+        return _villageStatusCache.TryGetByName(villageName, out var cached) ? cached : null;
     }
 
     // Queue filter scoping requirement checks to the item's own village (plus village-less/global items).

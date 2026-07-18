@@ -51,7 +51,7 @@ public partial class MainWindow
     {
         var normalizedName = NormalizeVillageName(villageName);
         if (normalizedName is not null
-            && _villageStatusCacheByName.TryGetValue(normalizedName, out var status)
+            && _villageStatusCache.TryGetByName(normalizedName, out var status)
             && TroopCatalog.IsKnownTribe(status.Tribe))
         {
             return status.Tribe;
@@ -239,7 +239,7 @@ public partial class MainWindow
     {
         var capitalName = NormalizeVillageName(capital.Name);
         if (capitalName is not null
-            && _villageStatusCacheByName.TryGetValue(capitalName, out var cached))
+            && _villageStatusCache.TryGetByName(capitalName, out var cached))
         {
             return cached;
         }
@@ -501,7 +501,7 @@ public partial class MainWindow
         var villageName = NormalizeVillageName(GetSelectedVillageName())
             ?? NormalizeVillageName(_activeWorkingVillageName);
         if (villageName is not null
-            && _villageStatusCacheByName.TryGetValue(villageName, out var cached))
+            && _villageStatusCache.TryGetByName(villageName, out var cached))
         {
             status = SmithyQueueState.PreserveKnownActiveQueue(
                 status,
@@ -1064,7 +1064,7 @@ public partial class MainWindow
             return null;
         }
 
-        if (_villageStatusCacheByName.TryGetValue(statusName, out var cached))
+        if (_villageStatusCache.TryGetByName(statusName, out var cached))
         {
             return cached.TroopTrainingQueues;
         }
@@ -1254,7 +1254,7 @@ public partial class MainWindow
                 ?? NormalizeVillageName(_activeWorkingVillageName)
                 ?? NormalizeVillageName(GetSelectedVillageName());
             if (queueVillageName is not null
-                && _villageStatusCacheByName.TryGetValue(queueVillageName, out var cachedVillageStatus))
+                && _villageStatusCache.TryGetByName(queueVillageName, out var cachedVillageStatus))
             {
                 queueStatuses = TroopTrainingQueueState.PreserveKnownActiveQueue(
                     queueStatuses, cachedVillageStatus.TroopTrainingQueues, GetServerNow());
@@ -1270,7 +1270,7 @@ public partial class MainWindow
                         queueVillageName,
                         StringComparison.OrdinalIgnoreCase)))
             {
-                effectiveStatus = _villageStatusCacheByName.TryGetValue(queueVillageName, out var queueVillageStatus)
+                effectiveStatus = _villageStatusCache.TryGetByName(queueVillageName, out var queueVillageStatus)
                     ? queueVillageStatus with { TroopTrainingQueues = queueStatuses }
                     : new VillageStatus(
                         ActiveVillage: queueVillageName,
