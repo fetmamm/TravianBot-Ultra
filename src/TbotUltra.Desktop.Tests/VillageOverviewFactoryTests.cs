@@ -273,8 +273,7 @@ public sealed class VillageOverviewFactoryTests
             seconds => $"{seconds:F0}s");
         var row = Assert.Single(snapshot.Villages);
 
-        // Second line carries the "25%" prefix so OverviewStatusText renders it in the construct-faster purple.
-        Assert.Equal("400s\n25% 300s", row.ConstructionQueue);
+        Assert.Equal("400s (300s)", row.ConstructionQueue);
     }
 
     [Fact]

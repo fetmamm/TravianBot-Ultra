@@ -307,8 +307,8 @@ internal static class VillageOverviewFactory
     }
 
     // Total remaining build time for this village's queued construction, mirroring the Queue tab's totals:
-    // the normal time on the first line and the -25% construct-faster time on the second (rendered purple by
-    // OverviewStatusText via the "25%" prefix). "-" when the village has no queued construction, or when its
+    // normal time followed by the -25% construct-faster time in parentheses. The overview column renders the
+    // parenthesized time purple. "-" when the village has no queued construction, or when its
     // levels have not been read yet — an unknown level yields no estimate, and a blank beats a wrong number.
     private static string ResolveConstructionQueue(
         VillageOverviewSource village,
@@ -323,7 +323,7 @@ internal static class VillageOverviewFactory
             return "-";
         }
 
-        return $"{durationFormatter(seconds)}\n25% {durationFormatter(seconds * 0.75)}";
+        return $"{durationFormatter(seconds)} ({durationFormatter(seconds * 0.75)})";
     }
 
     private static VillageOverviewRow BuildVillageRow(

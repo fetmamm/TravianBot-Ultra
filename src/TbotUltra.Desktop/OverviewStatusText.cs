@@ -18,9 +18,21 @@ public static class OverviewStatusText
         typeof(OverviewStatusText),
         new PropertyMetadata(null, OnTextChanged));
 
+    public static readonly DependencyProperty HighlightTrailingParentheticalProperty = DependencyProperty.RegisterAttached(
+        "HighlightTrailingParenthetical",
+        typeof(bool),
+        typeof(OverviewStatusText),
+        new PropertyMetadata(false, OnTextChanged));
+
     public static void SetText(DependencyObject element, string value) => element.SetValue(TextProperty, value);
 
     public static string GetText(DependencyObject element) => (string)element.GetValue(TextProperty);
+
+    public static void SetHighlightTrailingParenthetical(DependencyObject element, bool value)
+        => element.SetValue(HighlightTrailingParentheticalProperty, value);
+
+    public static bool GetHighlightTrailingParenthetical(DependencyObject element)
+        => (bool)element.GetValue(HighlightTrailingParentheticalProperty);
 
     private static void OnTextChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
     {
@@ -30,9 +42,20 @@ public static class OverviewStatusText
         }
 
         textBlock.Inlines.Clear();
-        var text = e.NewValue as string;
+        var text = textBlock.GetValue(TextProperty) as string;
         if (string.IsNullOrEmpty(text))
         {
+            return;
+        }
+
+        if (GetHighlightTrailingParenthetical(textBlock)
+            && TrySplitTrailingParenthetical(text, out var normalText, out var highlightedText))
+        {
+            textBlock.Inlines.Add(new Run(normalText));
+            textBlock.Inlines.Add(new Run(highlightedText)
+            {
+                Foreground = ThemeColors.Brush("ConstructFasterTextBrush"),
+            });
             return;
         }
 
@@ -75,13 +98,6 @@ public static class OverviewStatusText
             return ThemeColors.Brush("SuccessTextBrush");
         }
 
-        // Second line of the Construction queue cell: the -25% construct-faster total. Same purple as the
-        // Queue tab's "Time (25%)" figure so the two read as the same number.
-        if (StartsWith(trimmed, "25%"))
-        {
-            return ThemeColors.Brush("ConstructFasterTextBrush");
-        }
-
         if (StartsWith(trimmed, "Waiting") || StartsWith(trimmed, "Earliest"))
         {
             return ThemeColors.Brush("WarningTextBrush");
@@ -108,4 +124,22 @@ public static class OverviewStatusText
 
     private static bool IsExactly(string value, string other)
         => string.Equals(value, other, StringComparison.OrdinalIgnoreCase);
+
+    private static bool TrySplitTrailingParenthetical(
+        string value,
+        out string normalText,
+        out string highlightedText)
+    {
+        var separatorIndex = value.LastIndexOf(" (", StringComparison.Ordinal);
+        if (separatorIndex <= 0 || !value.EndsWith(')'))
+        {
+            normalText = value;
+            highlightedText = string.Empty;
+            return false;
+        }
+
+        normalText = value[..separatorIndex];
+        highlightedText = value[separatorIndex..];
+        return true;
+    }
 }

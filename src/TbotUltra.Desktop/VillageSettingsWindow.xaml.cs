@@ -213,7 +213,11 @@ public partial class VillageSettingsWindow : Window
     {
         VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Village", 170, nameof(VillageOverviewRow.Village), colorize: false));
         VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Next task", 240, nameof(VillageOverviewRow.NextTask)));
-        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Construction queue", 130, nameof(VillageOverviewRow.ConstructionQueue)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn(
+            "Construction queue",
+            190,
+            nameof(VillageOverviewRow.ConstructionQueue),
+            highlightTrailingParenthetical: true));
         VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Construction", 220, nameof(VillageOverviewRow.Construction)));
         VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Smithy", 220, nameof(VillageOverviewRow.Smithy)));
         VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Build troops", 180, nameof(VillageOverviewRow.BuildTroops)));
@@ -229,13 +233,22 @@ public partial class VillageSettingsWindow : Window
     // OverviewStatusText attached property. The column auto-sizes to content up to maxWidth (then the text
     // wraps). The Village name column binds plain Text (colorize: false) so a village name is never mistaken
     // for a status keyword.
-    private static DataGridTemplateColumn BuildOverviewColumn(string header, double maxWidth, string bindingPath, bool colorize = true)
+    private static DataGridTemplateColumn BuildOverviewColumn(
+        string header,
+        double maxWidth,
+        string bindingPath,
+        bool colorize = true,
+        bool highlightTrailingParenthetical = false)
     {
         var text = new FrameworkElementFactory(typeof(TextBlock));
         text.SetValue(TextBlock.TextWrappingProperty, TextWrapping.Wrap);
         text.SetValue(FrameworkElement.VerticalAlignmentProperty, VerticalAlignment.Top);
         var binding = new System.Windows.Data.Binding(bindingPath);
         text.SetBinding(colorize ? OverviewStatusText.TextProperty : TextBlock.TextProperty, binding);
+        if (highlightTrailingParenthetical)
+        {
+            text.SetValue(OverviewStatusText.HighlightTrailingParentheticalProperty, true);
+        }
 
         return new DataGridTemplateColumn
         {
