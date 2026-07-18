@@ -16,7 +16,8 @@ public sealed class StorageCapacityQueuePreflightPlannerTests
             warehouseCapacity: 1_200,
             granaryCapacity: 1_200);
 
-        var result = StorageCapacityQueuePreflightPlanner.PlanUpgradeAllResources(status, [], 6);
+        var result = StorageCapacityQueuePreflightPlanner.PlanUpgradeAllResources(
+            status, [], 6, storageUpgradeLevelsAhead: 1);
 
         var upgrade = Assert.Single(result.Upgrades);
         Assert.Equal(StorageCapacityKind.Warehouse, upgrade.Kind);
@@ -316,7 +317,8 @@ public sealed class StorageCapacityQueuePreflightPlannerTests
         var result = StorageCapacityQueuePreflightPlanner.PlanConstructionRequestsStepwise(
             status,
             [],
-            [new QueueItemCreateRequest("upgrade_building_to_level", payload, 0, 3)]);
+            [new QueueItemCreateRequest("upgrade_building_to_level", payload, 0, 3)],
+            storageUpgradeLevelsAhead: 1);
 
         Assert.Null(result.CannotPlanReason);
         Assert.Contains(result.Upgrades, upgrade =>

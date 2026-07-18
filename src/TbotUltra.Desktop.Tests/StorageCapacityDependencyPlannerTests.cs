@@ -60,7 +60,8 @@ public sealed class StorageCapacityDependencyPlannerTests
             StorageCapacityKind.Warehouse,
             status,
             [],
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            storageUpgradeLevelsAhead: 1);
 
         Assert.Equal(StorageDependencyAction.Upgrade, plan.Action);
         Assert.Equal(20, plan.SlotId);
@@ -185,7 +186,8 @@ public sealed class StorageCapacityDependencyPlannerTests
             StorageCapacityKind.Granary,
             status,
             [],
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            storageUpgradeLevelsAhead: 1);
 
         Assert.Equal(StorageDependencyAction.Upgrade, plan.Action);
         Assert.Equal(20, plan.SlotId);
@@ -218,7 +220,8 @@ public sealed class StorageCapacityDependencyPlannerTests
             StorageCapacityKind.Warehouse,
             status,
             [],
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            storageUpgradeLevelsAhead: 1);
 
         Assert.Equal(StorageDependencyAction.Upgrade, plan.Action);
         Assert.Equal(19, plan.SlotId);
