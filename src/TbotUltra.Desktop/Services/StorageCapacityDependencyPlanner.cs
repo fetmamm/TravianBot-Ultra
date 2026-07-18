@@ -33,6 +33,15 @@ public sealed record StorageDependencyPlan(
 
 public static class StorageCapacityDependencyPlanner
 {
+    // Official Warehouse/Granary capacity per level. Level 0 is the village's base capacity and lets
+    // the planner calculate the additional capacity contributed by upgrading one storage building even
+    // when the village has multiple storage buildings.
+    private static readonly long[] StorageCapacityByLevel =
+    [
+        800, 1_200, 1_700, 2_300, 3_100, 4_000, 5_000, 6_300, 7_800, 9_600,
+        11_800, 14_400, 17_600, 21_400, 25_900, 31_300, 37_900, 45_700, 55_100, 66_400, 80_000,
+    ];
+
     public static StorageCapacityBlock? ResolveBlock(
         long requiredWood,
         long requiredClay,
@@ -65,7 +74,9 @@ public static class StorageCapacityDependencyPlanner
         StorageCapacityKind kind,
         VillageStatus status,
         IReadOnlyCollection<int> queuedConstructSlots,
-        DateTimeOffset nowUtc)
+        DateTimeOffset nowUtc,
+        long? requiredCapacity = null,
+        long? currentVillageCapacity = null)
     {
         var name = kind == StorageCapacityKind.Warehouse ? "Warehouse" : "Granary";
         var gid = kind == StorageCapacityKind.Warehouse ? 10 : 11;
@@ -98,13 +109,18 @@ public static class StorageCapacityDependencyPlanner
             .FirstOrDefault();
         if (upgradeCandidate?.SlotId is int upgradeSlot && upgradeCandidate.Level is int currentLevel)
         {
+            var targetLevel = ResolveUpgradeTargetLevel(
+                currentLevel,
+                currentVillageCapacity,
+                requiredCapacity,
+                BuildingCatalogService.MaxLevelFor(gid));
             return new StorageDependencyPlan(
                 StorageDependencyAction.Upgrade,
                 kind,
                 upgradeSlot,
-                currentLevel + 1,
+                targetLevel,
                 0,
-                $"upgrade {name} from level {currentLevel} to {currentLevel + 1}");
+                $"upgrade {name} from level {currentLevel} to {targetLevel}");
         }
 
         var occupiedSlots = status.Buildings
@@ -132,6 +148,35 @@ public static class StorageCapacityDependencyPlanner
             null,
             0,
             $"no empty building slot is available for a new {name}");
+    }
+
+    internal static int ResolveUpgradeTargetLevel(
+        int currentLevel,
+        long? currentVillageCapacity,
+        long? requiredCapacity,
+        int maxLevel = 20)
+    {
+        var normalizedCurrentLevel = Math.Clamp(currentLevel, 0, Math.Min(maxLevel, StorageCapacityByLevel.Length - 1));
+        var normalizedMaxLevel = Math.Clamp(maxLevel, normalizedCurrentLevel, StorageCapacityByLevel.Length - 1);
+        var fallbackTarget = Math.Min(normalizedCurrentLevel + 1, normalizedMaxLevel);
+        if (currentVillageCapacity is not > 0
+            || requiredCapacity is not > 0
+            || requiredCapacity.Value <= currentVillageCapacity.Value)
+        {
+            return fallbackTarget;
+        }
+
+        var currentBuildingCapacity = StorageCapacityByLevel[normalizedCurrentLevel];
+        for (var targetLevel = fallbackTarget; targetLevel <= normalizedMaxLevel; targetLevel++)
+        {
+            var addedCapacity = StorageCapacityByLevel[targetLevel] - currentBuildingCapacity;
+            if (currentVillageCapacity.Value + addedCapacity >= requiredCapacity.Value)
+            {
+                return targetLevel;
+            }
+        }
+
+        return normalizedMaxLevel;
     }
 
     public static Dictionary<string, string> BuildDependencyPayload(

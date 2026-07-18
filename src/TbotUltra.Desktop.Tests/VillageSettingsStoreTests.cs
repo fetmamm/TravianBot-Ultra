@@ -31,7 +31,7 @@ public sealed class VillageSettingsStoreTests : IDisposable
     }
 
     [Fact]
-    public void Merge_MultipleInitialVillages_AllAutoDisabledAndConstructionOnly()
+    public void Merge_MultipleInitialVillages_AllAutoEnabledAndConstructionOnly()
     {
         var store = CreateStore();
         var capital = new Info("did:1", "Capital", 0, 0, IsCapital: true);
@@ -39,14 +39,14 @@ public sealed class VillageSettingsStoreTests : IDisposable
 
         store.Merge(new[] { capital, second });
 
-        Assert.False(store.GetEnabled(capital));
-        Assert.False(store.GetEnabled(second));
+        Assert.True(store.GetEnabled(capital));
+        Assert.True(store.GetEnabled(second));
         Assert.Equal(new[] { "construction" }, store.GetEnabledGroups(capital));
         Assert.Equal(new[] { "construction" }, store.GetEnabledGroups(second));
     }
 
     [Fact]
-    public void Merge_VillageDiscoveredLater_AutoDisabled()
+    public void Merge_VillageDiscoveredLater_AutoEnabled()
     {
         var store = CreateStore();
         var first = new Info("did:1", "First", 0, 0, IsCapital: true);
@@ -56,19 +56,19 @@ public sealed class VillageSettingsStoreTests : IDisposable
         store.Merge(new[] { first, later });
 
         Assert.True(store.GetEnabled(first));
-        Assert.False(store.GetEnabled(later));
+        Assert.True(store.GetEnabled(later));
         Assert.Equal(new[] { "construction" }, store.GetEnabledGroups(later));
         Assert.False(store.GetNpcTrade(later));
         Assert.False(store.GetConstructFaster(later));
     }
 
     [Fact]
-    public void GetEnabled_UnknownVillage_DefaultsToDisabled()
+    public void GetEnabled_UnknownVillage_DefaultsToEnabled()
     {
         var store = CreateStore();
 
-        Assert.False(store.GetEnabled(new Info("did:9", "New capital", null, null, IsCapital: true)));
-        Assert.False(store.GetEnabled(new Info("did:10", "New village", null, null, IsCapital: false)));
+        Assert.True(store.GetEnabled(new Info("did:9", "New capital", null, null, IsCapital: true)));
+        Assert.True(store.GetEnabled(new Info("did:10", "New village", null, null, IsCapital: false)));
     }
 
     [Fact]
@@ -199,8 +199,31 @@ public sealed class VillageSettingsStoreTests : IDisposable
         _activeAccount = "bob";
         store.InvalidateCache();
 
-        // Bob has never enabled this village, so it falls back to the default (non-capital = off).
-        Assert.False(store.GetEnabled(village));
+        // Bob has no stored choice, so the new-village Auto default applies independently.
+        Assert.True(store.GetEnabled(village));
+    }
+
+    [Fact]
+    public void LegacyFile_MigratesExistingVillagesToAutoEnabledOnce()
+    {
+        var path = AccountStoragePaths.VillageSettingsPath(_root, _activeAccount);
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        File.WriteAllText(path, """
+        {
+          "villages": [
+            { "key": "did:1", "name": "Legacy", "coordX": 0, "coordY": 0, "isCapital": true, "isEnabled": false }
+          ]
+        }
+        """);
+
+        var village = new Info("did:1", "Legacy", 0, 0, IsCapital: true);
+        var store = CreateStore();
+
+        Assert.True(store.GetEnabled(village));
+
+        store.SetEnabled(village, enabled: false);
+        var reloaded = CreateStore();
+        Assert.False(reloaded.GetEnabled(village));
     }
 
     [Fact]
@@ -214,7 +237,7 @@ public sealed class VillageSettingsStoreTests : IDisposable
 
         // Villages are keyed by coordinates, so look them up by their canonical "xy:" key.
         Assert.True(store.IsEnabledByKey("xy:0|0", defaultIfUnknown: false));   // stored: capital on
-        Assert.False(store.IsEnabledByKey("xy:5|-3", defaultIfUnknown: true));  // stored: non-capital off
+        Assert.True(store.IsEnabledByKey("xy:5|-3", defaultIfUnknown: false));  // stored: new village on
         Assert.True(store.IsEnabledByKey("xy:9|9", defaultIfUnknown: true));    // unknown → default
         Assert.True(store.IsEnabledByKey(null, defaultIfUnknown: true));        // no key → default
 

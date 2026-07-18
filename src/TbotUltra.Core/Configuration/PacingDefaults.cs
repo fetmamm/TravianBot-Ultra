@@ -4,10 +4,10 @@ public static class PacingDefaults
 {
     public const bool SessionPacingEnabled = true;
     // Run and sleep durations are random picks in [min, max] minutes.
-    public const int SessionPacingRunMinMinutes = 40;
-    public const int SessionPacingRunMaxMinutes = 100;
-    public const int SessionPacingSleepMinMinutes = 20;
-    public const int SessionPacingSleepMaxMinutes = 60;
+    public const int SessionPacingRunMinMinutes = 15;
+    public const int SessionPacingRunMaxMinutes = 50;
+    public const int SessionPacingSleepMinMinutes = 10;
+    public const int SessionPacingSleepMaxMinutes = 40;
     public const int SessionPacingDailyMaxHours = 16;
     // Daily-max has its own variation, independent of the run/sleep/schedule "Variation" above.
     public const int SessionPacingDailyMaxVariationPercent = 10;
@@ -20,9 +20,9 @@ public static class PacingDefaults
     public const double ActionPacingTaskMinSeconds = 0.8;
     public const double ActionPacingTaskMaxSeconds = 2.0;
     public const double ActionPacingPageLoadMinSeconds = 0.6;
-    public const double ActionPacingPageLoadMaxSeconds = 1.6;
-    public const double ActionPacingClickMinSeconds = 0.4;
-    public const double ActionPacingClickMaxSeconds = 1.4;
+    public const double ActionPacingPageLoadMaxSeconds = 1.8;
+    public const double ActionPacingClickMinSeconds = 0.5;
+    public const double ActionPacingClickMaxSeconds = 1.5;
     public const double ActionPacingLoopMinSeconds = 4.0;
     public const double ActionPacingLoopMaxSeconds = 25.0;
     public const double FarmListStepDelayMinSeconds = 1.5;
@@ -32,16 +32,16 @@ public static class PacingDefaults
     // the interval range a random pause of the duration range fires, then the interval reschedules.
     // Enabled by default. Values are minutes (duration min is fractional, so doubles).
     public const bool ActionPacingIdleBreakEnabled = true;
-    public const double ActionPacingIdleBreakIntervalMinMinutes = 20.0;
-    public const double ActionPacingIdleBreakIntervalMaxMinutes = 75.0;
+    public const double ActionPacingIdleBreakIntervalMinMinutes = 10.0;
+    public const double ActionPacingIdleBreakIntervalMaxMinutes = 60.0;
     public const double ActionPacingIdleBreakDurationMinMinutes = 0.5;
     public const double ActionPacingIdleBreakDurationMaxMinutes = 3.0;
 
     // Occasional "idle browse": between loop passes, at a random interval, open a non-functional page
     // (map/statistics/reports/messages) and read nothing, so the server-visible page mix looks like a
-    // real player poking around instead of only visiting build pages. Enabled by default; interval in
+    // real player poking around instead of only visiting build pages. Disabled by default; interval in
     // minutes. Each page can be toggled independently (all on by default); no enabled page => no browse.
-    public const bool ActionPacingIdleBrowseEnabled = true;
+    public const bool ActionPacingIdleBrowseEnabled = false;
     public const double ActionPacingIdleBrowseIntervalMinMinutes = 15.0;
     public const double ActionPacingIdleBrowseIntervalMaxMinutes = 60.0;
     public const bool ActionPacingIdleBrowsePageMap = true;

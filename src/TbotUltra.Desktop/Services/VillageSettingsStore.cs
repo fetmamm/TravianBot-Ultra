@@ -13,12 +13,14 @@ namespace TbotUltra.Desktop.Services;
 /// <c>config/accounts/&lt;account&gt;/villages.json</c>.
 ///
 /// Villages are keyed by their stable village key (the same <c>newdid</c>-based key the UI uses), so
-/// a renamed village keeps its enabled choice instead of reappearing as a new village. The only village
-/// on a new account defaults to enabled; villages discovered after that default to disabled. Construction
+/// a renamed village keeps its enabled choice instead of reappearing as a new village. New villages default
+/// to enabled, while a user's explicit disabled choice is preserved. Construction
 /// is the only automation group enabled by default. Explicit choices survive refreshes and restarts.
 /// </summary>
 public sealed partial class VillageSettingsStore
 {
+    private const int CurrentFileVersion = 1;
+    public const bool DefaultAutomationEnabled = true;
     public const string DefaultEnabledGroupKey = "construction";
 
     public static IReadOnlyList<string> DefaultEnabledGroups { get; } = new[] { DefaultEnabledGroupKey };
@@ -68,6 +70,7 @@ public sealed partial class VillageSettingsStore
 
     private sealed class VillageSettingsFile
     {
+        public int Version { get; set; }
         public List<VillageSettingRecord> Villages { get; set; } = new();
 
         // Last-read hero home village name (account-global). Remembered across restarts so the dashboard
@@ -154,7 +157,8 @@ public sealed partial class VillageSettingsStore
             // village could previously be stored under more than one newdid (e.g. did:106838 and did:25471
             // for "SLAV") with divergent settings. Collapsing them by coordinate keeps a single source of
             // truth so the dashboard and the village settings window always agree.
-            var migratedAnything = false;
+            var enableVillagesForNewDefault = file.Version < CurrentFileVersion;
+            var migratedAnything = enableVillagesForNewDefault;
             foreach (var record in file.Villages)
             {
                 if (record is null || string.IsNullOrWhiteSpace(record.Key))
@@ -194,6 +198,11 @@ public sealed partial class VillageSettingsStore
                 {
                     record.HeroResourcesEnabled = true;
                     migratedAnything = true;
+                }
+
+                if (enableVillagesForNewDefault)
+                {
+                    record.IsEnabled = DefaultAutomationEnabled;
                 }
 
                 if (_cache.TryGetValue(canonicalKey, out var existing))
@@ -376,6 +385,7 @@ public sealed partial class VillageSettingsStore
 
         var file = new VillageSettingsFile
         {
+            Version = CurrentFileVersion,
             Villages = _cache.Values
                 .OrderByDescending(v => v.IsCapital)
                 .ThenBy(v => v.Name, StringComparer.OrdinalIgnoreCase)

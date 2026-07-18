@@ -13,16 +13,16 @@ namespace TbotUltra.Desktop.Services;
 /// <c>config/accounts/&lt;account&gt;/villages.json</c>.
 ///
 /// Villages are keyed by their stable village key (the same <c>newdid</c>-based key the UI uses), so
-/// a renamed village keeps its enabled choice instead of reappearing as a new village. The only village
-/// on a new account defaults to enabled; villages discovered after that default to disabled. Construction
+/// a renamed village keeps its enabled choice instead of reappearing as a new village. New villages default
+/// to enabled, while a user's explicit disabled choice is preserved. Construction
 /// is the only automation group enabled by default. Explicit choices survive refreshes and restarts.
 /// </summary>
 public sealed partial class VillageSettingsStore
 {
     /// <summary>
-    /// Merges a freshly read set of villages into the store: the first and only village is enabled,
-    /// later new villages are disabled, and known villages keep their enabled choice while their cached
-    /// identity (name/coords/capital) is refreshed. Only persists when something actually changed.
+    /// Merges a freshly read set of villages into the store: new villages are enabled, and known villages
+    /// keep their enabled choice while their cached identity (name/coords/capital) is refreshed. Only
+    /// persists when something actually changed.
     /// Never removes villages absent from <paramref name="villages"/> (a page read can be partial).
     /// </summary>
     public void Merge(IReadOnlyList<VillageKeyInfo> villages)
@@ -44,8 +44,6 @@ public sealed partial class VillageSettingsStore
                 .GroupBy(CanonicalKey, StringComparer.OrdinalIgnoreCase)
                 .Select(group => group.First())
                 .ToList();
-            var enableOnlyVillageByDefault = _cache.Count == 0 && validVillages.Count == 1;
-
             foreach (var village in validVillages)
             {
                 var key = CanonicalKey(village);
@@ -76,7 +74,7 @@ public sealed partial class VillageSettingsStore
                         CoordX = village.CoordX,
                         CoordY = village.CoordY,
                         IsCapital = village.IsCapital,
-                        IsEnabled = enableOnlyVillageByDefault,
+                        IsEnabled = DefaultAutomationEnabled,
                         EnabledGroups = CreateDefaultEnabledGroups(),
                         NpcTrade = false,
                         ConstructFasterEnabled = false,
@@ -92,7 +90,7 @@ public sealed partial class VillageSettingsStore
             {
                 Save();
                 _log?.Invoke(
-                    $"Village settings merged: {added} new (only-village Auto default={enableOnlyVillageByDefault}, Construction only), {updated} updated.");
+                    $"Village settings merged: {added} new (Auto default={DefaultAutomationEnabled}, Construction only), {updated} updated.");
             }
         }
     }

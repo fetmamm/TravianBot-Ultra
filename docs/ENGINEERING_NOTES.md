@@ -107,6 +107,8 @@ Common endpoints:
 - Retry known transient sharing/lock failures with bounded delays.
 - Corrupt queue/state files must be quarantined and logged, not silently overwritten.
 - New settings require the full pipeline: model, defaults, load/save, ViewModel, UI, tests.
+- New villages default to Auto enabled. The version-1 migration enables all existing villages once;
+  manual Auto-off choices made afterward must persist.
 - Persist stable village identity using coordinates/key, not display name alone.
 - Queue items must retain their target village identity.
 - Deferring a queue item is status-gated: `MarkDeferred` only works on RUNNING items (worker defer path);
@@ -128,6 +130,8 @@ Common endpoints:
 ### Timing and cancellation
 
 - Current min/max interval keys are authoritative; obsolete interval keys stay ignored.
+- Default pacing: session run 15-50m, sleep 10-40m; click 0.5-1.5s; page load 0.6-1.8s;
+  idle-break interval 10-60m; idle browse disabled.
 - Normalize invalid ranges so minimum never exceeds maximum.
 - Pass the active cancellation token through every cancellable operation.
 - Do not replace an available token with `CancellationToken.None`.
@@ -225,6 +229,13 @@ Common endpoints:
 - Track construction state per village and per slot/category.
 - A full queue is a normal blocked state, not an exception.
 - Check storage, prerequisites, available slot, and resources before clicking Build/Upgrade.
+- When an exact construction cost exceeds live storage capacity, insert the Warehouse/Granary dependency
+  at the highest queue priority and target the first level that supplies enough total village capacity;
+  keep the blocked parent deferred until that dependency is complete.
+- Verified Official storage block (SCHILD, 2026-07-18): `#contract .upgradeBlocked > .errorMessage`
+  renders `Extend warehouse first.` / the Granary equivalent. The visible upgrade button remains in the
+  DOM with CSS class `disabled` rather than a native `disabled` attribute; costs remain under
+  `#contract .resourceWrapper .inlineIcon.resource` (`r1Big`-`r4Big`).
 - Existing buildings and level-zero construction sites are distinct cases.
 - Building-type selectors must be exact enough to avoid upgrading the wrong slot.
 - Building-template choices are evaluated at their row position: available is green/selectable, missing prerequisites is yellow and opens

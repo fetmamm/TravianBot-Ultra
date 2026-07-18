@@ -40,6 +40,37 @@ public sealed class StorageCapacityDependencyPlannerTests
     }
 
     [Fact]
+    public void Plan_UpgradesStorageDirectlyToFirstLevelWithEnoughCapacity()
+    {
+        var status = CreateStatus(
+            [new Building(20, "Warehouse", 4, null, 10)]);
+
+        var plan = StorageCapacityDependencyPlanner.Plan(
+            StorageCapacityKind.Warehouse,
+            status,
+            [],
+            DateTimeOffset.UtcNow,
+            requiredCapacity: 6_000,
+            currentVillageCapacity: 3_100);
+
+        Assert.Equal(StorageDependencyAction.Upgrade, plan.Action);
+        Assert.Equal(20, plan.SlotId);
+        Assert.Equal(7, plan.TargetLevel);
+        Assert.Contains("level 4 to 7", plan.Reason);
+    }
+
+    [Fact]
+    public void ResolveUpgradeTargetLevel_UsesAddedCapacityWithMultipleWarehouses()
+    {
+        var targetLevel = StorageCapacityDependencyPlanner.ResolveUpgradeTargetLevel(
+            currentLevel: 5,
+            currentVillageCapacity: 84_000,
+            requiredCapacity: 90_000);
+
+        Assert.Equal(10, targetLevel);
+    }
+
+    [Fact]
     public void Plan_MaxedStorageConstructsNewInFirstEmptySlot()
     {
         var buildings = Enumerable.Range(19, 20)

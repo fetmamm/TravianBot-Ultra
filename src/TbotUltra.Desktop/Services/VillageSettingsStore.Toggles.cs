@@ -13,15 +13,15 @@ namespace TbotUltra.Desktop.Services;
 /// <c>config/accounts/&lt;account&gt;/villages.json</c>.
 ///
 /// Villages are keyed by their stable village key (the same <c>newdid</c>-based key the UI uses), so
-/// a renamed village keeps its enabled choice instead of reappearing as a new village. The only village
-/// on a new account defaults to enabled; villages discovered after that default to disabled. Construction
+/// a renamed village keeps its enabled choice instead of reappearing as a new village. New villages default
+/// to enabled, while a user's explicit disabled choice is preserved. Construction
 /// is the only automation group enabled by default. Explicit choices survive refreshes and restarts.
 /// </summary>
 public sealed partial class VillageSettingsStore
 {
     /// <summary>
-    /// Returns whether a village is enabled for automation. Unknown villages default to disabled;
-    /// Merge decides whether the first and only village should be enabled. Does not persist (read-only).
+    /// Returns whether a village is enabled for automation. Unknown villages use the new-village default.
+    /// Does not persist (read-only).
     /// </summary>
     public bool GetEnabled(VillageKeyInfo village)
     {
@@ -33,7 +33,9 @@ public sealed partial class VillageSettingsStore
         lock (FileIoLock)
         {
             EnsureCacheLoaded();
-            return _cache.TryGetValue(CanonicalKey(village), out var existing) && existing.IsEnabled;
+            return _cache.TryGetValue(CanonicalKey(village), out var existing)
+                ? existing.IsEnabled
+                : DefaultAutomationEnabled;
         }
     }
 
@@ -227,7 +229,7 @@ public sealed partial class VillageSettingsStore
                     CoordX = village.CoordX,
                     CoordY = village.CoordY,
                     IsCapital = village.IsCapital,
-                    IsEnabled = false,
+                    IsEnabled = DefaultAutomationEnabled,
                     EnabledGroups = CreateDefaultEnabledGroups(),
                     NpcTrade = enabled,
                     ConstructFasterEnabled = false,
@@ -311,7 +313,7 @@ public sealed partial class VillageSettingsStore
                     CoordX = village.CoordX,
                     CoordY = village.CoordY,
                     IsCapital = village.IsCapital,
-                    IsEnabled = false,
+                    IsEnabled = DefaultAutomationEnabled,
                     EnabledGroups = CreateDefaultEnabledGroups(),
                     NpcTrade = false,
                     ConstructFasterEnabled = enabled,
@@ -364,7 +366,7 @@ public sealed partial class VillageSettingsStore
                     CoordX = village.CoordX,
                     CoordY = village.CoordY,
                     IsCapital = village.IsCapital,
-                    IsEnabled = false,
+                    IsEnabled = DefaultAutomationEnabled,
                     EnabledGroups = list,
                     NpcTrade = false,
                     ConstructFasterEnabled = false,

@@ -72,8 +72,9 @@ Aktivt beslut, 2026-06-20. Detaljerna bakom de korta reglerna i
   resource-wait. Worker returnerar `wait_reason=storage_capacity` och desktop later
   `StorageCapacityDependencyPlanner` kopa Warehouse/Granary-dependency fore originaltasken.
 - Om exakt byggkostnad overskrider live Warehouse-/Granary-kapacitet klassas vantan som
-  `storage_capacity`. Originaltasken defer:as medan en markerad dependency med hogre prioritet
-  uppgraderar relevant lager en niva. Saknas lagret eller ar alla exemplar maxade konstrueras ett nytt
+  `storage_capacity`. Originaltasken defer:as medan en markerad dependency med hogsta koprioritet
+  uppgraderar relevant lager direkt till forsta nivan som ger tillracklig total kapacitet. Saknas lagret
+  eller ar alla exemplar maxade konstrueras ett nytt
   i forsta lediga vanliga byggslot (19-38). Ingen ledig slot pausar originaltasken och skriver `ALARM:`.
   Parent aterupptas forst nar dependency-nivan ar bekraftad fardig; aktiva Travian-byggen styr vantetiden.
 

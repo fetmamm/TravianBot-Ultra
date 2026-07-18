@@ -91,7 +91,9 @@ public partial class MainWindow
             block.Kind,
             status,
             queuedConstructSlots,
-            DateTimeOffset.UtcNow);
+            DateTimeOffset.UtcNow,
+            block.RequiredCapacity,
+            block.CurrentCapacity);
 
         PersistStorageCapacityWait(item, updatedPayload);
         if (plan.Action == StorageDependencyAction.Wait)
@@ -121,7 +123,8 @@ public partial class MainWindow
         var taskName = plan.Action == StorageDependencyAction.Upgrade
             ? "upgrade_building_to_level"
             : "construct_building";
-        var priority = item.Priority < int.MaxValue ? item.Priority + 1 : item.Priority;
+        var maxPriority = queueItems.Select(candidate => candidate.Priority).DefaultIfEmpty(item.Priority).Max();
+        var priority = maxPriority < int.MaxValue ? maxPriority + 1 : int.MaxValue;
         var dependencyItem = _botService.Enqueue(
             taskName,
             dependencyPayload,
