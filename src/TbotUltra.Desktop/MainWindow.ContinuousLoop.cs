@@ -419,7 +419,10 @@ public partial class MainWindow
         }
 
         var farmingBlockedForOtherReason = IsFarmingGroupBlocked()
-            && !string.Equals(_farmingBlockedReasonKey, FarmingBlockedReasonNoGoldClub, StringComparison.OrdinalIgnoreCase);
+            && !string.Equals(_farmingBlockedReasonKey, FarmingBlockedReasonNoGoldClub, StringComparison.OrdinalIgnoreCase)
+            // Missing lists is recoverable: enabling Farming must re-enter the bootstrap path, analyze
+            // the account's lists, restore their saved selections, and then enqueue send_farmlists.
+            && !string.Equals(_farmingBlockedReasonKey, FarmingBlockedReasonNoFarmLists, StringComparison.OrdinalIgnoreCase);
         if (consideredGroups.Contains(QueueGroup.Farming) && !farmingBlockedForOtherReason)
         {
             var goldClubEnabled = await ResolveContinuousGoldClubStatusAsync(options, cancellationToken);

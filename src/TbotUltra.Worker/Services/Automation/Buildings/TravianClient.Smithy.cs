@@ -293,7 +293,12 @@ public sealed partial class TravianClient
                 // could not be filled after the stall reloads above (e.g. the only pending troop is the one
                 // already researching, so the free Plus slot isn't usable until it finishes). With a fillable
                 // free slot we fall through to the resource ETA / moderate re-check instead of the long timer.
-                if (anyResearchInProgress && (!hasFreeSlot || consecutiveFreeSlotStallReads >= 3))
+                var queueIsBlocking = anyResearchInProgress
+                    && (!hasFreeSlot || consecutiveFreeSlotStallReads >= 3);
+                var activeQueueIsBestResourceFallback = anyResearchInProgress
+                    && anyWaitingForResources
+                    && minResourceWaitSeconds is null;
+                if (queueIsBlocking || activeQueueIsBestResourceFallback)
                 {
                     var timers = await RetryAsync(
                         "Smithy: read queue timers",
@@ -304,7 +309,10 @@ public sealed partial class TravianClient
                     var soonestTimer = timers.Where(t => t > 0).DefaultIfEmpty(0).Min();
                     if (soonestTimer > 0)
                     {
-                        var restartDelaySeconds = _config.SmithyUpgradeRestartDelayEnabled
+                        // Add the human restart delay only when the active research actually blocks all
+                        // slots. With a free Plus slot and an unreadable resource ETA, preserve the live
+                        // queue timer as the stable fallback instead of replacing ~50m with a blind 5m poll.
+                        var restartDelaySeconds = queueIsBlocking && _config.SmithyUpgradeRestartDelayEnabled
                             ? ResolveRestartDelaySeconds(
                                 _config.SmithyUpgradeRestartDelayMinMinutes,
                                 _config.SmithyUpgradeRestartDelayMaxMinutes)
@@ -313,6 +321,10 @@ public sealed partial class TravianClient
                         if (restartDelaySeconds > 0)
                         {
                             Notify($"Smithy: next queue slot frees in {soonestTimer}s; adding {restartDelaySeconds}s restart delay.");
+                        }
+                        else if (activeQueueIsBestResourceFallback)
+                        {
+                            Notify($"Smithy: resource ETA unavailable; preserving active queue timer ({soonestTimer}s) instead of the 5m fallback.");
                         }
                     }
                 }
