@@ -33,6 +33,7 @@ ms-playwright/
 # --- Build output / logs / temp / IDE ---
 **/bin/
 **/obj/
+*_wpftmp.csproj
 **/TestResults/
 TestResults/
 *.trx

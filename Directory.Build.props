@@ -6,5 +6,8 @@
 
     <!-- Never let generated output become an input to a later build. -->
     <DefaultItemExcludes>$(DefaultItemExcludes);**\temp_build_out\**</DefaultItemExcludes>
+
+    <!-- The parity baseline is 0 warnings; keep it enforced. -->
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
   </PropertyGroup>
 </Project>
