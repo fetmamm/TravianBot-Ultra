@@ -67,6 +67,7 @@ public sealed class BotConfigStoreTests : IDisposable
             BotOptionPayloadKeys.ConstructFasterMinBuildMinutes,
             BotOptionPayloadKeys.ConstructFasterRandomEnabled,
             BotOptionPayloadKeys.ConstructFasterRandomChancePercent,
+            BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead,
             BotOptionPayloadKeys.HeroAdventureVideoChancePercent,
         };
 

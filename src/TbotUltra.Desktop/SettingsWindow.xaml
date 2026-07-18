@@ -4,10 +4,10 @@
         xmlns:local="clr-namespace:TbotUltra.Desktop"
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Settings"
-        Height="680"
-        Width="640"
+        Height="720"
+        Width="780"
         MinHeight="520"
-        MinWidth="520"
+        MinWidth="680"
         WindowStartupLocation="CenterOwner"
         Closing="SettingsWindow_Closing">
     <Window.Resources>
@@ -15,14 +15,115 @@
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Themes/Badges.xaml" />
             </ResourceDictionary.MergedDictionaries>
-            <!-- Recessed sub-card used to visually group each Bot behavior setting with its inputs. -->
+            <!-- Lightweight section divider: settings are grouped by spacing and hierarchy, not nested cards. -->
             <Style x:Key="SettingsGroupBox" TargetType="Border">
-                <Setter Property="Background" Value="{DynamicResource SurfaceMutedBrush}" />
+                <Setter Property="Background" Value="Transparent" />
                 <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
-                <Setter Property="BorderThickness" Value="1" />
-                <Setter Property="CornerRadius" Value="6" />
-                <Setter Property="Padding" Value="10" />
-                <Setter Property="Margin" Value="0,0,0,8" />
+                <Setter Property="BorderThickness" Value="0,0,0,1" />
+                <Setter Property="CornerRadius" Value="0" />
+                <Setter Property="Padding" Value="0,0,0,16" />
+                <Setter Property="Margin" Value="0,0,0,16" />
+            </Style>
+            <Style x:Key="SettingsCategoryCardStyle" TargetType="Border">
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="BorderThickness" Value="0" />
+                <Setter Property="CornerRadius" Value="0" />
+                <Setter Property="Padding" Value="0" />
+                <Setter Property="Margin" Value="0" />
+                <Setter Property="Visibility" Value="Collapsed" />
+            </Style>
+            <Style x:Key="GeneralSettingsCategoryStyle" TargetType="Border" BasedOn="{StaticResource SettingsCategoryCardStyle}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding SelectedIndex, ElementName=SettingsCategoryTabControl}" Value="0">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="PacingSettingsCategoryStyle" TargetType="Border" BasedOn="{StaticResource SettingsCategoryCardStyle}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding SelectedIndex, ElementName=SettingsCategoryTabControl}" Value="1">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="ConstructionSettingsCategoryStyle" TargetType="Border" BasedOn="{StaticResource SettingsCategoryCardStyle}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding SelectedIndex, ElementName=SettingsCategoryTabControl}" Value="2">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="HeroSettingsCategoryStyle" TargetType="Border" BasedOn="{StaticResource SettingsCategoryCardStyle}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding SelectedIndex, ElementName=SettingsCategoryTabControl}" Value="3">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="FarmingSettingsCategoryStyle" TargetType="Border" BasedOn="{StaticResource SettingsCategoryCardStyle}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding SelectedIndex, ElementName=SettingsCategoryTabControl}" Value="4">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="TroopsSettingsCategoryStyle" TargetType="Border" BasedOn="{StaticResource SettingsCategoryCardStyle}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding SelectedIndex, ElementName=SettingsCategoryTabControl}" Value="5">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="NpcTradeSettingsCategoryStyle" TargetType="Border" BasedOn="{StaticResource SettingsCategoryCardStyle}">
+                <Style.Triggers>
+                    <DataTrigger Binding="{Binding SelectedIndex, ElementName=SettingsCategoryTabControl}" Value="6">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="SettingsCategoryTabStyle" TargetType="TabItem">
+                <!-- Match the compact, square tab treatment used by Village settings. -->
+                <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
+                <Setter Property="Background" Value="Transparent" />
+                <Setter Property="Padding" Value="12,6" />
+                <Setter Property="FontSize" Value="12" />
+                <Setter Property="FontWeight" Value="SemiBold" />
+                <Setter Property="Template">
+                    <Setter.Value>
+                        <ControlTemplate TargetType="TabItem">
+                            <Border x:Name="TabSurface"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="Transparent"
+                                    BorderThickness="0,0,0,2"
+                                    Margin="0,0,2,0"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter ContentSource="Header"
+                                                  Margin="{TemplateBinding Padding}"
+                                                  HorizontalAlignment="Center"
+                                                  VerticalAlignment="Center"
+                                                  TextElement.Foreground="{TemplateBinding Foreground}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <Trigger Property="IsSelected" Value="True">
+                                    <Setter TargetName="TabSurface" Property="Background" Value="{DynamicResource SurfaceBrush}" />
+                                    <Setter TargetName="TabSurface" Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                </Trigger>
+                                <MultiTrigger>
+                                    <MultiTrigger.Conditions>
+                                        <Condition Property="IsSelected" Value="False" />
+                                        <Condition Property="IsMouseOver" Value="True" />
+                                    </MultiTrigger.Conditions>
+                                    <Setter TargetName="TabSurface" Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                                    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                </MultiTrigger>
+                                <Trigger Property="IsEnabled" Value="False">
+                                    <Setter TargetName="TabSurface" Property="Opacity" Value="0.5" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Setter.Value>
+                </Setter>
             </Style>
         </ResourceDictionary>
     </Window.Resources>
@@ -32,15 +133,63 @@
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
-        <Border Grid.Row="0" Background="{DynamicResource SurfaceMutedBrush}" BorderBrush="{DynamicResource ToggleTrackBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12">
-            <ScrollViewer VerticalScrollBarVisibility="Auto">
-                <StackPanel>
-                    <TextBlock Text="Bot Settings" FontSize="20" FontWeight="SemiBold" Foreground="{DynamicResource InkBrush}" Margin="0,0,0,4" />
-                    <TextBlock Text="Configure execution, automation, and spending behavior."
-                               Foreground="{DynamicResource MutedSlateBrush}"
-                               Margin="0,0,0,14" />
+        <Border Grid.Row="0" Background="Transparent" BorderThickness="0" Padding="4">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
 
-                    <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="4,0,4,12" VerticalAlignment="Center">
+                    <TextBlock Text="Bot Settings"
+                               FontSize="20"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource InkBrush}"
+                               VerticalAlignment="Center" />
+                    <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                    Margin="7,1,0,0"
+                                    ToolTip="Configure execution, automation, and spending behavior." />
+                </StackPanel>
+
+                <Border Grid.Row="1"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1,1,1,0"
+                        CornerRadius="8,8,0,0">
+                    <TabControl x:Name="SettingsCategoryTabControl"
+                                Height="44"
+                                SelectedIndex="0"
+                                Background="Transparent"
+                                BorderThickness="0"
+                                SelectionChanged="SettingsCategoryTabControl_SelectionChanged"
+                                ItemContainerStyle="{StaticResource SettingsCategoryTabStyle}">
+                        <TabItem Header="General" />
+                        <TabItem Header="Pacing" />
+                        <TabItem Header="Construction" />
+                        <TabItem Header="Hero" />
+                        <TabItem Header="Farming" />
+                        <TabItem Header="Troops" />
+                        <TabItem Header="NPC / Trade" />
+                    </TabControl>
+                </Border>
+
+                <Border Grid.Row="2"
+                        Padding="20,18"
+                        Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1,0,1,1"
+                        CornerRadius="0,0,8,8">
+                    <ScrollViewer x:Name="SettingsContentScrollViewer"
+                                  VerticalScrollBarVisibility="Auto"
+                                  HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Margin="0,0,10,0">
+
+                    <Border Style="{StaticResource GeneralSettingsCategoryStyle}"
+                            BorderBrush="{DynamicResource BorderSubtleBrush}"
+                            BorderThickness="0,0,0,1"
+                            Padding="0,0,0,22"
+                            Margin="0,0,0,22">
                         <StackPanel>
                             <TextBlock Text="General"
                                        FontSize="15"
@@ -93,7 +242,7 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                    <Border Style="{StaticResource PacingSettingsCategoryStyle}">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                                 <TextBlock Text="Bot behavior"
@@ -343,7 +492,90 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                    <Border Style="{StaticResource ConstructionSettingsCategoryStyle}">
+                        <StackPanel>
+                            <TextBlock Text="Construction"
+                                       FontSize="15"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Margin="0,0,0,10" />
+
+                            <Border Style="{StaticResource SettingsGroupBox}">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="Auto storage upgrade"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               VerticalAlignment="Center" />
+                                    <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                    ToolTip="If a construction needs more warehouse/granary to upgrade, program will upgrade automatically. This setting changes how many levels ahead the program will upgrade storage facilities." />
+                                    <ComboBox x:Name="StorageUpgradeLevelsAheadComboBox"
+                                              Width="72"
+                                              Margin="12,0,0,0"
+                                              VerticalAlignment="Center" />
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingsGroupBox}"
+                                    BorderThickness="0"
+                                    Padding="0"
+                                    Margin="0">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,10" VerticalAlignment="Center">
+                                        <CheckBox x:Name="ConstructionHumanizeCheckBox"
+                                                  Style="{DynamicResource ToggleSwitchBlueStyle}"
+                                                  VerticalAlignment="Center" />
+                                        <TextBlock Text="Construction start delay"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                   VerticalAlignment="Center"
+                                                   Margin="8,0,0,0" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                        ToolTip="Wait a bit before starting the next construction instead of reacting the instant a slot frees. Shortly before a session-pacing sleep, delayed starts are pulled forward automatically so every build slot that can be filled is occupied when the sleep begins. Off means builds start immediately." />
+                                    </StackPanel>
+
+                                    <Grid HorizontalAlignment="Left">
+                                        <Grid.ColumnDefinitions>
+                                            <ColumnDefinition Width="170" />
+                                            <ColumnDefinition Width="64" />
+                                            <ColumnDefinition Width="64" />
+                                        </Grid.ColumnDefinitions>
+                                        <Grid.RowDefinitions>
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                            <RowDefinition Height="Auto" />
+                                        </Grid.RowDefinitions>
+                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="Min" FontWeight="SemiBold" FontSize="11"
+                                                   Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" />
+                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Max" FontWeight="SemiBold" FontSize="11"
+                                                   Foreground="{DynamicResource TextSubtleBrush}" HorizontalAlignment="Center" />
+
+                                        <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2">
+                                            <TextBlock Text="Queue delay (%)" VerticalAlignment="Center" />
+                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                            ToolTip="When a build is already running and Plus allows another build to be queued, wait a random percentage of the running build's remaining time. Max delay is still respected." />
+                                        </StackPanel>
+                                        <TextBox x:Name="ConstructionHumanizeQueuePercentMinTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2,6,2" />
+                                        <TextBox x:Name="ConstructionHumanizeQueuePercentMaxTextBox" Grid.Row="1" Grid.Column="2" Height="24" Margin="0,2" />
+
+                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Max delay (min)" VerticalAlignment="Center" Margin="0,2"
+                                                   ToolTip="Absolute cap on the queue-delay percentage." />
+                                        <TextBox x:Name="ConstructionHumanizeMaxDelayTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2,6,2" />
+
+                                        <StackPanel Grid.Row="3" Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,2">
+                                            <TextBlock Text="No-Plus delay (min)" VerticalAlignment="Center" />
+                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                            ToolTip="When only one build slot is available, wait a random number of minutes in this range after a build finishes before starting the next." />
+                                        </StackPanel>
+                                        <TextBox x:Name="ConstructionHumanizeNoPlusMinTextBox" Grid.Row="3" Grid.Column="1" Height="24" Margin="0,2,6,2" />
+                                        <TextBox x:Name="ConstructionHumanizeNoPlusMaxTextBox" Grid.Row="3" Grid.Column="2" Height="24" Margin="0,2" />
+                                    </Grid>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
+                    <Border Style="{StaticResource GeneralSettingsCategoryStyle}">
                         <StackPanel>
                             <TextBlock Text="Automation"
                                        FontSize="15"
@@ -407,9 +639,90 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource SlateBorderBrush}" BorderThickness="1" CornerRadius="8" Padding="12" Margin="0,0,0,10">
+                    <Border Style="{StaticResource HeroSettingsCategoryStyle}">
+                        <Grid MinHeight="300">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Border Width="44" Height="44" CornerRadius="22"
+                                        HorizontalAlignment="Center"
+                                        Background="{DynamicResource InfoBgBrush}"
+                                        BorderBrush="{DynamicResource InfoBrush}"
+                                        BorderThickness="1">
+                                    <TextBlock Text="H"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource InfoTextBrush}" />
+                                </Border>
+                                <TextBlock Text="Hero settings"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,12,0,4"
+                                           FontSize="16"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Text="No settings in this category yet."
+                                           HorizontalAlignment="Center"
+                                           Foreground="{DynamicResource TextMutedBrush}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Border Style="{StaticResource FarmingSettingsCategoryStyle}">
+                        <Grid MinHeight="300">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Border Width="44" Height="44" CornerRadius="22"
+                                        HorizontalAlignment="Center"
+                                        Background="{DynamicResource SuccessBgBrush}"
+                                        BorderBrush="{DynamicResource SuccessBorderBrush}"
+                                        BorderThickness="1">
+                                    <TextBlock Text="F"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource SuccessTextBrush}" />
+                                </Border>
+                                <TextBlock Text="Farming settings"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,12,0,4"
+                                           FontSize="16"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Text="No settings in this category yet."
+                                           HorizontalAlignment="Center"
+                                           Foreground="{DynamicResource TextMutedBrush}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Border Style="{StaticResource TroopsSettingsCategoryStyle}">
+                        <Grid MinHeight="300">
+                            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center">
+                                <Border Width="44" Height="44" CornerRadius="22"
+                                        HorizontalAlignment="Center"
+                                        Background="{DynamicResource PurpleBgBrush}"
+                                        BorderBrush="{DynamicResource PurpleBorderBrush}"
+                                        BorderThickness="1">
+                                    <TextBlock Text="T"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center"
+                                               FontSize="16"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource PurpleTextBrush}" />
+                                </Border>
+                                <TextBlock Text="Troop settings"
+                                           HorizontalAlignment="Center"
+                                           Margin="0,12,0,4"
+                                           FontSize="16"
+                                           FontWeight="SemiBold" />
+                                <TextBlock Text="No settings in this category yet."
+                                           HorizontalAlignment="Center"
+                                           Foreground="{DynamicResource TextMutedBrush}" />
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Border Style="{StaticResource NpcTradeSettingsCategoryStyle}">
                         <StackPanel>
-                            <TextBlock Text="Spending"
+                            <TextBlock Text="Silver spending"
                                        FontSize="15"
                                        FontWeight="SemiBold"
                                        Foreground="{DynamicResource TextPrimaryBrush}"
@@ -430,31 +743,50 @@
                                     ValueChanged="SilverLimitSlider_ValueChanged" />
                         </StackPanel>
                     </Border>
-                </StackPanel>
-            </ScrollViewer>
+                        </StackPanel>
+                    </ScrollViewer>
+                </Border>
+            </Grid>
         </Border>
 
         <Grid Grid.Row="1" Margin="0,12,0,0">
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Left">
                 <Button x:Name="ResetSettingsButton"
-                        Width="140"
+                        MinWidth="106"
                         Height="32"
+                        Padding="14,0"
                         Content="Reset settings"
-                        Background="{DynamicResource PrimaryButtonBrush}"
-                        Foreground="{DynamicResource OnAccentBrush}"
-                        BorderBrush="{DynamicResource PrimaryButtonBrush}"
+                        FontWeight="SemiBold"
+                        Background="{DynamicResource WarningBgBrush}"
+                        Foreground="{DynamicResource WarningTextBrush}"
+                        BorderBrush="{DynamicResource WarningBorderBrush}"
                         Click="ResetSettingsButton_Click" />
                 <Button x:Name="SleepNowButton"
-                        Width="110"
+                        MinWidth="88"
                         Height="32"
+                        Padding="14,0"
                         Margin="8,0,0,0"
                         Content="Sleep now"
+                        FontWeight="SemiBold"
+                        Background="{DynamicResource InfoBgBrush}"
+                        Foreground="{DynamicResource InfoTextBrush}"
+                        BorderBrush="{DynamicResource InfoBrush}"
                         ToolTip="Stop automation, log out, and sleep now for the configured sleep time."
                         Click="SleepNowButton_Click" />
             </StackPanel>
 
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                <Button x:Name="SaveButton" Width="100" Margin="0,0,8,0" Content="Save" Click="SaveButton_Click" />
+                <Button x:Name="SaveButton"
+                        MinWidth="88"
+                        Height="32"
+                        Padding="16,0"
+                        Margin="0,0,8,0"
+                        Content="Save"
+                        FontWeight="SemiBold"
+                        Background="{DynamicResource SuccessBgBrush}"
+                        Foreground="{DynamicResource SuccessTextBrush}"
+                        BorderBrush="{DynamicResource SuccessBorderBrush}"
+                        Click="SaveButton_Click" />
                 <Button x:Name="CancelButtonControl" Width="100" Content="Cancel" Click="CancelButton_Click" />
             </StackPanel>
         </Grid>

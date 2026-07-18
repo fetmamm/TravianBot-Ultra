@@ -58,6 +58,31 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
+    public void FromConfiguration_StorageUpgradeLevelsAheadDefaultsAndClamps()
+    {
+        var defaults = new ConfigurationBuilder().AddInMemoryCollection().Build();
+        var configured = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead] = "99",
+            })
+            .Build();
+
+        Assert.Equal(1, BotOptionsFactory.FromConfiguration(defaults).ConstructionStorageUpgradeLevelsAhead);
+        Assert.Equal(10, BotOptionsFactory.FromConfiguration(configured).ConstructionStorageUpgradeLevelsAhead);
+    }
+
+    [Fact]
+    public void Apply_PreservesStorageUpgradeLevelsAhead()
+    {
+        var source = new BotOptions { ConstructionStorageUpgradeLevelsAhead = 4 };
+
+        var result = BotOptionsPayloadApplier.Apply(source, new Dictionary<string, string>());
+
+        Assert.Equal(4, result.ConstructionStorageUpgradeLevelsAhead);
+    }
+
+    [Fact]
     public void Apply_PreservesGlobalDetailedBrowserLoggingSetting()
     {
         var source = new BotOptions { DetailedBrowserLoggingEnabled = true };

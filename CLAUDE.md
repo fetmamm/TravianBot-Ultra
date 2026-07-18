@@ -1,7 +1,6 @@
 ## Läs först
 - Läs och följ `docs/ENGINEERING_NOTES.md` innan du ändrar selektorer, sökvägar eller serverlogik.
-- Den innehåller projektets konventioner, regler för de två servervarianterna (Official/SS-Travi), beslutslogg och kända fallgropar — följ dem och uppdatera filen löpande med relevanta delar.
-- `docs/ARCHITECTURE.md` är fil- och funktionskartan: var varje feature bor + namn-/strukturkonventioner. Använd för att hitta rätt fil snabbt och håll den uppdaterad när strukturen ändras.
+- Den innehåller projektets konventioner, regler, beslutslogg och kända fallgropar — följ dem och uppdatera filen vid nya, varaktiga regler – inte varje buggfix.
 
 ## Kodregler
 - Försök att inte ändra kod som inte behöver ändras.
@@ -44,7 +43,7 @@
 ## Kommunikation
 - Om det finns flera rimliga lösningar, välj en och motivera kort (1 mening).
 - Om viktig information saknas, ställ en kort fråga istället för att gissa.
-- Gör inga antaganden om krav som inte uttryckligen angivits.
+- Gör rimliga, lokala antaganden och redovisa dem kort; fråga när resultatet påverkas väsentligt
 - Utöka inte uppgiften med egna förbättringar om det inte efterfrågas.
 
 ## Svarformat

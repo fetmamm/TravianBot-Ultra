@@ -58,9 +58,10 @@ public partial class AppDialog : Window
         MessageBoxResult defaultResult,
         MessageBoxResult? cancelResult = null,
         IReadOnlyList<(string Label, MessageBoxResult Result)>? customButtons = null,
+        MessageBoxResult? successResult = null,
         MessageBoxResult? accentResult = null,
         MessageBoxResult? warningResult = null)
-        : this(owner, string.Empty, title, buttons, icon, defaultResult, cancelResult, customButtons, successResult: null, accentResult, warningResult)
+        : this(owner, string.Empty, title, buttons, icon, defaultResult, cancelResult, customButtons, successResult, accentResult, warningResult)
     {
         MessageContentControl.Content = content;
     }
@@ -167,7 +168,9 @@ public partial class AppDialog : Window
         MessageBoxResult defaultResult,
         MessageBoxResult cancelResult,
         MessageBoxResult? accentResult = null,
-        MessageBoxResult? warningResult = null)
+        MessageBoxResult? warningResult = null,
+        MessageBoxResult? successResult = null,
+        double? width = null)
     {
         var dialog = new AppDialog(
             owner,
@@ -178,8 +181,13 @@ public partial class AppDialog : Window
             defaultResult,
             cancelResult,
             buttons,
+            successResult,
             accentResult,
             warningResult);
+        if (width is > 0)
+        {
+            dialog.Width = Math.Clamp(width.Value, dialog.MinWidth, dialog.MaxWidth);
+        }
         _ = dialog.ShowDialog();
         return dialog._result;
     }

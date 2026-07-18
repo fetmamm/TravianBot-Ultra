@@ -93,7 +93,8 @@ public partial class MainWindow
             queuedConstructSlots,
             DateTimeOffset.UtcNow,
             block.RequiredCapacity,
-            block.CurrentCapacity);
+            block.CurrentCapacity,
+            LoadBotOptions().ConstructionStorageUpgradeLevelsAhead);
 
         PersistStorageCapacityWait(item, updatedPayload);
         if (plan.Action == StorageDependencyAction.Wait)

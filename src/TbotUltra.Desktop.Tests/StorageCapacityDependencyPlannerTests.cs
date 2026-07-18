@@ -40,6 +40,25 @@ public sealed class StorageCapacityDependencyPlannerTests
     }
 
     [Fact]
+    public void Plan_StorageLevelsAheadUpgradesAtLeastConfiguredLevels()
+    {
+        var status = CreateStatus(
+            [new Building(20, "Warehouse", 5, null, 10)]);
+
+        var plan = StorageCapacityDependencyPlanner.Plan(
+            StorageCapacityKind.Warehouse,
+            status,
+            [],
+            DateTimeOffset.UtcNow,
+            requiredCapacity: 6_000,
+            currentVillageCapacity: 5_000,
+            storageUpgradeLevelsAhead: 2);
+
+        Assert.Equal(StorageDependencyAction.Upgrade, plan.Action);
+        Assert.Equal(7, plan.TargetLevel);
+    }
+
+    [Fact]
     public void Plan_UpgradesStorageDirectlyToFirstLevelWithEnoughCapacity()
     {
         var status = CreateStatus(

@@ -1,3 +1,4 @@
+using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
@@ -76,7 +77,8 @@ public static class StorageCapacityDependencyPlanner
         IReadOnlyCollection<int> queuedConstructSlots,
         DateTimeOffset nowUtc,
         long? requiredCapacity = null,
-        long? currentVillageCapacity = null)
+        long? currentVillageCapacity = null,
+        int storageUpgradeLevelsAhead = ConstructionDefaults.StorageUpgradeLevelsAhead)
     {
         var name = kind == StorageCapacityKind.Warehouse ? "Warehouse" : "Granary";
         var gid = kind == StorageCapacityKind.Warehouse ? 10 : 11;
@@ -109,11 +111,16 @@ public static class StorageCapacityDependencyPlanner
             .FirstOrDefault();
         if (upgradeCandidate?.SlotId is int upgradeSlot && upgradeCandidate.Level is int currentLevel)
         {
-            var targetLevel = ResolveUpgradeTargetLevel(
+            var minimumTargetLevel = ResolveUpgradeTargetLevel(
                 currentLevel,
                 currentVillageCapacity,
                 requiredCapacity,
                 BuildingCatalogService.MaxLevelFor(gid));
+            var targetLevel = Math.Min(
+                BuildingCatalogService.MaxLevelFor(gid),
+                Math.Max(
+                    minimumTargetLevel,
+                    currentLevel + ConstructionDefaults.NormalizeStorageUpgradeLevelsAhead(storageUpgradeLevelsAhead)));
             return new StorageDependencyPlan(
                 StorageDependencyAction.Upgrade,
                 kind,

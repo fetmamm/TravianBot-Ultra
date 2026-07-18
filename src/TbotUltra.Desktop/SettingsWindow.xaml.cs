@@ -34,6 +34,7 @@ public partial class SettingsWindow : Window
         _detectedDailyResetHour = detectedDailyResetHour;
         _validateBeforeSave = validateBeforeSave;
         InitializeSessionPacingChoices();
+        InitializeConstructionChoices();
         PopulateDailyServerResetHours();
         LoadConfig();
         SleepNowButton.IsEnabled = !_sessionSleeping;
@@ -58,6 +59,10 @@ public partial class SettingsWindow : Window
         AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
         LoadDailyServerResetToUi();
         LoadPacingConfigToUi();
+        StorageUpgradeLevelsAheadComboBox.SelectedItem = ConstructionDefaults.NormalizeStorageUpgradeLevelsAhead(
+            _config[BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead]?.GetValue<int>()
+            ?? ConstructionDefaults.StorageUpgradeLevelsAhead);
+        LoadConstructionHumanizeConfigToUi();
         PostLoginAnalyzeFarmlistsCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists]?.GetValue<bool>() ?? false;
         PostLoginAnalyzeHeroCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeHero]?.GetValue<bool>() ?? false;
         PostLoginReadTroopTrainingQueueCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue]?.GetValue<bool>() ?? false;
@@ -78,6 +83,80 @@ public partial class SettingsWindow : Window
                 Content = $"{hour:00}:00",
                 Tag = hour,
             });
+        }
+    }
+
+    private void InitializeConstructionChoices()
+    {
+        StorageUpgradeLevelsAheadComboBox.ItemsSource = Enumerable.Range(
+            ConstructionDefaults.StorageUpgradeLevelsAheadMin,
+            ConstructionDefaults.StorageUpgradeLevelsAheadMax - ConstructionDefaults.StorageUpgradeLevelsAheadMin + 1);
+    }
+
+    private void LoadConstructionHumanizeConfigToUi()
+    {
+        ConstructionHumanizeCheckBox.IsChecked = ReadBool(
+            BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled,
+            PacingDefaults.ConstructionHumanizeDelayEnabled);
+        ConstructionHumanizeQueuePercentMinTextBox.Text = FormatDelay(ReadDouble(
+            BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMin,
+            PacingDefaults.ConstructionHumanizeQueuePercentMin));
+        ConstructionHumanizeQueuePercentMaxTextBox.Text = FormatDelay(ReadDouble(
+            BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMax,
+            PacingDefaults.ConstructionHumanizeQueuePercentMax));
+        ConstructionHumanizeMaxDelayTextBox.Text = FormatDelay(ReadDouble(
+            BotOptionPayloadKeys.ConstructionHumanizeMaxDelayMinutes,
+            PacingDefaults.ConstructionHumanizeMaxDelayMinutes));
+        ConstructionHumanizeNoPlusMinTextBox.Text = FormatDelay(ReadDouble(
+            BotOptionPayloadKeys.ConstructionHumanizeNoPlusMinMinutes,
+            PacingDefaults.ConstructionHumanizeNoPlusMinMinutes));
+        ConstructionHumanizeNoPlusMaxTextBox.Text = FormatDelay(ReadDouble(
+            BotOptionPayloadKeys.ConstructionHumanizeNoPlusMaxMinutes,
+            PacingDefaults.ConstructionHumanizeNoPlusMaxMinutes));
+    }
+
+    private void SaveConstructionHumanizeConfigFromUi()
+    {
+        var wasEnabled = ReadBool(
+            BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled,
+            PacingDefaults.ConstructionHumanizeDelayEnabled);
+        var enabled = ConstructionHumanizeCheckBox.IsChecked == true;
+        var percentMin = Math.Clamp(ReadDoubleText(
+            ConstructionHumanizeQueuePercentMinTextBox,
+            PacingDefaults.ConstructionHumanizeQueuePercentMin), 0, 100);
+        var percentMax = Math.Clamp(Math.Max(percentMin, ReadDoubleText(
+            ConstructionHumanizeQueuePercentMaxTextBox,
+            PacingDefaults.ConstructionHumanizeQueuePercentMax)), 0, 100);
+        var maxDelay = Math.Clamp(ReadDoubleText(
+            ConstructionHumanizeMaxDelayTextBox,
+            PacingDefaults.ConstructionHumanizeMaxDelayMinutes), 0, 600);
+        var noPlusMin = Math.Clamp(ReadDoubleText(
+            ConstructionHumanizeNoPlusMinTextBox,
+            PacingDefaults.ConstructionHumanizeNoPlusMinMinutes), 0, 600);
+        var noPlusMax = Math.Clamp(Math.Max(noPlusMin, ReadDoubleText(
+            ConstructionHumanizeNoPlusMaxTextBox,
+            PacingDefaults.ConstructionHumanizeNoPlusMaxMinutes)), 0, 600);
+
+        _config[BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled] = enabled;
+        _config[BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMin] = percentMin;
+        _config[BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMax] = percentMax;
+        _config[BotOptionPayloadKeys.ConstructionHumanizeMaxDelayMinutes] = maxDelay;
+        _config[BotOptionPayloadKeys.ConstructionHumanizeNoPlusMinMinutes] = noPlusMin;
+        _config[BotOptionPayloadKeys.ConstructionHumanizeNoPlusMaxMinutes] = noPlusMax;
+        if (wasEnabled != enabled)
+        {
+            var stateVersion = ReadInt(BotOptionPayloadKeys.ConstructionHumanizeStateVersion, 0);
+            _config[BotOptionPayloadKeys.ConstructionHumanizeStateVersion] = stateVersion == int.MaxValue
+                ? 1
+                : stateVersion + 1;
+        }
+    }
+
+    private void SettingsCategoryTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (e.OriginalSource == sender && SettingsContentScrollViewer is not null)
+        {
+            SettingsContentScrollViewer.ScrollToTop();
         }
     }
 
@@ -153,6 +232,12 @@ public partial class SettingsWindow : Window
             _config["allow_silver_spending"] = AllowSilverSpendingCheckBox.IsChecked == true;
             SaveDailyServerResetFromUi();
             SavePacingConfigFromUi();
+            _config[BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead] =
+                ConstructionDefaults.NormalizeStorageUpgradeLevelsAhead(
+                    StorageUpgradeLevelsAheadComboBox.SelectedItem is int selectedLevels
+                        ? selectedLevels
+                        : ConstructionDefaults.StorageUpgradeLevelsAhead);
+            SaveConstructionHumanizeConfigFromUi();
             // Queue-wait handling is always "smart" (defer); drop the removed threshold key.
             _config.Remove("queue_wait_threshold_mode");
             _config[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists] = PostLoginAnalyzeFarmlistsCheckBox.IsChecked == true;

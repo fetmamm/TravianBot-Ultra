@@ -270,6 +270,7 @@ public static class BotOptionPayloadKeys
     public const string ActionPacingIdleBrowsePageMessages = "action_pacing_idle_browse_page_messages";
 
     public const string ConstructionHumanizeDelayEnabled = "construction_humanize_delay_enabled";
+    public const string ConstructionStorageUpgradeLevelsAhead = "construction_storage_upgrade_levels_ahead";
     public const string ConstructionHumanizeStateVersion = "construction_humanize_state_version";
     public const string ConstructionHumanizeQueuePercentMin = "construction_humanize_queue_percent_min";
     public const string ConstructionHumanizeQueuePercentMax = "construction_humanize_queue_percent_max";

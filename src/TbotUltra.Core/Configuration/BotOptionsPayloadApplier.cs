@@ -285,6 +285,7 @@ public static class BotOptionsPayloadApplier
             ActionPacingIdleBrowsePageReports = source.ActionPacingIdleBrowsePageReports,
             ActionPacingIdleBrowsePageMessages = source.ActionPacingIdleBrowsePageMessages,
             ConstructionHumanizeDelayEnabled = source.ConstructionHumanizeDelayEnabled,
+            ConstructionStorageUpgradeLevelsAhead = source.ConstructionStorageUpgradeLevelsAhead,
             ConstructionHumanizeStateVersion = source.ConstructionHumanizeStateVersion,
             ConstructionHumanizeQueuePercentMin = source.ConstructionHumanizeQueuePercentMin,
             ConstructionHumanizeQueuePercentMax = source.ConstructionHumanizeQueuePercentMax,

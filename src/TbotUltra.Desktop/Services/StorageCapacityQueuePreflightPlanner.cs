@@ -14,6 +14,8 @@ public sealed record StoragePreflightUpgrade(
     long ProjectedCapacity)
 {
     public bool RequiresConstruction => CurrentLevel == 0;
+
+    public string? RequiredBy { get; init; }
 }
 
 public sealed record StorageCapacityQueuePreflightResult(
@@ -49,8 +51,10 @@ public static class StorageCapacityQueuePreflightPlanner
     public static ConstructionStoragePreflightResult PlanConstructionRequestsStepwise(
         VillageStatus status,
         IReadOnlyList<QueueItem> precedingQueueItems,
-        IReadOnlyList<QueueItemCreateRequest> requestedItems)
+        IReadOnlyList<QueueItemCreateRequest> requestedItems,
+        int storageUpgradeLevelsAhead = ConstructionDefaults.StorageUpgradeLevelsAhead)
     {
+        storageUpgradeLevelsAhead = ConstructionDefaults.NormalizeStorageUpgradeLevelsAhead(storageUpgradeLevelsAhead);
         var projection = CreateStorageProjection(status, precedingQueueItems);
         var projectedWarehouse = projection.WarehouseCapacity;
         var projectedGranary = projection.GranaryCapacity;
@@ -76,8 +80,10 @@ public static class StorageCapacityQueuePreflightPlanner
                 && construct is not null)
             {
                 projection.OccupiedBuildingSlots.Add(construct.SlotId);
+                var constructedName = construct.Name ?? BuildingCatalogService.NameForGid(construct.Gid);
                 var failure = EnsureCapacityForCost(
                     BuildingCatalogService.CostFor(construct.Gid, 1),
+                    $"constructing {constructedName}",
                     construct.Gid is 10 or 11 ? construct.SlotId : null,
                     payload,
                     request,
@@ -86,7 +92,8 @@ public static class StorageCapacityQueuePreflightPlanner
                     ref projectedWarehouse,
                     ref projectedGranary,
                     planned,
-                    allStorageUpgrades);
+                    allStorageUpgrades,
+                    storageUpgradeLevelsAhead);
                 if (failure is not null)
                 {
                     return new ConstructionStoragePreflightResult(planned, allStorageUpgrades, failure);
@@ -131,12 +138,16 @@ public static class StorageCapacityQueuePreflightPlanner
                     ?? BuildingCatalogService.MaxLevelFor(gid);
                 targetLevel = Math.Max(currentLevel, targetLevel);
                 var stageStart = currentLevel;
+                var buildingName = !string.IsNullOrWhiteSpace(buildingUpgrade.Name)
+                    ? buildingUpgrade.Name
+                    : building.Name ?? BuildingCatalogService.NameForGid(gid);
                 for (var level = currentLevel + 1; level <= targetLevel; level++)
                 {
                     var plannedCountBefore = planned.Count;
                     var storageCountBefore = allStorageUpgrades.Count;
                     var failure = EnsureCapacityForCost(
                         BuildingCatalogService.CostFor(gid, level),
+                        $"{buildingName} level {level}",
                         gid is 10 or 11 ? buildingUpgrade.SlotId : null,
                         payload,
                         request,
@@ -145,7 +156,8 @@ public static class StorageCapacityQueuePreflightPlanner
                         ref projectedWarehouse,
                         ref projectedGranary,
                         planned,
-                        allStorageUpgrades);
+                        allStorageUpgrades,
+                        storageUpgradeLevelsAhead);
                     if (failure is not null)
                     {
                         return new ConstructionStoragePreflightResult(planned, allStorageUpgrades, failure);
@@ -198,12 +210,16 @@ public static class StorageCapacityQueuePreflightPlanner
 
                 var currentLevel = field.Level ?? 0;
                 var stageStart = currentLevel;
+                var resourceName = !string.IsNullOrWhiteSpace(resourceUpgrade.Name)
+                    ? resourceUpgrade.Name
+                    : field.Name ?? BuildingCatalogService.NameForGid(gid);
                 for (var level = currentLevel + 1; level <= resourceUpgrade.TargetLevel; level++)
                 {
                     var plannedCountBefore = planned.Count;
                     var storageCountBefore = allStorageUpgrades.Count;
                     var failure = EnsureCapacityForCost(
                         BuildingCatalogService.CostFor(gid, level),
+                        $"{resourceName} level {level}",
                         null,
                         payload,
                         request,
@@ -212,7 +228,8 @@ public static class StorageCapacityQueuePreflightPlanner
                         ref projectedWarehouse,
                         ref projectedGranary,
                         planned,
-                        allStorageUpgrades);
+                        allStorageUpgrades,
+                        storageUpgradeLevelsAhead);
                     if (failure is not null)
                     {
                         return new ConstructionStoragePreflightResult(planned, allStorageUpgrades, failure);
@@ -256,6 +273,7 @@ public static class StorageCapacityQueuePreflightPlanner
 
     private static string? EnsureCapacityForCost(
         BuildingLevelStats? cost,
+        string requiredBy,
         int? excludedStorageSlot,
         IReadOnlyDictionary<string, string> sourcePayload,
         QueueItemCreateRequest sourceRequest,
@@ -264,7 +282,8 @@ public static class StorageCapacityQueuePreflightPlanner
         ref long projectedWarehouse,
         ref long projectedGranary,
         ICollection<QueueItemCreateRequest> planned,
-        ICollection<StoragePreflightUpgrade> allStorageUpgrades)
+        ICollection<StoragePreflightUpgrade> allStorageUpgrades,
+        int storageUpgradeLevelsAhead)
     {
         if (cost is null)
         {
@@ -280,7 +299,8 @@ public static class StorageCapacityQueuePreflightPlanner
             projection.StorageBySlot,
             projection.OccupiedBuildingSlots,
             upgrades,
-            excludedStorageSlot);
+            excludedStorageSlot,
+            storageUpgradeLevelsAhead);
         failure ??= AddRequiredUpgrade(
             StorageCapacityKind.Granary,
             cost.Crop,
@@ -288,7 +308,8 @@ public static class StorageCapacityQueuePreflightPlanner
             projection.StorageBySlot,
             projection.OccupiedBuildingSlots,
             upgrades,
-            excludedStorageSlot);
+            excludedStorageSlot,
+            storageUpgradeLevelsAhead);
         if (failure is not null)
         {
             return failure;
@@ -302,12 +323,13 @@ public static class StorageCapacityQueuePreflightPlanner
         var batchId = Guid.NewGuid().ToString();
         foreach (var upgrade in upgrades)
         {
-            allStorageUpgrades.Add(upgrade);
-            var name = upgrade.Kind.ToString();
-            var gid = upgrade.Kind == StorageCapacityKind.Warehouse ? 10 : 11;
-            if (upgrade.RequiresConstruction)
+            var contextualUpgrade = upgrade with { RequiredBy = requiredBy };
+            allStorageUpgrades.Add(contextualUpgrade);
+            var name = contextualUpgrade.Kind.ToString();
+            var gid = contextualUpgrade.Kind == StorageCapacityKind.Warehouse ? 10 : 11;
+            if (contextualUpgrade.RequiresConstruction)
             {
-                var constructPayload = new BuildingConstructPayload(upgrade.SlotId, gid, name).ToDictionary();
+                var constructPayload = new BuildingConstructPayload(contextualUpgrade.SlotId, gid, name).ToDictionary();
                 CopyStorageRequestContext(sourcePayload, constructPayload, batchId);
                 planned.Add(new QueueItemCreateRequest(
                     "construct_building",
@@ -316,9 +338,9 @@ public static class StorageCapacityQueuePreflightPlanner
                     sourceRequest.MaxRetries));
             }
 
-            if (!upgrade.RequiresConstruction || upgrade.TargetLevel > 1)
+            if (!contextualUpgrade.RequiresConstruction || contextualUpgrade.TargetLevel > 1)
             {
-                var upgradePayload = new BuildingUpgradePayload(upgrade.SlotId, upgrade.TargetLevel, name).ToDictionary();
+                var upgradePayload = new BuildingUpgradePayload(contextualUpgrade.SlotId, contextualUpgrade.TargetLevel, name).ToDictionary();
                 CopyStorageRequestContext(sourcePayload, upgradePayload, batchId);
                 planned.Add(new QueueItemCreateRequest(
                     "upgrade_building_to_level",
@@ -327,10 +349,10 @@ public static class StorageCapacityQueuePreflightPlanner
                     sourceRequest.MaxRetries));
             }
 
-            buildingsBySlot[upgrade.SlotId] = new Building(
-                upgrade.SlotId,
+            buildingsBySlot[contextualUpgrade.SlotId] = new Building(
+                contextualUpgrade.SlotId,
                 name,
-                upgrade.TargetLevel,
+                contextualUpgrade.TargetLevel,
                 null,
                 gid);
         }
@@ -504,8 +526,10 @@ public static class StorageCapacityQueuePreflightPlanner
     public static StorageCapacityQueuePreflightResult PlanUpgradeAllResources(
         VillageStatus status,
         IReadOnlyList<QueueItem> precedingQueueItems,
-        int targetLevel)
+        int targetLevel,
+        int storageUpgradeLevelsAhead = ConstructionDefaults.StorageUpgradeLevelsAhead)
     {
+        storageUpgradeLevelsAhead = ConstructionDefaults.NormalizeStorageUpgradeLevelsAhead(storageUpgradeLevelsAhead);
         var requiredWarehouse = 0L;
         var requiredGranary = 0L;
         foreach (var field in status.ResourceFields.Where(field => (field.Level ?? 0) < targetLevel))
@@ -542,14 +566,16 @@ public static class StorageCapacityQueuePreflightPlanner
             ref projectedWarehouse,
             storageBySlot,
             projection.OccupiedBuildingSlots,
-            upgrades);
+            upgrades,
+            storageUpgradeLevelsAhead: storageUpgradeLevelsAhead);
         failure ??= AddRequiredUpgrade(
             StorageCapacityKind.Granary,
             requiredGranary,
             ref projectedGranary,
             storageBySlot,
             projection.OccupiedBuildingSlots,
-            upgrades);
+            upgrades,
+            storageUpgradeLevelsAhead: storageUpgradeLevelsAhead);
 
         return new StorageCapacityQueuePreflightResult(
             upgrades,
@@ -563,8 +589,10 @@ public static class StorageCapacityQueuePreflightPlanner
     public static StorageCapacityQueueStepwiseResult PlanUpgradeAllResourcesStepwise(
         VillageStatus status,
         IReadOnlyList<QueueItem> precedingQueueItems,
-        int targetLevel)
+        int targetLevel,
+        int storageUpgradeLevelsAhead = ConstructionDefaults.StorageUpgradeLevelsAhead)
     {
+        storageUpgradeLevelsAhead = ConstructionDefaults.NormalizeStorageUpgradeLevelsAhead(storageUpgradeLevelsAhead);
         var projectedFieldLevels = status.ResourceFields
             .Where(field => field.SlotId is >= 1 and <= 18)
             .ToDictionary(field => field.SlotId!.Value, field => field.Level ?? 0);
@@ -643,14 +671,16 @@ public static class StorageCapacityQueuePreflightPlanner
                 ref projectedWarehouse,
                 projection.StorageBySlot,
                 projection.OccupiedBuildingSlots,
-                pendingUpgrades);
+                pendingUpgrades,
+                storageUpgradeLevelsAhead: storageUpgradeLevelsAhead);
             failure ??= AddRequiredUpgrade(
                 StorageCapacityKind.Granary,
                 requiredGranary,
                 ref projectedGranary,
                 projection.StorageBySlot,
                 projection.OccupiedBuildingSlots,
-                pendingUpgrades);
+                pendingUpgrades,
+                storageUpgradeLevelsAhead: storageUpgradeLevelsAhead);
             if (failure is not null)
             {
                 return new StorageCapacityQueueStepwiseResult(stages, failure);
@@ -752,7 +782,8 @@ public static class StorageCapacityQueuePreflightPlanner
         IDictionary<int, Building> storageBySlot,
         ISet<int> occupiedBuildingSlots,
         ICollection<StoragePreflightUpgrade> upgrades,
-        int? excludedSlotId = null)
+        int? excludedSlotId = null,
+        int storageUpgradeLevelsAhead = ConstructionDefaults.StorageUpgradeLevelsAhead)
     {
         if (requiredCapacity <= projectedCapacity)
         {
@@ -783,11 +814,16 @@ public static class StorageCapacityQueuePreflightPlanner
             occupiedBuildingSlots.Add(slotId);
         }
 
-        var targetLevel = StorageCapacityDependencyPlanner.ResolveUpgradeTargetLevel(
+        var minimumTargetLevel = StorageCapacityDependencyPlanner.ResolveUpgradeTargetLevel(
             currentLevel,
             projectedCapacity,
             requiredCapacity,
             BuildingCatalogService.MaxLevelFor(gid));
+        var targetLevel = Math.Min(
+            BuildingCatalogService.MaxLevelFor(gid),
+            Math.Max(
+                minimumTargetLevel,
+                currentLevel + ConstructionDefaults.NormalizeStorageUpgradeLevelsAhead(storageUpgradeLevelsAhead)));
         var addedCapacity = StorageCapacityDependencyPlanner.CapacityAtLevel(targetLevel)
             - StorageCapacityDependencyPlanner.CapacityAtLevel(currentLevel);
         upgrades.Add(new StoragePreflightUpgrade(

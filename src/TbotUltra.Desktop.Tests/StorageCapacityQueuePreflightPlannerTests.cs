@@ -177,6 +177,25 @@ public sealed class StorageCapacityQueuePreflightPlannerTests
     }
 
     [Fact]
+    public void PlanUpgradeAllResourcesStepwise_StorageLevelsAheadAddsExtraCapacityLevels()
+    {
+        var status = CreateStatus(
+            [new ResourceField(4, "Iron Mine", "Iron Mine", 5, null)],
+            warehouseCapacity: 1_200,
+            granaryCapacity: 1_200);
+
+        var result = StorageCapacityQueuePreflightPlanner.PlanUpgradeAllResourcesStepwise(
+            status,
+            [],
+            targetLevel: 6,
+            storageUpgradeLevelsAhead: 2);
+
+        var warehouse = Assert.Single(result.Upgrades);
+        Assert.Equal(StorageCapacityKind.Warehouse, warehouse.Kind);
+        Assert.Equal(3, warehouse.TargetLevel);
+    }
+
+    [Fact]
     public void PlanUpgradeAllResourcesStepwise_MissingBothStorageBuildingsUsesDifferentFreeSlots()
     {
         var fields = Enumerable.Range(1, 18)
@@ -200,6 +219,36 @@ public sealed class StorageCapacityQueuePreflightPlannerTests
         Assert.Contains(constructions, upgrade => upgrade.Kind == StorageCapacityKind.Warehouse);
         Assert.Contains(constructions, upgrade => upgrade.Kind == StorageCapacityKind.Granary);
         Assert.Equal(constructions.Count, constructions.Select(upgrade => upgrade.SlotId).Distinct().Count());
+    }
+
+    [Fact]
+    public void PlanUpgradeAllResourcesStepwise_BaseGranaryIsEnoughForLevelSixButNotLevelSeven()
+    {
+        var fields = Enumerable.Range(1, 18)
+            .Select(slot => new ResourceField(
+                slot,
+                slot % 4 == 0 ? "Cropland" : slot % 3 == 0 ? "Iron Mine" : slot % 2 == 0 ? "Clay Pit" : "Woodcutter",
+                "Resource field",
+                1,
+                null))
+            .ToList();
+        var status = CreateStatusWithoutStorage(
+            fields,
+            warehouseCapacity: 800,
+            granaryCapacity: 800,
+            buildings: [new Building(21, "Main Building", 1, null, 15)]);
+
+        var result = StorageCapacityQueuePreflightPlanner.PlanUpgradeAllResourcesStepwise(status, [], 7);
+
+        Assert.Null(result.CannotPlanReason);
+        var levelSix = Assert.Single(result.Stages, stage => stage.ResourceTargetLevel == 6);
+        Assert.DoesNotContain(levelSix.StorageUpgradesBefore, upgrade =>
+            upgrade.Kind == StorageCapacityKind.Granary);
+        var levelSeven = Assert.Single(result.Stages, stage => stage.ResourceTargetLevel == 7);
+        var granary = Assert.Single(levelSeven.StorageUpgradesBefore, upgrade =>
+            upgrade.Kind == StorageCapacityKind.Granary);
+        Assert.True(granary.RequiresConstruction);
+        Assert.Equal(1_300, granary.RequiredCapacity);
     }
 
     [Fact]
@@ -233,6 +282,41 @@ public sealed class StorageCapacityQueuePreflightPlannerTests
         var orderedRequests = result.Requests.ToList();
         Assert.True(orderedRequests.FindIndex(request => request.Payload?.GetValueOrDefault(BotOptionPayloadKeys.AutoAddedBy) == BotOptionPayloadKeys.AutoAddedByStorageCapacityPreflight)
             < orderedRequests.IndexOf(finalUpgrade));
+    }
+
+    [Fact]
+    public void PlanConstructionRequestsStepwise_RallyPointStorageExplainsEachBlockedLevel()
+    {
+        var status = CreateStatusWithoutStorage(
+            [],
+            warehouseCapacity: 1_700,
+            granaryCapacity: 1_200,
+            buildings:
+            [
+                new Building(19, "Warehouse", 2, null, 10),
+                new Building(24, "Granary", 1, null, 11),
+                new Building(39, "Rally Point", 10, null, 16),
+            ]);
+        var payload = new BuildingUpgradePayload(39, 20, "Rally Point").ToDictionary();
+
+        var result = StorageCapacityQueuePreflightPlanner.PlanConstructionRequestsStepwise(
+            status,
+            [],
+            [new QueueItemCreateRequest("upgrade_building_to_level", payload, 0, 3)]);
+
+        Assert.Null(result.CannotPlanReason);
+        Assert.Contains(result.Upgrades, upgrade =>
+            upgrade.Kind == StorageCapacityKind.Warehouse
+            && upgrade.TargetLevel == 3
+            && upgrade.RequiredBy == "Rally Point level 11");
+        Assert.Contains(result.Upgrades, upgrade =>
+            upgrade.Kind == StorageCapacityKind.Warehouse
+            && upgrade.TargetLevel == 4
+            && upgrade.RequiredBy == "Rally Point level 12");
+        Assert.Contains(result.Upgrades, upgrade =>
+            upgrade.Kind == StorageCapacityKind.Granary
+            && upgrade.TargetLevel == 2
+            && upgrade.RequiredBy == "Rally Point level 13");
     }
 
     [Fact]

@@ -167,6 +167,8 @@ public static class BotOptionsFactory
             ActionPacingIdleBrowsePageReports = configuration.GetValue(BotOptionPayloadKeys.ActionPacingIdleBrowsePageReports, PacingDefaults.ActionPacingIdleBrowsePageReports),
             ActionPacingIdleBrowsePageMessages = configuration.GetValue(BotOptionPayloadKeys.ActionPacingIdleBrowsePageMessages, PacingDefaults.ActionPacingIdleBrowsePageMessages),
             ConstructionHumanizeDelayEnabled = configuration.GetValue(BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled, PacingDefaults.ConstructionHumanizeDelayEnabled),
+            ConstructionStorageUpgradeLevelsAhead = ConstructionDefaults.NormalizeStorageUpgradeLevelsAhead(
+                configuration.GetValue(BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead, ConstructionDefaults.StorageUpgradeLevelsAhead)),
             ConstructionHumanizeStateVersion = configuration.GetValue(BotOptionPayloadKeys.ConstructionHumanizeStateVersion, 0),
             ConstructionHumanizeQueuePercentMin = configuration.GetValue(BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMin, PacingDefaults.ConstructionHumanizeQueuePercentMin),
             ConstructionHumanizeQueuePercentMax = configuration.GetValue(BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMax, PacingDefaults.ConstructionHumanizeQueuePercentMax),
@@ -362,6 +364,7 @@ public static class BotOptionsFactory
             ActionPacingIdleBrowsePageReports = source.ActionPacingIdleBrowsePageReports,
             ActionPacingIdleBrowsePageMessages = source.ActionPacingIdleBrowsePageMessages,
             ConstructionHumanizeDelayEnabled = source.ConstructionHumanizeDelayEnabled,
+            ConstructionStorageUpgradeLevelsAhead = source.ConstructionStorageUpgradeLevelsAhead,
             ConstructionHumanizeStateVersion = source.ConstructionHumanizeStateVersion,
             ConstructionHumanizeQueuePercentMin = source.ConstructionHumanizeQueuePercentMin,
             ConstructionHumanizeQueuePercentMax = source.ConstructionHumanizeQueuePercentMax,

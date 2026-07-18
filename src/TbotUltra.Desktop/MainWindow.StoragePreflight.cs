@@ -2,7 +2,9 @@ using System.Windows;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Desktop.Views;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
 
@@ -43,10 +45,12 @@ public partial class MainWindow
         var precedingItems = _botService.GetQueueItemsForDisplay()
             .Where(item => IsQueueItemForVillage(item, villageName, villageKey))
             .ToList();
+        var storageUpgradeLevelsAhead = LoadBotOptions().ConstructionStorageUpgradeLevelsAhead;
         var result = StorageCapacityQueuePreflightPlanner.PlanConstructionRequestsStepwise(
             status,
             precedingItems,
-            normalizedRequests);
+            normalizedRequests,
+            storageUpgradeLevelsAhead);
         if (!string.IsNullOrWhiteSpace(result.CannotPlanReason))
         {
             AppDialog.Show(
@@ -61,23 +65,30 @@ public partial class MainWindow
         upgrades = result.Upgrades;
         if (upgrades.Count > 0)
         {
-            var lines = upgrades.Select(upgrade => upgrade.RequiresConstruction
-                ? $"  • Build {upgrade.Kind} in free slot {upgrade.SlotId}" +
-                  (upgrade.TargetLevel > 1 ? $", then upgrade to level {upgrade.TargetLevel}" : string.Empty) +
-                  $" (capacity {upgrade.ProjectedCapacity:N0}, required {upgrade.RequiredCapacity:N0})"
-                : $"  • {upgrade.Kind} level {upgrade.CurrentLevel} → {upgrade.TargetLevel} " +
-                  $"(capacity {upgrade.ProjectedCapacity:N0}, required {upgrade.RequiredCapacity:N0})");
-            var choice = AppDialog.ShowCustom(
+            var stages = upgrades
+                .GroupBy(
+                    upgrade => upgrade.RequiredBy ?? "the next blocked construction",
+                    StringComparer.OrdinalIgnoreCase)
+                .Select((group, index) => CreateStoragePreflightStage(
+                    $"STEP {index + 1}",
+                    $"Before {group.Key}",
+                    group.ToList()))
+                .ToList();
+            var content = new StoragePreflightPlanView(
+                "The queue reaches one or more storage-capacity limits. Each card identifies the exact " +
+                "building or resource level that requires the actions shown beneath it." +
+                FormatStorageBufferSetting(storageUpgradeLevelsAhead),
+                stages);
+            var choice = AppDialog.ShowCustomContent(
                 this,
-                "One or more queued construction levels exceed the projected Warehouse or Granary capacity. " +
-                "The required storage construction/upgrades will be inserted immediately before the first blocked level.\n\n" +
-                string.Join("\n", lines),
+                content,
                 "Storage upgrades required",
                 [("Add required storage upgrades", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.Cancel)],
                 MessageBoxImage.Warning,
                 MessageBoxResult.Yes,
                 MessageBoxResult.Cancel,
-                successResult: MessageBoxResult.Yes);
+                successResult: MessageBoxResult.Yes,
+                width: 600);
             if (choice != MessageBoxResult.Yes)
             {
                 return false;
@@ -123,10 +134,12 @@ public partial class MainWindow
         var precedingItems = _botService.GetQueueItemsForDisplay()
             .Where(item => IsQueueItemForVillage(item, villageName, villageKey))
             .ToList();
+        var storageUpgradeLevelsAhead = LoadBotOptions().ConstructionStorageUpgradeLevelsAhead;
         var result = StorageCapacityQueuePreflightPlanner.PlanUpgradeAllResourcesStepwise(
             status,
             precedingItems,
-            targetLevel);
+            targetLevel,
+            storageUpgradeLevelsAhead);
         if (!string.IsNullOrWhiteSpace(result.CannotPlanReason))
         {
             AppDialog.Show(
@@ -141,24 +154,28 @@ public partial class MainWindow
         upgrades = result.Upgrades;
         if (upgrades.Count > 0)
         {
-            var lines = result.Stages.SelectMany(stage => stage.StorageUpgradesBefore.Select(upgrade =>
-                $"  • Before resources to level {stage.ResourceTargetLevel}: " +
-                (upgrade.RequiresConstruction
-                    ? $"Build {upgrade.Kind} in free slot {upgrade.SlotId}" +
-                      (upgrade.TargetLevel > 1 ? $", then upgrade to level {upgrade.TargetLevel} " : " ")
-                    : $"{upgrade.Kind} level {upgrade.CurrentLevel} → {upgrade.TargetLevel} ") +
-                $"(capacity {upgrade.ProjectedCapacity:N0}, required {upgrade.RequiredCapacity:N0})"));
-            var choice = AppDialog.ShowCustom(
+            var stages = result.Stages
+                .Where(stage => stage.StorageUpgradesBefore.Count > 0)
+                .Select(stage => CreateStoragePreflightStage(
+                    $"LEVEL {stage.ResourceTargetLevel}",
+                    $"Before all resource fields advance to level {stage.ResourceTargetLevel}",
+                    stage.StorageUpgradesBefore))
+                .ToList();
+            var content = new StoragePreflightPlanView(
+                "Resource fields are upgraded in stages. Each card shows the storage actions inserted " +
+                "immediately before that resource level starts." +
+                FormatStorageBufferSetting(storageUpgradeLevelsAhead),
+                stages);
+            var choice = AppDialog.ShowCustomContent(
                 this,
-                "The resource plan reaches one or more storage-capacity limits. The required storage " +
-                "upgrades can be inserted step by step, immediately before the resource stage that needs them.\n\n" +
-                string.Join("\n", lines),
+                content,
                 "Storage upgrades required",
                 [("Add required storage upgrades", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.Cancel)],
                 MessageBoxImage.Warning,
                 MessageBoxResult.Yes,
                 MessageBoxResult.Cancel,
-                successResult: MessageBoxResult.Yes);
+                successResult: MessageBoxResult.Yes,
+                width: 600);
             if (choice != MessageBoxResult.Yes)
             {
                 return false;
@@ -204,6 +221,64 @@ public partial class MainWindow
         plannedRequests = requests;
         return true;
     }
+
+    private static StoragePreflightPlanStage CreateStoragePreflightStage(
+        string badge,
+        string heading,
+        IReadOnlyList<StoragePreflightUpgrade> upgrades)
+    {
+        var actions = new List<StoragePreflightPlanAction>();
+        foreach (var upgrade in upgrades)
+        {
+            var capacityBefore = upgrade.ProjectedCapacity;
+            if (upgrade.RequiresConstruction)
+            {
+                var capacityAfterConstruction = capacityBefore
+                    + StorageCapacityDependencyPlanner.CapacityAtLevel(1)
+                    - StorageCapacityDependencyPlanner.CapacityAtLevel(0);
+                actions.Add(new StoragePreflightPlanAction(
+                    "Construct",
+                    "CONSTRUCT",
+                    upgrade.Kind.ToString(),
+                    $"Free building slot {upgrade.SlotId} · Level 1",
+                    FormatCapacityChange(capacityBefore, capacityAfterConstruction)));
+                capacityBefore = capacityAfterConstruction;
+
+                if (upgrade.TargetLevel <= 1)
+                {
+                    continue;
+                }
+            }
+
+            var currentLevel = Math.Max(1, upgrade.CurrentLevel);
+            var capacityAfterUpgrade = capacityBefore
+                + StorageCapacityDependencyPlanner.CapacityAtLevel(upgrade.TargetLevel)
+                - StorageCapacityDependencyPlanner.CapacityAtLevel(currentLevel);
+            actions.Add(new StoragePreflightPlanAction(
+                "Upgrade",
+                "UPGRADE",
+                upgrade.Kind.ToString(),
+                $"Level {currentLevel} → {upgrade.TargetLevel} · Slot {upgrade.SlotId}",
+                FormatCapacityChange(capacityBefore, capacityAfterUpgrade)));
+        }
+
+        var requirements = upgrades
+            .Select(upgrade => $"{upgrade.Kind} needs {upgrade.RequiredCapacity:N0}")
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+        return new StoragePreflightPlanStage(
+            badge,
+            heading,
+            $"Required capacity: {string.Join("  ·  ", requirements)}",
+            actions);
+    }
+
+    private static string FormatCapacityChange(long before, long after) =>
+        $"{before:N0} → {after:N0}";
+
+    private static string FormatStorageBufferSetting(int storageUpgradeLevelsAhead) =>
+        storageUpgradeLevelsAhead > ConstructionDefaults.StorageUpgradeLevelsAhead
+            ? $" Construction setting: {storageUpgradeLevelsAhead} storage levels ahead."
+            : string.Empty;
 
     private void ApplyStoragePreflightMetadata(
         Dictionary<string, string> payload,

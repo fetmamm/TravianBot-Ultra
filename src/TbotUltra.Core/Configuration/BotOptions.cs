@@ -391,6 +391,9 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled)]
     public bool ConstructionHumanizeDelayEnabled { get; init; } = PacingDefaults.ConstructionHumanizeDelayEnabled;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead)]
+    public int ConstructionStorageUpgradeLevelsAhead { get; init; } = ConstructionDefaults.StorageUpgradeLevelsAhead;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionHumanizeStateVersion)]
     public int ConstructionHumanizeStateVersion { get; init; }
 

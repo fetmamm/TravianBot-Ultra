@@ -134,7 +134,8 @@ public partial class MainWindow
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
-        var detailedBrowserLoggingBefore = LoadBotOptions().DetailedBrowserLoggingEnabled;
+        var optionsBeforeSettings = LoadBotOptions();
+        var detailedBrowserLoggingBefore = optionsBeforeSettings.DetailedBrowserLoggingEnabled;
         var detectedResetHour = Services.ProductionBonusStateStore
             .LoadSettings(_projectRoot, _accountStore.ActiveAccountName())
             .DetectedResetHour;
@@ -147,6 +148,10 @@ public partial class MainWindow
         ConfigureSessionPacerFromConfig();
         RefreshUpdateNotificationState();
         var optionsAfterSettings = LoadBotOptions();
+        if (optionsAfterSettings.ConstructionHumanizeDelayEnabled != optionsBeforeSettings.ConstructionHumanizeDelayEnabled)
+        {
+            ApplyConstructionHumanizeToggleTransition(optionsAfterSettings.ConstructionHumanizeDelayEnabled);
+        }
         if (optionsAfterSettings.DetailedBrowserLoggingEnabled != detailedBrowserLoggingBefore)
         {
             AppendLog(optionsAfterSettings.DetailedBrowserLoggingEnabled
