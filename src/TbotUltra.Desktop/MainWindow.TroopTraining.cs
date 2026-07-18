@@ -43,31 +43,36 @@ public partial class MainWindow
 
     private string ResolveStoredTroopTrainingTribe()
     {
-        var selectedName = GetSelectedVillageName();
-        return ResolveVillageTribeByName(selectedName);
+        return ResolveVillageTribeByKey(GetSelectedVillageKey(), GetSelectedVillageName());
     }
 
-    private string ResolveVillageTribeByName(string? villageName)
+    private string ResolveVillageTribeByKey(string? villageKey, string? villageName)
     {
-        var normalizedName = NormalizeVillageName(villageName);
-        if (normalizedName is not null
-            && _villageStatusCache.TryGetByName(normalizedName, out var status)
+        if (!string.IsNullOrWhiteSpace(villageKey)
+            && _villageStatusCache.TryGetByKey(villageKey, out var status)
             && TroopCatalog.IsKnownTribe(status.Tribe))
         {
             return status.Tribe;
         }
 
         var item = (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>)?
-            .FirstOrDefault(candidate => string.Equals(
+            .FirstOrDefault(candidate => string.Equals(GetVillageKey(candidate), villageKey, StringComparison.OrdinalIgnoreCase));
+        return TroopCatalog.IsKnownTribe(item?.Tribe) ? item!.Tribe : "Unknown";
+    }
+
+    private string ResolveVillageTribeByName(string? villageName)
+    {
+        var normalizedName = NormalizeVillageName(villageName);
+        var matches = (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem> ?? [])
+            .Where(candidate => string.Equals(
                 NormalizeVillageName(candidate.Name),
                 normalizedName,
-                StringComparison.OrdinalIgnoreCase));
-        if (TroopCatalog.IsKnownTribe(item?.Tribe))
-        {
-            return item!.Tribe;
-        }
-
-        return "Unknown";
+                StringComparison.OrdinalIgnoreCase))
+            .Take(2)
+            .ToList();
+        return matches.Count == 1
+            ? ResolveVillageTribeByKey(GetVillageKey(matches[0]), matches[0].Name)
+            : "Unknown";
     }
 
     private (bool? Value, bool HasValue) TryGetStoredAutoCelebrationPreference()
@@ -238,16 +243,16 @@ public partial class MainWindow
 
     private VillageStatus ResolveCapitalBreweryStatusSeed(VillageSelectionItem capital)
     {
-        var capitalName = NormalizeVillageName(capital.Name);
-        if (capitalName is not null
-            && _villageStatusCache.TryGetByName(capitalName, out var cached))
+        if (_villageStatusCache.TryGetByKey(GetVillageKey(capital), out var cached))
         {
             return cached;
         }
 
         if (_lastBuildingStatus is not null
-            && (_lastBuildingStatus.IsCapital == true
-                || string.Equals(NormalizeVillageName(_lastBuildingStatus.ActiveVillage), capitalName, StringComparison.OrdinalIgnoreCase)))
+            && string.Equals(
+                ResolveStatusVillageKey(_lastBuildingStatus),
+                GetVillageKey(capital),
+                StringComparison.OrdinalIgnoreCase))
         {
             return _lastBuildingStatus;
         }
@@ -259,7 +264,7 @@ public partial class MainWindow
             [],
             [],
             [],
-            Tribe: ResolveVillageTribeByName(capital.Name),
+            Tribe: ResolveVillageTribeByKey(GetVillageKey(capital), capital.Name),
             VillageCount: 1,
             IsCapital: true);
     }
@@ -359,7 +364,7 @@ public partial class MainWindow
     /// </remarks>
     private bool TryResolveBrewerySlotId(VillageStatus status, out int slotId)
     {
-        var villageKey = status.ActiveVillage;
+        var villageKey = ResolveStatusVillageKey(status);
         var hasVillageKey = !string.IsNullOrWhiteSpace(villageKey);
 
         if (TryResolveBrewerySlotIdFromStatus(status, out slotId))
@@ -499,14 +504,12 @@ public partial class MainWindow
 
     private void ApplySmithyUpgradeStatus(SmithyUpgradeStatus status)
     {
-        var villageName = NormalizeVillageName(GetSelectedVillageName())
-            ?? NormalizeVillageName(_activeWorkingVillageName);
-        if (villageName is not null
-            && _villageStatusCache.TryGetByName(villageName, out var cached))
+        var villageStatus = ResolveSelectedVillageBuildingStatus();
+        if (villageStatus is not null)
         {
             status = SmithyQueueState.PreserveKnownActiveQueue(
                 status,
-                cached.SmithyUpgradeStatus,
+                villageStatus.SmithyUpgradeStatus,
                 DateTimeOffset.UtcNow);
         }
 
@@ -520,23 +523,18 @@ public partial class MainWindow
 
     private int? ResolveSmithyUpgradeGroupRemainingSeconds()
     {
-        var villageName = NormalizeVillageName(GetSelectedVillageName())
-            ?? NormalizeVillageName(_activeWorkingVillageName);
-        return ResolveActiveSmithyQueue(villageName).FirstOrDefault()?.TimeLeftSeconds;
+        return ResolveActiveSmithyQueue(GetSelectedVillageKey() ?? _activeWorkingVillageKey)
+            .FirstOrDefault()?.TimeLeftSeconds;
     }
 
     private int ResolveSmithyUpgradeActiveCount()
     {
-        var villageName = NormalizeVillageName(GetSelectedVillageName())
-            ?? NormalizeVillageName(_activeWorkingVillageName);
-        return ResolveActiveSmithyQueue(villageName).Count;
+        return ResolveActiveSmithyQueue(GetSelectedVillageKey() ?? _activeWorkingVillageKey).Count;
     }
 
     private void TickSmithyUpgradeCountdown()
     {
-        var villageName = NormalizeVillageName(GetSelectedVillageName())
-            ?? NormalizeVillageName(_activeWorkingVillageName);
-        _smithyUpgradeRemainingSeconds = ResolveActiveSmithyQueue(villageName)
+        _smithyUpgradeRemainingSeconds = ResolveActiveSmithyQueue(GetSelectedVillageKey() ?? _activeWorkingVillageKey)
             .Where(entry => entry.TimeLeftSeconds is > 0)
             .Select(entry => entry.TimeLeftSeconds!.Value)
             .ToList();
@@ -569,7 +567,7 @@ public partial class MainWindow
                 await Dispatcher.InvokeAsync(() =>
                 {
                     ApplySmithyUpgradeStatus(smithyStatus);
-                    UpdateCachedTimerStatus(GetSelectedVillageName(), status => status with { SmithyUpgradeStatus = smithyStatus });
+                    UpdateSelectedCachedTimerStatus(status => status with { SmithyUpgradeStatus = smithyStatus });
                 });
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
@@ -633,9 +631,9 @@ public partial class MainWindow
                 // later partial dorf2 scans don't regress to "Brewery missing".
                 if (celebrationStatus.BreweryExists
                     && celebrationStatus.BrewerySlotId is > 0
-                    && !string.IsNullOrWhiteSpace(status.ActiveVillage))
+                    && ResolveStatusVillageKey(status) is { } villageKey)
                 {
-                    _knownBrewerySlotByVillage[status.ActiveVillage] = celebrationStatus.BrewerySlotId.Value;
+                    _knownBrewerySlotByVillage[villageKey] = celebrationStatus.BrewerySlotId.Value;
                 }
 
                 if (celebrationStatus.BreweryExists
@@ -646,7 +644,7 @@ public partial class MainWindow
                 }
 
                 _troopTrainingViewModel.ApplyBreweryCelebrationStatus(celebrationStatus);
-                UpdateCachedTimerStatus(status.ActiveVillage, cached => cached with { BreweryCelebrationStatus = celebrationStatus });
+                UpdateCachedTimerStatus(status, cached => cached with { BreweryCelebrationStatus = celebrationStatus });
                 UpdateAutomationLoopRunningIndicators();
             });
         }
@@ -732,7 +730,7 @@ public partial class MainWindow
                 ? ApplySelectedVillageToOptions(LoadBotOptions())
                 : ApplyCapitalVillageToOptions(LoadBotOptions(), capital);
             var status = capital is null
-                ? _lastBuildingStatus
+                ? ResolveSelectedVillageBuildingStatus()
                 : ResolveCapitalBreweryStatusSeed(capital);
             AppendLog($"[{operationId}] Manual celebration check requested.");
             await RefreshBreweryCelebrationStatusAsync(options, status, _loopController.AcquireSessionScopeToken());
@@ -886,7 +884,7 @@ public partial class MainWindow
         var rows = new List<TroopTrainingQuickVillageRow>(villages.Count);
         foreach (var village in villages)
         {
-            var tribe = ResolveVillageTribeByName(village.Name);
+            var tribe = ResolveVillageTribeByKey(village.Key, village.Name);
             var saved = TroopTrainingSettingsStore.Load(_projectRoot, account, village.Key);
             // When the village has an override, overlay it on the global options so the row opens on that
             // village's own settings; otherwise it opens on the global defaults.
@@ -1000,7 +998,7 @@ public partial class MainWindow
 
         var allVillages = GetAllVillageKeyInfos();
         var matchingVillages = allVillages
-            .Where(info => string.Equals(ResolveVillageTribeByName(info.Name), sourceTribe, StringComparison.OrdinalIgnoreCase))
+            .Where(info => string.Equals(ResolveVillageTribeByKey(info.Key, info.Name), sourceTribe, StringComparison.OrdinalIgnoreCase))
             .ToList();
         var skippedVillages = allVillages
             .Where(info => !matchingVillages.Contains(info))
@@ -1059,22 +1057,19 @@ public partial class MainWindow
             return status.TroopTrainingQueues;
         }
 
-        var statusName = NormalizeVillageName(status.ActiveVillage);
-        if (statusName is null)
+        var statusKey = ResolveStatusVillageKey(status);
+        if (statusKey is null)
         {
             return null;
         }
 
-        if (_villageStatusCache.TryGetByName(statusName, out var cached))
+        if (_villageStatusCache.TryGetByKey(statusKey, out var cached))
         {
             return cached.TroopTrainingQueues;
         }
 
         return _lastBuildingStatus is not null
-            && string.Equals(
-                NormalizeVillageName(_lastBuildingStatus.ActiveVillage),
-                statusName,
-                StringComparison.OrdinalIgnoreCase)
+            && string.Equals(ResolveStatusVillageKey(_lastBuildingStatus), statusKey, StringComparison.OrdinalIgnoreCase)
             ? _lastBuildingStatus.TroopTrainingQueues
             : null;
     }
@@ -1166,7 +1161,11 @@ public partial class MainWindow
         {
             await EnsureChromiumInstalledAsync();
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            await RefreshTroopTrainingQueuesAsync(options, _loopController.AcquireSessionScopeToken(), _lastBuildingStatus?.Buildings, refreshBuildingsBeforeRead: true);
+            await RefreshTroopTrainingQueuesAsync(
+                options,
+                _loopController.AcquireSessionScopeToken(),
+                ResolveSelectedVillageBuildingStatus()?.Buildings,
+                refreshBuildingsBeforeRead: true);
             _troopTrainingViewModel.InfoText = "Troop training queues refreshed.";
             AppendLog($"[{operationId}] Troop training queues refreshed.");
         }
@@ -1254,8 +1253,9 @@ public partial class MainWindow
             var queueVillageName = NormalizeVillageName(options.TargetVillageName)
                 ?? NormalizeVillageName(_activeWorkingVillageName)
                 ?? NormalizeVillageName(GetSelectedVillageName());
-            if (queueVillageName is not null
-                && _villageStatusCache.TryGetByName(queueVillageName, out var cachedVillageStatus))
+            var queueVillageKey = _activeWorkingVillageKey ?? GetSelectedVillageKey();
+            if (queueVillageKey is not null
+                && _villageStatusCache.TryGetByKey(queueVillageKey, out var cachedVillageStatus))
             {
                 queueStatuses = TroopTrainingQueueState.PreserveKnownActiveQueue(
                     queueStatuses, cachedVillageStatus.TroopTrainingQueues, GetServerNow());
@@ -1267,20 +1267,41 @@ public partial class MainWindow
             if (queueVillageName is not null
                 && (effectiveStatus is null
                     || !string.Equals(
-                        NormalizeVillageName(effectiveStatus.ActiveVillage),
-                        queueVillageName,
+                        ResolveStatusVillageKey(effectiveStatus),
+                        queueVillageKey,
                         StringComparison.OrdinalIgnoreCase)))
             {
-                effectiveStatus = _villageStatusCache.TryGetByName(queueVillageName, out var queueVillageStatus)
+                var queueVillage = queueVillageKey is null
+                    ? null
+                    : ((DashboardVillageList.ItemsSource as IEnumerable<VillageSelectionItem>)
+                        ?? (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>))?
+                        .FirstOrDefault(candidate => string.Equals(
+                            GetVillageKey(candidate),
+                            queueVillageKey,
+                            StringComparison.OrdinalIgnoreCase));
+                effectiveStatus = queueVillageKey is not null
+                    && _villageStatusCache.TryGetByKey(queueVillageKey, out var queueVillageStatus)
                     ? queueVillageStatus with { TroopTrainingQueues = queueStatuses }
                     : new VillageStatus(
                         ActiveVillage: queueVillageName,
-                        Villages: [],
+                        Villages: queueVillage is null
+                            ? []
+                            : [new Village(
+                                queueVillage.Name,
+                                queueVillage.Url,
+                                queueVillage.IsCapital,
+                                queueVillage.CoordX,
+                                queueVillage.CoordY,
+                                queueVillage.Population,
+                                queueVillage.CropFields,
+                                queueVillage.Tribe)],
                         Resources: new Dictionary<string, string>(),
                         ResourceFields: [],
                         Buildings: effectiveBuildings?.ToList() ?? [],
                         BuildQueue: [],
-                        TroopTrainingQueues: queueStatuses);
+                        TroopTrainingQueues: queueStatuses,
+                        ActiveVillageCoordX: queueVillage?.CoordX,
+                        ActiveVillageCoordY: queueVillage?.CoordY);
             }
 
             if (effectiveStatus is not null)
@@ -1296,7 +1317,7 @@ public partial class MainWindow
                     AppendLog($"[troop-training-ui] skipped queue repaint: status is for '{effectiveStatus.ActiveVillage}', another village is selected. Cache updated.");
                 }
 
-                UpdateCachedTimerStatus(effectiveStatus.ActiveVillage, cached => cached with
+                UpdateCachedTimerStatus(effectiveStatus, cached => cached with
                 {
                     TroopTrainingQueues = queueStatuses,
                     SmithyUpgradeStatus = smithyStatus ?? cached.SmithyUpgradeStatus,
@@ -1344,7 +1365,7 @@ public partial class MainWindow
         await RefreshTroopTrainingQueuesAsync(
             itemOptions,
             cancellationToken,
-            _lastBuildingStatus?.Buildings,
+            ResolveBuildingStatusForQueueItem(item)?.Buildings,
             refreshBuildingsBeforeRead: false,
             includeSmithyStatus: false);
 

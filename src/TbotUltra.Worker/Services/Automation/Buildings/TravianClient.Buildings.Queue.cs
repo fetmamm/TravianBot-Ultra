@@ -109,9 +109,19 @@ public sealed partial class TravianClient
         // ReadHighestKnownQueuedBuildingLevel, ReadQueuedBuildingWaitSeconds, level-advance poll)
         // into one network round-trip. GotoAsync invalidates the cache automatically.
         var now = DateTimeOffset.UtcNow;
+        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+        var currentVillageKey = activeCoords.X.HasValue && activeCoords.Y.HasValue
+            ? $"xy:{activeCoords.X.Value}|{activeCoords.Y.Value}"
+            : null;
         var cached = _cachedActiveConstructions;
         var cachedDeadlineReached = cached?.Any(item => item.Finish?.IsFinishedAt(now) == true) == true;
-        if (CanUseActiveConstructionsCache(cached, _cachedActiveConstructionsAt, now, readMode))
+        if (CanUseActiveConstructionsCache(
+                cached,
+                _cachedActiveConstructionsAt,
+                now,
+                readMode,
+                _cachedActiveConstructionsVillageKey,
+                currentVillageKey))
         {
             var ageMs = (long)(now - _cachedActiveConstructionsAt).TotalMilliseconds;
             _lastActiveConstructionsFromOverview = _cachedActiveConstructionsFromOverview;
@@ -119,7 +129,8 @@ public sealed partial class TravianClient
                 "CACHE",
                 "active-constructions-hit",
                 "hit",
-                $"ageMs={ageMs} count={cached!.Count} fromOverview={_cachedActiveConstructionsFromOverview} mode={readMode}");
+                $"ageMs={ageMs} count={cached!.Count} fromOverview={_cachedActiveConstructionsFromOverview} " +
+                $"village={currentVillageKey} mode={readMode}");
             trace.Complete(
                 "success",
                 $"source=cache count={cached.Count} ageMs={ageMs}");
@@ -130,7 +141,12 @@ public sealed partial class TravianClient
             "CACHE",
             "active-constructions-miss",
             "miss",
-            $"reason={(cachedDeadlineReached ? "known-deadline-reached" : "missing-or-expired")} mode={readMode}");
+            $"reason={(cachedDeadlineReached
+                ? "known-deadline-reached"
+                : cached is not null && !string.Equals(_cachedActiveConstructionsVillageKey, currentVillageKey, StringComparison.OrdinalIgnoreCase)
+                    ? "village-owner-changed"
+                    : "missing-or-expired")} cachedVillage={_cachedActiveConstructionsVillageKey ?? "-"} " +
+            $"currentVillage={currentVillageKey ?? "-"} mode={readMode}");
 
         LogFunctionStarted();
         _lastActiveConstructionsFromOverview = false;
@@ -192,6 +208,14 @@ public sealed partial class TravianClient
         _cachedActiveConstructions = result;
         _cachedActiveConstructionsAt = DateTimeOffset.UtcNow;
         _cachedActiveConstructionsFromOverview = readFromOverview;
+        if (currentVillageKey is null)
+        {
+            activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+            currentVillageKey = activeCoords.X.HasValue && activeCoords.Y.HasValue
+                ? $"xy:{activeCoords.X.Value}|{activeCoords.Y.Value}"
+                : null;
+        }
+        _cachedActiveConstructionsVillageKey = currentVillageKey;
         _lastActiveConstructionsFromOverview = readFromOverview;
         trace.Complete(
             "success",
@@ -288,9 +312,15 @@ public sealed partial class TravianClient
         IReadOnlyList<ActiveConstruction>? cached,
         DateTimeOffset cachedAt,
         DateTimeOffset now,
-        ActiveConstructionReadMode readMode)
+        ActiveConstructionReadMode readMode,
+        string? cachedVillageKey,
+        string? currentVillageKey)
     {
-        if (cached is null || cached.Any(item => item.Finish?.IsFinishedAt(now) == true))
+        if (cached is null
+            || string.IsNullOrWhiteSpace(cachedVillageKey)
+            || string.IsNullOrWhiteSpace(currentVillageKey)
+            || !string.Equals(cachedVillageKey, currentVillageKey, StringComparison.OrdinalIgnoreCase)
+            || cached.Any(item => item.Finish?.IsFinishedAt(now) == true))
         {
             return false;
         }

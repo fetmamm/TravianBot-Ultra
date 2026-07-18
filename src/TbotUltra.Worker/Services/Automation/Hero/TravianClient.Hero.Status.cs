@@ -578,7 +578,13 @@ public sealed partial class TravianClient
         var heroHome = await ReadHeroHomeVillageInfoAsync(cancellationToken);
         if (!string.IsNullOrWhiteSpace(heroHome.Name))
         {
-            snapshot = snapshot with { HomeVillageName = heroHome.Name, HomeVillageHeroAway = heroHome.Away };
+            snapshot = snapshot with
+            {
+                HomeVillageName = heroHome.Name,
+                HomeVillageHeroAway = heroHome.Away,
+                HomeVillageCoordX = heroHome.X,
+                HomeVillageCoordY = heroHome.Y,
+            };
         }
 
         SaveCachedHeroAttributeSnapshot(snapshot);
@@ -591,7 +597,7 @@ public sealed partial class TravianClient
     // box ("Hero is currently in village X" when home; "Home village is village X" when away on a raid).
     // Both phrasings link the village via karte.php. Returns (null, false) when no village anchor is present
     // (e.g. on an adventure), so callers keep the previously known value.
-    private async Task<(string? Name, bool Away)> ReadHeroHomeVillageInfoAsync(CancellationToken cancellationToken)
+    private async Task<(string? Name, bool Away, int? X, int? Y)> ReadHeroHomeVillageInfoAsync(CancellationToken cancellationToken)
     {
         _ = cancellationToken;
         try
@@ -610,25 +616,38 @@ public sealed partial class TravianClient
                     // "currently in village" or a statusHome icon => hero is standing in the village (home).
                     const home = txt.includes('currently in village')
                       || !!box.querySelector('i[class*="statusHome" i], i[class*="heroHome" i]');
-                    return JSON.stringify({ name: name, away: !home });
+                    let x = null;
+                    let y = null;
+                    try {
+                      const url = new URL(link.getAttribute('href') || '', window.location.href);
+                      const parsedX = Number.parseInt(url.searchParams.get('x') || '', 10);
+                      const parsedY = Number.parseInt(url.searchParams.get('y') || '', 10);
+                      if (Number.isFinite(parsedX) && Number.isFinite(parsedY)) {
+                        x = parsedX;
+                        y = parsedY;
+                      }
+                    } catch { }
+                    return JSON.stringify({ name: name, away: !home, x: x, y: y });
                   }
                   return null;
                 }
                 """);
             if (string.IsNullOrWhiteSpace(raw))
             {
-                return (null, false);
+                return (null, false, null, null);
             }
 
             using var doc = System.Text.Json.JsonDocument.Parse(raw);
             var root = doc.RootElement;
             var name = root.TryGetProperty("name", out var n) ? n.GetString() : null;
             var away = root.TryGetProperty("away", out var a) && a.GetBoolean();
-            return (string.IsNullOrWhiteSpace(name) ? null : name!.Trim(), away);
+            var x = root.TryGetProperty("x", out var xNode) && xNode.TryGetInt32(out var parsedX) ? parsedX : (int?)null;
+            var y = root.TryGetProperty("y", out var yNode) && yNode.TryGetInt32(out var parsedY) ? parsedY : (int?)null;
+            return (string.IsNullOrWhiteSpace(name) ? null : name!.Trim(), away, x, y);
         }
         catch
         {
-            return (null, false);
+            return (null, false, null, null);
         }
     }
 

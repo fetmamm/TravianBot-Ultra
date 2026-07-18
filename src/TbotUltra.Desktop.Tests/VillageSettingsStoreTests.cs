@@ -436,6 +436,18 @@ public sealed class VillageSettingsStoreTests : IDisposable
         Assert.Null(store.GetStoredName(new Info("did:9", "Ghost", 99, 99, IsCapital: false)));
     }
 
+    [Fact]
+    public void HeroHomeVillage_PreservesCoordinateKeyForDuplicateNames()
+    {
+        var store = CreateStore();
+        store.SetHeroHomeVillage("New village", "xy:93|-19");
+
+        var reloaded = CreateStore();
+
+        Assert.Equal("New village", reloaded.GetHeroHomeVillageName());
+        Assert.Equal("xy:93|-19", reloaded.GetHeroHomeVillageKey());
+    }
+
     private VillageSettingsStore CreateStore()
     {
         return new VillageSettingsStore(_root, () => _activeAccount);

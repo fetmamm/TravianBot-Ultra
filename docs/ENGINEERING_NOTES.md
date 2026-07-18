@@ -76,8 +76,13 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - New settings require the complete pipeline: model, defaults, load/save, ViewModel, UI, and tests.
 - Persist village identity by coordinates/key, not display name. Names may collide or change; queue items retain
   their target village identity.
+- Duplicate village names are valid. Fresh Official sidebar `data-did` plus `.coordinateX/.coordinateY` values
+  are authoritative: never deduplicate by name, never overwrite fresh coordinates from a name-keyed cache, and
+  never accept a same-name village switch without coordinate verification when coordinates are available.
 - The village status cache and queue use canonical coordinate keys. Legacy name-keyed entries are migrated only
   when coordinates can be resolved; active coordinates come from `#villageName[data-x][data-y]`.
+- Per-village runtime caches are shared by the UI and background loop and must be synchronized. A display-name
+  lookup is valid only when exactly one cached village has that name; duplicate names never use last-write-wins.
 - Queue status transitions are gated. `MarkDeferred` accepts only RUNNING items; Pending items use
   `UpdateDeferred`/`UpdatePending`. Check the returned boolean.
 - New villages default to Auto enabled. The version-1 migration enables existing villages once; later manual

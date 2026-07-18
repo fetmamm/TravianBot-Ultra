@@ -214,6 +214,7 @@ public static class StorageCapacityDependencyPlanner
 
         CopyIfPresent(parentPayload, payload, TbotUltra.Core.Configuration.BotOptionPayloadKeys.TargetVillageName);
         CopyIfPresent(parentPayload, payload, TbotUltra.Core.Configuration.BotOptionPayloadKeys.TargetVillageUrl);
+        CopyIfPresent(parentPayload, payload, TbotUltra.Core.Configuration.BotOptionPayloadKeys.TargetVillageKey);
         CopyIfPresent(parentPayload, payload, TbotUltra.Core.Configuration.BotOptionPayloadKeys.NpcTradeEnabled);
         payload[TbotUltra.Core.Configuration.BotOptionPayloadKeys.StorageDependencyParentId] = parentId.ToString();
         payload[TbotUltra.Core.Configuration.BotOptionPayloadKeys.StorageDependencyKind] = plan.Kind.ToString().ToLowerInvariant();

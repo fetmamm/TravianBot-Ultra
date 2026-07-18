@@ -136,6 +136,7 @@ public partial class MainWindow
         var operationSw = Stopwatch.StartNew();
         var operationToken = _loopController.StartOperation("account-scan");
         var selectedVillageName = GetSelectedVillageName();
+        var startingVillageKey = GetSelectedVillageKey();
         string? startingVillageName = NormalizeVillageName(_activeWorkingVillageName)
             ?? NormalizeVillageName(selectedVillageName);
         string? startingVillageUrl = null;
@@ -156,7 +157,9 @@ public partial class MainWindow
                 operationToken);
             var villages = snapshot.Villages
                 .Where(village => !string.IsNullOrWhiteSpace(village.Name))
-                .GroupBy(village => village.Name.Trim(), StringComparer.OrdinalIgnoreCase)
+                .GroupBy(
+                    village => GetVillageKey(village.Url, village.CoordX, village.CoordY, village.Name),
+                    StringComparer.OrdinalIgnoreCase)
                 .Select(group => group.First())
                 .ToList();
             if (villages.Count == 0)
@@ -167,16 +170,31 @@ public partial class MainWindow
             startingVillageName = NormalizeVillageName(snapshot.ActiveVillage)
                 ?? startingVillageName
                 ?? NormalizeVillageName(villages[0].Name);
-            startingVillageUrl = villages.FirstOrDefault(village =>
-                string.Equals(
-                    NormalizeVillageName(village.Name),
-                    startingVillageName,
-                    StringComparison.OrdinalIgnoreCase))?.Url;
+            var startingVillage = villages.FirstOrDefault(village =>
+                snapshot.ActiveVillageCoordX.HasValue
+                && snapshot.ActiveVillageCoordY.HasValue
+                && village.CoordX == snapshot.ActiveVillageCoordX
+                && village.CoordY == snapshot.ActiveVillageCoordY)
+                ?? villages.FirstOrDefault(village =>
+                    string.Equals(
+                        NormalizeVillageName(village.Name),
+                        startingVillageName,
+                        StringComparison.OrdinalIgnoreCase));
+            startingVillageUrl = startingVillage?.Url;
+            startingVillageKey = startingVillage is null
+                ? startingVillageKey
+                : GetVillageKey(
+                    startingVillage.Url,
+                    startingVillage.CoordX,
+                    startingVillage.CoordY,
+                    startingVillage.Name);
 
             SyncDashboardVillageUiFromVillages(
                 villages,
                 startingVillageName,
-                selectedVillageName);
+                selectedVillageName,
+                snapshot.ActiveVillageCoordX,
+                snapshot.ActiveVillageCoordY);
             ReconcileConfirmedVillageList(villages, "account_scan");
             AppendLog(
                 $"[account-scan] Started. villages={villages.Count}, "
@@ -198,7 +216,9 @@ public partial class MainWindow
                     SyncDashboardVillageUiFromVillages(
                         villages,
                         status.ActiveVillage,
-                        selectedVillageName);
+                        selectedVillageName,
+                        status.ActiveVillageCoordX,
+                        status.ActiveVillageCoordY);
                     RefreshQueueUi();
                     loaded++;
                     AppendLog(
@@ -239,7 +259,8 @@ public partial class MainWindow
                 restoreSucceeded = await RestoreVillageAfterAccountScanAsync(
                     options,
                     startingVillageName,
-                    startingVillageUrl);
+                    startingVillageUrl,
+                    startingVillageKey);
             }
 
             if (scanCompleted && restoreSucceeded)
@@ -320,7 +341,8 @@ public partial class MainWindow
     private async Task<bool> RestoreVillageAfterAccountScanAsync(
         BotOptions options,
         string? villageName,
-        string? villageUrl)
+        string? villageUrl,
+        string? villageKey)
     {
         if (_loopController.IsClosing || string.IsNullOrWhiteSpace(villageName))
         {
@@ -337,7 +359,7 @@ public partial class MainWindow
                 villageUrl,
                 _loopController.AcquireSessionScopeToken());
             SetActiveWorkingVillage(
-                ResolveVillageKeyByName(villageName),
+                villageKey ?? ResolveVillageKeyByName(villageName),
                 villageName);
             AppendLog($"[account-scan] Returned to starting village '{villageName}'.");
             return true;

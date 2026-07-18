@@ -177,7 +177,11 @@ public partial class MainWindow
             if (payload.Villages is { Count: > 0 })
             {
                 VillagesInfoTextBlock.Text = $"Villages: {payload.Villages.Count}";
-                SyncDashboardVillageUiFromPayloadVillages(payload.Villages, payload.ActiveVillage);
+                SyncDashboardVillageUiFromPayloadVillages(
+                    payload.Villages,
+                    payload.ActiveVillage,
+                    payload.ActiveVillageCoordX,
+                    payload.ActiveVillageCoordY);
             }
         }
         catch

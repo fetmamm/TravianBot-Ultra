@@ -18,7 +18,9 @@ public sealed record AccountSnapshot(
     string ActiveVillage,
     int VillageCount,
     IReadOnlyList<Village> Villages,
-    DateTimeOffset? ServerTimeUtc = null);
+    DateTimeOffset? ServerTimeUtc = null,
+    int? ActiveVillageCoordX = null,
+    int? ActiveVillageCoordY = null);
 
 public sealed record ReportPngResult(bool IsReportPage, string Url, string? FilePath);
 
@@ -191,7 +193,9 @@ public sealed record HeroAttributeSnapshot(
     string? HomeVillageName = null,
     // Whether the hero is currently away from the home village (on an adventure/attack/etc) rather than
     // standing in it. Drives the green (home) vs yellow (away) hero icon on the dashboard.
-    bool HomeVillageHeroAway = false);
+    bool HomeVillageHeroAway = false,
+    int? HomeVillageCoordX = null,
+    int? HomeVillageCoordY = null);
 
 public sealed record HeroInventoryResources(
     int Wood = 0,

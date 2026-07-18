@@ -265,6 +265,9 @@ public sealed class StorageCapacityQueuePreflightPlannerTests
                 new Building(21, "Main Building", 1, null, 15),
             ]);
         var payload = new BuildingUpgradePayload(21, 20, "Main Building").ToDictionary();
+        payload[BotOptionPayloadKeys.TargetVillageName] = "New village";
+        payload[BotOptionPayloadKeys.TargetVillageUrl] = "dorf1.php?newdid=28803";
+        payload[BotOptionPayloadKeys.TargetVillageKey] = "xy:93|-17";
 
         var result = StorageCapacityQueuePreflightPlanner.PlanConstructionRequestsStepwise(
             status,
@@ -282,6 +285,17 @@ public sealed class StorageCapacityQueuePreflightPlannerTests
         var orderedRequests = result.Requests.ToList();
         Assert.True(orderedRequests.FindIndex(request => request.Payload?.GetValueOrDefault(BotOptionPayloadKeys.AutoAddedBy) == BotOptionPayloadKeys.AutoAddedByStorageCapacityPreflight)
             < orderedRequests.IndexOf(finalUpgrade));
+        var storageRequests = orderedRequests
+            .Where(request => request.Payload?.GetValueOrDefault(BotOptionPayloadKeys.AutoAddedBy)
+                == BotOptionPayloadKeys.AutoAddedByStorageCapacityPreflight)
+            .ToList();
+        Assert.NotEmpty(storageRequests);
+        Assert.All(storageRequests, request =>
+        {
+            Assert.Equal("New village", request.Payload![BotOptionPayloadKeys.TargetVillageName]);
+            Assert.Equal("dorf1.php?newdid=28803", request.Payload[BotOptionPayloadKeys.TargetVillageUrl]);
+            Assert.Equal("xy:93|-17", request.Payload[BotOptionPayloadKeys.TargetVillageKey]);
+        });
     }
 
     [Fact]

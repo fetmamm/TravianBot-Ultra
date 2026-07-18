@@ -38,6 +38,26 @@ public sealed class NewVillageStartupAnalyzerTests
         Assert.Empty(NewVillageStartupAnalyzer.FindVillagesWithoutKnownStatus(villages, cache));
     }
 
+    [Fact]
+    public void FindVillagesWithoutKnownStatus_DuplicateNameUsesCoordinates()
+    {
+        var villages = new[]
+        {
+            new Village("New village", "dorf1.php?newdid=28803", CoordX: 93, CoordY: -17),
+            new Village("New village", "dorf1.php?newdid=28805", CoordX: 93, CoordY: -19),
+        };
+        var cache = new Dictionary<string, VillageStatus>
+        {
+            ["xy:93|-17"] = CreateStatus("New village", hasFields: true, hasBuildings: true),
+        };
+
+        var result = NewVillageStartupAnalyzer.FindVillagesWithoutKnownStatus(villages, cache);
+
+        var missing = Assert.Single(result);
+        Assert.Equal("dorf1.php?newdid=28805", missing.Url);
+        Assert.Equal(-19, missing.CoordY);
+    }
+
     private static VillageStatus CreateStatus(string name, bool hasFields, bool hasBuildings)
     {
         return new VillageStatus(

@@ -32,7 +32,7 @@ public sealed partial class TravianClient : IBuildingClient
             BuildQueue: [],
             Tribe: tribe,
             VillageCount: 0,
-            IsCapital: TryGetCachedCapitalState(activeVillage),
+            IsCapital: TryGetCachedCapitalState(activeVillage, activeCoords.X, activeCoords.Y),
             ServerTimeUtc: _serverTimeUtc,
             ActiveVillageCoordX: activeCoords.X,
             ActiveVillageCoordY: activeCoords.Y);

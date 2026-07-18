@@ -42,7 +42,7 @@ public partial class MainWindow
         // "Clear timers" clears the selected village's cached activity timers + construction snapshot and
         // resets that village's deferred group retries (manual escape hatch for a stuck wait). It does not
         // start the bot from stopped, but it wakes an already-running loop so the groups retry promptly.
-        ClearSelectedVillageRuntimeTimerCache(selectedVillageName);
+        ClearSelectedVillageRuntimeTimerCache(selectedVillageName, selectedVillageKey);
         var resetCount = ResetDeferredQueueTimersForVillage(selectedVillageName, selectedVillageKey);
         _continuousConstructionRotationVillageKey = selectedVillageKey;
         SetContinuousGroupRotationVillageKey(QueueGroup.TroopTraining, selectedVillageKey);
@@ -59,7 +59,7 @@ public partial class MainWindow
         AppendLog($"Cleared cached timers and reset {resetCount} deferred group timer(s) for village '{selectedVillageName}'. Queue items were kept.");
     }
 
-    private void ClearSelectedVillageRuntimeTimerCache(string selectedVillageName)
+    private void ClearSelectedVillageRuntimeTimerCache(string selectedVillageName, string? selectedVillageKey)
     {
         _continuousLoopConstructionStatusNeedsSync = true;
         _smithyUpgradeRemainingSeconds.Clear();
@@ -67,17 +67,14 @@ public partial class MainWindow
         _heroViewModel.AdventureStatusText = "Status refresh requested.";
 
         VillageStatus? selectedStatus = null;
-        if (_villageStatusCache.TryGetByName(selectedVillageName, out var cachedStatus))
+        if (!string.IsNullOrWhiteSpace(selectedVillageKey)
+            && _villageStatusCache.TryGetByKey(selectedVillageKey, out var cachedStatus))
         {
             selectedStatus = ClearCachedActivityTimers(cachedStatus);
             _villageStatusCache.Set(selectedVillageName, selectedStatus);
         }
 
-        if (_lastBuildingStatus is not null &&
-            string.Equals(
-                NormalizeVillageName(_lastBuildingStatus.ActiveVillage),
-                selectedVillageName,
-                StringComparison.OrdinalIgnoreCase))
+        if (_lastBuildingStatus is not null && IsStatusForSelectedVillage(_lastBuildingStatus))
         {
             _lastBuildingStatus = ClearCachedActivityTimers(_lastBuildingStatus);
             selectedStatus = _lastBuildingStatus;
@@ -141,10 +138,9 @@ public partial class MainWindow
 
     private bool IsQueueItemForVillage(QueueItem item, string villageName, string? villageKey)
     {
-        if (!string.IsNullOrWhiteSpace(villageKey)
-            && string.Equals(GetQueueItemVillageKey(item), villageKey, StringComparison.OrdinalIgnoreCase))
+        if (!string.IsNullOrWhiteSpace(villageKey))
         {
-            return true;
+            return string.Equals(GetQueueItemVillageKey(item), villageKey, StringComparison.OrdinalIgnoreCase);
         }
 
         return string.Equals(

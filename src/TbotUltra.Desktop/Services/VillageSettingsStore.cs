@@ -76,6 +76,7 @@ public sealed partial class VillageSettingsStore
         // Last-read hero home village name (account-global). Remembered across restarts so the dashboard
         // hero icon can show on the right village before the first hero read of a new session.
         public string? HeroHomeVillageName { get; set; }
+        public string? HeroHomeVillageKey { get; set; }
     }
 
     // Serializes villages.json I/O across the UI dispatcher and background refresh contexts, mirroring
@@ -97,6 +98,7 @@ public sealed partial class VillageSettingsStore
     private readonly Dictionary<string, VillageSettingRecord> _cache = new(StringComparer.OrdinalIgnoreCase);
     private string? _cacheAccount;
     private string? _heroHomeVillageName;
+    private string? _heroHomeVillageKey;
 
     public VillageSettingsStore(string projectRoot, Func<string>? activeAccountNameProvider = null, Action<string>? log = null)
     {
@@ -116,6 +118,7 @@ public sealed partial class VillageSettingsStore
             _cache.Clear();
             _cacheAccount = null;
             _heroHomeVillageName = null;
+            _heroHomeVillageKey = null;
         }
     }
 
@@ -129,6 +132,7 @@ public sealed partial class VillageSettingsStore
 
         _cache.Clear();
         _heroHomeVillageName = null;
+        _heroHomeVillageKey = null;
         _cacheAccount = account;
 
         if (string.IsNullOrWhiteSpace(account))
@@ -152,6 +156,7 @@ public sealed partial class VillageSettingsStore
             }
 
             _heroHomeVillageName = string.IsNullOrWhiteSpace(file.HeroHomeVillageName) ? null : file.HeroHomeVillageName.Trim();
+            _heroHomeVillageKey = string.IsNullOrWhiteSpace(file.HeroHomeVillageKey) ? null : file.HeroHomeVillageKey.Trim();
 
             // Migrate legacy records to the canonical coordinate key and merge any duplicates: the same
             // village could previously be stored under more than one newdid (e.g. did:106838 and did:25471
@@ -391,6 +396,7 @@ public sealed partial class VillageSettingsStore
                 .ThenBy(v => v.Name, StringComparer.OrdinalIgnoreCase)
                 .ToList(),
             HeroHomeVillageName = _heroHomeVillageName,
+            HeroHomeVillageKey = _heroHomeVillageKey,
         };
 
         WriteAllTextShared(path, JsonSerializer.Serialize(file, SerializerOptions));

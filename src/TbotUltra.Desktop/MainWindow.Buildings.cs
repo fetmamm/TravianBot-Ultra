@@ -77,16 +77,16 @@ public partial class MainWindow
             if (statusForSelectedVillage)
             {
                 _resourcesViewModel.ApplyStorageForecasts(status);
+                _lastBuildingStatus = status;
+                PopulateBuildingsTab(status);
+                ApplyConstructionTimerFromStatus(status);
+                BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"village '{status.ActiveVillage}'");
             }
             else
             {
                 AppendLog($"[storage-refresh] skipped Load buildings storage repaint: data is for '{status.ActiveVillage}', another village is selected.");
+                BuildingsInfoTextBlock.Text = "The browser returned another village. Select Refresh to try again.";
             }
-
-            _lastBuildingStatus = status;
-            PopulateBuildingsTab(status);
-            ApplyConstructionTimerFromStatus(status);
-            BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"village '{status.ActiveVillage}'");
         }
         catch (Exception ex)
         {
@@ -261,7 +261,17 @@ public partial class MainWindow
             return;
         }
 
-        finalRequests = fullyPlannedRequests.ToList();
+        // Re-stamp every final row after both planners have expanded the template. This guarantees that
+        // constructs, upgrades, resource stages, and auto-added storage dependencies all retain the exact
+        // selected village coordinate key even when multiple villages share the same display name.
+        finalRequests = fullyPlannedRequests.Select(request =>
+        {
+            var payload = request.Payload is null
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(request.Payload, StringComparer.OrdinalIgnoreCase);
+            ApplySelectedVillageToPayload(payload);
+            return request with { Payload = payload };
+        }).ToList();
         storageUpgrades = storageUpgrades.Concat(additionalStorageUpgrades).ToList();
 
         IReadOnlyList<QueueItem> created;
@@ -303,7 +313,9 @@ public partial class MainWindow
             ? $" Added {storageUpgrades.Count} storage prerequisite(s)."
             : string.Empty;
         BuildingsInfoTextBlock.Text = $"Queued building template: {created.Count} item(s).{storageSuffix}{warningSuffix}";
-        AppendLog($"Building template queued atomically: {created.Count} item(s).{storageSuffix}{warningSuffix}");
+        AppendLog(
+            $"Building template queued atomically: {created.Count} item(s), "
+            + $"villageKey='{GetSelectedVillageKey() ?? "-"}'.{storageSuffix}{warningSuffix}");
     }
 
     internal void BuildingSlotCircleButton_Click(object sender, RoutedEventArgs e)
@@ -930,7 +942,8 @@ public partial class MainWindow
         }
 
         var maxLevel = row.UpgradeGid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
-        var existingTarget = GetQueuedBuildingTargetsBySlot()
+        var existingTarget = GetQueuedBuildingTargetsBySlot(
+                GetActiveQueueItems().Where(IsQueueItemForSelectedVillageOrGlobal).ToList())
             .GetValueOrDefault(slotId, 0);
         if (existingTarget >= maxLevel)
         {
@@ -1017,9 +1030,30 @@ public partial class MainWindow
             return;
         }
 
+        var snapshotVillageMatches = (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>)?
+            .Where(village => string.Equals(
+                NormalizeVillageName(village.Name),
+                NormalizeVillageName(snapshot.ActiveVillage),
+                StringComparison.OrdinalIgnoreCase))
+            .ToList() ?? [];
+        if (snapshotVillageMatches.Count != 1)
+        {
+            AppendLog($"Buildings snapshot ignored for ambiguous or unknown village '{snapshot.ActiveVillage ?? "(unknown)"}'. A live village refresh is required.");
+            return;
+        }
+        var snapshotVillage = snapshotVillageMatches[0];
+
         var status = new VillageStatus(
             ActiveVillage: snapshot.ActiveVillage ?? string.Empty,
-            Villages: [],
+            Villages: [new Village(
+                snapshotVillage.Name,
+                snapshotVillage.Url,
+                snapshotVillage.IsCapital,
+                snapshotVillage.CoordX,
+                snapshotVillage.CoordY,
+                snapshotVillage.Population,
+                snapshotVillage.CropFields,
+                snapshotVillage.Tribe)],
             Resources: new Dictionary<string, string>(),
             ResourceFields: (snapshot.ResourceFields ?? [])
                 .Select(item => new ResourceField(
@@ -1045,7 +1079,9 @@ public partial class MainWindow
             BuildQueue: [],
             Tribe: snapshot.Tribe ?? "Unknown",
             VillageCount: 0,
-            IsCapital: snapshot.IsCapital);
+            IsCapital: snapshot.IsCapital,
+            ActiveVillageCoordX: snapshotVillage.CoordX,
+            ActiveVillageCoordY: snapshotVillage.CoordY);
 
         _lastBuildingStatus = status;
         await Dispatcher.InvokeAsync(() =>

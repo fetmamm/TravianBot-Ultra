@@ -46,11 +46,9 @@ public static class NewVillageStartupAnalyzer
 
     private static bool IsKnown(Village village, HashSet<string> known)
     {
-        if (village.CoordX.HasValue
-            && village.CoordY.HasValue
-            && known.Contains(VillageKey.FromCoords(village.CoordX.Value, village.CoordY.Value)))
+        if (village.CoordX.HasValue && village.CoordY.HasValue)
         {
-            return true;
+            return known.Contains(VillageKey.FromCoords(village.CoordX.Value, village.CoordY.Value));
         }
 
         return NormalizeName(village.Name) is string name && known.Contains(name);

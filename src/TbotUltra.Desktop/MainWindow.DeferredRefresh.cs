@@ -464,6 +464,13 @@ public partial class MainWindow
 
     private string? ResolveStatusVillageKey(VillageStatus status)
     {
+        if (status.ActiveVillageCoordX.HasValue && status.ActiveVillageCoordY.HasValue)
+        {
+            return _villageSettingsStore.ResolveCanonicalKey(VillageKey.FromCoords(
+                status.ActiveVillageCoordX.Value,
+                status.ActiveVillageCoordY.Value));
+        }
+
         var activeName = NormalizeVillageName(status.ActiveVillage);
         if (activeName is null)
         {
@@ -480,13 +487,8 @@ public partial class MainWindow
             return _villageSettingsStore.ResolveCanonicalKey(key);
         }
 
-        var displayedVillages = (DashboardVillageList.ItemsSource as IEnumerable<VillageSelectionItem>)
-            ?? (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>);
-        var displayedMatches = displayedVillages?
-            .Where(village => string.Equals(NormalizeVillageName(village.Name), activeName, StringComparison.OrdinalIgnoreCase))
-            .ToList();
-        return displayedMatches?.Count == 1
-            ? _villageSettingsStore.ResolveCanonicalKey(GetVillageKey(displayedMatches[0]))
+        return _villageStatusCache.TryGetUniqueKeyByName(activeName, out var cachedKey)
+            ? _villageSettingsStore.ResolveCanonicalKey(cachedKey)
             : null;
     }
 
@@ -561,13 +563,17 @@ public partial class MainWindow
         // village, so judging another village's deferred item against them is wrong (mirrors the
         // construction refresh).
         var statusVillage = NormalizeVillageName(status.ActiveVillage);
+        var statusVillageKey = ResolveStatusVillageKey(status);
+        if (statusVillageKey is null)
+        {
+            AppendLog($"[troop-training:verbose] skipped deferred refresh because village identity was ambiguous (name='{statusVillage ?? "-"}', source='{source}').");
+            return;
+        }
         var deferredItems = _botService
             .GetQueueItemsForDisplay()
             .Where(item => item.Status == QueueStatus.Pending)
             .Where(item => string.Equals(item.TaskName, "build_troops", StringComparison.OrdinalIgnoreCase))
-            .Where(item => statusVillage is null
-                || NormalizeVillageName(GetQueueItemVillageName(item)) is not string itemVillage
-                || string.Equals(itemVillage, statusVillage, StringComparison.OrdinalIgnoreCase))
+            .Where(item => string.Equals(GetQueueItemVillageKey(item), statusVillageKey, StringComparison.OrdinalIgnoreCase))
             .ToList();
 
         if (deferredItems.Count == 0)
@@ -575,7 +581,7 @@ public partial class MainWindow
             return;
         }
 
-        var knownBuildings = _lastBuildingStatus?.Buildings ?? [];
+        var knownBuildings = status.Buildings ?? [];
         foreach (var item in deferredItems)
         {
             // Build the threshold/run-mode from the item's OWN per-village snapshot (the loop injects the

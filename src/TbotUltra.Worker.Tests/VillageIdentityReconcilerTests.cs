@@ -7,7 +7,7 @@ namespace TbotUltra.Worker.Tests;
 public sealed class VillageIdentityReconcilerTests
 {
     [Fact]
-    public void FindByNameOrCoordinates_PrefersExactNormalizedName()
+    public void FindByNameOrCoordinates_PrefersCoordinatesWhenNamesAreDuplicated()
     {
         Village[] villages =
         [
@@ -17,7 +17,7 @@ public sealed class VillageIdentityReconcilerTests
 
         var selected = VillageIdentityReconciler.FindByNameOrCoordinates(villages, "pha (10|20)", (30, 40));
 
-        Assert.Equal("/dorf1.php?newdid=1", selected?.Url);
+        Assert.Equal("/dorf1.php?newdid=2", selected?.Url);
     }
 
     [Fact]
@@ -36,5 +36,40 @@ public sealed class VillageIdentityReconcilerTests
         Village[] villages = [new("Other", "/dorf1.php?newdid=1", false, 10, 20)];
 
         Assert.Null(VillageIdentityReconciler.FindByNameOrCoordinates(villages, "Missing", (null, null)));
+    }
+
+    [Fact]
+    public void MergeFreshWithCached_KeepsFreshSidebarCoordinatesForDuplicateNames()
+    {
+        Village[] cached =
+        [
+            new("New village", "/dorf1.php?newdid=1", false, 93, -19, 90),
+            new("New village", "/dorf1.php?newdid=2", false, 93, -19, 95),
+        ];
+        var fresh = new Village("New village", "/dorf1.php?newdid=2", false, 93, -17, 96);
+
+        var merged = VillageIdentityReconciler.MergeFreshWithCached(fresh, cached);
+
+        Assert.Equal(93, merged.CoordX);
+        Assert.Equal(-17, merged.CoordY);
+        Assert.Equal(96, merged.Population);
+    }
+
+    [Fact]
+    public void ReconcileRenamedByCoordinates_AllowsRenamingToAnExistingVillageName()
+    {
+        Village[] cached =
+        [
+            new("Existing", "/dorf1.php?newdid=1", false, 10, 20),
+            new("Old name", "/dorf1.php?newdid=2", false, 30, 40),
+        ];
+
+        var updated = VillageIdentityReconciler.ReconcileRenamedByCoordinates(cached, "Existing", (30, 40));
+
+        Assert.NotNull(updated);
+        Assert.Equal("Existing", updated![0].Name);
+        Assert.Equal("Existing", updated[1].Name);
+        Assert.Equal(10, updated[0].CoordX);
+        Assert.Equal(30, updated[1].CoordX);
     }
 }

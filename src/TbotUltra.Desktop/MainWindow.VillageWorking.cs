@@ -44,6 +44,7 @@ public partial class MainWindow
     // The hero's home village name, captured from the hero attributes read at login (one home village at
     // a time). Drives the green/yellow/dark Hero icon in the Dashboard village list.
     private string? _heroHomeVillageName;
+    private string? _heroHomeVillageKey;
 
     // Hero icon state for the home village: away (yellow), reviving (orange), dead (red, overrides). Dark =
     // not the hero village, green = hero home and alive.
@@ -54,10 +55,24 @@ public partial class MainWindow
     // Records the hero home village + away/dead/reviving state and repaints the Dashboard hero indicators. A
     // null name keeps the last-known home village (e.g. when the hero is on an adventure and the page no
     // longer names a village) so the flags can still color the right row. No-op when nothing changed.
-    private void SetHeroState(string? name, bool isAway, bool isDead, bool isReviving = false)
+    private void SetHeroState(
+        string? name,
+        bool isAway,
+        bool isDead,
+        bool isReviving = false,
+        int? homeVillageCoordX = null,
+        int? homeVillageCoordY = null)
     {
         var normalized = NormalizeVillageName(name) ?? _heroHomeVillageName;
+        var resolvedKey = homeVillageCoordX.HasValue && homeVillageCoordY.HasValue
+            ? VillageKey.FromCoords(homeVillageCoordX.Value, homeVillageCoordY.Value)
+            : _heroHomeVillageKey ?? ResolveUniqueVillageKeyByName(
+                (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem> ?? [])
+                    .Select(item => new Village(item.Name, item.Url, item.IsCapital, item.CoordX, item.CoordY))
+                    .ToList(),
+                normalized);
         if (string.Equals(_heroHomeVillageName, normalized, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(_heroHomeVillageKey, resolvedKey, StringComparison.OrdinalIgnoreCase)
             && _heroIsAway == isAway
             && _heroIsDead == isDead
             && _heroIsReviving == isReviving)
@@ -65,8 +80,10 @@ public partial class MainWindow
             return;
         }
 
-        var homeChanged = !string.Equals(_heroHomeVillageName, normalized, StringComparison.OrdinalIgnoreCase);
+        var homeChanged = !string.Equals(_heroHomeVillageName, normalized, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(_heroHomeVillageKey, resolvedKey, StringComparison.OrdinalIgnoreCase);
         _heroHomeVillageName = normalized;
+        _heroHomeVillageKey = resolvedKey;
         _heroIsAway = isAway;
         _heroIsDead = isDead;
         _heroIsReviving = isReviving;
@@ -77,7 +94,7 @@ public partial class MainWindow
         {
             try
             {
-                _villageSettingsStore.SetHeroHomeVillageName(_heroHomeVillageName);
+                _villageSettingsStore.SetHeroHomeVillage(_heroHomeVillageName, _heroHomeVillageKey);
             }
             catch (Exception ex)
             {
@@ -95,9 +112,11 @@ public partial class MainWindow
         try
         {
             var saved = _villageSettingsStore.GetHeroHomeVillageName();
+            var savedKey = _villageSettingsStore.GetHeroHomeVillageKey();
             if (!string.IsNullOrWhiteSpace(saved) && _heroHomeVillageName is null)
             {
                 _heroHomeVillageName = NormalizeVillageName(saved);
+                _heroHomeVillageKey = savedKey;
                 RefreshVillageActivityIndicatorsOnDashboard();
             }
         }
@@ -130,7 +149,6 @@ public partial class MainWindow
             return;
         }
 
-        var buildingSlotCount = ResolveIsRomansTribe() ? 3 : 2;
         var heroHome = NormalizeVillageName(_heroHomeVillageName);
         var queuedVillages = BuildVillagesWithConstructionQueue();
         // Per-village set of groups with a deferred/blocked task (Pending but not yet due) — drives the
@@ -139,28 +157,32 @@ public partial class MainWindow
         foreach (var item in items)
         {
             var name = NormalizeVillageName(item.Name);
-            VillageStatus? status = null;
-            if (name is not null)
-            {
-                _villageStatusCache.TryGetByName(name, out status);
-            }
+            var villageKey = GetVillageKey(item);
+            TryGetCachedVillageStatus(item, out var status);
+            var buildingSlotCount = (TroopCatalog.IsKnownTribe(status?.Tribe) ? status!.Tribe : item.Tribe)
+                .Contains("Roman", StringComparison.OrdinalIgnoreCase)
+                    ? 3
+                    : 2;
 
             HashSet<QueueGroup>? deferredGroups = null;
-            if (name is not null)
-            {
-                deferredByVillage.TryGetValue(name, out deferredGroups);
-            }
+            deferredByVillage.TryGetValue(villageKey, out deferredGroups);
 
             item.BuildingSlots = BuildBuildingActivitySlots(
                 status, buildingSlotCount, deferredGroups?.Contains(QueueGroup.Construction) == true);
             item.TroopSlots = BuildTroopActivitySlots(status, ResolveTroopTrainingPayloadForVillage(item), GetServerNow());
-            item.SmithySlots = BuildSmithyActivitySlots(name, deferredGroups?.Contains(QueueGroup.Troops) == true);
-            item.HasQueue = name is not null && queuedVillages.Contains(name);
+            item.SmithySlots = BuildSmithyActivitySlots(status, deferredGroups?.Contains(QueueGroup.Troops) == true);
+            item.HasQueue = queuedVillages.Contains(villageKey);
             ApplyDashboardQueueTooltip(item);
 
-            var isHeroVillage = name is not null
-                && heroHome is not null
-                && string.Equals(name, heroHome, StringComparison.OrdinalIgnoreCase);
+            var isHeroVillage = _heroHomeVillageKey is not null
+                ? string.Equals(villageKey, _heroHomeVillageKey, StringComparison.OrdinalIgnoreCase)
+                : name is not null
+                  && heroHome is not null
+                  && items.Count(candidate => string.Equals(
+                      NormalizeVillageName(candidate.Name),
+                      heroHome,
+                      StringComparison.OrdinalIgnoreCase)) == 1
+                  && string.Equals(name, heroHome, StringComparison.OrdinalIgnoreCase);
             item.IsHeroHome = isHeroVillage;
             // Priority: dead (red) > reviving (orange) > away (yellow) > home (green).
             item.IsHeroDead = isHeroVillage && _heroIsDead;
@@ -169,7 +191,7 @@ public partial class MainWindow
         }
     }
 
-    // Village names that currently have at least one pending construction item queued. Drives the green
+    // Village keys that currently have at least one pending construction item queued. Drives the green
     // (has queue) vs muted (empty) queue icon so the user sees which villages need more queued.
     private HashSet<string> BuildVillagesWithConstructionQueue()
     {
@@ -184,10 +206,10 @@ public partial class MainWindow
                     continue;
                 }
 
-                var villageName = NormalizeVillageName(GetQueueItemVillageName(item));
-                if (villageName is not null)
+                var villageKey = GetQueueItemVillageKey(item);
+                if (villageKey is not null)
                 {
-                    set.Add(villageName);
+                    set.Add(villageKey);
                 }
             }
         }
@@ -215,16 +237,16 @@ public partial class MainWindow
                     continue;
                 }
 
-                var villageName = NormalizeVillageName(GetQueueItemVillageName(item));
-                if (villageName is null)
+                var villageKey = GetQueueItemVillageKey(item);
+                if (villageKey is null)
                 {
                     continue;
                 }
 
-                if (!map.TryGetValue(villageName, out var groups))
+                if (!map.TryGetValue(villageKey, out var groups))
                 {
                     groups = new HashSet<QueueGroup>();
-                    map[villageName] = groups;
+                    map[villageKey] = groups;
                 }
 
                 groups.Add(item.Group);
@@ -240,9 +262,13 @@ public partial class MainWindow
 
     // Two Smithy research slots per village, lit when occupied — same active/idle convention as the build
     // slots. Both icons and the Queue page use the same persisted SmithyUpgradeStatus source of truth.
-    private IReadOnlyList<VillageActivitySlot> BuildSmithyActivitySlots(string? villageName, bool hasDeferredWork = false)
+    private IReadOnlyList<VillageActivitySlot> BuildSmithyActivitySlots(VillageStatus? status, bool hasDeferredWork = false)
     {
-        var activeUpgrades = ResolveActiveSmithyQueue(villageName);
+        var activeUpgrades = SmithyQueueState.ResolveActiveUpgrades(
+                status?.SmithyUpgradeStatus,
+                DateTimeOffset.UtcNow)
+            .Take(2)
+            .ToList();
         var slots = new List<VillageActivitySlot>(2);
         for (var i = 0; i < 2; i++)
         {
@@ -323,7 +349,10 @@ public partial class MainWindow
             .OrderBy(entry => entry.TimeLeftSeconds)
             .ToList();
         var name = NormalizeVillageName(_activeWorkingVillageName);
-        if (name is not null && _villageStatusCache.TryGetByName(name, out var cached))
+        var villageKey = _activeWorkingVillageKey;
+        if (name is not null
+            && villageKey is not null
+            && _villageStatusCache.TryGetByKey(villageKey, out var cached))
         {
             var existing = cached.SmithyUpgradeStatus;
             var incoming = new SmithyUpgradeStatus(
@@ -345,9 +374,9 @@ public partial class MainWindow
             _villageStatusCache.Set(name, cached with { SmithyUpgradeStatus = preserved });
             _villageCacheStore.Save(_villageStatusCache.Snapshot);
 
-            var selectedName = NormalizeVillageName(GetSelectedVillageName());
-            if (selectedName is null
-                || string.Equals(name, selectedName, StringComparison.OrdinalIgnoreCase))
+            var selectedKey = GetSelectedVillageKey();
+            if (selectedKey is null
+                || string.Equals(villageKey, selectedKey, StringComparison.OrdinalIgnoreCase))
             {
                 ApplySmithyUpgradeStatus(preserved);
             }
@@ -356,10 +385,9 @@ public partial class MainWindow
         RefreshVillageActivityIndicatorsOnDashboard();
     }
 
-    private IReadOnlyList<ActiveSmithyUpgrade> ResolveActiveSmithyQueue(string? villageName)
+    private IReadOnlyList<ActiveSmithyUpgrade> ResolveActiveSmithyQueue(string? villageKey)
     {
-        var name = NormalizeVillageName(villageName);
-        if (name is null || !_villageStatusCache.TryGetByName(name, out var status))
+        if (villageKey is null || !_villageStatusCache.TryGetByKey(villageKey, out var status))
         {
             return [];
         }
@@ -548,7 +576,12 @@ public partial class MainWindow
         var status = await ReadVillageStatusWithRetryAsync(options, token, resourceOnly: false, forceCurrentVillage: true);
         await Dispatcher.InvokeAsync(() =>
         {
-            SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage, status.ActiveVillage);
+            SyncDashboardVillageUiFromVillages(
+                status.Villages,
+                status.ActiveVillage,
+                status.ActiveVillage,
+                status.ActiveVillageCoordX,
+                status.ActiveVillageCoordY);
             SetActiveWorkingVillageFromStatus(status);
             CacheVillageStatus(status);
             ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
@@ -766,7 +799,17 @@ public partial class MainWindow
         // 20s; lighter refreshes still update memory.
         var isFullRead = status.Buildings is { Count: > 0 } || status.ResourceFields is { Count: > 0 };
 
-        if (_villageStatusCache.TryGetByName(name, out var existing))
+        var statusKey = VillageStatusCache.TryResolveCoordinateKey(name, status);
+        if (statusKey is null && IsVillageNameAmbiguous(name))
+        {
+            AppendLog($"[village-cache] skipped status update for ambiguous village name '{name}'; coordinates were unavailable.");
+            return;
+        }
+        VillageStatus? existing = null;
+        var hasExisting = statusKey is not null
+            ? _villageStatusCache.TryGetByKey(statusKey, out existing)
+            : _villageStatusCache.TryGetByName(name, out existing);
+        if (hasExisting && existing is not null)
         {
             var now = DateTimeOffset.UtcNow;
             status = ConstructionQueueState.PreserveKnownConstructionState(status, existing);
@@ -847,16 +890,16 @@ public partial class MainWindow
             var previousName = _villageSettingsStore.GetStoredName(info);
             if (!string.IsNullOrWhiteSpace(previousName))
             {
-                MigrateVillageStatusCacheKey(previousName, info.Name);
+                MigrateVillageStatusCacheKey(previousName, info.Name, info.Key);
             }
         }
     }
 
-    private void MigrateVillageStatusCacheKey(string? oldName, string? newName)
+    private void MigrateVillageStatusCacheKey(string? oldName, string? newName, string? villageKey)
     {
         // Canonical (coordinate-keyed) entries survive a rename by construction; MigrateName only moves
         // the name-based lookup (and re-keys any legacy name-keyed entry). No-op when nothing was cached.
-        if (!_villageStatusCache.MigrateName(oldName, newName))
+        if (!_villageStatusCache.MigrateName(oldName, newName, villageKey))
         {
             return;
         }
@@ -865,14 +908,15 @@ public partial class MainWindow
         AppendLog($"[village-rename] migrated cached village status '{oldName}' -> '{newName}'.");
     }
 
-    private void UpdateCachedTimerStatus(string? villageName, Func<VillageStatus, VillageStatus> update)
+    private void UpdateSelectedCachedTimerStatus(Func<VillageStatus, VillageStatus> update)
     {
-        var name = NormalizeVillageName(villageName);
-        if (name is null || !_villageStatusCache.TryGetByName(name, out var existing))
+        if (VillageComboBox.SelectedItem is not VillageSelectionItem selected
+            || !TryGetCachedVillageStatus(selected, out var existing))
         {
             return;
         }
 
+        var name = NormalizeVillageName(selected.Name)!;
         var updated = update(existing);
         updated = ConstructionQueueState.PreserveKnownConstructionState(updated, existing);
         if (updated.SmithyUpgradeStatus is not null)
@@ -888,6 +932,56 @@ public partial class MainWindow
 
         _villageStatusCache.Set(name, updated);
         _villageCacheStore.Save(_villageStatusCache.Snapshot);
+    }
+
+    // Timer/status updates produced by a live village read must keep that read's coordinate owner.
+    // A display name is insufficient because duplicate village names are valid.
+    private void UpdateCachedTimerStatus(VillageStatus ownerStatus, Func<VillageStatus, VillageStatus> update)
+    {
+        var name = NormalizeVillageName(ownerStatus.ActiveVillage);
+        var key = name is null ? null : VillageStatusCache.TryResolveCoordinateKey(name, ownerStatus);
+        if (key is null && name is not null && IsVillageNameAmbiguous(name))
+        {
+            AppendLog($"[village-cache] skipped timer update for ambiguous village name '{name}'; coordinates were unavailable.");
+            return;
+        }
+        VillageStatus? existing = null;
+        var found = key is not null
+            ? _villageStatusCache.TryGetByKey(key, out existing)
+            : name is not null && _villageStatusCache.TryGetByName(name, out existing);
+        if (!found || existing is null || name is null)
+        {
+            return;
+        }
+
+        var updated = ConstructionQueueState.PreserveKnownConstructionState(update(existing), existing);
+        if (updated.SmithyUpgradeStatus is not null)
+        {
+            updated = updated with
+            {
+                SmithyUpgradeStatus = SmithyQueueState.PreserveKnownActiveQueue(
+                    updated.SmithyUpgradeStatus,
+                    existing.SmithyUpgradeStatus,
+                    DateTimeOffset.UtcNow),
+            };
+        }
+
+        _villageStatusCache.Set(name, updated);
+        _villageCacheStore.Save(_villageStatusCache.Snapshot);
+    }
+
+    private bool IsVillageNameAmbiguous(string villageName)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            return Dispatcher.Invoke(() => IsVillageNameAmbiguous(villageName));
+        }
+
+        return (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem> ?? [])
+            .Count(item => string.Equals(
+                NormalizeVillageName(item.Name),
+                villageName,
+                StringComparison.OrdinalIgnoreCase)) > 1;
     }
 
     // Loads the per-village buildings/resource-field cache persisted for the active account so a village
@@ -913,10 +1007,23 @@ public partial class MainWindow
         AppendLog("[LoadVillageCacheForActiveAccount] Completed");
     }
 
-    // True when a freshly read status belongs to the village the user currently has selected (or the
-    // village is indeterminate — then we don't suppress, to avoid blanking the UI). Name-based.
+    // True when a freshly read status belongs to the village the user currently has selected.
+    // Coordinates win because duplicate display names are valid.
     private bool IsStatusForSelectedVillage(VillageStatus status)
     {
+        if (!Dispatcher.CheckAccess())
+        {
+            return Dispatcher.Invoke(() => IsStatusForSelectedVillage(status));
+        }
+
+        if (status.ActiveVillageCoordX.HasValue && status.ActiveVillageCoordY.HasValue)
+        {
+            return string.Equals(
+                GetSelectedVillageKey(),
+                VillageKey.FromCoords(status.ActiveVillageCoordX.Value, status.ActiveVillageCoordY.Value),
+                StringComparison.OrdinalIgnoreCase);
+        }
+
         var statusName = NormalizeVillageName(status.ActiveVillage);
         var selectedName = NormalizeVillageName(GetSelectedVillageName());
         if (statusName is null || selectedName is null)
@@ -924,12 +1031,18 @@ public partial class MainWindow
             return true;
         }
 
-        return string.Equals(statusName, selectedName, StringComparison.OrdinalIgnoreCase);
+        var matchingNames = (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem> ?? [])
+            .Count(item => string.Equals(
+                NormalizeVillageName(item.Name),
+                statusName,
+                StringComparison.OrdinalIgnoreCase));
+        return matchingNames <= 1
+            && string.Equals(statusName, selectedName, StringComparison.OrdinalIgnoreCase);
     }
 
     private void SetActiveWorkingVillage(string? villageKey, string? villageName)
     {
-        // The village NAME is the primary identity (it's what reads/dropdown agree on). Ignore empty or
+        // Coordinates/ID are the primary identity because village names are not unique. Ignore empty or
         // "Unknown village" so a bad/transient read never clears a good marker.
         var name = string.IsNullOrWhiteSpace(villageName) ? null : villageName.Trim();
         if (string.Equals(name, "Unknown village", StringComparison.OrdinalIgnoreCase))
@@ -937,7 +1050,7 @@ public partial class MainWindow
             name = null;
         }
 
-        // Key is best-effort (used as a secondary match); resolve from the list by name when not given.
+        // Resolve by name only when the name identifies exactly one village in the current list.
         var resolvedKey = !string.IsNullOrWhiteSpace(villageKey)
             ? villageKey
             : ResolveVillageKeyByName(name);
@@ -965,8 +1078,10 @@ public partial class MainWindow
 
     private void SetActiveWorkingVillageFromStatus(VillageStatus status)
     {
-        // Name is the identity; SetActiveWorkingVillage resolves the key from the village list by name.
-        SetActiveWorkingVillage(null, status.ActiveVillage);
+        var key = status.ActiveVillageCoordX.HasValue && status.ActiveVillageCoordY.HasValue
+            ? VillageKey.FromCoords(status.ActiveVillageCoordX.Value, status.ActiveVillageCoordY.Value)
+            : ResolveVillageKeyByName(status.ActiveVillage);
+        SetActiveWorkingVillage(key, status.ActiveVillage);
     }
 
     private string? ResolveVillageKeyByName(string? villageName)
@@ -976,11 +1091,21 @@ public partial class MainWindow
             return null;
         }
 
+        if (!Dispatcher.CheckAccess())
+        {
+            return Dispatcher.Invoke(() => ResolveVillageKeyByName(villageName));
+        }
+
         var items = (DashboardVillageList.ItemsSource as IEnumerable<VillageSelectionItem>)
             ?? (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>);
-        var match = items?.FirstOrDefault(item =>
-            string.Equals(item.Name?.Trim(), villageName.Trim(), StringComparison.OrdinalIgnoreCase));
-        return match is null ? null : GetVillageKey(match);
+        var matches = items?
+            .Where(item => string.Equals(
+                item.Name?.Trim(),
+                villageName.Trim(),
+                StringComparison.OrdinalIgnoreCase))
+            .Take(2)
+            .ToList();
+        return matches is { Count: 1 } ? GetVillageKey(matches[0]) : null;
     }
 
     // Called when a queue item begins executing so the "active village" border follows the bot as it
@@ -1024,28 +1149,23 @@ public partial class MainWindow
             .Select(g => g.Key)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
-        // Only ONE village may be active at a time. Pick a single best match: name+key beats name beats
-        // key, then clear the rest, so a shared key (or shared name) can never light up multiple rows.
+        // Only ONE village may be active at a time. Coordinates are authoritative; a unique name is used
+        // only when no coordinate key is available.
         VillageSelectionItem? best = null;
-        var bestScore = 0;
-        foreach (var item in itemList)
+        if (!string.IsNullOrWhiteSpace(_activeWorkingVillageKey))
         {
-            // Name is the primary match (robust to key/url differences between reads and the list);
-            // key is a secondary match. The name match is suppressed when the name is ambiguous.
-            var name = item.Name?.Trim();
-            var nameMatch = !string.IsNullOrWhiteSpace(_activeWorkingVillageName)
-                && !string.IsNullOrWhiteSpace(name)
-                && !duplicateNames.Contains(name!)
-                && string.Equals(name, _activeWorkingVillageName.Trim(), StringComparison.OrdinalIgnoreCase);
-            var keyMatch = !string.IsNullOrWhiteSpace(_activeWorkingVillageKey)
-                && string.Equals(GetVillageKey(item), _activeWorkingVillageKey, StringComparison.OrdinalIgnoreCase);
-
-            var score = (nameMatch ? 2 : 0) + (keyMatch ? 1 : 0);
-            if (score > bestScore)
-            {
-                bestScore = score;
-                best = item;
-            }
+            best = itemList.FirstOrDefault(item => string.Equals(
+                GetVillageKey(item),
+                _activeWorkingVillageKey,
+                StringComparison.OrdinalIgnoreCase));
+        }
+        else if (!string.IsNullOrWhiteSpace(_activeWorkingVillageName)
+                 && !duplicateNames.Contains(_activeWorkingVillageName.Trim()))
+        {
+            best = itemList.FirstOrDefault(item => string.Equals(
+                item.Name?.Trim(),
+                _activeWorkingVillageName.Trim(),
+                StringComparison.OrdinalIgnoreCase));
         }
 
         foreach (var item in itemList)
@@ -1064,12 +1184,18 @@ public partial class MainWindow
             return;
         }
 
-        // Compare by NAME so key/url differences between the dropdown and the read status don't make the
-        // button look permanently "switchable" when the selected and active village are actually the same.
+        // Coordinates are authoritative. Names are only a fallback when an identity key is unavailable.
+        var selectedKey = GetSelectedVillageKey();
         var selectedName = GetSelectedVillageName();
-        var differs = !string.IsNullOrWhiteSpace(selectedName)
-            && !string.IsNullOrWhiteSpace(_activeWorkingVillageName)
-            && !string.Equals(selectedName.Trim(), _activeWorkingVillageName.Trim(), StringComparison.OrdinalIgnoreCase);
+        var differs = !string.IsNullOrWhiteSpace(selectedKey)
+            && !string.IsNullOrWhiteSpace(_activeWorkingVillageKey)
+                ? !string.Equals(selectedKey, _activeWorkingVillageKey, StringComparison.OrdinalIgnoreCase)
+                : !string.IsNullOrWhiteSpace(selectedName)
+                  && !string.IsNullOrWhiteSpace(_activeWorkingVillageName)
+                  && !string.Equals(
+                      selectedName.Trim(),
+                      _activeWorkingVillageName.Trim(),
+                      StringComparison.OrdinalIgnoreCase);
 
         if (differs)
         {
@@ -1102,9 +1228,9 @@ public partial class MainWindow
         _buildingLastQueuedTargetBySlot.Clear();
         _buildingLastQueuedConstructBySlot.Clear();
 
-        var name = NormalizeVillageName(selected.Name);
         ApplySelectedVillageTribeFromCache(selected);
-        if (name is not null && _villageStatusCache.TryGetByName(name, out var cached))
+        var hasCachedStatus = TryGetCachedVillageStatus(selected, out var cached);
+        if (hasCachedStatus)
         {
             ApplyResourceRowsAndVillageStatus(cached, includeQueuedTargets: true);
             // Storage bars must follow the selected village too (they were staying on the previous one).
@@ -1143,17 +1269,14 @@ public partial class MainWindow
         ApplyAutomationLoopGroupsForSelectedVillage();
         // Load this village's troop-training override into the Troops tab so it tracks the selection.
         ApplyTroopTrainingForSelectedVillage();
-        ApplyConstructionTimerFromStatus(
-            name is not null && _villageStatusCache.TryGetByName(name, out var timerStatus) ? timerStatus : null);
+        ApplyConstructionTimerFromStatus(hasCachedStatus ? cached : null);
         // Light up Switch village when the selected village differs from the one the bot works in.
         UpdateSwitchVillageButtonHighlight();
     }
 
     private void ApplySelectedVillageTribeFromCache(VillageSelectionItem selected)
     {
-        var name = NormalizeVillageName(selected.Name);
-        var tribe = name is not null
-            && _villageStatusCache.TryGetByName(name, out var cached)
+        var tribe = TryGetCachedVillageStatus(selected, out var cached)
             && TroopCatalog.IsKnownTribe(cached.Tribe)
                 ? cached.Tribe
                 : selected.Tribe;
@@ -1163,6 +1286,32 @@ public partial class MainWindow
         {
             ApplyTroopTrainingTribeState(tribe);
         }
+    }
+
+    private bool TryGetCachedVillageStatus(VillageSelectionItem selected, out VillageStatus status)
+    {
+        if (_villageStatusCache.TryGetByKey(GetVillageKey(selected), out var byKey))
+        {
+            status = byKey;
+            return true;
+        }
+
+        var name = NormalizeVillageName(selected.Name);
+        var sameNameCount = (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem> ?? [])
+            .Count(item => string.Equals(
+                NormalizeVillageName(item.Name),
+                name,
+                StringComparison.OrdinalIgnoreCase));
+        if (name is not null
+            && sameNameCount <= 1
+            && _villageStatusCache.TryGetByName(name, out var byName))
+        {
+            status = byName;
+            return true;
+        }
+
+        status = null!;
+        return false;
     }
 
     // Clears the buildings/resources detail for a selected village that has no cached read yet, so stale
@@ -1246,7 +1395,12 @@ public partial class MainWindow
             BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{selected.Name}'");
             ApplyVillageTribeToUiIfSelected(status);
             VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
-            SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage, selected.Name);
+            SyncDashboardVillageUiFromVillages(
+                status.Villages,
+                status.ActiveVillage,
+                selected.Name,
+                status.ActiveVillageCoordX,
+                status.ActiveVillageCoordY);
             SetActiveWorkingVillage(key, selected.Name);
             ApplyAutomationLoopGroupsForSelectedVillage();
             ApplyConstructionTimerFromStatus(status);

@@ -22,7 +22,10 @@ public sealed class HeroAttributeSnapshotStoreTests : IDisposable
             DefenceBonus: 4,
             Resources: 68,
             AdventureCount: 5,
-            HeroState: "Home");
+            HeroState: "Home",
+            HomeVillageName: "New village",
+            HomeVillageCoordX: 93,
+            HomeVillageCoordY: -19);
 
         store.Save("account-one", "https://ts100.example.com", expected);
 

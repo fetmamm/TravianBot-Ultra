@@ -1,3 +1,4 @@
+using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 using Xunit;
@@ -6,6 +7,33 @@ namespace TbotUltra.Desktop.Tests;
 
 public sealed class StorageCapacityDependencyPlannerTests
 {
+    [Fact]
+    public void BuildDependencyPayload_PreservesCoordinateVillageIdentity()
+    {
+        var parentPayload = new Dictionary<string, string>
+        {
+            [BotOptionPayloadKeys.TargetVillageName] = "New village",
+            [BotOptionPayloadKeys.TargetVillageUrl] = "dorf1.php?newdid=28805",
+            [BotOptionPayloadKeys.TargetVillageKey] = "xy:93|-19",
+        };
+        var plan = new StorageDependencyPlan(
+            StorageDependencyAction.Upgrade,
+            StorageCapacityKind.Warehouse,
+            SlotId: 19,
+            TargetLevel: 2,
+            WaitSeconds: 0,
+            Reason: "test");
+
+        var payload = StorageCapacityDependencyPlanner.BuildDependencyPayload(
+            plan,
+            Guid.NewGuid(),
+            parentPayload);
+
+        Assert.Equal("New village", payload[BotOptionPayloadKeys.TargetVillageName]);
+        Assert.Equal("dorf1.php?newdid=28805", payload[BotOptionPayloadKeys.TargetVillageUrl]);
+        Assert.Equal("xy:93|-19", payload[BotOptionPayloadKeys.TargetVillageKey]);
+    }
+
     [Fact]
     public void ResolveBlock_PrefersWarehouseWhenBothCapacitiesAreTooLow()
     {

@@ -242,7 +242,7 @@ public partial class MainWindow
 
         if (!string.Equals(
                 _constructionHumanizeWaitVillage,
-                NormalizeVillageName(GetSelectedVillageName()),
+                GetSelectedVillageKey(),
                 StringComparison.OrdinalIgnoreCase))
         {
             return false;

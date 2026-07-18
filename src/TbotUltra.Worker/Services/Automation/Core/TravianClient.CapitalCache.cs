@@ -16,7 +16,11 @@ public sealed partial class TravianClient
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
     };
 
-    private async Task<bool?> ReadIsCapitalAsync(string villageName, CancellationToken cancellationToken)
+    private async Task<bool?> ReadIsCapitalAsync(
+        string villageName,
+        int? coordX,
+        int? coordY,
+        CancellationToken cancellationToken)
     {
         Notify("[ReadIsCapitalAsync] started for village.");
         var previousUrl = _page.Url;
@@ -25,9 +29,9 @@ public sealed partial class TravianClient
             await GotoAsync(Paths.PlayerProfile, cancellationToken);
             var result = await _page.EvaluateAsync<string>(
                 """
-                (vName) => {
+                (target) => {
                   const clean = (v) => (v || '').replace(/\s+/g, ' ').trim();
-                  const wanted = clean(vName).toLowerCase();
+                  const wanted = clean(target.name).toLowerCase();
                   if (!wanted) return 'unknown';
 
                   // Official Travian (T4.6) adds span.additionalInfo with the text "(Capital)"
@@ -49,10 +53,23 @@ public sealed partial class TravianClient
 
                   const nameCell = row.querySelector('td.name, td.village, td:first-child');
                   const rowText = clean((nameCell || row).textContent || '').toLowerCase();
-                  return rowText.includes(wanted) ? 'true' : 'false';
+                  if (!rowText.includes(wanted)) return 'false';
+
+                  if (Number.isInteger(target.x) && Number.isInteger(target.y)) {
+                    const parseCoordinate = (value) => {
+                      const match = clean(value).replace(/[−–—]/g, '-').match(/-?\d+/);
+                      return match ? Number.parseInt(match[0], 10) : null;
+                    };
+                    const rowX = parseCoordinate(row.querySelector('.coordinateX, .coordinate.x')?.textContent || '');
+                    const rowY = parseCoordinate(row.querySelector('.coordinateY, .coordinate.y')?.textContent || '');
+                    if (rowX === null || rowY === null) return 'unknown';
+                    return rowX === target.x && rowY === target.y ? 'true' : 'false';
+                  }
+
+                  return 'true';
                 }
                 """,
-                villageName);
+                new { name = villageName, x = coordX, y = coordY });
 
             return result?.ToLowerInvariant() switch
             {
@@ -80,8 +97,9 @@ public sealed partial class TravianClient
             return;
         }
 
-        var isCapital = await ReadIsCapitalAsync(activeVillage, cancellationToken);
-        SaveCachedCapitalState(activeVillage, isCapital);
+        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+        var isCapital = await ReadIsCapitalAsync(activeVillage, activeCoords.X, activeCoords.Y, cancellationToken);
+        SaveCachedVillageState(activeVillage, isCapital, activeCoords.X, activeCoords.Y);
     }
 
     private async Task<string?> TryReadActiveVillageNameSafeAsync(CancellationToken cancellationToken)
@@ -99,6 +117,9 @@ public sealed partial class TravianClient
     }
 
     private bool? TryGetCachedCapitalState(string villageName)
+        => TryGetCachedCapitalState(villageName, null, null);
+
+    private bool? TryGetCachedCapitalState(string villageName, int? coordX, int? coordY)
     {
         if (string.IsNullOrWhiteSpace(villageName))
         {
@@ -106,12 +127,21 @@ public sealed partial class TravianClient
         }
 
         EnsureCapitalCacheLoaded();
-        var key = BuildCapitalCacheKey(villageName);
         lock (_capitalCacheSync)
         {
-            return _capitalCacheByKey.TryGetValue(key, out var entry)
-                ? entry.IsCapital
-                : null;
+            if (coordX.HasValue && coordY.HasValue)
+            {
+                var coordinateKey = BuildCapitalCacheKey(villageName, coordX, coordY);
+                return _capitalCacheByKey.TryGetValue(coordinateKey, out var coordinateEntry)
+                    ? coordinateEntry.IsCapital
+                    : null;
+            }
+
+            var matches = _capitalCacheByKey.Values
+                .Where(entry => IsCurrentAccountServer(entry)
+                    && VillageIdentityReconciler.IsSameName(entry.VillageName, villageName))
+                .ToList();
+            return matches.Count == 1 ? matches[0].IsCapital : null;
         }
     }
 
@@ -128,7 +158,7 @@ public sealed partial class TravianClient
         lock (_capitalCacheSync)
         {
             EnsureCapitalCacheLoadedUnderLock();
-            var key = BuildCapitalCacheKey(villageName);
+            var key = BuildCapitalCacheKey(villageName, coordX, coordY);
 
             // Preserve existing coords if none provided; preserve existing isCapital if none provided
             _capitalCacheByKey.TryGetValue(key, out var existing);
@@ -158,11 +188,14 @@ public sealed partial class TravianClient
         if (string.IsNullOrWhiteSpace(villageName))
             return (null, null);
         EnsureCapitalCacheLoaded();
-        var key = BuildCapitalCacheKey(villageName);
         lock (_capitalCacheSync)
         {
-            return _capitalCacheByKey.TryGetValue(key, out var entry)
-                ? (entry.CoordX, entry.CoordY)
+            var matches = _capitalCacheByKey.Values
+                .Where(entry => IsCurrentAccountServer(entry)
+                    && VillageIdentityReconciler.IsSameName(entry.VillageName, villageName))
+                .ToList();
+            return matches.Count == 1
+                ? (matches[0].CoordX, matches[0].CoordY)
                 : (null, null);
         }
     }
@@ -211,7 +244,7 @@ public sealed partial class TravianClient
                     continue;
                 }
 
-                var key = CapitalCacheKey.Build(entry.AccountName, entry.ServerUrl, entry.VillageName);
+                var key = BuildCapitalCacheEntryKey(entry);
                 _capitalCacheByKey[key] = entry;
             }
         }
@@ -252,7 +285,7 @@ public sealed partial class TravianClient
                     continue;
                 }
 
-                var key = CapitalCacheKey.Build(entry.AccountName, entry.ServerUrl, entry.VillageName);
+                var key = BuildCapitalCacheEntryKey(entry);
                 _capitalCacheByKey[key] = entry;
             }
 
@@ -352,9 +385,27 @@ public sealed partial class TravianClient
             StringComparison.Ordinal);
     }
 
-    private string BuildCapitalCacheKey(string villageName)
+    private bool IsCurrentAccountServer(CapitalCacheEntry entry)
+        => IsCapitalCacheEntryForAccount(entry, _account.Name)
+            && string.Equals(
+                entry.ServerUrl.TrimEnd('/'),
+                _config.BaseUrl.TrimEnd('/'),
+                StringComparison.OrdinalIgnoreCase);
+
+    private string BuildCapitalCacheKey(string villageName, int? coordX = null, int? coordY = null)
     {
-        return CapitalCacheKey.Build(_account.Name, _config.BaseUrl.TrimEnd('/'), villageName);
+        var identity = coordX.HasValue && coordY.HasValue
+            ? $"xy:{coordX.Value}|{coordY.Value}"
+            : $"name:{villageName}";
+        return CapitalCacheKey.Build(_account.Name, _config.BaseUrl.TrimEnd('/'), identity);
+    }
+
+    private static string BuildCapitalCacheEntryKey(CapitalCacheEntry entry)
+    {
+        var identity = entry.CoordX.HasValue && entry.CoordY.HasValue
+            ? $"xy:{entry.CoordX.Value}|{entry.CoordY.Value}"
+            : $"name:{entry.VillageName}";
+        return CapitalCacheKey.Build(entry.AccountName, entry.ServerUrl, identity);
     }
 
     private sealed class CapitalCacheDocument

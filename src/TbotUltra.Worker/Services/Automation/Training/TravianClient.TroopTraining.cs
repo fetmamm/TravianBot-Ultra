@@ -89,9 +89,10 @@ public sealed partial class TravianClient
         if (_session.TroopQueueSnapshotByBuilding is { Count: > 0 }
             && DateTimeOffset.UtcNow - _session.TroopQueueSnapshotAt <= TroopTrainingQueueSnapshotMaxAge)
         {
-            var activeVillage = await TryReadActiveVillageNameSafeAsync(cancellationToken);
-            if (!string.IsNullOrWhiteSpace(activeVillage)
-                && string.Equals(activeVillage, _session.TroopQueueSnapshotVillage, StringComparison.OrdinalIgnoreCase))
+            var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+            var activeVillageKey = BuildTroopQueueVillageKey(activeCoords.X, activeCoords.Y);
+            if (activeVillageKey is not null
+                && string.Equals(activeVillageKey, _session.TroopQueueSnapshotVillageKey, StringComparison.OrdinalIgnoreCase))
             {
                 recentSnapshot = _session.TroopQueueSnapshotByBuilding;
             }
@@ -127,23 +128,28 @@ public sealed partial class TravianClient
 
     // Called wherever build_troops reads a troop building's queue (candidate scan + after submit) so the
     // post-build refresh can reuse the data instead of navigating back to the same building pages.
-    private void SaveTroopTrainingQueueSnapshot(string villageName, TroopTrainingQueueStatus queueStatus)
+    private void SaveTroopTrainingQueueSnapshot(VillageStatus status, TroopTrainingQueueStatus queueStatus)
     {
-        if (string.IsNullOrWhiteSpace(villageName))
+        var villageKey = BuildTroopQueueVillageKey(status.ActiveVillageCoordX, status.ActiveVillageCoordY);
+        if (villageKey is null)
         {
+            Notify($"[troops:verbose] queue snapshot not cached for '{status.ActiveVillage}': stable village coordinates are unavailable.");
             return;
         }
 
         if (_session.TroopQueueSnapshotByBuilding is null
-            || !string.Equals(_session.TroopQueueSnapshotVillage, villageName, StringComparison.OrdinalIgnoreCase))
+            || !string.Equals(_session.TroopQueueSnapshotVillageKey, villageKey, StringComparison.OrdinalIgnoreCase))
         {
-            _session.TroopQueueSnapshotVillage = villageName;
+            _session.TroopQueueSnapshotVillageKey = villageKey;
             _session.TroopQueueSnapshotByBuilding = new Dictionary<TroopTrainingBuildingType, TroopTrainingQueueStatus>();
         }
 
         _session.TroopQueueSnapshotByBuilding[queueStatus.BuildingType] = queueStatus;
         _session.TroopQueueSnapshotAt = DateTimeOffset.UtcNow;
     }
+
+    private static string? BuildTroopQueueVillageKey(int? coordX, int? coordY)
+        => coordX.HasValue && coordY.HasValue ? $"xy:{coordX.Value}|{coordY.Value}" : null;
 
     public async Task<string> BuildTroopsAsync(CancellationToken cancellationToken = default)
     {
@@ -220,7 +226,7 @@ public sealed partial class TravianClient
         {
             var queueStatus = await ReadTroopTrainingQueueStatusAsync(status.Buildings, request.BuildingType, cancellationToken);
             queueStatuses.Add(queueStatus);
-            SaveTroopTrainingQueueSnapshot(status.ActiveVillage, queueStatus);
+            SaveTroopTrainingQueueSnapshot(status, queueStatus);
         }
 
         var candidates = requestsToScan
@@ -599,7 +605,7 @@ public sealed partial class TravianClient
         var queueSeconds = TroopTrainingCalculator.ResolveTroopTrainingQueueRemainingSeconds(queueItems);
         var queueText = queueSeconds > 0 ? TravianParsing.FormatDuration(queueSeconds) : "Ready";
         Notify($"[troops:verbose]queue after submit items={queueItems.Count}, remaining='{queueText}'.");
-        SaveTroopTrainingQueueSnapshot(status.ActiveVillage, new TroopTrainingQueueStatus(
+        SaveTroopTrainingQueueSnapshot(status, new TroopTrainingQueueStatus(
             candidate.Request.BuildingType,
             candidate.Request.BuildingName,
             true,

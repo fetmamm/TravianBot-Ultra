@@ -180,10 +180,15 @@ public sealed partial class TravianClient
         {
             Notify("Resource production update: start");
             var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
+            var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+            var activeVillageKey = activeCoords.X.HasValue && activeCoords.Y.HasValue
+                ? $"xy:{activeCoords.X.Value}|{activeCoords.Y.Value}"
+                : null;
             IReadOnlyDictionary<string, double?> production;
             if (!forceRefresh
                 && _productionUiSnapshot is not null
-                && string.Equals(_productionUiSnapshotVillage, activeVillage, StringComparison.OrdinalIgnoreCase))
+                && activeVillageKey is not null
+                && string.Equals(_productionUiSnapshotVillageKey, activeVillageKey, StringComparison.OrdinalIgnoreCase))
             {
                 production = _productionUiSnapshot;
                 Notify($"Resource production update: reused current task snapshot for village='{activeVillage}'.");
@@ -193,7 +198,7 @@ public sealed partial class TravianClient
                 production = await ReadCurrentPageResourceProductionPerHourAsync(cancellationToken);
                 if (production.Count > 0 && production.Values.Any(value => value is not null))
                 {
-                    _productionUiSnapshotVillage = activeVillage;
+                    _productionUiSnapshotVillageKey = activeVillageKey;
                     _productionUiSnapshot = production;
                 }
             }
@@ -846,9 +851,23 @@ public sealed partial class TravianClient
         => !string.IsNullOrWhiteSpace(villageName)
             && !string.Equals(villageName.Trim(), "Unknown village", StringComparison.OrdinalIgnoreCase);
 
-    private string BuildVillageResourceCacheKey(string villageName)
+    private string? BuildVillageResourceCacheKey(string villageName)
     {
-        return $"{_account.Name}|{_config.BaseUrl.TrimEnd('/')}|{(string.IsNullOrWhiteSpace(villageName) ? "unknown" : villageName.Trim())}";
+        var normalizedName = villageName.Trim();
+        var matches = _cachedVillages?
+            .Where(village => VillageIdentityReconciler.IsSameName(village.Name, normalizedName))
+            .ToList() ?? [];
+        if (matches.Count > 1)
+        {
+            return null;
+        }
+
+        var villageIdentity = matches.Count == 1
+            && matches[0].CoordX is int x
+            && matches[0].CoordY is int y
+                ? $"xy:{x}|{y}"
+                : $"name:{normalizedName}";
+        return $"{_account.Name}|{_config.BaseUrl.TrimEnd('/')}|{villageIdentity}";
     }
 
     private CachedVillageResourceSnapshot? TryGetCachedVillageResourceSnapshot(string villageName)
@@ -859,6 +878,10 @@ public sealed partial class TravianClient
         }
 
         var key = BuildVillageResourceCacheKey(villageName);
+        if (key is null)
+        {
+            return null;
+        }
         lock (ResourceStatusCacheSync)
         {
             return CachedVillageResourceSnapshotsByKey.TryGetValue(key, out var snapshot)
@@ -879,6 +902,11 @@ public sealed partial class TravianClient
         }
 
         var key = BuildVillageResourceCacheKey(villageName);
+        if (key is null)
+        {
+            Notify($"[resource-cache] skipped ambiguous village name '{villageName}'; stable coordinates are required.");
+            return;
+        }
         lock (ResourceStatusCacheSync)
         {
             CachedVillageResourceSnapshotsByKey.TryGetValue(key, out var existing);

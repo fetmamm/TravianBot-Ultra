@@ -136,7 +136,13 @@ public partial class MainWindow
         var heroDead = string.Equals(snapshot.HeroState, "Dead", StringComparison.OrdinalIgnoreCase);
         // SetHeroState keeps the last-known home village when the name is null (hero away/dead pages may not
         // name a village), so this safely updates away/dead/reviving colouring without a name.
-        SetHeroState(snapshot.HomeVillageName, snapshot.HomeVillageHeroAway, heroDead, heroReviving);
+        SetHeroState(
+            snapshot.HomeVillageName,
+            snapshot.HomeVillageHeroAway,
+            heroDead,
+            heroReviving,
+            snapshot.HomeVillageCoordX,
+            snapshot.HomeVillageCoordY);
         if (snapshot.AdventureCount is not null)
         {
             ApplyHeroAdventureAvailability(snapshot.AdventureCount.Value);

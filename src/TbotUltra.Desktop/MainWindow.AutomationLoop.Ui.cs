@@ -625,12 +625,7 @@ public partial class MainWindow
         int pendingCount,
         DateTimeOffset now)
     {
-        var selectedVillage = NormalizeVillageName(GetSelectedVillageName());
-        VillageStatus? status = null;
-        if (selectedVillage is not null)
-        {
-            _villageStatusCache.TryGetByName(selectedVillage, out status);
-        }
+        var status = ResolveSelectedVillageBuildingStatus();
 
         var snapshot = ConstructionQueueState.ResolveSnapshot(status, now);
         var availability = ConstructionQueueState.ResolveAvailability(status, _travianPlusActive, now);

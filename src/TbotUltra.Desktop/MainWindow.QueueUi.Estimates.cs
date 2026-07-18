@@ -320,7 +320,9 @@ public partial class MainWindow
             return null;
         }
 
-        var village = NormalizeVillageName(GetQueueItemVillageName(item)) ?? string.Empty;
+        var village = GetQueueItemVillageKey(item)
+            ?? NormalizeVillageName(GetQueueItemVillageName(item))
+            ?? string.Empty;
         if (slotId.HasValue)
         {
             return $"{village}|slot:{slotId.Value}";

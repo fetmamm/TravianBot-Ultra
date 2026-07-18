@@ -71,6 +71,11 @@ public sealed partial class TravianClient
         get => _session.CachedActiveConstructionsFromOverview;
         set => _session.CachedActiveConstructionsFromOverview = value;
     }
+    private string? _cachedActiveConstructionsVillageKey
+    {
+        get => _session.CachedActiveConstructionsVillageKey;
+        set => _session.CachedActiveConstructionsVillageKey = value;
+    }
     private bool _lastActiveConstructionsFromOverview;
     private static readonly TimeSpan ActiveConstructionsMutationCacheTtl = TimeSpan.FromMilliseconds(2500);
     private static readonly TimeSpan ActiveConstructionsObservationCacheTtl = TimeSpan.FromSeconds(30);
@@ -80,6 +85,7 @@ public sealed partial class TravianClient
     {
         _cachedActiveConstructions = null;
         _cachedActiveConstructionsFromOverview = false;
+        _cachedActiveConstructionsVillageKey = null;
         _lastActiveConstructionsFromOverview = false;
         _browserTrace?.Event("CACHE", "active-constructions-invalidate", detail: "reason=page state changed");
     }
@@ -246,7 +252,7 @@ public sealed partial class TravianClient
     private DateTimeOffset _lastUiSyncAt = DateTimeOffset.MinValue;
     private bool _lastEnsureLoggedInSucceeded { get => _session.LastEnsureLoggedInSucceeded; set => _session.LastEnsureLoggedInSucceeded = value; }
     private int _suppressEnsureUiSyncDepth;
-    private string? _productionUiSnapshotVillage;
+    private string? _productionUiSnapshotVillageKey;
     private IReadOnlyDictionary<string, double?>? _productionUiSnapshot;
     private sealed class CachedVillageResourceSnapshot
     {

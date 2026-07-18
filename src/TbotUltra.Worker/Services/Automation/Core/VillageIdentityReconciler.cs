@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using TbotUltra.Core.Travian;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Worker.Services;
@@ -29,22 +30,58 @@ internal static class VillageIdentityReconciler
         string villageName,
         (int? X, int? Y) coordinates)
     {
+        // Coordinates are the authoritative identity. A player may have several villages with the
+        // same display name, so checking the name first can select the wrong village even though the
+        // caller supplied an exact coordinate pair.
+        if (HasCoordinates(coordinates))
+        {
+            var byCoordinates = villages.FirstOrDefault(village =>
+                SameCoordinates((village.CoordX, village.CoordY), coordinates)
+                && !string.IsNullOrWhiteSpace(village.Url));
+            if (byCoordinates is not null)
+            {
+                return byCoordinates;
+            }
+        }
+
         var byName = villages.FirstOrDefault(village =>
             IsSameName(village.Name, villageName)
             && !string.IsNullOrWhiteSpace(village.Url));
-        if (byName is not null)
+        return byName;
+    }
+
+    internal static Village MergeFreshWithCached(Village fresh, IReadOnlyList<Village> cached)
+    {
+        var freshDid = TravianUrls.TryParseNewdid(fresh.Url);
+        var match = freshDid.HasValue
+            ? cached.FirstOrDefault(village => TravianUrls.TryParseNewdid(village.Url) == freshDid)
+            : null;
+        match ??= fresh.CoordX.HasValue && fresh.CoordY.HasValue
+            ? cached.FirstOrDefault(village => SameCoordinates(
+                (village.CoordX, village.CoordY),
+                (fresh.CoordX, fresh.CoordY)))
+            : null;
+
+        if (match is null)
         {
-            return byName;
+            var nameMatches = cached
+                .Where(village => IsSameName(village.Name, fresh.Name))
+                .Take(2)
+                .ToList();
+            match = nameMatches.Count == 1 ? nameMatches[0] : null;
         }
 
-        if (!HasCoordinates(coordinates))
-        {
-            return null;
-        }
-
-        return villages.FirstOrDefault(village =>
-            SameCoordinates((village.CoordX, village.CoordY), coordinates)
-            && !string.IsNullOrWhiteSpace(village.Url));
+        return match is null
+            ? fresh
+            : fresh with
+            {
+                IsCapital = fresh.IsCapital ?? match.IsCapital,
+                CoordX = fresh.CoordX ?? match.CoordX,
+                CoordY = fresh.CoordY ?? match.CoordY,
+                Population = fresh.Population ?? match.Population,
+                CropFields = fresh.CropFields ?? match.CropFields,
+                Tribe = IsKnownTribe(fresh.Tribe) ? fresh.Tribe : match.Tribe,
+            };
     }
 
     internal static bool HasCoordinates((int? X, int? Y) coordinates) =>
@@ -65,8 +102,7 @@ internal static class VillageIdentityReconciler
     {
         if (string.IsNullOrWhiteSpace(activeVillageName)
             || cached is not { Count: > 0 }
-            || !HasCoordinates(activeCoordinates)
-            || cached.Any(village => IsSameName(village.Name, activeVillageName)))
+            || !HasCoordinates(activeCoordinates))
         {
             return null;
         }
@@ -109,4 +145,8 @@ internal static class VillageIdentityReconciler
         cleaned = Regex.Replace(cleaned, @"\s+", " ").Trim();
         return cleaned;
     }
+
+    private static bool IsKnownTribe(string? tribe)
+        => !string.IsNullOrWhiteSpace(tribe)
+           && !string.Equals(tribe, "Unknown", StringComparison.OrdinalIgnoreCase);
 }

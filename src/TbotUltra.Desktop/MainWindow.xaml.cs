@@ -70,6 +70,8 @@ public partial class MainWindow : Window
         int? Gold,
         int? Silver,
         string? ActiveVillage,
+        int? ActiveVillageCoordX,
+        int? ActiveVillageCoordY,
         IReadOnlyList<UiSyncVillagePayload>? Villages);
 
     private enum ManualExecutionOutcome
@@ -949,10 +951,13 @@ public partial class MainWindow : Window
         var status = await _botService.ReadCurrentPageStorageStatusAsync(options, AppendLog, cancellationToken);
         await Dispatcher.InvokeAsync(() =>
         {
-            ApplyStorageStatusToUi(status, source);
+            if (IsStatusForSelectedVillage(status))
+            {
+                ApplyStorageStatusToUi(status, source);
+            }
             if (source.Contains("construction", StringComparison.OrdinalIgnoreCase))
             {
-                UpdateCachedTimerStatus(status.ActiveVillage, cached => cached with
+                UpdateCachedTimerStatus(status, cached => cached with
                 {
                     BuildQueue = status.BuildQueue,
                     IsBuildingInProgress = status.IsBuildingInProgress,
@@ -964,7 +969,9 @@ public partial class MainWindow : Window
                     ActiveConstructionsFromOverview = status.ActiveConstructionsFromOverview,
                 });
 
-                if (_lastBuildingStatus is not null && IsStatusForSelectedVillage(status))
+                if (_lastBuildingStatus is not null
+                    && IsStatusForSelectedVillage(status)
+                    && IsStatusForSelectedVillage(_lastBuildingStatus))
                 {
                     var updatedBuildingStatus = _lastBuildingStatus with
                     {
@@ -1001,7 +1008,12 @@ public partial class MainWindow : Window
         var status = snapshot.VillageStatus;
         // Select the village the browser actually landed in (active village), not a stale prior selection,
         // before painting so the selected-village guards let the landing village repaint through.
-        SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage, status.ActiveVillage);
+        SyncDashboardVillageUiFromVillages(
+            status.Villages,
+            status.ActiveVillage,
+            status.ActiveVillage,
+            status.ActiveVillageCoordX,
+            status.ActiveVillageCoordY);
         var rows = ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
         TriggerDeferredConstructionWaitRefresh(status, "post_login");
 
@@ -1339,9 +1351,13 @@ public partial class MainWindow : Window
             var uiStatus = MergeBuildingStatusForUi(status);
             await Dispatcher.InvokeAsync(() =>
             {
-                _lastBuildingStatus = uiStatus;
-                ApplyTroopsAvailabilityFromVillageStatus(uiStatus);
-                PopulateBuildingsTab(uiStatus);
+                CacheVillageStatus(uiStatus);
+                if (IsStatusForSelectedVillage(uiStatus))
+                {
+                    _lastBuildingStatus = uiStatus;
+                    ApplyTroopsAvailabilityFromVillageStatus(uiStatus);
+                    PopulateBuildingsTab(uiStatus);
+                }
             });
 
             return !HasSmithyInVillageStatus(status);
@@ -1355,7 +1371,12 @@ public partial class MainWindow : Window
 
     private VillageStatus MergeBuildingStatusForUi(VillageStatus status)
     {
-        if (_lastBuildingStatus is null)
+        if (_lastBuildingStatus is null
+            || ResolveStatusVillageKey(status) is not { } statusKey
+            || !string.Equals(
+                ResolveStatusVillageKey(_lastBuildingStatus),
+                statusKey,
+                StringComparison.OrdinalIgnoreCase))
         {
             return status;
         }
@@ -1371,6 +1392,8 @@ public partial class MainWindow : Window
             VillageCount = status.VillageCount > 0 ? status.VillageCount : _lastBuildingStatus.VillageCount,
             IsCapital = status.IsCapital ?? _lastBuildingStatus.IsCapital,
             ServerTimeUtc = status.ServerTimeUtc ?? _lastBuildingStatus.ServerTimeUtc,
+            ActiveVillageCoordX = status.ActiveVillageCoordX,
+            ActiveVillageCoordY = status.ActiveVillageCoordY,
         };
     }
 
@@ -1564,7 +1587,11 @@ public partial class MainWindow : Window
 
     private void RefreshVillagePicker(VillageStatus status)
     {
-        SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage);
+        SyncDashboardVillageUiFromVillages(
+            status.Villages,
+            status.ActiveVillage,
+            activeVillageCoordX: status.ActiveVillageCoordX,
+            activeVillageCoordY: status.ActiveVillageCoordY);
     }
 
     private void UpdateLoginButtonsVisual(bool isLoggedIn)

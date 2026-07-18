@@ -38,15 +38,17 @@ public sealed class TravianClientHelperTests
         };
 
         Assert.False(TravianClient.CanUseActiveConstructionsCache(
-            active, now.AddSeconds(-5), now, ActiveConstructionReadMode.FreshForMutation));
+            active, now.AddSeconds(-5), now, ActiveConstructionReadMode.FreshForMutation, "xy:93|-19", "xy:93|-19"));
         Assert.True(TravianClient.CanUseActiveConstructionsCache(
-            active, now.AddSeconds(-5), now, ActiveConstructionReadMode.CachedForObservation));
+            active, now.AddSeconds(-5), now, ActiveConstructionReadMode.CachedForObservation, "xy:93|-19", "xy:93|-19"));
         Assert.False(TravianClient.CanUseActiveConstructionsCache(
-            active, now.AddSeconds(-31), now, ActiveConstructionReadMode.CachedForObservation));
+            active, now.AddSeconds(-31), now, ActiveConstructionReadMode.CachedForObservation, "xy:93|-19", "xy:93|-19"));
 
         var finished = active[0] with { Finish = TimerSnapshot.FromRemaining(0, now) };
         Assert.False(TravianClient.CanUseActiveConstructionsCache(
-            [finished], now, now, ActiveConstructionReadMode.CachedForObservation));
+            [finished], now, now, ActiveConstructionReadMode.CachedForObservation, "xy:93|-19", "xy:93|-19"));
+        Assert.False(TravianClient.CanUseActiveConstructionsCache(
+            active, now, now, ActiveConstructionReadMode.CachedForObservation, "xy:93|-19", "xy:93|-17"));
     }
 
     [Theory]
@@ -1070,15 +1072,22 @@ public sealed class TravianClientHelperTests
     }
 
     [Fact]
-    public void ReconcileRenamedActiveVillageByCoords_ReturnsNullWhenNameAlreadyPresent()
+    public void ReconcileRenamedActiveVillageByCoords_UpdatesExactVillageWhenNameAlreadyPresent()
     {
         var cached = new List<Village>
         {
-            new("1440", "dorf1.php?newdid=42445", CoordX: 171, CoordY: 144),
+            new("1440", "dorf1.php?newdid=36606", CoordX: 170, CoordY: 143),
+            new("Old name", "dorf1.php?newdid=42445", CoordX: 171, CoordY: 144),
         };
 
-        // Already consistent — no rename to apply, so no rebuild.
-        Assert.Null(TravianClient.ReconcileRenamedActiveVillageByCoords(cached, "1440", (171, 144)));
+        // Duplicate display names are valid; only the coordinate-matched village changes.
+        var updated = TravianClient.ReconcileRenamedActiveVillageByCoords(cached, "1440", (171, 144));
+
+        Assert.NotNull(updated);
+        Assert.Equal("1440", updated![0].Name);
+        Assert.Equal("1440", updated[1].Name);
+        Assert.Equal((170, 143), (updated[0].CoordX, updated[0].CoordY));
+        Assert.Equal((171, 144), (updated[1].CoordX, updated[1].CoordY));
     }
 
     [Fact]

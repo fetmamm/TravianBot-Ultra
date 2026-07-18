@@ -20,31 +20,73 @@ public partial class MainWindow
     private void SyncDashboardVillageUiFromVillages(
         IReadOnlyList<Village> villages,
         string? activeVillageName,
-        string? preferredVillageName = null)
+        string? preferredVillageName = null,
+        int? activeVillageCoordX = null,
+        int? activeVillageCoordY = null)
     {
         var selectedVillageName = string.IsNullOrWhiteSpace(preferredVillageName)
             ? GetSelectedVillageName()
             : preferredVillageName;
+        var selectedVillageKey = GetSelectedVillageKey();
+        var activeVillageKey = activeVillageCoordX.HasValue && activeVillageCoordY.HasValue
+            ? VillageKey.FromCoords(activeVillageCoordX.Value, activeVillageCoordY.Value)
+            : ResolveUniqueVillageKeyByName(villages, activeVillageName);
+        var preferredVillageKey = !string.IsNullOrWhiteSpace(preferredVillageName)
+            && string.Equals(preferredVillageName, activeVillageName, StringComparison.OrdinalIgnoreCase)
+                ? activeVillageKey
+                : selectedVillageKey;
 
-        var items = BuildMergedVillageSelectionItems(villages, activeVillageName);
-        SyncDashboardVillageUi(items, selectedVillageName, activeVillageName);
+        var items = BuildMergedVillageSelectionItems(villages, activeVillageName, activeVillageKey);
+        SyncDashboardVillageUi(
+            items,
+            selectedVillageName,
+            activeVillageName,
+            preferredVillageKey,
+            activeVillageKey);
     }
 
     private void SyncDashboardVillageUiFromPayloadVillages(
         IReadOnlyList<UiSyncVillagePayload> villages,
-        string? activeVillageName)
+        string? activeVillageName,
+        int? activeVillageCoordX,
+        int? activeVillageCoordY)
     {
         var items = BuildMergedVillageSelectionItems(villages);
-        SyncDashboardVillageUi(items, GetSelectedVillageName(), activeVillageName);
+        var activeVillageKey = activeVillageCoordX.HasValue && activeVillageCoordY.HasValue
+            ? VillageKey.FromCoords(activeVillageCoordX.Value, activeVillageCoordY.Value)
+            : ResolveUniqueVillageKeyByName(
+                items.Select(item => new Village(
+                    item.Name,
+                    item.Url,
+                    item.IsCapital,
+                    item.CoordX,
+                    item.CoordY,
+                    item.Population,
+                    item.CropFields,
+                    item.Tribe)).ToList(),
+                activeVillageName);
+        SyncDashboardVillageUi(
+            items,
+            GetSelectedVillageName(),
+            activeVillageName,
+            GetSelectedVillageKey(),
+            activeVillageKey);
     }
 
     private void SyncDashboardVillageUi(
         IReadOnlyList<VillageSelectionItem> items,
         string? preferredVillageName,
-        string? fallbackVillageName)
+        string? fallbackVillageName,
+        string? preferredVillageKey = null,
+        string? fallbackVillageKey = null)
     {
         var ensuredItems = EnsureVillageSelectionItems(items);
-        ApplyVillagePickerItems(ensuredItems, preferredVillageName, fallbackVillageName);
+        ApplyVillagePickerItems(
+            ensuredItems,
+            preferredVillageName,
+            fallbackVillageName,
+            preferredVillageKey,
+            fallbackVillageKey);
         ApplyDashboardVillageListItems(ensuredItems);
         ApplyResourceTransferVillageItems(ensuredItems);
         ApplyReinforcementVillageItems(ensuredItems);
@@ -53,7 +95,9 @@ public partial class MainWindow
     private void ApplyVillagePickerItems(
         IReadOnlyList<VillageSelectionItem> items,
         string? preferredVillageName,
-        string? fallbackVillageName)
+        string? fallbackVillageName,
+        string? preferredVillageKey = null,
+        string? fallbackVillageKey = null)
     {
         // Don't blank out a populated picker with an empty/placeholder update (e.g. a transient
         // status refresh delivered while the page was navigating). Keeps the village visible.
@@ -72,6 +116,14 @@ public partial class MainWindow
         {
             VillageComboBox.ItemsSource = ensuredItems;
             var selected = ensuredItems.FirstOrDefault(item =>
+                !string.IsNullOrWhiteSpace(preferredVillageKey)
+                && string.Equals(GetVillageKey(item), preferredVillageKey, StringComparison.OrdinalIgnoreCase))
+                ?? ensuredItems.FirstOrDefault(item =>
+                    !string.IsNullOrWhiteSpace(fallbackVillageKey)
+                    && string.Equals(GetVillageKey(item), fallbackVillageKey, StringComparison.OrdinalIgnoreCase))
+                ?? FindVillageByUniqueName(ensuredItems, preferredVillageName)
+                ?? FindVillageByUniqueName(ensuredItems, fallbackVillageName)
+                ?? ensuredItems.FirstOrDefault(item =>
                 string.Equals(item.Name, preferredVillageName, StringComparison.OrdinalIgnoreCase))
                 ?? ensuredItems.FirstOrDefault(item =>
                     string.Equals(item.Name, fallbackVillageName, StringComparison.OrdinalIgnoreCase))
@@ -105,6 +157,38 @@ public partial class MainWindow
         SyncQueueVillagePicker(VillageComboBox.SelectedItem as VillageSelectionItem);
         ApplyConstructFasterConfigToUi();
         ApplyHeroResourceTransferConfigToUi();
+    }
+
+    private static string? ResolveUniqueVillageKeyByName(IReadOnlyList<Village> villages, string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        var matches = villages
+            .Where(village => string.Equals(village.Name?.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase))
+            .Take(2)
+            .ToList();
+        return matches.Count == 1
+            ? GetVillageKey(matches[0].Url, matches[0].CoordX, matches[0].CoordY, matches[0].Name)
+            : null;
+    }
+
+    private static VillageSelectionItem? FindVillageByUniqueName(
+        IReadOnlyList<VillageSelectionItem> villages,
+        string? name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return null;
+        }
+
+        var matches = villages
+            .Where(village => string.Equals(village.Name?.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase))
+            .Take(2)
+            .ToList();
+        return matches.Count == 1 ? matches[0] : null;
     }
 
     private void ApplyDashboardVillageListItems(IReadOnlyList<VillageSelectionItem> items)
@@ -182,14 +266,36 @@ public partial class MainWindow
             return null;
         }
 
-        // Legacy items carry no coordinates, so key by the village NAME, then resolve it through the
-        // settings store to the canonical coordinate key. This keeps queue gating AND the per-village queue
-        // rotation pointer (seeded with the coordinate key on Switch village) using one consistent identity.
-        // Fall back to the newdid url only when there is no name.
-        var rawKey = string.IsNullOrWhiteSpace(name)
-            ? GetVillageKey(url, null, null, null)
-            : GetVillageKey(null, null, null, name);
-        return _villageSettingsStore.ResolveCanonicalKey(rawKey);
+        // Legacy/preflight items may lack the coordinate key but still carry a unique newdid URL. Resolve
+        // that URL through the live village list before considering the display name, which may be shared.
+        var displayedVillages = ((VillageComboBox?.ItemsSource as IEnumerable<VillageSelectionItem>)
+                ?? (DashboardVillageList?.ItemsSource as IEnumerable<VillageSelectionItem>))
+            ?.ToList() ?? [];
+        if (!string.IsNullOrWhiteSpace(url))
+        {
+            var urlKey = GetVillageKey(url, null, null, null);
+            var urlMatches = displayedVillages
+                .Where(village => string.Equals(
+                    GetVillageKey(village.Url, null, null, null),
+                    urlKey,
+                    StringComparison.OrdinalIgnoreCase))
+                .Take(2)
+                .ToList();
+            if (urlMatches.Count == 1)
+            {
+                return _villageSettingsStore.ResolveCanonicalKey(GetVillageKey(urlMatches[0]));
+            }
+
+            if (string.IsNullOrWhiteSpace(name))
+            {
+                return _villageSettingsStore.ResolveCanonicalKey(urlKey);
+            }
+        }
+
+        var uniqueNameVillage = FindVillageByUniqueName(displayedVillages, name);
+        return uniqueNameVillage is null
+            ? null
+            : _villageSettingsStore.ResolveCanonicalKey(GetVillageKey(uniqueNameVillage));
     }
 
     private static string? GetQueueItemVillageName(QueueItem item)
@@ -271,7 +377,11 @@ public partial class MainWindow
 
         _lastDisplayedVillageSignature = signature;
         VillagesInfoTextBlock.Text = $"Villages: {villages.Count}";
-        SyncDashboardVillageUiFromVillages(villages, status.ActiveVillage);
+        SyncDashboardVillageUiFromVillages(
+            villages,
+            status.ActiveVillage,
+            activeVillageCoordX: status.ActiveVillageCoordX,
+            activeVillageCoordY: status.ActiveVillageCoordY);
         // A newly founded village shows up here first. Queue a one-time dorf1/dorf2 analysis for any village
         // we have no cached layout for, the same way un-analyzed villages are analyzed at login.
         QueueNewVillagesForFirstAnalysis(villages);
@@ -377,7 +487,8 @@ public partial class MainWindow
 
     private List<VillageSelectionItem> BuildMergedVillageSelectionItems(
         IReadOnlyList<Village> villages,
-        string? activeVillageName = null)
+        string? activeVillageName = null,
+        string? activeVillageKey = null)
     {
         var existingVillageData = BuildExistingVillageSelectionLookup();
 
@@ -391,8 +502,15 @@ public partial class MainWindow
                 // The active village's population is read live from the current page each refresh and
                 // is the true value, so let it overwrite any cached value. Other villages carry a
                 // frozen/stale population in status reads, so keep the currently displayed value.
-                var isActiveVillage = !string.IsNullOrWhiteSpace(activeVillageName)
-                    && string.Equals(village.Name, activeVillageName, StringComparison.OrdinalIgnoreCase);
+                var villageKey = GetVillageKey(village.Url, village.CoordX, village.CoordY, village.Name);
+                var isActiveVillage = !string.IsNullOrWhiteSpace(activeVillageKey)
+                    ? string.Equals(villageKey, activeVillageKey, StringComparison.OrdinalIgnoreCase)
+                    : !string.IsNullOrWhiteSpace(activeVillageName)
+                      && villages.Count(candidate => string.Equals(
+                          candidate.Name,
+                          activeVillageName,
+                          StringComparison.OrdinalIgnoreCase)) == 1
+                      && string.Equals(village.Name, activeVillageName, StringComparison.OrdinalIgnoreCase);
                 return BuildVillageSelectionItem(
                     village.Name!,
                     village.Url,
@@ -754,7 +872,10 @@ public partial class MainWindow
                 TroopCatalog.IsKnownTribe(status?.Tribe) ? status!.Tribe : village.Tribe,
                 _villageSettingsStore.GetEnabled(keyInfo),
                 enabledGroups.ToHashSet(StringComparer.OrdinalIgnoreCase),
-                string.Equals(normalizedName, NormalizeVillageName(_heroHomeVillageName), StringComparison.OrdinalIgnoreCase),
+                _heroHomeVillageKey is not null
+                    ? string.Equals(canonicalKey, _heroHomeVillageKey, StringComparison.OrdinalIgnoreCase)
+                    : !duplicateNames.Contains(normalizedName ?? string.Empty)
+                      && string.Equals(normalizedName, NormalizeVillageName(_heroHomeVillageName), StringComparison.OrdinalIgnoreCase),
                 townHall?.Mode,
                 townHall?.EndsAtUtc,
                 status);

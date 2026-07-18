@@ -22,15 +22,32 @@ public sealed partial class TravianClient
             : (!string.IsNullOrWhiteSpace(villageUrl) ? $"url={villageUrl}" : "(unspecified)");
         Notify($"[village-switch] requested {requestedLabel} — current='{activeVillageBeforeSwitch ?? "(unknown)"}'");
         var requestedVillage = !string.IsNullOrWhiteSpace(villageName)
-            ? await TryResolveVillageForSwitchAsync(villageName, cancellationToken)
+            ? await TryResolveVillageForSwitchAsync(villageName, villageUrl, cancellationToken)
             : null;
         var resolvedVillageName = string.IsNullOrWhiteSpace(requestedVillage?.Name) ? villageName : requestedVillage!.Name;
         var requestedCoords = ResolveVillageCoords(villageName, requestedVillage);
+        var requestedDid = TravianUrls.TryParseNewdid(villageUrl);
 
         // If we are already on the requested village, no navigation is needed.
-        if (!string.IsNullOrWhiteSpace(villageName)
-            && !string.IsNullOrWhiteSpace(activeVillageBeforeSwitch)
-            && VillageIdentityReconciler.IsAcceptedSwitchName(activeVillageBeforeSwitch, villageName, resolvedVillageName))
+        var alreadyOnRequestedVillage = false;
+        if (VillageIdentityReconciler.HasCoordinates(requestedCoords))
+        {
+            var activeCoordsBeforeSwitch = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+            alreadyOnRequestedVillage = VillageIdentityReconciler.SameCoordinates(
+                activeCoordsBeforeSwitch,
+                requestedCoords);
+        }
+        else if (!requestedDid.HasValue
+                 && !string.IsNullOrWhiteSpace(villageName)
+                 && !string.IsNullOrWhiteSpace(activeVillageBeforeSwitch))
+        {
+            alreadyOnRequestedVillage = VillageIdentityReconciler.IsAcceptedSwitchName(
+                activeVillageBeforeSwitch,
+                villageName,
+                resolvedVillageName);
+        }
+
+        if (alreadyOnRequestedVillage)
         {
             if (!VillageIdentityReconciler.IsSameName(activeVillageBeforeSwitch, villageName))
             {
@@ -60,11 +77,10 @@ public sealed partial class TravianClient
         // desyncs the working village). Fall back to the passed-in URL only if the sidebar has no match.
         if (!string.IsNullOrWhiteSpace(villageName))
         {
-            var sidebarUrl = await TryGetVillageHrefFromSidebarAsync(villageName, cancellationToken);
-            if (string.IsNullOrWhiteSpace(sidebarUrl) && VillageIdentityReconciler.HasCoordinates(requestedCoords))
-            {
-                sidebarUrl = await TryGetVillageHrefFromSidebarByCoordsAsync(requestedCoords, cancellationToken);
-            }
+            var sidebarUrl = VillageIdentityReconciler.HasCoordinates(requestedCoords)
+                ? await TryGetVillageHrefFromSidebarByCoordsAsync(requestedCoords, cancellationToken)
+                : null;
+            sidebarUrl ??= await TryGetVillageHrefFromSidebarAsync(villageName, cancellationToken);
 
             if (!string.IsNullOrWhiteSpace(sidebarUrl))
             {
@@ -103,8 +119,19 @@ public sealed partial class TravianClient
 
         await EnsureLoggedInAsync();
         var activeVillageAfterSwitch = await TryReadActiveVillageNameSafeAsync(cancellationToken);
-        var activeMatchesRequested = string.IsNullOrWhiteSpace(villageName)
-            || VillageIdentityReconciler.IsAcceptedSwitchName(activeVillageAfterSwitch, villageName, resolvedVillageName);
+        var activeMatchesRequested = string.IsNullOrWhiteSpace(villageName);
+        if (VillageIdentityReconciler.HasCoordinates(requestedCoords))
+        {
+            var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+            activeMatchesRequested = VillageIdentityReconciler.SameCoordinates(activeCoords, requestedCoords);
+        }
+        else if (!string.IsNullOrWhiteSpace(villageName))
+        {
+            activeMatchesRequested = VillageIdentityReconciler.IsAcceptedSwitchName(
+                activeVillageAfterSwitch,
+                villageName,
+                resolvedVillageName);
+        }
         if (activeMatchesRequested
             && !string.IsNullOrWhiteSpace(villageName)
             && !VillageIdentityReconciler.IsSameName(activeVillageAfterSwitch, villageName)
@@ -134,11 +161,10 @@ public sealed partial class TravianClient
             && !activeMatchesRequested)
         {
             Notify($"[village-switch] expected '{villageName}' but active village reads '{activeVillageAfterSwitch ?? "(unknown)"}' — retrying via sidebar.");
-            var sidebarUrl = await TryGetVillageHrefFromSidebarAsync(villageName, cancellationToken);
-            if (string.IsNullOrWhiteSpace(sidebarUrl) && VillageIdentityReconciler.HasCoordinates(requestedCoords))
-            {
-                sidebarUrl = await TryGetVillageHrefFromSidebarByCoordsAsync(requestedCoords, cancellationToken);
-            }
+            var sidebarUrl = VillageIdentityReconciler.HasCoordinates(requestedCoords)
+                ? await TryGetVillageHrefFromSidebarByCoordsAsync(requestedCoords, cancellationToken)
+                : null;
+            sidebarUrl ??= await TryGetVillageHrefFromSidebarAsync(villageName, cancellationToken);
             if (!string.IsNullOrWhiteSpace(sidebarUrl))
             {
                 var canonicalSidebar = TravianUrls.CanonicalizeVillageSwitchUrl(sidebarUrl);
@@ -148,7 +174,18 @@ public sealed partial class TravianClient
                     await GotoAsync(canonicalSidebar, cancellationToken);
                     await EnsureLoggedInAsync();
                     activeVillageAfterSwitch = await TryReadActiveVillageNameSafeAsync(cancellationToken);
-                    activeMatchesRequested = VillageIdentityReconciler.IsAcceptedSwitchName(activeVillageAfterSwitch, villageName, resolvedVillageName);
+                    if (VillageIdentityReconciler.HasCoordinates(requestedCoords))
+                    {
+                        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+                        activeMatchesRequested = VillageIdentityReconciler.SameCoordinates(activeCoords, requestedCoords);
+                    }
+                    else
+                    {
+                        activeMatchesRequested = VillageIdentityReconciler.IsAcceptedSwitchName(
+                            activeVillageAfterSwitch,
+                            villageName,
+                            resolvedVillageName);
+                    }
                     if (activeMatchesRequested
                         && !VillageIdentityReconciler.IsSameName(activeVillageAfterSwitch, villageName)
                         && VillageIdentityReconciler.IsSameName(activeVillageAfterSwitch, resolvedVillageName))
@@ -218,14 +255,26 @@ public sealed partial class TravianClient
     internal static bool IsAcceptedVillageSwitchNameForTests(string? activeVillageName, string? requestedVillageName, string? resolvedVillageName)
         => VillageIdentityReconciler.IsAcceptedSwitchName(activeVillageName, requestedVillageName, resolvedVillageName);
 
-    private async Task<Village?> TryResolveVillageForSwitchAsync(string villageName, CancellationToken cancellationToken)
+    private async Task<Village?> TryResolveVillageForSwitchAsync(
+        string villageName,
+        string? villageUrl,
+        CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(villageName))
         {
             return null;
         }
 
-        var cachedByName = _cachedVillages?.FirstOrDefault(v => VillageIdentityReconciler.IsSameName(v.Name, villageName));
+        var requestedDid = TravianUrls.TryParseNewdid(villageUrl);
+        var cachedByName = requestedDid.HasValue
+            ? _cachedVillages?.FirstOrDefault(v => TravianUrls.TryParseNewdid(v.Url) == requestedDid)
+            : null;
+        cachedByName ??= _cachedVillages?
+            .Where(v => VillageIdentityReconciler.IsSameName(v.Name, villageName))
+            .Take(2)
+            .ToList() is { Count: 1 } uniqueNameMatch
+                ? uniqueNameMatch[0]
+                : null;
         var requestedCoords = ResolveVillageCoords(villageName, cachedByName);
         if (cachedByName is not null && VillageIdentityReconciler.HasCoordinates(requestedCoords))
         {
@@ -235,7 +284,10 @@ public sealed partial class TravianClient
         try
         {
             var sidebarVillages = await ReadVillagesFromCurrentPageAsync(cancellationToken);
-            var match = VillageIdentityReconciler.FindByNameOrCoordinates(sidebarVillages, villageName, requestedCoords);
+            var match = requestedDid.HasValue
+                ? sidebarVillages.FirstOrDefault(v => TravianUrls.TryParseNewdid(v.Url) == requestedDid)
+                : null;
+            match ??= VillageIdentityReconciler.FindByNameOrCoordinates(sidebarVillages, villageName, requestedCoords);
             if (match is not null)
             {
                 if (!VillageIdentityReconciler.IsSameName(match.Name, villageName) && VillageIdentityReconciler.HasCoordinates(requestedCoords))
@@ -290,15 +342,21 @@ public sealed partial class TravianClient
         {
             return;
         }
-        var changed = false;
         var requestedNewdid = requestedVillage is null ? null : TravianUrls.TryParseNewdid(requestedVillage.Url);
+        var hasCoordinateMatch = cached.Any(v =>
+            VillageIdentityReconciler.SameCoordinates((v.CoordX, v.CoordY), coords));
+        var changed = false;
         var updated = cached
             .Select(v =>
             {
                 var sameByCoords = VillageIdentityReconciler.SameCoordinates((v.CoordX, v.CoordY), coords);
-                var sameByName = VillageIdentityReconciler.IsSameName(v.Name, oldName);
-                var sameById = requestedNewdid is not null && TravianUrls.TryParseNewdid(v.Url) == requestedNewdid;
-                if (!sameByCoords && !sameByName && !sameById)
+                // Coordinates are authoritative. The newdid is only a fallback for an older cached row
+                // that did not yet have coordinates. Never update by display name: duplicate names are
+                // valid and doing so would rename every same-name cached village at once.
+                var sameByIdFallback = !hasCoordinateMatch
+                    && requestedNewdid is not null
+                    && TravianUrls.TryParseNewdid(v.Url) == requestedNewdid;
+                if (!sameByCoords && !sameByIdFallback)
                 {
                     return v;
                 }
@@ -325,18 +383,16 @@ public sealed partial class TravianClient
     // read fresh every tick but the villages list is served from cache, so after an in-game rename the
     // ui-sync payload is internally inconsistent (ActiveVillage='1440' while the list still says
     // 'New village') — which makes the dashboard village name flicker back and forth.
-    private async Task ReconcileActiveVillageNameInCacheAsync(string? activeVillageName, CancellationToken cancellationToken)
+    private void ReconcileActiveVillageNameInCache(
+        string? activeVillageName,
+        (int? X, int? Y) activeCoords)
     {
         if (string.IsNullOrWhiteSpace(activeVillageName)
-            || _cachedVillages is not { Count: > 0 } cached
-            || cached.Any(v => VillageIdentityReconciler.IsSameName(v.Name, activeVillageName)))
+            || _cachedVillages is not { Count: > 0 } cached)
         {
-            // Fast path: the active name already matches a cached village — nothing to reconcile. This
-            // avoids a coordinate DOM read on every tick; the read below only runs right after a rename.
             return;
         }
 
-        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
         var updated = VillageIdentityReconciler.ReconcileRenamedByCoordinates(cached, activeVillageName!, activeCoords);
         if (updated is not null)
         {

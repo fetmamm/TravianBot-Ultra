@@ -29,19 +29,34 @@ public sealed partial class VillageSettingsStore
         }
     }
 
-    /// <summary>Persists the last-read hero home village name. No-op (no write) when unchanged.</summary>
-    public void SetHeroHomeVillageName(string? name)
+    public string? GetHeroHomeVillageKey()
     {
-        var trimmed = string.IsNullOrWhiteSpace(name) ? null : name.Trim();
         lock (FileIoLock)
         {
             EnsureCacheLoaded();
-            if (string.Equals(_heroHomeVillageName, trimmed, StringComparison.OrdinalIgnoreCase))
+            return _heroHomeVillageKey;
+        }
+    }
+
+    /// <summary>Persists the last-read hero home village name. No-op (no write) when unchanged.</summary>
+    public void SetHeroHomeVillageName(string? name)
+        => SetHeroHomeVillage(name, null);
+
+    public void SetHeroHomeVillage(string? name, string? key)
+    {
+        var trimmed = string.IsNullOrWhiteSpace(name) ? null : name.Trim();
+        var trimmedKey = string.IsNullOrWhiteSpace(key) ? null : key.Trim();
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            if (string.Equals(_heroHomeVillageName, trimmed, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(_heroHomeVillageKey, trimmedKey, StringComparison.OrdinalIgnoreCase))
             {
                 return;
             }
 
             _heroHomeVillageName = trimmed;
+            _heroHomeVillageKey = trimmedKey;
             Save();
         }
     }

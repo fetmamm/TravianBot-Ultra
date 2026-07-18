@@ -156,12 +156,16 @@ public sealed partial class TravianClient
                     : await ReadVillagesAsync(cancellationToken);
             }
 
+            var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
+            var activeCoordinates = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
             var result = new AccountSnapshot(
                 Tribe: await ReadAccountTribeAsync(cancellationToken),
-                ActiveVillage: await ReadActiveVillageNameAsync(cancellationToken),
+                ActiveVillage: activeVillage,
                 VillageCount: villages.Count,
                 Villages: villages,
-                ServerTimeUtc: _serverTimeUtc);
+                ServerTimeUtc: _serverTimeUtc,
+                ActiveVillageCoordX: activeCoordinates.X,
+                ActiveVillageCoordY: activeCoordinates.Y);
             trace.Complete("success", $"villageCount={result.VillageCount} activeVillage={result.ActiveVillage}");
             return result;
         }

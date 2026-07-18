@@ -72,14 +72,11 @@ public partial class MainWindow
             updatedPayload.Remove(BotOptionPayloadKeys.StorageDependencyItemId);
         }
 
-        var villageName = NormalizeVillageName(GetQueueItemVillageName(item));
+        var villageKey = GetQueueItemVillageKey(item);
         var queuedConstructSlots = queueItems
             .Where(candidate => ConstructionQueueState.IsActiveQueueStatus(candidate.Status))
-            .Where(candidate => villageName is null
-                || string.Equals(
-                    NormalizeVillageName(GetQueueItemVillageName(candidate)),
-                    villageName,
-                    StringComparison.OrdinalIgnoreCase))
+            .Where(candidate => villageKey is null
+                || string.Equals(GetQueueItemVillageKey(candidate), villageKey, StringComparison.OrdinalIgnoreCase))
             .Where(candidate => IsBuildingConstructForSlot(candidate, out _))
             .Select(candidate =>
             {
@@ -221,21 +218,7 @@ public partial class MainWindow
 
     private VillageStatus? ResolveStorageDependencyStatus(QueueItem item)
     {
-        var villageName = NormalizeVillageName(GetQueueItemVillageName(item));
-        if (villageName is not null
-            && _villageStatusCache.TryGetByName(villageName, out var cached))
-        {
-            return cached;
-        }
-
-        return _lastBuildingStatus is not null
-            && (villageName is null
-                || string.Equals(
-                    NormalizeVillageName(_lastBuildingStatus.ActiveVillage),
-                    villageName,
-                    StringComparison.OrdinalIgnoreCase))
-                ? _lastBuildingStatus
-                : null;
+        return ResolveBuildingStatusForQueueItem(item);
     }
 
     private static StorageCapacityBlock? ResolveStorageCapacityBlock(

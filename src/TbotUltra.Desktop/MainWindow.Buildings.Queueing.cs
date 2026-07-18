@@ -5,6 +5,7 @@ using System.Windows;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
 
@@ -324,51 +325,66 @@ public partial class MainWindow
     // loaded, otherwise the cached status for that village. Null only when neither exists.
     private VillageStatus? ResolveSelectedVillageBuildingStatus()
     {
-        var name = NormalizeVillageName(GetSelectedVillageName());
-        if (name is null)
+        if (!Dispatcher.CheckAccess())
+        {
+            return Dispatcher.Invoke(ResolveSelectedVillageBuildingStatus);
+        }
+
+        if (VillageComboBox.SelectedItem is not VillageSelectionItem selected)
         {
             return _lastBuildingStatus;
         }
 
+        var selectedKey = GetVillageKey(selected);
+        var lastStatusKey = _lastBuildingStatus is null
+            ? null
+            : VillageStatusCache.TryResolveCoordinateKey(_lastBuildingStatus.ActiveVillage, _lastBuildingStatus);
         if (_lastBuildingStatus is not null
-            && string.Equals(NormalizeVillageName(_lastBuildingStatus.ActiveVillage), name, StringComparison.OrdinalIgnoreCase))
+            && string.Equals(lastStatusKey, selectedKey, StringComparison.OrdinalIgnoreCase))
         {
             return _lastBuildingStatus;
         }
 
-        return _villageStatusCache.TryGetByName(name, out var cached) ? cached : null;
+        return TryGetCachedVillageStatus(selected, out var cached) ? cached : null;
     }
 
     // Building status for the village a queue item targets: live snapshot for the selected (or village-less)
     // item, otherwise that village's cached status. Null when the village has no snapshot to validate against.
     private VillageStatus? ResolveBuildingStatusForQueueItem(QueueItem item)
     {
-        var villageName = NormalizeVillageName(GetQueueItemVillageName(item));
-        var selectedName = NormalizeVillageName(GetSelectedVillageName());
-        if (villageName is null
-            || (selectedName is not null && string.Equals(villageName, selectedName, StringComparison.OrdinalIgnoreCase)))
+        var villageKey = GetQueueItemVillageKey(item);
+        if (villageKey is null)
         {
             return ResolveSelectedVillageBuildingStatus();
         }
 
-        return _villageStatusCache.TryGetByName(villageName, out var cached) ? cached : null;
+        var lastStatusKey = _lastBuildingStatus is null
+            ? null
+            : VillageStatusCache.TryResolveCoordinateKey(_lastBuildingStatus.ActiveVillage, _lastBuildingStatus);
+        if (_lastBuildingStatus is not null
+            && string.Equals(villageKey, lastStatusKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return _lastBuildingStatus;
+        }
+
+        return _villageStatusCache.TryGetByKey(villageKey, out var cached) ? cached : null;
     }
 
     // Queue filter scoping requirement checks to the item's own village (plus village-less/global items).
     // Prevents another village's queued work from falsely satisfying — or blocking — this village.
     private Func<QueueItem, bool> BuildSameVillageQueueFilter(QueueItem item)
     {
-        var villageName = NormalizeVillageName(GetQueueItemVillageName(item));
-        if (villageName is null)
+        var villageKey = GetQueueItemVillageKey(item);
+        if (villageKey is null)
         {
             return IsQueueItemForSelectedVillageOrGlobal;
         }
 
         return other =>
         {
-            var otherVillage = NormalizeVillageName(GetQueueItemVillageName(other));
-            return otherVillage is null
-                || string.Equals(otherVillage, villageName, StringComparison.OrdinalIgnoreCase);
+            var otherVillageKey = GetQueueItemVillageKey(other);
+            return otherVillageKey is null
+                || string.Equals(otherVillageKey, villageKey, StringComparison.OrdinalIgnoreCase);
         };
     }
 

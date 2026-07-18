@@ -885,6 +885,7 @@ public partial class MainWindow
 
         _heroViewModel.ResetRuntimeState();
         _heroHomeVillageName = null;
+        _heroHomeVillageKey = null;
         _heroIsAway = false;
         _heroIsDead = false;
         _heroIsReviving = false;

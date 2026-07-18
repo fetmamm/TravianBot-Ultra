@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 using Xunit;
@@ -118,6 +119,60 @@ public sealed class VillageStatusCacheTests
         Assert.True(cache.TryGetByKey("xy:2|2", out var storedSecond));
         Assert.Same(first, storedFirst);
         Assert.Same(second, storedSecond);
+        Assert.False(cache.TryGetByName("TWIN", out _));
+        Assert.False(cache.TryGetUniqueKeyByName("TWIN", out _));
+    }
+
+    [Fact]
+    public void MigrateName_WithVillageKey_RenamesOnlyRequestedTwin()
+    {
+        var cache = new VillageStatusCache();
+        cache.Set("TWIN", MakeStatus("TWIN", 1, 1) with { ActiveVillageCoordX = 1, ActiveVillageCoordY = 1 });
+        cache.Set("TWIN", MakeStatus("TWIN", 2, 2) with { ActiveVillageCoordX = 2, ActiveVillageCoordY = 2 });
+
+        Assert.True(cache.MigrateName("TWIN", "RENAMED", "xy:2|2"));
+
+        Assert.Equal("TWIN", cache.Snapshot["xy:1|1"].ActiveVillage);
+        Assert.Equal("RENAMED", cache.Snapshot["xy:2|2"].ActiveVillage);
+    }
+
+    [Fact]
+    public void ConcurrentLoopReadsAndUiWrites_KeepDuplicateVillagesSeparated()
+    {
+        var cache = new VillageStatusCache();
+        var first = MakeStatus("TWIN", 1, 1) with { ActiveVillageCoordX = 1, ActiveVillageCoordY = 1 };
+        var second = MakeStatus("TWIN", 2, 2) with { ActiveVillageCoordX = 2, ActiveVillageCoordY = 2 };
+
+        Parallel.For(0, 500, index =>
+        {
+            cache.Set("TWIN", index % 2 == 0 ? first : second);
+            _ = cache.Snapshot.Count;
+            _ = cache.Values;
+            cache.TryGetByKey(index % 2 == 0 ? "xy:1|1" : "xy:2|2", out _);
+            cache.TryGetByName("TWIN", out _);
+        });
+
+        Assert.True(cache.TryGetByKey("xy:1|1", out var storedFirst));
+        Assert.True(cache.TryGetByKey("xy:2|2", out var storedSecond));
+        Assert.Equal(1, storedFirst.ActiveVillageCoordX);
+        Assert.Equal(2, storedSecond.ActiveVillageCoordX);
+        Assert.False(cache.TryGetByName("TWIN", out _));
+    }
+
+    [Fact]
+    public void Set_AmbiguousPartialStatus_DoesNotCreateOrOverwriteTwinEntry()
+    {
+        var cache = new VillageStatusCache();
+        var first = MakeStatus("TWIN", 1, 1) with { ActiveVillageCoordX = 1, ActiveVillageCoordY = 1 };
+        var second = MakeStatus("TWIN", 2, 2) with { ActiveVillageCoordX = 2, ActiveVillageCoordY = 2 };
+        cache.Set("TWIN", first);
+        cache.Set("TWIN", second);
+
+        cache.Set("TWIN", MakeStatus("TWIN", null, null) with { Villages = [] });
+
+        Assert.Equal(2, cache.Count);
+        Assert.Same(first, cache.Snapshot["xy:1|1"]);
+        Assert.Same(second, cache.Snapshot["xy:2|2"]);
     }
 
     [Fact]

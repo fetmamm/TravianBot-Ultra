@@ -369,7 +369,13 @@ public static class StorageCapacityQueuePreflightPlanner
                  {
                      BotOptionPayloadKeys.TargetVillageName,
                      BotOptionPayloadKeys.TargetVillageUrl,
+                     BotOptionPayloadKeys.TargetVillageKey,
                      BotOptionPayloadKeys.NpcTradeEnabled,
+                     BotOptionPayloadKeys.ConstructFasterEnabled,
+                     BotOptionPayloadKeys.ConstructFasterMinBuildTimeEnabled,
+                     BotOptionPayloadKeys.ConstructFasterMinBuildMinutes,
+                     BotOptionPayloadKeys.ConstructFasterRandomEnabled,
+                     BotOptionPayloadKeys.ConstructFasterRandomChancePercent,
                  })
         {
             if (source.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))

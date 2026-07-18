@@ -10,58 +10,62 @@ namespace TbotUltra.Desktop.Services;
 /// In-memory cache of each village's last-read status, keyed by the canonical coordinate key
 /// (<c>xy:X|Y</c>, same identity as queue.json and the settings store) so a renamed village keeps its
 /// entry and two villages with the same name never overwrite each other. Callers that only have a
-/// display name use <see cref="TryGetByName"/>, which resolves the name through an index (last write
-/// wins for duplicate names — the same behavior the previous name-keyed dictionary had). A status
-/// whose coordinates cannot be resolved falls back to a name key so nothing is dropped.
+/// display name use <see cref="TryGetByName"/>, which succeeds only when that name identifies exactly
+/// one cached village. A status whose coordinates cannot be resolved falls back to a name key only when
+/// no canonical same-name entries exist; duplicate names are never resolved by last-write-wins.
 /// </summary>
 public sealed class VillageStatusCache
 {
+    private readonly object _gate = new();
     private readonly Dictionary<string, VillageStatus> _byKey = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, string> _keyByName = new(StringComparer.OrdinalIgnoreCase);
 
-    public int Count => _byKey.Count;
+    public int Count
+    {
+        get { lock (_gate) return _byKey.Count; }
+    }
 
-    public IEnumerable<VillageStatus> Values => _byKey.Values;
+    public IEnumerable<VillageStatus> Values
+    {
+        get { lock (_gate) return _byKey.Values.ToList(); }
+    }
 
     /// <summary>Canonical-keyed view for persistence (VillageCacheStore.Save) and whole-cache scans.</summary>
-    public IReadOnlyDictionary<string, VillageStatus> Snapshot => _byKey;
+    public IReadOnlyDictionary<string, VillageStatus> Snapshot
+    {
+        get { lock (_gate) return new Dictionary<string, VillageStatus>(_byKey, StringComparer.OrdinalIgnoreCase); }
+    }
 
     public void Clear()
     {
-        _byKey.Clear();
-        _keyByName.Clear();
+        lock (_gate)
+        {
+            _byKey.Clear();
+        }
     }
 
     /// <summary>Replaces the cache content from the store's load (already canonical-keyed).</summary>
     public void LoadFrom(IReadOnlyDictionary<string, VillageStatus> entries)
     {
-        Clear();
-        foreach (var pair in entries)
+        lock (_gate)
         {
-            if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value is null)
+            _byKey.Clear();
+            foreach (var pair in entries)
             {
-                continue;
-            }
-
-            _byKey[pair.Key] = pair.Value;
-            var name = NormalizeName(pair.Value.ActiveVillage);
-            if (name is not null)
-            {
-                _keyByName[name] = pair.Key;
-            }
-
-            // Legacy name-keyed entry (coordinates were never resolvable): its key IS the display name.
-            if (!IsCoordinateKey(pair.Key) && NormalizeName(pair.Key) is string legacyName)
-            {
-                _keyByName[legacyName] = pair.Key;
+                if (!string.IsNullOrWhiteSpace(pair.Key) && pair.Value is not null)
+                {
+                    _byKey[pair.Key] = pair.Value;
+                }
             }
         }
     }
 
     public bool TryGetByKey(string? key, [MaybeNullWhen(false)] out VillageStatus status)
     {
-        status = null;
-        return !string.IsNullOrWhiteSpace(key) && _byKey.TryGetValue(key, out status);
+        lock (_gate)
+        {
+            status = null;
+            return !string.IsNullOrWhiteSpace(key) && _byKey.TryGetValue(key, out status);
+        }
     }
 
     public bool TryGetByName(string? name, [MaybeNullWhen(false)] out VillageStatus status)
@@ -73,13 +77,55 @@ public sealed class VillageStatusCache
             return false;
         }
 
-        if (_keyByName.TryGetValue(normalized, out var key) && _byKey.TryGetValue(key, out status))
+        lock (_gate)
         {
-            return true;
+            var matches = _byKey.Values
+                .Where(candidate => string.Equals(
+                    NormalizeName(candidate.ActiveVillage),
+                    normalized,
+                    StringComparison.OrdinalIgnoreCase))
+                .Take(2)
+                .ToList();
+            if (matches.Count == 1)
+            {
+                status = matches[0];
+                return true;
+            }
+
+            // A single unresolved legacy entry can still be read by its direct name key. Never use it
+            // when canonical same-name entries exist, because that would guess between duplicate villages.
+            return matches.Count == 0 && _byKey.TryGetValue(normalized, out status);
+        }
+    }
+
+    public bool TryGetUniqueKeyByName(string? name, [NotNullWhen(true)] out string? key)
+    {
+        key = null;
+        var normalized = NormalizeName(name);
+        if (normalized is null)
+        {
+            return false;
         }
 
-        // Entry stored directly under the name (coordinates unknown at write time).
-        return _byKey.TryGetValue(normalized, out status);
+        lock (_gate)
+        {
+            var matches = _byKey
+                .Where(pair => string.Equals(
+                    NormalizeName(pair.Value.ActiveVillage),
+                    normalized,
+                    StringComparison.OrdinalIgnoreCase))
+                .Select(pair => pair.Key)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Take(2)
+                .ToList();
+            if (matches.Count != 1)
+            {
+                return false;
+            }
+
+            key = matches[0];
+            return true;
+        }
     }
 
     /// <summary>
@@ -96,17 +142,34 @@ public sealed class VillageStatusCache
             return;
         }
 
-        var key = TryResolveCoordinateKey(normalized, status)
-            ?? (_keyByName.TryGetValue(normalized, out var mapped) ? mapped : normalized);
-
-        // A canonical write supersedes a leftover legacy entry stored directly under the name.
-        if (!string.Equals(key, normalized, StringComparison.OrdinalIgnoreCase))
+        lock (_gate)
         {
-            _byKey.Remove(normalized);
-        }
+            var key = TryResolveCoordinateKey(normalized, status);
+            if (key is null)
+            {
+                var existingKeys = _byKey
+                    .Where(pair => string.Equals(
+                        NormalizeName(pair.Value.ActiveVillage),
+                        normalized,
+                        StringComparison.OrdinalIgnoreCase))
+                    .Select(pair => pair.Key)
+                    .Take(2)
+                    .ToList();
+                if (existingKeys.Count > 1)
+                {
+                    return;
+                }
 
-        _byKey[key] = status;
-        _keyByName[normalized] = key;
+                key = existingKeys.Count == 1 ? existingKeys[0] : normalized;
+            }
+
+            if (!string.Equals(key, normalized, StringComparison.OrdinalIgnoreCase))
+            {
+                _byKey.Remove(normalized);
+            }
+
+            _byKey[key] = status;
+        }
     }
 
     /// <summary>
@@ -114,7 +177,7 @@ public sealed class VillageStatusCache
     /// name mapping (the key itself survives the rename); a legacy name-keyed entry is re-keyed unless
     /// a fresher entry already answers to the new name. Returns true when anything changed.
     /// </summary>
-    public bool MigrateName(string? oldName, string? newName)
+    public bool MigrateName(string? oldName, string? newName, string? villageKey = null)
     {
         var oldNormalized = NormalizeName(oldName);
         var newNormalized = NormalizeName(newName);
@@ -125,29 +188,58 @@ public sealed class VillageStatusCache
             return false;
         }
 
-        // Legacy entry stored directly under the old name.
-        if (_byKey.TryGetValue(oldNormalized, out var legacyStatus) && !IsCoordinateKey(oldNormalized))
+        lock (_gate)
         {
-            _byKey.Remove(oldNormalized);
-            _keyByName.Remove(oldNormalized);
-            if (!TryGetByName(newNormalized, out _))
+            var targetKey = !string.IsNullOrWhiteSpace(villageKey) && _byKey.ContainsKey(villageKey)
+                ? villageKey
+                : _byKey
+                    .Where(pair => string.Equals(
+                        NormalizeName(pair.Value.ActiveVillage),
+                        oldNormalized,
+                        StringComparison.OrdinalIgnoreCase))
+                    .Select(pair => pair.Key)
+                    .Take(2)
+                    .ToList() is { Count: 1 } uniqueMatch
+                        ? uniqueMatch[0]
+                        : null;
+            if (targetKey is null || !_byKey.TryGetValue(targetKey, out var status))
             {
-                _byKey[newNormalized] = legacyStatus;
-                _keyByName[newNormalized] = newNormalized;
+                return false;
             }
 
+            var ownerX = status.ActiveVillageCoordX;
+            var ownerY = status.ActiveVillageCoordY;
+            var renamedVillages = status.Villages
+                .Select(village =>
+                {
+                    var isOwner = ownerX.HasValue && ownerY.HasValue
+                        ? village.CoordX == ownerX && village.CoordY == ownerY
+                        : string.Equals(
+                            NormalizeName(village.Name),
+                            oldNormalized,
+                            StringComparison.OrdinalIgnoreCase)
+                          && status.Villages.Count(candidate => string.Equals(
+                              NormalizeName(candidate.Name),
+                              oldNormalized,
+                              StringComparison.OrdinalIgnoreCase)) == 1;
+                    return isOwner ? village with { Name = newNormalized } : village;
+                })
+                .ToList();
+            var renamedStatus = status with
+            {
+                ActiveVillage = newNormalized,
+                Villages = renamedVillages,
+            };
+
+            if (!IsCoordinateKey(targetKey))
+            {
+                _byKey.Remove(targetKey);
+                targetKey = newNormalized;
+            }
+
+            _byKey[targetKey] = renamedStatus;
             return true;
         }
-
-        // Canonical entry: only the name lookup moves.
-        if (_keyByName.TryGetValue(oldNormalized, out var key))
-        {
-            _keyByName.Remove(oldNormalized);
-            _keyByName[newNormalized] = key;
-            return true;
-        }
-
-        return false;
     }
 
     public static bool IsCoordinateKey(string? key)

@@ -113,9 +113,9 @@ public partial class MainWindow
             RefreshTravianSmithyQueueUi();
             UpdateQueueEstimateTotals(displayedActiveRows);
             SyncPendingResourceTargetsInUi();
-            if (_lastBuildingStatus is not null)
+            if (ResolveSelectedVillageBuildingStatus() is { } selectedBuildingStatus)
             {
-                PopulateBuildingsTab(_lastBuildingStatus);
+                PopulateBuildingsTab(selectedBuildingStatus);
             }
 
             if (selectId.HasValue)
@@ -167,28 +167,30 @@ public partial class MainWindow
                 continue;
             }
 
-            var villageName = NormalizeVillageName(row.VillageName);
-            if (villageName is null)
+            var villageKey = string.IsNullOrWhiteSpace(row.VillageKey)
+                ? NormalizeVillageName(row.VillageName)
+                : row.VillageKey;
+            if (villageKey is null)
             {
                 continue;
             }
 
-            queuedVillages.Add(villageName);
+            queuedVillages.Add(villageKey);
             if (!row.HasEstimate)
             {
                 continue;
             }
 
-            _queueEstimateSecondsByVillage.TryGetValue(villageName, out var seconds);
-            _queueEstimateSecondsByVillage[villageName] = seconds + row.EstimateSeconds;
+            _queueEstimateSecondsByVillage.TryGetValue(villageKey, out var seconds);
+            _queueEstimateSecondsByVillage[villageKey] = seconds + row.EstimateSeconds;
         }
 
         if (DashboardVillageList.ItemsSource is IEnumerable<VillageSelectionItem> villages)
         {
             foreach (var village in villages)
             {
-                var villageName = NormalizeVillageName(village.Name);
-                village.HasQueue = villageName is not null && queuedVillages.Contains(villageName);
+                var villageKey = GetVillageKey(village);
+                village.HasQueue = queuedVillages.Contains(villageKey);
                 ApplyDashboardQueueTooltip(village);
             }
         }
@@ -202,9 +204,8 @@ public partial class MainWindow
             return;
         }
 
-        var villageName = NormalizeVillageName(village.Name);
-        village.QueueTooltip = villageName is not null
-            && _queueEstimateSecondsByVillage.TryGetValue(villageName, out var seconds)
+        var villageKey = GetVillageKey(village);
+        village.QueueTooltip = _queueEstimateSecondsByVillage.TryGetValue(villageKey, out var seconds)
             && seconds > 0
                 ? QueueItemRowFactory.FormatQueueDurationTooltip(seconds)
                 : "Construction queued in this village\nTime: unavailable\nTime (25%): unavailable";
@@ -212,10 +213,7 @@ public partial class MainWindow
 
     private void RefreshTravianBuildQueueUi()
     {
-        var selectedName = NormalizeVillageName(GetSelectedVillageName());
-        VillageStatus? status = null;
-        var hasStatus = selectedName is not null
-            && _villageStatusCache.TryGetByName(selectedName, out status);
+        var status = ResolveSelectedVillageBuildingStatus();
         var nowUtc = DateTimeOffset.UtcNow;
         var snapshot = ConstructionQueueState.ResolveSnapshot(status, nowUtc);
         var activeConstructions = snapshot.Knowledge == ConstructionQueueKnowledge.Active
@@ -244,10 +242,7 @@ public partial class MainWindow
 
     private void RefreshTravianSmithyQueueUi()
     {
-        var selectedName = NormalizeVillageName(GetSelectedVillageName());
-        VillageStatus? status = null;
-        var hasStatus = selectedName is not null
-            && _villageStatusCache.TryGetByName(selectedName, out status);
+        var status = ResolveSelectedVillageBuildingStatus();
         var activeUpgrades = SmithyQueueState.ResolveActiveUpgrades(
             status?.SmithyUpgradeStatus,
             DateTimeOffset.UtcNow);
@@ -257,7 +252,7 @@ public partial class MainWindow
         foreach (var row in LiveQueueRowFactory.BuildSmithyRows(
                      activeUpgrades,
                      slotCount: 2,
-                     hasStatus,
+                     status?.SmithyUpgradeStatus is not null,
                      nowUtc,
                      FormatQueueFinishTime))
         {

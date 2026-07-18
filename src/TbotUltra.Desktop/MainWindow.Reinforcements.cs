@@ -553,7 +553,11 @@ public partial class MainWindow
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
             AppendLog("Reinforcement village refresh started.");
             var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: false, forceCurrentVillage: false);
-            SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage);
+            SyncDashboardVillageUiFromVillages(
+                status.Villages,
+                status.ActiveVillage,
+                activeVillageCoordX: status.ActiveVillageCoordX,
+                activeVillageCoordY: status.ActiveVillageCoordY);
             CompleteOperation(operationId, operationSw, $"Reinforcement village refresh completed: {status.Villages.Count} village(s).");
         }
         catch (OperationCanceledException)

@@ -27,10 +27,7 @@ public partial class MainWindow
     // hold off abandoning a requirement-stalled item while the prerequisite might be that active build.
     private bool VillageHasActiveConstruction(QueueItem item)
     {
-        var name = NormalizeVillageName(GetQueueItemVillageName(item));
-        var status = name is not null && _villageStatusCache.TryGetByName(name, out var cached)
-            ? cached
-            : _lastBuildingStatus;
+        var status = ResolveBuildingStatusForQueueItem(item);
         return status is not null
             && ConstructionQueueState.ResolveCurrentActiveConstructions(status).Count > 0;
     }
@@ -702,7 +699,10 @@ public partial class MainWindow
         {
             try
             {
-                await RefreshBreweryCelebrationStatusAsync(options, _lastBuildingStatus, cancellationToken);
+                await RefreshBreweryCelebrationStatusAsync(
+                    options,
+                    ResolveBuildingStatusForQueueItem(item),
+                    cancellationToken);
             }
             catch (Exception ex)
             {
@@ -865,7 +865,7 @@ public partial class MainWindow
                 && ex.Message.Contains("humanized construction start delay", StringComparison.OrdinalIgnoreCase);
             if (IsConstructionQueueTask(item.TaskName))
             {
-                var humanizeVillage = isHumanizeDefer ? NormalizeVillageName(GetQueueItemVillageName(item)) : null;
+                var humanizeVillage = isHumanizeDefer ? GetQueueItemVillageKey(item) : null;
                 TimeSpan? humanizeWait = isHumanizeDefer ? queueWaitDelay : null;
                 await Dispatcher.InvokeAsync(() => ApplyConstructionInlineWait(queueWaitDelay, humanizeVillage, humanizeWait));
             }

@@ -754,7 +754,16 @@ public sealed partial class TravianClient
     {
         Notify("ReadSmithyUpgradeStatusAsync started");
 
-        var smithySlotId = ResolveKnownSmithySlotId(knownBuildings) ?? await TryResolveSmithySlotIdAsync(cancellationToken);
+        var smithySlotId = ResolveKnownSmithySlotId(knownBuildings);
+        if (!smithySlotId.HasValue && knownBuildings is { Count: > 0 })
+        {
+            Notify("Smithy: complete buildings snapshot confirms that no Smithy is constructed; skipping overview retries.");
+        }
+        else if (!smithySlotId.HasValue)
+        {
+            smithySlotId = await TryResolveSmithySlotIdAsync(cancellationToken);
+        }
+
         if (!smithySlotId.HasValue)
         {
             return new SmithyUpgradeStatus(

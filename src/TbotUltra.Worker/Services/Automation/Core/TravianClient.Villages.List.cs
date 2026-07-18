@@ -79,33 +79,9 @@ public sealed partial class TravianClient
                 if (_cachedVillages is { Count: > 0 } prior)
                 {
                     var merged = sidebar
-                        .Select(v =>
-                        {
-                            // Match the prior cache by the stable village id (newdid) first so a
-                            // renamed village still merges with its cached coords/population instead
-                            // of being treated as a new village. Fall back to the name only when no
-                            // id is available on either side.
-                            var villageId = TravianUrls.TryParseNewdid(v.Url);
-                            var match = villageId is not null
-                                ? prior.FirstOrDefault(p => TravianUrls.TryParseNewdid(p.Url) == villageId)
-                                : null;
-                            match ??= prior.FirstOrDefault(p => string.Equals(p.Name, v.Name, StringComparison.Ordinal));
-                            if (match is null)
-                            {
-                                return v;
-                            }
-                            return v with
-                            {
-                                IsCapital = v.IsCapital ?? match.IsCapital,
-                                CoordX = match.CoordX,
-                                CoordY = match.CoordY,
-                                // Sidebar-derived population (active village, official) wins; fall
-                                // back to the cached value so non-active villages keep profile data.
-                                Population = v.Population ?? match.Population,
-                                CropFields = match.CropFields,
-                                Tribe = IsKnownTribe(v.Tribe) ? v.Tribe : match.Tribe,
-                            };
-                        })
+                        // Fresh sidebar coordinates are authoritative. Merge cached metadata by did,
+                        // then coordinates, and use a name only when that name is unambiguous.
+                        .Select(v => VillageIdentityReconciler.MergeFreshWithCached(v, prior))
                         .ToList();
                     _cachedVillages = ApplyKnownVillageTribes(merged);
                     _cachedVillagesAt = DateTimeOffset.UtcNow;
@@ -520,12 +496,21 @@ public sealed partial class TravianClient
             var profileVillages = rawList
                 .Select(v =>
                 {
-                    var cachedCapital = TryGetCachedCapitalState(v.Name!);
-                    var (cachedX, cachedY) = TryGetCachedVillageCoords(v.Name!);
+                    var duplicateName = rawList.Count(candidate =>
+                        string.Equals(candidate.Name, v.Name, StringComparison.OrdinalIgnoreCase)) > 1;
+                    var cachedCapital = duplicateName ? null : TryGetCachedCapitalState(v.Name!);
+                    var (cachedX, cachedY) = duplicateName
+                        ? (null, null)
+                        : TryGetCachedVillageCoords(v.Name!);
                     var resolvedCapital = trustScanCapital ? v.IsCapital : (v.IsCapital || cachedCapital == true);
                     var resolvedX = v.X ?? cachedX;
                     var resolvedY = v.Y ?? cachedY;
-                    SaveCachedVillageState(v.Name!, resolvedCapital, resolvedX, resolvedY);
+                    // The legacy capital cache is keyed by display name and therefore cannot safely
+                    // represent two same-name villages. Do not let one twin overwrite the other.
+                    if (!duplicateName)
+                    {
+                        SaveCachedVillageState(v.Name!, resolvedCapital, resolvedX, resolvedY);
+                    }
                     return new Village(
                         Name: v.Name!,
                         Url: ResolveUrl(v.Url ?? string.Empty),

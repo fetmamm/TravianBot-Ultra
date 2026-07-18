@@ -34,7 +34,11 @@ public partial class MainWindow
 
         ApplyVillageTribeToUiIfSelected(status);
         VillagesInfoTextBlock.Text = $"Villages: {status.VillageCount}";
-        SyncDashboardVillageUiFromVillages(status.Villages, status.ActiveVillage);
+        SyncDashboardVillageUiFromVillages(
+            status.Villages,
+            status.ActiveVillage,
+            activeVillageCoordX: status.ActiveVillageCoordX,
+            activeVillageCoordY: status.ActiveVillageCoordY);
         await RefreshResourceSnapshotForUiAsync(options, cancellationToken);
     }
 

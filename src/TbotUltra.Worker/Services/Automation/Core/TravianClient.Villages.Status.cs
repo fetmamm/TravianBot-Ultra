@@ -156,7 +156,7 @@ public sealed partial class TravianClient
             ActiveBuildCount: activeBuildCount,
             BuildQueueRemainingSeconds: remaining,
             BuildQueueRemainingText: remaining is int left ? TravianParsing.FormatDuration(left) : string.Empty,
-            IsCapital: TryGetCachedCapitalState(activeVillage),
+            IsCapital: TryGetCachedCapitalState(activeVillage, activeCoords.X, activeCoords.Y),
             ServerTimeUtc: _serverTimeUtc,
             UnreadMessages: unreadInbox.UnreadMessages,
             UnreadReports: unreadInbox.UnreadReports,

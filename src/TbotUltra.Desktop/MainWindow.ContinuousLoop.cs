@@ -607,7 +607,7 @@ public partial class MainWindow
     // Villages discovered at runtime (e.g. the user just founded one) that still need a one-time dorf1/dorf2
     // analysis so automation knows their layout. Dispatcher-owned (same threading as _villageStatusCache):
     // filled on the UI thread from village reads, drained one-per-loop-pass via Dispatcher round-trips.
-    private sealed record PendingVillageAnalysis(string Name, string? Url, int Attempts);
+    private sealed record PendingVillageAnalysis(string Key, string Name, string? Url, int Attempts);
     private readonly Dictionary<string, PendingVillageAnalysis> _villagesPendingFirstAnalysis = new(StringComparer.OrdinalIgnoreCase);
     private const int MaxFirstAnalysisAttempts = 3;
 
@@ -625,24 +625,27 @@ public partial class MainWindow
         foreach (var village in missing)
         {
             var name = NormalizeVillageName(village.Name);
-            if (name is null || _villagesPendingFirstAnalysis.ContainsKey(name))
+            var key = village.CoordX.HasValue && village.CoordY.HasValue
+                ? VillageKey.FromCoords(village.CoordX.Value, village.CoordY.Value)
+                : name;
+            if (name is null || key is null || _villagesPendingFirstAnalysis.ContainsKey(key))
             {
                 continue;
             }
 
-            _villagesPendingFirstAnalysis[name] = new PendingVillageAnalysis(name, village.Url, 0);
-            AppendLog($"[new-village-runtime] Discovered '{name}' without cached dorf1/dorf2 status. Queued for one-time analysis.");
+            _villagesPendingFirstAnalysis[key] = new PendingVillageAnalysis(key, name, village.Url, 0);
+            AppendLog($"[new-village-runtime] Discovered '{name}' ({key}) without cached dorf1/dorf2 status. Queued for one-time analysis.");
         }
     }
 
-    private bool HasCachedDorf1Dorf2Status(string villageName)
-        => _villageStatusCache.TryGetByName(villageName, out var status)
+    private bool HasCachedDorf1Dorf2Status(string villageKey)
+        => _villageStatusCache.TryGetByKey(villageKey, out var status)
            && status.ResourceFields is { Count: > 0 }
            && status.Buildings is { Count: > 0 };
 
     // Picks the next village still needing analysis (Dispatcher thread). Drops entries that became cached
     // meanwhile, or that exhausted their attempts, and counts the attempt for the returned one.
-    private (string Name, string? Url)? TakeNextVillagePendingFirstAnalysis()
+    private PendingVillageAnalysis? TakeNextVillagePendingFirstAnalysis()
     {
         foreach (var key in _villagesPendingFirstAnalysis.Keys.ToList())
         {
@@ -661,7 +664,7 @@ public partial class MainWindow
             }
 
             _villagesPendingFirstAnalysis[key] = entry with { Attempts = entry.Attempts + 1 };
-            return (entry.Name, entry.Url);
+            return entry with { Attempts = entry.Attempts + 1 };
         }
 
         return null;
@@ -684,17 +687,17 @@ public partial class MainWindow
             return;
         }
 
-        var (name, url) = pick.Value;
+        var entry = pick;
         try
         {
-            AppendLog($"[new-village-runtime] Analyzing '{name}' (dorf1/dorf2) so automation knows its layout.");
-            var status = await _botService.ReadVillageStatusAsync(options, AppendLog, name, url, token);
+            AppendLog($"[new-village-runtime] Analyzing '{entry.Name}' ({entry.Key}) (dorf1/dorf2) so automation knows its layout.");
+            var status = await _botService.ReadVillageStatusAsync(options, AppendLog, entry.Name, entry.Url, token);
             await Dispatcher.InvokeAsync(() =>
             {
-                CacheVillageStatus(status, name);
-                _villagesPendingFirstAnalysis.Remove(name);
+                CacheVillageStatus(status, entry.Name);
+                _villagesPendingFirstAnalysis.Remove(entry.Key);
             });
-            AppendLog($"[new-village-runtime] Cached '{name}': fields={status.ResourceFields.Count}, buildings={status.Buildings.Count}.");
+            AppendLog($"[new-village-runtime] Cached '{entry.Name}' ({entry.Key}): fields={status.ResourceFields.Count}, buildings={status.Buildings.Count}.");
         }
         catch (OperationCanceledException)
         {
@@ -708,7 +711,7 @@ public partial class MainWindow
         {
             // Keep it queued (attempt already counted) for a later pass; a transient nav/read error must not
             // silently drop the analysis. TakeNext drops it once attempts are exhausted.
-            AppendLog($"[new-village-runtime] Could not analyze '{name}': {ex.Message}");
+            AppendLog($"[new-village-runtime] Could not analyze '{entry.Name}' ({entry.Key}): {ex.Message}");
         }
     }
 
@@ -735,9 +738,12 @@ public partial class MainWindow
             await Dispatcher.InvokeAsync(() =>
             {
                 CacheVillageStatus(status);
-                _lastBuildingStatus = status;
-                ApplyVillageStatusToUi(status);
-                PopulateBuildingsTab(status);
+                if (IsStatusForSelectedVillage(status))
+                {
+                    _lastBuildingStatus = status;
+                    ApplyVillageStatusToUi(status);
+                    PopulateBuildingsTab(status);
+                }
             });
             _continuousLoopConstructionStatusNeedsSync = false;
         }
@@ -1164,19 +1170,7 @@ public partial class MainWindow
             return null;
         }
 
-        var villageName = NormalizeVillageName(village.Name);
-        VillageStatus? status = null;
-        if (villageName is not null)
-        {
-            _villageStatusCache.TryGetByName(villageName, out status);
-        }
-
-        if (status is null
-            && _lastBuildingStatus is not null
-            && string.Equals(NormalizeVillageName(_lastBuildingStatus.ActiveVillage), villageName, StringComparison.OrdinalIgnoreCase))
-        {
-            status = _lastBuildingStatus;
-        }
+        _villageStatusCache.TryGetByKey(GetVillageKey(village), out var status);
 
         var relevantQueues = status?.TroopTrainingQueues?
             .Where(item => item.Exists && enabledBuildingTypes.Contains(item.BuildingType))
@@ -1355,18 +1349,10 @@ public partial class MainWindow
         IReadOnlyList<QueueItem> villageItems,
         DateTimeOffset now)
     {
-        var villageName = villageItems
-            .Select(GetQueueItemVillageName)
-            .Select(NormalizeVillageName)
-            .FirstOrDefault(name => name is not null)
-            ?? NormalizeVillageName(GetSelectedVillageName());
-        VillageStatus? status = null;
-        if (villageName is not null)
-        {
-            _villageStatusCache.TryGetByName(villageName, out status);
-        }
-
         var item = villageItems.FirstOrDefault();
+        var status = item is null
+            ? ResolveSelectedVillageBuildingStatus()
+            : ResolveBuildingStatusForQueueItem(item);
         return item is null
             ? ConstructionQueueState.ResolveAvailability(status, _travianPlusActive, now)
             : ConstructionQueueState.ResolveAvailabilityForItem(status, _travianPlusActive, item, now);
