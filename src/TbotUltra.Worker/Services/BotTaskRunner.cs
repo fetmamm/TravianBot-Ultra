@@ -284,8 +284,15 @@ public sealed partial class BotTaskRunner
 
     public async Task ShutdownAsync(Action<string>? log = null)
     {
+        var hadActiveBrowserWork = _sharedVisibleSession is not null
+            || _sharedVisiblePage is not null
+            || _travcoPage is not null
+            || _sessionGate.CurrentCount == 0;
         var invalidatedGeneration = _sessionGeneration.Invalidate();
-        log?.Invoke($"[browser-session] shutdown invalidated session generation {invalidatedGeneration}.");
+        if (hadActiveBrowserWork)
+        {
+            log?.Invoke($"[browser-session] active browser shutdown invalidated session generation {invalidatedGeneration}.");
+        }
         // A stuck operation (for example a hung navigation) can hold the session gate for
         // a long time. Shutdown/account switch must not hang behind it: after the timeout we close
         // the browser anyway, which makes the stuck operation fail fast with a target-closed error

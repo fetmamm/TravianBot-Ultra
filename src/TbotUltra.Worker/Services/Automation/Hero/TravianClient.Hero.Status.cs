@@ -234,56 +234,13 @@ public sealed partial class TravianClient
         }
     }
 
-    private async Task<int?> ReadHeroReturnFromRallyPointAsync(CancellationToken cancellationToken)
+    private async Task<int?> ReadHeroReturnFromAttributesAsync(CancellationToken cancellationToken)
     {
-        Notify("[hero:verbose] ReadHeroReturnFromRallyPoint starting");
-        await GotoAsync(Paths.RallyPointTroops, cancellationToken);
-        await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-
-        var raw = await _page.EvaluateAsync<string?>(
-            """
-            () => {
-              const clean = (v) => (v || '').replace(/\s+/g, ' ').trim();
-
-              const rows = Array.from(document.querySelectorAll('table tr'));
-              for (const row of rows) {
-                const heroImg = row.querySelector('img.unit.uhero, img.uhero');
-                if (!heroImg) continue;
-
-                const cells = Array.from(row.querySelectorAll('td'));
-                const hasOneCount = cells.some(td => clean(td.textContent || '') === '1');
-                if (!hasOneCount) continue;
-
-                // Prefer a live timer if present.
-                const timerEl = row.querySelector('.timer[value], span.timer[value]');
-                if (timerEl) {
-                  const v = timerEl.getAttribute('value');
-                  const n = parseInt(v || '', 10);
-                  if (Number.isFinite(n) && n >= 0) return String(n);
-                }
-
-                // Fall back to "Today at HH:MM:SS" or any HH:MM:SS in the row.
-                const text = clean(row.textContent || '');
-                const match = text.match(/(\d{1,2}):(\d{2}):(\d{2})/);
-                if (match) {
-                  const target = new Date();
-                  target.setHours(parseInt(match[1], 10), parseInt(match[2], 10), parseInt(match[3], 10), 0);
-                  if (target.getTime() < Date.now()) target.setDate(target.getDate() + 1);
-                  const seconds = Math.round((target.getTime() - Date.now()) / 1000);
-                  return String(Math.max(0, seconds));
-                }
-              }
-
-              return null;
-            }
-            """);
-
-        if (string.IsNullOrWhiteSpace(raw))
-        {
-            return null;
-        }
-
-        return int.TryParse(raw, out var seconds) ? Math.Max(0, seconds) : null;
+        Notify("[hero:verbose] ReadHeroReturnFromAttributes starting");
+        await GotoAsync(Paths.HeroAttributes, cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken);
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
+        return await ReadHeroReturnSecondsAsync(cancellationToken);
     }
 
     private async Task<int?> ReadHeroReturnSecondsAsync(CancellationToken cancellationToken)
@@ -297,9 +254,12 @@ public sealed partial class TravianClient
               const heroState = document.querySelector('.heroState');
               const heroStateText = clean(heroState?.textContent || '');
               const awayText = heroStateText || text;
-              const isOutboundAdventure = /on its way to an adventure/i.test(awayText);
-              const isReturningHome = /on its way back to the village/i.test(awayText);
-              const multiplier = isOutboundAdventure && !isReturningHome ? 2 : 1;
+              const isReturningHome = /on\s+(?:its|the)\s+way\s+back\s+to\s+(?:the\s+)?(?:home\s+)?village|returning\s+to\s+(?:the\s+)?(?:home\s+)?village/i.test(awayText);
+              // Any outbound hero movement (adventure, raid, attack, reinforcement, etc.) still needs
+              // the return leg. Travian shows only the arrival-at-target timer on Hero Attributes.
+              const isOutboundMovement = !isReturningHome
+                && /on\s+(?:its|the)\s+way\s+to\b/i.test(awayText);
+              const multiplier = isOutboundMovement ? 2 : 1;
               const pack = (value) => value ? JSON.stringify({ value, multiplier }) : null;
               const findDuration = (value) => {
                 const match = value.match(/back\s*in[^\d]*(\d{1,2}:\d{2}(?::\d{2})?)/i)
@@ -696,8 +656,9 @@ public sealed partial class TravianClient
               const statusText = (statusMessage?.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
               const heroStateText = (document.querySelector('.heroState')?.textContent || '').replace(/\s+/g, ' ').trim();
               const awayText = heroStateText || bodyInnerText;
-              const isOutboundAdventure = /on its way to an adventure/i.test(awayText);
-              const isReturningHome = /on its way back to the village/i.test(awayText);
+              const isReturningHome = /on\s+(?:its|the)\s+way\s+back\s+to\s+(?:the\s+)?(?:home\s+)?village|returning\s+to\s+(?:the\s+)?(?:home\s+)?village/i.test(awayText);
+              const isOutboundMovement = !isReturningHome
+                && /on\s+(?:its|the)\s+way\s+to\b/i.test(awayText);
               // The top-bar/sidebar hero status shows a heroReviving icon while reviving
               // (<div class="heroStatus">...<i class="heroReviving">) — treat it as reviving even when no
               // status text/timer is present on the page.
@@ -756,10 +717,10 @@ public sealed partial class TravianClient
                   /arrival\s+in\s*:?\s*(\d{1,2}:\d{2}(?::\d{2})?)/i
                 ])
                 // Official countdown span, only trusted when the hero is moving.
-                ?? ((isOutboundAdventure || isReturningHome)
+                ?? ((isOutboundMovement || isReturningHome)
                       ? parseTimer(document.querySelector('span.timerReact, .timerReact')?.textContent || '')
                       : null);
-              const returnTimer = rawReturnTimer !== null && isOutboundAdventure && !isReturningHome
+              const returnTimer = rawReturnTimer !== null && isOutboundMovement
                 ? rawReturnTimer * 2
                 : rawReturnTimer;
 

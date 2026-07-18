@@ -47,7 +47,7 @@ public sealed partial class TravianClient : IHeroClient
 
         if (isOnTheWay)
         {
-            var etaSeconds = quick.Status.SecondsUntilReturn ?? await ReadHeroReturnFromRallyPointAsync(cancellationToken);
+            var etaSeconds = quick.Status.SecondsUntilReturn ?? await ReadHeroReturnFromAttributesAsync(cancellationToken);
             var etaText = etaSeconds is int e ? TravianParsing.FormatDuration(e) : "(unknown)";
             return new HeroAdventureDispatchResult(
                 IsInHomeVillage: false,
@@ -433,6 +433,17 @@ public sealed partial class TravianClient : IHeroClient
 
         var heroReturnWaitSeconds = status.SecondsUntilReturn;
         var adventureCount = adventureHintCount;
+
+        // The global hero icon reliably tells us that the hero is away, but normal village/building
+        // pages do not always expose its countdown. Hero Attributes has one unambiguous hero-state
+        // timer; Rally Point can contain thousands of unrelated troop returns across several pages.
+        if (!inVillage && !status.IsDead && heroReturnWaitSeconds is not > 0)
+        {
+            heroReturnWaitSeconds = await ReadHeroReturnFromAttributesAsync(cancellationToken);
+            Notify(heroReturnWaitSeconds is > 0
+                ? $"[hero] away — return ETA read from Hero Attributes: {TravianParsing.FormatDuration(heroReturnWaitSeconds.Value)}"
+                : "[hero] away — no return ETA was exposed; using the 5m safety re-check.");
+        }
 
         if (hpPercent is >= 0 && hpPercent >= minHpThreshold)
         {
