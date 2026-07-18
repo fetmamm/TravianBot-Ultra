@@ -109,6 +109,11 @@ Common endpoints:
 - New settings require the full pipeline: model, defaults, load/save, ViewModel, UI, tests.
 - Persist stable village identity using coordinates/key, not display name alone.
 - Queue items must retain their target village identity.
+- Deferring a queue item is status-gated: `MarkDeferred` only works on RUNNING items (worker defer path);
+  a PENDING item must use `UpdateDeferred`/`UpdatePending`. Both return false instead of throwing on a
+  status mismatch — never ignore that return value. (Caused the Town Hall "timer restarts at ~30s" bug:
+  a restored celebration item was enqueued Pending and MarkDeferred silently failed, leaving it due
+  immediately on every loop pass.)
 - The per-village status cache (`VillageStatusCache` in memory, `village_cache.json` on disk) is keyed by
   the canonical coordinate key (`xy:X|Y`) — the same identity as queue.json and the settings store — so a
   rename cannot orphan an entry and duplicate names cannot collide. Name-based lookups go through the

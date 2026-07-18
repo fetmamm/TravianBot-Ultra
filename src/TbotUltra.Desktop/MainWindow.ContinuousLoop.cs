@@ -397,8 +397,19 @@ public partial class MainWindow
                     restoredPayload,
                     priority: -50,
                     maxRetries: 0);
-                _botService.MarkQueueItemDeferred(restoredItem.Id, remembered.EndsAtUtc - nowUtc);
-                AppendLog($"[town-hall] restored running celebration for '{village.Name}' until {FormatQueueServerTime(remembered.EndsAtUtc)}.");
+                // The freshly enqueued item is Pending, so defer it via UpdateDeferred (Pending-based).
+                // MarkQueueItemDeferred requires Running and failed silently here, which left the restored
+                // item due immediately — the task then re-ran every loop pass (the "timer restarts at ~30s
+                // over and over" bug) whenever a run ended without a persisted wait.
+                if (_botService.UpdateDeferredQueueItem(restoredItem.Id, null, remembered.EndsAtUtc - nowUtc))
+                {
+                    AppendLog($"[town-hall] restored running celebration for '{village.Name}' until {FormatQueueServerTime(remembered.EndsAtUtc)}.");
+                }
+                else
+                {
+                    AppendLog($"[town-hall] restored celebration for '{village.Name}' but could not defer it to {FormatQueueServerTime(remembered.EndsAtUtc)}; it will re-check the Town Hall on the next pass.");
+                }
+
                 continue;
             }
 
