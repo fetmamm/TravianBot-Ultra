@@ -22,6 +22,7 @@ public sealed record VillageOverviewRow(
     string Village,
     string Population,
     string NextTask,
+    string ConstructionQueue,
     string Construction,
     string Smithy,
     string BuildTroops,

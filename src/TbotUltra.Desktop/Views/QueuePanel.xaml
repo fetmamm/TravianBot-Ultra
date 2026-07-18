@@ -342,12 +342,12 @@
                                 VerticalAlignment="Center"
                                 Margin="18,0,0,0">
                         <TextBlock Text="Time (25%): "
-                                   Foreground="#C084FC"
+                                   Foreground="{DynamicResource ConstructFasterTextBrush}"
                                    FontWeight="SemiBold"
                                    VerticalAlignment="Center" />
                         <TextBlock x:Name="QueueTotalTimeConstructFasterTextBlock"
                                    Text="-"
-                                   Foreground="#C084FC"
+                                   Foreground="{DynamicResource ConstructFasterTextBrush}"
                                    FontWeight="SemiBold"
                                    VerticalAlignment="Center" />
                     </StackPanel>

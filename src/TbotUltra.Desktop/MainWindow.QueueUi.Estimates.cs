@@ -72,6 +72,45 @@ public partial class MainWindow
 
     // Main Building level of the currently loaded village (gid 15), used to discount build time.
     // Defaults to 1 (no discount) until the village's buildings have been scanned.
+    // Total remaining construction time per village, summed exactly like the Queue tab's totals row: the
+    // same per-item estimates, the same active-row filter, and one shared coverage map (village-scoped, so
+    // a slot in one village never offsets the same slot in another) walked in queue order. Keyed by the
+    // village key the overview already attributed the item to, so the column lines up with its row.
+    // Villages with no estimatable construction are absent from the result.
+    private Dictionary<string, double> BuildConstructionQueueSecondsByVillage(IReadOnlyList<PipelineTaskSource> tasks)
+    {
+        var serverSpeed = ResolveServerSpeed();
+        var mainBuildingLevel = ResolveMainBuildingLevel();
+        var queuedCoverage = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        var secondsByVillage = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+
+        foreach (var source in tasks)
+        {
+            var item = source.Item;
+
+            // Estimate every item in queue order (even ones that do not count below) so the shared coverage
+            // builds up identically to the Queue tab — otherwise a later upgrade of the same slot would
+            // re-count levels an earlier queued step already covers.
+            var estimate = EstimateForQueueItem(item, serverSpeed, mainBuildingLevel, queuedCoverage);
+            if (!estimate.HasData || string.IsNullOrWhiteSpace(source.VillageKey))
+            {
+                continue;
+            }
+
+            var countsTowardTotal = item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused
+                || (item.Status == QueueStatus.Failed && !item.IsRuntimeOnly);
+            if (!countsTowardTotal)
+            {
+                continue;
+            }
+
+            secondsByVillage[source.VillageKey] =
+                secondsByVillage.GetValueOrDefault(source.VillageKey) + estimate.Seconds;
+        }
+
+        return secondsByVillage;
+    }
+
     private int ResolveMainBuildingLevel()
     {
         var level = _buildingRows
@@ -91,8 +130,14 @@ public partial class MainWindow
         var payload = item.Payload ?? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         var taskName = item.TaskName ?? string.Empty;
         var villageLoaded = IsQueueItemForLoadedVillage(item);
-        // The Main Building level is only known for the loaded village; other villages fall back to 1.
-        var mainBuildingLevel = villageLoaded ? loadedVillageMainBuildingLevel : 1;
+        // Levels for a village other than the loaded one come from that village's cached VillageStatus, so
+        // per-village queue totals (Village settings -> Overview) are real numbers instead of a
+        // target-level-only guess at Main Building 1. Null until the bot has actually read that village,
+        // in which case the estimate stays blank rather than showing a wrong number.
+        var cachedStatus = villageLoaded ? null : ResolveBuildingStatusForQueueItem(item);
+        var mainBuildingLevel = villageLoaded
+            ? loadedVillageMainBuildingLevel
+            : ResolveMainBuildingLevel(cachedStatus);
 
         if (string.Equals(taskName, "construct_building", StringComparison.OrdinalIgnoreCase))
         {
@@ -112,7 +157,7 @@ public partial class MainWindow
                 return QueueItemEstimate.None;
             }
 
-            var (gid, currentLevel) = ResolveBuildingGidAndLevel(slotId, name, villageLoaded);
+            var (gid, currentLevel) = ResolveBuildingGidAndLevel(slotId, name, villageLoaded, cachedStatus);
             return SumLevelsWithQueueCoverage(item, gid, currentLevel, target.Value, serverSpeed, mainBuildingLevel, slotId, name, queuedCoverage);
         }
 
@@ -120,7 +165,7 @@ public partial class MainWindow
         {
             var slotId = TryGetIntPayloadValue(payload, BotOptionPayloadKeys.BuildingUpgradeSlotId);
             var name = GetPayloadValue(payload, BotOptionPayloadKeys.BuildingUpgradeName);
-            var (gid, currentLevel) = ResolveBuildingGidAndLevel(slotId, name, villageLoaded);
+            var (gid, currentLevel) = ResolveBuildingGidAndLevel(slotId, name, villageLoaded, cachedStatus);
             if (gid is null || !currentLevel.HasValue)
             {
                 // Without the current level the range is undefined; leave blank without alarming.
@@ -143,7 +188,11 @@ public partial class MainWindow
             }
 
             var gid = BuildingCatalogService.GidForName(name);
-            var currentLevel = villageLoaded && slotId.HasValue ? ResolveResourceLevel(slotId.Value) : null;
+            var currentLevel = slotId.HasValue
+                ? (villageLoaded
+                    ? ResolveResourceLevel(slotId.Value)
+                    : ResolveCachedResourceLevel(cachedStatus, slotId.Value))
+                : null;
             return SumLevelsWithQueueCoverage(item, gid, currentLevel, target.Value, serverSpeed, mainBuildingLevel, slotId, name, queuedCoverage);
         }
 
@@ -286,7 +335,11 @@ public partial class MainWindow
     // targets the currently loaded village (its slots live in _buildingRows). A slot that is only queued
     // for construction has no built level yet but a separate construct item builds it to level 1, so the
     // upgrade is estimated as starting from level 1 (avoiding double-counting that first level).
-    private (int? Gid, int? CurrentLevel) ResolveBuildingGidAndLevel(int? slotId, string? name, bool villageLoaded)
+    private (int? Gid, int? CurrentLevel) ResolveBuildingGidAndLevel(
+        int? slotId,
+        string? name,
+        bool villageLoaded,
+        VillageStatus? cachedStatus = null)
     {
         var gid = BuildingCatalogService.GidForName(name);
         int? currentLevel = null;
@@ -299,9 +352,35 @@ public partial class MainWindow
                 currentLevel = row.Level ?? (row.HasPendingConstruct ? 1 : null);
             }
         }
+        else if (slotId.HasValue && cachedStatus is not null)
+        {
+            // Another village: fall back to its last read building list so the level (and therefore the
+            // full upgrade range) is known instead of collapsing to a single target level.
+            var building = cachedStatus.Buildings.FirstOrDefault(b => b.SlotId == slotId.Value);
+            if (building is not null)
+            {
+                gid ??= building.Gid;
+                currentLevel = building.Level;
+            }
+        }
 
         return (gid, currentLevel);
     }
+
+    // Main Building level for a village other than the loaded one, read from its cached status. Falls back
+    // to 1 (the previous behavior) when the village has not been read yet.
+    private static int ResolveMainBuildingLevel(VillageStatus? cachedStatus)
+    {
+        var level = cachedStatus?.Buildings
+            .Where(b => b.Gid == 15 || string.Equals(b.Name, "Main Building", StringComparison.OrdinalIgnoreCase))
+            .Select(b => b.Level)
+            .FirstOrDefault();
+        return level is int value && value > 0 ? value : 1;
+    }
+
+    // Resource field level for a village other than the loaded one, read from its cached status.
+    private static int? ResolveCachedResourceLevel(VillageStatus? cachedStatus, int slotId)
+        => cachedStatus?.ResourceFields.FirstOrDefault(f => f.SlotId == slotId)?.Level;
 
     private int? ResolveResourceLevel(int slotId)
         => _resourcesViewModel.AllFields.FirstOrDefault(r => r.SlotId == slotId)?.Level;

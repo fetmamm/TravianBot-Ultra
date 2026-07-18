@@ -255,6 +255,50 @@ public sealed class VillageOverviewFactoryTests
         Assert.Contains("Upgrade Stable to level 10", row.NextTask);
     }
 
+    [Fact]
+    public void Create_ConstructionQueueShowsNormalAndConstructFasterTime()
+    {
+        var now = new DateTimeOffset(2026, 6, 15, 12, 0, 0, TimeSpan.Zero);
+
+        var snapshot = VillageOverviewFactory.Create(
+            [Village("A", "A")],
+            [],
+            QueueGroupCatalog.AllGroups,
+            "A",
+            null,
+            now,
+            value => value.ToString("HH:mm:ss"),
+            null,
+            new Dictionary<string, double> { ["A"] = 400 },
+            seconds => $"{seconds:F0}s");
+        var row = Assert.Single(snapshot.Villages);
+
+        // Second line carries the "25%" prefix so OverviewStatusText renders it in the construct-faster purple.
+        Assert.Equal("400s\n25% 300s", row.ConstructionQueue);
+    }
+
+    [Fact]
+    public void Create_ConstructionQueueIsBlankWithoutEstimatableWork()
+    {
+        var now = new DateTimeOffset(2026, 6, 15, 12, 0, 0, TimeSpan.Zero);
+
+        // No entry for the village (levels never read / nothing queued) must stay "-" rather than show 0.
+        var snapshot = VillageOverviewFactory.Create(
+            [Village("A", "A")],
+            [],
+            QueueGroupCatalog.AllGroups,
+            "A",
+            null,
+            now,
+            value => value.ToString("HH:mm:ss"),
+            null,
+            new Dictionary<string, double>(),
+            seconds => $"{seconds:F0}s");
+        var row = Assert.Single(snapshot.Villages);
+
+        Assert.Equal("-", row.ConstructionQueue);
+    }
+
     private static PipelineTaskSource Task(
         string name,
         QueueGroup group,

@@ -819,7 +819,9 @@ public partial class MainWindow
             exactNext,
             nowUtc,
             FormatQueueFinishTime,
-            rotationKeys);
+            rotationKeys,
+            BuildConstructionQueueSecondsByVillage(tasks),
+            FormatBuildDuration);
 
         LogOverviewAttributionDiagnostics(villages, snapshot, attributionMisses, attributedPendingByKey);
         return snapshot;

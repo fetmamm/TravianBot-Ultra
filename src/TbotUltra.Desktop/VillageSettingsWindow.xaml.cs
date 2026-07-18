@@ -210,6 +210,7 @@ public partial class VillageSettingsWindow : Window
     {
         VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Village", 170, nameof(VillageOverviewRow.Village), colorize: false));
         VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Next task", 240, nameof(VillageOverviewRow.NextTask)));
+        VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Construction queue", 130, nameof(VillageOverviewRow.ConstructionQueue)));
         VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Construction", 220, nameof(VillageOverviewRow.Construction)));
         VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Smithy", 220, nameof(VillageOverviewRow.Smithy)));
         VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Build troops", 180, nameof(VillageOverviewRow.BuildTroops)));

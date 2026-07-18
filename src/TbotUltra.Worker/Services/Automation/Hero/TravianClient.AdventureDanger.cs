@@ -858,6 +858,21 @@ public sealed partial class TravianClient
             var state = await ReadAdventureVideoStateAsync(boxClass, cancellationToken);
             if (state == "active")
             {
+                // Fast completion: Travian's own bonus box now shows its reward class (bonusReady /
+                // bonusReadyText / "active for next ..."), AND the video dialog has closed — the ad
+                // finished and the page returned to the adventures view. That is the server-confirmed
+                // grant and is definitive, so finish immediately instead of idling out the protected
+                // post-play minute (~33s of dead waiting after a short ad). Requiring the dialog to be
+                // gone mirrors the production-bonus path and guards against a box that momentarily reads
+                // active while the ad is still playing.
+                if (!await IsAdventureVideoDialogOpenAsync(cancellationToken))
+                {
+                    Notify($"[adventure-video] {label}: reward confirmed after {elapsedSeconds:F1}s post-play — box active and video dialog closed.");
+                    return true;
+                }
+
+                // Box active but the video dialog is still open: keep the protected-minute completion as
+                // the fail-safe so a slow-closing overlay still finishes the attempt without idling forever.
                 if (BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds))
                 {
                     Notify($"[adventure-video] {label}: reward confirmed after {elapsedSeconds:F1}s post-play — the bonus is now active.");
@@ -868,9 +883,8 @@ public sealed partial class TravianClient
                 {
                     earlyRewardLogged = true;
                     Notify(
-                        $"[adventure-video:verbose] {label}: reward appeared after {elapsedSeconds:F1}s, " +
-                        $"but browser remains open for the protected post-play minute " +
-                        $"({BonusVideoPlaybackPolicy.RemainingGraceSeconds(elapsedSeconds)}s remaining).");
+                        $"[adventure-video:verbose] {label}: reward appeared after {elapsedSeconds:F1}s while the video dialog was still open; " +
+                        $"waiting for it to close (or the protected post-play minute, {BonusVideoPlaybackPolicy.RemainingGraceSeconds(elapsedSeconds)}s remaining).");
                 }
             }
 

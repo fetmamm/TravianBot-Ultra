@@ -75,6 +75,13 @@ public static class OverviewStatusText
             return ThemeColors.Brush("SuccessTextBrush");
         }
 
+        // Second line of the Construction queue cell: the -25% construct-faster total. Same purple as the
+        // Queue tab's "Time (25%)" figure so the two read as the same number.
+        if (StartsWith(trimmed, "25%"))
+        {
+            return ThemeColors.Brush("ConstructFasterTextBrush");
+        }
+
         if (StartsWith(trimmed, "Waiting") || StartsWith(trimmed, "Earliest"))
         {
             return ThemeColors.Brush("WarningTextBrush");

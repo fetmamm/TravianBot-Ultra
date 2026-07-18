@@ -21,7 +21,9 @@ internal static class VillageOverviewFactory
         QueueItem? exactNext,
         DateTimeOffset nowUtc,
         Func<DateTimeOffset, string> finishTimeFormatter,
-        IReadOnlyDictionary<QueueGroup, string?>? rotationVillageKeys = null)
+        IReadOnlyDictionary<QueueGroup, string?>? rotationVillageKeys = null,
+        IReadOnlyDictionary<string, double>? constructionQueueSecondsByVillage = null,
+        Func<double, string>? durationFormatter = null)
     {
         var taskSnapshot = tasks
             .Where(source => source.Item is not null)
@@ -45,7 +47,9 @@ internal static class VillageOverviewFactory
                 orderedGroups,
                 exactNext,
                 nowUtc,
-                finishTimeFormatter))
+                finishTimeFormatter,
+                constructionQueueSecondsByVillage,
+                durationFormatter))
             .ToList();
 
         return new VillageOverviewSnapshot(
@@ -302,13 +306,35 @@ internal static class VillageOverviewFactory
             .ToList();
     }
 
+    // Total remaining build time for this village's queued construction, mirroring the Queue tab's totals:
+    // the normal time on the first line and the -25% construct-faster time on the second (rendered purple by
+    // OverviewStatusText via the "25%" prefix). "-" when the village has no queued construction, or when its
+    // levels have not been read yet — an unknown level yields no estimate, and a blank beats a wrong number.
+    private static string ResolveConstructionQueue(
+        VillageOverviewSource village,
+        IReadOnlyDictionary<string, double>? secondsByVillage,
+        Func<double, string>? durationFormatter)
+    {
+        if (secondsByVillage is null
+            || durationFormatter is null
+            || !secondsByVillage.TryGetValue(village.VillageKey, out var seconds)
+            || seconds <= 0)
+        {
+            return "-";
+        }
+
+        return $"{durationFormatter(seconds)}\n25% {durationFormatter(seconds * 0.75)}";
+    }
+
     private static VillageOverviewRow BuildVillageRow(
         VillageOverviewSource village,
         IReadOnlyList<PipelineTaskSource> villageTasks,
         IReadOnlyList<QueueGroup> orderedGroups,
         QueueItem? exactNext,
         DateTimeOffset nowUtc,
-        Func<DateTimeOffset, string> finishTimeFormatter)
+        Func<DateTimeOffset, string> finishTimeFormatter,
+        IReadOnlyDictionary<string, double>? constructionQueueSecondsByVillage,
+        Func<double, string>? durationFormatter)
     {
         var constructionEnabled = IsGroupEnabled(village, QueueGroup.Construction);
         var smithyEnabled = IsGroupEnabled(village, QueueGroup.Troops);
@@ -322,6 +348,7 @@ internal static class VillageOverviewFactory
             village.Name,
             village.Population,
             ResolveNextTask(village, villageTasks, orderedGroups, exactNext, nowUtc),
+            ResolveConstructionQueue(village, constructionQueueSecondsByVillage, durationFormatter),
             ResolveConstruction(village.Status, village.Tribe, villageTasks, constructionEnabled, nowUtc, finishTimeFormatter),
             ResolveSmithy(village.Status, villageTasks, smithyEnabled, nowUtc, finishTimeFormatter),
             ResolveTroopTraining(village.Status, villageTasks, troopTrainingEnabled, nowUtc),

@@ -90,6 +90,9 @@
     <SolidColorBrush x:Key="InfoTextBrush" Color="#79C0FF" />
     <SolidColorBrush x:Key="ConstructFasterBrush" Color="#A371F7" />
     <SolidColorBrush x:Key="ConstructFasterHoverBrush" Color="#BC8CFF" />
+    <!-- Text tint for the -25% construct-faster build time, shared by the Queue tab totals and the
+         Village settings Overview "Construction queue" column so the two can never drift apart. -->
+    <SolidColorBrush x:Key="ConstructFasterTextBrush" Color="#C084FC" />
     <SolidColorBrush x:Key="SelectedRowBgBrush" Color="#1F2D3D" />
 
     <!-- ===== Status: danger / error (red) ===== -->

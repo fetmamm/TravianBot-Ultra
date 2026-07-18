@@ -140,6 +140,19 @@ Common endpoints:
   we left the village), so a dialog that is merely opening is never mistaken for a redirect. The weaker
   "dialog + player both gone, no redirect" signal still waits out the 60-second minute (it can be an ad
   no-fill that granted nothing).
+- Hero-adventure exception (WaitForAdventureVideoActiveAsync) and production-bonus (WaitForProductionBonus…):
+  when Travian's own bonus box shows its reward class (`bonusReady`/`bonusReadyText`/"active for next") AND
+  the video dialog/overlay has closed, the reward is server-confirmed and the attempt completes immediately,
+  bypassing the protected minute. Requiring the overlay to be gone guards against a box that momentarily
+  reads active while the ad is still playing. If the box is active but the dialog is still open, the
+  60-second minute remains the fail-safe. The provider-FAILURE path is still fully gated by the minute.
+- Queue build-time/cost estimates: levels for the LOADED village come from `_buildingRows` /
+  `_resourcesViewModel`; every other village falls back to its cached `VillageStatus` (Buildings /
+  ResourceFields) via `ResolveBuildingStatusForQueueItem`. Without that fallback a non-loaded village
+  silently degrades to "target level only, Main Building 1" — a wrong number, not a blank. A village the bot
+  has never read still yields no estimate, which must stay blank. The Village settings Overview
+  "Construction queue" column and the Queue tab totals share these estimates and one village-scoped
+  coverage map, so a repeated upgrade of one slot only counts its own steps.
 - Hard and -25% hero-adventure videos share an account-scoped 0-100% chance setting (default 70%);
   evaluate an independent random roll whenever either enabled function is invoked.
 - Classify video failures and apply account+proxy cooldown: network 10m, no-ad/cookies 20m, timeout 30m,
