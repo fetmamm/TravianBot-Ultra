@@ -35,6 +35,15 @@ internal static class TravianUrls
         return match.Success && int.TryParse(match.Groups[1].Value, out var id) ? id : null;
     }
 
+    // Absolute navigation target from a server-root-relative path (already-absolute URLs pass through).
+    // Shared by the main navigation GotoAsync and the catapult secondary-tab navigation.
+    internal static string ToAbsoluteUrl(string baseUrl, string pathOrUrl)
+    {
+        return pathOrUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase)
+            ? pathOrUrl
+            : $"{baseUrl.TrimEnd('/')}/{pathOrUrl.TrimStart('/')}";
+    }
+
     internal static int? ExtractSlotIdFromUrl(string? url)
     {
         if (string.IsNullOrWhiteSpace(url))

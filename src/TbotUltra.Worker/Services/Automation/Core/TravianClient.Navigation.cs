@@ -244,9 +244,7 @@ public sealed partial class TravianClient
 
     private async Task GotoAsync(string pathOrUrl, CancellationToken cancellationToken)
     {
-        var url = pathOrUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-            ? pathOrUrl
-            : $"{_config.BaseUrl.TrimEnd('/')}/{pathOrUrl.TrimStart('/')}";
+        var url = TravianUrls.ToAbsoluteUrl(_config.BaseUrl, pathOrUrl);
         var beforeUrl = _page.Url;
         using var trace = _browserTrace.BeginOperation(
             "NAV",

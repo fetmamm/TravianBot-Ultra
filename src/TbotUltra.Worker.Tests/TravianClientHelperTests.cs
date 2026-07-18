@@ -977,6 +977,17 @@ public sealed class TravianClientHelperTests
         Assert.Equal(expected, TravianUrls.ExtractSlotIdFromUrl(url));
     }
 
+    [Theory]
+    [InlineData("https://ts1.x1.europe.travian.com", "/dorf1.php", "https://ts1.x1.europe.travian.com/dorf1.php")]
+    [InlineData("https://ts1.x1.europe.travian.com/", "dorf1.php", "https://ts1.x1.europe.travian.com/dorf1.php")]
+    [InlineData("https://ts1.x1.europe.travian.com/", "/build.php?id=39&gid=16&tt=2", "https://ts1.x1.europe.travian.com/build.php?id=39&gid=16&tt=2")]
+    [InlineData("https://ts1.x1.europe.travian.com", "https://other.travian.com/dorf2.php", "https://other.travian.com/dorf2.php")]
+    [InlineData("https://ts1.x1.europe.travian.com", "HTTPS://other.travian.com/dorf2.php", "HTTPS://other.travian.com/dorf2.php")]
+    public void ToAbsoluteUrl_ComposesServerRootRelativePaths(string baseUrl, string pathOrUrl, string expected)
+    {
+        Assert.Equal(expected, TravianUrls.ToAbsoluteUrl(baseUrl, pathOrUrl));
+    }
+
     [Fact]
     public void BuildTroopInputSelectors_IncludesOfficialRallyPointNames()
     {

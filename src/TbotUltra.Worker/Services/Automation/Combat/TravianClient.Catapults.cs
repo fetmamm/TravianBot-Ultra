@@ -111,7 +111,7 @@ public sealed partial class TravianClient : ICombatClient
                 cancellationToken.ThrowIfCancellationRequested();
                 await attack.Page.BringToFrontAsync();
                 await EnsureCatapultConfirmReadyAsync(attack, cancellationToken);
-                var clicked = await TryClickConfirmButtonAsync(attack.Page, cancellationToken);
+                var clicked = await TryClickCatapultConfirmButtonAsync(attack.Page, cancellationToken);
                 if (clicked)
                 {
                     if (await WaitForCatapultSendResultAsync(attack, cancellationToken))
@@ -192,7 +192,7 @@ public sealed partial class TravianClient : ICombatClient
     {
         if (!allowReuseCurrentPage || !await IsSendTroopsPageAsync(page, cancellationToken))
         {
-            await GotoAsync(page, Paths.RallyPointSendTroops, cancellationToken);
+            await GotoOnCatapultPageAsync(page, Paths.RallyPointSendTroops, cancellationToken);
         }
 
         if (!await IsSendTroopsPageAsync(page, cancellationToken))
@@ -230,7 +230,7 @@ public sealed partial class TravianClient : ICombatClient
             throw new InvalidOperationException($"Could not select {attackMode} for {attack.Label.ToLowerInvariant()}.");
         }
 
-        if (!await TryClickConfirmButtonAsync(page, cancellationToken))
+        if (!await TryClickCatapultConfirmButtonAsync(page, cancellationToken))
         {
             throw new InvalidOperationException($"Could not open confirmation page for {attack.Label.ToLowerInvariant()}.");
         }
@@ -414,11 +414,11 @@ public sealed partial class TravianClient : ICombatClient
         }
     }
 
-    private async Task GotoAsync(IPage page, string pathOrUrl, CancellationToken cancellationToken)
+    // Intentionally lighter than Navigation's GotoAsync: navigates a secondary catapult tab without
+    // the main retry/proxy-classification/ready-wait/cache-invalidation pipeline. Do not merge them.
+    private async Task GotoOnCatapultPageAsync(IPage page, string pathOrUrl, CancellationToken cancellationToken)
     {
-        var url = pathOrUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase)
-            ? pathOrUrl
-            : $"{_config.BaseUrl.TrimEnd('/')}/{pathOrUrl.TrimStart('/')}";
+        var url = TravianUrls.ToAbsoluteUrl(_config.BaseUrl, pathOrUrl);
 
         _browserTrace.AttachPage(page, "catapult-context");
         using var trace = _browserTrace.BeginOperation(
@@ -612,7 +612,9 @@ public sealed partial class TravianClient : ICombatClient
         return false;
     }
 
-    private async Task<bool> TryClickConfirmButtonAsync(IPage page, CancellationToken cancellationToken)
+    // Intentionally separate from ManualAttack's TryClickConfirmButtonAsync: different selector set,
+    // visibility gate and a forced single-pass click (no retry loop). Do not merge them.
+    private async Task<bool> TryClickCatapultConfirmButtonAsync(IPage page, CancellationToken cancellationToken)
     {
         foreach (var selector in CatapultConfirmButtonSelectors)
         {
