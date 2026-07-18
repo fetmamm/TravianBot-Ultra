@@ -992,6 +992,23 @@ public partial class MainWindow
         var operationId = BeginOperation("UpgradeAllResourcesToMax");
         try
         {
+            var selectedIsCapital = VillageComboBox.SelectedItem is VillageSelectionItem selectedVillage
+                ? selectedVillage.IsCapital
+                : ResolveSelectedVillageBuildingStatus()?.IsCapital == true;
+            if (selectedIsCapital)
+            {
+                AppDialog.Show(
+                    this,
+                    "Upgrade to max with automatic storage planning is not available in capital villages. " +
+                    "Use 'Upgrade all to level' and choose the target level instead. " +
+                    "Upgrade to max is available only for non-capital villages, where resource level 10 is the maximum.",
+                    "Upgrade resources to max",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Information);
+                AppendLog($"[{operationId}] CANCELLED | Upgrade to max is available only for non-capital villages.");
+                return;
+            }
+
             QueueUpgradeAllResources(operationId, ResolveSelectedVillageResourceMaxLevel());
         }
         catch (Exception ex)
@@ -1036,6 +1053,18 @@ public partial class MainWindow
             AppendLog($"[{operationId}] CANCELLED | Storage capacity preflight was not accepted.");
             return;
         }
+
+        if (!TryPrepareConstructionStoragePreflight(
+                plannedRequests,
+                out var fullyPlannedRequests,
+                out var additionalStorageUpgrades))
+        {
+            AppendLog($"[{operationId}] CANCELLED | Storage construction preflight was not accepted.");
+            return;
+        }
+
+        plannedRequests = fullyPlannedRequests;
+        storageUpgrades = storageUpgrades.Concat(additionalStorageUpgrades).ToList();
 
         if (plannedRequests.Count == 0)
         {

@@ -166,9 +166,12 @@ Published artifacts belong under `artifacts/`, never beside source files.
   verified automatic prerequisite repair may be promoted only when a live slot is available.
 - Check storage, prerequisites, available slots, and resources before a Build/Upgrade click.
 - Storage-capacity blocks create the required Warehouse/Granary dependency at highest queue priority and keep the
-  parent deferred. Bulk resource upgrades project earlier same-village resource/storage work, then split the new
-  goal into increasing targets and atomically insert only the next required storage level immediately before each
-  capacity boundary. Catalog maximums make these stages safe regardless of Smart ordering.
+  parent deferred. Queue-time storage preflight covers constructs, selected/max building upgrades, single/bulk
+  resource upgrades, upgrade-all, and templates. It projects earlier same-village work, splits targets at each
+  capacity boundary, and atomically inserts only the next required storage level immediately before the blocked
+  stage. If Warehouse or Granary does not exist, offer to construct it in a verified free slot before upgrading it.
+- Resource `Upgrade to max` uses the level-10 staged plan only in non-capital villages. Capitals show that max-mode
+  storage planning is unsupported and direct the user to choose an explicit `Upgrade all to level` target.
 - Official storage blocks use `.upgradeBlocked > .errorMessage`; disabled actions can remain in the DOM with a
   CSS `disabled` class. Construction and upgrades share the same `storage_capacity` flow.
 - Correlate Official queue rows by slot when present, otherwise normalized name plus level/count. Do not treat

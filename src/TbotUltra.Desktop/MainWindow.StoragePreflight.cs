@@ -8,6 +8,92 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
+    private bool TryPrepareConstructionStoragePreflight(
+        IReadOnlyList<QueueItemCreateRequest> requestedItems,
+        out IReadOnlyList<QueueItemCreateRequest> plannedRequests,
+        out IReadOnlyList<StoragePreflightUpgrade> upgrades)
+    {
+        plannedRequests = [];
+        upgrades = [];
+        var status = ResolveSelectedVillageBuildingStatus();
+        if (status is null
+            || status.Buildings.Count == 0
+            || status.WarehouseCapacity is not > 0
+            || status.GranaryCapacity is not > 0)
+        {
+            AppDialog.Show(
+                this,
+                "Refresh the selected village before adding this construction. Current buildings and storage capacity are required for the storage preflight.",
+                "Storage capacity check",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return false;
+        }
+
+        var normalizedRequests = requestedItems.Select(request =>
+        {
+            var payload = request.Payload is null
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(request.Payload, StringComparer.OrdinalIgnoreCase);
+            ApplySelectedVillageToPayload(payload);
+            return request with { Payload = payload };
+        }).ToList();
+        var villageName = GetSelectedVillageName() ?? status.ActiveVillage;
+        var villageKey = GetSelectedVillageKey();
+        var precedingItems = _botService.GetQueueItemsForDisplay()
+            .Where(item => IsQueueItemForVillage(item, villageName, villageKey))
+            .ToList();
+        var result = StorageCapacityQueuePreflightPlanner.PlanConstructionRequestsStepwise(
+            status,
+            precedingItems,
+            normalizedRequests);
+        if (!string.IsNullOrWhiteSpace(result.CannotPlanReason))
+        {
+            AppDialog.Show(
+                this,
+                $"The storage requirement could not be planned safely.\n\n{result.CannotPlanReason}\n\nRefresh the village and try again.",
+                "Storage capacity check",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+            return false;
+        }
+
+        upgrades = result.Upgrades;
+        if (upgrades.Count > 0)
+        {
+            var lines = upgrades.Select(upgrade => upgrade.RequiresConstruction
+                ? $"  • Build {upgrade.Kind} in free slot {upgrade.SlotId}" +
+                  (upgrade.TargetLevel > 1 ? $", then upgrade to level {upgrade.TargetLevel}" : string.Empty) +
+                  $" (capacity {upgrade.ProjectedCapacity:N0}, required {upgrade.RequiredCapacity:N0})"
+                : $"  • {upgrade.Kind} level {upgrade.CurrentLevel} → {upgrade.TargetLevel} " +
+                  $"(capacity {upgrade.ProjectedCapacity:N0}, required {upgrade.RequiredCapacity:N0})");
+            var choice = AppDialog.ShowCustom(
+                this,
+                "One or more queued construction levels exceed the projected Warehouse or Granary capacity. " +
+                "The required storage construction/upgrades will be inserted immediately before the first blocked level.\n\n" +
+                string.Join("\n", lines),
+                "Storage upgrades required",
+                [("Add required storage upgrades", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.Cancel)],
+                MessageBoxImage.Warning,
+                MessageBoxResult.Yes,
+                MessageBoxResult.Cancel,
+                successResult: MessageBoxResult.Yes);
+            if (choice != MessageBoxResult.Yes)
+            {
+                return false;
+            }
+
+            var planId = Guid.NewGuid().ToString();
+            foreach (var request in result.Requests)
+            {
+                request.Payload![BotOptionPayloadKeys.StoragePreflightPlanId] = planId;
+            }
+        }
+
+        plannedRequests = result.Requests;
+        return true;
+    }
+
     private bool TryPrepareUpgradeAllStoragePreflight(
         int targetLevel,
         Dictionary<string, string> parentPayload,
@@ -45,7 +131,7 @@ public partial class MainWindow
         {
             AppDialog.Show(
                 this,
-                $"The storage requirement could not be planned safely.\n\n{result.CannotPlanReason}\n\nRefresh the village and verify that Warehouse and Granary exist.",
+                $"The storage requirement could not be planned safely.\n\n{result.CannotPlanReason}\n\nRefresh the village so available building slots and storage capacity can be verified.",
                 "Storage capacity check",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
@@ -56,8 +142,11 @@ public partial class MainWindow
         if (upgrades.Count > 0)
         {
             var lines = result.Stages.SelectMany(stage => stage.StorageUpgradesBefore.Select(upgrade =>
-                $"  • Before resources to level {stage.ResourceTargetLevel}: {upgrade.Kind} " +
-                $"level {upgrade.CurrentLevel} → {upgrade.TargetLevel} " +
+                $"  • Before resources to level {stage.ResourceTargetLevel}: " +
+                (upgrade.RequiresConstruction
+                    ? $"Build {upgrade.Kind} in free slot {upgrade.SlotId}" +
+                      (upgrade.TargetLevel > 1 ? $", then upgrade to level {upgrade.TargetLevel} " : " ")
+                    : $"{upgrade.Kind} level {upgrade.CurrentLevel} → {upgrade.TargetLevel} ") +
                 $"(capacity {upgrade.ProjectedCapacity:N0}, required {upgrade.RequiredCapacity:N0})"));
             var choice = AppDialog.ShowCustom(
                 this,
@@ -84,12 +173,20 @@ public partial class MainWindow
             foreach (var upgrade in stage.StorageUpgradesBefore)
             {
                 var name = upgrade.Kind == StorageCapacityKind.Warehouse ? "Warehouse" : "Granary";
-                var payload = new BuildingUpgradePayload(upgrade.SlotId, upgrade.TargetLevel, name).ToDictionary();
-                ApplySelectedVillageToPayload(payload);
-                payload[BotOptionPayloadKeys.StoragePreflightPlanId] = planId;
-                payload[BotOptionPayloadKeys.StoragePreflightBatchId] = batchId!;
-                payload[BotOptionPayloadKeys.AutoAddedBy] = BotOptionPayloadKeys.AutoAddedByStorageCapacityPreflight;
-                requests.Add(new QueueItemCreateRequest("upgrade_building_to_level", payload, 0, 3));
+                if (upgrade.RequiresConstruction)
+                {
+                    var gid = upgrade.Kind == StorageCapacityKind.Warehouse ? 10 : 11;
+                    var constructPayload = new BuildingConstructPayload(upgrade.SlotId, gid, name).ToDictionary();
+                    ApplyStoragePreflightMetadata(constructPayload, planId, batchId!);
+                    requests.Add(new QueueItemCreateRequest("construct_building", constructPayload, 0, 3));
+                }
+
+                if (!upgrade.RequiresConstruction || upgrade.TargetLevel > 1)
+                {
+                    var payload = new BuildingUpgradePayload(upgrade.SlotId, upgrade.TargetLevel, name).ToDictionary();
+                    ApplyStoragePreflightMetadata(payload, planId, batchId!);
+                    requests.Add(new QueueItemCreateRequest("upgrade_building_to_level", payload, 0, 3));
+                }
             }
 
             var resourcePayload = new Dictionary<string, string>(parentPayload, StringComparer.OrdinalIgnoreCase)
@@ -108,11 +205,31 @@ public partial class MainWindow
         return true;
     }
 
+    private void ApplyStoragePreflightMetadata(
+        Dictionary<string, string> payload,
+        string planId,
+        string batchId)
+    {
+        ApplySelectedVillageToPayload(payload);
+        payload[BotOptionPayloadKeys.StoragePreflightPlanId] = planId;
+        payload[BotOptionPayloadKeys.StoragePreflightBatchId] = batchId;
+        payload[BotOptionPayloadKeys.AutoAddedBy] = BotOptionPayloadKeys.AutoAddedByStorageCapacityPreflight;
+    }
+
     private void ApplyStoragePreflightPendingState(IReadOnlyList<StoragePreflightUpgrade> upgrades)
     {
         foreach (var upgrade in upgrades)
         {
-            SetPendingBuildingUpgrade(upgrade.SlotId, upgrade.TargetLevel);
+            if (upgrade.RequiresConstruction)
+            {
+                var gid = upgrade.Kind == StorageCapacityKind.Warehouse ? 10 : 11;
+                SetPendingBuildingConstruct(upgrade.SlotId, upgrade.Kind.ToString(), gid);
+            }
+
+            if (upgrade.TargetLevel > 1 || !upgrade.RequiresConstruction)
+            {
+                SetPendingBuildingUpgrade(upgrade.SlotId, upgrade.TargetLevel);
+            }
         }
     }
 

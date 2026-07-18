@@ -70,6 +70,26 @@ public sealed class StorageCapacityQueuePreflightPlannerTests
     }
 
     [Fact]
+    public void PlanUpgradeAllResources_RecognizesStorageByNameWhenSnapshotGidIsMissing()
+    {
+        var status = CreateStatusWithoutStorage(
+            [new ResourceField(4, "Iron Mine", "Iron Mine", 5, null)],
+            warehouseCapacity: 1_200,
+            granaryCapacity: 1_200,
+            buildings:
+            [
+                new Building(19, "Warehouse", 1, null, null),
+                new Building(20, "Granary", 1, null, null),
+            ]);
+
+        var result = StorageCapacityQueuePreflightPlanner.PlanUpgradeAllResources(status, [], 6);
+
+        var upgrade = Assert.Single(result.Upgrades);
+        Assert.False(upgrade.RequiresConstruction);
+        Assert.Equal(19, upgrade.SlotId);
+    }
+
+    [Fact]
     public void PlanUpgradeAllResourcesStepwise_InsertsStorageOnlyAtEachCapacityBoundary()
     {
         var fields = Enumerable.Range(1, 18)
@@ -138,6 +158,133 @@ public sealed class StorageCapacityQueuePreflightPlannerTests
             upgrade.Kind == StorageCapacityKind.Warehouse && upgrade.TargetLevel <= 2);
     }
 
+    [Fact]
+    public void PlanUpgradeAllResourcesStepwise_MissingWarehouseConstructsInFreeSlotThenUpgrades()
+    {
+        var status = CreateStatusWithoutStorage(
+            [new ResourceField(4, "Iron Mine", "Iron Mine", 5, null)],
+            warehouseCapacity: 800,
+            granaryCapacity: 1_200,
+            buildings: [new Building(20, "Granary", 1, null, 11)]);
+
+        var result = StorageCapacityQueuePreflightPlanner.PlanUpgradeAllResourcesStepwise(status, [], 6);
+
+        var warehouse = Assert.Single(result.Upgrades);
+        Assert.Equal(StorageCapacityKind.Warehouse, warehouse.Kind);
+        Assert.True(warehouse.RequiresConstruction);
+        Assert.Equal(19, warehouse.SlotId);
+        Assert.Equal(2, warehouse.TargetLevel);
+    }
+
+    [Fact]
+    public void PlanUpgradeAllResourcesStepwise_MissingBothStorageBuildingsUsesDifferentFreeSlots()
+    {
+        var fields = Enumerable.Range(1, 18)
+            .Select(slot => new ResourceField(
+                slot,
+                slot % 4 == 0 ? "Cropland" : "Iron Mine",
+                "Resource field",
+                1,
+                null))
+            .ToList();
+        var status = CreateStatusWithoutStorage(
+            fields,
+            warehouseCapacity: 800,
+            granaryCapacity: 800,
+            buildings: [new Building(21, "Main Building", 1, null, 15)]);
+
+        var result = StorageCapacityQueuePreflightPlanner.PlanUpgradeAllResourcesStepwise(status, [], 10);
+
+        Assert.Null(result.CannotPlanReason);
+        var constructions = result.Upgrades.Where(upgrade => upgrade.RequiresConstruction).ToList();
+        Assert.Contains(constructions, upgrade => upgrade.Kind == StorageCapacityKind.Warehouse);
+        Assert.Contains(constructions, upgrade => upgrade.Kind == StorageCapacityKind.Granary);
+        Assert.Equal(constructions.Count, constructions.Select(upgrade => upgrade.SlotId).Distinct().Count());
+    }
+
+    [Fact]
+    public void PlanConstructionRequestsStepwise_MainBuildingToTwentyStagesStorageBeforeBlockedLevels()
+    {
+        var status = CreateStatusWithoutStorage(
+            [],
+            warehouseCapacity: 1_200,
+            granaryCapacity: 1_200,
+            buildings:
+            [
+                new Building(19, "Warehouse", 1, null, 10),
+                new Building(20, "Granary", 1, null, 11),
+                new Building(21, "Main Building", 1, null, 15),
+            ]);
+        var payload = new BuildingUpgradePayload(21, 20, "Main Building").ToDictionary();
+
+        var result = StorageCapacityQueuePreflightPlanner.PlanConstructionRequestsStepwise(
+            status,
+            [],
+            [new QueueItemCreateRequest("upgrade_building_to_level", payload, 0, 3)]);
+
+        Assert.Null(result.CannotPlanReason);
+        Assert.NotEmpty(result.Upgrades);
+        Assert.Contains(result.Upgrades, upgrade => upgrade.Kind == StorageCapacityKind.Warehouse);
+        Assert.Contains(result.Upgrades, upgrade => upgrade.Kind == StorageCapacityKind.Granary);
+        var finalUpgrade = result.Requests.Last(request =>
+            string.Equals(request.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+            && request.Payload![BotOptionPayloadKeys.BuildingUpgradeSlotId] == "21");
+        Assert.Equal("20", finalUpgrade.Payload![BotOptionPayloadKeys.BuildingUpgradeTargetLevel]);
+        var orderedRequests = result.Requests.ToList();
+        Assert.True(orderedRequests.FindIndex(request => request.Payload?.GetValueOrDefault(BotOptionPayloadKeys.AutoAddedBy) == BotOptionPayloadKeys.AutoAddedByStorageCapacityPreflight)
+            < orderedRequests.IndexOf(finalUpgrade));
+    }
+
+    [Fact]
+    public void PlanConstructionRequestsStepwise_SingleResourceUpgradeAlsoPlansStorage()
+    {
+        var status = CreateStatus(
+            [new ResourceField(4, "Iron Mine", "Iron Mine", 5, null)],
+            warehouseCapacity: 1_200,
+            granaryCapacity: 1_200);
+        var payload = new ResourceUpgradePayload(4, 6, "Iron Mine").ToDictionary();
+
+        var result = StorageCapacityQueuePreflightPlanner.PlanConstructionRequestsStepwise(
+            status,
+            [],
+            [new QueueItemCreateRequest("upgrade_resource_to_level", payload, 0, 3)]);
+
+        var storage = Assert.Single(result.Upgrades);
+        Assert.Equal(StorageCapacityKind.Warehouse, storage.Kind);
+        Assert.Equal("upgrade_resource_to_level", result.Requests[^1].TaskName);
+    }
+
+    [Fact]
+    public void PlanConstructionRequestsStepwise_NewExpensiveBuildingPlansStorageBeforeConstruct()
+    {
+        var status = CreateStatusWithoutStorage(
+            [],
+            warehouseCapacity: 1_200,
+            granaryCapacity: 1_200,
+            buildings:
+            [
+                new Building(19, "Warehouse", 1, null, 10),
+                new Building(20, "Granary", 1, null, 11),
+                new Building(21, "Main Building", 10, null, 15),
+            ]);
+        var payload = new BuildingConstructPayload(22, 27, "Treasury").ToDictionary();
+
+        var result = StorageCapacityQueuePreflightPlanner.PlanConstructionRequestsStepwise(
+            status,
+            [],
+            [new QueueItemCreateRequest("construct_building", payload, 0, 3)]);
+
+        Assert.Null(result.CannotPlanReason);
+        Assert.NotEmpty(result.Upgrades);
+        var constructIndex = result.Requests.ToList().FindIndex(request =>
+            request.TaskName == "construct_building"
+            && request.Payload![BotOptionPayloadKeys.BuildingConstructSlotId] == "22");
+        var storageIndex = result.Requests.ToList().FindIndex(request =>
+            request.Payload?.GetValueOrDefault(BotOptionPayloadKeys.AutoAddedBy)
+            == BotOptionPayloadKeys.AutoAddedByStorageCapacityPreflight);
+        Assert.InRange(storageIndex, 0, constructIndex - 1);
+    }
+
     private static VillageStatus CreateStatus(
         IReadOnlyList<ResourceField> fields,
         long warehouseCapacity,
@@ -157,4 +304,19 @@ public sealed class StorageCapacityQueuePreflightPlannerTests
             WarehouseCapacity: warehouseCapacity,
             GranaryCapacity: granaryCapacity);
     }
+
+    private static VillageStatus CreateStatusWithoutStorage(
+        IReadOnlyList<ResourceField> fields,
+        long warehouseCapacity,
+        long granaryCapacity,
+        IReadOnlyList<Building> buildings)
+        => new(
+            ActiveVillage: "Village",
+            Villages: [],
+            Resources: new Dictionary<string, string>(),
+            ResourceFields: fields,
+            Buildings: buildings,
+            BuildQueue: [],
+            WarehouseCapacity: warehouseCapacity,
+            GranaryCapacity: granaryCapacity);
 }

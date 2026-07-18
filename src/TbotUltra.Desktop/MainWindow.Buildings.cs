@@ -112,49 +112,61 @@ public partial class MainWindow
             return;
         }
 
-        // Always refresh snapshot first so we work from current levels.
+        var status = ResolveSelectedVillageBuildingStatus();
+        if (status is null || status.Buildings.Count == 0 || _buildingRows.Count == 0)
+        {
+            BuildingsInfoTextBlock.Text = "Load buildings for the selected village before queuing upgrade-all-to-max.";
+            return;
+        }
+
         _buildingLastQueuedTargetBySlot.Clear();
         _buildingLastQueuedConstructBySlot.Clear();
         _buildingClickCooldownBySlot.Clear();
-        EnqueueQuickTask("load_buildings_snapshot", "Load buildings snapshot");
 
-        // Pre-filter using the currently loaded snapshot so we don't queue a full upgrade_building_to_max
-        // task (each one is a costly navigation tick) for slots that are empty or already at max level.
-        // Only occupied-but-not-maxed buildings (and pending constructions) are worth queueing. Each task
-        // still self-validates when it runs, so a slightly stale snapshot can't cause a wrong upgrade.
-        // Fallback: if no snapshot is loaded yet, queue all slots 19-40 (previous behaviour).
-        var candidateSlots = _buildingRows
+        var candidateRows = _buildingRows
             .Where(row => row.SlotId is >= 19 and <= 40)
             .Where(row => (row.IsOccupied && !row.IsMaxLevel) || row.HasPendingConstruct)
-            .Select(row => row.SlotId)
-            .Distinct()
-            .OrderBy(slotId => slotId)
+            .GroupBy(row => row.SlotId)
+            .Select(group => group.First())
+            .OrderBy(row => row.SlotId)
             .ToList();
-
-        var slotsToQueue = candidateSlots.Count > 0
-            ? candidateSlots
-            : (_buildingRows.Count == 0 ? Enumerable.Range(19, 22).ToList() : candidateSlots);
-
-        var queued = 0;
-        foreach (var slotId in slotsToQueue)
-        {
-            var payload = new BuildingUpgradePayload(slotId).ToDictionary();
-            EnqueueQuickTask(
-                "upgrade_building_to_max",
-                $"Upgrade slot {slotId} to max",
-                payload);
-            queued++;
-        }
-
-        if (queued == 0)
+        if (candidateRows.Count == 0)
         {
             BuildingsInfoTextBlock.Text = "No upgradeable buildings: every slot is empty or already at max.";
             AppendLog("Upgrade-all-to-max: nothing to queue (all slots empty or maxed).");
             return;
         }
 
-        BuildingsInfoTextBlock.Text = $"Queued load + upgrade-to-max for {queued} slot(s).";
-        AppendLog($"Upgrade-all-to-max: queued load_buildings_snapshot + {queued} upgrade_building_to_max task(s).");
+        var requested = candidateRows.Select(row =>
+        {
+            var maxLevel = row.UpgradeGid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 20;
+            var payload = new BuildingUpgradePayload(row.SlotId, maxLevel, row.UpgradeName).ToDictionary();
+            ApplySelectedVillageToPayload(payload);
+            return new QueueItemCreateRequest("upgrade_building_to_max", payload, 0, 3);
+        }).ToList();
+        if (!TryPrepareConstructionStoragePreflight(requested, out var plannedRequests, out var storageUpgrades))
+        {
+            return;
+        }
+
+        var refreshPayload = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        ApplySelectedVillageToPayload(refreshPayload);
+        var finalRequests = new List<QueueItemCreateRequest>
+        {
+            new("load_buildings_snapshot", refreshPayload, 0, 3),
+        };
+        finalRequests.AddRange(plannedRequests);
+        var created = _botService.EnqueueBatch(finalRequests);
+        ApplyStoragePreflightPendingState(storageUpgrades);
+        foreach (var row in candidateRows)
+        {
+            var maxLevel = row.UpgradeGid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 20;
+            SetPendingBuildingUpgrade(row.SlotId, maxLevel);
+        }
+        RequestQueueUiRefresh(selectId: created.LastOrDefault()?.Id);
+        TriggerQueueAutoRunFromEnqueue();
+        BuildingsInfoTextBlock.Text = $"Queued load + upgrade-to-max for {candidateRows.Count} slot(s).";
+        AppendLog($"Upgrade-all-to-max: queued snapshot + {plannedRequests.Count} planned construction task(s), including {storageUpgrades.Count} storage prerequisite(s).");
     }
 
     internal void OnBuildingTemplatesClicked()
@@ -239,6 +251,18 @@ public partial class MainWindow
 
             finalRequests.Add(item.Request);
         }
+
+        if (!TryPrepareConstructionStoragePreflight(
+                finalRequests,
+                out var fullyPlannedRequests,
+                out var additionalStorageUpgrades))
+        {
+            BuildingsInfoTextBlock.Text = "Building template cancelled by construction storage preflight.";
+            return;
+        }
+
+        finalRequests = fullyPlannedRequests.ToList();
+        storageUpgrades = storageUpgrades.Concat(additionalStorageUpgrades).ToList();
 
         IReadOnlyList<QueueItem> created;
         try
@@ -476,30 +500,28 @@ public partial class MainWindow
         }
 
         var payload = new BuildingUpgradePayload(slotId, targetLevel, row.UpgradeName).ToDictionary();
-        var item = EnqueueBuildingUpgradeTaskCoalesced(
-            "upgrade_building_to_level",
-            payload,
-            slotId,
-            targetLevel,
-            out var effectiveTargetLevel,
-            out var enqueued,
-            out var removedCount);
-        if (!enqueued)
+        ApplySelectedVillageToPayload(payload);
+        if (!TryPrepareConstructionStoragePreflight(
+                [new QueueItemCreateRequest("upgrade_building_to_level", payload, 0, 3)],
+                out var plannedRequests,
+                out var storageUpgrades))
         {
-            BuildingsInfoTextBlock.Text = $"{row.UpgradeName} already has a queued upgrade to level {effectiveTargetLevel ?? targetLevel} or higher.";
             return false;
         }
 
-        targetLevel = effectiveTargetLevel ?? targetLevel;
+        var created = _botService.EnqueueBatch(plannedRequests);
         _buildingLastQueuedTargetBySlot[slotId] = (targetLevel, now);
+        ApplyStoragePreflightPendingState(storageUpgrades);
         SetPendingBuildingUpgrade(slotId, targetLevel);
-        RequestQueueUiRefresh(selectId: item?.Id);
+        RequestQueueUiRefresh(selectId: created.LastOrDefault()?.Id);
         TriggerQueueAutoRunFromEnqueue();
         UpgradeSlotTextBox.Text = slotId.ToString();
         UpgradeTargetLevelTextBox.Text = targetLevel.ToString();
         BuildingsInfoTextBlock.Text = $"Queued {row.UpgradeName} in slot {slotId} to level {targetLevel}.";
-        var removedSuffix = removedCount > 0 ? $" (replaced {removedCount} pending item(s))" : string.Empty;
-        AppendLog($"Queued single building upgrade: slot {slotId} -> level {targetLevel}{removedSuffix}.");
+        var storageSuffix = storageUpgrades.Count > 0
+            ? $" Added {storageUpgrades.Count} storage prerequisite(s)."
+            : string.Empty;
+        AppendLog($"Queued single building upgrade: slot {slotId} -> level {targetLevel}.{storageSuffix}");
         return true;
     }
 
@@ -534,53 +556,7 @@ public partial class MainWindow
 
         var selected = choiceWindow.SelectedOption;
         var targetLevel = choiceWindow.SelectedTargetLevel;
-        if (!TryQueueConstructBuilding(slotId, selected))
-        {
-            return;
-        }
-
-        if (targetLevel == 0)
-        {
-            // Slot is still empty at this moment (construct hasn't run yet), so we queue
-            // upgrade-to-max directly instead of going through TryQueueBuildingUpgradeToMax
-            // which gates on IsOccupied.
-            var maxPayload = new BuildingUpgradePayload(slotId, selected.MaxLevel, selected.Name).ToDictionary();
-            var queuedMax = EnqueueBuildingUpgradeTaskCoalesced(
-                "upgrade_building_to_max",
-                maxPayload,
-                slotId,
-                selected.MaxLevel,
-                out var effectiveTargetLevel,
-                out var enqueued,
-                out _);
-            if (enqueued)
-            {
-                SetPendingBuildingUpgrade(slotId, effectiveTargetLevel ?? selected.MaxLevel);
-                RequestQueueUiRefresh(selectId: queuedMax?.Id);
-                TriggerQueueAutoRunFromEnqueue();
-            }
-            BuildingsInfoTextBlock.Text = $"Queued construct + upgrade to max for {selected.Name} in slot {slotId}.";
-        }
-        else if (targetLevel > 1)
-        {
-            var clamped = Math.Clamp(targetLevel, 1, selected.MaxLevel);
-            var payload = new BuildingUpgradePayload(slotId, clamped, selected.Name).ToDictionary();
-            var queuedUpgrade = EnqueueBuildingUpgradeTaskCoalesced(
-                "upgrade_building_to_level",
-                payload,
-                slotId,
-                clamped,
-                out var effectiveTargetLevel,
-                out var enqueued,
-                out _);
-            if (enqueued)
-            {
-                SetPendingBuildingUpgrade(slotId, effectiveTargetLevel ?? clamped);
-                RequestQueueUiRefresh(selectId: queuedUpgrade?.Id);
-                TriggerQueueAutoRunFromEnqueue();
-            }
-            BuildingsInfoTextBlock.Text = $"Queued construct + upgrade to level {clamped} for {selected.Name} in slot {slotId}.";
-        }
+        TryQueueConstructBuilding(slotId, selected, targetLevel);
     }
 
     private static string NormalizeBuildingName(string? name)
@@ -878,7 +854,10 @@ public partial class MainWindow
             || (slotId == 40 && WallGids.Contains(gid));
     }
 
-    private bool TryQueueConstructBuilding(int slotId, BuildingCatalogOption selectedBuilding)
+    private bool TryQueueConstructBuilding(
+        int slotId,
+        BuildingCatalogOption selectedBuilding,
+        int selectedTargetLevel)
     {
         if (!CanQueueConstructBuilding(slotId, selectedBuilding, out var reason))
         {
@@ -894,28 +873,49 @@ public partial class MainWindow
             return false;
         }
 
-        var payload = new BuildingConstructPayload(slotId, selectedBuilding.Gid, selectedBuilding.Name).ToDictionary();
-        var item = EnqueueBuildingConstructTaskCoalesced(
-            payload,
-            slotId,
-            selectedBuilding.Gid,
-            out var enqueued,
-            out var removedCount);
-        if (!enqueued)
+        var requests = new List<QueueItemCreateRequest>();
+        var constructPayload = new BuildingConstructPayload(slotId, selectedBuilding.Gid, selectedBuilding.Name).ToDictionary();
+        ApplySelectedVillageToPayload(constructPayload);
+        requests.Add(new QueueItemCreateRequest("construct_building", constructPayload, 0, 3));
+        var targetLevel = selectedTargetLevel == 0
+            ? selectedBuilding.MaxLevel
+            : Math.Clamp(selectedTargetLevel, 1, selectedBuilding.MaxLevel);
+        if (targetLevel > 1)
         {
-            BuildingsInfoTextBlock.Text = $"{selectedBuilding.Name} is already queued for slot {slotId}.";
+            var upgradePayload = new BuildingUpgradePayload(slotId, targetLevel, selectedBuilding.Name).ToDictionary();
+            ApplySelectedVillageToPayload(upgradePayload);
+            requests.Add(new QueueItemCreateRequest(
+                selectedTargetLevel == 0 ? "upgrade_building_to_max" : "upgrade_building_to_level",
+                upgradePayload,
+                0,
+                3));
+        }
+
+        if (!TryPrepareConstructionStoragePreflight(requests, out var plannedRequests, out var storageUpgrades))
+        {
             return false;
         }
 
+        var created = _botService.EnqueueBatch(plannedRequests);
         _buildingLastQueuedConstructBySlot[slotId] = (selectedBuilding.Name, selectedBuilding.Gid, now);
+        ApplyStoragePreflightPendingState(storageUpgrades);
         SetPendingBuildingConstruct(slotId, selectedBuilding.Name, selectedBuilding.Gid);
-        RequestQueueUiRefresh(selectId: item?.Id);
+        if (targetLevel > 1)
+        {
+            SetPendingBuildingUpgrade(slotId, targetLevel);
+        }
+        RequestQueueUiRefresh(selectId: created.LastOrDefault()?.Id);
         TriggerQueueAutoRunFromEnqueue();
         ConstructSlotTextBox.Text = slotId.ToString();
         ConstructBuildingComboBox.SelectedItem = _buildingCatalogOptions.FirstOrDefault(item => item.Gid == selectedBuilding.Gid);
-        BuildingsInfoTextBlock.Text = $"Queued construct: {selectedBuilding.Name} in slot {slotId}.";
-        var removedSuffix = removedCount > 0 ? $" (replaced {removedCount} pending item(s))" : string.Empty;
-        AppendLog($"Queued building construct: slot {slotId} -> {selectedBuilding.Name}{removedSuffix}.");
+        var targetText = selectedTargetLevel == 0
+            ? " and upgrade to max"
+            : targetLevel > 1 ? $" and upgrade to level {targetLevel}" : string.Empty;
+        var storageSuffix = storageUpgrades.Count > 0
+            ? $" Added {storageUpgrades.Count} storage prerequisite(s)."
+            : string.Empty;
+        BuildingsInfoTextBlock.Text = $"Queued construct{targetText}: {selectedBuilding.Name} in slot {slotId}.";
+        AppendLog($"Queued building construct: slot {slotId} -> {selectedBuilding.Name}{targetText}.{storageSuffix}");
         return true;
     }
 
@@ -930,30 +930,35 @@ public partial class MainWindow
         }
 
         var maxLevel = row.UpgradeGid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
-        var payload = new BuildingUpgradePayload(slotId, maxLevel, row.UpgradeName).ToDictionary();
-        var item = EnqueueBuildingUpgradeTaskCoalesced(
-            "upgrade_building_to_max",
-            payload,
-            slotId,
-            maxLevel,
-            out var effectiveTargetLevel,
-            out var enqueued,
-            out var removedCount);
-        if (!enqueued)
+        var existingTarget = GetQueuedBuildingTargetsBySlot()
+            .GetValueOrDefault(slotId, 0);
+        if (existingTarget >= maxLevel)
         {
             BuildingsInfoTextBlock.Text = $"{row.UpgradeName} already has a queued max upgrade.";
             return false;
         }
 
-        SetPendingBuildingUpgrade(slotId, effectiveTargetLevel ?? maxLevel);
-        RequestQueueUiRefresh(selectId: item?.Id);
+        var payload = new BuildingUpgradePayload(slotId, maxLevel, row.UpgradeName).ToDictionary();
+        ApplySelectedVillageToPayload(payload);
+        if (!TryPrepareConstructionStoragePreflight(
+                [new QueueItemCreateRequest("upgrade_building_to_max", payload, 0, 3)],
+                out var plannedRequests,
+                out var storageUpgrades))
+        {
+            return false;
+        }
+
+        var created = _botService.EnqueueBatch(plannedRequests);
+        ApplyStoragePreflightPendingState(storageUpgrades);
+        SetPendingBuildingUpgrade(slotId, maxLevel);
+        RequestQueueUiRefresh(selectId: created.LastOrDefault()?.Id);
         TriggerQueueAutoRunFromEnqueue();
         UpgradeSlotTextBox.Text = slotId.ToString();
         BuildingsInfoTextBlock.Text = $"Queued max-upgrade for slot {slotId}.";
-        if (removedCount > 0)
-        {
-            AppendLog($"Queued building max-upgrade: slot {slotId} (replaced {removedCount} pending item(s)).");
-        }
+        var storageSuffix = storageUpgrades.Count > 0
+            ? $" Added {storageUpgrades.Count} storage prerequisite(s)."
+            : string.Empty;
+        AppendLog($"Queued building max-upgrade: slot {slotId}.{storageSuffix}");
         return true;
     }
 

@@ -397,12 +397,23 @@ public partial class MainWindow
         }
 
         var payload = new ResourceUpgradePayload(row.SlotId, target, rowName).ToDictionary();
+        ApplySelectedVillageToPayload(payload);
+        if (!TryPrepareConstructionStoragePreflight(
+                [new QueueItemCreateRequest("upgrade_resource_to_level", payload, 0, 3)],
+                out var plannedRequests,
+                out var storageUpgrades))
+        {
+            return;
+        }
 
-        EnqueueQuickTask("upgrade_resource_to_level", $"Upgrade {rowName} to level {target}", payload);
+        var created = _botService.EnqueueBatch(plannedRequests);
+        ApplyStoragePreflightPendingState(storageUpgrades);
         _resourceLastQueuedTargetBySlot[row.SlotId] = (target, now);
         SetPendingResourceLevel(row.SlotId, target);
+        RequestQueueUiRefresh(selectId: created.LastOrDefault()?.Id);
+        TriggerQueueAutoRunFromEnqueue();
         _resourcesViewModel.InfoText = $"Queued {rowName} to level {target}.";
-        AppendLog($"Queued single resource upgrade: slot {row.SlotId} -> level {target}.");
+        AppendLog($"Queued single resource upgrade: slot {row.SlotId} -> level {target}, with {storageUpgrades.Count} storage prerequisite(s).");
     }
 
     private static bool IsResourceUpgradeTask(string taskName)
