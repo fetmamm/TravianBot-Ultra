@@ -80,6 +80,32 @@ public sealed class AccountAnalysisStoreTests : IDisposable
     }
 
     [Fact]
+    public void Save_ThenLoad_PreservesStableVillageSnapshot()
+    {
+        var snapshot = new AccountAnalysisSnapshot(
+            SchemaVersion: 1,
+            AnalyzedAtUtc: DateTimeOffset.UtcNow,
+            AccountName: "main",
+            ServerUrl: "https://example.com",
+            Tribe: "Gauls",
+            GoldClubEnabled: true,
+            BuildingCatalog: [],
+            Villages:
+            [
+                new Village("Capital", "dorf1.php?newdid=42", true, 11, -7, 321, Tribe: "Gauls"),
+            ]);
+
+        _store.Save(snapshot);
+
+        Assert.True(_store.TryLoad("main", out var loaded, "https://example.com"));
+        var village = Assert.Single(loaded!.Villages!);
+        Assert.Equal("Capital", village.Name);
+        Assert.Equal("dorf1.php?newdid=42", village.Url);
+        Assert.Equal((11, -7), (village.CoordX, village.CoordY));
+        Assert.Equal(321, village.Population);
+    }
+
+    [Fact]
     public void TryLoad_ReturnsFalse_OnCorruptJson()
     {
         var path = _store.GetFilePath("broken");
@@ -171,6 +197,39 @@ public sealed class AccountAnalysisStoreTests : IDisposable
         Assert.True(_store.TryLoad("new-account", out var loaded, serverUrl));
         Assert.Equal(0, loaded!.SchemaVersion);
         Assert.False(_store.IsAnalyzed("new-account", serverUrl));
+    }
+
+    [Fact]
+    public void ConcurrentFieldUpdates_DoNotLoseWorldUidOrAnalysisFields()
+    {
+        const string accountName = "race-account";
+        const string serverUrl = "https://ts50.x5.arabics.travian.com";
+        var worldUid = Guid.NewGuid().ToString();
+
+        Parallel.For(0, 100, index =>
+        {
+            if (index % 2 == 0)
+            {
+                _store.SaveWorldUid(accountName, serverUrl, worldUid);
+                return;
+            }
+
+            _store.Update(accountName, serverUrl, existing => new AccountAnalysisSnapshot(
+                SchemaVersion: AccountAnalysisConstants.CurrentSchemaVersion,
+                AnalyzedAtUtc: DateTimeOffset.UtcNow,
+                AccountName: accountName,
+                ServerUrl: serverUrl,
+                Tribe: "Romans",
+                GoldClubEnabled: true,
+                BuildingCatalog: existing?.BuildingCatalog ?? [],
+                AutoCelebrationEnabled: true,
+                WorldUid: existing?.WorldUid));
+        });
+
+        Assert.True(_store.TryLoad(accountName, out var loaded, serverUrl));
+        Assert.Equal(worldUid, loaded!.WorldUid);
+        Assert.Equal("Romans", loaded.Tribe);
+        Assert.True(loaded.AutoCelebrationEnabled);
     }
 
     public void Dispose()

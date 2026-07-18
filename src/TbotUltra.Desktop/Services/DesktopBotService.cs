@@ -410,6 +410,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.IsHeroRevivingOnCurrentPageAsync(options, log, null, cancellationToken);
     }
 
+    public Task<bool> IsHeroHomeOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.IsHeroHomeOnCurrentPageAsync(options, log, null, cancellationToken);
+    }
+
     public Task<bool> HasClaimableTasksOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.HasClaimableTasksOnCurrentPageAsync(options, log, null, cancellationToken);

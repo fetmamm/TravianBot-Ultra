@@ -74,6 +74,7 @@ public sealed partial class BotTaskRunner
     private readonly AccountAnalysisStore _accountAnalysisStore;
     private readonly BulkMessageSentCacheStore _bulkMessageSentCacheStore;
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
+    private readonly BrowserSessionGeneration _sessionGeneration = new();
     private BrowserSession? _sharedVisibleSession;
     private IPage? _sharedVisiblePage;
     private IPage? _travcoPage;
@@ -283,6 +284,8 @@ public sealed partial class BotTaskRunner
 
     public async Task ShutdownAsync(Action<string>? log = null)
     {
+        var invalidatedGeneration = _sessionGeneration.Invalidate();
+        log?.Invoke($"[browser-session] shutdown invalidated session generation {invalidatedGeneration}.");
         // A stuck operation (for example a hung navigation) can hold the session gate for
         // a long time. Shutdown/account switch must not hang behind it: after the timeout we close
         // the browser anyway, which makes the stuck operation fail fast with a target-closed error
@@ -407,6 +410,7 @@ public sealed partial class BotTaskRunner
         bool interactive,
         CancellationToken cancellationToken)
     {
+        var leaseGeneration = _sessionGeneration.Capture();
         var desiredBaseUrl = options.BaseUrl.TrimEnd('/');
         var desiredProxyFingerprint = account.ProxyEnabled ? $"on|{account.ProxyServer.Trim()}" : "off";
         if (account.NeverUseOwnIp
@@ -484,6 +488,22 @@ public sealed partial class BotTaskRunner
 
             var session = new BrowserSession(options, account, _projectContext.RootPath, log: log);
             var page = await session.OpenPageAsync(cancellationToken);
+            try
+            {
+                _sessionGeneration.ThrowIfStale(leaseGeneration);
+            }
+            catch
+            {
+                try
+                {
+                    await session.DisposeAsync();
+                }
+                catch (Exception ex)
+                {
+                    log($"[browser-session] superseded session cleanup failed: {ex.Message}");
+                }
+                throw;
+            }
             _sharedVisibleSession = session;
             _sharedVisiblePage = page;
             _sharedVisibleAccountName = account.Name;
@@ -506,7 +526,7 @@ public sealed partial class BotTaskRunner
             setConsentDomainsAllowed: allowed => GetRequiredSharedVisibleSession().ConsentDomainsAllowed = allowed,
             cleanupAfterBonusVideoAsync: (page, ct) => GetRequiredSharedVisibleSession().CleanupAfterBonusVideoAsync(page, ct),
             runInIsolatedBonusVideoBrowserAsync: (action, ct) => GetRequiredSharedVisibleSession().RunInIsolatedBonusVideoBrowserAsync(action, ct),
-            rotateAfterLobbyLoginAsync: ct => RotateSharedVisibleContextAfterLobbyLoginAsync(log, ct),
+            rotateAfterLobbyLoginAsync: ct => RotateSharedVisibleContextAfterLobbyLoginAsync(log, leaseGeneration, ct),
             browserTrace: GetRequiredSharedVisibleSession().BrowserTrace);
         return new ClientLease(_sharedVisibleSession!, sharedClient, true);
     }
@@ -519,6 +539,7 @@ public sealed partial class BotTaskRunner
 
     private async Task<IPage> RotateSharedVisibleContextAfterLobbyLoginAsync(
         Action<string> log,
+        long leaseGeneration,
         CancellationToken cancellationToken)
     {
         var session = GetRequiredSharedVisibleSession();
@@ -529,6 +550,22 @@ public sealed partial class BotTaskRunner
         try
         {
             var cleanPage = await session.RotateMainContextFromSavedStateAsync(cancellationToken);
+            try
+            {
+                _sessionGeneration.ThrowIfStale(leaseGeneration);
+            }
+            catch
+            {
+                try
+                {
+                    await cleanPage.CloseAsync();
+                }
+                catch (Exception ex)
+                {
+                    log($"[browser-session] superseded post-lobby page cleanup failed: {ex.Message}");
+                }
+                throw;
+            }
             _sharedVisiblePage = cleanPage;
             log("[browser-session] clean post-lobby game context opened in the existing Chromium process.");
             return cleanPage;
@@ -633,6 +670,18 @@ public sealed partial class BotTaskRunner
             sessionCache.CachedGoldClubEnabled = true;
             sessionCache.CachedTribePlusAt = DateTimeOffset.UtcNow;
             log($"[cache] goldclub=True loaded for '{account.Name}'.");
+        }
+
+        if (analysis?.Villages is { Count: > 0 } villages)
+        {
+            sessionCache.CachedVillages = villages.Select(village => village with { }).ToList();
+            // Force one cheap sidebar merge after login. It detects founded/renamed villages while
+            // retaining persisted coordinates/population, without opening the profile page.
+            sessionCache.CachedVillagesAt = DateTimeOffset.MinValue;
+            sessionCache.CachedVillagesPopulationAt = villages.Any(village => village.Population.HasValue)
+                ? analysis.AnalyzedAtUtc
+                : DateTimeOffset.MinValue;
+            log($"[cache] village snapshot ({villages.Count}) loaded for '{account.Name}'; live sidebar merge pending.");
         }
     }
 

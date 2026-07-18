@@ -203,9 +203,15 @@ public sealed partial class BotTaskRunner
             }
         }
 
+        _accountAnalysisStore.TryLoad(client.AccountName, out var persistedAnalysis, client.ServerUrl);
+        var hasPersistedVillageSnapshot = persistedAnalysis?.Villages is { Count: > 0 };
+        log(hasPersistedVillageSnapshot
+            ? "[post-login] reusing stable village snapshot; merging current sidebar instead of opening profile."
+            : "[post-login] no stable village snapshot; opening profile for complete cold-start village data.");
+
         var accountSnapshot = await client.ReadAccountSnapshotAsync(
-            forceRefreshVillages: true,
-            preferCurrentPageVillages: false,
+            forceRefreshVillages: !hasPersistedVillageSnapshot,
+            preferCurrentPageVillages: hasPersistedVillageSnapshot,
             restorePageAfterProfile: false,
             suppressEnsureUiSync: true,
             // We just read the hero inventory and will refresh villages from the profile next —
@@ -228,7 +234,7 @@ public sealed partial class BotTaskRunner
         var inboxStatus = new InboxStatus(villageStatus.UnreadMessages, villageStatus.UnreadReports);
         var adventureCount = await client.RefreshAdventureCountAsync(forceReload: false, cancellationToken);
 
-        PersistStableAccountSignals(client, accountSnapshot.Tribe, log);
+        PersistStableAccountSignals(client, accountSnapshot.Tribe, accountSnapshot.Villages, log);
 
         return new PostLoginSnapshot(villageStatus, inboxStatus, adventureCount, heroInventory);
     }
@@ -236,40 +242,45 @@ public sealed partial class BotTaskRunner
     private void PersistStableAccountSignals(
         TravianClient client,
         string? fallbackTribe,
+        IReadOnlyList<Village> villages,
         Action<string> log)
     {
-        _accountAnalysisStore.TryLoad(client.AccountName, out var existing, client.ServerUrl);
+        var completed = _accountAnalysisStore.Update(client.AccountName, client.ServerUrl, existing =>
+        {
+            var tribe = IsKnownTribe(client.KnownAccountTribe)
+                ? client.KnownAccountTribe!
+                : IsKnownTribe(fallbackTribe)
+                    ? fallbackTribe!
+                    : existing?.Tribe ?? "Unknown";
+            var goldClubEnabled = client.KnownGoldClubEnabled == true || existing?.GoldClubEnabled == true;
+            if (!IsKnownTribe(tribe) && !goldClubEnabled && villages.Count == 0)
+            {
+                return null;
+            }
 
-        var tribe = IsKnownTribe(client.KnownAccountTribe)
-            ? client.KnownAccountTribe!
-            : IsKnownTribe(fallbackTribe)
-                ? fallbackTribe!
-                : existing?.Tribe ?? "Unknown";
-        var goldClubEnabled = client.KnownGoldClubEnabled == true || existing?.GoldClubEnabled == true;
-
-        if (!IsKnownTribe(tribe) && !goldClubEnabled)
+            return new AccountAnalysisSnapshot(
+                SchemaVersion: AccountAnalysisConstants.CurrentSchemaVersion,
+                AnalyzedAtUtc: DateTimeOffset.UtcNow,
+                AccountName: client.AccountName,
+                ServerUrl: client.ServerUrl,
+                Tribe: IsKnownTribe(tribe) ? tribe : "Unknown",
+                GoldClubEnabled: goldClubEnabled,
+                BuildingCatalog: existing?.BuildingCatalog ?? (IsKnownTribe(tribe) ? BuildingCatalogService.GetCatalogForTribe(tribe) : []),
+                AutoCelebrationEnabled: existing?.AutoCelebrationEnabled,
+                AutomationLoopEnabledGroups: existing?.AutomationLoopEnabledGroups,
+                AutomationLoopVisibleGroups: existing?.AutomationLoopVisibleGroups,
+                WorldUid: existing?.WorldUid,
+                Villages: villages.Count > 0 ? villages.Select(village => village with { }).ToList() : existing?.Villages);
+        });
+        if (completed is null)
         {
             return;
         }
 
-        var completed = new AccountAnalysisSnapshot(
-            SchemaVersion: AccountAnalysisConstants.CurrentSchemaVersion,
-            AnalyzedAtUtc: DateTimeOffset.UtcNow,
-            AccountName: client.AccountName,
-            ServerUrl: client.ServerUrl,
-            Tribe: IsKnownTribe(tribe) ? tribe : "Unknown",
-            GoldClubEnabled: goldClubEnabled,
-            BuildingCatalog: existing?.BuildingCatalog ?? (IsKnownTribe(tribe) ? BuildingCatalogService.GetCatalogForTribe(tribe) : []),
-            AutoCelebrationEnabled: existing?.AutoCelebrationEnabled,
-            AutomationLoopEnabledGroups: existing?.AutomationLoopEnabledGroups,
-            AutomationLoopVisibleGroups: existing?.AutomationLoopVisibleGroups,
-            WorldUid: existing?.WorldUid);
-
-        _accountAnalysisStore.Save(completed);
         log($"[cache] stable account signals saved for '{completed.AccountName}' (tribe={completed.Tribe}, goldclub={completed.GoldClubEnabled}).");
         // Emit the real-time signal the desktop UI parses (GoldClubStatusRegex) so the Gold Club
         // indicator flips at login instead of waiting for the next stored-analysis read (~1 min later).
-        log($"[goldclub] active={goldClubEnabled}");
+        log($"[goldclub] active={completed.GoldClubEnabled}");
     }
 
     private static bool IsKnownTribe(string? tribe)
@@ -316,20 +327,19 @@ public sealed partial class BotTaskRunner
             return false;
         }
 
-        var completed = new AccountAnalysisSnapshot(
+        var completed = _accountAnalysisStore.Update(account.Name, serverUrl, latest => new AccountAnalysisSnapshot(
             SchemaVersion: AccountAnalysisConstants.CurrentSchemaVersion,
             AnalyzedAtUtc: DateTimeOffset.UtcNow,
             AccountName: account.Name,
             ServerUrl: serverUrl,
-            Tribe: string.IsNullOrWhiteSpace(tribe) ? "Unknown" : tribe,
+            Tribe: string.IsNullOrWhiteSpace(tribe) ? latest?.Tribe ?? "Unknown" : tribe,
             GoldClubEnabled: true,
-            BuildingCatalog: existing?.BuildingCatalog ?? [],
-            AutoCelebrationEnabled: existing?.AutoCelebrationEnabled,
-            AutomationLoopEnabledGroups: existing?.AutomationLoopEnabledGroups,
-            AutomationLoopVisibleGroups: existing?.AutomationLoopVisibleGroups,
-            WorldUid: existing?.WorldUid);
-
-        _accountAnalysisStore.Save(completed);
+            BuildingCatalog: latest?.BuildingCatalog ?? existing?.BuildingCatalog ?? [],
+            AutoCelebrationEnabled: latest?.AutoCelebrationEnabled ?? existing?.AutoCelebrationEnabled,
+            AutomationLoopEnabledGroups: latest?.AutomationLoopEnabledGroups ?? existing?.AutomationLoopEnabledGroups,
+            AutomationLoopVisibleGroups: latest?.AutomationLoopVisibleGroups ?? existing?.AutomationLoopVisibleGroups,
+            WorldUid: latest?.WorldUid ?? existing?.WorldUid,
+            Villages: latest?.Villages ?? existing?.Villages))!;
         log($"Gold Club activated and saved for '{completed.AccountName}'.");
         return true;
     }

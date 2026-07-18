@@ -227,8 +227,9 @@ public sealed partial class TravianClient
                     improved += 1;
                     consecutiveZeroDurationReloads = 0;
                     Notify($"Smithy: clicked Improve for '{toClick.Name ?? toClick.Key}'. Improvements this run: {improved}.");
-                    // The smithy is now busy with this research; re-evaluate (it will usually defer next).
-                    await Task.Delay(500, cancellationToken);
+                    // Stay on the Smithy page and wait for its React queue to reflect the click. The
+                    // next iteration reads the changed DOM directly; navigation remains fallback-only.
+                    await WaitForSmithyQueueMutationAfterClickAsync(activeUpgradeCount, cancellationToken);
                     continue;
                 }
 
@@ -717,6 +718,36 @@ public sealed partial class TravianClient
         }
     }
 
+    private async Task WaitForSmithyQueueMutationAfterClickAsync(
+        int previousActiveUpgradeCount,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                    """
+                    previousCount => {
+                      const roots = Array.from(document.querySelectorAll('table.under_progress, .under_progress'));
+                      const rows = roots.flatMap(root => Array.from(root.querySelectorAll('tr')))
+                        .filter(row => row.querySelector('.timer, span.timer'));
+                      return rows.length > previousCount;
+                    }
+                    """,
+                    previousActiveUpgradeCount,
+                    new PageWaitForFunctionOptions { Timeout = 3500 })
+                .WaitAsync(cancellationToken);
+            Notify("Smithy: research queue updated in place after Improve click.");
+        }
+        catch (TimeoutException)
+        {
+            Notify("Smithy: queue DOM did not update after click; next read will validate before reload fallback.");
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            Notify($"Smithy: queue DOM changed navigation context after click ({ex.Message}); next read will recover.");
+        }
+    }
+
     public async Task<SmithyUpgradeStatus> ReadSmithyUpgradeStatusAsync(
         IReadOnlyList<Building>? knownBuildings = null,
         CancellationToken cancellationToken = default)
@@ -840,7 +871,14 @@ public sealed partial class TravianClient
         const int attempts = 3;
         for (var attempt = 1; attempt <= attempts; attempt++)
         {
-            await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
+            if (attempt == 1 && IsCurrentUrlForPath(Paths.Buildings))
+            {
+                Notify("Smithy: using current buildings overview without reload.");
+            }
+            else
+            {
+                await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
+            }
 
             await EnsureLoggedInAsync();
 

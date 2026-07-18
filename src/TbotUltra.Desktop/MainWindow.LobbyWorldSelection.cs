@@ -27,12 +27,12 @@ public partial class MainWindow
         var choices = request.Worlds
             .Select(world => new LobbyWorldChoice(
                 world.WorldUid,
-                string.IsNullOrWhiteSpace(world.Name) ? "Unnamed Travian world" : world.Name.Trim()))
+                world.DisplayText))
             .ToList();
         var list = new ListBox
         {
             ItemsSource = choices,
-            DisplayMemberPath = nameof(LobbyWorldChoice.Name),
+            DisplayMemberPath = nameof(LobbyWorldChoice.DisplayText),
             MinHeight = 90,
             MaxHeight = 260,
             Margin = new Thickness(0, 10, 0, 0),
@@ -41,8 +41,11 @@ public partial class MainWindow
         var content = new StackPanel();
         content.Children.Add(new TextBlock
         {
-            Text = $"Tbot Ultra could not automatically match '{request.ConfiguredServerName}' to an owned lobby world. " +
-                   "Choose the world that belongs to this configured server. The selection is remembered after a successful login.",
+            Text = request.PreviousSelectionFailed
+                ? $"The selected world did not reach {request.ConfiguredServerUrl}. Choose another owned world. " +
+                  "The selection is remembered only after a successful login."
+                : $"Tbot Ultra could not automatically match '{request.ConfiguredServerName}' ({request.ConfiguredServerUrl}) to an owned lobby world. " +
+                  "Choose the matching world. The selection is remembered after a successful login.",
             TextWrapping = TextWrapping.Wrap,
         });
         content.Children.Add(list);
@@ -61,5 +64,5 @@ public partial class MainWindow
             : null;
     }
 
-    private sealed record LobbyWorldChoice(string WorldUid, string Name);
+    private sealed record LobbyWorldChoice(string WorldUid, string DisplayText);
 }

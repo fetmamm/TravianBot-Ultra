@@ -1,4 +1,5 @@
 using TbotUltra.Core.Travian;
+using System.Text.RegularExpressions;
 
 namespace TbotUltra.Worker.Domain;
 
@@ -21,12 +22,27 @@ public sealed record AccountSnapshot(
 
 public sealed record ReportPngResult(bool IsReportPage, string Url, string? FilePath);
 
-public sealed record LobbyWorldOption(string WorldUid, string Name);
+public sealed record LobbyWorldOption(string WorldUid, string Name, string Details = "")
+{
+    public string DisplayText
+    {
+        get
+        {
+            var name = string.IsNullOrWhiteSpace(Name) ? "Unnamed Travian world" : Name.Trim();
+            var details = Regex.Replace(Details ?? string.Empty, @"\s+", " ").Trim();
+            var uid = WorldUid.Length > 8 ? WorldUid[..8] : WorldUid;
+            return details.Length > 0 && !string.Equals(details, name, StringComparison.OrdinalIgnoreCase)
+                ? $"{name} · {details} · UID {uid}"
+                : $"{name} · UID {uid}";
+        }
+    }
+}
 
 public sealed record LobbyWorldSelectionRequest(
     string ConfiguredServerName,
     string ConfiguredServerUrl,
-    IReadOnlyList<LobbyWorldOption> Worlds);
+    IReadOnlyList<LobbyWorldOption> Worlds,
+    bool PreviousSelectionFailed = false);
 
 public sealed record AccountAnalysisSnapshot(
     int SchemaVersion,
@@ -39,7 +55,8 @@ public sealed record AccountAnalysisSnapshot(
     bool? AutoCelebrationEnabled = null,
     IReadOnlyList<string>? AutomationLoopEnabledGroups = null,
     IReadOnlyList<string>? AutomationLoopVisibleGroups = null,
-    string? WorldUid = null);
+    string? WorldUid = null,
+    IReadOnlyList<Village>? Villages = null);
 
 public sealed record TribeBuildingCatalogEntry(
     int Gid,
@@ -81,6 +98,12 @@ public sealed record BuildQueueItem(
     string? Href = null);
 
 public enum ConstructionKind { Resource, Building, Unknown }
+
+public enum ActiveConstructionReadMode
+{
+    FreshForMutation,
+    CachedForObservation,
+}
 
 public sealed record TimerSnapshot(
     int RemainingSeconds,

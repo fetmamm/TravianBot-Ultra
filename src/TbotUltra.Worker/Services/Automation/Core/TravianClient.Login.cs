@@ -20,9 +20,7 @@ public sealed partial class TravianClient : ISessionClient
     public async Task LoginAsync(CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
-        if (_lastEnsureLoggedInSucceeded
-            && now - _lastEnsureLoggedInAt < EnsureLoggedInMinInterval
-            && !_page.Url.Contains("login", StringComparison.OrdinalIgnoreCase))
+        if (await CanUseRecentLoginSuccessAsync(now, cancellationToken))
         {
             return;
         }
@@ -263,9 +261,7 @@ public sealed partial class TravianClient : ISessionClient
     private async Task EnsureLoggedInAsync(bool force = false, CancellationToken cancellationToken = default)
     {
         var now = DateTimeOffset.UtcNow;
-        if (!force
-            && _lastEnsureLoggedInSucceeded
-            && (now - _lastEnsureLoggedInAt) < EnsureLoggedInMinInterval)
+        if (!force && await CanUseRecentLoginSuccessAsync(now, cancellationToken))
         {
             return;
         }
@@ -438,6 +434,48 @@ public sealed partial class TravianClient : ISessionClient
             }
             """);
         return AccountAccessClassifier.ClassifyExplicit(currentUrl, pageSignal, captchaInputPresent);
+    }
+
+    private async Task<bool> CanUseRecentLoginSuccessAsync(
+        DateTimeOffset now,
+        CancellationToken cancellationToken)
+    {
+        if (!IsRecentLoginCacheEligible(
+                _lastEnsureLoggedInSucceeded,
+                _lastEnsureLoggedInAt,
+                now,
+                _page.Url,
+                ServerUrl))
+        {
+            return false;
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            var explicitState = await ProbeExplicitAccountAccessStateAsync(_page.Url.ToLowerInvariant());
+            ThrowIfAccountAccessBlocked(explicitState ?? AccountAccessState.LoggedIn);
+            return explicitState is null or AccountAccessState.LoggedIn;
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return false;
+        }
+    }
+
+    internal static bool IsRecentLoginCacheEligible(
+        bool previousCheckSucceeded,
+        DateTimeOffset previousCheckAt,
+        DateTimeOffset now,
+        string? currentUrl,
+        string serverUrl)
+    {
+        var age = now - previousCheckAt;
+        return previousCheckSucceeded
+            && age >= TimeSpan.Zero
+            && age < EnsureLoggedInMinInterval
+            && IsConfiguredGameOrigin(currentUrl, serverUrl)
+            && !(currentUrl?.Contains("login", StringComparison.OrdinalIgnoreCase) ?? false);
     }
 
     private async Task<AccountAccessState> VerifyUnknownAccessStateAsync(CancellationToken cancellationToken)

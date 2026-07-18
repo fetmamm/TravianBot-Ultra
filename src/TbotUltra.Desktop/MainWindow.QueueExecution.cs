@@ -1081,15 +1081,18 @@ public partial class MainWindow
                 // can release it early if the user revives the hero sooner (e.g. with a bucket) — otherwise
                 // adventures would idle until the original revive countdown elapsed.
                 if (string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase)
-                    && ex is TaskWaitException { ReasonCode: TaskWaitReasons.HeroReviving })
+                    && ex is TaskWaitException heroWait
+                    && heroWait.ReasonCode is TaskWaitReasons.HeroReviving or TaskWaitReasons.HeroAway)
                 {
-                    var revivingPayload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase)
+                    var heroPayload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase)
                     {
-                        [HeroDeferReasonKey] = HeroDeferReasonReviving,
+                        [HeroDeferReasonKey] = heroWait.ReasonCode == TaskWaitReasons.HeroReviving
+                            ? HeroDeferReasonReviving
+                            : HeroDeferReasonAway,
                     };
-                    if (_botService.UpdateDeferredQueueItem(item.Id, revivingPayload))
+                    if (_botService.UpdateDeferredQueueItem(item.Id, heroPayload))
                     {
-                        item.Payload = revivingPayload;
+                        item.Payload = heroPayload;
                     }
                 }
 

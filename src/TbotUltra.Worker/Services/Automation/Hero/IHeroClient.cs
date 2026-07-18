@@ -21,6 +21,8 @@ public interface IHeroClient
 
     Task<bool> IsHeroRevivingOnCurrentPageAsync(CancellationToken cancellationToken = default);
 
+    Task<bool> IsHeroHomeOnCurrentPageAsync(CancellationToken cancellationToken = default);
+
     Task<string> ManageHeroAsync(
         int minHpForAdventure,
         bool autoRevive,

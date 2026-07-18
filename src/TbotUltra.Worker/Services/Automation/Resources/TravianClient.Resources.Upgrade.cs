@@ -185,7 +185,9 @@ public sealed partial class TravianClient
                     cancellationToken);
                 if (progress.Advanced)
                 {
-                    await NotifyCurrentResourceProductionForUiAsync(cancellationToken);
+                    // A completed field level changes production immediately; bypass this task's
+                    // snapshot. Merely queueing a level does not, so other iterations reuse it.
+                    await NotifyCurrentResourceProductionForUiAsync(cancellationToken, forceRefresh: true);
                     transientRetries = 0;
                     continue;
                 }

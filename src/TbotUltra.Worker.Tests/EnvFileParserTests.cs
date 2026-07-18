@@ -90,6 +90,17 @@ public sealed class EnvFileParserTests : IDisposable
         Assert.Empty(EnvFileParser.ReadValues(_envPath));
     }
 
+    [Fact]
+    public void FormatValue_ReadValues_RoundTripsSpecialCharacters()
+    {
+        const string expected = "  a=b#c\\\"'\\path\nnext  ";
+        File.WriteAllText(_envPath, $"PASSWORD={EnvFileParser.FormatValue(expected)}");
+
+        var values = EnvFileParser.ReadValues(_envPath);
+
+        Assert.Equal(expected, values["PASSWORD"]);
+    }
+
     public void Dispose()
     {
         if (File.Exists(_envPath))

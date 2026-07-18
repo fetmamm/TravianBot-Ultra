@@ -982,6 +982,15 @@ public partial class MainWindow : Window
                         _lastBuildingStatus);
                 }
 
+                // A current-page read from dorf1/dorf2 is authoritative for occupied construction
+                // slots. It therefore satisfies the loop's pending construction sync and prevents an
+                // immediate dorf1 -> dorf2 full-status bounce after a successful/deferred build task.
+                // Build/feature pages are not authoritative and must keep the sync request pending.
+                if (status.ActiveConstructionsFromOverview)
+                {
+                    _continuousLoopConstructionStatusNeedsSync = false;
+                }
+
                 RefreshVillageActivityIndicatorsOnDashboard();
             }
         });

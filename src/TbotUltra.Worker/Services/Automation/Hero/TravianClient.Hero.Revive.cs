@@ -43,6 +43,24 @@ public sealed partial class TravianClient
             "() => !!document.querySelector('.heroStatus i.heroReviving, i.heroReviving, [class*=\"heroReviving\"]')");
     }
 
+    // Positive-only current-page probe. Unknown/missing widgets return false, so a deferred away
+    // task is released only when the global hero widget explicitly says the hero is home.
+    public async Task<bool> IsHeroHomeOnCurrentPageAsync(CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return await _page.EvaluateAsync<bool>(
+            """
+            () => {
+              const running = !!document.querySelector(
+                '.heroStatus i.heroRunning, .heroStatus [class*="heroRunning"], .heroStatus [class*="statusRunning"], .heroStatus .timerReact');
+              const unavailable = !!document.querySelector(
+                '.heroStatus i.heroDead, .heroStatus i.heroReviving, .heroStatus [class*="heroDead"], .heroStatus [class*="heroReviving"]');
+              const home = !!document.querySelector('.heroStatus i.heroHome, .heroStatus [class*="heroHome"]');
+              return home && !running && !unavailable;
+            }
+            """);
+    }
+
     private async Task<bool> ReviveHeroOnInventoryAsync(CancellationToken cancellationToken)
     {
         Notify("[hero] revive flow starting (attributes page)");

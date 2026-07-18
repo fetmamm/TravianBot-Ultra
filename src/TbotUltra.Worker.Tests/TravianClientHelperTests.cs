@@ -9,6 +9,56 @@ namespace TbotUltra.Worker.Tests;
 public sealed class TravianClientHelperTests
 {
     [Theory]
+    [InlineData("https://server.test/dorf2.php?id=35", "/dorf2.php", true)]
+    [InlineData("https://server.test/build.php?id=35&gid=13", "/build.php?id=35", true)]
+    [InlineData("https://server.test/build.php?id=36&gid=13", "/build.php?id=35", false)]
+    [InlineData("https://server.test/build.php?id=35", "https://other.test/build.php?id=35", false)]
+    [InlineData("https://server.test/tasks?t=general", "/tasks", true)]
+    public void UrlMatchesPath_RequiresPathAndExpectedQuerySubset(
+        string currentUrl,
+        string expectedPath,
+        bool expected)
+    {
+        Assert.Equal(expected, TravianClient.UrlMatchesPath(currentUrl, expectedPath));
+    }
+
+    [Fact]
+    public void ObservationConstructionCache_LastsLongerButStopsAtKnownDeadline()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var active = new[]
+        {
+            new ActiveConstruction(
+                ConstructionKind.Building,
+                "Warehouse",
+                5,
+                20,
+                null,
+                TimerSnapshot.FromRemaining(20, now)),
+        };
+
+        Assert.False(TravianClient.CanUseActiveConstructionsCache(
+            active, now.AddSeconds(-5), now, ActiveConstructionReadMode.FreshForMutation));
+        Assert.True(TravianClient.CanUseActiveConstructionsCache(
+            active, now.AddSeconds(-5), now, ActiveConstructionReadMode.CachedForObservation));
+        Assert.False(TravianClient.CanUseActiveConstructionsCache(
+            active, now.AddSeconds(-31), now, ActiveConstructionReadMode.CachedForObservation));
+
+        var finished = active[0] with { Finish = TimerSnapshot.FromRemaining(0, now) };
+        Assert.False(TravianClient.CanUseActiveConstructionsCache(
+            [finished], now, now, ActiveConstructionReadMode.CachedForObservation));
+    }
+
+    [Theory]
+    [InlineData("Hero status. Hero is away. queue_wait_seconds=300", TaskWaitReasons.HeroAway)]
+    [InlineData("hero_reviving queue_wait_seconds=90", TaskWaitReasons.HeroReviving)]
+    [InlineData("Hero HP too low to send. queue_wait_seconds=600", TaskWaitReasons.HeroHpTooLow)]
+    public void DeriveTaskWaitReason_ReturnsTypedHeroReason(string result, string expected)
+    {
+        Assert.Equal(expected, BotTaskRunner.DeriveTaskWaitReason(result));
+    }
+
+    [Theory]
     [InlineData(null, null)]
     [InlineData("", null)]
     [InlineData("   ", null)]

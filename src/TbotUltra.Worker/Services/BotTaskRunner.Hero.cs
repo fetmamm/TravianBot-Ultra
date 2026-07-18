@@ -142,6 +142,28 @@ public sealed partial class BotTaskRunner
         return reviving;
     }
 
+    public async Task<bool> IsHeroHomeOnCurrentPageAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var home = false;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                home = await client.IsHeroHomeOnCurrentPageAsync(cancellationToken);
+            },
+            saveStateMode: BrowserStateSaveMode.Skip);
+
+        return home;
+    }
+
     // Cheap current-page probe (no navigation) used by the periodic refresh to decide whether
     // to queue collect_tasks. Returns false on any failure so it never disrupts the refresh.
     public async Task<bool> HasClaimableTasksOnCurrentPageAsync(

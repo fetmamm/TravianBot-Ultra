@@ -1,5 +1,8 @@
 namespace TbotUltra.Core.Accounts;
 
+using System.Security.Cryptography;
+using System.Text;
+
 public static class AccountKeyNormalizer
 {
     public static string MakeKey(string username, string serverUrl)
@@ -12,6 +15,43 @@ public static class AccountKeyNormalizer
 
         var serverPart = NormalizeServerHost(serverUrl);
         return string.IsNullOrEmpty(serverPart) ? userPart : $"{userPart}__{serverPart}";
+    }
+
+    public static string MakeCollisionResistantKey(string username, string serverUrl)
+    {
+        var readableKey = MakeKey(username, serverUrl);
+        var canonicalIdentity = $"{username.Trim().ToLowerInvariant()}\n{NormalizeServerIdentity(serverUrl)}";
+        var hash = SHA256.HashData(Encoding.UTF8.GetBytes(canonicalIdentity));
+        return $"{readableKey}__{Convert.ToHexString(hash.AsSpan(0, 8)).ToLowerInvariant()}";
+    }
+
+    public static bool IsSameIdentity(
+        string leftUsername,
+        string leftServerUrl,
+        string rightUsername,
+        string rightServerUrl)
+        => string.Equals(leftUsername?.Trim(), rightUsername?.Trim(), StringComparison.OrdinalIgnoreCase)
+            && string.Equals(
+                NormalizeServerIdentity(leftServerUrl),
+                NormalizeServerIdentity(rightServerUrl),
+                StringComparison.OrdinalIgnoreCase);
+
+    public static string NormalizeServerIdentity(string serverUrl)
+    {
+        if (string.IsNullOrWhiteSpace(serverUrl))
+        {
+            return string.Empty;
+        }
+
+        var trimmed = serverUrl.Trim().TrimEnd('/');
+        if (!Uri.TryCreate(trimmed, UriKind.Absolute, out var uri))
+        {
+            return trimmed.ToLowerInvariant();
+        }
+
+        var authority = uri.GetLeftPart(UriPartial.Authority).ToLowerInvariant();
+        var path = uri.AbsolutePath == "/" ? string.Empty : uri.AbsolutePath.TrimEnd('/');
+        return authority + path;
     }
 
     public static string NormalizeIdentifier(string raw)

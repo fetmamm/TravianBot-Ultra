@@ -29,9 +29,9 @@ public sealed partial class TravianClient
         }
     }
 
-    // Navigates to /tasks, collects every available reward on the village tab and the general
-    // tab, then returns to dorf1 and re-checks the claimable signal. Repeats up to 2 passes so a
-    // reward unlocked by collecting another one is not missed. Official-only (caller gates this).
+    // Navigates to /tasks and collects every available reward on the village and general tabs.
+    // Re-checks the village tab in-place once because a general reward can unlock another village
+    // reward. Leaves the browser on /tasks so the scheduler can navigate directly to its next job.
     public async Task<string> CollectTaskRewardsAsync(CancellationToken cancellationToken = default)
     {
         Notify("[tasks] auto-collect starting");
@@ -43,10 +43,13 @@ public sealed partial class TravianClient
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            await GotoAsync(Paths.Tasks, cancellationToken);
-            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-            await EnsureLoggedInAsync();
-            await WaitForTasksPageRenderAsync(cancellationToken);
+            if (pass == 1)
+            {
+                await GotoAsync(Paths.Tasks, cancellationToken);
+                await WaitForPageReadyAsync(cancellationToken);
+                await EnsureLoggedInAsync();
+                await WaitForTasksPageRenderAsync(cancellationToken);
+            }
 
             // Village tab (active by default on arrival).
             var villageCollected = await ClickCollectButtonsOnCurrentTabAsync(cancellationToken);
@@ -63,15 +66,24 @@ public sealed partial class TravianClient
 
             totalCollected += villageCollected + collectedOnGeneral;
 
-            // Re-read on dorf1 so nothing is missed and the next refresh sees a clean page.
-            await GotoAsync(Paths.Resources, cancellationToken);
-            await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-            if (!await HasClaimableTasksOnCurrentPageAsync(cancellationToken))
+            if (pass >= maxPasses || villageCollected + collectedOnGeneral == 0)
             {
                 break;
             }
 
-            Notify($"[tasks] still claimable after pass {pass}; re-checking");
+            // General rewards can unlock village rewards. Switch back inside the React page and
+            // continue only when a new enabled Collect button is actually visible; no dorf1 bounce.
+            if (!await SwitchToVillageTasksTabAsync(cancellationToken))
+            {
+                break;
+            }
+            await WaitForTasksPageRenderAsync(cancellationToken);
+            if (!await HasVisibleCollectButtonOnCurrentTabAsync())
+            {
+                break;
+            }
+
+            Notify($"[tasks] newly unlocked village reward detected after pass {pass}; re-checking in place");
         }
 
         Notify($"[tasks] auto-collect done — collected {totalCollected} reward(s)");
@@ -251,12 +263,18 @@ public sealed partial class TravianClient
     }
 
     private async Task<bool> SwitchToGeneralTasksTabAsync(CancellationToken cancellationToken)
+        => await SwitchTasksTabAsync(general: true, cancellationToken);
+
+    private async Task<bool> SwitchToVillageTasksTabAsync(CancellationToken cancellationToken)
+        => await SwitchTasksTabAsync(general: false, cancellationToken);
+
+    private async Task<bool> SwitchTasksTabAsync(bool general, CancellationToken cancellationToken)
     {
         try
         {
             var switched = await _page.EvaluateAsync<bool>(
                 """
-                () => {
+                (general) => {
                   const isVisible = element => {
                     if (!element) return false;
                     const style = window.getComputedStyle(element);
@@ -267,20 +285,57 @@ public sealed partial class TravianClient
                       && rect.height > 0;
                   };
                   const tabs = Array.from(document.querySelectorAll('a.tabItem'));
-                  const general = tabs.find(t => /general/i.test(t.textContent || ''));
-                  if (!isVisible(general) || general.classList.contains('active')) {
+                  const target = general
+                    ? tabs.find(t => /general/i.test(t.textContent || ''))
+                    : tabs.find(t => !/general/i.test(t.textContent || ''));
+                  if (!isVisible(target) || target.classList.contains('active')) {
                     return false;
                   }
-                  general.click();
+                  target.click();
                   return true;
                 }
-                """);
+                """,
+                general);
             if (switched)
             {
                 await ApplyActionDelayAsync(cancellationToken);
             }
 
             return switched;
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return false;
+        }
+    }
+
+    private async Task<bool> HasVisibleCollectButtonOnCurrentTabAsync()
+    {
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """
+                () => Array.from(document.querySelectorAll('button.textButtonV2.collect')).some(button => {
+                  const style = window.getComputedStyle(button);
+                  const rect = button.getBoundingClientRect();
+                  const visible = style.visibility !== 'hidden'
+                    && style.display !== 'none'
+                    && rect.width > 0
+                    && rect.height > 0;
+                  const disabled = button.disabled
+                    || /(^|\s)disabled(\s|$)/i.test(button.className || '')
+                    || button.getAttribute('aria-disabled') === 'true';
+                  const label = (button.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
+                  return visible && !disabled && label === 'collect';
+                })
+                """,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 2500 });
+            return true;
+        }
+        catch (TimeoutException)
+        {
+            return false;
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
         {

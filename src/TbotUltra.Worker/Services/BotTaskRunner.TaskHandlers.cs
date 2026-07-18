@@ -517,11 +517,16 @@ public sealed partial class BotTaskRunner
     // Single place that maps the clients' free-text result messages onto typed wait reasons
     // (TaskWaitReasons). Downstream consumers (Desktop queue handling) read ReasonCode instead of
     // sniffing message text, so a reworded message only needs updating here.
-    private static string? DeriveTaskWaitReason(string result)
+    internal static string? DeriveTaskWaitReason(string result)
     {
         if (result.Contains("hero_reviving", StringComparison.OrdinalIgnoreCase))
         {
             return TaskWaitReasons.HeroReviving;
+        }
+
+        if (result.Contains("Hero is away", StringComparison.OrdinalIgnoreCase))
+        {
+            return TaskWaitReasons.HeroAway;
         }
 
         // Both forms: the action token (in "Actions: ..." summaries) and the dedicated hp-too-low

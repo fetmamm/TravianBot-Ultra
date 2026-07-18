@@ -130,8 +130,7 @@ public sealed class AccountAnalysisStore
             throw new ArgumentException("World UID must be a GUID.", nameof(worldUid));
         }
 
-        TryLoad(accountName, out var existing, serverUrl);
-        var snapshot = existing is null
+        Update(accountName, serverUrl, existing => existing is null
             ? new AccountAnalysisSnapshot(
                 SchemaVersion: 0,
                 AnalyzedAtUtc: DateTimeOffset.UtcNow,
@@ -145,14 +144,49 @@ public sealed class AccountAnalysisStore
             {
                 AnalyzedAtUtc = DateTimeOffset.UtcNow,
                 WorldUid = worldUid,
-            };
-        Save(snapshot);
+            });
+    }
+
+    public AccountAnalysisSnapshot? Update(
+        string accountName,
+        string serverUrl,
+        Func<AccountAnalysisSnapshot?, AccountAnalysisSnapshot?> update)
+    {
+        ArgumentNullException.ThrowIfNull(update);
+        var filePath = GetFilePath(accountName, serverUrl);
+        var fileLock = FileLocks.GetOrAdd(filePath, static _ => new object());
+        lock (fileLock)
+        {
+            TryLoad(accountName, out var existing, serverUrl);
+            var changed = update(existing);
+            if (changed is null)
+            {
+                return null;
+            }
+
+            if (!AccountKeyNormalizer.IsSameIdentity(
+                    changed.AccountName,
+                    changed.ServerUrl,
+                    accountName,
+                    serverUrl))
+            {
+                throw new InvalidOperationException("Account analysis update cannot change the account or game world identity.");
+            }
+
+            Save(changed);
+            return changed;
+        }
     }
 
     public void Delete(string accountName, string? serverUrl = null)
     {
-        DeleteFileIfExists(GetFilePath(accountName, serverUrl));
-        DeleteFileIfExists(AccountStoragePaths.LegacyAnalysisPath(_rootPath, accountName, serverUrl));
+        var filePath = GetFilePath(accountName, serverUrl);
+        var fileLock = FileLocks.GetOrAdd(filePath, static _ => new object());
+        lock (fileLock)
+        {
+            DeleteFileIfExists(filePath);
+            DeleteFileIfExists(AccountStoragePaths.LegacyAnalysisPath(_rootPath, accountName, serverUrl));
+        }
     }
 
     private static void DeleteFileIfExists(string filePath)

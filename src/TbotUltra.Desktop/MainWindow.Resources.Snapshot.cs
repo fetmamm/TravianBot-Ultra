@@ -589,6 +589,7 @@ public partial class MainWindow
         }
 
         await TryReleaseRevivingHeroManageDeferAsync(options);
+        await TryReleaseAwayHeroManageDeferAsync(options);
 
         await TryQueueSpendHeroAttributePointsForLevelUpIndicatorAsync(options);
 
@@ -986,6 +987,7 @@ public partial class MainWindow
     // countdown (see HandleQueueItemFailureAsync), so this refresh can recognise and release it.
     private const string HeroDeferReasonKey = "hero_defer_reason";
     private const string HeroDeferReasonReviving = "reviving";
+    private const string HeroDeferReasonAway = "away";
 
     // Releases a hero_manage that was deferred for the full revive time when the hero is no longer reviving
     // on the current page (e.g. the user revived early with a bucket), so the loop re-runs it now and
@@ -1055,6 +1057,77 @@ public partial class MainWindow
         if (released > 0)
         {
             AppendLog($"Hero: revive finished early (no reviving icon) — released {released} deferred hero_manage item(s) to run now.");
+            if (IsContinuousLoopRunning())
+            {
+                Interlocked.Exchange(ref _continuousLoopWakeRequested, 1);
+            }
+            else
+            {
+                TriggerQueueAutoRunFromEnqueue();
+            }
+        }
+    }
+
+    // Unknown away timers use a moderate fallback. Release that defer early only when the global
+    // hero widget positively reports home; missing/ambiguous widgets keep the existing deadline.
+    private async Task TryReleaseAwayHeroManageDeferAsync(BotOptions options)
+    {
+        if (_heroReviveCheckRunning)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var deferredAway = _botService.GetQueueItemsForDisplay()
+            .Where(item => string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase))
+            .Where(item => item.Status == QueueStatus.Pending)
+            .Where(item => item.NextAttemptAt > now.AddSeconds(5))
+            .Where(item => item.Payload.TryGetValue(HeroDeferReasonKey, out var reason)
+                && string.Equals(reason, HeroDeferReasonAway, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (deferredAway.Count == 0)
+        {
+            return;
+        }
+
+        var heroHome = false;
+        _heroReviveCheckRunning = true;
+        try
+        {
+            heroHome = await _botService.IsHeroHomeOnCurrentPageAsync(
+                options,
+                AppendLog,
+                _loopController.AcquireSessionScopeToken());
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[hero:verbose] away-release check skipped ({ex.Message})");
+            return;
+        }
+        finally
+        {
+            _heroReviveCheckRunning = false;
+        }
+
+        if (!heroHome)
+        {
+            return;
+        }
+
+        var released = 0;
+        foreach (var item in deferredAway)
+        {
+            var payload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase);
+            payload.Remove(HeroDeferReasonKey);
+            if (_botService.UpdateDeferredQueueItem(item.Id, payload, TimeSpan.Zero))
+            {
+                released++;
+            }
+        }
+
+        if (released > 0)
+        {
+            AppendLog($"Hero: home signal detected — released {released} deferred hero_manage item(s) now.");
             if (IsContinuousLoopRunning())
             {
                 Interlocked.Exchange(ref _continuousLoopWakeRequested, 1);

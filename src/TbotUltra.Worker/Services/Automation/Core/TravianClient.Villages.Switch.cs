@@ -176,6 +176,8 @@ public sealed partial class TravianClient
         if (!string.IsNullOrWhiteSpace(villageName)
             && !activeMatchesRequested)
         {
+            _cachedVillagesAt = DateTimeOffset.MinValue;
+            Notify("[village-cache] invalidated after failed verified village switch; next read will inspect the live sidebar.");
             Notify(
                 $"[village-switch] village_missing_suspected requested='{villageName}' " +
                 $"active='{activeVillageAfterSwitch ?? "(unknown)"}'; aborting before task execution.");

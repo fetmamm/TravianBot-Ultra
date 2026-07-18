@@ -72,7 +72,7 @@ public partial class MainWindow
             // active working village. Injecting the (possibly stale) selected village here made the bot
             // navigate away from the landing village to the capital/selected one. The dropdown is synced
             // to the real landing village after the snapshot; use "Switch village" to move on purpose.
-            var options = LoadBotOptions();
+            var options = LoadValidatedActiveAccountOptions();
             AppendLog($"[{operationId}] INFO server={options.ServerName}");
             BrowserInfoTextBlock.Text = "Browser: starting";
 
@@ -465,16 +465,11 @@ public partial class MainWindow
             && !_accountSwitchInProgress
             && !_loginInProgress)
         {
-            RefreshBrowserStatisticsUi();
             _accountSwitchInProgress = true;
             try
             {
                 await ResetForAccountSwitchAsync(options, previousLoggedIn);
-                RecoverAndRefreshActiveAccountQueue();
-                AppendLog($"Active account changed to '{activeAccountAfterDialog}'. Previous session closed and state reset.");
-                ResetVillageSelectionUi();
-                LoadConfigToUi();
-                ConfigureSessionPacerFromConfig(reloadRuntime: true);
+                RefreshAfterActiveAccountChanged(activeAccountAfterDialog);
 
                 if (previousLoggedIn)
                 {
@@ -681,13 +676,7 @@ public partial class MainWindow
             await ResetForAccountSwitchAsync(previousOptions, previousLoggedIn);
 
             _accountStore.SetActive(selected.Name);
-            RefreshBrowserStatisticsUi();
-            RecoverAndRefreshActiveAccountQueue();
-            AppendLog($"Active account changed to '{selected.Name}'. Previous session closed and state reset.");
-            ResetVillageSelectionUi();
-            SyncServerFromActiveAccount();
-            LoadConfigToUi();
-            ConfigureSessionPacerFromConfig(reloadRuntime: true);
+            RefreshAfterActiveAccountChanged(selected.Name);
 
             if (previousLoggedIn)
             {
@@ -720,6 +709,17 @@ public partial class MainWindow
             },
             preferredVillageName: "-",
             fallbackVillageName: null);
+    }
+
+    private void RefreshAfterActiveAccountChanged(string accountName)
+    {
+        RefreshBrowserStatisticsUi();
+        RecoverAndRefreshActiveAccountQueue();
+        AppendLog($"Active account changed to '{accountName}'. Previous session closed and state reset.");
+        ResetVillageSelectionUi();
+        SyncServerFromActiveAccount();
+        LoadConfigToUi();
+        ConfigureSessionPacerFromConfig(reloadRuntime: true);
     }
 
     // ResetVillageSelectionUi() goes through ApplyVillagePickerItems(), which deliberately REFUSES to

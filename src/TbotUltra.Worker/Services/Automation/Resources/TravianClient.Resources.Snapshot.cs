@@ -52,7 +52,8 @@ public sealed partial class TravianClient
         var buildQueue = await ReadBuildQueueAsync(cancellationToken);
         var activeConstructions = await ReadActiveConstructionsAsync(
             cancellationToken,
-            allowNavigationToBuildings: false);
+            allowNavigationToBuildings: false,
+            readMode: ActiveConstructionReadMode.CachedForObservation);
         var activeBuildCount = ConstructionSlots.ActiveBuildCount(buildQueue, activeConstructions);
         var remaining = TravianParsing.ResolveShortestQueueDurationSeconds(buildQueue);
         if (buildQueue.Count != activeConstructions.Count)
@@ -171,12 +172,31 @@ public sealed partial class TravianClient
         return value;
     }
 
-    private async Task NotifyCurrentResourceProductionForUiAsync(CancellationToken cancellationToken)
+    private async Task NotifyCurrentResourceProductionForUiAsync(
+        CancellationToken cancellationToken,
+        bool forceRefresh = false)
     {
         try
         {
             Notify("Resource production update: start");
-            var production = await ReadCurrentPageResourceProductionPerHourAsync(cancellationToken);
+            var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
+            IReadOnlyDictionary<string, double?> production;
+            if (!forceRefresh
+                && _productionUiSnapshot is not null
+                && string.Equals(_productionUiSnapshotVillage, activeVillage, StringComparison.OrdinalIgnoreCase))
+            {
+                production = _productionUiSnapshot;
+                Notify($"Resource production update: reused current task snapshot for village='{activeVillage}'.");
+            }
+            else
+            {
+                production = await ReadCurrentPageResourceProductionPerHourAsync(cancellationToken);
+                if (production.Count > 0 && production.Values.Any(value => value is not null))
+                {
+                    _productionUiSnapshotVillage = activeVillage;
+                    _productionUiSnapshot = production;
+                }
+            }
             if (production.Count == 0 || production.Values.All(value => value is null))
             {
                 Notify("Resource production update: skipped because no production values were read.");
@@ -217,7 +237,10 @@ public sealed partial class TravianClient
         int? adventureCount = heroSidebar.AdventureFound ? Math.Max(0, heroSidebar.AdventureCount) : null;
         // Read Travian's own in-progress construction list from the current page so the buildings /
         // resources UI keeps showing upgrades started outside the program (target level in parentheses).
-        var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken, allowNavigationToBuildings: false);
+        var activeConstructions = await ReadActiveConstructionsAsync(
+            cancellationToken,
+            allowNavigationToBuildings: false,
+            readMode: ActiveConstructionReadMode.CachedForObservation);
         var buildQueue = await ReadBuildQueueAsync(cancellationToken);
         var activeBuildCount = ConstructionSlots.ActiveBuildCount(buildQueue, activeConstructions);
         if (buildQueue.Count != activeConstructions.Count)

@@ -1,5 +1,7 @@
 using System.IO;
+using System.Collections.Concurrent;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Worker.Services;
 
@@ -7,7 +9,9 @@ namespace TbotUltra.Desktop.Services;
 
 public sealed class EnvAccountStore
 {
+    private static readonly ConcurrentDictionary<string, FileState> FileStates = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _envPath;
+    private readonly FileState _fileState;
 
     // Parsed-file cache keyed on the .env file's timestamp+length, so per-second callers
     // (ActiveAccountName via the options cache and the account picker) don't hit the disk.
@@ -17,51 +21,59 @@ public sealed class EnvAccountStore
     private Dictionary<string, string>? _cachedValues;
     private DateTime _cachedWriteTimeUtc;
     private long _cachedLength;
+    private long _cachedVersion = -1;
 
     public EnvAccountStore(string envPath)
     {
-        _envPath = envPath;
+        _envPath = Path.GetFullPath(envPath);
+        _fileState = FileStates.GetOrAdd(_envPath, static _ => new FileState());
     }
 
     public string ActiveAccountName()
     {
-        var values = ReadValues();
-        var names = ParseAccountNames(values);
-        var configuredActive = values.TryGetValue("TBOT_ACTIVE_ACCOUNT", out var active) && !string.IsNullOrWhiteSpace(active)
-            ? active.Trim()
-            : string.Empty;
-
-        if (!string.IsNullOrWhiteSpace(configuredActive)
-            && names.Contains(configuredActive, StringComparer.OrdinalIgnoreCase))
+        lock (_fileState.Sync)
         {
-            return configuredActive;
-        }
+            var values = ReadValues();
+            var names = ParseAccountNames(values);
+            var configuredActive = values.TryGetValue("TBOT_ACTIVE_ACCOUNT", out var active) && !string.IsNullOrWhiteSpace(active)
+                ? active.Trim()
+                : string.Empty;
 
-        return names.Count > 0 ? names[0] : string.Empty;
+            if (!string.IsNullOrWhiteSpace(configuredActive)
+                && names.Contains(configuredActive, StringComparer.OrdinalIgnoreCase))
+            {
+                return configuredActive;
+            }
+
+            return names.Count > 0 ? names[0] : string.Empty;
+        }
     }
 
     public List<AccountEntry> ListAccounts()
     {
-        var values = ReadValues();
-        var names = ParseAccountNames(values);
-        var active = ActiveAccountName();
-
-        return names.Select(name =>
+        lock (_fileState.Sync)
         {
-            var prefix = $"TBOT_{name.ToUpperInvariant()}_";
-            return new AccountEntry
+            var values = ReadValues();
+            var names = ParseAccountNames(values);
+            var active = ActiveAccountName();
+
+            return names.Select(name =>
             {
-                Name = name,
-                Username = values.GetValueOrDefault($"{prefix}USERNAME", string.Empty),
-                Password = values.GetValueOrDefault($"{prefix}PASSWORD", string.Empty),
-                ServerName = values.GetValueOrDefault($"{prefix}SERVER_NAME", string.Empty),
-                ServerUrl = values.GetValueOrDefault($"{prefix}SERVER_URL", string.Empty),
-                ProxyEnabled = ParseBool(values.GetValueOrDefault($"{prefix}PROXY_ENABLED", string.Empty)),
-                ProxyServer = values.GetValueOrDefault($"{prefix}PROXY_SERVER", string.Empty),
-                NeverUseOwnIp = ParseBool(values.GetValueOrDefault($"{prefix}NEVER_USE_OWN_IP", string.Empty)),
-                IsActive = string.Equals(name, active, StringComparison.OrdinalIgnoreCase),
-            };
-        }).ToList();
+                var prefix = $"TBOT_{name.ToUpperInvariant()}_";
+                return new AccountEntry
+                {
+                    Name = name,
+                    Username = values.GetValueOrDefault($"{prefix}USERNAME", string.Empty),
+                    Password = values.GetValueOrDefault($"{prefix}PASSWORD", string.Empty),
+                    ServerName = values.GetValueOrDefault($"{prefix}SERVER_NAME", string.Empty),
+                    ServerUrl = values.GetValueOrDefault($"{prefix}SERVER_URL", string.Empty),
+                    ProxyEnabled = ParseBool(values.GetValueOrDefault($"{prefix}PROXY_ENABLED", string.Empty)),
+                    ProxyServer = values.GetValueOrDefault($"{prefix}PROXY_SERVER", string.Empty),
+                    NeverUseOwnIp = ParseBool(values.GetValueOrDefault($"{prefix}NEVER_USE_OWN_IP", string.Empty)),
+                    IsActive = string.Equals(name, active, StringComparison.OrdinalIgnoreCase),
+                };
+            }).ToList();
+        }
     }
 
     public void SaveAccount(AccountEntry account, bool setActive)
@@ -71,74 +83,99 @@ public sealed class EnvAccountStore
             throw new InvalidOperationException("Account name cannot be empty.");
         }
 
-        var normalized = NormalizeName(account.Name);
-        var values = ReadValues();
-        var names = ParseAccountNames(values);
-
-        if (!names.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+        lock (_fileState.Sync)
         {
-            names.Add(normalized);
+            var normalized = NormalizeName(account.Name);
+            var values = ReadValues();
+            var names = ParseAccountNames(values);
+
+            if (names.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+            {
+                var existingPrefix = $"TBOT_{normalized.ToUpperInvariant()}_";
+                var existingUsername = values.GetValueOrDefault($"{existingPrefix}USERNAME", string.Empty);
+                var existingServerUrl = values.GetValueOrDefault($"{existingPrefix}SERVER_URL", string.Empty);
+                if (!AccountKeyNormalizer.IsSameIdentity(
+                        existingUsername,
+                        existingServerUrl,
+                        account.Username,
+                        account.ServerUrl))
+                {
+                    throw new InvalidOperationException(
+                        $"Account key '{normalized}' already belongs to another username or game world. Create a new account instead of overwriting it.");
+                }
+            }
+
+            if (!names.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+            {
+                names.Add(normalized);
+            }
+
+            values["TBOT_ACCOUNTS"] = string.Join(",", names);
+            if (setActive)
+            {
+                values["TBOT_ACTIVE_ACCOUNT"] = normalized;
+            }
+
+            var prefix = $"TBOT_{normalized.ToUpperInvariant()}_";
+            values[$"{prefix}USERNAME"] = account.Username.Trim();
+            values[$"{prefix}PASSWORD"] = account.Password;
+            values[$"{prefix}SERVER_NAME"] = account.ServerName.Trim();
+            values[$"{prefix}SERVER_URL"] = account.ServerUrl.Trim().TrimEnd('/');
+            values[$"{prefix}PROXY_ENABLED"] = account.ProxyEnabled ? "true" : "false";
+            values[$"{prefix}PROXY_SERVER"] = account.ProxyServer.Trim();
+            values[$"{prefix}NEVER_USE_OWN_IP"] = account.NeverUseOwnIp ? "true" : "false";
+
+            WriteValues(values);
         }
-
-        values["TBOT_ACCOUNTS"] = string.Join(",", names);
-        if (setActive)
-        {
-            values["TBOT_ACTIVE_ACCOUNT"] = normalized;
-        }
-
-        var prefix = $"TBOT_{normalized.ToUpperInvariant()}_";
-        values[$"{prefix}USERNAME"] = account.Username.Trim();
-        values[$"{prefix}PASSWORD"] = account.Password;
-        values[$"{prefix}SERVER_NAME"] = account.ServerName.Trim();
-        values[$"{prefix}SERVER_URL"] = account.ServerUrl.Trim().TrimEnd('/');
-        values[$"{prefix}PROXY_ENABLED"] = account.ProxyEnabled ? "true" : "false";
-        values[$"{prefix}PROXY_SERVER"] = account.ProxyServer.Trim();
-        values[$"{prefix}NEVER_USE_OWN_IP"] = account.NeverUseOwnIp ? "true" : "false";
-
-        WriteValues(values);
     }
 
     public void DeleteAccount(string accountName)
     {
-        var normalized = NormalizeName(accountName);
-        var values = ReadValues();
-        var names = ParseAccountNames(values);
-        if (!names.RemoveAll(name => string.Equals(name, normalized, StringComparison.OrdinalIgnoreCase)).Equals(0))
+        lock (_fileState.Sync)
         {
-            var prefix = $"TBOT_{normalized.ToUpperInvariant()}_";
-            values.Remove($"{prefix}USERNAME");
-            values.Remove($"{prefix}PASSWORD");
-            values.Remove($"{prefix}SERVER_NAME");
-            values.Remove($"{prefix}SERVER_URL");
-            values.Remove($"{prefix}PROXY_ENABLED");
-            values.Remove($"{prefix}PROXY_SERVER");
-            values.Remove($"{prefix}NEVER_USE_OWN_IP");
-            values["TBOT_ACCOUNTS"] = string.Join(",", names);
-
-            if (string.Equals(values.GetValueOrDefault("TBOT_ACTIVE_ACCOUNT", string.Empty), normalized, StringComparison.OrdinalIgnoreCase))
+            var normalized = NormalizeName(accountName);
+            var values = ReadValues();
+            var names = ParseAccountNames(values);
+            if (names.RemoveAll(name => string.Equals(name, normalized, StringComparison.OrdinalIgnoreCase)) != 0)
             {
-                values["TBOT_ACTIVE_ACCOUNT"] = names.Count > 0 ? names[0] : string.Empty;
+                var prefix = $"TBOT_{normalized.ToUpperInvariant()}_";
+                values.Remove($"{prefix}USERNAME");
+                values.Remove($"{prefix}PASSWORD");
+                values.Remove($"{prefix}SERVER_NAME");
+                values.Remove($"{prefix}SERVER_URL");
+                values.Remove($"{prefix}PROXY_ENABLED");
+                values.Remove($"{prefix}PROXY_SERVER");
+                values.Remove($"{prefix}NEVER_USE_OWN_IP");
+                values["TBOT_ACCOUNTS"] = string.Join(",", names);
+
+                if (string.Equals(values.GetValueOrDefault("TBOT_ACTIVE_ACCOUNT", string.Empty), normalized, StringComparison.OrdinalIgnoreCase))
+                {
+                    values["TBOT_ACTIVE_ACCOUNT"] = names.Count > 0 ? names[0] : string.Empty;
+                }
+
+                WriteValues(values);
+                return;
             }
 
-            WriteValues(values);
-            return;
+            throw new InvalidOperationException($"Account '{normalized}' does not exist.");
         }
-
-        throw new InvalidOperationException($"Account '{normalized}' does not exist.");
     }
 
     public void SetActive(string accountName)
     {
-        var normalized = NormalizeName(accountName);
-        var values = ReadValues();
-        var names = ParseAccountNames(values);
-        if (!names.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+        lock (_fileState.Sync)
         {
-            throw new InvalidOperationException($"Account '{normalized}' does not exist.");
-        }
+            var normalized = NormalizeName(accountName);
+            var values = ReadValues();
+            var names = ParseAccountNames(values);
+            if (!names.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException($"Account '{normalized}' does not exist.");
+            }
 
-        values["TBOT_ACTIVE_ACCOUNT"] = normalized;
-        WriteValues(values);
+            values["TBOT_ACTIVE_ACCOUNT"] = normalized;
+            WriteValues(values);
+        }
     }
 
     private Dictionary<string, string> ReadValues()
@@ -153,6 +190,7 @@ public sealed class EnvAccountStore
             }
 
             if (_cachedValues is not null
+                && _cachedVersion == _fileState.Version
                 && info.LastWriteTimeUtc == _cachedWriteTimeUtc
                 && info.Length == _cachedLength)
             {
@@ -164,6 +202,7 @@ public sealed class EnvAccountStore
             _cachedValues = new Dictionary<string, string>(values, values.Comparer);
             _cachedWriteTimeUtc = info.LastWriteTimeUtc;
             _cachedLength = info.Length;
+            _cachedVersion = _fileState.Version;
             return values;
         }
     }
@@ -187,20 +226,21 @@ public sealed class EnvAccountStore
         foreach (var name in names)
         {
             var prefix = $"TBOT_{name.ToUpperInvariant()}_";
-            lines.Add($"{prefix}USERNAME={values.GetValueOrDefault($"{prefix}USERNAME", string.Empty)}");
-            lines.Add($"{prefix}PASSWORD={values.GetValueOrDefault($"{prefix}PASSWORD", string.Empty)}");
-            lines.Add($"{prefix}SERVER_NAME={values.GetValueOrDefault($"{prefix}SERVER_NAME", string.Empty)}");
-            lines.Add($"{prefix}SERVER_URL={values.GetValueOrDefault($"{prefix}SERVER_URL", string.Empty)}");
+            lines.Add($"{prefix}USERNAME={EnvFileParser.FormatValue(values.GetValueOrDefault($"{prefix}USERNAME", string.Empty))}");
+            lines.Add($"{prefix}PASSWORD={EnvFileParser.FormatValue(values.GetValueOrDefault($"{prefix}PASSWORD", string.Empty))}");
+            lines.Add($"{prefix}SERVER_NAME={EnvFileParser.FormatValue(values.GetValueOrDefault($"{prefix}SERVER_NAME", string.Empty))}");
+            lines.Add($"{prefix}SERVER_URL={EnvFileParser.FormatValue(values.GetValueOrDefault($"{prefix}SERVER_URL", string.Empty))}");
             // Always emit a deterministic true/false so the file never carries an empty enabled flag.
             var proxyEnabled = ParseBool(values.GetValueOrDefault($"{prefix}PROXY_ENABLED", string.Empty));
             lines.Add($"{prefix}PROXY_ENABLED={(proxyEnabled ? "true" : "false")}");
-            lines.Add($"{prefix}PROXY_SERVER={values.GetValueOrDefault($"{prefix}PROXY_SERVER", string.Empty)}");
+            lines.Add($"{prefix}PROXY_SERVER={EnvFileParser.FormatValue(values.GetValueOrDefault($"{prefix}PROXY_SERVER", string.Empty))}");
             var neverUseOwnIp = ParseBool(values.GetValueOrDefault($"{prefix}NEVER_USE_OWN_IP", string.Empty));
             lines.Add($"{prefix}NEVER_USE_OWN_IP={(neverUseOwnIp ? "true" : "false")}");
             lines.Add(string.Empty);
         }
 
-        File.WriteAllText(_envPath, string.Join(Environment.NewLine, lines));
+        AtomicFile.WriteAllText(_envPath, string.Join(Environment.NewLine, lines));
+        _fileState.Version++;
         lock (_cacheSync)
         {
             _cachedValues = null;
@@ -233,5 +273,11 @@ public sealed class EnvAccountStore
         }
 
         return joined;
+    }
+
+    private sealed class FileState
+    {
+        internal object Sync { get; } = new();
+        internal long Version { get; set; }
     }
 }

@@ -122,7 +122,10 @@ public sealed partial class TravianClient
         // started outside the program (e.g. manually before login) with the target level in
         // parentheses. We are on dorf1/dorf2 after the reads above, both of which carry the list,
         // so no extra navigation is needed.
-        var activeConstructions = await ReadActiveConstructionsAsync(cancellationToken, allowNavigationToBuildings: false);
+        var activeConstructions = await ReadActiveConstructionsAsync(
+            cancellationToken,
+            allowNavigationToBuildings: false,
+            readMode: ActiveConstructionReadMode.CachedForObservation);
         var heroStatus = await ReadHeroStatusAsync(cancellationToken);
         var activeBuildCount = ConstructionSlots.ActiveBuildCount(buildQueue, activeConstructions);
         if (buildQueue.Count != activeConstructions.Count)

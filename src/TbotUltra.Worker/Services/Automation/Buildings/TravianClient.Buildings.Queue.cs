@@ -98,32 +98,39 @@ public sealed partial class TravianClient
 
     public async Task<IReadOnlyList<ActiveConstruction>> ReadActiveConstructionsAsync(
         CancellationToken cancellationToken = default,
-        bool allowNavigationToBuildings = true)
+        bool allowNavigationToBuildings = true,
+        ActiveConstructionReadMode readMode = ActiveConstructionReadMode.FreshForMutation)
     {
         using var trace = _browserTrace.BeginOperation(
             "READ",
             "active-constructions",
-            $"scope=current-page allowNavigation={allowNavigationToBuildings}");
+            $"scope=current-page allowNavigation={allowNavigationToBuildings} mode={readMode}");
         // Cache hit collapses the 4-5 calls a single upgrade iteration makes (CheckQueueOrDefer,
         // ReadHighestKnownQueuedBuildingLevel, ReadQueuedBuildingWaitSeconds, level-advance poll)
         // into one network round-trip. GotoAsync invalidates the cache automatically.
-        if (_cachedActiveConstructions is not null
-            && DateTimeOffset.UtcNow - _cachedActiveConstructionsAt < ActiveConstructionsCacheTtl)
+        var now = DateTimeOffset.UtcNow;
+        var cached = _cachedActiveConstructions;
+        var cachedDeadlineReached = cached?.Any(item => item.Finish?.IsFinishedAt(now) == true) == true;
+        if (CanUseActiveConstructionsCache(cached, _cachedActiveConstructionsAt, now, readMode))
         {
-            var ageMs = (long)(DateTimeOffset.UtcNow - _cachedActiveConstructionsAt).TotalMilliseconds;
+            var ageMs = (long)(now - _cachedActiveConstructionsAt).TotalMilliseconds;
             _lastActiveConstructionsFromOverview = _cachedActiveConstructionsFromOverview;
             _browserTrace.Event(
                 "CACHE",
                 "active-constructions-hit",
                 "hit",
-                $"ageMs={ageMs} count={_cachedActiveConstructions.Count} fromOverview={_cachedActiveConstructionsFromOverview}");
+                $"ageMs={ageMs} count={cached!.Count} fromOverview={_cachedActiveConstructionsFromOverview} mode={readMode}");
             trace.Complete(
                 "success",
-                $"source=cache count={_cachedActiveConstructions.Count} ageMs={ageMs}");
-            return _cachedActiveConstructions;
+                $"source=cache count={cached.Count} ageMs={ageMs}");
+            return cached;
         }
 
-        _browserTrace.Event("CACHE", "active-constructions-miss", "miss", "reason=missing-or-expired");
+        _browserTrace.Event(
+            "CACHE",
+            "active-constructions-miss",
+            "miss",
+            $"reason={(cachedDeadlineReached ? "known-deadline-reached" : "missing-or-expired")} mode={readMode}");
 
         LogFunctionStarted();
         _lastActiveConstructionsFromOverview = false;
@@ -275,6 +282,23 @@ public sealed partial class TravianClient
                 ? new List<ActiveConstructionJs>()
                 : JsonSerializer.Deserialize<List<ActiveConstructionJs>>(rawJson) ?? new List<ActiveConstructionJs>();
         }
+    }
+
+    internal static bool CanUseActiveConstructionsCache(
+        IReadOnlyList<ActiveConstruction>? cached,
+        DateTimeOffset cachedAt,
+        DateTimeOffset now,
+        ActiveConstructionReadMode readMode)
+    {
+        if (cached is null || cached.Any(item => item.Finish?.IsFinishedAt(now) == true))
+        {
+            return false;
+        }
+
+        var cacheTtl = readMode == ActiveConstructionReadMode.CachedForObservation
+            ? ActiveConstructionsObservationCacheTtl
+            : ActiveConstructionsMutationCacheTtl;
+        return now - cachedAt < cacheTtl;
     }
 
     public async Task<ConstructionSlotStatus> EvaluateConstructionSlotsAsync(

@@ -83,7 +83,13 @@ public partial class AccountsWindow : Window
         Loaded -= AccountsWindow_Loaded;
         try
         {
-            _specialServerOptions = await OfficialServerDiscoveryService.FetchSpecialServersAsync(_specialServerLoadCts.Token);
+            var activeAccountName = _store.ActiveAccountName();
+            var activeAccount = _store.ListAccounts().FirstOrDefault(account =>
+                string.Equals(account.Name, activeAccountName, StringComparison.OrdinalIgnoreCase));
+            _specialServerOptions = await OfficialServerDiscoveryService.FetchSpecialServersAsync(
+                activeAccount,
+                _projectRoot,
+                _specialServerLoadCts.Token);
             var selectedName = (ServerComboBox.SelectedItem as ServerOption)?.Name ?? string.Empty;
             var selectedUrl = (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl ?? string.Empty;
             EnsureServerListContainsDefaults();
@@ -1091,7 +1097,7 @@ public partial class AccountsWindow : Window
 
         var selectedServer = ServerComboBox.SelectedItem as ServerOption;
         var serverUrl = selectedServer?.BaseUrl ?? _defaultServerUrl;
-        return AccountKeyNormalizer.MakeKey(username, serverUrl);
+        return AccountKeyNormalizer.MakeCollisionResistantKey(username, serverUrl);
     }
 
     private void AccountsWindow_Closing(object? sender, CancelEventArgs e)

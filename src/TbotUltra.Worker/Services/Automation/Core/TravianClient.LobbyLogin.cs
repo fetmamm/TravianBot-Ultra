@@ -6,7 +6,7 @@ namespace TbotUltra.Worker.Services;
 
 public sealed partial class TravianClient
 {
-    private sealed record LobbyWorldCard(string WorldUid, string Name);
+    private sealed record LobbyWorldCard(string WorldUid, string Name, string Details);
     private string? _pendingLobbyWorldUid;
 
     private async Task<bool> TryLoginThroughLobbyAsync(CancellationToken cancellationToken)
@@ -87,10 +87,28 @@ public sealed partial class TravianClient
                 }
             }
 
-            var selected = await RequestLobbyWorldSelectionAsync(cards, cancellationToken);
-            if (selected is not null)
+            var manuallyFailedWorlds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            while (manuallyFailedWorlds.Count < cards.Count)
             {
-                return await TryEnterLobbyWorldAsync(selected, cancellationToken);
+                var selectableCards = cards
+                    .Where(card => !manuallyFailedWorlds.Contains(card.WorldUid))
+                    .ToList();
+                var selected = await RequestLobbyWorldSelectionAsync(
+                    selectableCards,
+                    manuallyFailedWorlds.Count > 0,
+                    cancellationToken);
+                if (selected is null)
+                {
+                    return false;
+                }
+
+                if (await TryEnterLobbyWorldAsync(selected, cancellationToken))
+                {
+                    return true;
+                }
+
+                manuallyFailedWorlds.Add(selected.WorldUid);
+                Notify($"[lobby-login] selected world '{selected.Name}' did not reach the configured origin; reopening the picker with the remaining worlds.");
             }
 
             return false;
@@ -112,6 +130,7 @@ public sealed partial class TravianClient
 
     private async Task<LobbyWorldCard?> RequestLobbyWorldSelectionAsync(
         IReadOnlyList<LobbyWorldCard> cards,
+        bool previousSelectionFailed,
         CancellationToken cancellationToken)
     {
         if (!_interactive || _lobbyWorldSelectionRequested is null)
@@ -124,7 +143,8 @@ public sealed partial class TravianClient
             new LobbyWorldSelectionRequest(
                 _config.ServerName,
                 ServerUrl,
-                cards.Select(card => new LobbyWorldOption(card.WorldUid, card.Name)).ToList()),
+                cards.Select(card => new LobbyWorldOption(card.WorldUid, card.Name, card.Details)).ToList(),
+                previousSelectionFailed),
             cancellationToken);
         if (string.IsNullOrWhiteSpace(selectedWorldUid))
         {
@@ -241,7 +261,8 @@ public sealed partial class TravianClient
             var name = await nameLocator.CountAsync() > 0
                 ? (await nameLocator.InnerTextAsync()).Trim()
                 : string.Empty;
-            result.Add(new LobbyWorldCard(worldUid, name));
+            var details = Regex.Replace(await card.InnerTextAsync(), @"\s+", " ").Trim();
+            result.Add(new LobbyWorldCard(worldUid, name, details));
         }
 
         return result;

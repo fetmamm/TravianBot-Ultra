@@ -70,4 +70,96 @@ public sealed class OfficialServerDiscoveryServiceTests
         Assert.Contains(servers, item => item.Name == "Community Week");
         Assert.DoesNotContain(servers, item => item.Name == "Ended Event");
     }
+
+    [Fact]
+    public void ParseSpecialServers_IgnoresMalformedSourceAndKeepsValidSource()
+    {
+        const string validJson = """
+        [
+          { "metadata": { "name": "Community Week", "type": "CW", "url": "https://cw.x2.international.travian.com/" } }
+        ]
+        """;
+
+        var servers = OfficialServerDiscoveryService.ParseSpecialServers(["{broken", validJson]);
+
+        Assert.Single(servers);
+        Assert.Equal("Community Week", servers[0].Name);
+    }
+
+    [Fact]
+    public void Cache_RoundTripsRecentListAndRejectsExpiredOrMalformedData()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"tbot-discovery-{Guid.NewGuid():N}");
+        var now = DateTimeOffset.UtcNow;
+        try
+        {
+            var server = new ServerOption
+            {
+                Name = "Travian Schild",
+                BaseUrl = "https://schild.x3.netherlands.travian.com",
+                Group = "Special",
+            };
+            OfficialServerDiscoveryService.SaveCache(root, [server], now);
+
+            Assert.Single(OfficialServerDiscoveryService.LoadCache(root, now.AddDays(6)));
+            Assert.Empty(OfficialServerDiscoveryService.LoadCache(root, now.AddDays(8)));
+
+            var path = Path.Combine(root, "config", "cache", "official-special-servers.json");
+            File.WriteAllText(path, "{broken");
+            Assert.Empty(OfficialServerDiscoveryService.LoadCache(root, now));
+        }
+        finally
+        {
+            if (Directory.Exists(root))
+            {
+                Directory.Delete(root, recursive: true);
+            }
+        }
+    }
+
+    [Fact]
+    public void ResolveProxyRoute_UsesConfiguredProxy()
+    {
+        var route = OfficialServerDiscoveryService.ResolveProxyRoute(new ServerOptionAccountBuilder
+        {
+            ProxyEnabled = true,
+            ProxyServer = "http://user:secret@proxy.example:8080",
+            NeverUseOwnIp = true,
+        }.Build());
+
+        Assert.True(route.UseProxy);
+        Assert.Equal("proxy.example", route.ProxyUri?.Host);
+        Assert.Equal("user", route.Username);
+        Assert.Equal("secret", route.Password);
+    }
+
+    [Theory]
+    [InlineData(false, "")]
+    [InlineData(true, "not-a-proxy")]
+    public void ResolveProxyRoute_BlocksDirectTrafficWhenNeverUseOwnIp(bool proxyEnabled, string proxyServer)
+    {
+        var account = new ServerOptionAccountBuilder
+        {
+            ProxyEnabled = proxyEnabled,
+            ProxyServer = proxyServer,
+            NeverUseOwnIp = true,
+        }.Build();
+
+        Assert.Throws<InvalidOperationException>(() => OfficialServerDiscoveryService.ResolveProxyRoute(account));
+    }
+
+    private sealed class ServerOptionAccountBuilder
+    {
+        internal bool ProxyEnabled { get; init; }
+        internal string ProxyServer { get; init; } = string.Empty;
+        internal bool NeverUseOwnIp { get; init; }
+
+        internal AccountEntry Build() => new()
+        {
+            Name = "account",
+            ProxyEnabled = ProxyEnabled,
+            ProxyServer = ProxyServer,
+            NeverUseOwnIp = NeverUseOwnIp,
+        };
+    }
 }

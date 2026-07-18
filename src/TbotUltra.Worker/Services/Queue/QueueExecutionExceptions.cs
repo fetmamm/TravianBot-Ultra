@@ -39,6 +39,9 @@ public static class TaskWaitReasons
     /// <summary>hero_manage deferred because the hero is reviving.</summary>
     public const string HeroReviving = "hero_reviving";
 
+    /// <summary>hero_manage deferred because the hero is travelling/away.</summary>
+    public const string HeroAway = "hero_away";
+
     /// <summary>hero_manage deferred because the hero's HP is below the adventure threshold.</summary>
     public const string HeroHpTooLow = "hero_hp_too_low";
 }

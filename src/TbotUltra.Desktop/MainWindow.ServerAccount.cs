@@ -70,6 +70,21 @@ public partial class MainWindow
         }
     }
 
+    private BotOptions LoadValidatedActiveAccountOptions()
+    {
+        SyncServerFromActiveAccount();
+        var options = LoadBotOptions();
+        var activeName = _accountStore.ActiveAccountName();
+        var account = _accountStore.ListAccounts().FirstOrDefault(item =>
+            string.Equals(item.Name, activeName, StringComparison.OrdinalIgnoreCase));
+        if (account is not null)
+        {
+            AccountServerInvariant.EnsureMatches(account.Name, account.ServerUrl, options.BaseUrl);
+        }
+
+        return options;
+    }
+
     private Task<List<ServerOption>> FetchDefaultServerOptionsAsync(BotOptions options)
     {
         var servers = new List<ServerOption>

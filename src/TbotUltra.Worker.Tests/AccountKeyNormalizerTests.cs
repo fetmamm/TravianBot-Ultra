@@ -37,6 +37,33 @@ public sealed class AccountKeyNormalizerTests
         Assert.Equal(a, b);
     }
 
+    [Fact]
+    public void MakeCollisionResistantKey_DistinguishesIdentifiersThatNormalizeTheSame()
+    {
+        var dotted = AccountKeyNormalizer.MakeCollisionResistantKey("john.doe", "https://ts1.travian.eu");
+        var underscored = AccountKeyNormalizer.MakeCollisionResistantKey("john_doe", "https://ts1.travian.eu");
+
+        Assert.NotEqual(dotted, underscored);
+    }
+
+    [Fact]
+    public void MakeCollisionResistantKey_IsStableForCaseAndTrailingSlash()
+    {
+        var first = AccountKeyNormalizer.MakeCollisionResistantKey("Alice", "https://TS1.travian.eu/");
+        var second = AccountKeyNormalizer.MakeCollisionResistantKey("alice", "https://ts1.travian.eu");
+
+        Assert.Equal(first, second);
+    }
+
+    [Fact]
+    public void MakeCollisionResistantKey_DistinguishesServerPathsOnSameHost()
+    {
+        var first = AccountKeyNormalizer.MakeCollisionResistantKey("alice", "https://example.com/world-a");
+        var second = AccountKeyNormalizer.MakeCollisionResistantKey("alice", "https://example.com/world-b");
+
+        Assert.NotEqual(first, second);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]

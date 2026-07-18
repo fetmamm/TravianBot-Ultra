@@ -471,42 +471,77 @@ public sealed partial class TravianClient
     }
 
     private bool IsCurrentUrlForPath(string pathOrUrl)
+        => UrlMatchesPath(_page.Url, pathOrUrl);
+
+    internal static bool UrlMatchesPath(string? currentUrl, string? pathOrUrl)
     {
-        if (string.IsNullOrWhiteSpace(_page.Url))
+        if (string.IsNullOrWhiteSpace(currentUrl) || string.IsNullOrWhiteSpace(pathOrUrl))
         {
             return false;
         }
 
         try
         {
-            if (!Uri.TryCreate(_page.Url, UriKind.Absolute, out var currentUri))
+            if (!Uri.TryCreate(currentUrl, UriKind.Absolute, out var currentUri))
             {
                 return false;
             }
 
-            string expectedPath;
+            Uri expectedUri;
+            var absoluteExpected = pathOrUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase);
             if (pathOrUrl.StartsWith("http", StringComparison.OrdinalIgnoreCase))
             {
-                if (!Uri.TryCreate(pathOrUrl, UriKind.Absolute, out var expectedUri))
+                if (!Uri.TryCreate(pathOrUrl, UriKind.Absolute, out expectedUri!))
                 {
                     return false;
                 }
-
-                expectedPath = expectedUri.AbsolutePath;
             }
             else
             {
-                expectedPath = pathOrUrl.StartsWith('/')
+                var expectedRelative = pathOrUrl.StartsWith('/')
                     ? pathOrUrl
                     : "/" + pathOrUrl;
+                expectedUri = new Uri(new Uri("https://path.local/"), expectedRelative);
             }
 
-            return string.Equals(currentUri.AbsolutePath, expectedPath, StringComparison.OrdinalIgnoreCase);
+            if (absoluteExpected
+                && !string.Equals(currentUri.Authority, expectedUri.Authority, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            if (!string.Equals(currentUri.AbsolutePath, expectedUri.AbsolutePath, StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+
+            // Expected query parameters identify the requested entity (for example build slot id).
+            // Current URLs may contain extra server-added parameters such as gid; those do not make
+            // the page a different target.
+            var expectedQuery = ParseQueryParameters(expectedUri.Query);
+            var currentQuery = ParseQueryParameters(currentUri.Query);
+            return expectedQuery.All(pair =>
+                currentQuery.TryGetValue(pair.Key, out var currentValue)
+                && string.Equals(currentValue, pair.Value, StringComparison.OrdinalIgnoreCase));
         }
         catch
         {
             return false;
         }
+    }
+
+    private static Dictionary<string, string> ParseQueryParameters(string query)
+    {
+        var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var part in query.TrimStart('?').Split('&', StringSplitOptions.RemoveEmptyEntries))
+        {
+            var separator = part.IndexOf('=');
+            var key = Uri.UnescapeDataString(separator >= 0 ? part[..separator] : part);
+            var value = Uri.UnescapeDataString(separator >= 0 ? part[(separator + 1)..] : string.Empty);
+            result[key] = value;
+        }
+
+        return result;
     }
 
     private async Task ApplyActionDelayAsync(CancellationToken cancellationToken)

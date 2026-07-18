@@ -44,6 +44,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
 
 - Build URLs through existing path helpers. Paths are server-root relative, never relative to an account
   base-URL subdirectory. Normalize the base URL and preserve escaped query strings.
+- Current-page matching requires the same path and every query parameter supplied by the target helper;
+  server-added parameters may be extra. Never identify all `/build.php` URLs as the same slot.
 - Common paths are `/dorf1.php`, `/dorf2.php`, `/build.php?id={slot}`, `/karte.php`, `/berichte.php`, and
   `/messages.php`.
 - Scope selectors to the relevant Official page, widget, dialog, row, or building contract.
@@ -105,10 +107,23 @@ Published artifacts belong under `artifacts/`, never beside source files.
   account's saved Playwright auth state.
 - Preserve the intentional headed/maximized anti-detection setup and `ViewportSize.NoViewport`.
 - Login automation requires English UI and fails clearly when required markers are missing.
+- Synchronize `BotOptions.BaseUrl` from the active account before login and fail fast when their normalized origins
+  differ. An account switch invalidates the browser-session generation so a late `OpenPageAsync` cannot resurrect
+  the previous account after shutdown.
 - Lobby world matching treats speed labels (`x3`, etc.) as optional display metadata but rejects an explicit
   conflicting speed. If neither cached wuid nor automatic name/host matching reaches the configured origin,
-  interactive login shows every owned lobby world for manual selection. Persist the selected wuid only after
-  that world lands on the configured game origin; later logins use it directly.
+  interactive login shows every owned lobby world with card details and UID. A failed selection reopens the picker
+  with remaining worlds. Persist the selected wuid only after that world lands on the configured game origin.
+- A recent-login cache hit is valid only on the configured game origin, never on lobby/login URLs, and still probes
+  explicit restriction/challenge signals before skipping the full login check.
+- Account `.env` mutations hold one shared per-file read-modify-write lock and use atomic replacement. New values are
+  JSON-quoted so passwords round-trip spaces, quotes, backslashes, equals signs, hashes, and newlines; legacy values
+  remain readable. New account keys add a stable identity hash and stores reject cross-identity overwrites.
+- Account-analysis field updates are atomic per account/world; World UID, village, tribe, Gold Club, and settings
+  writers must merge inside `AccountAnalysisStore.Update`, never load then save independently.
+- Official special-server discovery routes through the active account proxy, never falls back to direct traffic when
+  `NeverUseOwnIp` is enabled, isolates malformed source payloads, and uses a seven-day atomically written last-known-good
+  cache when live sources are unavailable.
 - Account holds are account-specific: restriction, challenge, or repeated verified unknown state stops only that
   account and preserves its queue/settings until manual re-enable.
 - Detailed lifecycle, SSO, cleanup, and access rules: [browser/session ADR](adr/2026-07-18-browser-session-and-login.md).
@@ -176,6 +191,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
   `#contract_building{gid}`.
 - Cache only data with an owner, invalidation rule, and safe stale behavior. Incomplete refreshes must not erase
   the last valid snapshot or fabricate zero/empty state.
+- Construction mutations use the short fresh-read cache; read-only observations may use the longer cache but
+  never past a known completion deadline. Navigation and state-changing clicks invalidate both.
+- Persisted account analysis may seed the stable village list. Cold start without a snapshot reads the profile;
+  later full logins merge the live sidebar so new/renamed villages are found without another profile visit.
 - Browser activity statistics are account-scoped: lifetime counters persist; session counters do not.
 - Farm-list exact timers get a 5-15s render margin; unreadable disabled timers use an estimated 60s wait.
 - Bonus-video failures use shared protected timing, typed cooldowns, account proxy routing, and sanitized logs.

@@ -150,6 +150,54 @@ public sealed class EnvAccountStoreTests : IDisposable
         Assert.Throws<InvalidOperationException>(() => store.SaveAccount(Account(""), setActive: true));
     }
 
+    [Fact]
+    public void SaveAccount_RoundTripsPasswordWithoutTrimmingOrCorruption()
+    {
+        var store = new EnvAccountStore(_envPath);
+        const string password = "  p=a#s\\\"'word\\path\nsecond line  ";
+
+        store.SaveAccount(new AccountEntry
+        {
+            Name = "alice",
+            Username = "alice",
+            Password = password,
+            ServerName = "Server",
+            ServerUrl = "https://ts1.travian.eu",
+        }, setActive: true);
+
+        var reloaded = new EnvAccountStore(_envPath).ListAccounts().Single();
+
+        Assert.Equal(password, reloaded.Password);
+    }
+
+    [Fact]
+    public void ConcurrentStores_DoNotLoseAccountsDuringReadModifyWrite()
+    {
+        var first = new EnvAccountStore(_envPath);
+        var second = new EnvAccountStore(_envPath);
+
+        Parallel.Invoke(
+            () => first.SaveAccount(Account("alice"), setActive: true),
+            () => second.SaveAccount(Account("bob"), setActive: false));
+
+        var accounts = new EnvAccountStore(_envPath).ListAccounts();
+        Assert.Equal(2, accounts.Count);
+        Assert.Contains(accounts, account => account.Name == "alice");
+        Assert.Contains(accounts, account => account.Name == "bob");
+    }
+
+    [Fact]
+    public void SaveAccount_RejectsSilentOverwriteWhenNormalizedKeysCollide()
+    {
+        var store = new EnvAccountStore(_envPath);
+        store.SaveAccount(Account("john.doe"), setActive: true);
+
+        var collision = Account("john_doe");
+
+        Assert.Throws<InvalidOperationException>(() => store.SaveAccount(collision, setActive: false));
+        Assert.Equal("john.doe", store.ListAccounts().Single().Username);
+    }
+
     public void Dispose()
     {
         if (File.Exists(_envPath))

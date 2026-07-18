@@ -78,7 +78,7 @@ internal static class AccountEditorState
         {
             Name = input.EditingExistingAccount
                 ? input.ExistingAccountName
-                : AccountKeyNormalizer.MakeKey(username, input.ServerUrl),
+                : AccountKeyNormalizer.MakeCollisionResistantKey(username, input.ServerUrl),
             Username = username,
             Password = password,
             ServerName = input.ServerName,

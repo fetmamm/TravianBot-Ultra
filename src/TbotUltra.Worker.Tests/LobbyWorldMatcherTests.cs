@@ -1,10 +1,24 @@
 using TbotUltra.Worker.Services;
+using TbotUltra.Worker.Domain;
 using Xunit;
 
 namespace TbotUltra.Worker.Tests;
 
 public sealed class LobbyWorldMatcherTests
 {
+    [Fact]
+    public void LobbyWorldOption_DisplayTextIncludesCardDetailsAndStableUidPrefix()
+    {
+        var option = new LobbyWorldOption(
+            "12345678-1234-1234-1234-123456789012",
+            "Europe 3x",
+            "Europe 3x  Community Special  Play now");
+
+        Assert.Equal(
+            "Europe 3x · Europe 3x Community Special Play now · UID 12345678",
+            option.DisplayText);
+    }
+
     [Theory]
     [InlineData("https://lobby.legends.travian.com/account", true)]
     [InlineData("https://lobby.legends.travian.com/account/gameworlds", true)]
@@ -46,5 +60,34 @@ public sealed class LobbyWorldMatcherTests
             TravianClient.IsConfiguredGameOrigin(
                 landedUrl,
                 "https://ts50.x5.arabics.travian.com"));
+    }
+
+    [Theory]
+    [InlineData("https://ts50.x5.arabics.travian.com/dorf1.php", true)]
+    [InlineData("https://ts50.x5.arabics.travian.com/login.php", false)]
+    [InlineData("https://lobby.legends.travian.com/account", false)]
+    [InlineData("https://ts51.x5.arabics.travian.com/dorf1.php", false)]
+    public void IsRecentLoginCacheEligible_RequiresConfiguredAuthenticatedOrigin(string currentUrl, bool expected)
+    {
+        var now = DateTimeOffset.UtcNow;
+        Assert.Equal(
+            expected,
+            TravianClient.IsRecentLoginCacheEligible(
+                previousCheckSucceeded: true,
+                previousCheckAt: now.AddSeconds(-30),
+                now,
+                currentUrl,
+                "https://ts50.x5.arabics.travian.com"));
+    }
+
+    [Fact]
+    public void IsRecentLoginCacheEligible_RejectsExpiredOrFutureCache()
+    {
+        var now = DateTimeOffset.UtcNow;
+
+        Assert.False(TravianClient.IsRecentLoginCacheEligible(
+            true, now.AddMinutes(-1), now, "https://ts50.x5.arabics.travian.com/dorf1.php", "https://ts50.x5.arabics.travian.com"));
+        Assert.False(TravianClient.IsRecentLoginCacheEligible(
+            true, now.AddSeconds(1), now, "https://ts50.x5.arabics.travian.com/dorf1.php", "https://ts50.x5.arabics.travian.com"));
     }
 }

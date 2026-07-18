@@ -45,7 +45,8 @@ public interface IBuildingClient
 
     Task<IReadOnlyList<ActiveConstruction>> ReadActiveConstructionsAsync(
         CancellationToken cancellationToken = default,
-        bool allowNavigationToBuildings = true);
+        bool allowNavigationToBuildings = true,
+        ActiveConstructionReadMode readMode = ActiveConstructionReadMode.FreshForMutation);
 
     Task<ConstructionSlotStatus> EvaluateConstructionSlotsAsync(
         string tribe,

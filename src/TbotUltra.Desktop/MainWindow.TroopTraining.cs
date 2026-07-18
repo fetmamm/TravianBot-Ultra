@@ -114,7 +114,8 @@ public partial class MainWindow
                 AutoCelebrationEnabled: enabled,
                 AutomationLoopEnabledGroups: existing?.AutomationLoopEnabledGroups,
                 AutomationLoopVisibleGroups: existing?.AutomationLoopVisibleGroups,
-                WorldUid: existing?.WorldUid);
+                WorldUid: existing?.WorldUid,
+                Villages: existing?.Villages);
             _accountAnalysisStore.Save(snapshot);
         }
         catch (Exception ex)

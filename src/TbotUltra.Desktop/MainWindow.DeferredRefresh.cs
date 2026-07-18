@@ -636,43 +636,7 @@ public partial class MainWindow
         try
         {
             var options = AutomationExecutionOptions.WithoutImplicitVillageTarget(LoadBotOptions());
-            var status = await _botService.ReadCurrentPageStorageStatusAsync(options, AppendLog, cancellationToken);
-            await Dispatcher.InvokeAsync(() =>
-            {
-                ApplyStorageStatusToUi(status, "construction_defer_quick");
-                // Keep the per-village cache's construction data fresh so the dashboard icons paint
-                // the just-started build (green) instead of stale idle slots.
-                UpdateCachedTimerStatus(status.ActiveVillage, cached => cached with
-                {
-                    BuildQueue = status.BuildQueue,
-                    IsBuildingInProgress = status.IsBuildingInProgress,
-                    ActiveBuildCount = status.ActiveBuildCount,
-                    BuildQueueRemainingSeconds = status.BuildQueueRemainingSeconds,
-                    BuildQueueRemainingText = status.BuildQueueRemainingText,
-                    BuildQueueFinish = status.BuildQueueFinish,
-                    ActiveConstructions = status.ActiveConstructions,
-                    ActiveConstructionsFromOverview = status.ActiveConstructionsFromOverview,
-                });
-                if (_lastBuildingStatus is not null && IsStatusForSelectedVillage(status))
-                {
-                    var updatedBuildingStatus = _lastBuildingStatus with
-                    {
-                        BuildQueue = status.BuildQueue,
-                        IsBuildingInProgress = status.IsBuildingInProgress,
-                        ActiveBuildCount = status.ActiveBuildCount,
-                        BuildQueueRemainingSeconds = status.BuildQueueRemainingSeconds,
-                        BuildQueueRemainingText = status.BuildQueueRemainingText,
-                        BuildQueueFinish = status.BuildQueueFinish,
-                        ActiveConstructions = status.ActiveConstructions,
-                        ActiveConstructionsFromOverview = status.ActiveConstructionsFromOverview,
-                    };
-                    _lastBuildingStatus = ConstructionQueueState.PreserveKnownConstructionState(
-                        updatedBuildingStatus,
-                        _lastBuildingStatus);
-                }
-
-                RefreshVillageActivityIndicatorsOnDashboard();
-            });
+            await RefreshCurrentPageStorageStatusAsync(options, "construction_defer_quick", cancellationToken);
             AppendLog("[construction-refresh] current-page refresh used for deferred construction; skipped full dorf1+dorf2 read.");
         }
         catch (Exception ex)
