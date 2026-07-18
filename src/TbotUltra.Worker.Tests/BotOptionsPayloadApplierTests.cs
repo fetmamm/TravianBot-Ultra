@@ -68,7 +68,7 @@ public sealed class BotOptionsPayloadApplierTests
             })
             .Build();
 
-        Assert.Equal(1, BotOptionsFactory.FromConfiguration(defaults).ConstructionStorageUpgradeLevelsAhead);
+        Assert.Equal(2, BotOptionsFactory.FromConfiguration(defaults).ConstructionStorageUpgradeLevelsAhead);
         Assert.Equal(10, BotOptionsFactory.FromConfiguration(configured).ConstructionStorageUpgradeLevelsAhead);
     }
 
@@ -662,8 +662,8 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.True(options.ActionPacingIdleBrowsePageStatisticsTop10);
         Assert.True(options.ActionPacingIdleBrowsePageStatisticsDefenders);
         Assert.True(options.ActionPacingIdleBrowsePageStatisticsAttackers);
-        Assert.Equal(0.6, options.CollectStepDelayMinSeconds);
-        Assert.Equal(2.0, options.CollectStepDelayMaxSeconds);
+        Assert.Equal(0.3, options.CollectStepDelayMinSeconds);
+        Assert.Equal(1.0, options.CollectStepDelayMaxSeconds);
         Assert.False(options.IncreaseAdventuresToHard);
         Assert.Equal(70, options.HeroAdventureVideoChancePercent);
     }

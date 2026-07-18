@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Collections.ObjectModel;
 using System.Text.Json.Nodes;
 using System.Windows;
 using System.Windows.Controls;
@@ -7,8 +8,21 @@ using TbotUltra.Desktop.Services;
 
 namespace TbotUltra.Desktop;
 
+public enum SettingsCategory
+{
+    General,
+    Pacing,
+    Construction,
+    Hero,
+    Farming,
+    Troops,
+    Celebrations,
+    NpcTrade,
+}
+
 public partial class SettingsWindow : Window
 {
+    private const int DefaultGoldLimit = 300;
     private readonly BotConfigStore _store;
     private JsonObject _config = [];
     private bool _isClosing;
@@ -17,6 +31,20 @@ public partial class SettingsWindow : Window
     private readonly int? _detectedDailyResetHour;
     private readonly Func<JsonObject, string?>? _validateBeforeSave;
     private bool _suppressDetailedBrowserLoggingConfirmation;
+    private string _initialTownHallFingerprint = string.Empty;
+
+    public ObservableCollection<TownHallOverviewRow> TownHallRows { get; } = [];
+    public TownHallQueueSettings TownHallQueue { get; } = new(
+        TownHallCelebrationDefaults.DefaultCount,
+        TownHallCelebrationDefaults.DefaultRestartDelayMinMinutes,
+        TownHallCelebrationDefaults.DefaultRestartDelayMaxMinutes);
+    public CelebrationRestartDelaySettings BreweryRestartDelay { get; } = new(
+        BreweryCelebrationDefaults.DefaultRestartDelayMinMinutes,
+        BreweryCelebrationDefaults.DefaultRestartDelayMaxMinutes,
+        BreweryCelebrationDefaults.DefaultRestartDelayMinMinutes,
+        BreweryCelebrationDefaults.DefaultRestartDelayMaxMinutes);
+    public IReadOnlyList<TownHallOverviewResult> TownHallResults { get; private set; } = [];
+    public bool TownHallSettingsChanged { get; private set; }
 
     // Set when the user confirms "Sleep now"; MainWindow reads it after ShowDialog to trigger the sleep.
     public bool SleepNowRequested { get; private set; }
@@ -25,7 +53,9 @@ public partial class SettingsWindow : Window
         BotConfigStore store,
         bool sessionSleeping = false,
         int? detectedDailyResetHour = null,
-        Func<JsonObject, string?>? validateBeforeSave = null)
+        Func<JsonObject, string?>? validateBeforeSave = null,
+        SettingsCategory initialCategory = SettingsCategory.General,
+        IReadOnlyList<TownHallOverviewRow>? townHallRows = null)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
@@ -33,10 +63,17 @@ public partial class SettingsWindow : Window
         _sessionSleeping = sessionSleeping;
         _detectedDailyResetHour = detectedDailyResetHour;
         _validateBeforeSave = validateBeforeSave;
+        foreach (var row in townHallRows ?? [])
+        {
+            TownHallRows.Add(row);
+        }
+        DataContext = this;
         InitializeSessionPacingChoices();
         InitializeConstructionChoices();
         PopulateDailyServerResetHours();
         LoadConfig();
+        SettingsCategoryTabControl.SelectedIndex = (int)initialCategory;
+        _initialTownHallFingerprint = BuildTownHallFingerprint();
         SleepNowButton.IsEnabled = !_sessionSleeping;
     }
 
@@ -57,6 +94,10 @@ public partial class SettingsWindow : Window
             _suppressDetailedBrowserLoggingConfirmation = false;
         }
         AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
+        GoldLimitSlider.Value = Math.Clamp(
+            _config[BotOptionPayloadKeys.GoldLimit]?.GetValue<int>() ?? DefaultGoldLimit,
+            0,
+            1000);
         LoadDailyServerResetToUi();
         LoadPacingConfigToUi();
         StorageUpgradeLevelsAheadComboBox.SelectedItem = ConstructionDefaults.NormalizeStorageUpgradeLevelsAhead(
@@ -70,6 +111,28 @@ public partial class SettingsWindow : Window
         PostLoginAnalyzeHeroInventoryCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory]?.GetValue<bool>() ?? true;
         PostLoginAnalyzeNewVillagesCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeNewVillages]?.GetValue<bool>() ?? true;
         SilverLimitSlider.Value = Math.Clamp(_config["silver_limit"]?.GetValue<int>() ?? 100, 0, 1000);
+        if (TownHallCelebrationDefaults.NormalizeCount(
+                ReadInt(BotOptionPayloadKeys.TownHallCelebrationCount, TownHallCelebrationDefaults.DefaultCount))
+            >= TownHallCelebrationDefaults.MaxCount)
+        {
+            TownHallQueue.IsTwo = true;
+        }
+        else
+        {
+            TownHallQueue.IsOne = true;
+        }
+        TownHallQueue.DelayMinMinutes = FormatDelay(ReadDouble(
+            BotOptionPayloadKeys.TownHallCelebrationRestartDelayMinMinutes,
+            TownHallCelebrationDefaults.DefaultRestartDelayMinMinutes));
+        TownHallQueue.DelayMaxMinutes = FormatDelay(ReadDouble(
+            BotOptionPayloadKeys.TownHallCelebrationRestartDelayMaxMinutes,
+            TownHallCelebrationDefaults.DefaultRestartDelayMaxMinutes));
+        BreweryRestartDelay.DelayMinMinutes = FormatDelay(ReadDouble(
+            BotOptionPayloadKeys.BreweryCelebrationRestartDelayMinMinutes,
+            BreweryCelebrationDefaults.DefaultRestartDelayMinMinutes));
+        BreweryRestartDelay.DelayMaxMinutes = FormatDelay(ReadDouble(
+            BotOptionPayloadKeys.BreweryCelebrationRestartDelayMaxMinutes,
+            BreweryCelebrationDefaults.DefaultRestartDelayMaxMinutes));
         UpdateLimitLabels();
     }
 
@@ -213,6 +276,7 @@ public partial class SettingsWindow : Window
         }
 
         _isClosing = true;
+        CaptureTownHallResults();
         DialogResult = true;
         Close();
     }
@@ -230,6 +294,17 @@ public partial class SettingsWindow : Window
             _config[BotOptionPayloadKeys.AutomaticallyCheckLanguage] = AutomaticallyCheckLanguageCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.DetailedBrowserLoggingEnabled] = DetailedBrowserLoggingCheckBox.IsChecked == true;
             _config["allow_silver_spending"] = AllowSilverSpendingCheckBox.IsChecked == true;
+            _config[BotOptionPayloadKeys.GoldLimit] = (int)Math.Round(GoldLimitSlider.Value);
+            _config[BotOptionPayloadKeys.TownHallCelebrationCount] =
+                TownHallCelebrationDefaults.NormalizeCount(TownHallQueue.Count);
+            _config[BotOptionPayloadKeys.TownHallCelebrationRestartDelayMinMinutes] =
+                TownHallQueue.ResolvedDelayMinMinutes;
+            _config[BotOptionPayloadKeys.TownHallCelebrationRestartDelayMaxMinutes] =
+                TownHallQueue.ResolvedDelayMaxMinutes;
+            _config[BotOptionPayloadKeys.BreweryCelebrationRestartDelayMinMinutes] =
+                BreweryRestartDelay.ResolvedDelayMinMinutes;
+            _config[BotOptionPayloadKeys.BreweryCelebrationRestartDelayMaxMinutes] =
+                BreweryRestartDelay.ResolvedDelayMaxMinutes;
             SaveDailyServerResetFromUi();
             SavePacingConfigFromUi();
             _config[BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead] =
@@ -284,6 +359,7 @@ public partial class SettingsWindow : Window
 
         SleepNowRequested = true;
         _isClosing = true;
+        CaptureTownHallResults();
         DialogResult = true;
         Close();
     }
@@ -346,6 +422,11 @@ public partial class SettingsWindow : Window
     }
 
     private void SilverLimitSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    {
+        UpdateLimitLabels();
+    }
+
+    private void GoldLimitSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
         UpdateLimitLabels();
     }
@@ -763,12 +844,38 @@ public partial class SettingsWindow : Window
 
     private void UpdateLimitLabels()
     {
-        if (SilverLimitTextBlock is null)
+        if (SilverLimitTextBlock is null || GoldLimitTextBlock is null)
         {
             return;
         }
 
         SilverLimitTextBlock.Text = $"Silver limit: {(int)Math.Round(SilverLimitSlider.Value)}";
+        GoldLimitTextBlock.Text = $"Gold limit: {(int)Math.Round(GoldLimitSlider.Value)}";
+    }
+
+    private void CaptureTownHallResults()
+    {
+        TownHallResults = TownHallRows
+            .Select(row => new TownHallOverviewResult(
+                row.VillageKey,
+                row.VillageName,
+                row.IsTownHallEnabled,
+                row.Mode))
+            .ToList();
+        TownHallSettingsChanged = !string.Equals(
+            _initialTownHallFingerprint,
+            BuildTownHallFingerprint(),
+            StringComparison.Ordinal);
+    }
+
+    private string BuildTownHallFingerprint()
+    {
+        var villages = string.Join(
+            ";",
+            TownHallRows
+                .OrderBy(row => row.VillageKey, StringComparer.OrdinalIgnoreCase)
+                .Select(row => $"{row.VillageKey}|{row.IsTownHallEnabled}|{row.Mode}"));
+        return $"{villages}#{TownHallQueue.Count}|{TownHallQueue.ResolvedDelayMinMinutes:0.##}|{TownHallQueue.ResolvedDelayMaxMinutes:0.##}";
     }
 
 }

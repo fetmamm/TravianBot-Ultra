@@ -154,7 +154,10 @@ public sealed partial class BotTaskRunner
     private static async Task ExecuteRunBreweryCelebrationAsync(TaskExecutionContext context)
     {
         context.Log("[brewery] run_brewery_celebration starting");
-        var result = await context.Client.RunBreweryCelebrationAsync(context.CancellationToken);
+        var result = await context.Client.RunBreweryCelebrationAsync(
+            context.Options.BreweryCelebrationRestartDelayMinMinutes,
+            context.Options.BreweryCelebrationRestartDelayMaxMinutes,
+            context.CancellationToken);
         context.Log(result);
         ThrowIfTaskBlocked("run_brewery_celebration", result);
     }
@@ -171,6 +174,11 @@ public sealed partial class BotTaskRunner
             context.Options.TownHallCelebrationRestartDelayMaxMinutes,
             context.CancellationToken);
         context.Log(result);
+        if (result.Contains("town_hall_unavailable=missing", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new TaskBlockedPermanentlyException(
+                $"Task 'run_town_hall_celebration' blocked permanently: town_hall_unavailable=missing | {result}");
+        }
         ThrowIfTaskBlocked("run_town_hall_celebration", result);
     }
 

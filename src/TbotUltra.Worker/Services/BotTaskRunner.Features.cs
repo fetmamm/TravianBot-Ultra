@@ -291,7 +291,10 @@ public sealed partial class BotTaskRunner
             {
                 await client.LoginAsync(cancellationToken);
                 await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken, skipFeatureRefresh: true);
-                result = await client.RunBreweryCelebrationAsync(cancellationToken);
+                result = await client.RunBreweryCelebrationAsync(
+                    options.BreweryCelebrationRestartDelayMinMinutes,
+                    options.BreweryCelebrationRestartDelayMaxMinutes,
+                    cancellationToken);
             });
 
         return result;

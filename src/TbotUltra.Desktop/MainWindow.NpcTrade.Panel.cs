@@ -25,5 +25,4 @@ public partial class MainWindow
     internal void OnResourceTransferSettingSelectionChanged(object sender, SelectionChangedEventArgs e) => ResourceTransferSetting_SelectionChanged(sender, e);
     internal void OnQueueResourceTransferNowClicked(object sender, RoutedEventArgs e) => QueueResourceTransferNowButton_Click(sender, e);
     internal void OnResourceTransferScanVillagesClicked(object sender, RoutedEventArgs e) => ResourceTransferScanVillagesButton_Click(sender, e);
-    internal void OnTownHallSettingsClicked(object sender, RoutedEventArgs e) => TownHallSettingsButton_Click(sender, e);
 }

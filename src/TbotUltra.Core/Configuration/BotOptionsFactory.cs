@@ -32,6 +32,10 @@ public static class BotOptionsFactory
             BotOptionPayloadKeys.TownHallCelebrationRestartDelayMinMinutes, TownHallCelebrationDefaults.DefaultRestartDelayMinMinutes);
         var townHallCelebrationRestartDelayMaxMinutes = configuration.GetValue(
             BotOptionPayloadKeys.TownHallCelebrationRestartDelayMaxMinutes, TownHallCelebrationDefaults.DefaultRestartDelayMaxMinutes);
+        var breweryCelebrationRestartDelayMinMinutes = configuration.GetValue(
+            BotOptionPayloadKeys.BreweryCelebrationRestartDelayMinMinutes, BreweryCelebrationDefaults.DefaultRestartDelayMinMinutes);
+        var breweryCelebrationRestartDelayMaxMinutes = configuration.GetValue(
+            BotOptionPayloadKeys.BreweryCelebrationRestartDelayMaxMinutes, BreweryCelebrationDefaults.DefaultRestartDelayMaxMinutes);
 
         var baseUrl = (configuration["base_url"] ?? string.Empty).TrimEnd('/');
         var heroStatPriority = string.IsNullOrWhiteSpace(configuration[BotOptionPayloadKeys.HeroStatPriority])
@@ -58,6 +62,8 @@ public static class BotOptionsFactory
             TownHallCelebrationCount = townHallCelebrationCount,
             TownHallCelebrationRestartDelayMinMinutes = townHallCelebrationRestartDelayMinMinutes,
             TownHallCelebrationRestartDelayMaxMinutes = townHallCelebrationRestartDelayMaxMinutes,
+            BreweryCelebrationRestartDelayMinMinutes = breweryCelebrationRestartDelayMinMinutes,
+            BreweryCelebrationRestartDelayMaxMinutes = breweryCelebrationRestartDelayMaxMinutes,
             ContinuousFarmDeactivateLosses = configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDeactivateLosses, false),
             ContinuousFarmDeactivateOasisLosses = configuration.GetValue(BotOptionPayloadKeys.ContinuousFarmDeactivateOasisLosses, false),
             PostLoginAnalyzeFarmlists = configuration.GetValue(BotOptionPayloadKeys.PostLoginAnalyzeFarmlists, false),
@@ -255,6 +261,8 @@ public static class BotOptionsFactory
             TownHallCelebrationCount = source.TownHallCelebrationCount,
             TownHallCelebrationRestartDelayMinMinutes = source.TownHallCelebrationRestartDelayMinMinutes,
             TownHallCelebrationRestartDelayMaxMinutes = source.TownHallCelebrationRestartDelayMaxMinutes,
+            BreweryCelebrationRestartDelayMinMinutes = source.BreweryCelebrationRestartDelayMinMinutes,
+            BreweryCelebrationRestartDelayMaxMinutes = source.BreweryCelebrationRestartDelayMaxMinutes,
             ContinuousFarmDeactivateLosses = source.ContinuousFarmDeactivateLosses,
             ContinuousFarmDeactivateOasisLosses = source.ContinuousFarmDeactivateOasisLosses,
             ContinuousFarmNextListIndex = source.ContinuousFarmNextListIndex,

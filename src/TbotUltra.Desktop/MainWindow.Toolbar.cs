@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
+using TbotUltra.Desktop.Models;
 using TbotUltra.Worker.Infrastructure;
 
 namespace TbotUltra.Desktop;
@@ -134,14 +136,32 @@ public partial class MainWindow
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)
     {
+        _ = sender;
+        _ = e;
+        OpenSettingsWindow(SettingsCategory.General, null);
+    }
+
+    private void OpenSettingsWindow(
+        SettingsCategory initialCategory,
+        IReadOnlyList<VillageSettingsRow>? villageSettingsRows)
+    {
         var optionsBeforeSettings = LoadBotOptions();
         var detailedBrowserLoggingBefore = optionsBeforeSettings.DetailedBrowserLoggingEnabled;
         var detectedResetHour = Services.ProductionBonusStateStore
             .LoadSettings(_projectRoot, _accountStore.ActiveAccountName())
             .DetectedResetHour;
-        var window = new SettingsWindow(_botConfigStore, IsSessionSleeping, detectedResetHour, ValidateActiveProxyPlanForSettings)
+        var window = new SettingsWindow(
+            _botConfigStore,
+            IsSessionSleeping,
+            detectedResetHour,
+            ValidateActiveProxyPlanForSettings,
+            initialCategory,
+            BuildTownHallOverviewRows(villageSettingsRows))
         {
-            Owner = this,
+            Owner = Application.Current.Windows
+                .OfType<Window>()
+                .FirstOrDefault(candidate => candidate.IsActive)
+                ?? this,
         };
         var saved = window.ShowDialog() == true;
         LoadConfigToUi();
@@ -160,6 +180,10 @@ public partial class MainWindow
         }
         if (saved)
         {
+            if (window.TownHallSettingsChanged)
+            {
+                PersistTownHallSettings(window.TownHallResults, villageSettingsRows);
+            }
             LogConservativeAutomationWarnings(optionsAfterSettings);
         }
 

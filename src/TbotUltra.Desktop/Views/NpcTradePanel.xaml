@@ -244,32 +244,6 @@
             </StackPanel>
         </Border>
 
-        <Border Margin="0,16,0,0"
-                VerticalAlignment="Top"
-                Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="16">
-            <StackPanel>
-                <TextBlock Text="Gold"
-                           FontSize="22"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           Margin="0,0,0,12" />
-                <TextBlock Text="{Binding GoldLimitText}"
-                           Foreground="{DynamicResource TextPrimaryBrush}"
-                           Margin="0,0,0,4" />
-                <Slider Minimum="0"
-                        Maximum="1000"
-                        TickFrequency="10"
-                        IsSnapToTickEnabled="True"
-                        Width="140"
-                        HorizontalAlignment="Left"
-                        Value="{Binding GoldLimit, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-            </StackPanel>
-        </Border>
-
     </StackPanel>
 
     <StackPanel Grid.Column="2">
@@ -635,32 +609,6 @@
             </StackPanel>
         </Border>
 
-        <Border Margin="0,16,0,0"
-                VerticalAlignment="Top"
-                Background="{DynamicResource SurfaceBrush}"
-                BorderBrush="{DynamicResource BorderBrush}"
-                BorderThickness="1"
-                CornerRadius="8"
-                Padding="16">
-            <StackPanel>
-                <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
-                    <TextBlock Text="Town Hall settings"
-                               FontSize="22"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource TextPrimaryBrush}"
-                               VerticalAlignment="Center" />
-                    <ContentControl Style="{StaticResource SettingInfoIconStyle}"
-                                    Margin="8,2,0,0"
-                                    VerticalAlignment="Center"
-                                    ToolTip="Configure Town Hall celebrations per village in the overview." />
-                </StackPanel>
-                <Button x:Name="TownHallSettingsButton"
-                        Content="Town Hall overview"
-                        MinWidth="170"
-                        HorizontalAlignment="Left"
-                        Click="TownHallSettingsButton_Click" />
-            </StackPanel>
-        </Border>
     </StackPanel>
 </Grid>
 </UserControl>

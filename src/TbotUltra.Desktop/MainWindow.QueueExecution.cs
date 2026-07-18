@@ -808,6 +808,11 @@ public partial class MainWindow
             return true;
         }
 
+        if (TryHandleTownHallUnavailableExecution(item, ex, logPrefix))
+        {
+            return true;
+        }
+
         // Cross-thread UI access (a background runner touching a WPF control) fails a task instantly and,
         // for maxRetries=0 runtime items, would re-queue it every tick — spamming the loop. Don't stop the
         // runner: defer the offending task for 30 min so it retries later, and raise an alarm so the user

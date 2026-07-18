@@ -185,7 +185,10 @@ public sealed partial class TravianClient
         return null;
     }
 
-    public async Task<string> RunBreweryCelebrationAsync(CancellationToken cancellationToken = default)
+    public async Task<string> RunBreweryCelebrationAsync(
+        double restartDelayMinMinutes,
+        double restartDelayMaxMinutes,
+        CancellationToken cancellationToken = default)
     {
         Notify("[brewery] celebration run starting");
         await EnsureLoggedInAsync();
@@ -211,8 +214,10 @@ public sealed partial class TravianClient
 
         if (status.CelebrationRunning && status.RemainingSeconds is > 0)
         {
-            Notify($"[brewery] already running — {TravianParsing.FormatDuration(status.RemainingSeconds.Value)} remaining");
-            return $"Brewery celebration running. queue_wait_seconds={Math.Max(1, status.RemainingSeconds.Value)}";
+            var restartDelaySeconds = ResolveCelebrationRestartDelaySeconds(restartDelayMinMinutes, restartDelayMaxMinutes);
+            var waitSeconds = Math.Max(1, status.RemainingSeconds.Value + restartDelaySeconds);
+            Notify($"[brewery] already running — {TravianParsing.FormatDuration(status.RemainingSeconds.Value)} remaining, then {restartDelaySeconds}s restart delay");
+            return $"Brewery celebration running. queue_wait_seconds={waitSeconds}";
         }
 
         Notify($"[brewery] attempting to start celebration at slot {status.BrewerySlotId.Value}");
@@ -284,8 +289,10 @@ public sealed partial class TravianClient
             return $"Brewery celebration: start did not register, retrying. queue_wait_seconds={BreweryCelebrationRetrySeconds}";
         }
 
-        Notify($"[brewery] celebration started — {TravianParsing.FormatDuration(Math.Max(1, remainingSeconds))} remaining");
-        return $"Brewery celebration started. queue_wait_seconds={Math.Max(1, remainingSeconds)}";
+        var finalRestartDelaySeconds = ResolveCelebrationRestartDelaySeconds(restartDelayMinMinutes, restartDelayMaxMinutes);
+        var finalWaitSeconds = Math.Max(1, remainingSeconds + finalRestartDelaySeconds);
+        Notify($"[brewery] celebration started — {TravianParsing.FormatDuration(Math.Max(1, remainingSeconds))} remaining, then {finalRestartDelaySeconds}s restart delay");
+        return $"Brewery celebration started. queue_wait_seconds={finalWaitSeconds}";
     }
 
     private static Building? ResolveBreweryBuilding(IReadOnlyList<Building> buildings)

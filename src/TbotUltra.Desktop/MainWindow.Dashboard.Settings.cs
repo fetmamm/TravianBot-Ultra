@@ -254,7 +254,7 @@ public partial class MainWindow
         OpenConstructFasterSettingsWindow();
     }
 
-    // Opens the NPC / Trade tab where the gold limit and NPC trade settings live.
+    // Opens the NPC / Trade workspace where the detailed trade controls live.
     private void GoldSpendingSettingsButton_Click(object sender, RoutedEventArgs e)
     {
         if (MainTabControl is not null && NpcTradeTabItem is not null)

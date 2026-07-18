@@ -1,10 +1,6 @@
-using System;
-using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
-using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Windows;
 using TbotUltra.Core.Configuration;
 
 namespace TbotUltra.Desktop;
@@ -88,15 +84,10 @@ public sealed class TownHallOverviewRow : INotifyPropertyChanged
         OnPropertyChanged(nameof(Mode));
     }
 
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
 }
 
-// Account-wide celebration-queue settings shown in the box at the bottom of the popup: how many
-// celebrations to keep active (one, or two with one queued via Plus) and the random restart delay applied
-// after a celebration frees a slot. Global — not per village.
 public sealed class TownHallQueueSettings : INotifyPropertyChanged
 {
     private bool _isTwo;
@@ -164,54 +155,56 @@ public sealed class TownHallQueueSettings : INotifyPropertyChanged
             ? parsed
             : fallback;
 
-    private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-        => PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }
 
-public partial class TownHallOverviewWindow : Window
+public sealed class CelebrationRestartDelaySettings : INotifyPropertyChanged
 {
-    public ObservableCollection<TownHallOverviewRow> Rows { get; }
+    private readonly double _defaultMinMinutes;
+    private readonly double _defaultMaxMinutes;
+    private string _delayMinMinutes;
+    private string _delayMaxMinutes;
 
-    public TownHallQueueSettings Queue { get; }
-
-    public IReadOnlyList<TownHallOverviewResult> Results { get; private set; } =
-        Array.Empty<TownHallOverviewResult>();
-
-    public TownHallOverviewWindow(
-        IReadOnlyList<TownHallOverviewRow> rows,
-        int celebrationCount,
-        double restartDelayMinMinutes,
-        double restartDelayMaxMinutes)
+    public CelebrationRestartDelaySettings(
+        double delayMinMinutes,
+        double delayMaxMinutes,
+        double defaultMinMinutes,
+        double defaultMaxMinutes)
     {
-        InitializeComponent();
-        ThemeChrome.EnableEarlyDarkTitleBar(this);
-
-        Rows = new ObservableCollection<TownHallOverviewRow>(rows);
-        Queue = new TownHallQueueSettings(celebrationCount, restartDelayMinMinutes, restartDelayMaxMinutes);
-        DataContext = this;
+        _defaultMinMinutes = defaultMinMinutes;
+        _defaultMaxMinutes = defaultMaxMinutes;
+        _delayMinMinutes = FormatMinutes(delayMinMinutes);
+        _delayMaxMinutes = FormatMinutes(delayMaxMinutes);
     }
 
-    private IReadOnlyList<TownHallOverviewResult> BuildResults()
+    public string DelayMinMinutes
     {
-        return Rows
-            .Select(row => new TownHallOverviewResult(
-                row.VillageKey,
-                row.VillageName,
-                row.IsTownHallEnabled,
-                row.Mode))
-            .ToList();
+        get => _delayMinMinutes;
+        set { _delayMinMinutes = value ?? string.Empty; OnPropertyChanged(); }
     }
 
-    private void SaveButton_Click(object sender, RoutedEventArgs e)
+    public string DelayMaxMinutes
     {
-        Results = BuildResults();
-        DialogResult = true;
-        Close();
+        get => _delayMaxMinutes;
+        set { _delayMaxMinutes = value ?? string.Empty; OnPropertyChanged(); }
     }
 
-    private void CancelButton_Click(object sender, RoutedEventArgs e)
-    {
-        DialogResult = false;
-        Close();
-    }
+    public double ResolvedDelayMinMinutes => Math.Max(0, ParseMinutes(_delayMinMinutes, _defaultMinMinutes));
+
+    public double ResolvedDelayMaxMinutes =>
+        Math.Max(ResolvedDelayMinMinutes, ParseMinutes(_delayMaxMinutes, _defaultMaxMinutes));
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    private static string FormatMinutes(double value) =>
+        Math.Max(0, value).ToString("0.##", CultureInfo.InvariantCulture);
+
+    private static double ParseMinutes(string? text, double fallback) =>
+        double.TryParse(text, NumberStyles.Float, CultureInfo.InvariantCulture, out var parsed) && parsed >= 0
+            ? parsed
+            : fallback;
+
+    private void OnPropertyChanged([CallerMemberName] string? propertyName = null) =>
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
 }

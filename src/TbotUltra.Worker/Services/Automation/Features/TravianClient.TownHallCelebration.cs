@@ -32,7 +32,7 @@ public sealed partial class TravianClient
         if (townHallSlotId is not > 0)
         {
             Notify("[town-hall] skip - Town Hall not found in this village");
-            return "Town Hall celebration: Town Hall not found. queue_wait_seconds=600";
+            return "Town Hall celebration: Town Hall not found. town_hall_unavailable=missing";
         }
 
         var goalCount = TownHallCelebrationDefaults.NormalizeCount(targetCount);
@@ -43,7 +43,7 @@ public sealed partial class TravianClient
             Notify("[town-hall] two celebrations requested but Travian Plus is inactive; using one celebration.");
         }
 
-        var restartDelaySeconds = ResolveTownHallRestartDelaySeconds(restartDelayMinMinutes, restartDelayMaxMinutes);
+        var restartDelaySeconds = ResolveCelebrationRestartDelaySeconds(restartDelayMinMinutes, restartDelayMaxMinutes);
 
         await GotoAsync(Paths.BuildBySlot(townHallSlotId.Value), cancellationToken);
         await EnsureLoggedInAsync();
@@ -171,7 +171,7 @@ public sealed partial class TravianClient
     }
 
     // Random delay (seconds) in the configured min-max minute range. 0/0 (or max<=0) disables it.
-    private static int ResolveTownHallRestartDelaySeconds(double minMinutes, double maxMinutes)
+    internal static int ResolveCelebrationRestartDelaySeconds(double minMinutes, double maxMinutes)
     {
         var min = Math.Max(0, minMinutes);
         var max = Math.Max(min, maxMinutes);

@@ -150,7 +150,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
 
 - UI text is English. Reuse theme resources and controls; do not hard-code near-match colors.
 - The Settings window is category-tabbed: General (including post-login automation), Pacing, Construction, Hero,
-  Farming, Troops, and NPC / Trade. Place new settings in their owning category instead of growing one long page.
+  Farming, Troops, Celebrations, and NPC / Trade. Town Hall per-village/queue controls belong under Celebrations;
+  account-wide Gold/Silver limits belong under NPC / Trade. Town Hall and Brewery restart delays include the
+  configured random delay after the live celebration timer; a confirmed missing Town Hall disables that village's
+  Town Hall group instead of deferring an impossible task.
 - Account-wide construction behavior, including storage look-ahead and construction start delay, belongs in the
   Construction settings category rather than the Buildings workspace.
 - Secondary explanations use the shared `i` tooltip when permanent text wastes space.

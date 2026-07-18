@@ -58,6 +58,12 @@ public sealed class BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.TownHallCelebrationRestartDelayMaxMinutes)]
     public double TownHallCelebrationRestartDelayMaxMinutes { get; init; } = TownHallCelebrationDefaults.DefaultRestartDelayMaxMinutes;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.BreweryCelebrationRestartDelayMinMinutes)]
+    public double BreweryCelebrationRestartDelayMinMinutes { get; init; } = BreweryCelebrationDefaults.DefaultRestartDelayMinMinutes;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.BreweryCelebrationRestartDelayMaxMinutes)]
+    public double BreweryCelebrationRestartDelayMaxMinutes { get; init; } = BreweryCelebrationDefaults.DefaultRestartDelayMaxMinutes;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmDeactivateLosses)]
     public bool ContinuousFarmDeactivateLosses { get; init; }
 

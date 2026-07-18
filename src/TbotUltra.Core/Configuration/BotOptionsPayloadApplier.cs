@@ -59,6 +59,8 @@ public static class BotOptionsPayloadApplier
         var townHallCelebrationCount = source.TownHallCelebrationCount;
         var townHallCelebrationRestartDelayMinMinutes = source.TownHallCelebrationRestartDelayMinMinutes;
         var townHallCelebrationRestartDelayMaxMinutes = source.TownHallCelebrationRestartDelayMaxMinutes;
+        var breweryCelebrationRestartDelayMinMinutes = source.BreweryCelebrationRestartDelayMinMinutes;
+        var breweryCelebrationRestartDelayMaxMinutes = source.BreweryCelebrationRestartDelayMaxMinutes;
         var continuousFarmDeactivateLosses = farming.DeactivateLosses;
         var continuousFarmDeactivateOasisLosses = farming.DeactivateOasisLosses;
         var continuousFarmNextListIndex = farming.NextListIndex;
@@ -174,6 +176,8 @@ public static class BotOptionsPayloadApplier
             TownHallCelebrationCount = townHallCelebrationCount,
             TownHallCelebrationRestartDelayMinMinutes = townHallCelebrationRestartDelayMinMinutes,
             TownHallCelebrationRestartDelayMaxMinutes = townHallCelebrationRestartDelayMaxMinutes,
+            BreweryCelebrationRestartDelayMinMinutes = breweryCelebrationRestartDelayMinMinutes,
+            BreweryCelebrationRestartDelayMaxMinutes = breweryCelebrationRestartDelayMaxMinutes,
             ContinuousFarmDeactivateLosses = continuousFarmDeactivateLosses,
             ContinuousFarmDeactivateOasisLosses = continuousFarmDeactivateOasisLosses,
             ContinuousFarmNextListIndex = continuousFarmNextListIndex,

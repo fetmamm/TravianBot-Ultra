@@ -307,7 +307,7 @@ public partial class VillageSettingsWindow : Window
 
         if (string.Equals(groupKey, QueueGroupCatalog.GetKey(QueueGroup.TownHallCelebration), StringComparison.OrdinalIgnoreCase))
         {
-            return BuildToggleWithGearCellTemplate(bindingPath, "Open Town Hall settings", TownHallSettingsButton_Click);
+            return BuildToggleWithGearCellTemplate(bindingPath, "Open Bot Settings > Celebrations", TownHallSettingsButton_Click);
         }
 
         return BuildToggleCellTemplate(bindingPath);

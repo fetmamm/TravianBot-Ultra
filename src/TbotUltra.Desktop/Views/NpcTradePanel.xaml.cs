@@ -31,5 +31,4 @@ public partial class NpcTradePanel : UserControl
     private void ResourceTransferSetting_SelectionChanged(object sender, SelectionChangedEventArgs e) => Host?.OnResourceTransferSettingSelectionChanged(sender, e);
     private void QueueResourceTransferNowButton_Click(object sender, RoutedEventArgs e) => Host?.OnQueueResourceTransferNowClicked(sender, e);
     private void ResourceTransferScanVillagesButton_Click(object sender, RoutedEventArgs e) => Host?.OnResourceTransferScanVillagesClicked(sender, e);
-    private void TownHallSettingsButton_Click(object sender, RoutedEventArgs e) => Host?.OnTownHallSettingsClicked(sender, e);
 }

@@ -1,7 +1,6 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Windows;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
@@ -12,38 +11,71 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private void TownHallSettingsButton_Click(object sender, RoutedEventArgs e)
+    private bool TryHandleTownHallUnavailableExecution(QueueItem item, Exception exception, string logPrefix)
     {
-        _ = sender;
-        _ = e;
-        OpenTownHallSettingsWindow(null);
+        if (!string.Equals(item.TaskName, "run_town_hall_celebration", StringComparison.OrdinalIgnoreCase)
+            || !exception.Message.Contains("town_hall_unavailable=missing", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        _botService.MarkQueueItemSucceeded(item.Id);
+        var villageKey = GetQueueItemVillageKey(item);
+        var villageName = GetQueueItemVillageName(item);
+        if (string.IsNullOrWhiteSpace(villageKey))
+        {
+            AppendLog($"{logPrefix} SKIP task={item.TaskName} | Town Hall missing, but the village identity was unavailable; the task was removed without changing another village's setting.");
+            return true;
+        }
+
+        void Apply()
+        {
+            var village = new VillageSettingsStore.VillageKeyInfo(
+                villageKey,
+                villageName ?? villageKey,
+                null,
+                null,
+                false);
+            PersistAutomationGroupEnabledForVillage(
+                village,
+                enabled: false,
+                QueueGroupCatalog.GetKey(QueueGroup.TownHallCelebration));
+            TownHallCelebrationStateStore.Clear(_projectRoot, _accountStore.ActiveAccountName(), villageKey);
+            RefreshAutomationLoopDashboardUi();
+        }
+
+        if (Dispatcher.CheckAccess())
+        {
+            Apply();
+        }
+        else
+        {
+            Dispatcher.Invoke(Apply);
+        }
+
+        AppendLog($"{logPrefix} DISABLED task={item.TaskName} | Town Hall is not built in '{villageName ?? villageKey}'. Town Hall celebrations were turned off for this village.");
+        return true;
     }
 
     private void OpenTownHallSettingsFromVillageSettings(IReadOnlyList<VillageSettingsRow> villageSettingsRows)
     {
-        OpenTownHallSettingsWindow(villageSettingsRows);
+        OpenSettingsWindow(SettingsCategory.Celebrations, villageSettingsRows);
     }
 
-    private void OpenTownHallSettingsWindow(IReadOnlyList<VillageSettingsRow>? villageSettingsRows)
+    private IReadOnlyList<TownHallOverviewRow> BuildTownHallOverviewRows(
+        IReadOnlyList<VillageSettingsRow>? villageSettingsRows)
     {
         var account = _accountStore.ActiveAccountName();
         if (string.IsNullOrWhiteSpace(account))
         {
-            AppendLog("Town Hall settings: no active account.");
-            return;
+            return [];
         }
 
         var villages = GetAllVillageKeyInfos();
-        if (villages.Count == 0)
-        {
-            AppendLog("Town Hall settings: no villages loaded.");
-            return;
-        }
-
         var options = LoadBotOptions();
         var globalMode = TownHallCelebrationDefaults.NormalizeMode(options.TownHallCelebrationMode);
         var townHallGroupKey = QueueGroupCatalog.GetKey(QueueGroup.TownHallCelebration);
-        var rows = villages
+        return villages
             .Select(village =>
             {
                 var savedMode = TownHallSettingsStore.LoadMode(_projectRoot, account, village.Key);
@@ -54,23 +86,21 @@ public partial class MainWindow
                     savedMode ?? globalMode);
             })
             .ToList();
+    }
 
-        var window = new TownHallOverviewWindow(
-            rows,
-            options.TownHallCelebrationCount,
-            options.TownHallCelebrationRestartDelayMinMinutes,
-            options.TownHallCelebrationRestartDelayMaxMinutes)
-        {
-            Owner = this,
-        };
-        if (window.ShowDialog() != true)
+    private void PersistTownHallSettings(
+        IReadOnlyList<TownHallOverviewResult> results,
+        IReadOnlyList<VillageSettingsRow>? villageSettingsRows)
+    {
+        var account = _accountStore.ActiveAccountName();
+        if (string.IsNullOrWhiteSpace(account))
         {
             return;
         }
 
-        SaveTownHallQueueSettings(account, window.Queue);
-
-        foreach (var result in window.Results)
+        var villages = GetAllVillageKeyInfos();
+        var townHallGroupKey = QueueGroupCatalog.GetKey(QueueGroup.TownHallCelebration);
+        foreach (var result in results)
         {
             TownHallSettingsStore.SaveMode(_projectRoot, account, result.VillageKey, result.Mode);
             var village = villages.FirstOrDefault(v => string.Equals(v.Key, result.VillageKey, StringComparison.OrdinalIgnoreCase))
@@ -91,26 +121,7 @@ public partial class MainWindow
 
         var removed = RemoveTownHallQueueItemsForVillage(null);
         RefreshAutomationLoopDashboardUi();
-        AppendLog($"Saved Town Hall settings for {window.Results.Count} village(s). Cleared {removed} queued Town Hall task(s).");
-    }
-
-    // Persists the account-wide celebration-queue settings (one vs two celebrations + restart delay) from
-    // the popup's bottom box. Stored account-scoped in bot.json, mirroring TownHallCelebrationMode.
-    private void SaveTownHallQueueSettings(string account, TownHallQueueSettings queue)
-    {
-        try
-        {
-            var config = _botConfigStore.LoadForAccount(account);
-            config[BotOptionPayloadKeys.TownHallCelebrationCount] = TownHallCelebrationDefaults.NormalizeCount(queue.Count);
-            config[BotOptionPayloadKeys.TownHallCelebrationRestartDelayMinMinutes] = queue.ResolvedDelayMinMinutes;
-            config[BotOptionPayloadKeys.TownHallCelebrationRestartDelayMaxMinutes] = queue.ResolvedDelayMaxMinutes;
-            _botConfigStore.SaveForAccount(account, config);
-            AppendLog($"[town-hall] queue settings saved: count={queue.Count}, restart delay {queue.ResolvedDelayMinMinutes:0.##}-{queue.ResolvedDelayMaxMinutes:0.##} min.");
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"[town-hall] could not save queue settings: {ex.Message}");
-        }
+        AppendLog($"Saved Town Hall settings for {results.Count} village(s). Cleared {removed} queued Town Hall task(s).");
     }
 
     private bool ResolveTownHallEnabledForVillage(

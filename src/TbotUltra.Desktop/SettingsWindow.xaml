@@ -76,6 +76,13 @@
             </Style>
             <Style x:Key="NpcTradeSettingsCategoryStyle" TargetType="Border" BasedOn="{StaticResource SettingsCategoryCardStyle}">
                 <Style.Triggers>
+                    <DataTrigger Binding="{Binding SelectedIndex, ElementName=SettingsCategoryTabControl}" Value="7">
+                        <Setter Property="Visibility" Value="Visible" />
+                    </DataTrigger>
+                </Style.Triggers>
+            </Style>
+            <Style x:Key="CelebrationsSettingsCategoryStyle" TargetType="Border" BasedOn="{StaticResource SettingsCategoryCardStyle}">
+                <Style.Triggers>
                     <DataTrigger Binding="{Binding SelectedIndex, ElementName=SettingsCategoryTabControl}" Value="6">
                         <Setter Property="Visibility" Value="Visible" />
                     </DataTrigger>
@@ -170,6 +177,7 @@
                         <TabItem Header="Hero" />
                         <TabItem Header="Farming" />
                         <TabItem Header="Troops" />
+                        <TabItem Header="Celebrations" />
                         <TabItem Header="NPC / Trade" />
                     </TabControl>
                 </Border>
@@ -720,6 +728,134 @@
                         </Grid>
                     </Border>
 
+                    <Border Style="{StaticResource CelebrationsSettingsCategoryStyle}">
+                        <StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <TextBlock Text="Town hall settings"
+                                           FontSize="15"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}"
+                                           VerticalAlignment="Center" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="Enable Town Hall celebrations per village and choose Small or Great. Great falls back to Small until the Town Hall reaches level 10." />
+                            </StackPanel>
+
+                            <Border Background="{DynamicResource SurfaceAltBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    BorderThickness="1"
+                                    CornerRadius="7"
+                                    Margin="0,0,0,14">
+                                <StackPanel>
+                                    <Border BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                            BorderThickness="0,0,0,1"
+                                            Padding="12,9">
+                                        <Grid>
+                                            <Grid.ColumnDefinitions>
+                                                <ColumnDefinition Width="64" />
+                                                <ColumnDefinition Width="*" />
+                                                <ColumnDefinition Width="180" />
+                                            </Grid.ColumnDefinitions>
+                                            <TextBlock Text="ON" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" />
+                                            <TextBlock Grid.Column="1" Text="VILLAGE" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" />
+                                            <TextBlock Grid.Column="2" Text="MODE" FontSize="11" FontWeight="SemiBold" Foreground="{DynamicResource TextMutedBrush}" />
+                                        </Grid>
+                                    </Border>
+                                    <ItemsControl ItemsSource="{Binding TownHallRows}">
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                                        BorderThickness="0,0,0,1"
+                                                        Padding="12,10">
+                                                    <Grid>
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="64" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="180" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <CheckBox Style="{DynamicResource ToggleSwitchBlueStyle}"
+                                                                  HorizontalAlignment="Left"
+                                                                  VerticalAlignment="Center"
+                                                                  IsChecked="{Binding IsTownHallEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        <TextBlock Grid.Column="1"
+                                                                   Text="{Binding VillageName}"
+                                                                   VerticalAlignment="Center"
+                                                                   TextTrimming="CharacterEllipsis"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource TextPrimaryBrush}"
+                                                                   Margin="0,0,12,0" />
+                                                        <StackPanel Grid.Column="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <RadioButton Content="Small"
+                                                                         Margin="0,0,16,0"
+                                                                         IsChecked="{Binding IsSmall, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                            <RadioButton Content="Great"
+                                                                         IsChecked="{Binding IsBig, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        </StackPanel>
+                                                    </Grid>
+                                                </Border>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                    <TextBlock Text="No villages loaded."
+                                               Margin="12"
+                                               Foreground="{DynamicResource TextMutedBrush}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Setter Property="Visibility" Value="Collapsed" />
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding TownHallRows.Count}" Value="0">
+                                                        <Setter Property="Visibility" Value="Visible" />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingsGroupBox}" Margin="0,0,0,18">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal">
+                                        <TextBlock Text="Celebration queue" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                        ToolTip="One runs one celebration at a time. Two keeps one running and queues a second with Travian Plus. Without Plus, one runs at a time." />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="Run" Width="120" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                        <RadioButton Content="One" Margin="0,0,18,0" IsChecked="{Binding TownHallQueue.IsOne, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <RadioButton Content="Two (one queued)" IsChecked="{Binding TownHallQueue.IsTwo, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="Restart delay (min)" Width="140" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                        <TextBox Width="56" Text="{Binding TownHallQueue.DelayMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Text="–" Margin="8,0" VerticalAlignment="Center" />
+                                        <TextBox Width="56" Text="{Binding TownHallQueue.DelayMaxMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                        Margin="8,0,0,0"
+                                                        ToolTip="Random waiting time after a Town Hall celebration finishes before the next celebration is started." />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <TextBlock Text="Brewery settings"
+                                       FontSize="15"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <Border Style="{StaticResource SettingsGroupBox}" Margin="0,10,0,0">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <TextBlock Text="Restart delay (min)" Width="140" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
+                                        <TextBox Width="56" Text="{Binding BreweryRestartDelay.DelayMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <TextBlock Text="–" Margin="8,0" VerticalAlignment="Center" />
+                                        <TextBox Width="56" Text="{Binding BreweryRestartDelay.DelayMaxMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                        Margin="8,0,0,0"
+                                                        ToolTip="Random waiting time after a Brewery celebration finishes before the next celebration is started." />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+                        </StackPanel>
+                    </Border>
+
                     <Border Style="{StaticResource NpcTradeSettingsCategoryStyle}">
                         <StackPanel>
                             <TextBlock Text="Silver spending"
@@ -741,6 +877,25 @@
                                     TickFrequency="25"
                                     IsSnapToTickEnabled="True"
                                     ValueChanged="SilverLimitSlider_ValueChanged" />
+
+                            <Border Height="1"
+                                    Background="{DynamicResource BorderSubtleBrush}"
+                                    Margin="0,18,0,16" />
+                            <TextBlock Text="Gold spending"
+                                       FontSize="15"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}"
+                                       Margin="0,0,0,10" />
+                            <TextBlock x:Name="GoldLimitTextBlock" Text="Gold limit: 300" Margin="0,0,0,4" />
+                            <Slider x:Name="GoldLimitSlider"
+                                    Minimum="0"
+                                    Maximum="1000"
+                                    Value="300"
+                                    Width="180"
+                                    HorizontalAlignment="Left"
+                                    TickFrequency="10"
+                                    IsSnapToTickEnabled="True"
+                                    ValueChanged="GoldLimitSlider_ValueChanged" />
                         </StackPanel>
                     </Border>
                         </StackPanel>
