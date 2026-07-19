@@ -125,8 +125,10 @@ public sealed partial class TravianClient
 
     // Clicks the green "Collect" buttons on the currently visible tab, ONE AT A TIME with a small
     // delay between clicks — clicking them all in one synchronous burst makes the React page glitch
-    // and silently drop clicks. Re-queries the DOM each pass so a collected button (label flips from
-    // "Collect" to its data-text-collected "Collected", or it becomes disabled) is skipped next pass.
+    // and silently drop clicks. Re-queries the DOM each pass so a claimed button is skipped next pass.
+    // A claimed button keeps the DOM text "Collect" (Official renders the "Collected" label from the
+    // data-text-collected attribute via CSS) and is instead marked by the `collected` class plus the
+    // `disabled` attribute — so those two, not the text, are what excludes it.
     private async Task<int> ClickCollectButtonsOnCurrentTabAsync(CancellationToken cancellationToken)
     {
         // Collect buttons render client-side slightly after the tab; wait briefly for at least one.
@@ -155,7 +157,7 @@ public sealed partial class TravianClient
                     const label = (button.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
                     return label === 'collect';
                   };
-                  return Array.from(document.querySelectorAll('button.textButtonV2.collect'))
+                  return Array.from(document.querySelectorAll('button.textButtonV2.collect:not(.collected)'))
                     .some(button => isEnabledCollectButton(button));
                 }
                 """,
@@ -181,7 +183,9 @@ public sealed partial class TravianClient
             try
             {
                 clicked = await TryClickFirstVisibleEnabledAsync(
-                    "button.textButtonV2.collect",
+                    // :not(.collected) is the primary claimed-state guard; the disabled check inside the
+                    // helper is the backstop. The text is NOT a guard — it stays "Collect" when claimed.
+                    "button.textButtonV2.collect:not(.collected)",
                     cancellationToken,
                     requiredText: "Collect",
                     requireExactText: true,
@@ -207,7 +211,7 @@ public sealed partial class TravianClient
                           && rect.width > 0
                           && rect.height > 0;
                       };
-                      const buttons = Array.from(document.querySelectorAll('button.textButtonV2.collect'));
+                      const buttons = Array.from(document.querySelectorAll('button.textButtonV2.collect:not(.collected)'));
                       for (const btn of buttons) {
                         const disabled = btn.disabled
                           || /(^|\s)disabled(\s|$)/i.test(btn.className || '')
@@ -215,7 +219,9 @@ public sealed partial class TravianClient
                         if (!isVisible(btn) || disabled) {
                           continue;
                         }
-                        // Skip already-collected buttons: the visible label flips to "Collected".
+                        // Claimed buttons keep the text "Collect" (the "Collected" label comes from
+                        // data-text-collected via CSS), so :not(.collected) + disabled above are the
+                        // real guards. This only drops unrelated buttons that share the class.
                         const label = (btn.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
                         if (label !== 'collect') {
                           continue;

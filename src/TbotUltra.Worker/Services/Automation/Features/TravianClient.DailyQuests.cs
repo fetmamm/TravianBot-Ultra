@@ -337,6 +337,12 @@ public sealed partial class TravianClient
 
     private async Task<int> ClickDailyQuestCollectButtonsAsync(CancellationToken cancellationToken)
     {
+        // The reward screen is a separate React screen that renders seconds after "Collect rewards" is
+        // clicked. Wait for a claimable button to actually exist before the first click — the caller only
+        // waits on its success path, so without this a failed/absent "Collect rewards" click would drop
+        // straight into clicking a screen that has not rendered yet.
+        await WaitForDailyQuestCollectableRewardsAsync(cancellationToken);
+
         var collected = 0;
         const int safetyCap = 20;
         for (var i = 0; i < safetyCap; i++)
