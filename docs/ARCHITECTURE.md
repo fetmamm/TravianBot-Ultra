@@ -40,7 +40,7 @@ These are contracts only — no logic was extracted out of the facade.
 | `Automation/Hero/` | Hero, adventures, attributes, hero resources | `TravianClient.Hero`, `.Hero.Status`, `.Hero.Revive`, `.Hero.Inventory`, `.Hero.Adventures`, `.Hero.Attributes`, `.HeroResourceTransfer`, `.AdventureDanger`; `HeroCalc`, `HeroStatusDecision` |
 | `Automation/Resources/` | Resource read/transfer, NPC trade | `TravianClient.Resources.Snapshot`, `.Resources.FieldScan`, `.Resources.Upgrade`, `.ResourceTransfer`, `.NpcTrade`; `ResourceFieldScanParser`, `ResourceCapacitySnapshot`, `ResourceSnapshotCalculator` |
 | `Automation/Combat/` | Catapult waves, reinforcements, manual attack | `TravianClient.Catapults`, `.Reinforcements`, `.ManualAttack`; `CatapultWavePlanner` |
-| `Automation/Training/` | Troop training | `TravianClient.TroopTraining`; `TroopTrainingCalculator` |
+| `Automation/Training/` | Troop training | `TravianClient.TroopTraining`; `TroopTrainingCalculator`, `TroopTrainingPageParser` |
 | `Automation/Features/` | Daily quests, inbox, report PNG capture, brewery & town-hall celebration, map oasis, +15% production bonus videos | `TravianClient.DailyQuests`, `.Inbox`, `.ReportPng`, `.BreweryCelebration`, `.TownHallCelebration`, `.MapOasis`, `.ProductionBonus`; `DailyQuestDomParser`, `DailyResetDomParser`, `MapOasisApiParser`, `ProductionBonusDomParser` |
 | `Automation/Travco/` | Travco inactive search (standalone, not a `TravianClient` partial) | `TravcoInactiveSearch`, `TravcoInactiveSearchParser` |
 

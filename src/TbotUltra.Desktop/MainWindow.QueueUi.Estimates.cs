@@ -239,45 +239,19 @@ public partial class MainWindow
     // raises a one-time alarm when the gid is unknown or catalog data is missing for a level.
     private QueueItemEstimate SumLevels(QueueItem item, int? gid, int fromLevel, int toLevel, double serverSpeed, int mainBuildingLevel)
     {
-        if (gid is null)
+        var (estimate, alarmReason) = QueueItemEstimateCalculator.SumLevels(gid, fromLevel, toLevel, serverSpeed, mainBuildingLevel);
+        if (alarmReason is not null)
         {
-            RaiseEstimateAlarm(item, "building could not be matched to the catalog");
-            return QueueItemEstimate.None;
+            RaiseEstimateAlarm(item, alarmReason);
         }
 
-        if (toLevel < fromLevel)
-        {
-            // Already at/above target: nothing left to build.
-            return new QueueItemEstimate(true, 0, 0, 0, 0, 0);
-        }
-
-        double seconds = 0;
-        long wood = 0, clay = 0, iron = 0, crop = 0;
-        for (var level = fromLevel; level <= toLevel; level++)
-        {
-            var stats = BuildingCatalogService.CostFor(gid.Value, level);
-            if (stats is null)
-            {
-                RaiseEstimateAlarm(item, $"missing catalog data for gid {gid.Value} level {level}");
-                return QueueItemEstimate.None;
-            }
-
-            seconds += BuildingCatalogService.BuildSecondsFor(gid.Value, level, serverSpeed, mainBuildingLevel);
-            wood += stats.Wood;
-            clay += stats.Clay;
-            iron += stats.Iron;
-            crop += stats.Crop;
-        }
-
-        return new QueueItemEstimate(true, seconds, wood, clay, iron, crop);
+        return estimate;
     }
 
     // Coverage-aware variant of SumLevels for progressive upgrades of the same building/field. When the
     // queue holds several upgrades of one slot (e.g. Rally Point to level 2, 3, ..., 10), each item only
     // performs the single step from the previous queued target — not the whole path from the live current
-    // level. queuedCoverage carries the highest target already covered by earlier queued items so the row
-    // (and the Totals row) reflect just this item's own work instead of re-counting the shared lower
-    // levels. Items not yet queued for execution (history) do not participate.
+    // level. Items not yet queued for execution (history) do not participate (null coverage key).
     private QueueItemEstimate SumLevelsWithQueueCoverage(
         QueueItem item,
         int? gid,
@@ -290,21 +264,17 @@ public partial class MainWindow
         Dictionary<string, int> queuedCoverage)
     {
         var coverageKey = ResolveQueueCoverageKey(item, gid, slotId, buildingName);
-
-        int? floorLevel = currentLevel;
-        if (coverageKey is not null && queuedCoverage.TryGetValue(coverageKey, out var covered))
+        var (estimate, alarmReason) = QueueItemEstimateCalculator.SumLevelsWithQueueCoverage(
+            gid,
+            currentLevel,
+            target,
+            serverSpeed,
+            mainBuildingLevel,
+            coverageKey,
+            queuedCoverage);
+        if (alarmReason is not null)
         {
-            floorLevel = floorLevel.HasValue ? Math.Max(floorLevel.Value, covered) : covered;
-        }
-
-        // Known floor (live level or earlier queued target) -> only the next step(s); unknown floor falls
-        // back to the existing behavior of estimating just the target level.
-        var fromLevel = floorLevel.HasValue ? floorLevel.Value + 1 : target;
-        var estimate = SumLevels(item, gid, fromLevel, target, serverSpeed, mainBuildingLevel);
-
-        if (coverageKey is not null)
-        {
-            queuedCoverage[coverageKey] = Math.Max(queuedCoverage.GetValueOrDefault(coverageKey), target);
+            RaiseEstimateAlarm(item, alarmReason);
         }
 
         return estimate;
