@@ -159,7 +159,9 @@ public sealed partial class TravianClient
             var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
             var activeCoordinates = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
             var result = new AccountSnapshot(
-                Tribe: await ReadAccountTribeAsync(cancellationToken),
+                // Same restore rule as the village read above: post-login navigates on immediately, so
+                // restoring the pre-profile page (the just-read hero inventory) is a wasted page load.
+                Tribe: await ReadAccountTribeAsync(cancellationToken, restorePageAfterProfile),
                 ActiveVillage: activeVillage,
                 VillageCount: villages.Count,
                 Villages: villages,
@@ -473,7 +475,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         return null;
     }
 
-    private async Task<string> ReadAccountTribeAsync(CancellationToken cancellationToken)
+    private async Task<string> ReadAccountTribeAsync(CancellationToken cancellationToken, bool restorePreviousUrl = true)
     {
         var cached = KnownAccountTribe;
         if (!string.IsNullOrWhiteSpace(cached))
@@ -504,7 +506,8 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
         }
         finally
         {
-            if (!string.IsNullOrWhiteSpace(previousUrl)
+            if (restorePreviousUrl
+                && !string.IsNullOrWhiteSpace(previousUrl)
                 && !string.Equals(_page.Url, previousUrl, StringComparison.OrdinalIgnoreCase))
             {
                 await GotoAsync(previousUrl, cancellationToken);

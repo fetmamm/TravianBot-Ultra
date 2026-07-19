@@ -32,6 +32,11 @@ public sealed class TravianSessionCache
     // delay forever. No deadline is created while the hero is away or no adventure exists.
     public System.DateTimeOffset? HeroAdventureDispatchNotBeforeUtc { get; set; }
 
+    // True once hero_manage has looked at the hero in this browser session. The restart delay models
+    // "do not dispatch the instant the hero becomes ready", so it must not fire on the very first look
+    // after login — a hero that is already home and ready there has been idle while the bot was off.
+    public bool HeroStateObserved { get; set; }
+
     // Short-lived construction snapshot shared by the per-operation TravianClient instances that
     // use the same visible browser. Navigation and construction mutations invalidate it centrally.
     public System.Collections.Generic.IReadOnlyList<Domain.ActiveConstruction>? CachedActiveConstructions { get; set; }

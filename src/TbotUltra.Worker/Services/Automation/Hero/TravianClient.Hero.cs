@@ -504,8 +504,13 @@ public sealed partial class TravianClient : IHeroClient
             _session.HeroAdventureDispatchNotBeforeUtc = null;
         }
 
+        // Flagged unconditionally (also when the hero is away or dead) so "first look of the session"
+        // really means the first hero read after login, not the first read that happened to be ready.
+        var isFirstHeroObservationThisSession = !_session.HeroStateObserved;
+        _session.HeroStateObserved = true;
+
         var adventureRestartDelayWaitSeconds = adventureCount > 0 && canSendByHp && inVillage
-            ? ResolveHeroAdventureRestartDelayWaitSeconds()
+            ? ResolveHeroAdventureRestartDelayWaitSeconds(isFirstHeroObservationThisSession)
             : 0;
 
         if (isReviving)
@@ -631,7 +636,7 @@ public sealed partial class TravianClient : IHeroClient
 
     }
 
-    private int ResolveHeroAdventureRestartDelayWaitSeconds()
+    private int ResolveHeroAdventureRestartDelayWaitSeconds(bool isFirstHeroObservationThisSession)
     {
         if (!_config.HeroAdventureRestartDelayEnabled)
         {
@@ -648,6 +653,16 @@ public sealed partial class TravianClient : IHeroClient
             }
 
             _session.HeroAdventureDispatchNotBeforeUtc = null;
+            return 0;
+        }
+
+        // The delay spaces out the moment the hero becomes ready. On the first hero check after login
+        // a home, ready hero has already been waiting while the bot was offline, so there is nothing
+        // to space out — dispatch now. Later transitions (hero returns home, a new adventure appears)
+        // still arm the delay, because by then the session has seen the hero at least once.
+        if (isFirstHeroObservationThisSession)
+        {
+            Notify("[hero] first hero check this session and the hero is home and ready — dispatching without the restart delay.");
             return 0;
         }
 

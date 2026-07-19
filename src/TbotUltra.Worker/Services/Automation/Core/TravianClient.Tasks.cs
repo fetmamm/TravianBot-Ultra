@@ -8,6 +8,10 @@ namespace TbotUltra.Worker.Services;
 // (the active village and "General tasks"), each with green "Collect" buttons.
 public sealed partial class TravianClient
 {
+    // The two markers that mean "task rewards are waiting". Kept in one place so the queue probe and
+    // the pre-collect guard below can never drift apart.
+    private const string ClaimableTaskMarkersSelector = "div.newQuestSpeechBubble, #questmasterButton.claimable";
+
     // Cheap, no-navigation probe used by the periodic refresh to decide whether to queue a
     // collection. Reads only the current page, so it must be tolerant of any page state.
     public async Task<bool> HasClaimableTasksOnCurrentPageAsync(CancellationToken cancellationToken = default)
@@ -15,8 +19,33 @@ public sealed partial class TravianClient
         try
         {
             return await _page.EvaluateAsync<bool>(
-                """
-                () => !!document.querySelector('div.newQuestSpeechBubble, #questmasterButton.claimable')
+                $$"""
+                () => !!document.querySelector('{{ClaimableTaskMarkersSelector}}')
+                """);
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return false;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    // Returns true only for a definite "nothing to collect": the questmaster sidebar box is on the
+    // page and carries neither claimable marker. Any other state (box missing because we are on a
+    // page without the sidebar, script error) returns false so the caller still does the full pass.
+    private async Task<bool> IsQuestmasterConfirmedEmptyOnCurrentPageAsync()
+    {
+        try
+        {
+            return await _page.EvaluateAsync<bool>(
+                $$"""
+                () => {
+                  if (!document.querySelector('#sidebarBoxQuestmaster')) return false;
+                  return !document.querySelector('{{ClaimableTaskMarkersSelector}}');
+                }
                 """);
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
@@ -36,6 +65,15 @@ public sealed partial class TravianClient
     {
         Notify("[tasks] auto-collect starting");
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
+
+        // A queued collect_tasks outlives the rewards that triggered it (the queue survives restarts),
+        // so confirm on the current page that the questmaster still has something claimable before
+        // spending four navigations on /tasks. Only skips on a definite "box present, no marker".
+        if (await IsQuestmasterConfirmedEmptyOnCurrentPageAsync())
+        {
+            Notify("[tasks] questmaster shows no claimable rewards — skipping the /tasks pass.");
+            return "Collected 0 task reward(s).";
+        }
 
         var totalCollected = 0;
         const int maxPasses = 2;
