@@ -693,6 +693,15 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                   const fromClass = classNorm(node.getAttribute('class'));
                   if (fromClass) return fromClass;
                 }
+
+                // dorf1 has no building slots; there the village tribe is a numeric class on the
+                // resource field container (<div id="resourceFieldContainer" class="resourceField3
+                // tribe8">). Matching it explicitly instead of relying on the generic
+                // [class*="tribe"] fallback below, which just picks the first such element on the
+                // page and could land on an unrelated widget.
+                const fieldTribe = (document.querySelector('#resourceFieldContainer')?.getAttribute('class') || '')
+                  .match(/\btribe(\d+)\b/i);
+                if (fieldTribe && tribeNames[Number(fieldTribe[1])]) return tribeNames[Number(fieldTribe[1])];
               }
 
               // Primary: tribe icon img (works directly from dorf1/dorf2).
