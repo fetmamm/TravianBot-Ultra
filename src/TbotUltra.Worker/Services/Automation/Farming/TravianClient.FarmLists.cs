@@ -213,17 +213,7 @@ public sealed partial class TravianClient : IFarmingClient
         var closeButton = notice.Locator("svg.close").First;
         var clicked = await TryRealClickFarmButtonAsync(
             closeButton,
-            async () => await _page.EvaluateAsync<bool>(
-                """
-                () => {
-                  const close = document.querySelector('#rallyPointFarmList .noticeBox.deactivatedTargets svg.close');
-                  if (!close) return false;
-                  close.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
-                  close.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
-                  close.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-                  return true;
-                }
-                """),
+            () => Task.FromResult(false),
             "dismiss deactivated-targets notice",
             cancellationToken);
         if (!clicked)
@@ -857,7 +847,7 @@ public sealed partial class TravianClient : IFarmingClient
                 return true;
             }
 
-            Notify($"[farm-list] real click target not found ({reason}); using JS dispatch fallback.");
+            Notify($"[farm-list] real click target not found ({reason}); using fallback action.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -865,7 +855,7 @@ public sealed partial class TravianClient : IFarmingClient
         }
         catch (PlaywrightException ex)
         {
-            Notify($"[farm-list] real click failed ({reason}); using JS dispatch fallback: {ex.Message}");
+            Notify($"[farm-list] real click failed ({reason}); using fallback action: {ex.Message}");
         }
 
         return await jsFallback();
