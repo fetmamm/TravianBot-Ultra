@@ -329,10 +329,6 @@ public partial class MainWindow : Window
     private readonly object _pendingLogSync = new();
     private readonly LinkedList<string> _pendingLogMessages = new();
     private readonly object _sessionLogWriteSync = new();
-    // Section markers ("=== ALARMS ===" / "=== LOGS ===") are written once at file init.
-    // These guard the per-flush append so they are not re-emitted on every tiny flush.
-    private bool _sessionLogAlarmsHeaderWritten;
-    private bool _sessionLogLogsHeaderWritten;
     private bool _logFlushQueued;
     private bool _continuousLoopConstructionStatusNeedsSync = true;
     private bool _restartContinuousLoopAfterStop;

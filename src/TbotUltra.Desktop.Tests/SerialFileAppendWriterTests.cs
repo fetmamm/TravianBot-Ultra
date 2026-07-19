@@ -26,6 +26,42 @@ public sealed class SerialFileAppendWriterTests : IAsyncLifetime
         Assert.Equal(["one", "two", "three"], File.ReadAllLines(path));
     }
 
+    [Fact]
+    public async Task AppendSessionLines_KeepsAlarmsInAlarmSection()
+    {
+        var path = Path.Combine(_directory, "session.log");
+        File.WriteAllLines(path,
+        [
+            "=== Tbot Ultra Session Log ===",
+            "",
+            "=== ALARMS ===",
+            "",
+            "=== LOGS ===",
+            "",
+        ]);
+        await using var writer = new SerialFileAppendWriter(path);
+
+        writer.AppendSessionLines(["log one"], []);
+        writer.AppendSessionLines(["log two"], ["alarm one"]);
+        writer.AppendSessionLines([], ["alarm two"]);
+        await writer.FlushAsync();
+
+        Assert.Equal(
+        [
+            "=== Tbot Ultra Session Log ===",
+            "",
+            "=== ALARMS ===",
+            "alarm one",
+            "alarm two",
+            "",
+            "=== LOGS ===",
+            "",
+            "log one",
+            "log two",
+        ],
+        File.ReadAllLines(path));
+    }
+
     public Task DisposeAsync()
     {
         Directory.Delete(_directory, recursive: true);

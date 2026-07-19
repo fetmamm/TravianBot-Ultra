@@ -9,5 +9,11 @@
 
     <!-- The parity baseline is 0 warnings; keep it enforced. -->
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+
+    <!-- .NET code-quality (CA) analyzers at the default level. Survey step: CA warnings
+         do not fail the build yet; flipped to errors once the count is burned to zero. -->
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <CodeAnalysisTreatWarningsAsErrors>false</CodeAnalysisTreatWarningsAsErrors>
   </PropertyGroup>
 </Project>

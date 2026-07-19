@@ -235,9 +235,10 @@ public partial class MainWindow
                             }
 
                             // Alarm rows are also normal terminal rows, but the session file must
-                            // contain the event only once. Repeated identical alarms inside the
-                            // coalescing window update the UI count and are not appended again.
-                            logLinesForSessionLog.Add(line);
+                            // contain the event only once and under the alarm section. Repeated
+                            // identical alarms inside the coalescing window update the UI count
+                            // and are not appended again.
+                            alarmLinesForSessionLog.Add(line);
                         }
                     }
 
@@ -346,10 +347,6 @@ public partial class MainWindow
             lock (_sessionLogWriteSync)
             {
                 File.WriteAllLines(_sessionLogPath, header);
-                // Both section markers are already present in the header above; do not
-                // re-emit them on every append (that produced tens of thousands of duplicates).
-                _sessionLogAlarmsHeaderWritten = true;
-                _sessionLogLogsHeaderWritten = true;
             }
         }
         catch (Exception ex)
@@ -411,30 +408,7 @@ public partial class MainWindow
 
         try
         {
-            var content = new List<string>(alarmLines.Count + logLines.Count + 2);
-            if (alarmLines.Count > 0)
-            {
-                if (!_sessionLogAlarmsHeaderWritten)
-                {
-                    content.Add("=== ALARMS ===");
-                    _sessionLogAlarmsHeaderWritten = true;
-                }
-
-                content.AddRange(alarmLines);
-            }
-
-            if (logLines.Count > 0)
-            {
-                if (!_sessionLogLogsHeaderWritten)
-                {
-                    content.Add("=== LOGS ===");
-                    _sessionLogLogsHeaderWritten = true;
-                }
-
-                content.AddRange(logLines);
-            }
-
-            _sessionLogWriter.Append(content);
+            _sessionLogWriter.AppendSessionLines(logLines, alarmLines);
         }
         catch (Exception ex)
         {
