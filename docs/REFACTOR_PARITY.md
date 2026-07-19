@@ -7,7 +7,7 @@ remains the source of truth for behavior and Official-specific constraints.
 
 - Build: 0 warnings, 0 errors (`scripts/Build-Check.ps1`, 2026-07-19).
 - Desktop tests: 604 passed.
-- Worker tests: 888 passed.
+- Worker tests: 892 passed.
 - Public task names, payload keys, config formats and storage paths stay stable.
 
 ### Playwright browser revision
@@ -27,6 +27,15 @@ A missing browser is prompted for, never thrown: `EnsureChromiumInstalledAsync` 
 front of every browser operation, and it opens `ChromiumSetupWindow` at the point the browser is needed.
 Do not move this to startup — bundled Chromium is optional for users who have system Chrome and never run
 a proxy check, so a startup prompt would demand a ~190 MB download nobody needs.
+
+`RemoveOutdatedChromiumRevisions` sweeps browser folders left by an earlier package version, because
+nothing else does: the app updater overlays files without mirroring, and Playwright's own cleanup only
+runs during an install, which the update path skips. It is deliberately a no-op unless the expected
+revision is confirmed present — keep that ordering, or a partial installation can lose its only browser.
+
+`scripts/Test-ReleaseBundle.ps1` requires `ms-playwright` to hold exactly the revision the packaged
+driver names. An any-revision check passes a bundle built against a different package version, and that
+failure only surfaces on a user's machine.
 
 `BrowserSession.ChromiumAlreadyInstalled` reads the expected revision from the driver metadata shipped
 next to the app (`.playwright/package/browsers.json`), so it follows package upgrades without edits.

@@ -1155,7 +1155,7 @@ public partial class MainWindow : Window
         {
             if (_chromiumEnsured || BrowserSession.ChromiumAlreadyInstalled(_projectRoot, AppendLog))
             {
-                _chromiumEnsured = true;
+                MarkChromiumReady();
                 return;
             }
         }
@@ -1173,7 +1173,32 @@ public partial class MainWindow : Window
                 "This action needs a browser component that is not installed yet.");
         }
 
+        MarkChromiumReady();
+    }
+
+    /// <summary>
+    /// Records that the browser is usable and, the first time, sweeps away browser folders left by an
+    /// earlier Playwright version. Runs off the UI thread and is never awaited: it only deletes revisions
+    /// other than the one in use, so nothing waits on it and a failure cannot block an operation.
+    /// </summary>
+    private void MarkChromiumReady()
+    {
+        if (_chromiumEnsured)
+        {
+            return;
+        }
+
         _chromiumEnsured = true;
+
+        var projectRoot = _projectRoot;
+        _ = Task.Run(() =>
+        {
+            var removed = BrowserSession.RemoveOutdatedChromiumRevisions(projectRoot, AppendLog);
+            if (removed > 0)
+            {
+                AppendLog($"Removed {removed} outdated browser folder(s) from a previous version.");
+            }
+        });
     }
 
     /// <summary>

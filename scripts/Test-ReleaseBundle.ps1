@@ -49,9 +49,27 @@ $browserRoot = Join-Path $resolvedPackageRoot "ms-playwright"
 if (-not (Test-Path -LiteralPath $browserRoot -PathType Container)) {
     throw "Release bundle is missing the bundled Chromium directory: ms-playwright"
 }
-$chromiumExe = Get-ChildItem -LiteralPath $browserRoot -Recurse -File -Filter "chrome.exe" | Select-Object -First 1
-if ($null -eq $chromiumExe) {
-    throw "Release bundle does not contain a Chromium chrome.exe under ms-playwright."
+# Playwright resolves one exact build revision, so "some chrome.exe is present" is not enough: a bundle
+# built against a different package version would ship a browser the app never looks for, and the failure
+# would only surface on a user's machine. Require the revision the shipped driver actually asks for.
+$browsersMetadataPath = Join-Path $resolvedPackageRoot ".playwright\package\browsers.json"
+if (-not (Test-Path -LiteralPath $browsersMetadataPath -PathType Leaf)) {
+    throw "Release bundle is missing the Playwright driver metadata: .playwright\package\browsers.json"
+}
+
+$expectedChromiumRevision = (Get-Content -LiteralPath $browsersMetadataPath -Raw | ConvertFrom-Json).browsers |
+    Where-Object { $_.name -eq "chromium" } |
+    Select-Object -First 1 -ExpandProperty revision
+if ([string]::IsNullOrWhiteSpace($expectedChromiumRevision)) {
+    throw "Could not read the expected Chromium revision from browsers.json."
+}
+
+$chromiumExe = Join-Path $browserRoot "chromium-$expectedChromiumRevision\chrome-win\chrome.exe"
+if (-not (Test-Path -LiteralPath $chromiumExe -PathType Leaf)) {
+    $present = (Get-ChildItem -LiteralPath $browserRoot -Directory -ErrorAction SilentlyContinue |
+        Where-Object { $_.Name -like "chromium-*" } | Select-Object -ExpandProperty Name) -join ", "
+    throw ("Release bundle does not contain the Chromium revision Playwright expects " +
+        "(chromium-$expectedChromiumRevision). Present: $(if ($present) { $present } else { "none" }).")
 }
 
 foreach ($jsonFile in Get-ChildItem -LiteralPath (Join-Path $resolvedPackageRoot "config") -File -Filter "*.json") {

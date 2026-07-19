@@ -152,6 +152,93 @@ public sealed partial class BrowserSession
     }
 
     /// <summary>
+    /// Deletes browser folders left behind by an earlier Playwright version and returns how many were
+    /// removed. Each stale revision is a few hundred MB, and nothing else clears them: the app updater
+    /// overlays files without mirroring, and Playwright's own cleanup only runs during an install, which
+    /// the update path skips because the browsers arrive with the package.
+    ///
+    /// Deliberately a no-op unless the expected revision is confirmed present, so a partial or unreadable
+    /// installation can never be made worse by deleting the only browser the user has.
+    /// </summary>
+    public static int RemoveOutdatedChromiumRevisions(string projectRoot, Action<string>? log = null)
+    {
+        var removed = 0;
+        try
+        {
+            if (string.IsNullOrWhiteSpace(projectRoot))
+            {
+                return 0;
+            }
+
+            var playwrightRoot = Path.Combine(projectRoot, LocalPlaywrightBrowsersDirectoryName);
+            var expectedRevision = ResolveExpectedChromiumRevision();
+            if (expectedRevision is null || !Directory.Exists(playwrightRoot))
+            {
+                return 0;
+            }
+
+            var expectedExecutable = Path.Combine(
+                playwrightRoot, $"chromium-{expectedRevision}", "chrome-win", "chrome.exe");
+            if (!File.Exists(expectedExecutable))
+            {
+                log?.Invoke("[browser] skipping cleanup of old browser revisions: the expected one is not installed.");
+                return 0;
+            }
+
+            foreach (var directory in Directory.GetDirectories(playwrightRoot))
+            {
+                var name = Path.GetFileName(directory);
+                if (!IsOutdatedChromiumRevisionFolder(name, expectedRevision))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    Directory.Delete(directory, recursive: true);
+                    removed++;
+                    log?.Invoke($"[browser] removed outdated browser '{name}'.");
+                }
+                catch (Exception ex)
+                {
+                    // A locked file only means the space is reclaimed on a later run; never fail startup.
+                    log?.Invoke($"[browser] could not remove outdated browser '{name}': {ex.Message}");
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            log?.Invoke($"[browser] browser cleanup failed: {ex.Message}");
+        }
+
+        return removed;
+    }
+
+    /// <summary>
+    /// True for a Chromium browser folder ("chromium-1161", "chromium_headless_shell-1161") whose revision
+    /// differs from the expected one. Other Playwright content (ffmpeg, winldd, .links) is never matched.
+    /// </summary>
+    private static bool IsOutdatedChromiumRevisionFolder(string folderName, string expectedRevision)
+    {
+        foreach (var prefix in new[] { "chromium-", "chromium_headless_shell-" })
+        {
+            if (!folderName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            var revision = folderName[prefix.Length..];
+            // Digits only: never delete a folder whose suffix is not a plain revision, such as a
+            // "chromium-tip-of-tree" build a developer installed on purpose.
+            return revision.Length > 0
+                && revision.All(char.IsAsciiDigit)
+                && !string.Equals(revision, expectedRevision, StringComparison.Ordinal);
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Reads the Chromium build revision the referenced Microsoft.Playwright package expects from the
     /// driver metadata shipped next to the app, so the check follows package upgrades on its own.
     /// Returns null when the metadata is missing or unreadable.
