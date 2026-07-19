@@ -35,14 +35,7 @@ public partial class MainWindow
         finally
         {
             _travianLanguageGateActive = false;
-            if (Dispatcher.CheckAccess())
-            {
-                ToggleUiBusy(_uiBusy);
-            }
-            else
-            {
-                _ = Dispatcher.BeginInvoke(() => ToggleUiBusy(_uiBusy));
-            }
+            RunOrPostToUi(() => ToggleUiBusy(_uiBusy));
         }
     }
 

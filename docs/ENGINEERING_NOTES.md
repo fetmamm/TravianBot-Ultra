@@ -161,6 +161,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   Construction settings category rather than the Buildings workspace.
 - Secondary explanations use the shared `i` tooltip when permanent text wastes space.
 - Disable duplicate commands while running; marshal observable collections through the dispatcher.
+- Marshal to the UI thread via the shared `MainWindow` helpers: `RunOnUi` (blocking) or `RunOrPostToUi`
+  (fire-and-forget off-thread); do not hand-roll new `CheckAccess` guards with matching semantics.
 - Keep `DataGrid.RowHeight` unset or `Double.NaN`; the string `Auto` is not a WPF `Double`.
 - Enumerate mutable collections through immutable snapshots when sanitizing/exporting.
 - Village Overview is read-only and uses cache/queue snapshots; opening it never navigates or scans.

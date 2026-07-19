@@ -26,13 +26,7 @@ public partial class MainWindow
             UpdateAutomationLoopRunningIndicators();
         }
 
-        if (Dispatcher.CheckAccess())
-        {
-            Apply();
-            return;
-        }
-
-        _ = Dispatcher.BeginInvoke((Action)Apply);
+        RunOrPostToUi(Apply);
     }
 
     private QueueGroup? GetActiveContinuousLoopGroup()
@@ -400,13 +394,8 @@ public partial class MainWindow
 
     private bool ShouldKeepHeroAdventurePolling()
     {
-        if (!Dispatcher.CheckAccess())
-        {
-            return Dispatcher.Invoke(ShouldKeepHeroAdventurePolling);
-        }
-
-        return _heroBlockedPreviouslyEnabled
-            && string.Equals(_heroBlockedReasonKey, HeroBlockedReasonNoAdventures, StringComparison.OrdinalIgnoreCase);
+        return RunOnUi(() => _heroBlockedPreviouslyEnabled
+            && string.Equals(_heroBlockedReasonKey, HeroBlockedReasonNoAdventures, StringComparison.OrdinalIgnoreCase));
     }
 
     private bool IsBreweryGroupBlocked()

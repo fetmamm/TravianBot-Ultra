@@ -1182,12 +1182,7 @@ public partial class MainWindow
 
     private (string? Name, string? Url) GetSelectedVillageSelectionSnapshot()
     {
-        if (Dispatcher.CheckAccess())
-        {
-            return ReadSelectedVillageSelectionCore();
-        }
-
-        return Dispatcher.Invoke(ReadSelectedVillageSelectionCore);
+        return RunOnUi(ReadSelectedVillageSelectionCore);
     }
 
     private (string? Name, string? Url) ReadSelectedVillageSelectionCore()

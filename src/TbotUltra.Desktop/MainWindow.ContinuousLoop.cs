@@ -447,15 +447,11 @@ public partial class MainWindow
                     return (names, ids);
                 }
 
-                var selectedSnapshot = Dispatcher.CheckAccess()
-                    ? GatherSelectedFarmLists()
-                    : Dispatcher.Invoke(GatherSelectedFarmLists);
+                var selectedSnapshot = RunOnUi(GatherSelectedFarmLists);
                 var selectedFarmLists = selectedSnapshot.Names;
                 var farmSendMode = FarmingDefaults.NormalizeSendMode(options.ContinuousFarmSendMode);
                 var sendsAllListsAtOnce = string.Equals(farmSendMode, FarmingDefaults.SendModeAllAtOnce, StringComparison.Ordinal);
-                var availableFarmListCount = Dispatcher.CheckAccess()
-                    ? _farmLists.Count(IsRealFarmListRow)
-                    : Dispatcher.Invoke(() => _farmLists.Count(IsRealFarmListRow));
+                var availableFarmListCount = RunOnUi(() => _farmLists.Count(IsRealFarmListRow));
                 if (availableFarmListCount <= 0)
                 {
                     SetFarmingBlockedState(FarmingBlockedReasonNoFarmLists, "No farmlists available");

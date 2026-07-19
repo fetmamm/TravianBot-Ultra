@@ -274,12 +274,7 @@ public partial class MainWindow
 
     private (bool AutoReadMessages, bool AutoReadReports) GetAutoReadInboxSelectionSnapshot()
     {
-        if (Dispatcher.CheckAccess())
-        {
-            return (_inboxViewModel.AutoReadMessages, _inboxViewModel.AutoReadReports);
-        }
-
-        return Dispatcher.Invoke(() => (_inboxViewModel.AutoReadMessages, _inboxViewModel.AutoReadReports));
+        return RunOnUi(() => (_inboxViewModel.AutoReadMessages, _inboxViewModel.AutoReadReports));
     }
 
     private void UpdateInboxButtons(int unreadMessages, int unreadReports)
