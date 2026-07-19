@@ -900,13 +900,31 @@
                                     <ContentControl Style="{StaticResource SettingInfoIconStyle}"
                                                     ToolTip="Maximum silver allowed to be spent each day. Resets at 00:00 server time." />
                                 </StackPanel>
-                                <TextBox x:Name="DailySilverSpendingLimitTextBox" Grid.Column="1" Text="10000" />
+                                <TextBox x:Name="DailySilverSpendingLimitTextBox"
+                                         Grid.Column="1"
+                                         Text="10000"
+                                         TextChanged="DailySpendingLimitTextBox_TextChanged" />
                             </Grid>
-                            <Button x:Name="ResetDailySilverLimitButton"
-                                    Content="Reset daily limits"
-                                    Width="150"
-                                    HorizontalAlignment="Left"
-                                    Click="ResetDailySilverLimitButton_Click" />
+                            <StackPanel Orientation="Horizontal">
+                                <Border Height="30"
+                                        MinWidth="70"
+                                        Padding="9,3"
+                                        Margin="0,0,6,0"
+                                        Background="{DynamicResource SuccessBgBrush}"
+                                        BorderBrush="{DynamicResource SuccessBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4">
+                                    <TextBlock x:Name="DailySilverSpendingUsageTextBlock"
+                                               Text="0 / 10000"
+                                               Foreground="{DynamicResource SuccessTextBrush}"
+                                               FontWeight="SemiBold"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                                <Button x:Name="ResetDailySilverLimitButton"
+                                        Content="Reset daily limits"
+                                        Click="ResetDailySilverLimitButton_Click" />
+                            </StackPanel>
 
                             <Border Height="1"
                                     Background="{DynamicResource BorderSubtleBrush}"
@@ -943,13 +961,31 @@
                                     <ContentControl Style="{StaticResource SettingInfoIconStyle}"
                                                     ToolTip="Maximum gold allowed to be spent each day. Resets at 00:00 server time." />
                                 </StackPanel>
-                                <TextBox x:Name="DailyGoldSpendingLimitTextBox" Grid.Column="1" Text="20" />
+                                <TextBox x:Name="DailyGoldSpendingLimitTextBox"
+                                         Grid.Column="1"
+                                         Text="20"
+                                         TextChanged="DailySpendingLimitTextBox_TextChanged" />
                             </Grid>
-                            <Button x:Name="ResetDailyGoldLimitButton"
-                                    Content="Reset daily limits"
-                                    Width="150"
-                                    HorizontalAlignment="Left"
-                                    Click="ResetDailyGoldLimitButton_Click" />
+                            <StackPanel Orientation="Horizontal">
+                                <Border Height="30"
+                                        MinWidth="70"
+                                        Padding="9,3"
+                                        Margin="0,0,6,0"
+                                        Background="{DynamicResource SuccessBgBrush}"
+                                        BorderBrush="{DynamicResource SuccessBorderBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="4">
+                                    <TextBlock x:Name="DailyGoldSpendingUsageTextBlock"
+                                               Text="0 / 20"
+                                               Foreground="{DynamicResource SuccessTextBrush}"
+                                               FontWeight="SemiBold"
+                                               HorizontalAlignment="Center"
+                                               VerticalAlignment="Center" />
+                                </Border>
+                                <Button x:Name="ResetDailyGoldLimitButton"
+                                        Content="Reset daily limits"
+                                        Click="ResetDailyGoldLimitButton_Click" />
+                            </StackPanel>
                         </StackPanel>
                     </Border>
                         </StackPanel>

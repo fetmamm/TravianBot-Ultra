@@ -157,6 +157,16 @@ public partial class MainWindow
             _projectRoot,
             _accountStore.ActiveAccountName(),
             optionsBeforeSettings.BaseUrl);
+        var serverDate = DateOnly.FromDateTime(GetServerNow().Date);
+        var dailySpendingState = DailySpendingState.Empty(serverDate);
+        try
+        {
+            dailySpendingState = new DailySpendingStore(dailySpendingPath).Read(serverDate);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not read daily spending state for Settings: {ex.Message}");
+        }
         var window = new SettingsWindow(
             _botConfigStore,
             IsSessionSleeping,
@@ -165,7 +175,9 @@ public partial class MainWindow
             initialCategory,
             BuildTownHallOverviewRows(villageSettingsRows),
             () => new DailySpendingStore(dailySpendingPath).ResetGold(),
-            () => new DailySpendingStore(dailySpendingPath).ResetSilver())
+            () => new DailySpendingStore(dailySpendingPath).ResetSilver(),
+            dailySpendingState.GoldSpent,
+            dailySpendingState.SilverSpent)
         {
             Owner = Application.Current.Windows
                 .OfType<Window>()

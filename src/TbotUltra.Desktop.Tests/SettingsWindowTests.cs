@@ -31,7 +31,9 @@ public sealed class SettingsWindowTests : IDisposable
                 var window = new SettingsWindow(
                     store,
                     initialCategory: SettingsCategory.Celebrations,
-                    townHallRows: rows);
+                    townHallRows: rows,
+                    dailyGoldSpent: 3,
+                    dailySilverSpent: 40);
 
                 var tabs = Assert.IsType<TabControl>(window.FindName("SettingsCategoryTabControl"));
                 Assert.Equal((int)SettingsCategory.Celebrations, tabs.SelectedIndex);
@@ -50,6 +52,10 @@ public sealed class SettingsWindowTests : IDisposable
                 Assert.Equal("20", Assert.IsType<TextBox>(window.FindName("DailyGoldSpendingLimitTextBox")).Text);
                 Assert.Equal("100", Assert.IsType<TextBox>(window.FindName("SilverLimitTextBox")).Text);
                 Assert.Equal("10000", Assert.IsType<TextBox>(window.FindName("DailySilverSpendingLimitTextBox")).Text);
+                Assert.Equal("3 / 20", Assert.IsType<TextBlock>(window.FindName("DailyGoldSpendingUsageTextBlock")).Text);
+                Assert.Equal("40 / 10000", Assert.IsType<TextBlock>(window.FindName("DailySilverSpendingUsageTextBlock")).Text);
+                Assert.IsType<TextBox>(window.FindName("DailyGoldSpendingLimitTextBox")).Text = "25";
+                Assert.Equal("3 / 25", Assert.IsType<TextBlock>(window.FindName("DailyGoldSpendingUsageTextBlock")).Text);
                 Assert.NotNull(window.FindName("ResetDailyGoldLimitButton"));
                 Assert.NotNull(window.FindName("ResetDailySilverLimitButton"));
                 Assert.NotNull(window.FindName("AllowGoldSpendingCheckBox"));

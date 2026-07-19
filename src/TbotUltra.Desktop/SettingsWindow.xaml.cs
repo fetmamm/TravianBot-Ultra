@@ -35,6 +35,8 @@ public partial class SettingsWindow : Window
     private readonly Func<JsonObject, string?>? _validateBeforeSave;
     private readonly Action? _resetDailyGoldSpending;
     private readonly Action? _resetDailySilverSpending;
+    private int _dailyGoldSpent;
+    private int _dailySilverSpent;
     private bool _suppressDetailedBrowserLoggingConfirmation;
     private string _initialTownHallFingerprint = string.Empty;
 
@@ -77,7 +79,9 @@ public partial class SettingsWindow : Window
         SettingsCategory initialCategory = SettingsCategory.General,
         IReadOnlyList<TownHallOverviewRow>? townHallRows = null,
         Action? resetDailyGoldSpending = null,
-        Action? resetDailySilverSpending = null)
+        Action? resetDailySilverSpending = null,
+        int dailyGoldSpent = 0,
+        int dailySilverSpent = 0)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
@@ -87,6 +91,8 @@ public partial class SettingsWindow : Window
         _validateBeforeSave = validateBeforeSave;
         _resetDailyGoldSpending = resetDailyGoldSpending;
         _resetDailySilverSpending = resetDailySilverSpending;
+        _dailyGoldSpent = Math.Max(0, dailyGoldSpent);
+        _dailySilverSpent = Math.Max(0, dailySilverSpent);
         foreach (var row in townHallRows ?? [])
         {
             TownHallRows.Add(row);
@@ -101,6 +107,7 @@ public partial class SettingsWindow : Window
         SleepNowButton.IsEnabled = !_sessionSleeping;
         ResetDailyGoldLimitButton.IsEnabled = _resetDailyGoldSpending is not null;
         ResetDailySilverLimitButton.IsEnabled = _resetDailySilverSpending is not null;
+        UpdateDailySpendingUsage();
     }
 
     private void LoadConfig()
@@ -514,35 +521,62 @@ public partial class SettingsWindow : Window
 
     private void ResetDailySilverLimitButton_Click(object sender, RoutedEventArgs e)
     {
-        ResetDailySpending(_resetDailySilverSpending, "silver");
+        if (ResetDailySpending(_resetDailySilverSpending))
+        {
+            _dailySilverSpent = 0;
+            UpdateDailySpendingUsage();
+        }
     }
 
     private void ResetDailyGoldLimitButton_Click(object sender, RoutedEventArgs e)
     {
-        ResetDailySpending(_resetDailyGoldSpending, "gold");
+        if (ResetDailySpending(_resetDailyGoldSpending))
+        {
+            _dailyGoldSpent = 0;
+            UpdateDailySpendingUsage();
+        }
     }
 
-    private void ResetDailySpending(Action? reset, string currency)
+    private bool ResetDailySpending(Action? reset)
     {
         if (reset is null)
         {
-            return;
+            return false;
         }
 
         try
         {
             reset();
-            AppDialog.Show(
-                this,
-                $"Today's {currency} spending counter was reset.",
-                "Daily spending reset",
-                MessageBoxButton.OK,
-                MessageBoxImage.Information);
+            return true;
         }
         catch (Exception ex)
         {
             AppDialog.Show(this, ex.Message, "Could not reset daily spending", MessageBoxButton.OK, MessageBoxImage.Warning);
+            return false;
         }
+    }
+
+    private void DailySpendingLimitTextBox_TextChanged(object sender, TextChangedEventArgs e)
+    {
+        UpdateDailySpendingUsage();
+    }
+
+    private void UpdateDailySpendingUsage()
+    {
+        if (DailyGoldSpendingUsageTextBlock is null || DailySilverSpendingUsageTextBlock is null)
+        {
+            return;
+        }
+
+        DailyGoldSpendingUsageTextBlock.Text = FormatDailySpendingUsage(_dailyGoldSpent, DailyGoldSpendingLimitTextBox.Text);
+        DailySilverSpendingUsageTextBlock.Text = FormatDailySpendingUsage(_dailySilverSpent, DailySilverSpendingLimitTextBox.Text);
+    }
+
+    private static string FormatDailySpendingUsage(int spent, string? limitText)
+    {
+        return int.TryParse(limitText?.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out var limit)
+            ? $"{spent} / {limit}"
+            : $"{spent} / ?";
     }
 
     private void DetailedBrowserLoggingCheckBox_Changed(object sender, RoutedEventArgs e)
