@@ -15,6 +15,7 @@ using System.Windows.Threading;
 using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.ViewModels;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
@@ -31,35 +32,14 @@ public partial class MainWindow
     private IReadOnlyList<string> _farmListIncompleteReads = [];
 
     private static bool IsRealFarmListRow(FarmListStatusRow row)
-    {
-        return !row.IsPlaceholder;
-    }
+        => FarmListsViewModel.IsRealRow(row);
 
     internal static bool CanReuseRecentFarmListAnalysis(DateTimeOffset lastAnalysisAt, DateTimeOffset now)
         => lastAnalysisAt != DateTimeOffset.MinValue
             && lastAnalysisAt >= now - RecentFarmListAnalysisWindow;
 
     private void EnsureFarmListPlaceholderRow()
-    {
-        if (_farmLists.Any(IsRealFarmListRow))
-        {
-            foreach (var row in _farmLists.Where(row => row.IsPlaceholder).ToList())
-            {
-                _farmLists.Remove(row);
-            }
-
-            return;
-        }
-
-        if (!_farmLists.Any(row => row.IsPlaceholder))
-        {
-            _farmLists.Add(new FarmListStatusRow
-            {
-                IsPlaceholder = true,
-                IsEnabled = false,
-            });
-        }
-    }
+        => _farmListsViewModel.EnsurePlaceholderRow();
 
     private void UpdateFarmingUiState()
     {
@@ -68,15 +48,7 @@ public partial class MainWindow
             return;
         }
 
-        var realFarmLists = _farmLists.Where(IsRealFarmListRow).ToList();
-        if (realFarmLists.Count <= 0)
-        {
-            FarmingStatusTextBlock.Text = "No farm lists loaded. Click Analyze Farmlists.";
-            return;
-        }
-
-        var readyCount = realFarmLists.Count(item => item.IsReady);
-        FarmingStatusTextBlock.Text = $"Loaded {realFarmLists.Count} farm list(s). Ready: {readyCount}.";
+        FarmingStatusTextBlock.Text = _farmListsViewModel.DescribeStatus();
     }
 
     private void SetFarmingFeatureAvailability(bool enabled, string? reason = null)
