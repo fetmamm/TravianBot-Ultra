@@ -40,37 +40,23 @@ public partial class MainWindow
             return;
         }
 
-        var operationId = BeginOperation("MarkMessagesRead");
-        var operationSw = Stopwatch.StartNew();
-        var operationToken = _loopController.StartOperation("operation");
-        ToggleUiBusy(true);
-        try
-        {
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            await EnsureChromiumInstalledAsync();
-            await _botService.MarkMessagesAsReadAsync(
-                options,
-                AppendLog,
-                GetSelectedVillageName(),
-                GetSelectedVillageUrl(),
-                operationToken);
-            await RefreshInboxIndicatorsAsync(logErrors: true, force: true);
-            CompleteOperation(operationId, operationSw, "Messages marked as read.");
-        }
-        catch (OperationCanceledException)
-        {
-            StatusTextBlock.Text = "Mark as read paused.";
-            AppendLog("Mark as read paused.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-        }
-        finally
-        {
-            ToggleUiBusy(false);
-            DisposeOperationCts();
-        }
+        await RunGuardedOperationAsync(
+            "MarkMessagesRead",
+            "Mark as read paused.",
+            ToggleUiBusy,
+            async (operationId, operationToken) =>
+            {
+                var options = ApplySelectedVillageToOptions(LoadBotOptions());
+                await EnsureChromiumInstalledAsync();
+                await _botService.MarkMessagesAsReadAsync(
+                    options,
+                    AppendLog,
+                    GetSelectedVillageName(),
+                    GetSelectedVillageUrl(),
+                    operationToken);
+                await RefreshInboxIndicatorsAsync(logErrors: true, force: true);
+                return "Messages marked as read.";
+            });
     }
 
     private async void MarkReportsReadCore()
@@ -83,37 +69,23 @@ public partial class MainWindow
             return;
         }
 
-        var operationId = BeginOperation("MarkReportsRead");
-        var operationSw = Stopwatch.StartNew();
-        var operationToken = _loopController.StartOperation("operation");
-        ToggleUiBusy(true);
-        try
-        {
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
-            await EnsureChromiumInstalledAsync();
-            await _botService.MarkReportsAsReadAsync(
-                options,
-                AppendLog,
-                GetSelectedVillageName(),
-                GetSelectedVillageUrl(),
-                operationToken);
-            await RefreshInboxIndicatorsAsync(logErrors: true, force: true);
-            CompleteOperation(operationId, operationSw, "Reports marked as read.");
-        }
-        catch (OperationCanceledException)
-        {
-            StatusTextBlock.Text = "Mark reports as read paused.";
-            AppendLog("Mark reports as read paused.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-        }
-        finally
-        {
-            ToggleUiBusy(false);
-            DisposeOperationCts();
-        }
+        await RunGuardedOperationAsync(
+            "MarkReportsRead",
+            "Mark reports as read paused.",
+            ToggleUiBusy,
+            async (operationId, operationToken) =>
+            {
+                var options = ApplySelectedVillageToOptions(LoadBotOptions());
+                await EnsureChromiumInstalledAsync();
+                await _botService.MarkReportsAsReadAsync(
+                    options,
+                    AppendLog,
+                    GetSelectedVillageName(),
+                    GetSelectedVillageUrl(),
+                    operationToken);
+                await RefreshInboxIndicatorsAsync(logErrors: true, force: true);
+                return "Reports marked as read.";
+            });
     }
 
     private async Task RefreshInboxIndicatorsAsync(bool logErrors, bool force = false, CancellationToken cancellationToken = default)

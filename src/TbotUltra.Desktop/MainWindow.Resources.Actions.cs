@@ -25,39 +25,25 @@ public partial class MainWindow
             return;
         }
 
-        var operationId = BeginOperation("LoadResources");
-        var operationSw = Stopwatch.StartNew();
-        var operationToken = _loopController.StartOperation("operation");
-        ToggleResourceTabActionsBusy(true);
-        try
-        {
-            var options = LoadBotOptions();
-            AppendLog($"[{operationId}] INFO server={options.ServerName}");
-            await EnsureChromiumInstalledAsync();
-            var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: true, forceCurrentVillage: true);
-            SetActiveWorkingVillageFromStatus(status);
-            CacheVillageStatus(status);
-            _resourcesViewModel.ClearPendingTargets();
-            var rows = ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: false);
-            _inboxAutoEnabled = true;
-            UpdateInboxButtons(status.UnreadMessages, status.UnreadReports);
-            AppendLog($"Resources loaded: {rows.Count} fields.");
-            CompleteOperation(operationId, operationSw, $"Loaded {rows.Count} fields.");
-        }
-        catch (OperationCanceledException)
-        {
-            StatusTextBlock.Text = "Load resources paused.";
-            AppendLog("Load resources paused.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-        }
-        finally
-        {
-            ToggleResourceTabActionsBusy(false);
-            DisposeOperationCts();
-        }
+        await RunGuardedOperationAsync(
+            "LoadResources",
+            "Load resources paused.",
+            ToggleResourceTabActionsBusy,
+            async (operationId, operationToken) =>
+            {
+                var options = LoadBotOptions();
+                AppendLog($"[{operationId}] INFO server={options.ServerName}");
+                await EnsureChromiumInstalledAsync();
+                var status = await ReadVillageStatusWithRetryAsync(options, operationToken, resourceOnly: true, forceCurrentVillage: true);
+                SetActiveWorkingVillageFromStatus(status);
+                CacheVillageStatus(status);
+                _resourcesViewModel.ClearPendingTargets();
+                var rows = ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: false);
+                _inboxAutoEnabled = true;
+                UpdateInboxButtons(status.UnreadMessages, status.UnreadReports);
+                AppendLog($"Resources loaded: {rows.Count} fields.");
+                return $"Loaded {rows.Count} fields.";
+            });
     }
 
     private void OpenResourceTestFunctionsButton_Click(object sender, RoutedEventArgs e)
@@ -579,54 +565,40 @@ public partial class MainWindow
             return;
         }
 
-        var operationId = BeginOperation("TestResourceProduction");
-        var operationSw = Stopwatch.StartNew();
-        var operationToken = _loopController.StartOperation("operation");
-        ToggleResourceTabActionsBusy(true);
-        try
-        {
-            var options = LoadBotOptions();
-            AppendLog($"[{operationId}] testing production DOM read on current page.");
-            var productionByHour = await _botService.ReadCurrentPageResourceProductionPerHourAsync(
-                options,
-                AppendLog,
-                operationToken);
+        await RunGuardedOperationAsync(
+            "TestResourceProduction",
+            "Test production paused.",
+            ToggleResourceTabActionsBusy,
+            async (operationId, operationToken) =>
+            {
+                var options = LoadBotOptions();
+                AppendLog($"[{operationId}] testing production DOM read on current page.");
+                var productionByHour = await _botService.ReadCurrentPageResourceProductionPerHourAsync(
+                    options,
+                    AppendLog,
+                    operationToken);
 
-            var summary = string.Join(", ", new[] { "wood", "clay", "iron", "crop" }
-                .Select(key =>
+                var summary = string.Join(", ", new[] { "wood", "clay", "iron", "crop" }
+                    .Select(key =>
+                    {
+                        productionByHour.TryGetValue(key, out var value);
+                        var formatted = value?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) ?? "-";
+                        return $"{key}={formatted}/h";
+                    }));
+
+                AppendLog($"[{operationId}] production DOM read result: {summary}");
+                if (productionByHour.Count > 0 && productionByHour.Values.Any(value => value is not null))
                 {
-                    productionByHour.TryGetValue(key, out var value);
-                    var formatted = value?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) ?? "-";
-                    return $"{key}={formatted}/h";
-                }));
+                    ApplyResourceProductionOnlyToUi(productionByHour);
+                    AppendLog($"[{operationId}] applied production DOM read to UI.");
+                }
+                else
+                {
+                    AppendLog($"[{operationId}] no production values returned from DOM read.");
+                }
 
-            AppendLog($"[{operationId}] production DOM read result: {summary}");
-            if (productionByHour.Count > 0 && productionByHour.Values.Any(value => value is not null))
-            {
-                ApplyResourceProductionOnlyToUi(productionByHour);
-                AppendLog($"[{operationId}] applied production DOM read to UI.");
-            }
-            else
-            {
-                AppendLog($"[{operationId}] no production values returned from DOM read.");
-            }
-
-            CompleteOperation(operationId, operationSw, $"Production DOM read finished: {summary}");
-        }
-        catch (OperationCanceledException)
-        {
-            StatusTextBlock.Text = "Test production paused.";
-            AppendLog("Test production paused.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-        }
-        finally
-        {
-            ToggleResourceTabActionsBusy(false);
-            DisposeOperationCts();
-        }
+                return $"Production DOM read finished: {summary}";
+            });
     }
 
     private async void TestNavigateToBreweryButton_Click(object sender, RoutedEventArgs e)
@@ -639,37 +611,23 @@ public partial class MainWindow
             return;
         }
 
-        var operationId = BeginOperation("TestNavigateToBrewery");
-        var operationSw = Stopwatch.StartNew();
-        var operationToken = _loopController.StartOperation("operation");
-        ToggleResourceTabActionsBusy(true);
-        try
-        {
-            var options = LoadBotOptions();
-            AppendLog($"[{operationId}] navigating to brewery (same path as auto celebration).");
-            var status = await _botService.ReadBreweryCelebrationStatusAsync(
-                options,
-                AppendLog,
-                null,
-                operationToken);
+        await RunGuardedOperationAsync(
+            "TestNavigateToBrewery",
+            "Navigate to brewery paused.",
+            ToggleResourceTabActionsBusy,
+            async (operationId, operationToken) =>
+            {
+                var options = LoadBotOptions();
+                AppendLog($"[{operationId}] navigating to brewery (same path as auto celebration).");
+                var status = await _botService.ReadBreweryCelebrationStatusAsync(
+                    options,
+                    AppendLog,
+                    null,
+                    operationToken);
 
-            AppendLog($"[{operationId}] brewery status: {status.StatusText}");
-            CompleteOperation(operationId, operationSw, $"Navigate to brewery finished: {status.StatusText}");
-        }
-        catch (OperationCanceledException)
-        {
-            StatusTextBlock.Text = "Navigate to brewery paused.";
-            AppendLog("Navigate to brewery paused.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-        }
-        finally
-        {
-            ToggleResourceTabActionsBusy(false);
-            DisposeOperationCts();
-        }
+                AppendLog($"[{operationId}] brewery status: {status.StatusText}");
+                return $"Navigate to brewery finished: {status.StatusText}";
+            });
     }
 
     private async void TestStartCelebrationButton_Click(object sender, RoutedEventArgs e)
@@ -682,36 +640,22 @@ public partial class MainWindow
             return;
         }
 
-        var operationId = BeginOperation("TestStartCelebration");
-        var operationSw = Stopwatch.StartNew();
-        var operationToken = _loopController.StartOperation("operation");
-        ToggleResourceTabActionsBusy(true);
-        try
-        {
-            var options = LoadBotOptions();
-            AppendLog($"[{operationId}] starting brewery celebration (same path as auto celebration).");
-            var result = await _botService.RunBreweryCelebrationAsync(
-                options,
-                AppendLog,
-                operationToken);
+        await RunGuardedOperationAsync(
+            "TestStartCelebration",
+            "Start celebration paused.",
+            ToggleResourceTabActionsBusy,
+            async (operationId, operationToken) =>
+            {
+                var options = LoadBotOptions();
+                AppendLog($"[{operationId}] starting brewery celebration (same path as auto celebration).");
+                var result = await _botService.RunBreweryCelebrationAsync(
+                    options,
+                    AppendLog,
+                    operationToken);
 
-            AppendLog($"[{operationId}] celebration result: {result}");
-            CompleteOperation(operationId, operationSw, $"Start celebration finished: {result}");
-        }
-        catch (OperationCanceledException)
-        {
-            StatusTextBlock.Text = "Start celebration paused.";
-            AppendLog("Start celebration paused.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-        }
-        finally
-        {
-            ToggleResourceTabActionsBusy(false);
-            DisposeOperationCts();
-        }
+                AppendLog($"[{operationId}] celebration result: {result}");
+                return $"Start celebration finished: {result}";
+            });
     }
 
     private async void TestNpcTradeBarracksButton_Click(object sender, RoutedEventArgs e)
@@ -724,36 +668,22 @@ public partial class MainWindow
             return;
         }
 
-        var operationId = BeginOperation("TestNpcTradeBarracks");
-        var operationSw = Stopwatch.StartNew();
-        var operationToken = _loopController.StartOperation("operation");
-        ToggleResourceTabActionsBusy(true);
-        try
-        {
-            var options = LoadBotOptions();
-            AppendLog($"[{operationId}] running NPC trade test for Barracks.");
-            var result = await _botService.RunNpcTradeForBuildingTestAsync(
-                options,
-                AppendLog,
-                TbotUltra.Core.Travian.TroopTrainingBuildingType.Barracks,
-                operationToken);
-            AppendLog($"[{operationId}] NPC trade test result: {result}");
-            CompleteOperation(operationId, operationSw, result);
-        }
-        catch (OperationCanceledException)
-        {
-            StatusTextBlock.Text = "NPC trade test paused.";
-            AppendLog("NPC trade test paused.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-        }
-        finally
-        {
-            ToggleResourceTabActionsBusy(false);
-            DisposeOperationCts();
-        }
+        await RunGuardedOperationAsync(
+            "TestNpcTradeBarracks",
+            "NPC trade test paused.",
+            ToggleResourceTabActionsBusy,
+            async (operationId, operationToken) =>
+            {
+                var options = LoadBotOptions();
+                AppendLog($"[{operationId}] running NPC trade test for Barracks.");
+                var result = await _botService.RunNpcTradeForBuildingTestAsync(
+                    options,
+                    AppendLog,
+                    TbotUltra.Core.Travian.TroopTrainingBuildingType.Barracks,
+                    operationToken);
+                AppendLog($"[{operationId}] NPC trade test result: {result}");
+                return result;
+            });
     }
 
     private async void TestNpcTradeBuildingButton_Click(object sender, RoutedEventArgs e)
@@ -766,35 +696,21 @@ public partial class MainWindow
             return;
         }
 
-        var operationId = BeginOperation("TestNpcTradeBuilding");
-        var operationSw = Stopwatch.StartNew();
-        var operationToken = _loopController.StartOperation("operation");
-        ToggleResourceTabActionsBusy(true);
-        try
-        {
-            var options = LoadBotOptions();
-            AppendLog($"[{operationId}] running NPC trade test on current building page.");
-            var result = await _botService.RunNpcTradeForCurrentBuildingPageTestAsync(
-                options,
-                AppendLog,
-                operationToken);
-            AppendLog($"[{operationId}] NPC trade building test result: {result}");
-            CompleteOperation(operationId, operationSw, result);
-        }
-        catch (OperationCanceledException)
-        {
-            StatusTextBlock.Text = "NPC trade building test paused.";
-            AppendLog("NPC trade building test paused.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-        }
-        finally
-        {
-            ToggleResourceTabActionsBusy(false);
-            DisposeOperationCts();
-        }
+        await RunGuardedOperationAsync(
+            "TestNpcTradeBuilding",
+            "NPC trade building test paused.",
+            ToggleResourceTabActionsBusy,
+            async (operationId, operationToken) =>
+            {
+                var options = LoadBotOptions();
+                AppendLog($"[{operationId}] running NPC trade test on current building page.");
+                var result = await _botService.RunNpcTradeForCurrentBuildingPageTestAsync(
+                    options,
+                    AppendLog,
+                    operationToken);
+                AppendLog($"[{operationId}] NPC trade building test result: {result}");
+                return result;
+            });
     }
 
     private async void TestReadSmithyQueueButton_Click(object sender, RoutedEventArgs e)
@@ -807,35 +723,21 @@ public partial class MainWindow
             return;
         }
 
-        var operationId = BeginOperation("TestReadSmithyQueue");
-        var operationSw = Stopwatch.StartNew();
-        var operationToken = _loopController.StartOperation("operation");
-        ToggleResourceTabActionsBusy(true);
-        try
-        {
-            var options = LoadBotOptions();
-            AppendLog($"[{operationId}] reading Smithy queue from current page.");
-            var result = await _botService.ReadSmithyQueueFromCurrentPageTestAsync(
-                options,
-                AppendLog,
-                operationToken);
-            AppendLog($"[{operationId}] Smithy queue result: {result}");
-            CompleteOperation(operationId, operationSw, result);
-        }
-        catch (OperationCanceledException)
-        {
-            StatusTextBlock.Text = "Smithy queue test paused.";
-            AppendLog("Smithy queue test paused.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-        }
-        finally
-        {
-            ToggleResourceTabActionsBusy(false);
-            DisposeOperationCts();
-        }
+        await RunGuardedOperationAsync(
+            "TestReadSmithyQueue",
+            "Smithy queue test paused.",
+            ToggleResourceTabActionsBusy,
+            async (operationId, operationToken) =>
+            {
+                var options = LoadBotOptions();
+                AppendLog($"[{operationId}] reading Smithy queue from current page.");
+                var result = await _botService.ReadSmithyQueueFromCurrentPageTestAsync(
+                    options,
+                    AppendLog,
+                    operationToken);
+                AppendLog($"[{operationId}] Smithy queue result: {result}");
+                return result;
+            });
     }
 
     private async void TestReinforcementsButton_Click(object sender, RoutedEventArgs e)
@@ -848,41 +750,27 @@ public partial class MainWindow
             return;
         }
 
-        var operationId = BeginOperation("TestReinforcements");
-        var operationSw = Stopwatch.StartNew();
-        var operationToken = _loopController.StartOperation("operation");
-        ToggleResourceTabActionsBusy(true);
-        try
-        {
-            PersistReinforcementSettings();
-            var options = BotOptionsPayloadApplier.Apply(
-                LoadBotOptions(),
-                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                {
-                    [BotOptionPayloadKeys.ReinforcementsTroopRules] = System.Text.Json.JsonSerializer.Serialize(BuildReinforcementRulesForRun()),
-                });
-            AppendLog($"[{operationId}] running reinforcements test with saved settings.");
-            var result = await _botService.RunReinforcementsTestAsync(
-                options,
-                AppendLog,
-                operationToken);
-            AppendLog($"[{operationId}] reinforcements test result: {result}");
-            CompleteOperation(operationId, operationSw, result);
-        }
-        catch (OperationCanceledException)
-        {
-            StatusTextBlock.Text = "Reinforcements test paused.";
-            AppendLog("Reinforcements test paused.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-        }
-        finally
-        {
-            ToggleResourceTabActionsBusy(false);
-            DisposeOperationCts();
-        }
+        await RunGuardedOperationAsync(
+            "TestReinforcements",
+            "Reinforcements test paused.",
+            ToggleResourceTabActionsBusy,
+            async (operationId, operationToken) =>
+            {
+                PersistReinforcementSettings();
+                var options = BotOptionsPayloadApplier.Apply(
+                    LoadBotOptions(),
+                    new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        [BotOptionPayloadKeys.ReinforcementsTroopRules] = System.Text.Json.JsonSerializer.Serialize(BuildReinforcementRulesForRun()),
+                    });
+                AppendLog($"[{operationId}] running reinforcements test with saved settings.");
+                var result = await _botService.RunReinforcementsTestAsync(
+                    options,
+                    AppendLog,
+                    operationToken);
+                AppendLog($"[{operationId}] reinforcements test result: {result}");
+                return result;
+            });
     }
 
     private async void TestIncreaseAdventuresToHardButton_Click(object sender, RoutedEventArgs e)
@@ -895,35 +783,21 @@ public partial class MainWindow
             return;
         }
 
-        var operationId = BeginOperation("IncreaseAdventuresToHard");
-        var operationSw = Stopwatch.StartNew();
-        var operationToken = _loopController.StartOperation("operation");
-        ToggleResourceTabActionsBusy(true);
-        try
-        {
-            var options = LoadBotOptions();
-            AppendLog($"[{operationId}] increasing next adventure danger to hard via bonus video.");
-            var result = await _botService.RunIncreaseAdventuresToHardAsync(
-                options,
-                AppendLog,
-                operationToken);
-            AppendLog($"[{operationId}] increase adventure danger result: {result}");
-            CompleteOperation(operationId, operationSw, result);
-        }
-        catch (OperationCanceledException)
-        {
-            StatusTextBlock.Text = "Increase adventure danger paused.";
-            AppendLog("Increase adventure danger paused.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-        }
-        finally
-        {
-            ToggleResourceTabActionsBusy(false);
-            DisposeOperationCts();
-        }
+        await RunGuardedOperationAsync(
+            "IncreaseAdventuresToHard",
+            "Increase adventure danger paused.",
+            ToggleResourceTabActionsBusy,
+            async (operationId, operationToken) =>
+            {
+                var options = LoadBotOptions();
+                AppendLog($"[{operationId}] increasing next adventure danger to hard via bonus video.");
+                var result = await _botService.RunIncreaseAdventuresToHardAsync(
+                    options,
+                    AppendLog,
+                    operationToken);
+                AppendLog($"[{operationId}] increase adventure danger result: {result}");
+                return result;
+            });
     }
 
     private async void TestReduceAdventuresTimeButton_Click(object sender, RoutedEventArgs e)
@@ -936,35 +810,21 @@ public partial class MainWindow
             return;
         }
 
-        var operationId = BeginOperation("ReduceAdventuresTime");
-        var operationSw = Stopwatch.StartNew();
-        var operationToken = _loopController.StartOperation("operation");
-        ToggleResourceTabActionsBusy(true);
-        try
-        {
-            var options = LoadBotOptions();
-            AppendLog($"[{operationId}] reducing next adventure duration by 25% via bonus video.");
-            var result = await _botService.RunReduceAdventuresTimeAsync(
-                options,
-                AppendLog,
-                operationToken);
-            AppendLog($"[{operationId}] reduce adventure time result: {result}");
-            CompleteOperation(operationId, operationSw, result);
-        }
-        catch (OperationCanceledException)
-        {
-            StatusTextBlock.Text = "Reduce adventure time paused.";
-            AppendLog("Reduce adventure time paused.");
-        }
-        catch (Exception ex)
-        {
-            FailOperation(operationId, operationSw, ex);
-        }
-        finally
-        {
-            ToggleResourceTabActionsBusy(false);
-            DisposeOperationCts();
-        }
+        await RunGuardedOperationAsync(
+            "ReduceAdventuresTime",
+            "Reduce adventure time paused.",
+            ToggleResourceTabActionsBusy,
+            async (operationId, operationToken) =>
+            {
+                var options = LoadBotOptions();
+                AppendLog($"[{operationId}] reducing next adventure duration by 25% via bonus video.");
+                var result = await _botService.RunReduceAdventuresTimeAsync(
+                    options,
+                    AppendLog,
+                    operationToken);
+                AppendLog($"[{operationId}] reduce adventure time result: {result}");
+                return result;
+            });
     }
 
     private void UpgradeAllResourcesButton_Click(object sender, RoutedEventArgs e)

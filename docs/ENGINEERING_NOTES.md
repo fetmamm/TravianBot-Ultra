@@ -163,6 +163,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Disable duplicate commands while running; marshal observable collections through the dispatcher.
 - Marshal to the UI thread via the shared `MainWindow` helpers: `RunOnUi` (blocking) or `RunOrPostToUi`
   (fire-and-forget off-thread); do not hand-roll new `CheckAccess` guards with matching semantics.
+- Manual operations matching the canonical begin/busy/complete/paused/fail shape go through
+  `RunGuardedOperationAsync`; flows with extra state, dialogs, or custom cancel handling keep explicit blocks.
 - Keep `DataGrid.RowHeight` unset or `Double.NaN`; the string `Auto` is not a WPF `Double`.
 - Enumerate mutable collections through immutable snapshots when sanitizing/exporting.
 - Village Overview is read-only and uses cache/queue snapshots; opening it never navigates or scans.
