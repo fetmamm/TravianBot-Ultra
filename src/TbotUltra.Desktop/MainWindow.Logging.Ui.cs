@@ -79,7 +79,7 @@ public partial class MainWindow
 
     private void AcknowledgeAlarmButton_Click(object sender, RoutedEventArgs e)
     {
-        if (_unacknowledgedAlarmCount == 0)
+        if (_alarmsViewModel.UnacknowledgedCount == 0)
         {
             return;
         }
@@ -99,8 +99,7 @@ public partial class MainWindow
         var alarmsSelected = TerminalAlarmTabControl.SelectedIndex == 1;
         if (alarmsSelected)
         {
-            _alarmEntries.Clear();
-            _unacknowledgedAlarmCount = 0;
+            _alarmsViewModel.Clear();
         }
         else
         {
@@ -151,7 +150,7 @@ public partial class MainWindow
 
     private void UpdateTerminalAlarmUi()
     {
-        var hasAlarms = _unacknowledgedAlarmCount > 0;
+        var hasAlarms = _alarmsViewModel.UnacknowledgedCount > 0;
         var hasAlarmEntries = _alarmEntries.Count > 0;
         var alarmTabSelected = TerminalAlarmTabControl.SelectedIndex == 1;
         var statisticsTabSelected = TerminalAlarmTabControl.SelectedIndex == 2;
@@ -174,11 +173,11 @@ public partial class MainWindow
         {
             LogsNavButton.Background = new SolidColorBrush(ThemeColors.Get("DangerBrush"));
             LogsNavButton.Foreground = Brushes.White;
-            LogsNavButton.ToolTip = $"Logs ({_unacknowledgedAlarmCount} alarms)";
+            LogsNavButton.ToolTip = $"Logs ({_alarmsViewModel.UnacknowledgedCount} alarms)";
             AlarmTabItem.Foreground = Brushes.White;
             AlarmTabItem.FontWeight = alarmTabSelected ? FontWeights.SemiBold : FontWeights.Normal;
             AlarmTabItem.Template = (ControlTemplate)AlarmTabItem.Resources["ActiveAlarmTabTemplate"];
-            AlarmTabItem.ToolTip = $"Alarms ({_unacknowledgedAlarmCount})";
+            AlarmTabItem.ToolTip = $"Alarms ({_alarmsViewModel.UnacknowledgedCount})";
         }
         else
         {
@@ -218,12 +217,7 @@ public partial class MainWindow
 
     private void AcknowledgeAllAlarmEntries()
     {
-        foreach (var entry in _alarmEntries)
-        {
-            entry.IsAcknowledged = true;
-        }
-
-        _unacknowledgedAlarmCount = 0;
+        _alarmsViewModel.AcknowledgeAll();
         AlarmListBox.Items.Refresh();
         _logsPopupAlarmList?.Items.Refresh();
     }
@@ -238,24 +232,11 @@ public partial class MainWindow
 
         FlushPendingLogsToUi();
 
-        var changed = false;
-        foreach (var entry in _alarmEntries)
-        {
-            if (entry.IsAcknowledged || !IsLanguageAlarmMessage(entry.Text))
-            {
-                continue;
-            }
-
-            entry.IsAcknowledged = true;
-            changed = true;
-        }
-
-        if (!changed)
+        if (!_alarmsViewModel.AcknowledgeWhere(entry => IsLanguageAlarmMessage(entry.Text)))
         {
             return;
         }
 
-        _unacknowledgedAlarmCount = _alarmEntries.Count(entry => !entry.IsAcknowledged);
         AlarmListBox.Items.Refresh();
         _logsPopupAlarmList?.Items.Refresh();
         UpdateTerminalAlarmUi();

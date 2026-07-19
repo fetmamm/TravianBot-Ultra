@@ -278,7 +278,6 @@ public partial class MainWindow : Window
     private bool _smithyUpgradeStatusRefreshRunning;
     private IReadOnlyList<Building>? _pendingSmithyUpgradeStatusBuildings;
     private bool _buildQueueReachedZeroPendingCompletion;
-    private int _unacknowledgedAlarmCount;
     private int _npcTradeSessionCount;
     private int _npcTradeTroopSessionCount;
     private int _npcTradeBuildingSessionCount;

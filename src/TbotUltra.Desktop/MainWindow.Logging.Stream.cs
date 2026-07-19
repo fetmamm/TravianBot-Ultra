@@ -199,41 +199,16 @@ public partial class MainWindow
                     if (isAlarm)
                     {
                         var isAcknowledgedAlarm = IsAutoAcknowledgedAlarmMessage(part);
-                        var nowUtc = DateTimeOffset.UtcNow;
                         var accountKey = _accountStore.ActiveAccountName();
                         var signature = $"{accountKey}|{part}";
-                        var existingAlarm = _alarmEntries.FirstOrDefault(entry =>
-                            string.Equals(entry.Signature, signature, StringComparison.Ordinal)
-                            && nowUtc - entry.LastSeenUtc <= TimeSpan.FromMinutes(30));
-                        if (existingAlarm is not null)
+                        alarmEntriesChanged = true;
+                        var isNewAlarm = _alarmsViewModel.RecordAlarm(
+                            line,
+                            signature,
+                            isAcknowledgedAlarm,
+                            DateTimeOffset.UtcNow);
+                        if (isNewAlarm)
                         {
-                            alarmEntriesChanged = true;
-                            existingAlarm.OccurrenceCount++;
-                            existingAlarm.LastSeenUtc = nowUtc;
-                            existingAlarm.Text =
-                                $"{line} (x{existingAlarm.OccurrenceCount}, first {existingAlarm.FirstSeenUtc.ToLocalTime():HH:mm:ss})";
-                            if (existingAlarm.IsAcknowledged && !isAcknowledgedAlarm)
-                            {
-                                existingAlarm.IsAcknowledged = false;
-                                _unacknowledgedAlarmCount += 1;
-                            }
-                        }
-                        else
-                        {
-                            alarmEntriesChanged = true;
-                            _alarmEntries.Insert(0, new AlarmEntryRow
-                            {
-                                Text = line,
-                                Signature = signature,
-                                FirstSeenUtc = nowUtc,
-                                LastSeenUtc = nowUtc,
-                                IsAcknowledged = isAcknowledgedAlarm,
-                            });
-                            if (!isAcknowledgedAlarm)
-                            {
-                                _unacknowledgedAlarmCount += 1;
-                            }
-
                             // Alarm rows are also normal terminal rows, but the session file must
                             // contain the event only once and under the alarm section. Repeated
                             // identical alarms inside the coalescing window update the UI count
