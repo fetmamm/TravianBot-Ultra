@@ -229,19 +229,7 @@ public partial class MainWindow
                      snapshot.Knowledge != ConstructionQueueKnowledge.Unknown,
                      nowUtc,
                      FormatQueueFinishTime);
-        var sharedCount = Math.Min(_travianBuildQueueRows.Count, rows.Count);
-        for (var index = 0; index < sharedCount; index++)
-        {
-            _travianBuildQueueRows[index].ApplySnapshot(rows[index]);
-        }
-        while (_travianBuildQueueRows.Count > rows.Count)
-        {
-            _travianBuildQueueRows.RemoveAt(_travianBuildQueueRows.Count - 1);
-        }
-        for (var index = sharedCount; index < rows.Count; index++)
-        {
-            _travianBuildQueueRows.Add(rows[index]);
-        }
+        _travianQueueViewModel.ApplyBuildQueueRows(rows);
     }
 
     private void RefreshTravianSmithyQueueUi()
@@ -258,19 +246,7 @@ public partial class MainWindow
                      status?.SmithyUpgradeStatus is not null,
                      nowUtc,
                      FormatQueueFinishTime);
-        var sharedCount = Math.Min(_travianSmithyQueueRows.Count, rows.Count);
-        for (var index = 0; index < sharedCount; index++)
-        {
-            _travianSmithyQueueRows[index].ApplySnapshot(rows[index]);
-        }
-        while (_travianSmithyQueueRows.Count > rows.Count)
-        {
-            _travianSmithyQueueRows.RemoveAt(_travianSmithyQueueRows.Count - 1);
-        }
-        for (var index = sharedCount; index < rows.Count; index++)
-        {
-            _travianSmithyQueueRows.Add(rows[index]);
-        }
+        _travianQueueViewModel.ApplySmithyQueueRows(rows);
     }
 
     private static Guid? ResolveDisplayRunningQueueItemId(IReadOnlyList<QueueItem> ordered)
