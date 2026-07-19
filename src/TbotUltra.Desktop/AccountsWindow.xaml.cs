@@ -108,7 +108,10 @@ public partial class AccountsWindow : Window
         }
     }
 
-    private void Reload()
+    // Re-reads the stored accounts into _accounts and the list box. Split out of Reload() so a popup
+    // that only needs the list refreshed can do that without also re-selecting an account, which would
+    // load that account into the editor and throw away unsaved input.
+    private void LoadAccountsIntoList()
     {
         ReconcileAccountServerNames();
         _activeAccountName = _store.ActiveAccountName();
@@ -121,11 +124,15 @@ public partial class AccountsWindow : Window
             account.IsActive = string.Equals(account.Name, _activeAccountName, StringComparison.OrdinalIgnoreCase);
         }
 
-        EnsureServerListContainsDefaults();
-        ReloadProxyLibraryEntries();
-
         AccountsListBox.ItemsSource = null;
         AccountsListBox.ItemsSource = _accounts;
+    }
+
+    private void Reload()
+    {
+        LoadAccountsIntoList();
+        EnsureServerListContainsDefaults();
+        ReloadProxyLibraryEntries();
 
         if (_accounts.Count > 0)
         {
@@ -179,13 +186,15 @@ public partial class AccountsWindow : Window
         PasswordTextBox.Text = selected.Password;
         // Set the proxy fields before the InfoTextBlock assignment below so the checkbox handler's
         // hint does not overwrite the "Editing existing account" message.
-        UseProxyCheckBox.IsChecked = selected.ProxyEnabled;
+        // Order matters: UseProxyCheckBox_Changed re-checks "Use proxy" while the previous account's
+        // "Never use own IP" is still on, which would leave the checkbox and the fields disagreeing.
         NeverUseOwnIpCheckBox.IsChecked = selected.NeverUseOwnIp;
+        UseProxyCheckBox.IsChecked = selected.ProxyEnabled;
         SafeRunAccountEditorAction(() =>
         {
             LoadProxyFields(selected.ProxyServer);
             RefreshSavedProxySelection();
-            SetProxyFieldsEnabled(selected.ProxyEnabled);
+            SetProxyFieldsEnabled(UseProxyCheckBox.IsChecked == true);
         }, "load proxy fields");
         _editorProxyPlan = _proxyPlanStore.LoadActive(selected.Name)
             ?? _proxyPlanStore.BuildLegacyPlan(selected.ProxyServer, _proxyLibraryEntries);
@@ -893,19 +902,42 @@ public partial class AccountsWindow : Window
         {
             Owner = this,
         };
-        if (dialog.ShowDialog() == true)
+        if (dialog.ShowDialog() != true)
         {
-            // Refresh from the saved catalog, then reload accounts so a server edit (e.g. a
-            // renamed server) propagates to the accounts that use it. Reload() reconciles names.
-            var editingName = _editingExistingAccount ? _editingOriginalName : null;
-            ReloadServerOptionsFromCatalog();
-            _selectedAccountName = string.Empty;
-            Reload();
-            if (!string.IsNullOrEmpty(editingName))
-            {
-                SelectByName(editingName);
-            }
+            return;
         }
+
+        // Refresh from the saved catalog and re-read the accounts so a server edit (e.g. a renamed
+        // server) propagates to the accounts that use it. This must NOT go through Reload(): that
+        // re-selects an account and repopulates the editor from disk, wiping anything the user typed
+        // before opening this dialog. Rebind the list with the selection suppressed instead, and put
+        // the editor's own server pick back afterwards (rebuilding the combo drops its selection).
+        var selectedServer = ServerComboBox.SelectedItem as ServerOption;
+        var selectedServerName = selectedServer?.Name ?? string.Empty;
+        var selectedServerUrl = selectedServer?.BaseUrl ?? string.Empty;
+
+        ReloadServerOptionsFromCatalog();
+        _suppressSelectionChanged = true;
+        try
+        {
+            LoadAccountsIntoList();
+            AccountsListBox.SelectedItem = _editingExistingAccount
+                ? _accounts.FirstOrDefault(item => string.Equals(item.Name, _editingOriginalName, StringComparison.OrdinalIgnoreCase))
+                : null;
+        }
+        finally
+        {
+            _suppressSelectionChanged = false;
+        }
+
+        EnsureServerListContainsDefaults();
+        if (selectedServerName.Length > 0 || selectedServerUrl.Length > 0)
+        {
+            SelectServer(selectedServerName, selectedServerUrl);
+        }
+
+        ReloadProxyLibraryEntries();
+        UpdateActionButtons();
     }
 
     private void ReloadServerOptionsFromCatalog()
@@ -1161,18 +1193,23 @@ public partial class AccountsWindow : Window
         PasswordBox.Visibility = Visibility.Visible;
         PasswordTextBox.Visibility = Visibility.Collapsed;
         TogglePasswordButton.Content = "Show";
+        // "Never use own IP" must be cleared FIRST: UseProxyCheckBox_Changed refuses to uncheck the
+        // proxy while it is on and re-checks the box, which left a new account with "Use proxy" ticked
+        // but every proxy control (including the saved-proxy list) disabled until the user toggled the
+        // checkbox off and on again.
+        NeverUseOwnIpCheckBox.IsChecked = false;
         UseProxyCheckBox.IsChecked = false;
         _suppressProxyRotationChange = true;
         UseProxyRotationCheckBox.IsChecked = false;
         _suppressProxyRotationChange = false;
-        NeverUseOwnIpCheckBox.IsChecked = false;
         _editorProxyPlan = new AccountProxyPlan();
         UpdateProxyPlanSummary(string.Empty);
         SafeRunAccountEditorAction(() =>
         {
             LoadProxyFields(string.Empty);
             RefreshSavedProxySelection();
-            SetProxyFieldsEnabled(false);
+            // Follow the checkbox rather than assuming "off", so the controls can never disagree with it.
+            SetProxyFieldsEnabled(UseProxyCheckBox.IsChecked == true);
         }, "clear proxy fields");
         SelectServer(_defaultServerName, _defaultServerUrl);
         ServerComboBox.IsEnabled = true;
@@ -1472,7 +1509,9 @@ public partial class AccountsWindow : Window
             [("Save", MessageBoxResult.Yes), ("Discard", MessageBoxResult.No), ("Cancel", MessageBoxResult.Cancel)],
             MessageBoxImage.Warning,
             MessageBoxResult.Yes,
-            MessageBoxResult.Cancel);
+            MessageBoxResult.Cancel,
+            successResult: MessageBoxResult.Yes,
+            dangerResult: MessageBoxResult.No);
 
         if (result == MessageBoxResult.Cancel)
         {
