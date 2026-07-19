@@ -128,9 +128,8 @@ public sealed partial class BrowserSession
             var expectedRevision = ResolveExpectedChromiumRevision();
             if (expectedRevision is not null)
             {
-                var expectedExecutable = Path.Combine(
-                    playwrightRoot, $"chromium-{expectedRevision}", "chrome-win", "chrome.exe");
-                var installed = File.Exists(expectedExecutable);
+                var expectedBrowserRoot = Path.Combine(playwrightRoot, $"chromium-{expectedRevision}");
+                var installed = ContainsWindowsChromiumExecutable(expectedBrowserRoot);
                 log?.Invoke(installed
                     ? $"[browser] chromium-{expectedRevision} is installed."
                     : $"[browser] chromium-{expectedRevision} is missing (Playwright upgrade?); install required.");
@@ -140,10 +139,8 @@ public sealed partial class BrowserSession
             // Driver metadata unreadable: keep the previous any-revision behavior rather than forcing
             // an unnecessary download. A stale revision then still fails at launch, as it did before.
             log?.Invoke("[browser] could not read the expected Chromium revision; falling back to any installed revision.");
-            var executables = Directory.GetFiles(playwrightRoot, "chrome.exe", SearchOption.AllDirectories);
-            return executables.Any(path =>
-                path.Contains("chromium-", StringComparison.OrdinalIgnoreCase) &&
-                path.Contains("chrome-win", StringComparison.OrdinalIgnoreCase));
+            return Directory.GetDirectories(playwrightRoot, "chromium-*")
+                .Any(ContainsWindowsChromiumExecutable);
         }
         catch
         {
@@ -177,9 +174,8 @@ public sealed partial class BrowserSession
                 return 0;
             }
 
-            var expectedExecutable = Path.Combine(
-                playwrightRoot, $"chromium-{expectedRevision}", "chrome-win", "chrome.exe");
-            if (!File.Exists(expectedExecutable))
+            var expectedBrowserRoot = Path.Combine(playwrightRoot, $"chromium-{expectedRevision}");
+            if (!ContainsWindowsChromiumExecutable(expectedBrowserRoot))
             {
                 log?.Invoke("[browser] skipping cleanup of old browser revisions: the expected one is not installed.");
                 return 0;
@@ -212,6 +208,22 @@ public sealed partial class BrowserSession
         }
 
         return removed;
+    }
+
+    /// <summary>
+    /// Finds Chromium in the exact revision folder without pinning Playwright's Windows archive name.
+    /// Recent packages use chrome-win64 while older packages used chrome-win.
+    /// </summary>
+    private static bool ContainsWindowsChromiumExecutable(string browserRoot)
+    {
+        if (!Directory.Exists(browserRoot))
+        {
+            return false;
+        }
+
+        return Directory.GetFiles(browserRoot, "chrome.exe", SearchOption.AllDirectories)
+            .Any(path => Path.GetFileName(Path.GetDirectoryName(path))?
+                .StartsWith("chrome-win", StringComparison.OrdinalIgnoreCase) == true);
     }
 
     /// <summary>

@@ -24,6 +24,14 @@ public sealed class BrowserSessionChromiumInstallGuardTests : IDisposable
     }
 
     [Fact]
+    public void ReportsInstalled_WithLegacyWindowsArchiveName()
+    {
+        CreateChromiumFolder(ExpectedRevision(), "chrome-win");
+
+        Assert.True(BrowserSession.ChromiumAlreadyInstalled(_root));
+    }
+
+    [Fact]
     public void ReportsMissing_WhenOnlyAnOlderRevisionIsPresent()
     {
         // The exact regression: Playwright upgraded, ms-playwright still holds the previous revision.
@@ -38,9 +46,9 @@ public sealed class BrowserSessionChromiumInstallGuardTests : IDisposable
         Assert.False(BrowserSession.ChromiumAlreadyInstalled(_root));
     }
 
-    private void CreateChromiumFolder(string revision)
+    private void CreateChromiumFolder(string revision, string archiveName = "chrome-win64")
     {
-        var executableDirectory = Path.Combine(_root, "ms-playwright", $"chromium-{revision}", "chrome-win");
+        var executableDirectory = Path.Combine(_root, "ms-playwright", $"chromium-{revision}", archiveName);
         Directory.CreateDirectory(executableDirectory);
         File.WriteAllText(Path.Combine(executableDirectory, "chrome.exe"), string.Empty);
     }

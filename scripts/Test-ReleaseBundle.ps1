@@ -64,8 +64,11 @@ if ([string]::IsNullOrWhiteSpace($expectedChromiumRevision)) {
     throw "Could not read the expected Chromium revision from browsers.json."
 }
 
-$chromiumExe = Join-Path $browserRoot "chromium-$expectedChromiumRevision\chrome-win\chrome.exe"
-if (-not (Test-Path -LiteralPath $chromiumExe -PathType Leaf)) {
+$expectedChromiumRoot = Join-Path $browserRoot "chromium-$expectedChromiumRevision"
+$chromiumExe = Get-ChildItem -LiteralPath $expectedChromiumRoot -File -Filter "chrome.exe" -Recurse -ErrorAction SilentlyContinue |
+    Where-Object { $_.Directory.Name -like "chrome-win*" } |
+    Select-Object -First 1
+if (-not $chromiumExe) {
     $present = (Get-ChildItem -LiteralPath $browserRoot -Directory -ErrorAction SilentlyContinue |
         Where-Object { $_.Name -like "chromium-*" } | Select-Object -ExpandProperty Name) -join ", "
     throw ("Release bundle does not contain the Chromium revision Playwright expects " +

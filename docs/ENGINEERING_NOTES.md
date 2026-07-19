@@ -105,6 +105,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
 
 ## Browser, login and account access
 
+- Validate bundled Chromium by its exact Playwright revision and executable, but do not hard-code the Windows
+  archive directory name; supported Playwright versions have used both `chrome-win` and `chrome-win64`.
 - `DOMContentLoaded` is sufficient only when followed by a required page-marker check.
 - Full login starts in the Travian lobby and enters the owned world through SSO; never submit credentials to the
   configured game server or add direct-server fallback.

@@ -39,6 +39,8 @@ failure only surfaces on a user's machine.
 
 `BrowserSession.ChromiumAlreadyInstalled` reads the expected revision from the driver metadata shipped
 next to the app (`.playwright/package/browsers.json`), so it follows package upgrades without edits.
+The executable lookup accepts Playwright's `chrome-win` and `chrome-win64` archive layouts while still
+requiring that executable to live inside the exact expected revision folder.
 Never reduce it to an any-revision folder check: a leftover folder from the previous package version
 then reports "installed", the install is skipped, and the launch fails instead.
 
