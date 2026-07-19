@@ -657,7 +657,12 @@ public sealed partial class TravianClient
         TroopTrainingResourceSnapshot liveSnapshot,
         VillageStatus status)
     {
-        var cachedSnapshot = TryGetCachedVillageResourceSnapshot(villageName);
+        // Every caller passes status.ActiveVillage as villageName, so the status' own coordinates are the
+        // identity of this village — needed because the cache is keyed by coordinates and a duplicate
+        // village name would otherwise find nothing.
+        var cachedSnapshot = TryGetCachedVillageResourceSnapshot(
+            villageName,
+            (status.ActiveVillageCoordX, status.ActiveVillageCoordY));
         var statusCapacities = ResolveVillageStorageCapacities(status);
         var mergedCapacities = TroopTrainingCalculator.MergeTroopTrainingCapacities(
             liveSnapshot.Capacities,

@@ -97,7 +97,11 @@ public sealed partial class TravianClient
         await WaitForResourceSnapshotWidgetsAsync(cancellationToken);
         var snapshot = await ReadResourceSnapshotAsync(cancellationToken);
         var resources = snapshot.Resources;
-        var cachedSnapshot = TryGetCachedVillageResourceSnapshot(activeVillage);
+        // The sidebar's own data-x/data-y for the active village: the exact identity this status belongs
+        // to. Read before the resource cache is touched, because duplicate village names cannot be told
+        // apart by name and would otherwise share (or skip) a cache entry.
+        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+        var cachedSnapshot = TryGetCachedVillageResourceSnapshot(activeVillage, activeCoords);
         var capacities = (
             Warehouse: snapshot.Capacities.Warehouse ?? cachedSnapshot?.WarehouseCapacity,
             Granary: snapshot.Capacities.Granary ?? cachedSnapshot?.GranaryCapacity);
@@ -113,7 +117,7 @@ public sealed partial class TravianClient
         // village. Without saving it, later current-page reads (on dorf2/build pages, where production is
         // not present) found an empty cache and showed "@-/h"/"not filling". SaveCached keeps existing
         // values when the new read is empty, so it never overwrites good data with blanks.
-        SaveCachedVillageResourceSnapshot(activeVillage, resourceFields, capacities, productionByHour);
+        SaveCachedVillageResourceSnapshot(activeVillage, resourceFields, capacities, productionByHour, activeCoords);
 
         var buildings = knownBuildings is { Count: > 0 }
             ? knownBuildings
@@ -138,9 +142,6 @@ public sealed partial class TravianClient
 
         var villageTribe = await ReadActiveVillageTribeAsync(cancellationToken);
         villages = EnrichActiveVillageTribe(villages, activeVillage, villageTribe);
-        // The sidebar's own data-x/data-y for the active village: the exact identity this status
-        // belongs to, so Desktop caches can key by coordinates without name matching.
-        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
         var result = new VillageStatus(
             ActiveVillage: activeVillage,
             Villages: villages,

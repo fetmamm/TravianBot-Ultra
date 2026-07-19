@@ -466,7 +466,10 @@ public sealed partial class TravianClient : IBuildingClient
         try
         {
             var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
-            return TryGetCachedVillageResourceSnapshot(activeVillage)?.ProductionByHour
+            // Coordinates identify the village the cache was written under; without them a duplicate
+            // village name resolves to no entry and the production fallback comes back empty.
+            var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+            return TryGetCachedVillageResourceSnapshot(activeVillage, activeCoords)?.ProductionByHour
                 ?? new Dictionary<string, double?>(StringComparer.OrdinalIgnoreCase);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)

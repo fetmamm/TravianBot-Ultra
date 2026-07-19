@@ -29,7 +29,10 @@ public sealed partial class TravianClient
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
-        var cachedSnapshot = TryGetCachedVillageResourceSnapshot(activeVillage);
+        // Identify the village by the coordinates on this page before touching the cache: the name alone
+        // is ambiguous when several villages share it, and this read carries no production of its own.
+        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+        var cachedSnapshot = TryGetCachedVillageResourceSnapshot(activeVillage, activeCoords);
         var snapshot = await ReadResourceSnapshotAsync(
             cancellationToken,
             allowRecovery: false,
@@ -45,7 +48,8 @@ public sealed partial class TravianClient
             activeVillage,
             cachedSnapshot?.ResourceFields ?? [],
             capacities,
-            productionByHour);
+            productionByHour,
+            activeCoords);
 
         Notify($"Storage read: village='{activeVillage}', storage wh={FormatResourceLogNumber(capacities.Warehouse)} gr={FormatResourceLogNumber(capacities.Granary)} | stock {BuildResourceValueLog(resources)} | prod {BuildProductionValueLog(productionByHour)}");
 
@@ -65,7 +69,6 @@ public sealed partial class TravianClient
         }
 
         var villageTribe = await ReadActiveVillageTribeAsync(cancellationToken);
-        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
         return new VillageStatus(
             ActiveVillage: activeVillage,
             Villages: [],
@@ -267,7 +270,10 @@ public sealed partial class TravianClient
             cancellationToken,
             allowRecovery: allowNavigationToResourcePage,
             maxAttempts: allowNavigationToResourcePage ? 4 : 1);
-        var cachedSnapshot = TryGetCachedVillageResourceSnapshot(activeVillage);
+        // Coordinates first: they identify which village this snapshot belongs to even when several
+        // villages share a name, so the cached production survives switching between them.
+        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+        var cachedSnapshot = TryGetCachedVillageResourceSnapshot(activeVillage, activeCoords);
         var resources = snapshot.Resources;
         var capacities = (
             Warehouse: snapshot.Capacities.Warehouse ?? cachedSnapshot?.WarehouseCapacity,
@@ -305,11 +311,11 @@ public sealed partial class TravianClient
             activeVillage,
             resourceFields,
             capacities,
-            productionByHour);
+            productionByHour,
+            activeCoords);
 
         var villageTribe = await ReadActiveVillageTribeAsync(cancellationToken);
         villages = EnrichActiveVillageTribe(villages, activeVillage, villageTribe);
-        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
         return new VillageStatus(
             ActiveVillage: activeVillage,
             Villages: villages,
@@ -851,9 +857,24 @@ public sealed partial class TravianClient
         => !string.IsNullOrWhiteSpace(villageName)
             && !string.Equals(villageName.Trim(), "Unknown village", StringComparison.OrdinalIgnoreCase);
 
-    private string? BuildVillageResourceCacheKey(string villageName)
+    /// <summary>
+    /// Cache key for one village's resource snapshot.
+    ///
+    /// <paramref name="activeCoords"/> are the coordinates the CURRENT PAGE reported for the active
+    /// village. They are the only reliable identity: duplicate village names are legal in Travian (three
+    /// villages named "New village" is normal), and resolving the name against the village list then
+    /// matches several entries. That used to return null here, so those villages were never cached —
+    /// production was re-read as blank on every current-page read and the UI showed "-/h" / "not filling".
+    /// Fall back to the name lookup only when the page did not give us coordinates.
+    /// </summary>
+    private string? BuildVillageResourceCacheKey(string villageName, (int? X, int? Y) activeCoords = default)
     {
         var normalizedName = villageName.Trim();
+        if (activeCoords is { X: int activeX, Y: int activeY })
+        {
+            return $"{_account.Name}|{_config.BaseUrl.TrimEnd('/')}|xy:{activeX}|{activeY}";
+        }
+
         var matches = _cachedVillages?
             .Where(village => VillageIdentityReconciler.IsSameName(village.Name, normalizedName))
             .ToList() ?? [];
@@ -870,14 +891,16 @@ public sealed partial class TravianClient
         return $"{_account.Name}|{_config.BaseUrl.TrimEnd('/')}|{villageIdentity}";
     }
 
-    private CachedVillageResourceSnapshot? TryGetCachedVillageResourceSnapshot(string villageName)
+    private CachedVillageResourceSnapshot? TryGetCachedVillageResourceSnapshot(
+        string villageName,
+        (int? X, int? Y) activeCoords = default)
     {
         if (!IsKnownVillageName(villageName))
         {
             return null;
         }
 
-        var key = BuildVillageResourceCacheKey(villageName);
+        var key = BuildVillageResourceCacheKey(villageName, activeCoords);
         if (key is null)
         {
             return null;
@@ -894,14 +917,15 @@ public sealed partial class TravianClient
         string villageName,
         IReadOnlyList<ResourceField> resourceFields,
         (long? Warehouse, long? Granary) capacities,
-        IReadOnlyDictionary<string, double?> productionByHour)
+        IReadOnlyDictionary<string, double?> productionByHour,
+        (int? X, int? Y) activeCoords = default)
     {
         if (!IsKnownVillageName(villageName))
         {
             return;
         }
 
-        var key = BuildVillageResourceCacheKey(villageName);
+        var key = BuildVillageResourceCacheKey(villageName, activeCoords);
         if (key is null)
         {
             Notify($"[resource-cache] skipped ambiguous village name '{villageName}'; stable coordinates are required.");
