@@ -7,8 +7,22 @@ remains the source of truth for behavior and Official-specific constraints.
 
 - Build: 0 warnings, 0 errors (`scripts/Build-Check.ps1`, 2026-07-19).
 - Desktop tests: 603 passed.
-- Worker tests: 875 passed.
+- Worker tests: 878 passed.
 - Public task names, payload keys, config formats and storage paths stay stable.
+
+### Playwright browser revision
+
+`Microsoft.Playwright` is pinned per package version to one exact Chromium build revision, and browsers
+live in the repo-local `ms-playwright/` (`PLAYWRIGHT_BROWSERS_PATH`). After every package bump the
+matching revision must be downloaded (`playwright.ps1 install chromium`) or the bundled-Chromium call
+sites fail on a missing executable — `BrowserSession.WarmupAsync` and `ProxyCheckService`, which launch
+without a `Channel`. Main automation is unaffected: it launches system Chrome via `Channel = "chrome"`
+for H.264/AAC codec support.
+
+`BrowserSession.ChromiumAlreadyInstalled` reads the expected revision from the driver metadata shipped
+next to the app (`.playwright/package/browsers.json`), so it follows package upgrades without edits.
+Never reduce it to an any-revision folder check: a leftover folder from the previous package version
+then reports "installed", the install is skipped, and the launch fails instead.
 
 ### WPF smoke tests
 

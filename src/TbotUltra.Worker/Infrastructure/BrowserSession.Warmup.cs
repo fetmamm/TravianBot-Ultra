@@ -107,7 +107,7 @@ public sealed partial class BrowserSession
         return killed;
     }
 
-    public static bool ChromiumAlreadyInstalled(string projectRoot)
+    public static bool ChromiumAlreadyInstalled(string projectRoot, Action<string>? log = null)
     {
         try
         {
@@ -122,6 +122,24 @@ public sealed partial class BrowserSession
                 return false;
             }
 
+            // Playwright looks for one exact build revision, so an older chromium-* folder left over
+            // from a previous package version does not count as installed: the launch would fail on a
+            // missing executable instead. Ask the shipped driver which revision it needs.
+            var expectedRevision = ResolveExpectedChromiumRevision();
+            if (expectedRevision is not null)
+            {
+                var expectedExecutable = Path.Combine(
+                    playwrightRoot, $"chromium-{expectedRevision}", "chrome-win", "chrome.exe");
+                var installed = File.Exists(expectedExecutable);
+                log?.Invoke(installed
+                    ? $"[browser] chromium-{expectedRevision} is installed."
+                    : $"[browser] chromium-{expectedRevision} is missing (Playwright upgrade?); install required.");
+                return installed;
+            }
+
+            // Driver metadata unreadable: keep the previous any-revision behavior rather than forcing
+            // an unnecessary download. A stale revision then still fails at launch, as it did before.
+            log?.Invoke("[browser] could not read the expected Chromium revision; falling back to any installed revision.");
             var executables = Directory.GetFiles(playwrightRoot, "chrome.exe", SearchOption.AllDirectories);
             return executables.Any(path =>
                 path.Contains("chromium-", StringComparison.OrdinalIgnoreCase) &&
@@ -130,6 +148,45 @@ public sealed partial class BrowserSession
         catch
         {
             return false;
+        }
+    }
+
+    /// <summary>
+    /// Reads the Chromium build revision the referenced Microsoft.Playwright package expects from the
+    /// driver metadata shipped next to the app, so the check follows package upgrades on its own.
+    /// Returns null when the metadata is missing or unreadable.
+    /// </summary>
+    private static string? ResolveExpectedChromiumRevision()
+    {
+        try
+        {
+            var metadataPath = Path.Combine(
+                AppContext.BaseDirectory, ".playwright", "package", "browsers.json");
+            if (!File.Exists(metadataPath))
+            {
+                return null;
+            }
+
+            var browsers = JsonNode.Parse(File.ReadAllText(metadataPath))?["browsers"]?.AsArray();
+            if (browsers is null)
+            {
+                return null;
+            }
+
+            foreach (var browser in browsers)
+            {
+                if (string.Equals(browser?["name"]?.GetValue<string>(), "chromium", StringComparison.OrdinalIgnoreCase))
+                {
+                    var revision = browser?["revision"]?.GetValue<string>();
+                    return string.IsNullOrWhiteSpace(revision) ? null : revision;
+                }
+            }
+
+            return null;
+        }
+        catch
+        {
+            return null;
         }
     }
 

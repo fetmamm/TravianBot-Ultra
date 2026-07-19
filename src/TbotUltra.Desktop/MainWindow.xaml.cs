@@ -1150,7 +1150,7 @@ public partial class MainWindow : Window
     {
         if (!forceInstall)
         {
-            if (_chromiumEnsured || BrowserSession.ChromiumAlreadyInstalled(_projectRoot))
+            if (_chromiumEnsured || BrowserSession.ChromiumAlreadyInstalled(_projectRoot, AppendLog))
             {
                 _chromiumEnsured = true;
                 return;
