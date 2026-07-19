@@ -52,6 +52,11 @@ public partial class BuildingsPanel : UserControl
         Host?.OnBuildingTemplatesClicked();
     }
 
+    private void ShowBuildingSlotsButton_Click(object sender, RoutedEventArgs e)
+    {
+        Host?.OnShowBuildingSlotsClicked();
+    }
+
     private void BuildingTopSlotsView_Filter(object sender, FilterEventArgs e)
     {
         e.Accepted = e.Item is BuildingSlotRow row && BuildingsViewModel.IsPinnedBuildingTopSlot(row.SlotId);

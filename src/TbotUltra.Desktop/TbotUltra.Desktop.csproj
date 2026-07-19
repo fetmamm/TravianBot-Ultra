@@ -25,6 +25,7 @@
     <Resource Include="..\..\assets\icons\icon_windows.ico" Link="Assets\icon_windows.ico" />
     <Resource Include="..\..\assets\icons\Tbot_ultra_appicon_2.png" Link="Assets\Tbot_ultra_appicon_2.png" />
     <Resource Include="..\..\assets\icons\Tbot_ultra_2.png" Link="Assets\Tbot_ultra_2.png" />
+    <Resource Include="..\..\assets\images\travian_dorf2_slots.png" Link="Assets\travian_dorf2_slots.png" />
   </ItemGroup>
 
 </Project>

@@ -196,6 +196,13 @@ public partial class MainWindow
         QueueBuildingTemplatePlan(window.QueuePlan);
     }
 
+    // Static reference image only — no village state needed, so unlike the templates window this
+    // one opens regardless of whether buildings have been loaded yet.
+    internal void OnShowBuildingSlotsClicked()
+    {
+        new BuildingSlotsWindow { Owner = this }.ShowDialog();
+    }
+
     private void QueueBuildingTemplatePlan(BuildingTemplatePlanResult plan)
     {
         var prepared = plan.Actions.Select(action =>

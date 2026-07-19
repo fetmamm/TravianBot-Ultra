@@ -222,6 +222,11 @@
                             FontWeight="SemiBold"
                             ToolTip="Create, save, and queue reusable building templates for the selected village."
                             Click="BuildingTemplatesButton_Click" />
+                    <Button Content="Show building slots"
+                            Height="30"
+                            Margin="0,6,0,0"
+                            ToolTip="Open a reference image showing which building slot number sits where in a village."
+                            Click="ShowBuildingSlotsButton_Click" />
                 </StackPanel>
             </Border>
 

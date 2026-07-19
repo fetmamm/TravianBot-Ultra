@@ -1,0 +1,54 @@
+<Window x:Class="TbotUltra.Desktop.BuildingSlotsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Background="{DynamicResource AppBackgroundBrush}"
+        Title="Building slots"
+        Height="820"
+        Width="1000"
+        MinHeight="480"
+        MinWidth="560"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="16">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Grid.Row="0"
+                   Text="Village building slot numbers (dorf2)"
+                   FontSize="15"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource TextPrimaryBrush}"
+                   Margin="0,0,0,10" />
+
+        <Border Grid.Row="1"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="10">
+            <!-- Uniform keeps the slot numbers legible at any window size; the image only ever
+                 scales down from its native 1472x1069, never past the window edges. -->
+            <Image Source="/Assets/travian_dorf2_slots.png"
+                   Stretch="Uniform"
+                   StretchDirection="DownOnly"
+                   RenderOptions.BitmapScalingMode="HighQuality" />
+        </Border>
+
+        <StackPanel Grid.Row="2"
+                    Orientation="Horizontal"
+                    HorizontalAlignment="Right"
+                    Margin="0,12,0,0">
+            <Button x:Name="CloseButton"
+                    Content="Close"
+                    Width="90"
+                    Height="32"
+                    IsCancel="True"
+                    Background="{DynamicResource DangerBgBrush}"
+                    Foreground="{DynamicResource DangerTextBrush}"
+                    BorderBrush="{DynamicResource DangerBorderBrush}"
+                    Click="CloseButton_Click" />
+        </StackPanel>
+    </Grid>
+</Window>
