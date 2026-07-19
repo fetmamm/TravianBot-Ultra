@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Windows;
 using Microsoft.Win32;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Desktop.Views;
 
 namespace TbotUltra.Desktop;
 
@@ -14,6 +15,7 @@ public partial class VersionWindow : Window
 {
     private readonly string _currentVersion;
     private UpdateChecker.UpdateStatus? _status;
+    private CancellationTokenSource? _updateDownloadCts;
     private bool _busy;
 
     public VersionWindow(string currentVersion, UpdateChecker.UpdateStatus? status)
@@ -122,48 +124,60 @@ public partial class VersionWindow : Window
             return;
         }
 
-        var choice = AppDialog.ShowCustom(
+        var choice = AppDialog.ShowCustomContent(
             this,
-            $"Tbot Ultra will download v{release.LatestVersion}, close, install it, and restart.\n\n"
-                + "Your accounts, queue, settings, caches and logged-in sessions are kept. Continue?",
+            new UpdateConfirmationView(release.LatestVersion),
             "Update & restart",
             new (string, MessageBoxResult)[]
             {
-                ("Update & restart", MessageBoxResult.Yes),
                 ("Cancel", MessageBoxResult.Cancel),
+                ("Update & restart", MessageBoxResult.Yes),
             },
-            MessageBoxImage.Warning,
+            MessageBoxImage.Information,
             MessageBoxResult.Cancel,
-            MessageBoxResult.Cancel);
+            MessageBoxResult.Cancel,
+            successResult: MessageBoxResult.Yes,
+            width: 540);
         if (choice != MessageBoxResult.Yes)
         {
             return;
         }
 
         SetBusy(true);
-        DownloadProgress.Visibility = Visibility.Visible;
-        DownloadProgress.Value = 0;
+        using var updateDownloadCts = new CancellationTokenSource();
+        _updateDownloadCts = updateDownloadCts;
+        BusyOverlay.ShowCancel = true;
+        BusyOverlay.Show("Downloading update", $"Preparing v{release.LatestVersion}…");
 
+        string? zipPath = null;
         try
         {
             var tempRoot = SelfUpdater.CreateUpdateWorkspace();
             var assetName = string.IsNullOrWhiteSpace(release.PortableAssetName)
                 ? "update.zip"
                 : release.PortableAssetName;
-            var zipPath = Path.Combine(tempRoot, assetName);
+            zipPath = Path.Combine(tempRoot, assetName);
 
             StatusText.Text = $"Downloading v{release.LatestVersion}…";
-            DownloadProgress.IsIndeterminate = true;
+            BusyOverlay.IsIndeterminate = false;
             var progress = new Progress<double>(fraction =>
             {
-                DownloadProgress.IsIndeterminate = false;
-                DownloadProgress.Value = Math.Clamp(fraction * 100, 0, 100);
+                var percent = Math.Clamp(fraction * 100, 0, 100);
+                BusyOverlay.ProgressValue = percent;
+                BusyOverlay.Text = $"{percent:0}% complete · {100 - percent:0}% remaining";
             });
             // Keep the user-started app update independent from browser/account-session cancellation.
-            await UpdateChecker.DownloadAsync(release.PortableDownloadUrl, zipPath, progress, CancellationToken.None);
+            await UpdateChecker.DownloadAsync(
+                release.PortableDownloadUrl,
+                zipPath,
+                progress,
+                updateDownloadCts.Token);
 
             StatusText.Text = "Extracting update…";
-            DownloadProgress.IsIndeterminate = true;
+            BusyOverlay.ShowCancel = false;
+            BusyOverlay.IsIndeterminate = true;
+            BusyOverlay.Title = "Installing update";
+            BusyOverlay.Text = "Extracting the downloaded files…";
             var extractDir = Path.Combine(tempRoot, "extract");
             await Task.Run(() => ZipFile.ExtractToDirectory(zipPath, extractDir));
 
@@ -176,17 +190,35 @@ public partial class VersionWindow : Window
             }
 
             StatusText.Text = "Closing to install the update…";
+            BusyOverlay.Text = "Restarting Tbot Ultra…";
             SelfUpdater.LaunchUpdater(appDir, tempRoot);
             // The external updater now waits for this process to exit before swapping files.
             Application.Current.Shutdown();
         }
+        catch (OperationCanceledException) when (updateDownloadCts.IsCancellationRequested)
+        {
+            StatusText.Text = "Update download cancelled.";
+            if (zipPath is not null)
+            {
+                TryDeletePartialFile(zipPath);
+            }
+        }
         catch (Exception ex)
         {
             StatusText.Text = $"Update failed: {ex.Message}";
-            DownloadProgress.IsIndeterminate = false;
-            DownloadProgress.Visibility = Visibility.Collapsed;
+        }
+        finally
+        {
+            _updateDownloadCts = null;
+            BusyOverlay.ShowCancel = true;
+            BusyOverlay.Hide();
             SetBusy(false);
         }
+    }
+
+    private void BusyOverlay_Cancelled(object sender, EventArgs e)
+    {
+        _updateDownloadCts?.Cancel();
     }
 
     private async void DownloadButton_Click(object sender, RoutedEventArgs e)

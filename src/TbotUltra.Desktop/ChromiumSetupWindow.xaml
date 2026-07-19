@@ -35,25 +35,26 @@
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="0,14,0,0">
-            <Button x:Name="NotNowButton"
-                    Content="Cancel"
-                    Width="100"
-                    Height="32"
-                    IsCancel="True"
-                    Background="{DynamicResource DangerBgBrush}"
-                    Foreground="{DynamicResource DangerTextBrush}"
-                    BorderBrush="{DynamicResource DangerBorderBrush}"
-                    Click="NotNowButton_Click" />
             <Button x:Name="DownloadButton"
                     Content="Download"
                     Width="110"
                     Height="32"
-                    Margin="0"
+                    Margin="0,0,8,0"
                     IsDefault="True"
                     Background="{DynamicResource SuccessBgBrush}"
                     Foreground="{DynamicResource SuccessTextBrush}"
                     BorderBrush="{DynamicResource SuccessBorderBrush}"
                     Click="DownloadButton_Click" />
+            <Button x:Name="NotNowButton"
+                    Content="Cancel"
+                    Width="100"
+                    Height="32"
+                    Margin="0"
+                    IsCancel="True"
+                    Background="{DynamicResource DangerBgBrush}"
+                    Foreground="{DynamicResource DangerTextBrush}"
+                    BorderBrush="{DynamicResource DangerBorderBrush}"
+                    Click="NotNowButton_Click" />
         </StackPanel>
     </Grid>
 </Window>

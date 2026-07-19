@@ -35,6 +35,11 @@ public sealed class PanelSmokeTests
         { nameof(ReinforcementsPanel), () => new ReinforcementsPanel() },
         { nameof(BusyOverlayControl), () => new BusyOverlayControl() },
         { nameof(StoragePreflightPlanView), () => new StoragePreflightPlanView("Preflight", []) },
+        { nameof(UpdateConfirmationView), () => new UpdateConfirmationView("1.2.3") },
+        { nameof(LobbyWorldSelectionView), () => new LobbyWorldSelectionView(new(
+            "Configured world",
+            "https://wrong.x1.europe.travian.com",
+            [new("12345678-1234-1234-1234-123456789012", "Europe 3", "player · Europe 3 · PLAY NOW")])) },
     };
 
     [Theory]

@@ -63,6 +63,21 @@ public sealed class LobbyWorldMatcherTests
     }
 
     [Theory]
+    [InlineData("https://schild.x3.netherlands.travian.com/dorf1.php", true, "https://schild.x3.netherlands.travian.com")]
+    [InlineData("https://unitexd.x1.balkans.travian.com/dorf2.php", true, "https://unitexd.x1.balkans.travian.com")]
+    [InlineData("https://lobby.legends.travian.com/account", false, "")]
+    [InlineData("https://example.com/dorf1.php", false, "")]
+    [InlineData("http://schild.x3.netherlands.travian.com/dorf1.php", false, "")]
+    public void TryResolveOfficialGameOrigin_AcceptsOnlyHttpsGameWorldHosts(
+        string landedUrl,
+        bool expected,
+        string expectedOrigin)
+    {
+        Assert.Equal(expected, TravianClient.TryResolveOfficialGameOrigin(landedUrl, out var origin));
+        Assert.Equal(expectedOrigin, origin);
+    }
+
+    [Theory]
     [InlineData("https://ts50.x5.arabics.travian.com/dorf1.php", true)]
     [InlineData("https://ts50.x5.arabics.travian.com/login.php", false)]
     [InlineData("https://lobby.legends.travian.com/account", false)]

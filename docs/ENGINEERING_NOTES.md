@@ -122,8 +122,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
   the previous account after shutdown.
 - Lobby world matching treats speed labels (`x3`, etc.) as optional display metadata but rejects an explicit
   conflicting speed. If neither cached wuid nor automatic name/host matching reaches the configured origin,
-  interactive login shows every owned lobby world with card details and UID. A failed selection reopens the picker
-  with remaining worlds. Persist the selected wuid only after that world lands on the configured game origin.
+  interactive login shows every owned lobby world as selectable cards. The lobby-owned list is authoritative:
+  after a manual choice reaches an authenticated Official game origin, atomically update that account's server name
+  and URL in Manage and sync the active runtime config. A failed selection reopens the picker with remaining worlds;
+  persist the selected wuid and any server correction only after authenticated game-page verification.
 - A recent-login cache hit is valid only on the configured game origin, never on lobby/login URLs, and still probes
   explicit restriction/challenge signals before skipping the full login check.
 - Account `.env` mutations hold one shared per-file read-modify-write lock and use atomic replacement. New values are

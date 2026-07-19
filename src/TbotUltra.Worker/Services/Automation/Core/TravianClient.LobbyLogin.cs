@@ -8,6 +8,7 @@ public sealed partial class TravianClient
 {
     private sealed record LobbyWorldCard(string WorldUid, string Name, string Details);
     private string? _pendingLobbyWorldUid;
+    private LobbyWorldServerResolution? _pendingLobbyWorldServerResolution;
 
     private async Task<bool> TryLoginThroughLobbyAsync(CancellationToken cancellationToken)
     {
@@ -77,7 +78,7 @@ public sealed partial class TravianClient
 
             foreach (var candidate in candidates)
             {
-                if (await TryEnterLobbyWorldAsync(candidate, cancellationToken))
+                if (await TryEnterLobbyWorldAsync(candidate, allowServerCorrection: false, cancellationToken))
                 {
                     return true;
                 }
@@ -102,7 +103,7 @@ public sealed partial class TravianClient
                     return false;
                 }
 
-                if (await TryEnterLobbyWorldAsync(selected, cancellationToken))
+                if (await TryEnterLobbyWorldAsync(selected, allowServerCorrection: true, cancellationToken))
                 {
                     return true;
                 }
@@ -163,6 +164,7 @@ public sealed partial class TravianClient
 
     private async Task<bool> TryEnterLobbyWorldAsync(
         LobbyWorldCard candidate,
+        bool allowServerCorrection,
         CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -187,12 +189,27 @@ public sealed partial class TravianClient
 
         await DelayBeforeClickAsync(cancellationToken, "lobby Play now");
         await SuppressConsentUiDuringSsoLandingAsync();
-        await ClickPlayNowAndWaitForGameOriginAsync(playNow, cancellationToken);
+        await ClickPlayNowAndWaitForGameOriginAsync(playNow, allowServerCorrection, cancellationToken);
 
-        if (!IsConfiguredGameOrigin(_page.Url))
+        var configuredOriginReached = IsConfiguredGameOrigin(_page.Url);
+        if (!configuredOriginReached
+            && (!allowServerCorrection || !TryResolveOfficialGameOrigin(_page.Url, out _)))
         {
             Notify($"[lobby-login] world '{candidate.Name}' landed on an unexpected or unauthenticated host '{SanitizeHost(_page.Url)}'.");
             return false;
+        }
+
+        // A manual choice is authoritative even when its URL happens to match the configured origin:
+        // the lobby world name may still correct stale or mistyped Manage data.
+        if (allowServerCorrection && TryResolveOfficialGameOrigin(_page.Url, out var resolvedServerUrl))
+        {
+            _resolvedServerUrl = resolvedServerUrl;
+            _pendingLobbyWorldServerResolution = new LobbyWorldServerResolution(
+                _account.Name,
+                candidate.WorldUid,
+                candidate.Name,
+                resolvedServerUrl);
+            Notify($"[lobby-login] manually selected owned world resolved to '{SanitizeHost(resolvedServerUrl)}'; account correction pending authenticated game verification.");
         }
 
         _pendingLobbyWorldUid = candidate.WorldUid;
@@ -270,12 +287,15 @@ public sealed partial class TravianClient
 
     private async Task ClickPlayNowAndWaitForGameOriginAsync(
         ILocator playNow,
+        bool allowServerCorrection,
         CancellationToken cancellationToken)
     {
         var gameOriginCommitted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
-        void OnFrameNavigated(object? _, IFrame frame)
+        void OnFrameNavigated(object? sender, IFrame frame)
         {
-            if (ReferenceEquals(frame, _page.MainFrame) && IsConfiguredGameOrigin(frame.Url))
+            if (ReferenceEquals(frame, _page.MainFrame)
+                && (IsConfiguredGameOrigin(frame.Url)
+                    || (allowServerCorrection && TryResolveOfficialGameOrigin(frame.Url, out _))))
             {
                 gameOriginCommitted.TrySetResult();
             }
@@ -288,7 +308,8 @@ public sealed partial class TravianClient
             {
                 Timeout = _config.TimeoutMs,
             });
-            if (IsConfiguredGameOrigin(_page.Url))
+            if (IsConfiguredGameOrigin(_page.Url)
+                || (allowServerCorrection && TryResolveOfficialGameOrigin(_page.Url, out _)))
             {
                 return;
             }
@@ -353,6 +374,22 @@ public sealed partial class TravianClient
             && landed.Scheme.Equals(configured.Scheme, StringComparison.OrdinalIgnoreCase)
             && landed.Host.Equals(configured.Host, StringComparison.OrdinalIgnoreCase)
             && landed.Port == configured.Port;
+    }
+
+    internal static bool TryResolveOfficialGameOrigin(string? url, out string origin)
+    {
+        origin = string.Empty;
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            || !uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
+            || !uri.Host.EndsWith(".travian.com", StringComparison.OrdinalIgnoreCase)
+            || uri.Host.Split('.', StringSplitOptions.RemoveEmptyEntries).Length < 4
+            || uri.Host.StartsWith("lobby.", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        origin = uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+        return true;
     }
 
     private static string SanitizeHost(string? url)

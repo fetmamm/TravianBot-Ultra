@@ -5,8 +5,8 @@ using System.Windows.Controls;
 namespace TbotUltra.Desktop.Views;
 
 /// <summary>
-/// Shared modal "busy" overlay: a dark scrim with a centered white card containing a title,
-/// an indeterminate progress bar, a status line and a Cancel button. It captures all clicks so the
+/// Shared modal "busy" overlay: a dark scrim with a centered card containing a title,
+/// a progress bar, a status line and a Cancel button. It captures all clicks so the
 /// only action available during an in-flight operation is Cancel.
 ///
 /// Drive it either through the bindable <see cref="Title"/>/<see cref="Text"/>/<see cref="IsBusy"/>
@@ -38,6 +38,12 @@ public partial class BusyOverlayControl : UserControl
 
     public static readonly DependencyProperty CancelEnabledProperty = DependencyProperty.Register(
         nameof(CancelEnabled), typeof(bool), typeof(BusyOverlayControl), new PropertyMetadata(true));
+
+    public static readonly DependencyProperty IsIndeterminateProperty = DependencyProperty.Register(
+        nameof(IsIndeterminate), typeof(bool), typeof(BusyOverlayControl), new PropertyMetadata(true));
+
+    public static readonly DependencyProperty ProgressValueProperty = DependencyProperty.Register(
+        nameof(ProgressValue), typeof(double), typeof(BusyOverlayControl), new PropertyMetadata(0d));
 
     /// <summary>Heading shown at the top of the card (e.g. "Logging in").</summary>
     public string Title
@@ -74,12 +80,28 @@ public partial class BusyOverlayControl : UserControl
         set => SetValue(CancelEnabledProperty, value);
     }
 
+    /// <summary>Whether the progress bar shows continuous activity instead of an exact value.</summary>
+    public bool IsIndeterminate
+    {
+        get => (bool)GetValue(IsIndeterminateProperty);
+        set => SetValue(IsIndeterminateProperty, value);
+    }
+
+    /// <summary>Progress percentage from 0 to 100 when <see cref="IsIndeterminate"/> is false.</summary>
+    public double ProgressValue
+    {
+        get => (double)GetValue(ProgressValueProperty);
+        set => SetValue(ProgressValueProperty, Math.Clamp(value, 0, 100));
+    }
+
     /// <summary>Shows the overlay with the given title and status text, re-enabling Cancel.</summary>
     public void Show(string title, string text)
     {
         Title = title;
         Text = text;
         CancelEnabled = true;
+        IsIndeterminate = true;
+        ProgressValue = 0;
         IsBusy = true;
     }
 

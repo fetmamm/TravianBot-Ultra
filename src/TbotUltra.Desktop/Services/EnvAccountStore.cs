@@ -129,6 +129,34 @@ public sealed class EnvAccountStore
         }
     }
 
+    public void UpdateAccountServer(string accountName, string serverName, string serverUrl)
+    {
+        if (!Uri.TryCreate(serverUrl?.Trim(), UriKind.Absolute, out var uri)
+            || uri.Scheme != Uri.UriSchemeHttps
+            || !uri.Host.EndsWith(".travian.com", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("The resolved game world is not a valid Official Travian server.");
+        }
+
+        lock (_fileState.Sync)
+        {
+            var normalized = NormalizeName(accountName);
+            var values = ReadValues();
+            var names = ParseAccountNames(values);
+            if (!names.Contains(normalized, StringComparer.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException($"Account '{normalized}' does not exist.");
+            }
+
+            var prefix = $"TBOT_{normalized.ToUpperInvariant()}_";
+            values[$"{prefix}SERVER_NAME"] = string.IsNullOrWhiteSpace(serverName)
+                ? uri.Host
+                : serverName.Trim();
+            values[$"{prefix}SERVER_URL"] = uri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
+            WriteValues(values);
+        }
+    }
+
     public void DeleteAccount(string accountName)
     {
         lock (_fileState.Sync)

@@ -171,6 +171,40 @@ public sealed class EnvAccountStoreTests : IDisposable
     }
 
     [Fact]
+    public void UpdateAccountServer_ChangesOnlyTheSelectedAccountsWorld()
+    {
+        var store = new EnvAccountStore(_envPath);
+        store.SaveAccount(new AccountEntry
+        {
+            Name = "alice",
+            Username = "alice-user",
+            Password = "secret",
+            ServerName = "Wrong world",
+            ServerUrl = "https://wrong.x1.europe.travian.com",
+            ProxyEnabled = true,
+            ProxyServer = "http://proxy.example:8080",
+            NeverUseOwnIp = true,
+        }, setActive: true);
+        store.SaveAccount(Account("bob"), setActive: false);
+
+        store.UpdateAccountServer(
+            "alice",
+            "TRAVIAN SCHILD",
+            "https://schild.x3.netherlands.travian.com/dorf1.php");
+
+        var accounts = store.ListAccounts();
+        var alice = accounts.Single(account => account.Name == "alice");
+        Assert.Equal("TRAVIAN SCHILD", alice.ServerName);
+        Assert.Equal("https://schild.x3.netherlands.travian.com", alice.ServerUrl);
+        Assert.Equal("alice-user", alice.Username);
+        Assert.Equal("secret", alice.Password);
+        Assert.True(alice.ProxyEnabled);
+        Assert.Equal("http://proxy.example:8080", alice.ProxyServer);
+        Assert.True(alice.NeverUseOwnIp);
+        Assert.Equal("https://ts1.travian.eu", accounts.Single(account => account.Name == "bob").ServerUrl);
+    }
+
+    [Fact]
     public void ConcurrentStores_DoNotLoseAccountsDuringReadModifyWrite()
     {
         var first = new EnvAccountStore(_envPath);

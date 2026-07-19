@@ -1,0 +1,61 @@
+<UserControl x:Class="TbotUltra.Desktop.Views.UpdateConfirmationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+    <StackPanel>
+        <TextBlock x:Name="VersionTextBlock"
+                   FontSize="16"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource TextPrimaryBrush}" />
+
+        <TextBlock Margin="0,6,0,0"
+                   Text="Tbot Ultra will download the update, close, install it, and restart."
+                   TextWrapping="Wrap"
+                   LineHeight="20"
+                   Foreground="{DynamicResource TextSecondaryBrush}" />
+
+        <Border Margin="0,16,0,0"
+                Padding="12"
+                CornerRadius="8"
+                Background="{DynamicResource SuccessBgBrush}"
+                BorderBrush="{DynamicResource SuccessBorderBrush}"
+                BorderThickness="1">
+            <Grid>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="30" />
+                    <ColumnDefinition Width="12" />
+                    <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+
+                <Border Width="30"
+                        Height="30"
+                        CornerRadius="15"
+                        VerticalAlignment="Top"
+                        Background="{DynamicResource SuccessBorderBrush}">
+                    <TextBlock Text="&#x2713;"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                </Border>
+
+                <StackPanel Grid.Column="2">
+                    <TextBlock Text="Your data stays in place"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource SuccessTextBrush}" />
+                    <TextBlock Margin="0,4,0,0"
+                               Text="Accounts, queue, settings, caches and logged-in sessions are preserved."
+                               TextWrapping="Wrap"
+                               LineHeight="18"
+                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <TextBlock Margin="0,12,0,0"
+                   Text="The app will reopen automatically when the update is complete."
+                   TextWrapping="Wrap"
+                   Foreground="{DynamicResource TextMutedBrush}"
+                   FontSize="12" />
+    </StackPanel>
+</UserControl>

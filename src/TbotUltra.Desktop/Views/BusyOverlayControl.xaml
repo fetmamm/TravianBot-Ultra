@@ -29,7 +29,13 @@
                            Foreground="{DynamicResource TextPrimaryBrush}"
                            HorizontalAlignment="Center"
                            Margin="0,0,0,12" />
-                <ProgressBar IsIndeterminate="True" Width="260" Height="6" Margin="0,0,0,14" />
+                <ProgressBar IsIndeterminate="{Binding IsIndeterminate, ElementName=RootControl}"
+                             Value="{Binding ProgressValue, ElementName=RootControl}"
+                             Minimum="0"
+                             Maximum="100"
+                             Width="260"
+                             Height="6"
+                             Margin="0,0,0,14" />
                 <TextBlock Text="{Binding Text, ElementName=RootControl}"
                            FontSize="13"
                            Foreground="{DynamicResource TextSecondaryBrush}"

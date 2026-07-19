@@ -46,6 +46,12 @@ public sealed record LobbyWorldSelectionRequest(
     IReadOnlyList<LobbyWorldOption> Worlds,
     bool PreviousSelectionFailed = false);
 
+public sealed record LobbyWorldServerResolution(
+    string AccountName,
+    string WorldUid,
+    string WorldName,
+    string ServerUrl);
+
 public sealed record AccountAnalysisSnapshot(
     int SchemaVersion,
     DateTimeOffset AnalyzedAtUtc,

@@ -1,11 +1,39 @@
 using System.Windows;
-using System.Windows.Controls;
+using TbotUltra.Desktop.Views;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
+    private Task SaveResolvedLobbyWorldServerAsync(
+        LobbyWorldServerResolution resolution,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+
+        void SaveAndRefresh()
+        {
+            _accountStore.UpdateAccountServer(
+                resolution.AccountName,
+                resolution.WorldName,
+                resolution.ServerUrl);
+            SyncServerFromActiveAccount();
+            RefreshAccountPicker();
+            UpdateAccountInfoLabel(resolution.AccountName);
+            AppendLog(
+                $"[lobby-login] Manage account '{resolution.AccountName}' updated to '{resolution.WorldName}' ({resolution.ServerUrl}).");
+        }
+
+        if (Dispatcher.CheckAccess())
+        {
+            SaveAndRefresh();
+            return Task.CompletedTask;
+        }
+
+        return Dispatcher.InvokeAsync(SaveAndRefresh).Task.WaitAsync(cancellationToken);
+    }
+
     private Task<string?> SelectLobbyWorldAsync(
         LobbyWorldSelectionRequest request,
         CancellationToken cancellationToken)
@@ -24,45 +52,18 @@ public partial class MainWindow
 
     private string? ShowLobbyWorldSelection(LobbyWorldSelectionRequest request)
     {
-        var choices = request.Worlds
-            .Select(world => new LobbyWorldChoice(
-                world.WorldUid,
-                world.DisplayText))
-            .ToList();
-        var list = new ListBox
-        {
-            ItemsSource = choices,
-            DisplayMemberPath = nameof(LobbyWorldChoice.DisplayText),
-            MinHeight = 90,
-            MaxHeight = 260,
-            Margin = new Thickness(0, 10, 0, 0),
-            SelectedIndex = choices.Count > 0 ? 0 : -1,
-        };
-        var content = new StackPanel();
-        content.Children.Add(new TextBlock
-        {
-            Text = request.PreviousSelectionFailed
-                ? $"The selected world did not reach {request.ConfiguredServerUrl}. Choose another owned world. " +
-                  "The selection is remembered only after a successful login."
-                : $"Tbot Ultra could not automatically match '{request.ConfiguredServerName}' ({request.ConfiguredServerUrl}) to an owned lobby world. " +
-                  "Choose the matching world. The selection is remembered after a successful login.",
-            TextWrapping = TextWrapping.Wrap,
-        });
-        content.Children.Add(list);
+        var content = new LobbyWorldSelectionView(request);
 
         var result = AppDialog.ShowCustomContent(
             this,
             content,
             "Choose Travian world",
-            [("Select world", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.Cancel)],
+            [("Cancel", MessageBoxResult.Cancel), ("Select world", MessageBoxResult.Yes)],
             MessageBoxImage.Question,
             MessageBoxResult.Yes,
             MessageBoxResult.Cancel,
-            accentResult: MessageBoxResult.Yes);
-        return result == MessageBoxResult.Yes && list.SelectedItem is LobbyWorldChoice selected
-            ? selected.WorldUid
-            : null;
+            successResult: MessageBoxResult.Yes,
+            width: 620);
+        return result == MessageBoxResult.Yes ? content.SelectedWorldUid : null;
     }
-
-    private sealed record LobbyWorldChoice(string WorldUid, string DisplayText);
 }

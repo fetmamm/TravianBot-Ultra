@@ -34,6 +34,8 @@ public sealed partial class TravianClient
     private readonly Func<Func<IPage, CancellationToken, Task<string>>, CancellationToken, Task<string>>? _runInIsolatedBonusVideoBrowserAsync;
     private readonly Func<CancellationToken, Task<IPage>>? _rotateAfterLobbyLoginAsync;
     private readonly Func<LobbyWorldSelectionRequest, CancellationToken, Task<string?>>? _lobbyWorldSelectionRequested;
+    private readonly Func<LobbyWorldServerResolution, CancellationToken, Task>? _lobbyWorldServerResolved;
+    private string? _resolvedServerUrl;
     private DateTimeOffset? _serverTimeUtc;
     private string? _cachedAccountTribe;
     private readonly TravianSessionCache _session;
@@ -276,6 +278,7 @@ public sealed partial class TravianClient
         Func<Func<IPage, CancellationToken, Task<string>>, CancellationToken, Task<string>>? runInIsolatedBonusVideoBrowserAsync = null,
         Func<CancellationToken, Task<IPage>>? rotateAfterLobbyLoginAsync = null,
         Func<LobbyWorldSelectionRequest, CancellationToken, Task<string?>>? lobbyWorldSelectionRequested = null,
+        Func<LobbyWorldServerResolution, CancellationToken, Task>? lobbyWorldServerResolved = null,
         BrowserTraceLogger? browserTrace = null)
     {
         _page = page;
@@ -285,6 +288,7 @@ public sealed partial class TravianClient
         _runInIsolatedBonusVideoBrowserAsync = runInIsolatedBonusVideoBrowserAsync;
         _rotateAfterLobbyLoginAsync = rotateAfterLobbyLoginAsync;
         _lobbyWorldSelectionRequested = lobbyWorldSelectionRequested;
+        _lobbyWorldServerResolved = lobbyWorldServerResolved;
         _account = account;
         _interactive = interactive;
         _browserVisible = browserVisible;
@@ -302,7 +306,7 @@ public sealed partial class TravianClient
     }
 
     public string AccountName => _account.Name;
-    public string ServerUrl => _config.BaseUrl.TrimEnd('/');
+    public string ServerUrl => (_resolvedServerUrl ?? _config.BaseUrl).TrimEnd('/');
     public string? KnownAccountTribe => IsKnownTribe(_accountTribe) ? _accountTribe : IsKnownTribe(_cachedAccountTribe) ? _cachedAccountTribe : null;
     public bool? KnownGoldClubEnabled => _cachedGoldClubEnabled;
 

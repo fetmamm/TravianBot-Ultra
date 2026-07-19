@@ -73,6 +73,24 @@ public sealed partial class TravianClient : ISessionClient
                 throw new InvalidOperationException("Lobby login did not produce an authenticated game session.");
             }
 
+            if (_pendingLobbyWorldServerResolution is not null)
+            {
+                var resolution = _pendingLobbyWorldServerResolution;
+                _pendingLobbyWorldServerResolution = null;
+                if (_lobbyWorldServerResolved is not null)
+                {
+                    try
+                    {
+                        await _lobbyWorldServerResolved(resolution, cancellationToken);
+                        Notify($"[lobby-login] verified server '{SanitizeHost(resolution.ServerUrl)}' saved for account '{resolution.AccountName}'.");
+                    }
+                    catch (Exception ex) when (ex is not OperationCanceledException)
+                    {
+                        Notify($"[lobby-login] login succeeded but the corrected account server could not be saved: {ex.Message}");
+                    }
+                }
+            }
+
             if (!string.IsNullOrWhiteSpace(_pendingLobbyWorldUid))
             {
                 var worldUid = _pendingLobbyWorldUid;

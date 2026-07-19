@@ -2,6 +2,7 @@ using System.Windows;
 using System.Windows.Controls;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Desktop.Views;
 using Xunit;
 
 namespace TbotUltra.Desktop.Tests;
@@ -41,6 +42,35 @@ public sealed class WindowSmokeTests
                 // state — an earlier version blocked its own close while an install was in flight.
                 Assert.Null(window.FindName("DownloadProgressBar"));
                 Assert.Null(window.FindName("StatusTextBlock"));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void VersionWindow_LoadsWithDeterminateUpdateOverlay()
+    {
+        _wpf.Run(() =>
+        {
+            var window = new VersionWindow("1.0.0", status: null);
+            try
+            {
+                window.Measure(new Size(440, 340));
+                window.Arrange(new Rect(0, 0, 440, 340));
+
+                var overlay = Assert.IsType<BusyOverlayControl>(window.FindName("BusyOverlay"));
+                overlay.Show("Downloading update", "Preparing…");
+                overlay.IsIndeterminate = false;
+                overlay.ProgressValue = 42;
+                window.UpdateLayout();
+
+                Assert.True(overlay.IsBusy);
+                Assert.False(overlay.IsIndeterminate);
+                Assert.Equal(42, overlay.ProgressValue);
+                Assert.Equal("Cancel", Assert.IsType<Button>(overlay.FindName("CancelButton")).Content);
             }
             finally
             {

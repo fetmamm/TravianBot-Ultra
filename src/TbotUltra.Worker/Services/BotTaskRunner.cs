@@ -97,6 +97,7 @@ public sealed partial class BotTaskRunner
     }
 
     public Func<LobbyWorldSelectionRequest, CancellationToken, Task<string?>>? LobbyWorldSelectionRequested { get; set; }
+    public Func<LobbyWorldServerResolution, CancellationToken, Task>? LobbyWorldServerResolved { get; set; }
 
     public static IReadOnlyList<string> RegisteredTaskNames => TaskHandlers.Keys.ToList();
 
@@ -641,6 +642,7 @@ public sealed partial class BotTaskRunner
             runInIsolatedBonusVideoBrowserAsync: runInIsolatedBonusVideoBrowserAsync,
             rotateAfterLobbyLoginAsync: rotateAfterLobbyLoginAsync,
             lobbyWorldSelectionRequested: LobbyWorldSelectionRequested,
+            lobbyWorldServerResolved: LobbyWorldServerResolved,
             browserTrace: browserTrace);
     }
 
