@@ -119,8 +119,6 @@ public partial class MainWindow : Window
     private ObservableCollection<TerminalEntryRow> _terminalEntries => _terminalViewModel.Entries;
     private ICollectionView? _terminalView;
     private ICollectionView? _alarmView;
-    private LogCategory _terminalFilterCategory = LogCategory.All;
-    private bool _terminalCleanMode = true;
     // Alarm entries now live on AlarmsViewModel; this delegates so existing
     // code-behind that mutates the collection in place keeps working unchanged.
     private ObservableCollection<AlarmEntryRow> _alarmEntries => _alarmsViewModel.Entries;

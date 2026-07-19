@@ -19,7 +19,7 @@ public partial class MainWindow
     {
         LogCategoryFilterComboBox.ItemsSource = LogClassifier.FilterOptions.Select(option => option.Label).ToList();
         LogCategoryFilterComboBox.SelectedIndex = 0;
-        LogCleanModeToggle.IsChecked = _terminalCleanMode;
+        LogCleanModeToggle.IsChecked = _terminalViewModel.CleanMode;
     }
 
     private bool TerminalEntryFilter(object item)
@@ -29,16 +29,7 @@ public partial class MainWindow
             return true;
         }
 
-        // The Pacing view is an explicit opt-in to the high-volume session/action/wait lines, which are
-        // otherwise verbose. When it is selected, show them even in Clean mode — Clean would hide almost
-        // all of them and the tab would look empty. Other views keep the normal Clean filtering.
-        var pacingViewSelected = _terminalFilterCategory == LogCategory.Pacing;
-        if (_terminalCleanMode && row.IsVerbose && !pacingViewSelected)
-        {
-            return false;
-        }
-
-        return _terminalFilterCategory == LogCategory.All || row.Category == _terminalFilterCategory;
+        return _terminalViewModel.ShouldShow(row);
     }
 
     private bool AlarmEntryFilter(object item)
@@ -48,7 +39,7 @@ public partial class MainWindow
             return true;
         }
 
-        return !_terminalCleanMode || !IsCleanModeHiddenAlarmMessage(row.Text);
+        return !_terminalViewModel.CleanMode || !IsCleanModeHiddenAlarmMessage(row.Text);
     }
 
     private IEnumerable<TerminalEntryRow> VisibleTerminalEntries()
@@ -57,7 +48,7 @@ public partial class MainWindow
     private void LogCategoryFilterComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         var index = LogCategoryFilterComboBox.SelectedIndex;
-        _terminalFilterCategory = index >= 0 && index < LogClassifier.FilterOptions.Length
+        _terminalViewModel.FilterCategory = index >= 0 && index < LogClassifier.FilterOptions.Length
             ? LogClassifier.FilterOptions[index].Category
             : LogCategory.All;
         _terminalView?.Refresh();
@@ -67,7 +58,7 @@ public partial class MainWindow
 
     private void LogCleanModeToggle_Changed(object sender, RoutedEventArgs e)
     {
-        _terminalCleanMode = LogCleanModeToggle.IsChecked == true;
+        _terminalViewModel.CleanMode = LogCleanModeToggle.IsChecked == true;
         _terminalView?.Refresh();
         _alarmView?.Refresh();
         UpdateStatusFromVisibleLog();
