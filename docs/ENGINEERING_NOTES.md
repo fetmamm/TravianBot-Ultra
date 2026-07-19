@@ -197,7 +197,7 @@ Published artifacts belong under `artifacts/`, never beside source files.
   stage. If Warehouse or Granary does not exist, offer to construct it in a verified free slot before upgrading it.
   The confirmation groups actions by the resource/construction stage and visually distinguishes construction from
   upgrades; the displayed order must match the queue insertion order. The account-scoped Construction setting can
-  request 1-10 storage levels ahead (default 1); a triggered storage action targets the greater of the minimum level
+  request 1-10 storage levels ahead (default 2); a triggered storage action targets the greater of the minimum level
   required by the cost and the current storage-building level plus that configured value.
 - Resource `Upgrade to max` uses the level-10 staged plan only in non-capital villages. Capitals show that max-mode
   storage planning is unsupported and direct the user to choose an explicit `Upgrade all to level` target.
