@@ -423,8 +423,15 @@ jobs:
             '```text',
             $commitMessage,
             '```',
-            "Download: <$env:RELEASE_URL>"
+            "Download: <$env:RELEASE_URL>",
+            '@everyone'
           ) -join "`n"
 
-          $payload = @{ content = $content } | ConvertTo-Json -Depth 4
+          # Discord only turns the literal "@everyone" text into a real notification when the webhook
+          # payload allows that mention, so it must be requested explicitly. "users"/"roles" are kept
+          # parsable so a future mention in the commit message still resolves.
+          $payload = @{
+            content = $content
+            allowed_mentions = @{ parse = @("everyone", "users", "roles") }
+          } | ConvertTo-Json -Depth 4
           Invoke-RestMethod -Uri $webhookUrl -Method Post -ContentType "application/json" -Body $payload | Out-Null
