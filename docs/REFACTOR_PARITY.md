@@ -6,8 +6,8 @@ remains the source of truth for behavior and Official-specific constraints.
 ## Baseline
 
 - Build: 0 warnings, 0 errors (`scripts/Build-Check.ps1`, 2026-07-19).
-- Desktop tests: 536 passed.
-- Worker tests: 854 passed.
+- Desktop tests: 541 passed.
+- Worker tests: 863 passed.
 - Public task names, payload keys, config formats and storage paths stay stable.
 
 ## Parity checks
