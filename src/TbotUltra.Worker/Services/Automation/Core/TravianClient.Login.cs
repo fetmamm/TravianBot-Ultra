@@ -745,10 +745,22 @@ public sealed partial class TravianClient : ISessionClient
         string? requiredText = null,
         bool requireExactText = false,
         string? reason = null,
-        int? timeoutMs = null)
+        int? timeoutMs = null,
+        bool allowForcedRetry = false)
     {
         var candidates = _page.Locator(selector);
         var count = await candidates.CountAsync();
+        if (count == 0)
+        {
+            return false;
+        }
+
+        // Action pacing runs ONCE here, before any element is resolved. It must never sit between the
+        // actionability checks and ClickAsync: React dialogs re-render and shift while it waits, which
+        // left Playwright holding a stale/moved element until the click timed out. Only one click is
+        // ever delivered per call, so one delay per call is also the correct pacing.
+        await DelayBeforeClickAsync(cancellationToken, reason);
+
         for (var i = 0; i < count; i++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -801,9 +813,31 @@ public sealed partial class TravianClient : ISessionClient
                 {
                     Timeout = Math.Min(_config.TimeoutMs, 3000),
                 });
-                await DelayBeforeClickAsync(cancellationToken, reason);
-                await candidate.ClickAsync(new LocatorClickOptions { Timeout = timeoutMs ?? _config.TimeoutMs });
-                return true;
+
+                var forced = false;
+                while (true)
+                {
+                    try
+                    {
+                        await candidate.ClickAsync(new LocatorClickOptions
+                        {
+                            Timeout = timeoutMs ?? _config.TimeoutMs,
+                            Force = forced,
+                        });
+                        return true;
+                    }
+                    catch (Exception ex) when (!forced
+                        && allowForcedRetry
+                        && ex is PlaywrightException or TimeoutException
+                        && !IsTransientExecutionContextException(ex))
+                    {
+                        // Still a real trusted browser click — a forced click only skips the actionability
+                        // wait that an animating/re-rendering reward dialog can never satisfy. Opt-in, so
+                        // login and dialog flows keep their exact single-attempt click behavior.
+                        Notify($"[browser-click] '{selector}' not actionable, retrying forced: {ex.Message}");
+                        forced = true;
+                    }
+                }
             }
             catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
             {

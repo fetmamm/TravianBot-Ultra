@@ -186,12 +186,15 @@ public sealed partial class TravianClient
                     requiredText: "Collect",
                     requireExactText: true,
                     reason: "task collect reward",
-                    // Short timeout: a collect button that is present but not actionable (overlay/animation)
-                    // should fail fast to the JS fallback below, not waste the full 20s page timeout.
-                    timeoutMs: 3000);
+                    // Short timeout: a collect button that is present but not actionable should fail fast,
+                    // not waste the full 20s page timeout.
+                    timeoutMs: 3000,
+                    // The reward dialog animates, so let a forced (still trusted) click land before we
+                    // give up on the real click and fall through to synthetic dispatch.
+                    allowForcedRetry: true);
                 if (!clicked)
                 {
-                    await DelayBeforeClickAsync(cancellationToken, "task collect reward fallback");
+                    // Last resort only: the attempt above is already paced, so no extra delay here.
                     clicked = await _page.EvaluateAsync<bool>(
                     """
                     () => {
