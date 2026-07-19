@@ -300,26 +300,17 @@ public sealed partial class TravianClient
     // Randomized delay between the reward clicks in the auto-collect tasks flow only (configured by
     // CollectStepDelayMin/MaxSeconds). Set both to 0 to disable. Daily quests deliberately do not use
     // this — a single reward button there is covered by the normal click pacing.
-    // Logged with the same "[pacing] ..." shape as the click/page-load delays so it shows up in the
-    // Pacing log view, which filters on that tag. The caller supplies the reason so the line says
-    // which flow is waiting.
+    // Routed through the shared pacing helper so it behaves exactly like the click/page-load delays:
+    // it obeys the master "Action pacing" toggle, emits the browser-trace WAIT span, and logs the
+    // "[pacing] ...: waiting Xs" line the Pacing log view filters on.
     private Task ApplyCollectStepDelayAsync(string reason, CancellationToken cancellationToken)
     {
-        var minMs = (int)Math.Round(Math.Max(0, _config.CollectStepDelayMinSeconds) * 1000);
-        var maxMs = Math.Max(minMs, (int)Math.Round(_config.CollectStepDelayMaxSeconds * 1000));
-        if (maxMs <= 0)
-        {
-            return Task.CompletedTask;
-        }
-
-        var delayMs = Random.Shared.Next(minMs, maxMs + 1);
-        if (delayMs <= 0)
-        {
-            return Task.CompletedTask;
-        }
-
-        Notify($"[pacing] Collect: {reason}: waiting {delayMs / 1000.0:F1}s");
-        return Task.Delay(delayMs, cancellationToken);
+        return ApplyPacingDelayAsync(
+            _config.CollectStepDelayMinSeconds,
+            _config.CollectStepDelayMaxSeconds,
+            "collect-pacing",
+            $"Collect: {reason}",
+            cancellationToken);
     }
 
     private async Task<bool> SwitchToGeneralTasksTabAsync(CancellationToken cancellationToken)
