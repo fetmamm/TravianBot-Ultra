@@ -36,6 +36,8 @@ public sealed class LogClassifierTests
     [Theory]
     [InlineData("[pacing] Click: waiting 2.3s")]
     [InlineData("[pacing] Task: before task: waiting 4.0s")]
+    [InlineData("[pacing] Collect: task collect reward: waiting 0.6s")]
+    [InlineData("[pacing] Collect: daily quest reward: waiting 0.5s")]
     [InlineData("[pacing] session run timer started; next sleep in 00:42:10.")]
     [InlineData("Session sleep (manual) sleep starting; sleeping for 00:30:00.")]
     [InlineData("Session waking - resuming.")]

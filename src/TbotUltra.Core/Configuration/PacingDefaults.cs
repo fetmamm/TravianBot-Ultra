@@ -55,7 +55,7 @@ public static class PacingDefaults
 
     // Delay (seconds) between internal clicks/steps in the auto-collect tasks/daily-quests flows only.
     public const double CollectStepDelayMinSeconds = 0.3;
-    public const double CollectStepDelayMaxSeconds = 1.0;
+    public const double CollectStepDelayMaxSeconds = 0.8;
 
     // Human-like pause before starting the next construction.
     // Enabled by default. Queue case (a build is already running and the next is placed in the

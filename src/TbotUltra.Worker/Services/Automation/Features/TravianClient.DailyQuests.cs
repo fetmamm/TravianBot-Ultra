@@ -182,7 +182,7 @@ public sealed partial class TravianClient
             }
 
             await WaitForDailyQuestsDialogAsync(cancellationToken);
-            await ApplyCollectStepDelayAsync(cancellationToken);
+            await ApplyCollectStepDelayAsync("daily quests dialog opened", cancellationToken);
             return true;
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
@@ -257,7 +257,7 @@ public sealed partial class TravianClient
             }
             if (clicked)
             {
-                await ApplyCollectStepDelayAsync(cancellationToken);
+                await ApplyCollectStepDelayAsync("daily quest collect rewards", cancellationToken);
                 await WaitForDailyQuestCollectableRewardsAsync(cancellationToken);
             }
 
@@ -410,7 +410,7 @@ public sealed partial class TravianClient
             }
 
             collected += 1;
-            await ApplyCollectStepDelayAsync(cancellationToken);
+            await ApplyCollectStepDelayAsync("daily quest reward", cancellationToken);
         }
 
         return collected;

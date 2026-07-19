@@ -221,7 +221,7 @@ public sealed partial class TravianClient
             // React page registers the previous claim and the burst does not look robotic. The click
             // below therefore skips the generic click pacing — running both stacked two waits per
             // reward and made collecting far slower than the configured delay implies.
-            await ApplyCollectStepDelayAsync(cancellationToken);
+            await ApplyCollectStepDelayAsync("task collect reward", cancellationToken);
 
             bool clicked;
             try
@@ -298,9 +298,11 @@ public sealed partial class TravianClient
     }
 
     // Randomized delay between internal clicks/steps in the auto-collect tasks/daily-quests flows
-    // only (configured by CollectStepDelayMin/MaxSeconds, default 0.6-2.0s). Set both to 0 to disable.
-    // Deliberately does not log per delay to avoid log noise in these tight click loops.
-    private Task ApplyCollectStepDelayAsync(CancellationToken cancellationToken)
+    // only (configured by CollectStepDelayMin/MaxSeconds). Set both to 0 to disable.
+    // Logged with the same "[pacing] ..." shape as the click/page-load delays so it shows up in the
+    // Pacing log view, which filters on that tag. The caller supplies the reason so the line says
+    // which flow is waiting.
+    private Task ApplyCollectStepDelayAsync(string reason, CancellationToken cancellationToken)
     {
         var minMs = (int)Math.Round(Math.Max(0, _config.CollectStepDelayMinSeconds) * 1000);
         var maxMs = Math.Max(minMs, (int)Math.Round(_config.CollectStepDelayMaxSeconds * 1000));
@@ -310,7 +312,13 @@ public sealed partial class TravianClient
         }
 
         var delayMs = Random.Shared.Next(minMs, maxMs + 1);
-        return delayMs > 0 ? Task.Delay(delayMs, cancellationToken) : Task.CompletedTask;
+        if (delayMs <= 0)
+        {
+            return Task.CompletedTask;
+        }
+
+        Notify($"[pacing] Collect: {reason}: waiting {delayMs / 1000.0:F1}s");
+        return Task.Delay(delayMs, cancellationToken);
     }
 
     private async Task<bool> SwitchToGeneralTasksTabAsync(CancellationToken cancellationToken)
