@@ -733,12 +733,20 @@ public partial class MainWindow
         CancellationToken cancellationToken)
     {
         var outcome = executionResult.LastTask?.ConstructionOutcome ?? ConstructionTaskOutcome.UnknownSuccess;
-        if (outcome == ConstructionTaskOutcome.QueuedOrInProgress)
+        // A full refresh means leaving the page the task ended on to read dorf1 AND dorf2. That is only
+        // worth it when the village actually changed. QueuedOrInProgress changed the build queue but the
+        // levels are still readable from the current page; AlreadySatisfied/AlreadyExists changed nothing
+        // at all (the building was already at the target level), so re-reading both overviews just costs a
+        // pointless dorf2 -> dorf1 -> dorf2 round trip before the next queue item runs.
+        if (outcome is ConstructionTaskOutcome.QueuedOrInProgress
+            or ConstructionTaskOutcome.AlreadySatisfied
+            or ConstructionTaskOutcome.AlreadyExists)
         {
             try
             {
                 await RefreshCurrentPageStorageStatusAsync(options, "construction_success_quick", cancellationToken);
-                AppendLog("[construction-refresh] current-page refresh used for queued/in-progress construction; skipped full dorf1+dorf2 read.");
+                AppendLog(
+                    $"[construction-refresh] current-page refresh used for {outcome}; skipped full dorf1+dorf2 read.");
                 return (FullStatusRead: false, StorageStatusRead: true);
             }
             catch (Exception ex)
