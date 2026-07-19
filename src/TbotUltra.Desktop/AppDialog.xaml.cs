@@ -14,6 +14,7 @@ public partial class AppDialog : Window
     private readonly MessageBoxResult? _successResult;
     private readonly MessageBoxResult? _accentResult;
     private readonly MessageBoxResult? _warningResult;
+    private readonly MessageBoxResult? _dangerResult;
     private readonly IReadOnlyList<(string Label, MessageBoxResult Result)>? _customButtons;
     private MessageBoxResult _result;
     private bool _resultChosen;
@@ -29,7 +30,8 @@ public partial class AppDialog : Window
         IReadOnlyList<(string Label, MessageBoxResult Result)>? customButtons = null,
         MessageBoxResult? successResult = null,
         MessageBoxResult? accentResult = null,
-        MessageBoxResult? warningResult = null)
+        MessageBoxResult? warningResult = null,
+        MessageBoxResult? dangerResult = null)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
@@ -42,6 +44,7 @@ public partial class AppDialog : Window
         _successResult = successResult;
         _accentResult = accentResult;
         _warningResult = warningResult;
+        _dangerResult = dangerResult;
         _defaultResult = defaultResult;
         _cancelResult = ResolveCancelResult(buttons, cancelResult, customButtons);
         _result = ResolveDefaultResult(buttons, defaultResult, customButtons);
@@ -141,7 +144,8 @@ public partial class AppDialog : Window
         MessageBoxImage icon,
         MessageBoxResult defaultResult,
         MessageBoxResult cancelResult,
-        MessageBoxResult? successResult = null)
+        MessageBoxResult? successResult = null,
+        MessageBoxResult? dangerResult = null)
     {
         var dialog = new AppDialog(
             owner,
@@ -152,7 +156,10 @@ public partial class AppDialog : Window
             defaultResult,
             cancelResult,
             buttons,
-            successResult);
+            successResult,
+            accentResult: null,
+            warningResult: null,
+            dangerResult: dangerResult);
         _ = dialog.ShowDialog();
         return dialog._result;
     }
@@ -241,6 +248,13 @@ public partial class AppDialog : Window
                 button.SetResourceReference(Control.BackgroundProperty, "WarningBgBrush");
                 button.SetResourceReference(Control.BorderBrushProperty, "WarningBorderBrush");
                 button.SetResourceReference(Control.ForegroundProperty, "WarningTextBrush");
+                button.FontWeight = FontWeights.SemiBold;
+            }
+            else if (result == _dangerResult)
+            {
+                button.SetResourceReference(Control.BackgroundProperty, "DangerBgBrush");
+                button.SetResourceReference(Control.BorderBrushProperty, "DangerBorderBrush");
+                button.SetResourceReference(Control.ForegroundProperty, "DangerTextBrush");
                 button.FontWeight = FontWeights.SemiBold;
             }
 

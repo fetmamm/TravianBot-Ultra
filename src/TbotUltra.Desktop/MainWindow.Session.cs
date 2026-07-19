@@ -683,6 +683,16 @@ public partial class MainWindow
             return;
         }
 
+        // Switching account is destructive to the running session (logout, browser close, automation
+        // stop), so it must never happen from a stray click in the picker. Confirm first and revert the
+        // picker to the still-active account when the user backs out.
+        if (!ConfirmAccountSwitch(current, selected.Name))
+        {
+            AppendLog($"Account switch to '{selected.Name}' cancelled by user.");
+            RefreshAccountPicker();
+            return;
+        }
+
         _accountSwitchInProgress = true;
         try
         {
@@ -715,6 +725,29 @@ public partial class MainWindow
         {
             _accountSwitchInProgress = false;
         }
+    }
+
+    // Warns before an account switch. The consequences differ a lot depending on whether a session is
+    // live, so the message spells out what will actually be torn down in the current state.
+    private bool ConfirmAccountSwitch(string? currentAccountName, string newAccountName)
+    {
+        var from = string.IsNullOrWhiteSpace(currentAccountName) ? "the current account" : $"'{currentAccountName}'";
+        var consequences = _isLoggedIn
+            ? "The current session will be logged out, the browser closed and all running operations stopped."
+            : "All loaded account state (villages, resources, farm lists) will be cleared.";
+
+        var answer = AppDialog.ShowCustom(
+            this,
+            $"You are about to switch from {from} to '{newAccountName}'.\n\n{consequences}\n\nThe queue and settings for each account are kept, so you can switch back later.",
+            "Switch account",
+            [("Switch account", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.No)],
+            MessageBoxImage.Warning,
+            defaultResult: MessageBoxResult.No,
+            cancelResult: MessageBoxResult.No,
+            successResult: MessageBoxResult.Yes,
+            dangerResult: MessageBoxResult.No);
+
+        return answer == MessageBoxResult.Yes;
     }
 
     private void ResetVillageSelectionUi()
