@@ -581,12 +581,8 @@
                                            Foreground="{DynamicResource TextPrimaryBrush}"
                                            VerticalAlignment="Center" />
                                 <Button x:Name="StorageRefreshButton"
-                                        Width="26"
-                                        Height="26"
-                                        Padding="0"
+                                        Style="{StaticResource RefreshIconButtonStyle}"
                                         Margin="8,0,8,0"
-                                        FontFamily="Segoe MDL2 Assets"
-                                        Content="&#xE72C;"
                                         ToolTip="Refresh storage from the current page"
                                         Click="StorageRefreshButton_Click" />
                                 </StackPanel>

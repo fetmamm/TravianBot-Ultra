@@ -14,6 +14,9 @@
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
                 <ResourceDictionary Source="Themes/Badges.xaml" />
+                <!-- Buttons.xaml is also merged app-wide in App.xaml, but this window is constructed
+                     standalone in tests, where StaticResource lookups cannot reach App resources. -->
+                <ResourceDictionary Source="Themes/Buttons.xaml" />
             </ResourceDictionary.MergedDictionaries>
             <!-- Lightweight section divider: settings are grouped by spacing and hierarchy, not nested cards. -->
             <Style x:Key="SettingsGroupBox" TargetType="Border">
@@ -259,12 +262,8 @@
                                            Foreground="{DynamicResource TextPrimaryBrush}"
                                            VerticalAlignment="Center" />
                                 <Button x:Name="ResetPacingButton"
-                                        Width="26"
-                                        Height="26"
-                                        Padding="0"
+                                        Style="{StaticResource RefreshIconButtonStyle}"
                                         Margin="8,0,0,0"
-                                        FontFamily="Segoe MDL2 Assets"
-                                        Content="&#xE72C;"
                                         ToolTip="Reset pacing defaults"
                                         Click="ResetPacingButton_Click" />
                             </StackPanel>

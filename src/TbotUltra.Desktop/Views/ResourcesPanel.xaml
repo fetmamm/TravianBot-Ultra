@@ -10,7 +10,7 @@
         <StackPanel Grid.Row="0" Margin="0,0,0,8">
             <TextBlock Text="Resources" FontSize="22" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" Margin="0,0,0,12" />
             <StackPanel Orientation="Horizontal">
-                <Button x:Name="LoadResourcesButton" Content="↻" Width="42" FontSize="16" Click="LoadResourcesButton_Click" ToolTip="Refresh resources" IsEnabled="{Binding ActionsEnabled}" />
+                <Button x:Name="LoadResourcesButton" Style="{StaticResource RefreshIconButtonStyle}" Margin="0,0,6,0" Click="LoadResourcesButton_Click" ToolTip="Refresh resources" IsEnabled="{Binding ActionsEnabled}" />
                 <TextBlock Text="Target level" VerticalAlignment="Center" Margin="0,0,8,0" />
                 <ComboBox Width="90" Margin="0,0,8,0" ItemsSource="{Binding TargetLevelOptions}" SelectedItem="{Binding SelectedTargetLevel}" IsEnabled="{Binding ActionsEnabled}" />
                 <Button Content="Upgrade all to level" Width="160" Background="{DynamicResource AccentBrush}" Foreground="White" BorderBrush="{DynamicResource AccentBrush}" Click="UpgradeAllResourcesButton_Click" IsEnabled="{Binding ActionsEnabled}"
