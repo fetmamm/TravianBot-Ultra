@@ -182,7 +182,6 @@ public sealed partial class TravianClient
             }
 
             await WaitForDailyQuestsDialogAsync(cancellationToken);
-            await ApplyCollectStepDelayAsync("daily quests dialog opened", cancellationToken);
             return true;
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
@@ -257,7 +256,6 @@ public sealed partial class TravianClient
             }
             if (clicked)
             {
-                await ApplyCollectStepDelayAsync("daily quest collect rewards", cancellationToken);
                 await WaitForDailyQuestCollectableRewardsAsync(cancellationToken);
             }
 
@@ -410,7 +408,9 @@ public sealed partial class TravianClient
             }
 
             collected += 1;
-            await ApplyCollectStepDelayAsync("daily quest reward", cancellationToken);
+            // No collect step delay here: daily quests normally have a single reward button, so the
+            // click pacing the shared click helper already applies before every click is enough. The
+            // collect step delay exists for the /tasks burst, where many buttons are clicked in a row.
         }
 
         return collected;

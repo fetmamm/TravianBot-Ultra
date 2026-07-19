@@ -217,7 +217,7 @@ public sealed partial class TravianClient
         {
             cancellationToken.ThrowIfCancellationRequested();
 
-            // Paced by the dedicated "Collect tasks/daily delay" setting, before every click, so the
+            // Paced by the dedicated "Collect tasks delay" setting, before every click, so the
             // React page registers the previous claim and the burst does not look robotic. The click
             // below therefore skips the generic click pacing — running both stacked two waits per
             // reward and made collecting far slower than the configured delay implies.
@@ -297,8 +297,9 @@ public sealed partial class TravianClient
         return collected;
     }
 
-    // Randomized delay between internal clicks/steps in the auto-collect tasks/daily-quests flows
-    // only (configured by CollectStepDelayMin/MaxSeconds). Set both to 0 to disable.
+    // Randomized delay between the reward clicks in the auto-collect tasks flow only (configured by
+    // CollectStepDelayMin/MaxSeconds). Set both to 0 to disable. Daily quests deliberately do not use
+    // this — a single reward button there is covered by the normal click pacing.
     // Logged with the same "[pacing] ..." shape as the click/page-load delays so it shows up in the
     // Pacing log view, which filters on that tag. The caller supplies the reason so the line says
     // which flow is waiting.

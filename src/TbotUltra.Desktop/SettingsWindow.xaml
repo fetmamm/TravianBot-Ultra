@@ -360,9 +360,9 @@
                                     </Grid>
 
                                     <StackPanel Orientation="Horizontal" Margin="0,14,0,8">
-                                        <TextBlock Text="Collect tasks/daily delay" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                        <TextBlock Text="Collect tasks delay" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
                                         <ContentControl Style="{StaticResource SettingInfoIconStyle}"
-                                                        ToolTip="Randomized delay between internal clicks/steps in the Auto collect tasks and Auto collect daily quests flows only. Keeps these fast bursts from looking robotic. Set both to 0 to disable." />
+                                                        ToolTip="Randomized delay between the reward clicks in the Auto collect tasks flow only, where many buttons are clicked in a row. Keeps that fast burst from looking robotic. Daily quests use the normal Click pacing instead, since they usually have a single button. Set both to 0 to disable." />
                                     </StackPanel>
                                     <Grid Margin="18,0,0,0">
                                         <Grid.ColumnDefinitions>

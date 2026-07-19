@@ -760,7 +760,7 @@ public sealed partial class TravianClient : ISessionClient
         // actionability checks and ClickAsync: React dialogs re-render and shift while it waits, which
         // left Playwright holding a stale/moved element until the click timed out. Only one click is
         // ever delivered per call, so one delay per call is also the correct pacing.
-        // Callers that pace themselves (the collect loops own "Collect tasks/daily delay") pass
+        // Callers that pace themselves (the /tasks collect loop and its "Collect tasks delay") pass
         // useClickPacing: false so the two settings do not stack into one long wait per click.
         if (useClickPacing)
         {

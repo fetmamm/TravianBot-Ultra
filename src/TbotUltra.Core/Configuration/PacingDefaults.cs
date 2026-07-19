@@ -53,7 +53,8 @@ public static class PacingDefaults
     public const bool ActionPacingIdleBrowsePageReports = true;
     public const bool ActionPacingIdleBrowsePageMessages = true;
 
-    // Delay (seconds) between internal clicks/steps in the auto-collect tasks/daily-quests flows only.
+    // Delay (seconds) between the reward clicks in the auto-collect tasks flow only. Daily quests use
+    // the normal click pacing instead — they usually have a single button, not a burst.
     public const double CollectStepDelayMinSeconds = 0.3;
     public const double CollectStepDelayMaxSeconds = 0.8;
 
