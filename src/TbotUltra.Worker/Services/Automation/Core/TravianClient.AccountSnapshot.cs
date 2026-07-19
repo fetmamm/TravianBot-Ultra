@@ -711,7 +711,15 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
                   const label = (row.querySelector('th, dt, .label')?.textContent || '').trim();
                   if (!/^(tribe|nation)$/i.test(label)) continue;
                   const valueNode = row.querySelector('td, dd, .value');
-                  const text = `${valueNode?.getAttribute('class') || ''} ${valueNode?.textContent || ''}`;
+                  // Official renders the profile row as "<th>Tribe</th><td>Spartans</td>". The plural
+                  // name never matches the \b-anchored class normalizer below ("spartans" fails
+                  // \bspartan\b), which is why this branch used to fall through to 'Unknown'.
+                  // altNorm matches by prefix and handles every plural tribe name.
+                  const fromAlt = altNorm((valueNode?.textContent || '').trim());
+                  if (fromAlt) return fromAlt;
+                  // innerHTML is included so layouts that render the tribe as a child icon class
+                  // (<i class="tribe8_medium">) still reach the numeric lookup further down.
+                  const text = `${valueNode?.getAttribute('class') || ''} ${valueNode?.innerHTML || ''} ${valueNode?.textContent || ''}`;
                   const fromClass = classNorm(text);
                   if (fromClass) return fromClass;
                   const tribeMatch = text.match(/tribe[^0-9]*(\d+)/i) || text.match(/tribe(\d+)/i);
