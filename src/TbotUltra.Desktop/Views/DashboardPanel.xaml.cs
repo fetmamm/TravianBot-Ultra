@@ -21,8 +21,6 @@ public partial class DashboardPanel : UserControl
     internal ListBox AutomationLoopList => AutomationLoopListBox;
     internal CheckBox AutoCollectTasks => AutoCollectTasksCheckBox;
     internal CheckBox AutoCollectDailyQuests => AutoCollectDailyQuestsCheckBox;
-    internal CheckBox HeroResourceTransfer => HeroResourceTransferCheckBox;
-    internal CheckBox ConstructFaster => ConstructFasterCheckBox;
     internal CheckBox ProductionBonusVideo => ProductionBonusVideoCheckBox;
     internal ItemsControl VillageList => DashboardVillageList;
 
@@ -35,11 +33,7 @@ public partial class DashboardPanel : UserControl
     private void AutomationLoopListBox_Drop(object sender, DragEventArgs e) => Host?.OnAutomationLoopDrop(sender, e);
     private void AutoCollectTasksSetting_Changed(object sender, RoutedEventArgs e) => Host?.OnAutoCollectTasksSettingChanged(sender, e);
     private void AutoCollectDailyQuestsSetting_Changed(object sender, RoutedEventArgs e) => Host?.OnAutoCollectDailyQuestsSettingChanged(sender, e);
-    private void HeroResourceTransferSetting_Changed(object sender, RoutedEventArgs e) => Host?.OnHeroResourceTransferSettingChanged(sender, e);
-    private void HeroInventorySettingsButton_Click(object sender, RoutedEventArgs e) => Host?.OnHeroInventorySettingsClicked(sender, e);
     private void GoldSpendingSettingsButton_Click(object sender, RoutedEventArgs e) => Host?.OnGoldSpendingSettingsClicked(sender, e);
-    private void ConstructFasterSetting_Changed(object sender, RoutedEventArgs e) => Host?.OnConstructFasterSettingChanged(sender, e);
-    private void ConstructFasterSettingsButton_Click(object sender, RoutedEventArgs e) => Host?.OnConstructFasterSettingsClicked(sender, e);
     private void ProductionBonusVideoSetting_Changed(object sender, RoutedEventArgs e) => Host?.OnProductionBonusVideoSettingChanged(sender, e);
     private void ProductionBonusSettingsButton_Click(object sender, RoutedEventArgs e) => Host?.OnProductionBonusSettingsClicked(sender, e);
 }

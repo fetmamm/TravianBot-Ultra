@@ -1,3 +1,4 @@
+using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Travian;
 using TbotUltra.Worker.Domain;
 
@@ -11,7 +12,7 @@ public sealed partial class TravianClient
     /// Performs the in-building "NPC Trade" exchange for the unit currently being trained,
     /// so all resources are redistributed optimally for that unit before training. Triggers
     /// only when a user-selected resource is at/above the configured percent of its storage
-    /// capacity, and only when gold spending is allowed and stays at/above the gold limit
+    /// capacity, and only when gold spending is allowed and remains within the daily gold budget
     /// (each NPC trade costs <see cref="NpcTradeGoldCost"/> gold). Returns true when an
     /// exchange was actually performed (caller should re-read resources afterwards).
     /// </summary>
@@ -57,7 +58,12 @@ public sealed partial class TravianClient
 
         if (gold.Value - NpcTradeGoldCost < _config.GoldLimit)
         {
-            Notify($"NPC trade: skip at {buildingName}. Gold {gold.Value} would fall below limit {_config.GoldLimit} (cost {NpcTradeGoldCost}).");
+            Notify($"NPC trade: skip at {buildingName}. Gold {gold.Value} would fall below minimum balance {_config.GoldLimit} (cost {NpcTradeGoldCost}).");
+            return false;
+        }
+
+        if (!await TryReserveNpcTradeGoldAsync(buildingName, cancellationToken))
+        {
             return false;
         }
 
@@ -152,13 +158,52 @@ public sealed partial class TravianClient
 
         if (gold is not null && !bypassGoldGates && gold.Value - NpcTradeGoldCost < _config.GoldLimit)
         {
-            Notify($"NPC trade: skip at {label}. Gold {gold.Value} would fall below limit {_config.GoldLimit} (cost {NpcTradeGoldCost}).");
+            Notify($"NPC trade: skip at {label}. Gold {gold.Value} would fall below minimum balance {_config.GoldLimit} (cost {NpcTradeGoldCost}).");
+            return false;
+        }
+
+        if (!bypassGoldGates && !await TryReserveNpcTradeGoldAsync(label, cancellationToken))
+        {
             return false;
         }
 
         var goldText = gold?.ToString() ?? "unknown";
         Notify($"NPC trade: triggering at {label} because the page indicates missing resources (gold {goldText}).");
         return await ExecuteConstructionNpcTradeClicksAsync(label, cancellationToken);
+    }
+
+    private async Task<bool> TryReserveNpcTradeGoldAsync(string label, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var serverUtcOffset = _session.CachedServerUtcOffset;
+            if (serverUtcOffset is null)
+            {
+                serverUtcOffset = await ReadProductionBonusServerUtcOffsetAsync(cancellationToken);
+                if (serverUtcOffset is not null)
+                {
+                    _session.CachedServerUtcOffset = serverUtcOffset;
+                }
+            }
+
+            var serverDate = DateOnly.FromDateTime(
+                DateTimeOffset.UtcNow.ToOffset(serverUtcOffset ?? TimeSpan.Zero).Date);
+            var path = AccountStoragePaths.DailySpendingStatePath(_projectRoot, _account.Name, _config.BaseUrl);
+            var store = new DailySpendingStore(path);
+            if (!store.TryReserveGold(serverDate, _config.DailyGoldSpendingLimit, NpcTradeGoldCost, out var spentAfterReservation))
+            {
+                Notify($"NPC trade: skip at {label}. Daily gold limit {_config.DailyGoldSpendingLimit} reached (spent {spentAfterReservation}, cost {NpcTradeGoldCost}); resets at 00:00 server time.");
+                return false;
+            }
+
+            Notify($"NPC trade: reserved {NpcTradeGoldCost} gold for {label}; daily spent {spentAfterReservation}/{_config.DailyGoldSpendingLimit}.");
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or System.Text.Json.JsonException)
+        {
+            Notify($"NPC trade: skip at {label}. Could not update daily gold spending state: {ex.Message}");
+            return false;
+        }
     }
 
     private async Task<bool> ExecuteConstructionNpcTradeClicksAsync(string label, CancellationToken cancellationToken)

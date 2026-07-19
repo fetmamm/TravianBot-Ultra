@@ -135,6 +135,15 @@ public static class AccountStoragePaths
         return Path.Combine(AccountDirectory(projectRoot, accountName), "production_bonus_state.json");
     }
 
+    public static string DailySpendingStatePath(string projectRoot, string accountName, string? serverUrl = null)
+    {
+        return Path.Combine(
+            AccountDirectory(projectRoot, accountName),
+            "cache",
+            "daily-spending",
+            $"{NormalizeServerKey(serverUrl)}.json");
+    }
+
     public static string MapOasisCheckpointPath(string projectRoot, string accountName, string? serverUrl = null)
     {
         return Path.Combine(

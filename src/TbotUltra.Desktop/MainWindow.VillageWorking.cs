@@ -86,6 +86,15 @@ public partial class MainWindow
                     .Select(item => new Village(item.Name, item.Url, item.IsCapital, item.CoordX, item.CoordY))
                     .ToList(),
                 normalized);
+        _heroViewModel.HeroStatusText = isDead
+            ? "Dead"
+            : isReviving
+                ? "Reviving"
+                : isAway
+                    ? (_heroViewModel.HeroStatusText is "On the way to adventure" or "Returning home" or "Travelling outbound"
+                        ? _heroViewModel.HeroStatusText
+                        : "Away")
+                    : "Ready";
         if (string.Equals(_heroHomeVillageName, normalized, StringComparison.OrdinalIgnoreCase)
             && string.Equals(_heroHomeVillageKey, resolvedKey, StringComparison.OrdinalIgnoreCase)
             && _heroIsAway == isAway

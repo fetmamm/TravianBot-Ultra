@@ -164,8 +164,6 @@ public partial class MainWindow
 
         // Mirror the picker into the Queue tab's village dropdown so both stay in sync.
         SyncQueueVillagePicker(VillageComboBox.SelectedItem as VillageSelectionItem);
-        ApplyConstructFasterConfigToUi();
-        ApplyHeroResourceTransferConfigToUi();
     }
 
     private static string? ResolveUniqueVillageKeyByName(IReadOnlyList<Village> villages, string? name)
@@ -1080,8 +1078,6 @@ public partial class MainWindow
         RefreshVillageEnabledStateOnDashboard();
         RefreshAutomationLoopDashboardUi();
         SaveConstructFasterMasterFlag();
-        ApplyConstructFasterConfigToUi();
-        ApplyHeroResourceTransferConfigToUi();
 
         if (IsContinuousLoopRunning())
         {
@@ -1108,8 +1104,6 @@ public partial class MainWindow
         // touch the running bot. Show this village's cached buildings/resources and filter the queue to
         // it. Use the "Switch village" button to actually move the bot to this village.
         ShowSelectedVillageFromCache(selected);
-        ApplyConstructFasterConfigToUi();
-        ApplyHeroResourceTransferConfigToUi();
     }
 
 

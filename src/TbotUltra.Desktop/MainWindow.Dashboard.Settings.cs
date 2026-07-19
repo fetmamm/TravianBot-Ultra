@@ -11,8 +11,6 @@ public partial class MainWindow
     // immediately write back to bot.json.
     private bool _suppressAutoCollectTasksConfigWrite;
     private bool _suppressAutoCollectDailyQuestsConfigWrite;
-    private bool _suppressConstructFasterConfigWrite;
-    private bool _suppressHeroResourceTransferConfigWrite;
     private bool _suppressProductionBonusVideoConfigWrite;
 
     private void ApplyAutoCollectTasksConfigToUi(BotOptions options)
@@ -129,105 +127,6 @@ public partial class MainWindow
         }
     }
 
-    private void ApplyConstructFasterConfigToUi(BotOptions options)
-    {
-        _ = options;
-        ApplyConstructFasterConfigToUi();
-    }
-
-    private void ApplyConstructFasterConfigToUi()
-    {
-        if (ConstructFasterCheckBox is null)
-        {
-            return;
-        }
-
-        var selectedVillage = GetSelectedVillageKeyInfoOrNull();
-        _suppressConstructFasterConfigWrite = true;
-        try
-        {
-            ConstructFasterCheckBox.IsEnabled = selectedVillage is not null;
-            ConstructFasterCheckBox.IsChecked = selectedVillage is not null
-                && _villageSettingsStore.GetConstructFaster(selectedVillage);
-        }
-        finally
-        {
-            _suppressConstructFasterConfigWrite = false;
-        }
-    }
-
-    private void ConstructFasterSetting_Changed(object sender, RoutedEventArgs e)
-    {
-        if (_suppressConstructFasterConfigWrite)
-        {
-            return;
-        }
-
-        var selectedVillage = GetSelectedVillageKeyInfoOrNull();
-        if (selectedVillage is null)
-        {
-            return;
-        }
-
-        var enabled = ConstructFasterCheckBox.IsChecked == true;
-        _villageSettingsStore.SetConstructFaster(selectedVillage, enabled);
-        SaveConstructFasterMasterFlag();
-
-        if (enabled)
-        {
-            ResetDeferredConstructionWaitsNow("construct-faster enabled");
-        }
-    }
-
-    private void ApplyHeroResourceTransferConfigToUi(BotOptions options)
-    {
-        _ = options;
-        ApplyHeroResourceTransferConfigToUi();
-    }
-
-    private void ApplyHeroResourceTransferConfigToUi()
-    {
-        if (HeroResourceTransferCheckBox is null)
-        {
-            return;
-        }
-
-        var selectedVillage = GetSelectedVillageKeyInfoOrNull();
-        _suppressHeroResourceTransferConfigWrite = true;
-        try
-        {
-            HeroResourceTransferCheckBox.IsEnabled = selectedVillage is not null;
-            HeroResourceTransferCheckBox.IsChecked = selectedVillage is not null
-                && _villageSettingsStore.GetHeroResourcesEnabled(selectedVillage);
-        }
-        finally
-        {
-            _suppressHeroResourceTransferConfigWrite = false;
-        }
-    }
-
-    private void HeroResourceTransferSetting_Changed(object sender, RoutedEventArgs e)
-    {
-        if (_suppressHeroResourceTransferConfigWrite)
-        {
-            return;
-        }
-
-        var selectedVillage = GetSelectedVillageKeyInfoOrNull();
-        if (selectedVillage is null)
-        {
-            return;
-        }
-
-        var enabled = HeroResourceTransferCheckBox.IsChecked == true;
-        _villageSettingsStore.SetHeroResourcesEnabled(selectedVillage, enabled);
-
-        if (enabled)
-        {
-            ResetDeferredConstructionWaitsNow("hero resource transfer enabled");
-        }
-    }
-
     // Fire the given immediate check only while the continuous loop is actually running and the
     // browser session is usable. The action (the same one the 20s refresh runs) self-guards and
     // de-duplicates, so this won't double-queue.
@@ -241,17 +140,6 @@ public partial class MainWindow
 
         var options = LoadBotOptions();
         _ = action(options);
-    }
-
-    // Opens the per-village hero resource popup from the Dashboard Auto settings row.
-    private void HeroInventorySettingsButton_Click(object sender, RoutedEventArgs e)
-    {
-        OpenHeroResourceSettingsFromHeroPanel();
-    }
-
-    private void ConstructFasterSettingsButton_Click(object sender, RoutedEventArgs e)
-    {
-        OpenConstructFasterSettingsWindow();
     }
 
     // Opens the NPC / Trade workspace where the detailed trade controls live.

@@ -589,6 +589,23 @@ public partial class MainWindow
             }
         }
 
+        int? refreshedHeroHp = null;
+        try
+        {
+            refreshedHeroHp = await ReadHeroHpFromCurrentPageForUiAsync(
+                options,
+                _loopController.AcquireSessionScopeToken());
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[hero:verbose] background Hero HP refresh skipped ({ex.Message})");
+        }
+
+        TryReleaseLowHpHeroManageDefer(options, refreshedHeroHp);
         await TryReleaseRevivingHeroManageDeferAsync(options);
         await TryReleaseAwayHeroManageDeferAsync(options);
 
@@ -1069,6 +1086,64 @@ public partial class MainWindow
     private const string HeroDeferReasonKey = "hero_defer_reason";
     private const string HeroDeferReasonReviving = "reviving";
     private const string HeroDeferReasonAway = "away";
+    private const string HeroDeferReasonLowHp = "low_hp";
+
+    // A successful live HP read is authoritative. If it reaches the task's configured threshold,
+    // release a regen-estimate defer immediately (including an instant full heal after level-up).
+    private void TryReleaseLowHpHeroManageDefer(BotOptions options, int? liveHpPercent)
+    {
+        if (liveHpPercent is not int liveHp)
+        {
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var deferredLowHp = _botService.GetQueueItemsForDisplay()
+            .Where(item => string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase))
+            .Where(item => item.Status == QueueStatus.Pending)
+            .Where(item => item.NextAttemptAt > now.AddSeconds(5))
+            .Where(item => item.Payload.TryGetValue(HeroDeferReasonKey, out var reason)
+                && string.Equals(reason, HeroDeferReasonLowHp, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        var released = 0;
+        foreach (var item in deferredLowHp)
+        {
+            var threshold = Math.Clamp(
+                TryGetIntPayloadValue(item.Payload, BotOptionPayloadKeys.HeroMinHpForAdventure)
+                    ?? options.HeroMinHpForAdventure,
+                1,
+                100);
+            if (liveHp < threshold)
+            {
+                continue;
+            }
+
+            var payload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase);
+            payload.Remove(HeroDeferReasonKey);
+            if (_botService.UpdateDeferredQueueItem(item.Id, payload, TimeSpan.Zero))
+            {
+                released++;
+            }
+        }
+
+        if (released <= 0)
+        {
+            return;
+        }
+
+        _heroViewModel.AdventureStatusText = $"Hero HP is now {liveHp}%. Adventure released to run now.";
+        AppendLog($"Hero: live HP {liveHp}% reached the adventure threshold — released {released} deferred hero_manage item(s) now.");
+        UpdateAutomationLoopRunningIndicators();
+        if (IsContinuousLoopRunning())
+        {
+            Interlocked.Exchange(ref _continuousLoopWakeRequested, 1);
+        }
+        else
+        {
+            TriggerQueueAutoRunFromEnqueue();
+        }
+    }
 
     // Releases a hero_manage that was deferred for the full revive time when the hero is no longer reviving
     // on the current page (e.g. the user revived early with a bucket), so the loop re-runs it now and

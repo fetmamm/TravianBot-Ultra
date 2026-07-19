@@ -46,7 +46,13 @@ public sealed class SettingsWindowTests : IDisposable
                 Assert.True(window.SmithyUpgradeRestartDelay.IsEnabled);
                 Assert.Equal("10", window.SmithyUpgradeRestartDelay.DelayMinMinutes);
                 Assert.Equal("30", window.SmithyUpgradeRestartDelay.DelayMaxMinutes);
-                Assert.NotNull(window.FindName("GoldLimitSlider"));
+                Assert.Equal("100", Assert.IsType<TextBox>(window.FindName("GoldLimitTextBox")).Text);
+                Assert.Equal("20", Assert.IsType<TextBox>(window.FindName("DailyGoldSpendingLimitTextBox")).Text);
+                Assert.Equal("100", Assert.IsType<TextBox>(window.FindName("SilverLimitTextBox")).Text);
+                Assert.Equal("10000", Assert.IsType<TextBox>(window.FindName("DailySilverSpendingLimitTextBox")).Text);
+                Assert.NotNull(window.FindName("ResetDailyGoldLimitButton"));
+                Assert.NotNull(window.FindName("ResetDailySilverLimitButton"));
+                Assert.NotNull(window.FindName("AllowGoldSpendingCheckBox"));
                 window.Close();
             }
             catch (Exception ex)

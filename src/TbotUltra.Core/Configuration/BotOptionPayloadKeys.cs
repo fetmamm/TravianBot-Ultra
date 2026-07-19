@@ -214,6 +214,9 @@ public static class BotOptionPayloadKeys
     public const string NpcTradeBuildTimeLimitSeconds = "npc_trade_build_time_limit_seconds";
     public const string AllowGoldSpending = "allow_gold_spending";
     public const string GoldLimit = "gold_limit";
+    public const string DailyGoldSpendingLimit = "daily_gold_spending_limit";
+    public const string SilverLimit = "silver_limit";
+    public const string DailySilverSpendingLimit = "daily_silver_spending_limit";
 
     public const string ResourceTransferEnabled = "resource_transfer_enabled";
     public const string ResourceTransferTargetVillageName = "resource_transfer_target_village_name";

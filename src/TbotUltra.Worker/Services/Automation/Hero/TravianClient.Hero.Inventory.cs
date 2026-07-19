@@ -71,7 +71,7 @@ public sealed partial class TravianClient
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await Task.Delay(500, cancellationToken);
 
-        var refreshedHp = await ReadHeroHpFromSidebarAsync(cancellationToken);
+        var refreshedHp = await ReadHeroHpFromCurrentPageAsync(cancellationToken);
         if (confirmed || refreshedHp > currentHpPercent)
         {
             ClearHeroOintmentMiss();

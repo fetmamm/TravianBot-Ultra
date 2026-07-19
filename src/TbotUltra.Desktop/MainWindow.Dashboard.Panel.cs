@@ -15,8 +15,6 @@ public partial class MainWindow
     private ListBox AutomationLoopListBox => DashboardPanelControl.AutomationLoopList;
     private CheckBox AutoCollectTasksCheckBox => DashboardPanelControl.AutoCollectTasks;
     private CheckBox AutoCollectDailyQuestsCheckBox => DashboardPanelControl.AutoCollectDailyQuests;
-    private CheckBox HeroResourceTransferCheckBox => DashboardPanelControl.HeroResourceTransfer;
-    private CheckBox ConstructFasterCheckBox => DashboardPanelControl.ConstructFaster;
     private CheckBox ProductionBonusVideoCheckBox => DashboardPanelControl.ProductionBonusVideo;
     private ItemsControl DashboardVillageList => DashboardPanelControl.VillageList;
 
@@ -29,11 +27,7 @@ public partial class MainWindow
     internal void OnAutomationLoopDrop(object sender, DragEventArgs e) => AutomationLoopListBox_Drop(sender, e);
     internal void OnAutoCollectTasksSettingChanged(object sender, RoutedEventArgs e) => AutoCollectTasksSetting_Changed(sender, e);
     internal void OnAutoCollectDailyQuestsSettingChanged(object sender, RoutedEventArgs e) => AutoCollectDailyQuestsSetting_Changed(sender, e);
-    internal void OnHeroResourceTransferSettingChanged(object sender, RoutedEventArgs e) => HeroResourceTransferSetting_Changed(sender, e);
-    internal void OnHeroInventorySettingsClicked(object sender, RoutedEventArgs e) => HeroInventorySettingsButton_Click(sender, e);
     internal void OnGoldSpendingSettingsClicked(object sender, RoutedEventArgs e) => GoldSpendingSettingsButton_Click(sender, e);
-    internal void OnConstructFasterSettingChanged(object sender, RoutedEventArgs e) => ConstructFasterSetting_Changed(sender, e);
-    internal void OnConstructFasterSettingsClicked(object sender, RoutedEventArgs e) => ConstructFasterSettingsButton_Click(sender, e);
     internal void OnProductionBonusVideoSettingChanged(object sender, RoutedEventArgs e) => ProductionBonusVideoSetting_Changed(sender, e);
     internal void OnProductionBonusSettingsClicked(object sender, RoutedEventArgs e) => ProductionBonusSettingsButton_Click(sender, e);
 }

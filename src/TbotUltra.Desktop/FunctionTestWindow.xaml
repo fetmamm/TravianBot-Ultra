@@ -146,6 +146,12 @@
                                     ToolTip="Opens the hero adventures page, watches the 'Reduce adventure duration by 25%' bonus video, and confirms it is active for the next adventure."
                                     ToolTipService.InitialShowDelay="500"
                                     Click="TestReduceAdventuresTimeButton_Click" />
+                            <Button x:Name="StartAdventureButton"
+                                    Style="{DynamicResource DebugActionButtonStyle}"
+                                    Content="Start adventure"
+                                    ToolTip="Queues one hero adventure using the current Hero settings."
+                                    ToolTipService.InitialShowDelay="500"
+                                    Click="StartAdventureButton_Click" />
                             <Button x:Name="BulkMessagesButton"
                                     Style="{DynamicResource DebugActionButtonStyle}"
                                     Content="Bulk messages"

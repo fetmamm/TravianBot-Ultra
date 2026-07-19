@@ -10,6 +10,9 @@ namespace TbotUltra.Worker.Services;
 // Hero status, home/away, health and timer reads.
 public sealed partial class TravianClient
 {
+    public static event Action<string, int>? HeroHpUpdated;
+    public static event Action<string, string>? HeroStatusUpdated;
+
     private async Task NotifyHeroHomeFromDorf1Async(CancellationToken cancellationToken)
     {
         try
@@ -112,7 +115,7 @@ public sealed partial class TravianClient
 
         var status = await ReadHeroStatusAsync(cancellationToken);
         var sidebar = await ReadHeroSidebarStatusAsync(cancellationToken);
-        var heroHpFromSidebar = await ReadHeroHpFromSidebarAsync(cancellationToken);
+        var heroHpFromSidebar = await ReadHeroHpFromCurrentPageAsync(cancellationToken);
         var inVillage = await IsHeroInActiveVillageAsync(cancellationToken);
         var hasUnassignedPointsSignal = status.UnassignedPoints > 0 || await HasHeroLevelUpIndicatorAsync(cancellationToken);
 
@@ -126,12 +129,26 @@ public sealed partial class TravianClient
             await EnsureFreshDorf1ForHeroAsync(forceDorf1Reload, cancellationToken);
             status = await ReadHeroStatusAsync(cancellationToken);
             sidebar = await ReadHeroSidebarStatusAsync(cancellationToken);
-            heroHpFromSidebar = await ReadHeroHpFromSidebarAsync(cancellationToken);
+            heroHpFromSidebar = await ReadHeroHpFromCurrentPageAsync(cancellationToken);
             inVillage = await IsHeroInActiveVillageAsync(cancellationToken);
             hasUnassignedPointsSignal = status.UnassignedPoints > 0 || await HasHeroLevelUpIndicatorAsync(cancellationToken);
         }
 
+        PublishHeroRuntimeStatus(status, inVillage);
+
         return new HeroQuickStatus(status, sidebar, inVillage, heroHpFromSidebar, hasUnassignedPointsSignal);
+    }
+
+    private void PublishHeroRuntimeStatus(HeroStatus status, bool inVillage)
+    {
+        var display = status.IsDead
+            ? "Dead"
+            : string.Equals(status.State, "Reviving", StringComparison.OrdinalIgnoreCase)
+                ? "Reviving"
+                : inVillage
+                    ? "Ready"
+                    : status.MovementState ?? "Away";
+        HeroStatusUpdated?.Invoke(AccountName, display);
     }
 
     private static int ResolveAdventureCount(HeroQuickStatus quick)
@@ -243,7 +260,9 @@ public sealed partial class TravianClient
         await GotoAsync(Paths.HeroAttributes, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
-        return await ReadHeroReturnSecondsAsync(cancellationToken);
+        var status = await ReadHeroStatusAsync(cancellationToken);
+        PublishHeroRuntimeStatus(status, inVillage: false);
+        return status.SecondsUntilReturn ?? await ReadHeroReturnSecondsAsync(cancellationToken);
     }
 
     private async Task<int?> ReadHeroReturnSecondsAsync(CancellationToken cancellationToken)
@@ -483,7 +502,7 @@ public sealed partial class TravianClient
 
     // Reads the always-visible Official top-bar health arc on the current game page. The legacy
     // sidebar bar remains an additive DOM fallback; callers retain /hero/attributes as the final fallback.
-    private async Task<int?> ReadHeroHpFromSidebarAsync(CancellationToken cancellationToken)
+    public async Task<int?> ReadHeroHpFromCurrentPageAsync(CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         var read = await _page.EvaluateAsync<HeroHealthTopBarReadJs>(
@@ -516,7 +535,13 @@ public sealed partial class TravianClient
         if (svgPercent is not null)
         {
             Notify($"[hero:verbose] HP read from top-bar SVG: {svgPercent}%");
+            HeroHpUpdated?.Invoke(AccountName, svgPercent.Value);
             return svgPercent;
+        }
+
+        if (read?.LegacyPercent is int legacyPercent)
+        {
+            HeroHpUpdated?.Invoke(AccountName, legacyPercent);
         }
 
         return read?.LegacyPercent;
@@ -823,6 +848,11 @@ public sealed partial class TravianClient
                 secondsUntilAdventureReady: adventureTimer,
                 secondsUntilReturn: returnTimer,
                 reviveRemainingSeconds: Number.isFinite(reviveTimer) ? Math.max(0, Math.trunc(reviveTimer)) : null,
+                movementState: isReturningHome
+                  ? 'Returning home'
+                  : isOutboundMovement && /adventure/i.test(awayText)
+                    ? 'On the way to adventure'
+                    : isOutboundMovement ? 'Travelling outbound' : null,
                 unassignedPoints: points || 0
               });
             }
@@ -849,6 +879,7 @@ public sealed partial class TravianClient
             SecondsUntilReturn: parsed.SecondsUntilReturn,
             ReviveRemainingSeconds: parsed.ReviveRemainingSeconds,
             UnassignedPoints: parsed.UnassignedPoints ?? 0,
+            MovementState: parsed.MovementState,
             AdventureReadyFinish: parsed.SecondsUntilAdventureReady is > 0
                 ? TimerSnapshot.FromRemaining(parsed.SecondsUntilAdventureReady.Value)
                 : null,

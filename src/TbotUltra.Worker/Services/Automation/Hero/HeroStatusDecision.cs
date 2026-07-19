@@ -62,8 +62,8 @@ internal static class HeroStatusDecision
             return fallbackSeconds;
         }
 
-        var hours = deficit * 24.0 / regenPerDayPercent;
-        var seconds = (int)Math.Ceiling(hours * 3600.0);
-        return Math.Clamp(seconds, 60, maxDeferSeconds);
+        var seconds = (int)Math.Ceiling(deficit * 86400.0 / regenPerDayPercent);
+        return Math.Clamp(seconds, 60, Math.Max(60, maxDeferSeconds));
     }
+
 }

@@ -22,7 +22,10 @@ public enum SettingsCategory
 
 public partial class SettingsWindow : Window
 {
-    private const int DefaultGoldLimit = 300;
+    private const int DefaultGoldLimit = 100;
+    private const int DefaultDailyGoldSpendingLimit = 20;
+    private const int DefaultSilverLimit = 100;
+    private const int DefaultDailySilverSpendingLimit = 10000;
     private readonly BotConfigStore _store;
     private JsonObject _config = [];
     private bool _isClosing;
@@ -30,6 +33,8 @@ public partial class SettingsWindow : Window
     // Server-local hour the bot auto-detected for the active account (null when not yet detected). Display-only.
     private readonly int? _detectedDailyResetHour;
     private readonly Func<JsonObject, string?>? _validateBeforeSave;
+    private readonly Action? _resetDailyGoldSpending;
+    private readonly Action? _resetDailySilverSpending;
     private bool _suppressDetailedBrowserLoggingConfirmation;
     private string _initialTownHallFingerprint = string.Empty;
 
@@ -51,6 +56,7 @@ public partial class SettingsWindow : Window
         HeroAdventureRestartDelayDefaults.MaxMinutes,
         HeroAdventureRestartDelayDefaults.MinMinutes,
         HeroAdventureRestartDelayDefaults.MaxMinutes);
+    public IReadOnlyList<int> HeroHpRegenOptions { get; } = [20, 30, 40, 50, 60, 70, 80, 90, 100];
     public RestartDelaySettings SmithyUpgradeRestartDelay { get; } = new(
         SmithyUpgradeRestartDelayDefaults.Enabled,
         SmithyUpgradeRestartDelayDefaults.MinMinutes,
@@ -69,7 +75,9 @@ public partial class SettingsWindow : Window
         int? detectedDailyResetHour = null,
         Func<JsonObject, string?>? validateBeforeSave = null,
         SettingsCategory initialCategory = SettingsCategory.General,
-        IReadOnlyList<TownHallOverviewRow>? townHallRows = null)
+        IReadOnlyList<TownHallOverviewRow>? townHallRows = null,
+        Action? resetDailyGoldSpending = null,
+        Action? resetDailySilverSpending = null)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
@@ -77,6 +85,8 @@ public partial class SettingsWindow : Window
         _sessionSleeping = sessionSleeping;
         _detectedDailyResetHour = detectedDailyResetHour;
         _validateBeforeSave = validateBeforeSave;
+        _resetDailyGoldSpending = resetDailyGoldSpending;
+        _resetDailySilverSpending = resetDailySilverSpending;
         foreach (var row in townHallRows ?? [])
         {
             TownHallRows.Add(row);
@@ -89,6 +99,8 @@ public partial class SettingsWindow : Window
         SettingsCategoryTabControl.SelectedIndex = (int)initialCategory;
         _initialTownHallFingerprint = BuildTownHallFingerprint();
         SleepNowButton.IsEnabled = !_sessionSleeping;
+        ResetDailyGoldLimitButton.IsEnabled = _resetDailyGoldSpending is not null;
+        ResetDailySilverLimitButton.IsEnabled = _resetDailySilverSpending is not null;
     }
 
     private void LoadConfig()
@@ -108,10 +120,13 @@ public partial class SettingsWindow : Window
             _suppressDetailedBrowserLoggingConfirmation = false;
         }
         AllowSilverSpendingCheckBox.IsChecked = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
-        GoldLimitSlider.Value = Math.Clamp(
-            _config[BotOptionPayloadKeys.GoldLimit]?.GetValue<int>() ?? DefaultGoldLimit,
+        AllowGoldSpendingCheckBox.IsChecked = _config[BotOptionPayloadKeys.AllowGoldSpending]?.GetValue<bool>() ?? false;
+        GoldLimitTextBox.Text = Math.Max(
             0,
-            1000);
+            _config[BotOptionPayloadKeys.GoldLimit]?.GetValue<int>() ?? DefaultGoldLimit).ToString(CultureInfo.InvariantCulture);
+        DailyGoldSpendingLimitTextBox.Text = Math.Max(
+            0,
+            _config[BotOptionPayloadKeys.DailyGoldSpendingLimit]?.GetValue<int>() ?? DefaultDailyGoldSpendingLimit).ToString(CultureInfo.InvariantCulture);
         LoadDailyServerResetToUi();
         LoadPacingConfigToUi();
         StorageUpgradeLevelsAheadComboBox.SelectedItem = ConstructionDefaults.NormalizeStorageUpgradeLevelsAhead(
@@ -124,7 +139,12 @@ public partial class SettingsWindow : Window
         PostLoginAnalyzeBreweryCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeBrewery]?.GetValue<bool>() ?? false;
         PostLoginAnalyzeHeroInventoryCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory]?.GetValue<bool>() ?? true;
         PostLoginAnalyzeNewVillagesCheckBox.IsChecked = _config[BotOptionPayloadKeys.PostLoginAnalyzeNewVillages]?.GetValue<bool>() ?? true;
-        SilverLimitSlider.Value = Math.Clamp(_config["silver_limit"]?.GetValue<int>() ?? 100, 0, 1000);
+        SilverLimitTextBox.Text = Math.Max(
+            0,
+            _config[BotOptionPayloadKeys.SilverLimit]?.GetValue<int>() ?? DefaultSilverLimit).ToString(CultureInfo.InvariantCulture);
+        DailySilverSpendingLimitTextBox.Text = Math.Max(
+            0,
+            _config[BotOptionPayloadKeys.DailySilverSpendingLimit]?.GetValue<int>() ?? DefaultDailySilverSpendingLimit).ToString(CultureInfo.InvariantCulture);
         if (TownHallCelebrationDefaults.NormalizeCount(
                 ReadInt(BotOptionPayloadKeys.TownHallCelebrationCount, TownHallCelebrationDefaults.DefaultCount))
             >= TownHallCelebrationDefaults.MaxCount)
@@ -162,6 +182,8 @@ public partial class SettingsWindow : Window
         HeroAdventureRestartDelay.DelayMaxMinutes = FormatDelay(ReadDouble(
             BotOptionPayloadKeys.HeroAdventureRestartDelayMaxMinutes,
             HeroAdventureRestartDelayDefaults.MaxMinutes));
+        var heroHpRegen = Math.Clamp(ReadInt(BotOptionPayloadKeys.HeroHpRegenPerDayPercent, 40), 20, 100);
+        HeroHpRegenPerDayComboBox.SelectedItem = Math.Clamp(((heroHpRegen + 5) / 10) * 10, 20, 100);
         SmithyUpgradeRestartDelay.IsEnabled =
             _config[BotOptionPayloadKeys.SmithyUpgradeRestartDelayEnabled]?.GetValue<bool>()
             ?? SmithyUpgradeRestartDelayDefaults.Enabled;
@@ -171,7 +193,6 @@ public partial class SettingsWindow : Window
         SmithyUpgradeRestartDelay.DelayMaxMinutes = FormatDelay(ReadDouble(
             BotOptionPayloadKeys.SmithyUpgradeRestartDelayMaxMinutes,
             SmithyUpgradeRestartDelayDefaults.MaxMinutes));
-        UpdateLimitLabels();
     }
 
     // Fills the reset-hour dropdown with 00:00..23:00 (Tag = the whole hour 0..23).
@@ -325,6 +346,15 @@ public partial class SettingsWindow : Window
     {
         try
         {
+            if (!TryReadSpendingLimits(
+                    out var goldLimit,
+                    out var dailyGoldSpendingLimit,
+                    out var silverLimit,
+                    out var dailySilverSpendingLimit))
+            {
+                return false;
+            }
+
             // The browser always runs visible; headless mode has been removed entirely.
             _config.Remove("headless");
             _config[BotOptionPayloadKeys.DontNotifyNewVersion] = DontNotifyNewVersionCheckBox.IsChecked == true;
@@ -332,7 +362,9 @@ public partial class SettingsWindow : Window
             _config[BotOptionPayloadKeys.AutomaticallyCheckLanguage] = AutomaticallyCheckLanguageCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.DetailedBrowserLoggingEnabled] = DetailedBrowserLoggingCheckBox.IsChecked == true;
             _config["allow_silver_spending"] = AllowSilverSpendingCheckBox.IsChecked == true;
-            _config[BotOptionPayloadKeys.GoldLimit] = (int)Math.Round(GoldLimitSlider.Value);
+            _config[BotOptionPayloadKeys.AllowGoldSpending] = AllowGoldSpendingCheckBox.IsChecked == true;
+            _config[BotOptionPayloadKeys.GoldLimit] = goldLimit;
+            _config[BotOptionPayloadKeys.DailyGoldSpendingLimit] = dailyGoldSpendingLimit;
             _config[BotOptionPayloadKeys.TownHallCelebrationCount] =
                 TownHallCelebrationDefaults.NormalizeCount(TownHallQueue.Count);
             _config[BotOptionPayloadKeys.TownHallCelebrationRestartDelayMinMinutes] =
@@ -353,6 +385,10 @@ public partial class SettingsWindow : Window
                 HeroAdventureRestartDelay.ResolvedDelayMinMinutes;
             _config[BotOptionPayloadKeys.HeroAdventureRestartDelayMaxMinutes] =
                 HeroAdventureRestartDelay.ResolvedDelayMaxMinutes;
+            _config[BotOptionPayloadKeys.HeroHpRegenPerDayPercent] =
+                HeroHpRegenPerDayComboBox.SelectedItem is int heroHpRegenPercent
+                    ? heroHpRegenPercent
+                    : 40;
             _config[BotOptionPayloadKeys.SmithyUpgradeRestartDelayEnabled] =
                 SmithyUpgradeRestartDelay.IsEnabled;
             _config[BotOptionPayloadKeys.SmithyUpgradeRestartDelayMinMinutes] =
@@ -375,7 +411,8 @@ public partial class SettingsWindow : Window
             _config[BotOptionPayloadKeys.PostLoginAnalyzeBrewery] = PostLoginAnalyzeBreweryCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory] = PostLoginAnalyzeHeroInventoryCheckBox.IsChecked == true;
             _config[BotOptionPayloadKeys.PostLoginAnalyzeNewVillages] = PostLoginAnalyzeNewVillagesCheckBox.IsChecked == true;
-            _config["silver_limit"] = (int)Math.Round(SilverLimitSlider.Value);
+            _config[BotOptionPayloadKeys.SilverLimit] = silverLimit;
+            _config[BotOptionPayloadKeys.DailySilverSpendingLimit] = dailySilverSpendingLimit;
             var validationError = _validateBeforeSave?.Invoke(_config);
             if (!string.IsNullOrWhiteSpace(validationError))
             {
@@ -475,14 +512,37 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void SilverLimitSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    private void ResetDailySilverLimitButton_Click(object sender, RoutedEventArgs e)
     {
-        UpdateLimitLabels();
+        ResetDailySpending(_resetDailySilverSpending, "silver");
     }
 
-    private void GoldLimitSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+    private void ResetDailyGoldLimitButton_Click(object sender, RoutedEventArgs e)
     {
-        UpdateLimitLabels();
+        ResetDailySpending(_resetDailyGoldSpending, "gold");
+    }
+
+    private void ResetDailySpending(Action? reset, string currency)
+    {
+        if (reset is null)
+        {
+            return;
+        }
+
+        try
+        {
+            reset();
+            AppDialog.Show(
+                this,
+                $"Today's {currency} spending counter was reset.",
+                "Daily spending reset",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+        catch (Exception ex)
+        {
+            AppDialog.Show(this, ex.Message, "Could not reset daily spending", MessageBoxButton.OK, MessageBoxImage.Warning);
+        }
     }
 
     private void DetailedBrowserLoggingCheckBox_Changed(object sender, RoutedEventArgs e)
@@ -896,15 +956,42 @@ public partial class SettingsWindow : Window
         _config[maxKey] = max;
     }
 
-    private void UpdateLimitLabels()
+    private bool TryReadSpendingLimits(
+        out int goldLimit,
+        out int dailyGoldSpendingLimit,
+        out int silverLimit,
+        out int dailySilverSpendingLimit)
     {
-        if (SilverLimitTextBlock is null || GoldLimitTextBlock is null)
+        var fields = new[]
         {
-            return;
+            (TextBox: GoldLimitTextBox, Label: "Minimum gold balance"),
+            (TextBox: DailyGoldSpendingLimitTextBox, Label: "Daily gold spending limit"),
+            (TextBox: SilverLimitTextBox, Label: "Minimum silver balance"),
+            (TextBox: DailySilverSpendingLimitTextBox, Label: "Daily silver spending limit"),
+        };
+        var values = new int[fields.Length];
+        for (var index = 0; index < fields.Length; index++)
+        {
+            if (!int.TryParse(fields[index].TextBox.Text.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out values[index]))
+            {
+                AppDialog.Show(
+                    this,
+                    $"{fields[index].Label} must be a whole number between 0 and {int.MaxValue}.",
+                    "Invalid spending limit",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                fields[index].TextBox.Focus();
+                fields[index].TextBox.SelectAll();
+                goldLimit = dailyGoldSpendingLimit = silverLimit = dailySilverSpendingLimit = 0;
+                return false;
+            }
         }
 
-        SilverLimitTextBlock.Text = $"Silver limit: {(int)Math.Round(SilverLimitSlider.Value)}";
-        GoldLimitTextBlock.Text = $"Gold limit: {(int)Math.Round(GoldLimitSlider.Value)}";
+        goldLimit = values[0];
+        dailyGoldSpendingLimit = values[1];
+        silverLimit = values[2];
+        dailySilverSpendingLimit = values[3];
+        return true;
     }
 
     private void CaptureTownHallResults()

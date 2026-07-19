@@ -244,7 +244,7 @@ public sealed partial class TroopTrainingViewModel
         get => _goldLimit;
         set
         {
-            var normalized = Math.Clamp(value, 0, 1000);
+            var normalized = Math.Max(0, value);
             if (!SetProperty(ref _goldLimit, normalized))
             {
                 return;
@@ -258,6 +258,6 @@ public sealed partial class TroopTrainingViewModel
         }
     }
 
-    public string GoldLimitText => $"Gold limit: {GoldLimit}";
+    public string GoldLimitText => $"Minimum gold balance: {GoldLimit}";
 
 }

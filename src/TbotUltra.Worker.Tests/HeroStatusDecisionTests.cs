@@ -52,19 +52,18 @@ public sealed class HeroStatusDecisionTests
     }
 
     [Theory]
-    [InlineData(null, 50, 20, 600)]
-    [InlineData(40, 50, 0, 600)]
-    [InlineData(50, 50, 20, 600)]
-    [InlineData(49, 50, 1000, 87)]
-    [InlineData(20, 50, 20, 1800)]
-    public void ComputeHpWaitSeconds_PreservesExistingBounds(
-        int? hp,
+    [InlineData(40, 60, 40, 43200)]
+    [InlineData(59, 60, 40, 2160)]
+    [InlineData(0, 100, 20, 432000)]
+    public void ComputeHpWaitSeconds_UsesConfiguredDailyRegeneration(
+        int hp,
         int threshold,
         int regenPerDay,
-        int expected)
+        int expectedSeconds)
     {
         Assert.Equal(
-            expected,
-            HeroStatusDecision.ComputeHpWaitSeconds(hp, threshold, regenPerDay, maxDeferSeconds: 1800));
+            expectedSeconds,
+            HeroStatusDecision.ComputeHpWaitSeconds(hp, threshold, regenPerDay, 7 * 24 * 60 * 60));
     }
+
 }

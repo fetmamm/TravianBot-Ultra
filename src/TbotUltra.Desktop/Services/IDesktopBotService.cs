@@ -93,6 +93,7 @@ public interface IDesktopBotService
     Task<bool> HasHeroLevelUpIndicatorOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<bool> IsHeroRevivingOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<bool> IsHeroHomeOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<int?> ReadHeroHpFromCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<bool> HasClaimableTasksOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<bool> HasClaimableDailyQuestsOnCurrentPageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<HeroAttributeSnapshot> ReadHeroAttributesAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);

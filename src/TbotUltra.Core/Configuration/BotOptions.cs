@@ -460,16 +460,22 @@ public sealed class BotOptions
     public string TargetVillageUrl { get; init; } = string.Empty;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.AllowGoldSpending)]
-    public bool AllowGoldSpending { get; init; }
+    public bool AllowGoldSpending { get; init; } = false;
 
     [ConfigurationKeyName("allow_silver_spending")]
-    public bool AllowSilverSpending { get; init; }
+    public bool AllowSilverSpending { get; init; } = false;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.GoldLimit)]
-    public int GoldLimit { get; init; } = 800;
+    public int GoldLimit { get; init; } = 100;
 
-    [ConfigurationKeyName("silver_limit")]
+    [ConfigurationKeyName(BotOptionPayloadKeys.DailyGoldSpendingLimit)]
+    public int DailyGoldSpendingLimit { get; init; } = 20;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.SilverLimit)]
     public int SilverLimit { get; init; } = 100;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.DailySilverSpendingLimit)]
+    public int DailySilverSpendingLimit { get; init; } = 10000;
 
     [ConfigurationKeyName("resource_upgrade_slot_id")]
     public int? ResourceUpgradeSlotId { get; init; }
@@ -537,9 +543,9 @@ public sealed class BotOptions
     [ConfigurationKeyName("hero_min_hp_for_adventure")]
     public int HeroMinHpForAdventure { get; init; } = 50;
 
-    /// <summary>How much hero HP regenerates per day, in percent (20–100). Used to compute how long
-    /// to defer the hero group when HP is below the adventure threshold.</summary>
-    [ConfigurationKeyName("hero_hp_regen_per_day_percent")]
+    /// <summary>Estimated natural Hero HP regeneration per day. Used only to schedule the next
+    /// low-HP check; a successful live DOM read always overrides the estimate.</summary>
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroHpRegenPerDayPercent)]
     public int HeroHpRegenPerDayPercent { get; init; } = 40;
 
     [ConfigurationKeyName("hero_auto_revive")]

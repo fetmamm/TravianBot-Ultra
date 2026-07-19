@@ -462,10 +462,7 @@ public partial class MainWindow : Window
                 TickPreSleepConstructionFill();
                 HandleBrowserClosedSignal();
                 TickFarmListCountdowns();
-                if (dashboardTabSelected)
-                {
-                    TickAutomationLoopCountdowns();
-                }
+                TickAutomationLoopCountdowns();
 
                 TickBuildQueueCountdown();
 
@@ -766,9 +763,7 @@ public partial class MainWindow : Window
         ApplyFarmingSettingsToUi(options);
         ApplyAutoCollectTasksConfigToUi(options);
         ApplyAutoCollectDailyQuestsConfigToUi(options);
-        ApplyConstructFasterConfigToUi(options);
         ApplyProductionBonusVideoConfigToUi(options);
-        ApplyHeroResourceTransferConfigToUi(options);
 
         // Account + runtime state below (account label, inbox counts, gold-club, hero snapshot) is
         // seeded from caches/disk. That is only correct before login — startup or an account switch — when the
@@ -1482,7 +1477,6 @@ public partial class MainWindow : Window
     {
         if (e.PropertyName is not (
             nameof(HeroViewModel.MinHpForAdventure)
-            or nameof(HeroViewModel.HeroHpRegenPerDayPercent)
             or nameof(HeroViewModel.AutoRevive)
             or nameof(HeroViewModel.AutoAssignPoints)
             or nameof(HeroViewModel.AutoUseOintments)
@@ -1709,6 +1703,18 @@ public partial class MainWindow : Window
             UpdateLoginButtonsVisual(true);
             _isLoggedIn = true;
             _browserSessionLikelyOpen = true;
+            try
+            {
+                await ReadHeroHpFromCurrentPageForUiAsync(options, operationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Post-restart Hero HP refresh failed (continuing): {ex.Message}");
+            }
             NotifySessionPacingOnlineStarted();
             CompleteOperation(operationId, operationSw, "Browser restarted.");
         }

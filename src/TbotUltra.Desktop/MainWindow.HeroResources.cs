@@ -118,7 +118,6 @@ public partial class MainWindow
                 result.Settings.IsEnabled);
         }
 
-        ApplyHeroResourceTransferConfigToUi();
 
         if (IsContinuousLoopRunning())
         {

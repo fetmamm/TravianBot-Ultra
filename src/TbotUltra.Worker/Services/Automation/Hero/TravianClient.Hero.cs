@@ -10,7 +10,7 @@ namespace TbotUltra.Worker.Services;
 public sealed partial class TravianClient : IHeroClient
 {
     private const int HeroLowHpRetrySeconds = 60;
-    private const int HeroLowHpMaxDeferSeconds = 30 * 60;
+    private const int HeroLowHpMaxEstimatedDeferSeconds = 7 * 24 * 60 * 60;
     // Fallback defer when the hero looks home/alive but the adventure button is disabled (e.g. a
     // just-revived cooldown). Prevents the loop from completing-and-instantly-re-queueing hero_manage.
     private const int HeroAdventureBlockedRetrySeconds = 5 * 60;
@@ -133,6 +133,7 @@ public sealed partial class TravianClient : IHeroClient
 
         var returnText = returnSeconds is int rs ? TravianParsing.FormatDuration(rs) : "(unknown)";
         Notify($"[hero] adventure dispatched — return in {returnText}");
+        HeroStatusUpdated?.Invoke(AccountName, "On the way to adventure");
 
         return new HeroAdventureDispatchResult(
             IsInHomeVillage: true,
@@ -372,7 +373,7 @@ public sealed partial class TravianClient : IHeroClient
         bool autoUseOintments,
         string statPriority,
         string adventurePickOrder = "shortest",
-        int heroHpRegenPerDayPercent = 100,
+        int heroHpRegenPerDayPercent = 40,
         CancellationToken cancellationToken = default)
     {
         Notify("[hero] manage starting (revive + points + adventure)");
@@ -595,15 +596,15 @@ public sealed partial class TravianClient : IHeroClient
             var awaitSeconds = heroReturnWaitSeconds is > 0 ? heroReturnWaitSeconds.Value : 300;
             return $"{summary}. Hero is away. queue_wait_seconds={awaitSeconds}";
         }
-        // Too little HP to send safely. Defer the hero group by the estimated time to regenerate
-        // back to the threshold (from the configured regen %/day), falling back to 10 minutes.
+        // Schedule from the configured estimate, but the periodic current-page DOM read can release
+        // this defer immediately as soon as live HP reaches the threshold.
         if (hpTooLow)
         {
             var waitSeconds = HeroStatusDecision.ComputeHpWaitSeconds(
                 hpPercent,
                 minHpThreshold,
                 heroHpRegenPerDayPercent,
-                HeroLowHpMaxDeferSeconds);
+                HeroLowHpMaxEstimatedDeferSeconds);
             return $"{summary}. Hero HP too low to send. queue_wait_seconds={waitSeconds}";
         }
         if (heroReturnWaitSeconds is > 0 && actions.Count == 0)
@@ -799,5 +800,8 @@ public sealed partial class TravianClient : IHeroClient
 
         [JsonPropertyName("unassignedPoints")]
         public int? UnassignedPoints { get; init; }
+
+        [JsonPropertyName("movementState")]
+        public string? MovementState { get; init; }
     }
 }

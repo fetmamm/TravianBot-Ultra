@@ -263,49 +263,6 @@
                                 </ContentControl.ToolTip>
                             </ContentControl>
                         </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <CheckBox x:Name="HeroResourceTransferCheckBox" Content="Use hero resources"
-                                      Style="{StaticResource ToggleSwitchStyle}"
-                                      Foreground="{DynamicResource TextSecondaryBrush}"
-                                      VerticalAlignment="Center"
-                                      Checked="HeroResourceTransferSetting_Changed" Unchecked="HeroResourceTransferSetting_Changed" />
-                            <ContentControl Style="{StaticResource SettingInfoIconStyle}">
-                                <ContentControl.ToolTip>
-                                    <ToolTip MaxWidth="320">
-                                        <TextBlock TextWrapping="Wrap"
-                                                   Text="For the selected village. When enabled, allowed features may pull missing wood/clay/iron/crop from the hero's inventory." />
-                                    </ToolTip>
-                                </ContentControl.ToolTip>
-                            </ContentControl>
-                            <Button x:Name="HeroInventorySettingsButton"
-                                    Content="&#xE713;"
-                                    FontFamily="Segoe MDL2 Assets"
-                                    FontSize="13"
-                                    Width="26"
-                                    Height="22"
-                                    Padding="0"
-                                    Margin="6,0,0,0"
-                                    VerticalAlignment="Center"
-                                    Background="{DynamicResource SurfaceBrush}"
-                                    BorderBrush="{DynamicResource BorderBrush}"
-                                    ToolTip="Open per-village Hero resource settings"
-                                    Click="HeroInventorySettingsButton_Click" />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
-                            <CheckBox Content="Allow gold spending"
-                                      Style="{StaticResource ToggleSwitchStyle}"
-                                      Foreground="{DynamicResource TextSecondaryBrush}"
-                                      VerticalAlignment="Center"
-                                      IsChecked="{Binding TroopTrainingVm.AllowGoldSpending, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                            <ContentControl Style="{StaticResource SettingInfoIconStyle}">
-                                <ContentControl.ToolTip>
-                                    <ToolTip MaxWidth="320">
-                                        <TextBlock TextWrapping="Wrap"
-                                                   Text="Allows gold-spending features such as NPC trade. Spending still respects the gold limit configured on the NPC / Trade tab." />
-                                    </ToolTip>
-                                </ContentControl.ToolTip>
-                            </ContentControl>
-                        </StackPanel>
                         <!-- NPC trade master on/off. Detailed per-feature toggles and thresholds
                              stay on the NPC / Trade tab, reachable via the gear button. -->
                         <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
@@ -343,35 +300,6 @@
                                 HorizontalAlignment="Left"
                                 VerticalAlignment="Top">
                         <StackPanel Orientation="Horizontal">
-                            <CheckBox x:Name="ConstructFasterCheckBox" Content="Construct 25% faster"
-                                      Style="{StaticResource ToggleSwitchStyle}"
-                                      Foreground="{DynamicResource TextSecondaryBrush}"
-                                      VerticalAlignment="Center"
-                                      Checked="ConstructFasterSetting_Changed" Unchecked="ConstructFasterSetting_Changed" />
-                            <ContentControl Style="{StaticResource SettingInfoIconStyle}"
-                                            Margin="4,0,0,0">
-                                <ContentControl.ToolTip>
-                                    <ToolTip MaxWidth="320">
-                                        <TextBlock TextWrapping="Wrap"
-                                                   Text="For the selected village. Enables Official Travian construct-faster bonus videos. Open settings to choose villages, minimum build time, and random chance." />
-                                    </ToolTip>
-                                </ContentControl.ToolTip>
-                            </ContentControl>
-                            <Button x:Name="ConstructFasterSettingsButton"
-                                    Content="&#xE713;"
-                                    FontFamily="Segoe MDL2 Assets"
-                                    FontSize="13"
-                                    Width="30"
-                                    Height="24"
-                                    Padding="0"
-                                    Margin="8,0,0,0"
-                                    VerticalAlignment="Center"
-                                    Background="{DynamicResource SurfaceBrush}"
-                                    BorderBrush="{DynamicResource BorderBrush}"
-                                    ToolTip="Open Construct 25% faster settings"
-                                    Click="ConstructFasterSettingsButton_Click" />
-                        </StackPanel>
-                        <StackPanel Orientation="Horizontal" Margin="0,8,0,0">
                             <CheckBox x:Name="ProductionBonusVideoCheckBox" Content="15% production bonus"
                                       Style="{StaticResource ToggleSwitchStyle}"
                                       Foreground="{DynamicResource TextSecondaryBrush}"

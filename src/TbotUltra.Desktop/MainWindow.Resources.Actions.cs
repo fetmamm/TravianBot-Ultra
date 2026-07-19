@@ -78,6 +78,7 @@ public partial class MainWindow
         _resourceTestFunctionsWindow.ReinforcementsTestRequested += TestReinforcementsButton_Click;
         _resourceTestFunctionsWindow.IncreaseAdventuresToHardRequested += TestIncreaseAdventuresToHardButton_Click;
         _resourceTestFunctionsWindow.ReduceAdventuresTimeRequested += TestReduceAdventuresTimeButton_Click;
+        _resourceTestFunctionsWindow.StartAdventureRequested += StartAdventureDebugButton_Click;
         _resourceTestFunctionsWindow.BulkMessagesRequested += BulkMessagesButton_Click;
         _resourceTestFunctionsWindow.SavePageHtmlRequested += SavePageHtmlButton_Click;
         _resourceTestFunctionsWindow.Closed += (_, _) =>
@@ -91,6 +92,7 @@ public partial class MainWindow
             _resourceTestFunctionsWindow.ReinforcementsTestRequested -= TestReinforcementsButton_Click;
             _resourceTestFunctionsWindow.IncreaseAdventuresToHardRequested -= TestIncreaseAdventuresToHardButton_Click;
             _resourceTestFunctionsWindow.ReduceAdventuresTimeRequested -= TestReduceAdventuresTimeButton_Click;
+            _resourceTestFunctionsWindow.StartAdventureRequested -= StartAdventureDebugButton_Click;
             _resourceTestFunctionsWindow.BulkMessagesRequested -= BulkMessagesButton_Click;
             _resourceTestFunctionsWindow.SavePageHtmlRequested -= SavePageHtmlButton_Click;
             _resourceTestFunctionsWindow = null;

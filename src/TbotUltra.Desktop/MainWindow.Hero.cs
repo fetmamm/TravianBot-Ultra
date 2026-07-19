@@ -65,7 +65,6 @@ public partial class MainWindow
         {
             var config = _botConfigStore.Load();
             config[BotOptionPayloadKeys.HeroMinHpForAdventure] = _heroViewModel.MinHpForAdventure;
-            config[BotOptionPayloadKeys.HeroHpRegenPerDayPercent] = _heroViewModel.HeroHpRegenPerDayPercent;
             config[BotOptionPayloadKeys.HeroAutoRevive] = _heroViewModel.AutoRevive;
             config[BotOptionPayloadKeys.HeroAutoAssignPoints] = _heroViewModel.AutoAssignPoints;
             config[BotOptionPayloadKeys.HeroAutoUseOintments] = _heroViewModel.AutoUseOintments;
@@ -270,6 +269,58 @@ public partial class MainWindow
         }
     }
 
+    private void StartAdventureDebugButton_Click(object sender, System.Windows.RoutedEventArgs e)
+    {
+        QueueHeroAdventure();
+    }
+
+    /// <summary>Reads hero HP from the current page's top-bar SVG without navigation.</summary>
+    internal async Task RefreshHeroHpCoreAsync()
+    {
+        if (BlockIfSessionSleeping("Refresh hero HP"))
+        {
+            return;
+        }
+
+        var operationId = BeginOperation("Refresh hero HP");
+        var operationSw = Stopwatch.StartNew();
+        try
+        {
+            await EnsureChromiumInstalledAsync();
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            var hpPercent = await ReadHeroHpFromCurrentPageForUiAsync(
+                options,
+                _loopController.AcquireSessionScopeToken());
+            CompleteOperation(
+                operationId,
+                operationSw,
+                hpPercent is null
+                    ? "Hero HP was not available on the current page."
+                    : $"Hero HP refreshed: {hpPercent}%.");
+        }
+        catch (Exception ex)
+        {
+            FailOperation(operationId, operationSw, ex);
+            _heroViewModel.HeroHpText = "?";
+        }
+    }
+
+    private async Task<int?> ReadHeroHpFromCurrentPageForUiAsync(
+        BotOptions options,
+        CancellationToken cancellationToken)
+    {
+        var hpPercent = await _botService.ReadHeroHpFromCurrentPageAsync(
+            options,
+            AppendLog,
+            cancellationToken);
+        if (hpPercent is not null)
+        {
+            _heroViewModel.HeroHpText = $"{Math.Clamp(hpPercent.Value, 0, 100)}%";
+        }
+
+        return hpPercent;
+    }
+
     /// <summary>
     /// Subscribes to the worker's hero-inventory cache updates so the Hero-tab fields reflect
     /// reads and transfers that happen during automated runs (not just manual refreshes).
@@ -278,11 +329,15 @@ public partial class MainWindow
     private void SubscribeToHeroInventoryUpdates()
     {
         TravianClient.HeroInventoryUpdated += OnWorkerHeroInventoryUpdated;
+        TravianClient.HeroHpUpdated += OnWorkerHeroHpUpdated;
+        TravianClient.HeroStatusUpdated += OnWorkerHeroStatusUpdated;
     }
 
     protected override void OnClosed(EventArgs e)
     {
         TravianClient.HeroInventoryUpdated -= OnWorkerHeroInventoryUpdated;
+        TravianClient.HeroHpUpdated -= OnWorkerHeroHpUpdated;
+        TravianClient.HeroStatusUpdated -= OnWorkerHeroStatusUpdated;
         base.OnClosed(e);
     }
 
@@ -295,6 +350,26 @@ public partial class MainWindow
         }
 
         Dispatcher.InvokeAsync(() => _heroViewModel.ApplyInventory(resources));
+    }
+
+    private void OnWorkerHeroHpUpdated(string accountName, int hpPercent)
+    {
+        if (!string.Equals(accountName, _accountStore.ActiveAccountName(), StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        Dispatcher.InvokeAsync(() => _heroViewModel.HeroHpText = $"{Math.Clamp(hpPercent, 0, 100)}%");
+    }
+
+    private void OnWorkerHeroStatusUpdated(string accountName, string status)
+    {
+        if (!string.Equals(accountName, _accountStore.ActiveAccountName(), StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        Dispatcher.InvokeAsync(() => _heroViewModel.HeroStatusText = status);
     }
 
     /// <summary>

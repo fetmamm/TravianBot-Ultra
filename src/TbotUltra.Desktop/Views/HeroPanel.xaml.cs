@@ -167,9 +167,25 @@ public partial class HeroPanel : UserControl
         });
     }
 
-    private void QueueHeroManageButton_Click(object sender, RoutedEventArgs e)
+    private async void RefreshHeroHpButton_Click(object sender, RoutedEventArgs e)
     {
-        Host?.QueueHeroAdventure();
+        if (Host is not { } host)
+        {
+            return;
+        }
+
+        await host.GuardUiAsync(async () =>
+        {
+            RefreshHeroHpButton.IsEnabled = false;
+            try
+            {
+                await host.RefreshHeroHpCoreAsync();
+            }
+            finally
+            {
+                RefreshHeroHpButton.IsEnabled = true;
+            }
+        });
     }
 
     private async void RefreshHeroInventoryButton_Click(object sender, RoutedEventArgs e)

@@ -74,6 +74,9 @@ public partial class MainWindow
                 });
             }
 
+            _heroViewModel.HeroLoopTask = _automationLoopTasks.FirstOrDefault(item =>
+                string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Hero), StringComparison.OrdinalIgnoreCase));
+
             UpdateAutomationLoopOrders();
             // Snapshot the configured enabled set as the global default for villages with no per-village
             // override yet (so a new village inherits the account's configured groups). Derived from the
@@ -375,11 +378,11 @@ public partial class MainWindow
             var isBreweryGroupOutsideCapital = group == QueueGroup.BreweryCelebration
                 && selectedVillage?.IsCapital != true;
 
-            // Filter to the selected village (keeping village-less/global items) so each group card shows
-            // THIS village's queued count, deferred timer and state — different villages have different
-            // construction timers etc.
+            // Hero state is account-global and must not change when the viewed village changes. Other
+            // groups remain scoped to the selected village because their timers and queues differ by village.
             var groupItems = queueItems
-                .Where(entry => entry.Group == group && IsQueueItemForSelectedVillageOrGlobal(entry))
+                .Where(entry => entry.Group == group)
+                .Where(entry => group == QueueGroup.Hero || IsQueueItemForSelectedVillageOrGlobal(entry))
                 .ToList();
             var pendingCount = groupItems.Count(entry => entry.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused);
             var deferred = groupItems

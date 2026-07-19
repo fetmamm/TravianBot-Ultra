@@ -174,6 +174,7 @@ public sealed record HeroStatus(
     int? SecondsUntilReturn = null,
     int? ReviveRemainingSeconds = null,
     int UnassignedPoints = 0,
+    string? MovementState = null,
     TimerSnapshot? AdventureReadyFinish = null,
     TimerSnapshot? ReturnFinish = null,
     TimerSnapshot? ReviveFinish = null);

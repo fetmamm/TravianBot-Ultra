@@ -1081,18 +1081,22 @@ public partial class MainWindow
                     }
                 }
 
-                // hero_manage deferred for the full revive time. Tag the item so the periodic 20s refresh
-                // can release it early if the user revives the hero sooner (e.g. with a bucket) — otherwise
-                // adventures would idle until the original revive countdown elapsed.
+                // Tag deferred Hero state so the jitter refresh can release the task early when a live
+                // signal supersedes its estimate (bucket revive, early return, sufficient HP/level-up).
                 if (string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase)
                     && ex is TaskWaitException heroWait
-                    && heroWait.ReasonCode is TaskWaitReasons.HeroReviving or TaskWaitReasons.HeroAway)
+                    && heroWait.ReasonCode is TaskWaitReasons.HeroReviving
+                        or TaskWaitReasons.HeroAway
+                        or TaskWaitReasons.HeroHpTooLow)
                 {
                     var heroPayload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase)
                     {
-                        [HeroDeferReasonKey] = heroWait.ReasonCode == TaskWaitReasons.HeroReviving
-                            ? HeroDeferReasonReviving
-                            : HeroDeferReasonAway,
+                        [HeroDeferReasonKey] = heroWait.ReasonCode switch
+                        {
+                            TaskWaitReasons.HeroReviving => HeroDeferReasonReviving,
+                            TaskWaitReasons.HeroAway => HeroDeferReasonAway,
+                            _ => HeroDeferReasonLowHp,
+                        },
                     };
                     if (_botService.UpdateDeferredQueueItem(item.Id, heroPayload))
                     {

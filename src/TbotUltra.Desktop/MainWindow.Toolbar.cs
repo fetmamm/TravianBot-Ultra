@@ -1,8 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Windows;
+using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Worker.Services;
 using TbotUltra.Worker.Infrastructure;
 
 namespace TbotUltra.Desktop;
@@ -151,13 +153,19 @@ public partial class MainWindow
         var detectedResetHour = Services.ProductionBonusStateStore
             .LoadSettings(_projectRoot, _accountStore.ActiveAccountName())
             .DetectedResetHour;
+        var dailySpendingPath = AccountStoragePaths.DailySpendingStatePath(
+            _projectRoot,
+            _accountStore.ActiveAccountName(),
+            optionsBeforeSettings.BaseUrl);
         var window = new SettingsWindow(
             _botConfigStore,
             IsSessionSleeping,
             detectedResetHour,
             ValidateActiveProxyPlanForSettings,
             initialCategory,
-            BuildTownHallOverviewRows(villageSettingsRows))
+            BuildTownHallOverviewRows(villageSettingsRows),
+            () => new DailySpendingStore(dailySpendingPath).ResetGold(),
+            () => new DailySpendingStore(dailySpendingPath).ResetSilver())
         {
             Owner = Application.Current.Windows
                 .OfType<Window>()

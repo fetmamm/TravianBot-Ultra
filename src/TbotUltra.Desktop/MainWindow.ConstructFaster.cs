@@ -140,7 +140,6 @@ public partial class MainWindow
             _botConfigStore.Save(config);
         }
 
-        ApplyConstructFasterConfigToUi(LoadBotOptions());
 
         if (IsContinuousLoopRunning())
         {

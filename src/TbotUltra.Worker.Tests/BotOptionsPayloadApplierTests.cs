@@ -420,7 +420,10 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.False(options.NpcTradeEnabled);
         Assert.False(options.NpcTradeConstructionEnabled);
         Assert.False(options.AllowGoldSpending);
-        Assert.Equal(300, options.GoldLimit);
+        Assert.Equal(100, options.GoldLimit);
+        Assert.Equal(20, options.DailyGoldSpendingLimit);
+        Assert.Equal(100, options.SilverLimit);
+        Assert.Equal(10000, options.DailySilverSpendingLimit);
     }
 
     [Fact]

@@ -193,6 +193,7 @@ public sealed class LoopTaskOption : INotifyPropertyChanged
             _remainingSeconds = normalized;
             OnPropertyChanged();
             OnPropertyChanged(nameof(HasTimer));
+            OnPropertyChanged(nameof(HasCountdown));
             OnPropertyChanged(nameof(IsReady));
             OnPropertyChanged(nameof(TimerText));
             OnPropertyChanged(nameof(ReadyText));
@@ -200,6 +201,9 @@ public sealed class LoopTaskOption : INotifyPropertyChanged
     }
 
     public bool HasTimer => IsEnabled && !IsBlocked && RemainingSeconds is > 0;
+
+    /// <summary>A live countdown independent of the currently selected village's toggle state.</summary>
+    public bool HasCountdown => RemainingSeconds is > 0;
 
     public bool IsReady => IsEnabled && !HasTimer && !IsBlocked;
 
@@ -211,7 +215,7 @@ public sealed class LoopTaskOption : INotifyPropertyChanged
     {
         get
         {
-            if (!HasTimer || RemainingSeconds is null)
+            if (!HasCountdown || RemainingSeconds is null)
             {
                 return "00:00";
             }
@@ -225,7 +229,7 @@ public sealed class LoopTaskOption : INotifyPropertyChanged
 
     public bool TickOneSecond()
     {
-        if (!HasTimer || RemainingSeconds is null)
+        if (!HasCountdown || RemainingSeconds is null)
         {
             return false;
         }

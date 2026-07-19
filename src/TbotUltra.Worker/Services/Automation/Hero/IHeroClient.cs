@@ -23,6 +23,8 @@ public interface IHeroClient
 
     Task<bool> IsHeroHomeOnCurrentPageAsync(CancellationToken cancellationToken = default);
 
+    Task<int?> ReadHeroHpFromCurrentPageAsync(CancellationToken cancellationToken = default);
+
     Task<string> ManageHeroAsync(
         int minHpForAdventure,
         bool autoRevive,
@@ -30,7 +32,7 @@ public interface IHeroClient
         bool autoUseOintments,
         string statPriority,
         string adventurePickOrder = "shortest",
-        int heroHpRegenPerDayPercent = 100,
+        int heroHpRegenPerDayPercent = 40,
         CancellationToken cancellationToken = default);
 
     Task<string> SpendHeroAttributePointsAsync(

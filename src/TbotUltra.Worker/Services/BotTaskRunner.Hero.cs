@@ -164,6 +164,29 @@ public sealed partial class BotTaskRunner
         return home;
     }
 
+    public async Task<int?> ReadHeroHpFromCurrentPageAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        int? hpPercent = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                hpPercent = await client.ReadHeroHpFromCurrentPageAsync(cancellationToken);
+            },
+            saveStateMode: BrowserStateSaveMode.Skip);
+
+        log($"[hero:verbose] Hero HP current-page read: {(hpPercent?.ToString() ?? "unknown")}%.");
+        return hpPercent;
+    }
+
     // Cheap current-page probe (no navigation) used by the periodic refresh to decide whether
     // to queue collect_tasks. Returns false on any failure so it never disrupts the refresh.
     public async Task<bool> HasClaimableTasksOnCurrentPageAsync(

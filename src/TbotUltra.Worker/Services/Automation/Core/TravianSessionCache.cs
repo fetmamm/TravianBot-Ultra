@@ -13,6 +13,7 @@ public sealed class TravianSessionCache
     public int? CachedGold { get; set; }
     public int? CachedSilver { get; set; }
     public System.DateTimeOffset CachedCurrencyAt { get; set; } = System.DateTimeOffset.MinValue;
+    public System.TimeSpan? CachedServerUtcOffset { get; set; }
     /// <summary>The avatar/account tribe selected at registration.</summary>
     public string? AccountTribe { get; set; }
 

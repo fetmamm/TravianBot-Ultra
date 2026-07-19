@@ -104,6 +104,7 @@ public partial class MainWindow
                         operationToken,
                         forceCurrentVillage: !quickOfficialServer,
                         currentPageOnly: quickOfficialServer);
+                    await ReadHeroHpFromCurrentPageForUiAsync(options, operationToken);
                 }
                 catch (OperationCanceledException)
                 {
@@ -161,6 +162,18 @@ public partial class MainWindow
                 operationToken,
                 forceCurrentVillage: !officialServer,
                 currentPageOnly: officialServer);
+            try
+            {
+                await ReadHeroHpFromCurrentPageForUiAsync(options, operationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Post-login Hero HP refresh failed (continuing): {ex.Message}");
+            }
             // Hero inventory is read during the post-login snapshot (step 1). Run the hero ATTRIBUTES
             // analyze right after it (step 2) — before farmlists — so the hero panel + home-village marker
             // update as early as possible.

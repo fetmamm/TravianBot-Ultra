@@ -1,4 +1,5 @@
 using TbotUltra.Core.Configuration;
+using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.ViewModels;
 using TbotUltra.Worker.Domain;
 using Xunit;
@@ -82,12 +83,33 @@ public sealed class HeroViewModelTests
             Resources: 40));
         vm.ApplyInventory(new HeroInventoryResources(1, 2, 3, 4));
         vm.AdventureCountText = "7";
+        vm.HeroHpText = "95%";
 
         vm.ResetRuntimeState();
 
         Assert.Equal("?", vm.AdventureCountText);
+        Assert.Equal("?", vm.HeroHpText);
         Assert.Equal("-", vm.HeroInventoryWood);
         Assert.Equal("Hero stats not loaded.", vm.AttributesStatusText);
         Assert.All(vm.AttributePriorityItems, item => Assert.Equal("-", item.PointsText));
+    }
+
+    [Fact]
+    public void HeroLoopTask_UsesSharedAutomationLoopCountdown()
+    {
+        var vm = new HeroViewModel();
+        var loopTask = new LoopTaskOption
+        {
+            IsEnabled = false,
+            RemainingSeconds = 65,
+        };
+
+        vm.HeroLoopTask = loopTask;
+        loopTask.TickOneSecond();
+
+        Assert.Same(loopTask, vm.HeroLoopTask);
+        Assert.False(vm.HeroLoopTask.HasTimer);
+        Assert.True(vm.HeroLoopTask.HasCountdown);
+        Assert.Equal("01:04", vm.HeroLoopTask.TimerText);
     }
 }

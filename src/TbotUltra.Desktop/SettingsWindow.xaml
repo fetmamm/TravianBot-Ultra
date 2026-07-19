@@ -530,7 +530,6 @@
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,0,0,10" VerticalAlignment="Center">
                                         <CheckBox x:Name="ConstructionHumanizeCheckBox"
-                                                  Style="{DynamicResource ToggleSwitchBlueStyle}"
                                                   VerticalAlignment="Center" />
                                         <TextBlock Text="Construction start delay"
                                                    FontWeight="SemiBold"
@@ -652,8 +651,7 @@
                             <TextBlock Text="Adventure settings" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                             <Border Style="{StaticResource SettingsGroupBox}" Margin="0,10,0,0">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <CheckBox Style="{DynamicResource ToggleSwitchBlueStyle}"
-                                              Margin="0,0,12,0"
+                                    <CheckBox Margin="0,0,12,0"
                                               IsChecked="{Binding HeroAdventureRestartDelay.IsEnabled, Mode=TwoWay}" />
                                     <StackPanel Orientation="Horizontal"
                                                 VerticalAlignment="Center"
@@ -666,6 +664,20 @@
                                                         Margin="8,0,0,0"
                                                         ToolTip="Waits a random time before sending the hero after returning home or after an adventure becomes available." />
                                     </StackPanel>
+                                </StackPanel>
+                            </Border>
+                            <Border Style="{StaticResource SettingsGroupBox}" Margin="0,10,0,0">
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="Hero HP regen per day (%)"
+                                               Width="190"
+                                               Foreground="{DynamicResource TextSecondaryBrush}"
+                                               VerticalAlignment="Center" />
+                                    <ComboBox x:Name="HeroHpRegenPerDayComboBox"
+                                              Width="80"
+                                              ItemsSource="{Binding HeroHpRegenOptions}" />
+                                    <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                    Margin="8,0,0,0"
+                                                    ToolTip="Estimates when low Hero HP should be checked again. Live HP reads during jitter refresh always override this estimate and release the adventure immediately when HP is sufficient." />
                                 </StackPanel>
                             </Border>
                         </StackPanel>
@@ -703,8 +715,7 @@
                             <TextBlock Text="Smithy upgrade troops" FontSize="15" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
                             <Border Style="{StaticResource SettingsGroupBox}" Margin="0,10,0,0">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                    <CheckBox Style="{DynamicResource ToggleSwitchBlueStyle}"
-                                              Margin="0,0,12,0"
+                                    <CheckBox Margin="0,0,12,0"
                                               IsChecked="{Binding SmithyUpgradeRestartDelay.IsEnabled, Mode=TwoWay}" />
                                     <StackPanel Orientation="Horizontal"
                                                 VerticalAlignment="Center"
@@ -766,7 +777,7 @@
                                                             <ColumnDefinition Width="*" />
                                                             <ColumnDefinition Width="180" />
                                                         </Grid.ColumnDefinitions>
-                                                        <CheckBox Style="{DynamicResource ToggleSwitchBlueStyle}"
+                                                        <CheckBox Style="{DynamicResource ToggleSwitchStyle}"
                                                                   HorizontalAlignment="Left"
                                                                   VerticalAlignment="Center"
                                                                   IsChecked="{Binding IsTownHallEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -819,7 +830,7 @@
                                         <RadioButton Content="Two (one queued)" IsChecked="{Binding TownHallQueue.IsTwo, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     </StackPanel>
                                     <StackPanel Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">
-                                        <CheckBox Style="{DynamicResource ToggleSwitchBlueStyle}" Margin="0,0,12,0" IsChecked="{Binding TownHallQueue.IsRestartDelayEnabled, Mode=TwoWay}" />
+                                        <CheckBox Margin="0,0,12,0" IsChecked="{Binding TownHallQueue.IsRestartDelayEnabled, Mode=TwoWay}" />
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" IsEnabled="{Binding TownHallQueue.IsRestartDelayEnabled}">
                                             <TextBlock Text="Restart delay (min)" Width="140" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
                                             <TextBox Width="56" Text="{Binding TownHallQueue.DelayMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -840,7 +851,7 @@
                             <Border Style="{StaticResource SettingsGroupBox}" Margin="0,10,0,0">
                                 <StackPanel>
                                     <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
-                                        <CheckBox Style="{DynamicResource ToggleSwitchBlueStyle}" Margin="0,0,12,0" IsChecked="{Binding BreweryRestartDelay.IsEnabled, Mode=TwoWay}" />
+                                        <CheckBox Margin="0,0,12,0" IsChecked="{Binding BreweryRestartDelay.IsEnabled, Mode=TwoWay}" />
                                         <StackPanel Orientation="Horizontal" VerticalAlignment="Center" IsEnabled="{Binding BreweryRestartDelay.IsEnabled}">
                                             <TextBlock Text="Restart delay (min)" Width="140" Foreground="{DynamicResource TextSecondaryBrush}" VerticalAlignment="Center" />
                                             <TextBox Width="56" Text="{Binding BreweryRestartDelay.DelayMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
@@ -858,44 +869,82 @@
 
                     <Border Style="{StaticResource NpcTradeSettingsCategoryStyle}">
                         <StackPanel>
-                            <TextBlock Text="Silver spending"
-                                       FontSize="15"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       Margin="0,0,0,10" />
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <TextBlock Text="Silver spending"
+                                           FontSize="15"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                            </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
                                 <CheckBox x:Name="AllowSilverSpendingCheckBox" Content="Allow silver spending" />
                                 <ContentControl Style="{StaticResource SettingInfoIconStyle}"
                                                 ToolTip="Not used by any automation yet — reserved for future auction/silver features. The bot only reads your silver amount for display today; nothing spends silver regardless of this setting." />
                             </StackPanel>
 
-                            <TextBlock x:Name="SilverLimitTextBlock" Text="Silver limit: 100" Margin="0,0,0,4" />
-                            <Slider x:Name="SilverLimitSlider"
-                                    Minimum="0"
-                                    Maximum="1000"
-                                    Value="100"
-                                    TickFrequency="25"
-                                    IsSnapToTickEnabled="True"
-                                    ValueChanged="SilverLimitSlider_ValueChanged" />
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="190" />
+                                    <ColumnDefinition Width="140" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Minimum silver balance" VerticalAlignment="Center" />
+                                <TextBox x:Name="SilverLimitTextBox" Grid.Column="1" Text="100" />
+                            </Grid>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="190" />
+                                    <ColumnDefinition Width="140" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="Daily spending limit" VerticalAlignment="Center" />
+                                    <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                    ToolTip="Maximum silver allowed to be spent each day. Resets at 00:00 server time." />
+                                </StackPanel>
+                                <TextBox x:Name="DailySilverSpendingLimitTextBox" Grid.Column="1" Text="10000" />
+                            </Grid>
+                            <Button x:Name="ResetDailySilverLimitButton"
+                                    Content="Reset daily limits"
+                                    Width="150"
+                                    HorizontalAlignment="Left"
+                                    Click="ResetDailySilverLimitButton_Click" />
 
                             <Border Height="1"
                                     Background="{DynamicResource BorderSubtleBrush}"
                                     Margin="0,18,0,16" />
-                            <TextBlock Text="Gold spending"
-                                       FontSize="15"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       Margin="0,0,0,10" />
-                            <TextBlock x:Name="GoldLimitTextBlock" Text="Gold limit: 300" Margin="0,0,0,4" />
-                            <Slider x:Name="GoldLimitSlider"
-                                    Minimum="0"
-                                    Maximum="1000"
-                                    Value="300"
-                                    Width="180"
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                <TextBlock Text="Gold spending"
+                                           FontSize="15"
+                                           FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                            </StackPanel>
+                            <CheckBox x:Name="AllowGoldSpendingCheckBox"
+                                      Content="Allow gold spending"
+                                      Margin="0,0,0,12"
+                                      ToolTip="Allows gold-spending features such as NPC trade. Spending respects the daily gold limit below." />
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="190" />
+                                    <ColumnDefinition Width="140" />
+                                </Grid.ColumnDefinitions>
+                                <TextBlock Text="Minimum gold balance" VerticalAlignment="Center" />
+                                <TextBox x:Name="GoldLimitTextBox" Grid.Column="1" Text="100" />
+                            </Grid>
+                            <Grid Margin="0,0,0,10">
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="190" />
+                                    <ColumnDefinition Width="140" />
+                                </Grid.ColumnDefinitions>
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="Daily spending limit" VerticalAlignment="Center" />
+                                    <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                    ToolTip="Maximum gold allowed to be spent each day. Resets at 00:00 server time." />
+                                </StackPanel>
+                                <TextBox x:Name="DailyGoldSpendingLimitTextBox" Grid.Column="1" Text="20" />
+                            </Grid>
+                            <Button x:Name="ResetDailyGoldLimitButton"
+                                    Content="Reset daily limits"
+                                    Width="150"
                                     HorizontalAlignment="Left"
-                                    TickFrequency="10"
-                                    IsSnapToTickEnabled="True"
-                                    ValueChanged="GoldLimitSlider_ValueChanged" />
+                                    Click="ResetDailyGoldLimitButton_Click" />
                         </StackPanel>
                     </Border>
                         </StackPanel>
