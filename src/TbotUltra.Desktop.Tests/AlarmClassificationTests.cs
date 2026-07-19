@@ -24,4 +24,14 @@ public sealed class AlarmClassificationTests
         Assert.True(MainWindow.IsAlarmMessage(
             "ALARM: Automation stopped for account 'test'. Manual review is required."));
     }
+
+    [Theory]
+    [InlineData("[browser-session] active browser shutdown invalidated session generation 12.")]
+    [InlineData("Chromium warmup started.")]
+    [InlineData("Chromium warmup completed in 1.0s.")]
+    [InlineData("[browser-click] Playwright click skipped candidate 1/1 for 'button.collect': Timeout 3000ms exceeded.")]
+    public void ExpectedBrowserLifecycleMessages_AreNotAlarms(string message)
+    {
+        Assert.False(MainWindow.IsAlarmMessage(message));
+    }
 }

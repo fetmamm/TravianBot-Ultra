@@ -131,7 +131,7 @@ public sealed partial class TravianClient
         Notify("[production-bonus] starting — activating free +15% production videos.");
         try
         {
-            await EnsureLoggedInAsync();
+            await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
             var initialState = await ReadProductionBonusPageStateInMainBrowserAsync(cancellationToken);
             var activatable = initialState.Boxes
@@ -243,7 +243,7 @@ public sealed partial class TravianClient
         Notify("[production-bonus] scanning Advantages timers.");
         try
         {
-            await EnsureLoggedInAsync();
+            await EnsureLoggedInAsync(cancellationToken: cancellationToken);
             var pageState = await ReadProductionBonusPageStateInMainBrowserAsync(cancellationToken);
             var states = ProductionBonusDomParser.Classify(pageState.Boxes, afterActivationAttempt: false);
             var freeAvailable = ProductionBonusDomParser.AnyActivatable(pageState.Boxes);

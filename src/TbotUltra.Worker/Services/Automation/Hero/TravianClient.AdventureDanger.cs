@@ -66,7 +66,7 @@ public sealed partial class TravianClient
         // status string; failure details go to the verbose log (hidden in Clean) so problems stay discoverable.
         try
         {
-            await EnsureLoggedInAsync();
+            await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
             if (_runInIsolatedBonusVideoBrowserAsync is not null)
             {

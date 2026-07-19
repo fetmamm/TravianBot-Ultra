@@ -13,7 +13,7 @@ public sealed partial class TravianClient
         using var trace = _browserTrace.BeginOperation("READ", "buildings-overview", "scope=dorf2");
         await GotoAsync(Paths.Buildings, cancellationToken);
 
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         Dictionary<int, BuildingInfo> buildingsBySlot = new();
         await RetryAsync("read building slots snapshot", async () =>
@@ -46,7 +46,7 @@ public sealed partial class TravianClient
 
         await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
 
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var secondScan = await ScanBuildingOverviewAsync(cancellationToken);
         return BuildingOverviewScanPolicy.PreferSecond(firstScan.Metrics, secondScan.Metrics)

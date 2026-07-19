@@ -20,7 +20,7 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken = default)
     {
         Notify("[town-hall] celebration run starting");
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var buildings = (await ReadBuildingsStatusAsync(cancellationToken)).Buildings;
         var townHall = ResolveTownHallBuilding(buildings);
@@ -49,7 +49,7 @@ public sealed partial class TravianClient
             : 0;
 
         await GotoAsync(Paths.BuildBySlot(townHallSlotId.Value), cancellationToken);
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var mode = TownHallCelebrationDefaults.NormalizeMode(requestedMode);
         var level = townHall?.Level ?? 0;
@@ -137,7 +137,7 @@ public sealed partial class TravianClient
             if (!string.IsNullOrWhiteSpace(startHref))
             {
                 await GotoAsync(startHref, cancellationToken);
-                await EnsureLoggedInAsync();
+                await EnsureLoggedInAsync(cancellationToken: cancellationToken);
             }
             else
             {
@@ -145,7 +145,7 @@ public sealed partial class TravianClient
             }
 
             await GotoAsync(Paths.BuildBySlot(townHallSlotId.Value), cancellationToken);
-            await EnsureLoggedInAsync();
+            await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
             var reread = await ReadTownHallCelebrationStatusFromCurrentPageAsync(cancellationToken);
             if (reread.ActiveCount <= status.ActiveCount)
@@ -201,7 +201,7 @@ public sealed partial class TravianClient
             if (!IsCurrentUrlForPath(Paths.Buildings))
             {
                 await GotoAsync(Paths.Buildings, cancellationToken);
-                await EnsureLoggedInAsync();
+                await EnsureLoggedInAsync(cancellationToken: cancellationToken);
             }
 
             var payload = await _page.EvaluateAsync<JsonElement>(

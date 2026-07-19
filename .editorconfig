@@ -1,0 +1,7 @@
+root = true
+
+[*.cs]
+# Forward the available CancellationToken to callees (ENGINEERING_NOTES: pass the active
+# cancellation token through every cancellable operation). Deliberate non-forwarding
+# (e.g. cleanup that must complete) passes CancellationToken.None explicitly.
+dotnet_diagnostic.CA2016.severity = warning

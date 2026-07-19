@@ -205,6 +205,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   CSS `disabled` class. Construction and upgrades share the same `storage_capacity` flow.
 - Correlate Official queue rows by slot when present, otherwise normalized name plus level/count. Do not treat
   `.underConstruction`, `.buildDuration`, or `#building_contract` as queue rows.
+- Resource-field names repeat. When the target slot is known and either queue source identifies a same-name row
+  by another slot, never apply an unknown-slot same-name row to the target; use exact slot identity.
 - Existing buildings and level-zero sites are distinct. Select exact building types and verify active village,
   target slot, and result before considering an action successful.
 - Templates preserve resource scope, reservations, ordered prerequisites, atomic insertion, and runtime slot

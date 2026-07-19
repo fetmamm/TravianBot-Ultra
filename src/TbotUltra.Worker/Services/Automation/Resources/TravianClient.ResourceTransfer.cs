@@ -13,7 +13,7 @@ public sealed partial class TravianClient
     public async Task<string> SendResourcesBetweenOwnVillagesAsync(CancellationToken cancellationToken = default)
     {
         Notify($"[transfer] starting — target='{_config.ResourceTransferTargetVillageName ?? "(unset)"}', sources={(_config.ResourceTransferSourceVillageNames?.Count ?? 0)}");
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         if (string.IsNullOrWhiteSpace(_config.ResourceTransferTargetVillageName))
         {
@@ -93,7 +93,7 @@ public sealed partial class TravianClient
             }
 
             await GotoAsync(Paths.BuildBySlotTab(marketplace.SlotId.Value, 5), cancellationToken);
-            await EnsureLoggedInAsync();
+            await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
             var merchantState = await ReadMarketplaceMerchantStateAsync(cancellationToken);
             if (merchantState.Available <= 0 || merchantState.TotalCapacity <= 0)

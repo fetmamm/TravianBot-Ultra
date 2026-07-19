@@ -54,7 +54,7 @@ public partial class MainWindow
                     GetSelectedVillageName(),
                     GetSelectedVillageUrl(),
                     operationToken);
-                await RefreshInboxIndicatorsAsync(logErrors: true, force: true);
+                await RefreshInboxIndicatorsAsync(logErrors: true, force: true, operationToken);
                 return "Messages marked as read.";
             });
     }
@@ -83,7 +83,7 @@ public partial class MainWindow
                     GetSelectedVillageName(),
                     GetSelectedVillageUrl(),
                     operationToken);
-                await RefreshInboxIndicatorsAsync(logErrors: true, force: true);
+                await RefreshInboxIndicatorsAsync(logErrors: true, force: true, operationToken);
                 return "Reports marked as read.";
             });
     }
@@ -96,7 +96,7 @@ public partial class MainWindow
             return;
         }
 
-        if (!await _inboxRefreshGate.WaitAsync(0))
+        if (!await _inboxRefreshGate.WaitAsync(0, cancellationToken))
         {
             return;
         }

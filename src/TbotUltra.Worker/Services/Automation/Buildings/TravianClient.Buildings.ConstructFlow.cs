@@ -708,7 +708,7 @@ public sealed partial class TravianClient : IBuildingClient
 
             Notify($"{operationLabel} expected construct choices for slot {slotId}/gid {gid}, but current url is '{_page.Url}'. Reopening attempt {attempt}/2.");
             await GotoAsync(constructUrl, cancellationToken);
-            await EnsureLoggedInAsync();
+            await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         }
 
         throw new InvalidOperationException(

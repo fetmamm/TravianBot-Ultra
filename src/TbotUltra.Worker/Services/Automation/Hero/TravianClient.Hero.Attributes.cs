@@ -34,7 +34,7 @@ public sealed partial class TravianClient
         Notify("[hero:verbose] official hero point allocation entered");
         await GotoAsync(Paths.HeroAttributes, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         try
         {

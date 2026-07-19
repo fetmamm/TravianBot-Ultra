@@ -140,7 +140,9 @@ public sealed partial class BrowserSession
                     // failed: timed out" and burned the close timeout), while the browser close tears the
                     // same thing down in ~1s. Nothing reads state back from this browser, so there is
                     // nothing to flush. The timeout stays as a safety net against a wedged browser close.
-                    await videoBrowser.CloseAsync().WaitAsync(IsolatedBonusVideoCloseTimeout);
+                    // CancellationToken.None on purpose: this finally-block cleanup must run to completion
+                    // even when the surrounding operation was canceled; the timeout is the only bound.
+                    await videoBrowser.CloseAsync().WaitAsync(IsolatedBonusVideoCloseTimeout, CancellationToken.None);
                     _browserTrace.Event("PAGE_CONTEXT", "bonus-video-context-closed", detail: $"reason={closeReason}");
                 }
                 catch (Exception ex)

@@ -810,7 +810,7 @@ public sealed partial class TravianClient
         }
 
         await GotoAsync(Paths.BuildBySlot(smithySlotId.Value), cancellationToken);
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var activeQueue = (await ReadSmithyQueueEntriesAsync(cancellationToken))
             .OrderBy(entry => entry.RemainingSeconds)
@@ -842,7 +842,7 @@ public sealed partial class TravianClient
     public async Task<string> ReadSmithyQueueFromCurrentPageTestAsync(CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         if (!await IsCurrentPageSmithyAsync(cancellationToken))
         {
@@ -922,7 +922,7 @@ public sealed partial class TravianClient
                 await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
             }
 
-            await EnsureLoggedInAsync();
+            await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
             var slots = await ReadBuildingInfosAsync(cancellationToken);
             // Smithy is gid 13 (see ENGINEERING_NOTES §5: no separate Armoury on gid 12). Accept 12 as a

@@ -492,7 +492,7 @@ public sealed partial class TravianClient
     public async Task<string> RunNpcTradeForBuildingTestAsync(TroopTrainingBuildingType buildingType, CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var status = await ReadVillageStatusAsync(cancellationToken);
         var troopType = buildingType switch
@@ -521,7 +521,7 @@ public sealed partial class TravianClient
 
         Notify($"NPC trade test: navigating to {queueStatus.BuildingName} slot {queueStatus.SlotId.Value} for '{troopType}' (t{troopUnitId.Value}).");
         await GotoAsync(Paths.BuildBySlot(queueStatus.SlotId.Value), cancellationToken);
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var traded = await ExecuteNpcTradeClicksAsync(troopUnitId.Value, queueStatus.BuildingName, cancellationToken);
         return traded
@@ -532,7 +532,7 @@ public sealed partial class TravianClient
     public async Task<string> RunNpcTradeForCurrentBuildingPageTestAsync(CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var label = "current building page";
         var traded = await TryNpcTradeForConstructionAsync(label, cancellationToken, bypassEnabledSetting: true, bypassGoldGates: true);

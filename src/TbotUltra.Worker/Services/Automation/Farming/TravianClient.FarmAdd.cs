@@ -42,7 +42,7 @@ public sealed partial class TravianClient
             throw new InvalidOperationException("Requested farm count must be greater than 0.");
         }
 
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         if (!await ReadGoldClubEnabledAsync(cancellationToken))
         {
             throw new InvalidOperationException("Gold Club is not enabled for this account.");
@@ -261,7 +261,7 @@ public sealed partial class TravianClient
             throw new InvalidOperationException($"Add target dialog for farm list id {lid} did not render after {formRenderAttempts} attempts.");
         }
 
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
     }
 
     private async Task<AddRaidSaveOutcome> TryFillAddRaidFormAndSaveAsync(
@@ -557,7 +557,7 @@ public sealed partial class TravianClient
             return AddRaidSaveOutcome.Failed;
         }
 
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var saveState = await ReadAddTargetSaveStateAsync(lid, x, y, stateBeforeSave, cancellationToken);
 

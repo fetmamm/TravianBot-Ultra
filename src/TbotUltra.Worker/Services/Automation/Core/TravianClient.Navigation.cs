@@ -201,7 +201,7 @@ public sealed partial class TravianClient
                 cancellationToken);
             await WaitForPageReadyAsync(cancellationToken);
             await TryDismissOneTimeGoldShopOfferAsync(cancellationToken);
-            await EnsureLoggedInAsync();
+            await EnsureLoggedInAsync(cancellationToken: cancellationToken);
             trace.Complete("success", url: _page.Url);
         }
         catch (OperationCanceledException)

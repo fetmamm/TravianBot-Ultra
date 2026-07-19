@@ -25,7 +25,7 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken)
     {
         Notify($"[reinforce] starting — target='{(string.IsNullOrWhiteSpace(_config.ReinforcementsTargetVillageName) ? "(config)" : _config.ReinforcementsTargetVillageName)}', sameSrcTgtAllowed={allowSameSourceAndTarget}");
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         if (ResolveEnabledReinforcementRules(_config).Count == 0)
         {
@@ -322,7 +322,7 @@ public sealed partial class TravianClient
         }
 
         await WaitForManualAttackCompletionAsync(cancellationToken);
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         return new ReinforcementSendAttemptResult(true, null);
     }
 

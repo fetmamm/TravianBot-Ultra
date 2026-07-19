@@ -20,7 +20,7 @@ public sealed partial class TravianClient
         Notify("[scan] all-village status scan starting");
         var returnVillageName = await TryReadActiveVillageNameSafeAsync(cancellationToken);
         await GotoAsync(Paths.Resources, cancellationToken);
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var villages = await ReadVillagesAsync(cancellationToken);
         if (villages.Count == 0)
@@ -49,7 +49,7 @@ public sealed partial class TravianClient
                     await GotoAsync(Paths.Resources, cancellationToken);
                 }
 
-                await EnsureLoggedInAsync();
+                await EnsureLoggedInAsync(cancellationToken: cancellationToken);
                 await ApplyActionDelayAsync(cancellationToken);
                 statuses.Add(await ReadCurrentVillageStatusAsync(cancellationToken));
             }

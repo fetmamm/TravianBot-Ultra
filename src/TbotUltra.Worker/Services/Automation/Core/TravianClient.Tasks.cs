@@ -35,7 +35,7 @@ public sealed partial class TravianClient
     public async Task<string> CollectTaskRewardsAsync(CancellationToken cancellationToken = default)
     {
         Notify("[tasks] auto-collect starting");
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var totalCollected = 0;
         const int maxPasses = 2;
@@ -47,7 +47,7 @@ public sealed partial class TravianClient
             {
                 await GotoAsync(Paths.Tasks, cancellationToken);
                 await WaitForPageReadyAsync(cancellationToken);
-                await EnsureLoggedInAsync();
+                await EnsureLoggedInAsync(cancellationToken: cancellationToken);
                 await WaitForTasksPageRenderAsync(cancellationToken);
             }
 

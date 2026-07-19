@@ -26,7 +26,7 @@ public sealed partial class TravianClient
     public async Task<string> CollectDailyQuestRewardsAsync(CancellationToken cancellationToken = default)
     {
         Notify("[daily-quests] auto-collect starting");
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         if (!await OpenDailyQuestsDialogAsync(cancellationToken))
         {
@@ -67,7 +67,7 @@ public sealed partial class TravianClient
     public async Task<string> ReadDailyResetHourAsync(CancellationToken cancellationToken = default)
     {
         Notify("[daily-reset] reading daily server reset time from daily quests dialog");
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         if (!await OpenDailyQuestsDialogAsync(cancellationToken, requireClaimableSignal: false))
         {

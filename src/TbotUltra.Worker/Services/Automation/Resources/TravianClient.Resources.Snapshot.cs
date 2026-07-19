@@ -26,7 +26,7 @@ public sealed partial class TravianClient
     public async Task<VillageStatus> ReadCurrentPageStorageStatusAsync(CancellationToken cancellationToken = default)
     {
         Notify("[resources:verbose] ReadCurrentPageStorageStatusAsync started");
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
         var cachedSnapshot = TryGetCachedVillageResourceSnapshot(activeVillage);
@@ -94,7 +94,7 @@ public sealed partial class TravianClient
     public async Task<IReadOnlyList<VillageStatus>> ReadAllVillageResourceStatusesAsync(CancellationToken cancellationToken = default)
     {
         Notify("[resources] all-village resource scan starting");
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var villages = await ReadVillagesAsync(cancellationToken);
         if (villages.Count == 0)
@@ -122,18 +122,18 @@ public sealed partial class TravianClient
             await GotoAsync(Paths.Resources, cancellationToken);
         }
 
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
     }
 
     public async Task<IReadOnlyDictionary<string, double?>> ReadCurrentPageResourceProductionPerHourAsync(CancellationToken cancellationToken = default)
     {
         Notify("[ReadCurrentPageResourceProductionPerHourAsync] started");
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         if (!IsCurrentUrlForPath(Paths.Resources))
         {
             Notify("ReadCurrentPageResourceProductionPerHourAsync: current page is not dorf1, navigating to resource fields first.");
             await GotoAsync(Paths.Resources, cancellationToken);
-            await EnsureLoggedInAsync();
+            await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         }
 
         await WaitForResourceSnapshotWidgetsAsync(cancellationToken);
@@ -156,7 +156,7 @@ public sealed partial class TravianClient
     {
         var normalizedPath = NormalizePagePath(pagePath);
         Notify($"[NavigateToPageAndReadHtmlAsync] opening {normalizedPath}");
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         await GotoAsync(normalizedPath, cancellationToken);
         return await ReadCurrentPageHtmlAsync(cancellationToken);
     }

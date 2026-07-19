@@ -76,7 +76,7 @@ public sealed partial class TravianClient
             await GotoAsync(Paths.Resources, cancellationToken);
         }
 
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         var result = await ReadCurrentVillageStatusAsync(cancellationToken);
         trace.Complete(
             "success",
@@ -96,7 +96,7 @@ public sealed partial class TravianClient
             await GotoAsync(Paths.Resources, cancellationToken);
         }
 
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         var result = await ReadCurrentVillageStatusAsync(cancellationToken, knownVillages, knownBuildings);
         trace.Complete(
             "success",
@@ -133,7 +133,7 @@ public sealed partial class TravianClient
                 await GotoAsync(Paths.Resources, cancellationToken);
             }
 
-            await EnsureLoggedInAsync();
+            await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
             IReadOnlyList<Village> villages;
             if (forceRefreshVillages)
@@ -182,7 +182,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     {
         Notify("ReadAccountAnalysisSnapshotAsync started");
         await GotoAsync(Paths.Resources, cancellationToken);
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         await RefreshCapitalStateForActiveVillageAsync(cancellationToken);
 
         var tribe = await ReadAccountTribeAsync(cancellationToken);
@@ -202,7 +202,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
     public async Task<bool> ReadGoldClubStatusAsync(CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         return await ReadGoldClubEnabledAsync(cancellationToken);
     }
 
@@ -487,7 +487,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             if (!IsCurrentUrlForPath(Paths.PlayerProfile))
             {
                 await GotoAsync(Paths.PlayerProfile, cancellationToken);
-                await EnsureLoggedInAsync();
+                await EnsureLoggedInAsync(cancellationToken: cancellationToken);
             }
 
             var value = await DetectTribeFromCurrentPageAsync(includeVillageBuildings: false);

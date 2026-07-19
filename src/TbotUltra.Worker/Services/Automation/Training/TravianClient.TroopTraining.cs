@@ -53,7 +53,7 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var statuses = new List<TroopTrainingQueueStatus>();
         var enabledBuildingTypes = new List<TroopTrainingBuildingType>(3);
@@ -145,7 +145,7 @@ public sealed partial class TravianClient
     public async Task<string> BuildTroopsAsync(CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         Notify("[troops:verbose]loading village status.");
 
         var status = await ReadVillageStatusAsync(cancellationToken);
@@ -381,7 +381,7 @@ public sealed partial class TravianClient
 
         Notify($"[troops:verbose] queue scan:navigating to {buildingName} slot {building.SlotId.Value}.");
         await GotoAsync(Paths.BuildBySlot(building.SlotId.Value), cancellationToken);
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var queueItems = await ReadTroopTrainingQueueFromCurrentPageAsync(cancellationToken);
         var remainingSeconds = TroopTrainingCalculator.ResolveTroopTrainingQueueRemainingSeconds(queueItems);
@@ -426,7 +426,7 @@ public sealed partial class TravianClient
 
         Notify($"[troops:verbose]navigating to {candidate.Request.BuildingName} slot {candidate.QueueStatus.SlotId.Value}.");
         await GotoAsync(Paths.BuildBySlot(candidate.QueueStatus.SlotId.Value), cancellationToken);
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         Notify($"[troops:verbose]page after navigation url='{_page.Url}'.");
 
         // Resolve the real amount-input name once (slot first, then the unit-id icon's row, then the legacy

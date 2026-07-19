@@ -19,7 +19,7 @@ public sealed partial class TravianClient : IFarmingClient
     public async Task<IReadOnlyList<FarmListOverview>> ReadFarmListsOverviewAsync(CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var goldClubEnabled = await ReadGoldClubEnabledAsync(cancellationToken);
         if (!goldClubEnabled)
@@ -35,6 +35,7 @@ public sealed partial class TravianClient : IFarmingClient
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
             await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+            await DismissDeactivatedTargetsNoticeAsync(cancellationToken);
             await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
             await WaitForFarmListsRenderedAsync(cancellationToken);
             await EnsureOfficialFarmListsExpandedAsync(cancellationToken);
@@ -81,13 +82,14 @@ public sealed partial class TravianClient : IFarmingClient
             throw new InvalidOperationException("Farm list name is required.");
         }
 
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         if (!await ReadGoldClubEnabledAsync(cancellationToken))
         {
             throw new InvalidOperationException("Gold Club is not enabled for this account.");
         }
 
         await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+        await DismissDeactivatedTargetsNoticeAsync(cancellationToken);
         await WaitForDispatchLimitToClearAsync(cancellationToken);
 
         var clicked = await TryClickFarmListSendNowAsync(farmListName, cancellationToken);
@@ -105,13 +107,14 @@ public sealed partial class TravianClient : IFarmingClient
     public async Task<int> SendAllFarmListsNowAsync(CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         if (!await ReadGoldClubEnabledAsync(cancellationToken))
         {
             throw new InvalidOperationException("Gold Club is not enabled for this account.");
         }
 
         await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+        await DismissDeactivatedTargetsNoticeAsync(cancellationToken);
         await WaitForPageReadyAsync(cancellationToken);
         await WaitForFarmListsRenderedAsync(cancellationToken);
         await WaitForDispatchLimitToClearAsync(cancellationToken);
@@ -139,13 +142,14 @@ public sealed partial class TravianClient : IFarmingClient
         CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         if (!await ReadGoldClubEnabledAsync(cancellationToken))
         {
             throw new InvalidOperationException("Gold Club is not enabled for this account.");
         }
 
         await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+        await DismissDeactivatedTargetsNoticeAsync(cancellationToken);
         await WaitForPageReadyAsync(cancellationToken);
         await WaitForFarmListsRenderedAsync(cancellationToken);
         await EnsureOfficialFarmListsExpandedAsync(cancellationToken);
@@ -198,6 +202,55 @@ public sealed partial class TravianClient : IFarmingClient
         return new FarmListLossDeactivationResult(lossRows.Count, deactivated, skippedOasisRows);
     }
 
+    private async Task DismissDeactivatedTargetsNoticeAsync(CancellationToken cancellationToken)
+    {
+        var notice = _page.Locator("#rallyPointFarmList .noticeBox.deactivatedTargets").First;
+        if (await notice.CountAsync() == 0 || !await notice.IsVisibleAsync())
+        {
+            return;
+        }
+
+        var closeButton = notice.Locator("svg.close").First;
+        var clicked = await TryRealClickFarmButtonAsync(
+            closeButton,
+            async () => await _page.EvaluateAsync<bool>(
+                """
+                () => {
+                  const close = document.querySelector('#rallyPointFarmList .noticeBox.deactivatedTargets svg.close');
+                  if (!close) return false;
+                  close.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
+                  close.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
+                  close.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
+                  return true;
+                }
+                """),
+            "dismiss deactivated-targets notice",
+            cancellationToken);
+        if (!clicked)
+        {
+            Notify("[farm-list] could not dismiss the deactivated-targets notice; continuing.");
+            return;
+        }
+
+        try
+        {
+            await notice.WaitForAsync(new LocatorWaitForOptions
+            {
+                State = WaitForSelectorState.Hidden,
+                Timeout = _config.TimeoutMs,
+            }).WaitAsync(cancellationToken);
+            Notify("[farm-list] dismissed the deactivated-targets notice.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (PlaywrightException ex)
+        {
+            Notify($"[farm-list] deactivated-targets notice remained visible after close: {ex.Message}");
+        }
+    }
+
     private async Task<int?> ReadOfficialFarmListFarmCountAsync(string lid, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -226,7 +279,7 @@ public sealed partial class TravianClient : IFarmingClient
         }
 
         await GotoAsync(Paths.RallyPointFarmLists, cancellationToken);
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         await WaitForOfficialFarmListRenderAsync(cancellationToken);
         if (await IsFarmListPageAsync(cancellationToken))
         {
@@ -242,7 +295,7 @@ public sealed partial class TravianClient : IFarmingClient
         }
 
         await GotoAsync(Paths.FarmListFastUp, cancellationToken);
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         try
         {
@@ -255,7 +308,7 @@ public sealed partial class TravianClient : IFarmingClient
         }
 
         await GotoAsync(Paths.RallyPointFarmLists, cancellationToken);
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         await WaitForOfficialFarmListRenderAsync(cancellationToken);
 
         if (!await IsFarmListPageAsync(cancellationToken))
@@ -945,7 +998,88 @@ public sealed partial class TravianClient : IFarmingClient
 
     private async Task<bool> TryDeactivateFarmListLossRowAsync(FarmListLossRowJs row, CancellationToken cancellationToken)
     {
-        var menuOpened = await _page.EvaluateAsync<bool>(
+        var rows = _page.Locator("#rallyPointFarmList tr.slot, tr.slot");
+        var farmRow = !string.IsNullOrWhiteSpace(row.SlotId) && row.SlotId.All(char.IsAsciiDigit)
+            ? _page.Locator($"#rallyPointFarmList tr.slot:has(input[data-slot-id='{row.SlotId}']), tr.slot:has(input[data-slot-id='{row.SlotId}'])").First
+            : rows.Nth(row.RowIndex);
+        var menuTrigger = farmRow.Locator("td.openContextMenu a, td.openContextMenu button, td.openContextMenu").First;
+        var menuOpened = await TryRealClickFarmButtonAsync(
+            menuTrigger,
+            () => JsOpenFarmListRowMenuAsync(row),
+            $"open loss-row menu for slot '{row.SlotId}'",
+            cancellationToken);
+        if (!menuOpened)
+        {
+            Notify($"[farm-list] loss-row deactivation failed at menu trigger target='{row.TargetName}' slot='{row.SlotId}'.");
+            return false;
+        }
+
+        var deactivateEntry = _page
+            .Locator(".entry.deactivate:visible, button.entry.deactivate:visible, [class~='deactivate']:visible")
+            .First;
+        try
+        {
+            await deactivateEntry.WaitForAsync(new LocatorWaitForOptions
+            {
+                State = WaitForSelectorState.Visible,
+                Timeout = _config.TimeoutMs,
+            }).WaitAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (PlaywrightException ex)
+        {
+            Notify($"[farm-list] loss-row deactivate action did not become visible target='{row.TargetName}' slot='{row.SlotId}': {ex.Message}");
+        }
+
+        var deactivateClicked = await TryRealClickFarmButtonAsync(
+            deactivateEntry,
+            JsClickVisibleFarmListDeactivateEntryAsync,
+            $"deactivate loss row slot '{row.SlotId}'",
+            cancellationToken);
+        if (!deactivateClicked)
+        {
+            Notify($"[farm-list] loss-row deactivation failed at deactivate action target='{row.TargetName}' slot='{row.SlotId}'.");
+            return false;
+        }
+
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """
+                (candidate) => {
+                  const findRow = () => {
+                    if (candidate.slotId) {
+                      const input = document.querySelector(`#rallyPointFarmList tr.slot input[data-slot-id="${CSS.escape(candidate.slotId)}"], tr.slot input[data-slot-id="${CSS.escape(candidate.slotId)}"]`);
+                      if (input) return input.closest('tr.slot');
+                    }
+
+                    return Array.from(document.querySelectorAll('#rallyPointFarmList tr.slot, tr.slot'))[candidate.rowIndex] || null;
+                  };
+                  const row = findRow();
+                  return !row || row.classList.contains('disabled');
+                }
+                """,
+                new { slotId = row.SlotId ?? string.Empty, rowIndex = row.RowIndex },
+                new PageWaitForFunctionOptions { Timeout = _config.TimeoutMs }).WaitAsync(cancellationToken);
+            return true;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (PlaywrightException ex)
+        {
+            Notify($"[farm-list] loss-row deactivate click was not confirmed target='{row.TargetName}' slot='{row.SlotId}': {ex.Message}");
+            return false;
+        }
+    }
+
+    private async Task<bool> JsOpenFarmListRowMenuAsync(FarmListLossRowJs row)
+    {
+        return await _page.EvaluateAsync<bool>(
             """
             (candidate) => {
               const findRow = () => {
@@ -968,26 +1102,24 @@ public sealed partial class TravianClient : IFarmingClient
               return true;
             }
             """,
-            new { slotId = row.SlotId ?? string.Empty, rowIndex = row.RowIndex }).WaitAsync(cancellationToken);
-        if (!menuOpened)
-        {
-            return false;
-        }
+            new { slotId = row.SlotId ?? string.Empty, rowIndex = row.RowIndex });
+    }
 
-        await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
+    private async Task<bool> JsClickVisibleFarmListDeactivateEntryAsync()
+    {
         return await _page.EvaluateAsync<bool>(
             """
             () => {
               const clean = (value) => (value || '').replace(/\s+/g, ' ').trim().toLowerCase();
               const entries = Array.from(document.querySelectorAll('.entry.deactivate, button.entry.deactivate, [class~="deactivate"]'));
-              const entry = entries.find(node => clean(node.textContent).includes('deactivate'));
+              const entry = entries.find(node => node.getClientRects().length > 0 && clean(node.textContent).includes('deactivate'));
               if (!entry) return false;
               entry.dispatchEvent(new MouseEvent('mousedown', { bubbles: true, cancelable: true }));
               entry.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, cancelable: true }));
               entry.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
               return true;
             }
-            """).WaitAsync(cancellationToken);
+            """);
     }
 
     private async Task<bool> TryClickFarmListSendNowAsync(string farmListName, CancellationToken cancellationToken)

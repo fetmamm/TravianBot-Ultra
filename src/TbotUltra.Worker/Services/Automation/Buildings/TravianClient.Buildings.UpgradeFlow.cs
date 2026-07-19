@@ -1465,7 +1465,7 @@ public sealed partial class TravianClient : IBuildingClient
             {
                 await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
             }
-            await EnsureLoggedInAsync();
+            await EnsureLoggedInAsync(cancellationToken: cancellationToken);
             if (!TravianUrls.IsBuildPageForSlot(_page.Url, slotId))
             {
                 throw new InvalidOperationException(
@@ -1485,7 +1485,7 @@ public sealed partial class TravianClient : IBuildingClient
             {
                 Notify($"{operationLabel} expected build controls for slot {slotId}, but the page was not ready. Reloading the current build page once.");
                 await ReloadOrGotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
-                await EnsureLoggedInAsync();
+                await EnsureLoggedInAsync(cancellationToken: cancellationToken);
             }
         }
 

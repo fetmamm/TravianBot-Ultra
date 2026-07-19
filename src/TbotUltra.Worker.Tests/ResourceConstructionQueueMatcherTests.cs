@@ -70,4 +70,43 @@ public sealed class ResourceConstructionQueueMatcherTests
 
         Assert.Equal(7, level);
     }
+
+    [Fact]
+    public void HighestQueuedLevelForSlot_DoesNotApplyUnknownCroplandToKnownSiblingSlot()
+    {
+        var active = new[]
+        {
+            new ActiveConstruction(ConstructionKind.Resource, "Cropland", 8, 440, null),
+        };
+        var queue = new[]
+        {
+            new BuildQueueItem("Cropland level 8", "00:04:21", SlotId: 2),
+        };
+
+        var siblingLevel = ResourceConstructionQueueMatcher.HighestQueuedLevelForSlot(
+            active, queue, 8, "Cropland", 7);
+        var exactLevel = ResourceConstructionQueueMatcher.HighestQueuedLevelForSlot(
+            active, queue, 2, "Cropland", 7);
+
+        Assert.Equal(7, siblingLevel);
+        Assert.Equal(8, exactLevel);
+    }
+
+    [Fact]
+    public void HighestQueuedLevelForSlot_UsesUnknownLevelAfterExactSlotIdentity()
+    {
+        var active = new[]
+        {
+            new ActiveConstruction(ConstructionKind.Resource, "Cropland", 8, 440, null),
+        };
+        var queue = new[]
+        {
+            new BuildQueueItem("Cropland", "00:04:21", SlotId: 2),
+        };
+
+        var level = ResourceConstructionQueueMatcher.HighestQueuedLevelForSlot(
+            active, queue, 2, "Cropland", 7);
+
+        Assert.Equal(8, level);
+    }
 }

@@ -66,7 +66,7 @@ public sealed partial class TravianClient
         for (var attempt = 1; attempt <= attempts; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await TryDismissContinuePromptAsync();
+            await TryDismissContinuePromptAsync(cancellationToken);
 
             try
             {
@@ -82,7 +82,7 @@ public sealed partial class TravianClient
                 lastError = ex;
                 if (ex is PlaywrightException pwx && IsTransientExecutionContextError(pwx) && attempt < attempts)
                 {
-                    await TryDismissContinuePromptAsync();
+                    await TryDismissContinuePromptAsync(cancellationToken);
                     _browserTrace.Event("RETRY", label, "retry", $"attempt={attempt}/{attempts} cause=transient navigation context backoffMs={250 * attempt}");
                     Notify($"[retry:verbose] {label} hit transient navigation context on attempt {attempt}/{attempts}. Retrying...");
                     await DelayForRetryAsync(250 * attempt, label, cancellationToken);
@@ -94,7 +94,7 @@ public sealed partial class TravianClient
                     break;
                 }
 
-                await TryDismissContinuePromptAsync();
+                await TryDismissContinuePromptAsync(cancellationToken);
                 var backoffMs = (IsTimeoutError(ex) ? 5000 : 400) * attempt;
                 _browserTrace.Event("RETRY", label, "retry", $"attempt={attempt}/{attempts} cause={ex.Message} backoffMs={backoffMs}");
                 Notify($"[retry:verbose] {label} failed on attempt {attempt}/{attempts}. Retrying...");
@@ -111,7 +111,7 @@ public sealed partial class TravianClient
         for (var attempt = 1; attempt <= attempts; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            await TryDismissContinuePromptAsync();
+            await TryDismissContinuePromptAsync(cancellationToken);
 
             try
             {
@@ -126,7 +126,7 @@ public sealed partial class TravianClient
                 lastError = ex;
                 if (IsTransientExecutionContextException(ex) && attempt < attempts)
                 {
-                    await TryDismissContinuePromptAsync();
+                    await TryDismissContinuePromptAsync(cancellationToken);
                     _browserTrace.Event("RETRY", label, "retry", $"attempt={attempt}/{attempts} cause=transient navigation context backoffMs={250 * attempt}");
                     Notify($"[retry:verbose] {label} hit transient navigation context on attempt {attempt}/{attempts}. Retrying...");
                     await DelayForRetryAsync(250 * attempt, label, cancellationToken);
@@ -138,7 +138,7 @@ public sealed partial class TravianClient
                     break;
                 }
 
-                await TryDismissContinuePromptAsync();
+                await TryDismissContinuePromptAsync(cancellationToken);
                 var backoffMs = (IsTimeoutError(ex) ? 5000 : 400) * attempt;
                 _browserTrace.Event("RETRY", label, "retry", $"attempt={attempt}/{attempts} cause={ex.Message} backoffMs={backoffMs}");
                 Notify($"[retry:verbose] {label} failed on attempt {attempt}/{attempts}. Retrying...");

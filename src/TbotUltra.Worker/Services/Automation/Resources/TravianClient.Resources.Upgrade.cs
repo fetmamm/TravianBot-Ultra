@@ -557,7 +557,7 @@ public sealed partial class TravianClient
             await GotoAsync(Paths.Resources, cancellationToken);
         }
 
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
     }
 
     private async Task EnsureResourceFieldsPageAsync(CancellationToken cancellationToken, string manualVerificationMessage)
@@ -726,21 +726,12 @@ public sealed partial class TravianClient
         try
         {
             var active = await ReadActiveConstructionsAsync(cancellationToken);
-            var activeLevel = ResourceConstructionQueueMatcher.HighestQueuedLevelForSlot(
-                active,
-                slotId,
-                resourceName,
-                currentLevel);
-            if (activeLevel > currentLevel)
-            {
-                return activeLevel;
-            }
-
             // Some Official queue variants expose the resource reliably in the compact build queue but
-            // omit kind/slot metadata from the active-construction parser. Use that same-page identity as
-            // a conservative fallback so an already queued level is not offered repeatedly.
+            // omit kind/slot metadata from the active-construction parser. Resolve both sources together:
+            // an exact slot wins, while an unknown-slot Cropland must not match every Cropland field.
             var buildQueue = await ReadBuildQueueAsync(cancellationToken);
             return ResourceConstructionQueueMatcher.HighestQueuedLevelForSlot(
+                active,
                 buildQueue,
                 slotId,
                 resourceName,

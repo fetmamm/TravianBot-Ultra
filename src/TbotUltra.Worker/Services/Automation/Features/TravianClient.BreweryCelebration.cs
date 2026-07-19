@@ -12,7 +12,7 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var tribe = await ReadActiveVillageTribeAsync(cancellationToken);
         if (!string.Equals(tribe, "Teutons", StringComparison.OrdinalIgnoreCase))
@@ -71,7 +71,7 @@ public sealed partial class TravianClient
         }
 
         await GotoAsync(Paths.BuildBySlot(brewerySlotId.Value), cancellationToken);
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var pageStatus = await ReadBreweryCelebrationStatusFromCurrentPageAsync(cancellationToken);
         var remainingSeconds = pageStatus.RemainingSeconds ?? TravianParsing.ParseDurationToSeconds(pageStatus.RemainingText);
@@ -94,7 +94,7 @@ public sealed partial class TravianClient
             if (!IsCurrentUrlForPath(Paths.Buildings))
             {
                 await GotoAsync(Paths.Buildings, cancellationToken);
-                await EnsureLoggedInAsync();
+                await EnsureLoggedInAsync(cancellationToken: cancellationToken);
             }
 
             var payload = await _page.EvaluateAsync<JsonElement>(
@@ -192,7 +192,7 @@ public sealed partial class TravianClient
         CancellationToken cancellationToken = default)
     {
         Notify("[brewery] celebration run starting");
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var status = await ReadBreweryCelebrationStatusAsync(cancellationToken: cancellationToken);
         if (!status.IsAvailableForTribe)
@@ -275,11 +275,11 @@ public sealed partial class TravianClient
         if (!string.IsNullOrWhiteSpace(startHref))
         {
             await GotoAsync(startHref, cancellationToken);
-            await EnsureLoggedInAsync();
+            await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         }
 
         await GotoAsync(Paths.BuildBySlot(status.BrewerySlotId.Value), cancellationToken);
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var startedStatus = await ReadBreweryCelebrationStatusFromCurrentPageAsync(cancellationToken);
         var remainingSeconds = startedStatus.RemainingSeconds

@@ -9,7 +9,7 @@ public sealed partial class TravianClient
     public async Task<InboxStatus> ReadInboxStatusAsync(CancellationToken cancellationToken = default)
     {
         Notify("[inbox:verbose] reading unread counts");
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         var unreadInbox = await ReadUnreadInboxCountsAsync(cancellationToken);
         Notify($"[inbox] unread — messages={unreadInbox.UnreadMessages}, reports={unreadInbox.UnreadReports}");
         return new InboxStatus(
@@ -20,7 +20,7 @@ public sealed partial class TravianClient
     public async Task<bool> MarkMessagesAsReadAsync(CancellationToken cancellationToken = default)
     {
         Notify("[inbox] marking messages as read");
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         await GotoAsync(Paths.Messages, cancellationToken);
         return await TryMarkMessagesAsReadAcrossPagesAsync(
             markSelectors:
@@ -43,7 +43,7 @@ public sealed partial class TravianClient
     public async Task<bool> MarkReportsAsReadAsync(CancellationToken cancellationToken = default)
     {
         Notify("[inbox] marking reports as read");
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         await GotoAsync(Paths.Reports, cancellationToken);
         return await TryMarkInboxItemsAsReadAsync(
             markSelectors:

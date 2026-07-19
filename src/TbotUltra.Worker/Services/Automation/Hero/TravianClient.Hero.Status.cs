@@ -157,7 +157,7 @@ public sealed partial class TravianClient
             await GotoAsync(Paths.Resources, cancellationToken);
         }
 
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         if (!forceReload || !onDorf1)
         {
             return;
@@ -317,7 +317,7 @@ public sealed partial class TravianClient
         {
             await GotoAsync(Paths.HeroAttributes, cancellationToken);
             await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-            await EnsureLoggedInAsync();
+            await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
             await WaitForOfficialHeroHpRenderAsync(cancellationToken);
 
@@ -518,7 +518,7 @@ public sealed partial class TravianClient
 
         await GotoAsync(Paths.HeroAttributes, cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        await EnsureLoggedInAsync();
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         if (adventureCount is null)
         {

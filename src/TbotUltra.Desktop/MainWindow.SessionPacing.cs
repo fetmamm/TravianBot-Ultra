@@ -207,6 +207,16 @@ public partial class MainWindow
         // (the pacer only raised SleepStarting; BeginSleep happens below).
         if (!manual)
         {
+            // Final sweep closes the race where the last 15-second clock sweep ran before a row
+            // entered its humanize defer. Make every eligible final start due before waiting.
+            try
+            {
+                RunPreSleepConstructionFillSweep(DateTimeOffset.UtcNow, TimeSpan.Zero);
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"[pre-sleep-fill] final sweep failed: {ex.Message}");
+            }
             await WaitBrieflyForPreSleepFillItemsAsync();
         }
 
