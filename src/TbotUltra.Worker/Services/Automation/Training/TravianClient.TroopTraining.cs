@@ -32,15 +32,6 @@ public sealed partial class TravianClient
         int QueueRemainingSeconds,
         int? QueueLimitSeconds);
 
-    private sealed record TroopUnitBuildInfo(
-        bool Found,
-        bool CanTrain,
-        string TroopType,
-        int WoodCost,
-        int ClayCost,
-        int IronCost,
-        int CropCost);
-
     private sealed record TroopTrainingResourceSnapshot(
         IReadOnlyDictionary<string, long> Resources,
         ResourceCapacitySnapshot Capacities,
@@ -1066,16 +1057,11 @@ public sealed partial class TravianClient
             }
             """);
 
-        var raw = string.IsNullOrWhiteSpace(rawJson)
-            ? []
-            : JsonSerializer.Deserialize<List<BuildQueueJs>>(rawJson) ?? [];
+        var items = TroopTrainingPageParser.ParseTroopTrainingQueue(rawJson);
 
-        Notify($"Troop queue scan raw json length={rawJson?.Length ?? 0}, parsedItems={raw.Count}.");
+        Notify($"Troop queue scan raw json length={rawJson?.Length ?? 0}, parsedItems={items.Count}.");
 
-        return raw
-            .Where(item => !string.IsNullOrWhiteSpace(item.Text))
-            .Select(item => new BuildQueueItem(item.Text!, item.TimeLeft))
-            .ToList();
+        return items;
     }
 
     private async Task<TroopUnitBuildInfo> ReadTroopUnitBuildInfoFromCurrentPageAsync(string inputName, CancellationToken cancellationToken)
@@ -1133,23 +1119,7 @@ public sealed partial class TravianClient
 
         Notify($"[troops:verbose]raw build info payload for '{inputName}': {rawJson}");
 
-        try
-        {
-            using var doc = JsonDocument.Parse(rawJson ?? "{}");
-            var root = doc.RootElement;
-            return new TroopUnitBuildInfo(
-                root.TryGetProperty("found", out var found) && found.GetBoolean(),
-                root.TryGetProperty("canTrain", out var canTrain) && canTrain.GetBoolean(),
-                root.TryGetProperty("troopType", out var troopType) ? troopType.GetString() ?? string.Empty : string.Empty,
-                root.TryGetProperty("woodCost", out var woodCost) ? woodCost.GetInt32() : 0,
-                root.TryGetProperty("clayCost", out var clayCost) ? clayCost.GetInt32() : 0,
-                root.TryGetProperty("ironCost", out var ironCost) ? ironCost.GetInt32() : 0,
-                root.TryGetProperty("cropCost", out var cropCost) ? cropCost.GetInt32() : 0);
-        }
-        catch
-        {
-            return new TroopUnitBuildInfo(false, false, string.Empty, 0, 0, 0, 0);
-        }
+        return TroopTrainingPageParser.ParseTroopUnitBuildInfo(rawJson);
     }
 
     private async Task<bool> SubmitTroopTrainingFromCurrentPageAsync(string inputName, int amount, bool useMaxShortcut, CancellationToken cancellationToken)
