@@ -1,5 +1,8 @@
 using Microsoft.Playwright;
+using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Worker.Services;
@@ -478,25 +481,111 @@ public sealed partial class TravianClient
         }
     }
 
+    // Reads the always-visible Official top-bar health arc on the current game page. The legacy
+    // sidebar bar remains an additive DOM fallback; callers retain /hero/attributes as the final fallback.
     private async Task<int?> ReadHeroHpFromSidebarAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return await _page.EvaluateAsync<int?>(
+        var read = await _page.EvaluateAsync<HeroHealthTopBarReadJs>(
             """
             () => {
+              const health = document.querySelector('#topBarHero svg.health');
+              const maskPath = health?.querySelector('clipPath path')?.getAttribute('d') || null;
+              const fullPath = health?.querySelector('path.title')?.getAttribute('d') || null;
+
               // HP is encoded in the inline width of the bar inside .heroHealthBarBox.
               const bar = document.querySelector('#sidebarBoxHero .heroHealthBarBox .bar, .heroHealthBarBox .bar');
+              let legacyPercent = null;
               if (bar) {
                 const style = (bar.getAttribute('style') || '').toLowerCase();
                 const m = style.match(/width\s*:\s*(\d{1,3})(?:\.\d+)?\s*%/);
-                if (m) return Number(m[1]);
+                if (m) legacyPercent = Number(m[1]);
               }
-              // Fallback: any element with a "health" text label.
-              const fallback = document.querySelector('#heroStatus .health, .heroStatus .health, [class*="health" i]');
-              const txt = (fallback?.textContent || '').match(/(\d{1,3})/);
-              return txt ? Number(txt[1]) : null;
+
+              if (legacyPercent === null) {
+                const fallback = document.querySelector('#heroStatus .health, .heroStatus .health, [class*="health" i]');
+                const txt = (fallback?.textContent || '').match(/(\d{1,3})/);
+                legacyPercent = txt ? Number(txt[1]) : null;
+              }
+
+              return { maskPath, fullPath, legacyPercent };
             }
             """);
+
+        var svgPercent = CalculateHeroHpPercentFromSvgPaths(read?.MaskPath, read?.FullPath);
+        if (svgPercent is not null)
+        {
+            Notify($"[hero:verbose] HP read from top-bar SVG: {svgPercent}%");
+            return svgPercent;
+        }
+
+        return read?.LegacyPercent;
+    }
+
+    internal static int? CalculateHeroHpPercentFromSvgPaths(string? maskPath, string? fullPath)
+    {
+        var mask = ParseSvgPathNumbers(maskPath);
+        var full = ParseSvgPathNumbers(fullPath);
+        if (mask is null || full is null || mask.Length < 11 || full.Length < 11)
+        {
+            return null;
+        }
+
+        const double tolerance = 0.05;
+        if (Math.Abs(mask[0] - full[0]) > tolerance
+            || Math.Abs(mask[1] - full[1]) > tolerance
+            || Math.Abs(mask[2] - full[2]) > tolerance
+            || Math.Abs(mask[3] - full[3]) > tolerance)
+        {
+            return null;
+        }
+
+        var centerX = mask[0];
+        var centerY = mask[1];
+        var startAngle = Math.Atan2(mask[3] - centerY, mask[2] - centerX);
+        var currentAngle = Math.Atan2(mask[^1] - centerY, mask[^2] - centerX);
+        var fullAngle = Math.Atan2(full[^1] - centerY, full[^2] - centerX);
+        var sweepClockwise = Math.Abs(mask[8] - 1) < tolerance;
+        var currentSpan = ResolveSvgArcSpan(startAngle, currentAngle, sweepClockwise);
+        var fullSpan = ResolveSvgArcSpan(startAngle, fullAngle, sweepClockwise);
+        if (fullSpan <= 0.0001 || currentSpan > fullSpan + 0.02)
+        {
+            return null;
+        }
+
+        var percent = Math.Clamp(currentSpan / fullSpan * 100, 0, 100);
+        return (int)Math.Round(percent, MidpointRounding.AwayFromZero);
+    }
+
+    private static double[]? ParseSvgPathNumbers(string? path)
+    {
+        if (string.IsNullOrWhiteSpace(path))
+        {
+            return null;
+        }
+
+        var matches = Regex.Matches(path, @"-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?", RegexOptions.CultureInvariant);
+        var numbers = new double[matches.Count];
+        for (var index = 0; index < matches.Count; index++)
+        {
+            if (!double.TryParse(matches[index].Value, NumberStyles.Float, CultureInfo.InvariantCulture, out numbers[index]))
+            {
+                return null;
+            }
+        }
+
+        return numbers;
+    }
+
+    private static double ResolveSvgArcSpan(double startAngle, double endAngle, bool clockwise)
+    {
+        var span = clockwise ? endAngle - startAngle : startAngle - endAngle;
+        while (span < 0)
+        {
+            span += Math.Tau;
+        }
+
+        return span % Math.Tau;
     }
 
     public async Task<HeroAttributeSnapshot> ReadHeroAttributeSnapshotAsync(CancellationToken cancellationToken = default)
@@ -769,6 +858,18 @@ public sealed partial class TravianClient
             ReviveFinish: parsed.ReviveRemainingSeconds is > 0
                 ? TimerSnapshot.FromRemaining(parsed.ReviveRemainingSeconds.Value)
                 : null);
+    }
+
+    private sealed class HeroHealthTopBarReadJs
+    {
+        [JsonPropertyName("maskPath")]
+        public string? MaskPath { get; init; }
+
+        [JsonPropertyName("fullPath")]
+        public string? FullPath { get; init; }
+
+        [JsonPropertyName("legacyPercent")]
+        public int? LegacyPercent { get; init; }
     }
 
 }

@@ -423,9 +423,8 @@ public sealed partial class TravianClient : IHeroClient
 
         var minHpThreshold = Math.Clamp(minHpForAdventure, 1, 100);
 
-        // The sidebar can miss HP, but /hero/attributes shows it.
-        // Read HP before opening /hero/adventures so low-HP decisions do not require an extra
-        // adventures -> attributes -> adventures round trip.
+        // The current game page normally exposes HP through the always-visible top-bar SVG.
+        // Keep /hero/attributes as a fallback when that Official DOM contract is unavailable.
         if (adventureHintCount > 0 && inVillage && !status.IsDead && hpPercent is null)
         {
             hpPercent = await ReadHeroHpPercentOfficialAsync(cancellationToken);
