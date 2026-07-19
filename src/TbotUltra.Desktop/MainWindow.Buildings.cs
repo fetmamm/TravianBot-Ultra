@@ -12,6 +12,7 @@ using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Desktop.ViewModels;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
@@ -20,7 +21,7 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private static readonly HashSet<int> WallGids = [31, 32, 33, 42, 43];
+    private static HashSet<int> WallGids => BuildingsViewModel.WallGids;
     private static readonly HashSet<int> DuplicateAllowedGids = [10, 11, 23, 38, 39];
 
     internal async Task OnLoadBuildingsClicked()
@@ -475,9 +476,9 @@ public partial class MainWindow
         _ = TryQueueBuildingUpgradeToLevel(slotId, targetLevel);
     }
 
-    private static bool IsRallyPointSlot(int slotId) => slotId == 39;
+    private static bool IsRallyPointSlot(int slotId) => BuildingsViewModel.IsRallyPointSlot(slotId);
 
-    private static bool IsRallyPointGid(int gid) => gid == 16;
+    private static bool IsRallyPointGid(int gid) => BuildingsViewModel.IsRallyPointGid(gid);
 
     private bool TryQueueBuildingUpgradeToLevel(int slotId, int targetLevel)
     {
@@ -856,15 +857,7 @@ public partial class MainWindow
     }
 
     private static bool IsUnbuiltFixedSpecialBuilding(int slotId, Building building)
-    {
-        if ((building.Level ?? 0) > 0 || building.Gid is not int gid)
-        {
-            return false;
-        }
-
-        return (slotId == 39 && IsRallyPointGid(gid))
-            || (slotId == 40 && WallGids.Contains(gid));
-    }
+        => BuildingsViewModel.IsUnbuiltFixedSpecialBuilding(slotId, building);
 
     private bool TryQueueConstructBuilding(
         int slotId,
@@ -1236,20 +1229,8 @@ public partial class MainWindow
         foreach (var slotId in Enumerable.Range(19, 22))
         {
             buildingBySlot.TryGetValue(slotId, out var building);
-            var isKnownEmpty = building is null || IsEmptyBuilding(building);
-            var hasIdentifiedBuildingName = building is not null
-                && !string.IsNullOrWhiteSpace(building.Name)
-                && !string.Equals(building.Name, "Unknown", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(building.Name, "Empty", StringComparison.OrdinalIgnoreCase)
-                && !string.Equals(building.Name, "g0", StringComparison.OrdinalIgnoreCase)
-                && !building.Name.StartsWith("Slot ", StringComparison.OrdinalIgnoreCase);
-            var isUnbuiltFixedSpecial = building is not null && IsUnbuiltFixedSpecialBuilding(slotId, building);
-            var occupied = building is not null
-                && !isKnownEmpty
-                && !isUnbuiltFixedSpecial
-                && ((building.Level ?? 0) > 0
-                    || (building.Gid ?? 0) > 0
-                    || hasIdentifiedBuildingName);
+            var (occupied, slotName, slotLevel, slotGid) =
+                BuildingsViewModel.ResolveSlotIdentity(slotId, building, status.Tribe);
 
             var category = occupied ? "infrastructure" : "-";
             var requirements = occupied ? string.Empty : "-";
@@ -1294,31 +1275,9 @@ public partial class MainWindow
 
                 pendingConstruct = string.Empty;
             }
-            string slotName;
-            int? slotLevel;
-            int? slotGid;
+
             var isWallSlot = slotId == 40;
             var isRallyPointSlot = IsRallyPointSlot(slotId);
-            if (occupied)
-            {
-                slotName = building!.Name;
-                slotLevel = building.Level;
-                slotGid = building.Gid;
-            }
-            else if (isWallSlot || isRallyPointSlot)
-            {
-                slotName = isRallyPointSlot
-                    ? "Rally Point"
-                    : BuildingCatalogService.WallForTribe(status.Tribe)?.Name ?? "Wall";
-                slotLevel = 0;
-                slotGid = null;
-            }
-            else
-            {
-                slotName = "Empty";
-                slotLevel = null;
-                slotGid = null;
-            }
 
             // If a demolish has actually completed (slot is now empty), drop the in-progress flag.
             if (!occupied && _buildingDemolishingSlots.Contains(slotId))
@@ -1364,13 +1323,7 @@ public partial class MainWindow
     }
 
     private static bool IsEmptyBuilding(Building building)
-    {
-        return (building.Gid ?? 0) <= 0
-            && ((building.Level ?? 0) <= 0
-                || string.IsNullOrWhiteSpace(building.Name)
-                || string.Equals(building.Name, "Empty", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(building.Name, "g0", StringComparison.OrdinalIgnoreCase));
-    }
+        => BuildingsViewModel.IsEmptyBuilding(building);
 
     private void PopulateBuildingCatalogOptions(VillageStatus status)
     {
