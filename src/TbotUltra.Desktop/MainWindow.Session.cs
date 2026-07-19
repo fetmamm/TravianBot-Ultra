@@ -620,7 +620,7 @@ public partial class MainWindow
             var delaySeconds = Random.Shared.Next(5, 21);
             AppendLog($"[proxy-change] new proxy saved; waiting {delaySeconds}s before fresh browser login.");
             await Task.Delay(TimeSpan.FromSeconds(delaySeconds));
-            await ExecuteLoginFlowAsync();
+            await EnsureLoginCompletedAsync("proxy-change");
 
             if (!_isLoggedIn)
             {
@@ -628,11 +628,15 @@ public partial class MainWindow
                 return false;
             }
 
-            if (resumeContinuousLoop)
+            // Restore exactly what was running before the change: the continuous loop if it was running,
+            // otherwise the auto-queue if that was. If the bot was paused/idle, both stay off. The idle
+            // check keeps a login that another trigger already resumed from being started a second time.
+            var loopIdle = _loopTask is null || _loopTask.IsCompleted;
+            if (resumeContinuousLoop && loopIdle)
             {
                 StartContinuousLoopRunner();
             }
-            else if (resumeAutoQueue)
+            else if (resumeAutoQueue && !_autoQueueRunning && loopIdle)
             {
                 _ = TriggerQueueAutoRunAsync();
             }
@@ -649,6 +653,42 @@ public partial class MainWindow
         {
             _accountSwitchInProgress = false;
         }
+    }
+
+    // How long a controlled relogin waits for a login that another trigger already started. Login itself
+    // waits up to 180s for confirmation, so this has to outlast that before giving up.
+    private static readonly TimeSpan InFlightLoginWaitTimeout = TimeSpan.FromSeconds(240);
+    private static readonly TimeSpan InFlightLoginPollInterval = TimeSpan.FromMilliseconds(500);
+
+    /// <summary>
+    /// Runs the login flow for a controlled relogin (proxy change / recovery) and does not return until the
+    /// session is actually logged in or the attempt is really over.
+    ///
+    /// ExecuteLoginFlowAsync silently ignores its call when a login is already running. When the browser has
+    /// just been torn down, another automatic trigger can win that race by a second or two — the old code
+    /// then read _isLoggedIn while that other login was still opening the lobby, concluded the relogin had
+    /// failed, and left the bot logged out-looking with all automation stopped even though the login went on
+    /// to succeed. Wait for whichever login is in flight before judging the result.
+    /// </summary>
+    private async Task EnsureLoginCompletedAsync(string source)
+    {
+        await ExecuteLoginFlowAsync();
+        if (_isLoggedIn || !_loginInProgress)
+        {
+            return;
+        }
+
+        AppendLog($"[{source}] a login started by another trigger is already running; waiting for it to finish.");
+        var waited = TimeSpan.Zero;
+        while (_loginInProgress && waited < InFlightLoginWaitTimeout)
+        {
+            await Task.Delay(InFlightLoginPollInterval);
+            waited += InFlightLoginPollInterval;
+        }
+
+        AppendLog(_isLoggedIn
+            ? $"[{source}] the in-flight login completed after {waited.TotalSeconds:F0}s; restoring previous run state."
+            : $"[{source}] the in-flight login did not complete within {waited.TotalSeconds:F0}s.");
     }
 
     private async void AccountComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
