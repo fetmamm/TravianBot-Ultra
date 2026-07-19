@@ -14,6 +14,10 @@ public sealed class VillageSettingsRow : INotifyPropertyChanged
     public string Name { get; init; } = string.Empty;
     public string PopText { get; init; } = string.Empty;
 
+    // Only meaningful on special servers where villages can have different tribes; the column that
+    // shows this is hidden entirely when every village shares one tribe.
+    public string TribeText { get; init; } = string.Empty;
+
     // Stable village identity used to persist the enabled choice. Not displayed.
     public VillageSettingsStore.VillageKeyInfo? KeyInfo { get; init; }
 

@@ -608,6 +608,14 @@ public sealed partial class TravianClient
 
         [JsonPropertyName("cropFields")]
         public int? CropFields { get; init; }
+
+        /// <summary>
+        /// Travian tribe id from the row's tribe icon (class "tribe8_medium"), or null when the
+        /// profile does not render one. Only special servers that allow a different tribe per
+        /// village show this column; normal servers leave it absent.
+        /// </summary>
+        [JsonPropertyName("tribeId")]
+        public int? TribeId { get; init; }
     }
 
     private sealed class SidebarVillageJs

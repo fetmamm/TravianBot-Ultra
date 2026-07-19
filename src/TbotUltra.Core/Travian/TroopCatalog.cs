@@ -37,6 +37,25 @@ public static class TroopCatalog
             || value.Contains("spartan");
     }
 
+    /// <summary>
+    /// Maps Travian's numeric tribe id (used in DOM classes like "tribe8_medium" and on the profile
+    /// villages table) to the tribe name this codebase uses elsewhere. Returns null for ids we do not
+    /// play — 4 (Nature) and 5 (Natars) are NPC tribes and never belong to a player village.
+    /// </summary>
+    public static string? ResolveTribeFromTravianId(int tribeId)
+    {
+        return tribeId switch
+        {
+            1 => "Romans",
+            2 => "Teutons",
+            3 => "Gauls",
+            6 => "Egyptians",
+            7 => "Huns",
+            8 => "Spartans",
+            _ => null,
+        };
+    }
+
     public static IReadOnlyList<string> ResolveTroopTypesForTribe(string? tribe)
     {
         var value = (tribe ?? string.Empty).Trim().ToLowerInvariant();

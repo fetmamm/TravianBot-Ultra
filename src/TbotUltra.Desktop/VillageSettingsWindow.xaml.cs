@@ -68,6 +68,7 @@ public partial class VillageSettingsWindow : Window
         _overviewSnapshotProvider = overviewSnapshotProvider;
         BuildGroupColumns(rows);
         BuildOverviewColumns();
+        ApplyTribeColumnVisibility(rows);
         VillageSettingsDataGrid.ItemsSource = rows;
         UpcomingTasksDataGrid.ItemsSource = _upcomingTaskRows;
         VillageOverviewDataGrid.ItemsSource = _overviewVillageRows;
@@ -209,6 +210,20 @@ public partial class VillageSettingsWindow : Window
     // (OverviewStatusText: Ready green / Waiting amber / Disabled muted). Columns auto-size to their content
     // so idle "Disabled" columns stay narrow, capped by a per-column max so a long active line wraps instead
     // of stretching the whole grid.
+    // On a normal server every village has the account's tribe, so a Tribe column would just repeat
+    // the same word on every row. Only special servers (one tribe per village) make it worth the
+    // width, and those are exactly the accounts where the villages report more than one tribe.
+    private void ApplyTribeColumnVisibility(IReadOnlyList<VillageSettingsRow> rows)
+    {
+        var distinctTribes = rows
+            .Select(row => row.TribeText)
+            .Where(tribe => !string.IsNullOrWhiteSpace(tribe))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+
+        TribeColumn.Visibility = distinctTribes > 1 ? Visibility.Visible : Visibility.Collapsed;
+    }
+
     private void BuildOverviewColumns()
     {
         VillageOverviewDataGrid.Columns.Add(BuildOverviewColumn("Village", 170, nameof(VillageOverviewRow.Village), colorize: false));

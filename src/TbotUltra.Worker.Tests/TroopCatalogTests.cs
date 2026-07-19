@@ -5,6 +5,39 @@ namespace TbotUltra.Worker.Tests;
 
 public sealed class TroopCatalogTests
 {
+    [Theory]
+    [InlineData(1, "Romans")]
+    [InlineData(2, "Teutons")]
+    [InlineData(3, "Gauls")]
+    [InlineData(6, "Egyptians")]
+    [InlineData(7, "Huns")]
+    [InlineData(8, "Spartans")]
+    public void ResolveTribeFromTravianId_MapsPlayableTribeIds(int tribeId, string expected)
+    {
+        Assert.Equal(expected, TroopCatalog.ResolveTribeFromTravianId(tribeId));
+    }
+
+    [Theory]
+    [InlineData(4)] // Nature
+    [InlineData(5)] // Natars
+    [InlineData(0)]
+    [InlineData(9)]
+    [InlineData(-1)]
+    public void ResolveTribeFromTravianId_ReturnsNullForNonPlayerTribes(int tribeId)
+    {
+        Assert.Null(TroopCatalog.ResolveTribeFromTravianId(tribeId));
+    }
+
+    [Fact]
+    public void ResolveTribeFromTravianId_ReturnsNamesTheRestOfTheCodeTreatsAsKnown()
+    {
+        // The profile scan feeds these straight into Village.Tribe, which IsKnownTribe gates on.
+        foreach (var tribeId in new[] { 1, 2, 3, 6, 7, 8 })
+        {
+            Assert.True(TroopCatalog.IsKnownTribe(TroopCatalog.ResolveTribeFromTravianId(tribeId)));
+        }
+    }
+
     [Fact]
     public void ResolveTroopTypesForTribeAndBuilding_SplitsRomanTroopsByBuilding()
     {

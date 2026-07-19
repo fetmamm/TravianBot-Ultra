@@ -805,6 +805,7 @@ public partial class MainWindow
                 {
                     Name = v.Name,
                     PopText = v.PopText,
+                    TribeText = TroopCatalog.IsKnownTribe(v.Tribe) ? v.Tribe : string.Empty,
                     KeyInfo = keyInfo,
                     IsEnabledForAutomation = _villageSettingsStore.GetEnabled(keyInfo),
                     NpcTrade = _villageSettingsStore.GetNpcTrade(keyInfo),

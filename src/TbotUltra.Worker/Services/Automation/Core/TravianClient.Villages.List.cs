@@ -474,6 +474,13 @@ public sealed partial class TravianClient
                     const cropFields = cropMatch ? Number.parseInt(cropMatch[1], 10) : null;
 
                     const isCapital = Array.from(row.querySelectorAll('span.additionalInfo')).some(node => /\bcapital\b/i.test(node.textContent || ''));
+
+                    // Special servers that allow one tribe per village render a per-row tribe icon
+                    // (<td class="tribe"><i class="tribe8_medium"></i></td>). Normal servers have no
+                    // such cell, so tribeId stays null and the caller keeps the village tribe as-is.
+                    const tribeClass = row.querySelector('td.tribe [class*="tribe"]')?.getAttribute('class') || '';
+                    const tribeIdMatch = tribeClass.match(/\btribe(\d+)/i);
+                    const tribeId = tribeIdMatch ? Number.parseInt(tribeIdMatch[1], 10) : null;
                     const key = `${name}|${coord.x ?? ''}|${coord.y ?? ''}`;
                     if (seen.has(key)) continue;
                     seen.add(key);
@@ -485,7 +492,8 @@ public sealed partial class TravianClient
                       x: Number.isFinite(coord.x) ? coord.x : null,
                       y: Number.isFinite(coord.y) ? coord.y : null,
                       population: Number.isFinite(population) ? population : null,
-                      cropFields: Number.isFinite(cropFields) ? cropFields : null
+                      cropFields: Number.isFinite(cropFields) ? cropFields : null,
+                      tribeId: Number.isFinite(tribeId) ? tribeId : null
                     });
                   }
 
@@ -517,6 +525,12 @@ public sealed partial class TravianClient
                     {
                         SaveCachedVillageState(v.Name!, resolvedCapital, resolvedX, resolvedY);
                     }
+                    // Only present on servers that allow a different tribe per village; elsewhere the
+                    // profile has no tribe cell, so this stays "Unknown" and ApplyKnownVillageTribes
+                    // fills it from the session cache exactly as before.
+                    var rowTribe = (v.TribeId.HasValue
+                        ? TroopCatalog.ResolveTribeFromTravianId(v.TribeId.Value)
+                        : null) ?? "Unknown";
                     return new Village(
                         Name: v.Name!,
                         Url: ResolveUrl(v.Url ?? string.Empty),
@@ -524,7 +538,8 @@ public sealed partial class TravianClient
                         CoordX: resolvedX,
                         CoordY: resolvedY,
                         Population: v.Population,
-                        CropFields: v.CropFields);
+                        CropFields: v.CropFields,
+                        Tribe: rowTribe);
                 })
                 .ToList();
 

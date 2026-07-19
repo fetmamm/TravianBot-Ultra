@@ -71,6 +71,17 @@
                         <TextBlock Text="Village" FontSize="11" VerticalAlignment="Center" />
                     </DataGridTextColumn.Header>
                 </DataGridTextColumn>
+                <!-- Hidden by default: only special servers allow a different tribe per village, and the
+                     window makes this visible when the villages actually differ (see constructor). -->
+                <DataGridTextColumn x:Name="TribeColumn"
+                                    Binding="{Binding TribeText}"
+                                    Width="Auto"
+                                    IsReadOnly="True"
+                                    Visibility="Collapsed">
+                    <DataGridTextColumn.Header>
+                        <TextBlock Text="Tribe" FontSize="11" VerticalAlignment="Center" />
+                    </DataGridTextColumn.Header>
+                </DataGridTextColumn>
                 <DataGridTextColumn Binding="{Binding PopText}" Width="Auto" IsReadOnly="True">
                     <DataGridTextColumn.Header>
                         <TextBlock Text="Pop" FontSize="11" VerticalAlignment="Center" />
