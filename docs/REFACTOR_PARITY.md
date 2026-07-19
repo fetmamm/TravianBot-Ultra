@@ -6,9 +6,22 @@ remains the source of truth for behavior and Official-specific constraints.
 ## Baseline
 
 - Build: 0 warnings, 0 errors (`scripts/Build-Check.ps1`, 2026-07-19).
-- Desktop tests: 577 passed.
-- Worker tests: 863 passed.
+- Desktop tests: 603 passed.
+- Worker tests: 875 passed.
 - Public task names, payload keys, config formats and storage paths stay stable.
+
+### WPF smoke tests
+
+`WpfSmokeFixture` owns the single STA thread and the single `Application` the whole
+Desktop test assembly shares, with the App.xaml theme dictionaries merged, so controls
+resolve `StaticResource` exactly as at runtime. Anything that constructs a `Window` or
+`UserControl` **must** join `[Collection(WpfSmokeCollection.Name)]` — a WPF object built
+on a second STA thread deadlocks against that Application's dispatcher, and the failure
+shows up as an unrelated test timing out.
+
+These cover what unit tests cannot reach: XAML parse errors, missing or renamed
+`StaticResource` keys, and embedded assets referenced by pack URI. Verified to actually
+fail by renaming a style key and confirming the dependent panels went red.
 
 ## Parity checks
 
