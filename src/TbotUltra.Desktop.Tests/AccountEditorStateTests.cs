@@ -68,6 +68,26 @@ public sealed class AccountEditorStateTests
     }
 
     [Fact]
+    public void BuildSavedProxyOptions_MarksAvailabilityForPickerColors()
+    {
+        var lockedToOther = Entry("Locked", "locked.example", assigned: "other");
+        var lockedToMe = Entry("Mine", "mine.example", assigned: "active");
+        var usedByOther = Entry("Used", "used.example", assigned: null);
+        usedByOther.UsedByAccounts.Add("other");
+        var free = Entry("Free", "free.example", assigned: null);
+
+        var options = AccountEditorState
+            .BuildSavedProxyOptions([lockedToOther, lockedToMe, usedByOther, free], "active")
+            .Where(option => option.Entry is not null)
+            .ToDictionary(option => option.Entry!.Name, option => option.Availability);
+
+        Assert.Equal(ProxyReuse.LockedToOther, options["Locked"]);
+        Assert.Equal(ProxyReuse.UsedByOthers, options["Used"]);
+        Assert.Equal(ProxyReuse.Ok, options["Mine"]);
+        Assert.Equal(ProxyReuse.Ok, options["Free"]);
+    }
+
+    [Fact]
     public void BuildAccountEntry_DisabledEmptyProxyStaysEmpty()
     {
         var result = AccountEditorState.BuildAccountEntry(Input());

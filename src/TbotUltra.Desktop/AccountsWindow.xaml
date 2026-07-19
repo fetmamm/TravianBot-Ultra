@@ -211,12 +211,34 @@
                             <ColumnDefinition Width="105" />
                             <ColumnDefinition Width="105" />
                         </Grid.ColumnDefinitions>
+                        <!-- Row color shows availability at a glance: red = locked to another account,
+                             yellow = used by another account but not locked, normal = free to pick. -->
                         <ComboBox x:Name="SavedProxyComboBox"
                                   Grid.Column="0"
                                   Margin="0,0,8,0"
-                                  DisplayMemberPath="DisplayText"
                                   IsEnabled="False"
-                                  SelectionChanged="SavedProxyComboBox_SelectionChanged" />
+                                  SelectionChanged="SavedProxyComboBox_SelectionChanged">
+                            <ComboBox.ItemTemplate>
+                                <DataTemplate>
+                                    <TextBlock Text="{Binding DisplayText}">
+                                        <TextBlock.Style>
+                                            <Style TargetType="TextBlock">
+                                                <Style.Triggers>
+                                                    <DataTrigger Binding="{Binding Availability}" Value="LockedToOther">
+                                                        <Setter Property="Foreground" Value="{DynamicResource DangerTextBrush}" />
+                                                        <Setter Property="ToolTip" Value="Locked to another account — cannot be used here." />
+                                                    </DataTrigger>
+                                                    <DataTrigger Binding="{Binding Availability}" Value="UsedByOthers">
+                                                        <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
+                                                        <Setter Property="ToolTip" Value="Already used by another account, but not locked." />
+                                                    </DataTrigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </TextBlock.Style>
+                                    </TextBlock>
+                                </DataTemplate>
+                            </ComboBox.ItemTemplate>
+                        </ComboBox>
                         <Button x:Name="ProxyLibraryButton"
                                 Grid.Column="1"
                                 Margin="0,0,8,0"

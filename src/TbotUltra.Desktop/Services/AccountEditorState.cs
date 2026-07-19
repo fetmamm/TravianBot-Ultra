@@ -12,7 +12,12 @@ internal sealed record AccountEditorSnapshot(
     string ProxyServer,
     bool NeverUseOwnIp);
 
-internal sealed record SavedProxyOption(ProxyLibraryEntry? Entry, string DisplayText);
+// Availability drives the row color in the saved-proxy picker so the user can see at a glance which
+// proxies are free to pick: LockedToOther = red, UsedByOthers = yellow, Ok = the normal text color.
+internal sealed record SavedProxyOption(
+    ProxyLibraryEntry? Entry,
+    string DisplayText,
+    ProxyReuse Availability = ProxyReuse.Ok);
 
 internal sealed record AccountEditorInput(
     string Username,
@@ -141,7 +146,9 @@ internal static class AccountEditorState
             .Where(account => !string.IsNullOrWhiteSpace(account.Name))
             .GroupBy(account => account.Name, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
-        var orderedEntries = entries
+        // Materialized because the reuse classification below re-reads the same set per entry.
+        var allEntries = entries.ToList();
+        var orderedEntries = allEntries
             .OrderByDescending(entry => normalizedAccount.Length > 0
                 && string.Equals(entry.AssignedAccount, normalizedAccount, StringComparison.OrdinalIgnoreCase))
             .ThenBy(entry => entry.LatencyMs is > 0 ? entry.LatencyMs.Value : long.MaxValue)
@@ -152,7 +159,10 @@ internal static class AccountEditorState
         {
             new(null, "Select saved proxy..."),
         };
-        options.AddRange(orderedEntries.Select(entry => new SavedProxyOption(entry, BuildSavedProxyDisplay(entry, accountsByKey))));
+        options.AddRange(orderedEntries.Select(entry => new SavedProxyOption(
+            entry,
+            BuildSavedProxyDisplay(entry, accountsByKey),
+            ProxyLibraryStore.ClassifyReuse(allEntries, entry.Server, normalizedAccount).Reuse)));
         return options;
     }
 
