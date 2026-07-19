@@ -22,6 +22,37 @@ public sealed class WindowSmokeTests
     }
 
     [Fact]
+    public void ChromiumSetupWindow_LoadsWithProgressHiddenUntilTheDownloadStarts()
+    {
+        _wpf.Run(() =>
+        {
+            var window = new ChromiumSetupWindow(Path.GetTempPath(), _ => { });
+            try
+            {
+                window.Measure(new Size(470, 250));
+                window.Arrange(new Rect(0, 0, 470, 250));
+
+                var download = Assert.IsType<Button>(window.FindName("DownloadButton"));
+                var notNow = Assert.IsType<Button>(window.FindName("NotNowButton"));
+                Assert.True(notNow.IsCancel, "Not now must stay IsCancel so Esc dismisses the prompt.");
+                Assert.True(download.IsDefault, "Download must stay the default so Enter accepts.");
+
+                // Progress only belongs on screen once a download is actually running.
+                Assert.Equal(
+                    Visibility.Collapsed,
+                    Assert.IsType<ProgressBar>(window.FindName("DownloadProgressBar")).Visibility);
+                Assert.Equal(
+                    Visibility.Collapsed,
+                    Assert.IsType<TextBlock>(window.FindName("StatusTextBlock")).Visibility);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void BuildingSlotsWindow_LoadsWithTheImageAndACloseButton()
     {
         _wpf.Run(() =>

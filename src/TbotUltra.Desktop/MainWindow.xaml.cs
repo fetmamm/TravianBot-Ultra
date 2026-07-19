@@ -169,6 +169,9 @@ public partial class MainWindow : Window
 
     private Task? _loopTask;
     private bool _chromiumEnsured;
+    // Browser operations run concurrently; without this the same missing browser would open one dialog
+    // per in-flight operation.
+    private readonly SemaphoreSlim _chromiumInstallGate = new(1, 1);
     private bool _updateCheckRunning;
     private string? _announcedUpdateVersion;
     private bool _suppressAccountSelectionChange;
@@ -1157,48 +1160,54 @@ public partial class MainWindow : Window
             }
         }
 
-        var scriptPath = Path.Combine(AppContext.BaseDirectory, "playwright.ps1");
-        if (!File.Exists(scriptPath))
+        AppendLog(forceInstall
+            ? "Reinstalling the browser component (forced)..."
+            : "Browser component missing; asking before downloading it.");
+
+        // Ask instead of throwing: a released build has no developer to read an exception, so a missing
+        // browser has to be fixable from inside the app. The prompt only appears here, at the point a
+        // browser is actually needed, so users who never trigger one are never asked.
+        if (!await PromptForChromiumInstallAsync())
         {
-            throw new InvalidOperationException("Could not find playwright.ps1 in desktop output folder. Build app first.");
-        }
-
-        AppendLog(forceInstall ? "Installing Chromium (forced)..." : "Chromium missing. Installing...");
-
-        var startInfo = new ProcessStartInfo
-        {
-            FileName = "powershell",
-            Arguments = $"-ExecutionPolicy Bypass -Command \"$env:PLAYWRIGHT_BROWSERS_PATH='{Path.Combine(_projectRoot, "ms-playwright")}'; & '{scriptPath}' install chromium\"",
-            WorkingDirectory = _projectRoot,
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true,
-        };
-
-        using var process = new Process { StartInfo = startInfo };
-        process.Start();
-        var output = await process.StandardOutput.ReadToEndAsync();
-        var error = await process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
-
-        if (!string.IsNullOrWhiteSpace(output))
-        {
-            AppendLog(output.Trim());
-        }
-
-        if (!string.IsNullOrWhiteSpace(error))
-        {
-            AppendLog(error.Trim());
-        }
-
-        if (process.ExitCode != 0)
-        {
-            throw new InvalidOperationException($"Chromium install failed with exit code {process.ExitCode}.");
+            throw new InvalidOperationException(
+                "This action needs a browser component that is not installed yet.");
         }
 
         _chromiumEnsured = true;
-        AppendLog("Chromium install complete.");
+    }
+
+    /// <summary>
+    /// Shows the download prompt on the UI thread and reports whether the browser is available afterwards.
+    /// Serialized so concurrent operations hitting a missing browser cannot stack up dialogs.
+    /// </summary>
+    private async Task<bool> PromptForChromiumInstallAsync()
+    {
+        await _chromiumInstallGate.WaitAsync();
+        try
+        {
+            // Another operation may have installed it while this one waited for the gate.
+            if (_chromiumEnsured || BrowserSession.ChromiumAlreadyInstalled(_projectRoot, AppendLog))
+            {
+                return true;
+            }
+
+            var installed = await Dispatcher.InvokeAsync(() =>
+            {
+                var window = new ChromiumSetupWindow(_projectRoot, AppendLog) { Owner = this };
+                return window.ShowDialog() == true;
+            });
+
+            if (!installed)
+            {
+                AppendLog("Browser download declined or cancelled.");
+            }
+
+            return installed;
+        }
+        finally
+        {
+            _chromiumInstallGate.Release();
+        }
     }
 
     private string BeginOperation(string operationName)
