@@ -352,12 +352,12 @@ public sealed partial class TravianClient
                     requiredText: "Collect",
                     requireExactText: true,
                     reason: "daily quest collect reward",
-                    // Short timeout: fail fast if the button is present but not actionable, instead of
-                    // burning the full 20s page timeout.
-                    timeoutMs: 3000,
-                    // The reward dialog animates, so let a forced (still trusted) click land before we
-                    // give up on the real click and fall through to synthetic dispatch.
-                    allowForcedRetry: true);
+                    // Short timeout: fail fast to the JS fallback if the button is present but not
+                    // actionable, instead of burning the full 20s page timeout.
+                    timeoutMs: 3000);
+                // No forced retry here on purpose: the daily-quest reward button (.collect.collectable)
+                // has not been captured or verified like the /tasks one, so its click keeps the exact
+                // single-attempt behavior until there is live evidence it needs the same treatment.
                 if (!clicked)
                 {
                     // Last resort only: the attempt above is already paced, so no extra delay here.
