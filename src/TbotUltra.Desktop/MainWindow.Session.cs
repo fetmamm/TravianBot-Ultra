@@ -331,6 +331,10 @@ public partial class MainWindow
     {
         // The overlay already disabled its button and showed "Cancelling…"; we just cancel the work.
         AppendLog("Cancel requested.");
+
+        // A browser download owns the overlay while it runs, so Cancel has to reach it too.
+        _chromiumInstallCts?.Cancel();
+
         try
         {
             _loopController.CancelOperation();

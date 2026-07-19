@@ -172,6 +172,8 @@ public partial class MainWindow : Window
     // Browser operations run concurrently; without this the same missing browser would open one dialog
     // per in-flight operation.
     private readonly SemaphoreSlim _chromiumInstallGate = new(1, 1);
+    // Set while a browser download runs, so the busy overlay's Cancel button reaches it.
+    private CancellationTokenSource? _chromiumInstallCts;
     private bool _updateCheckRunning;
     private string? _announcedUpdateVersion;
     private bool _suppressAccountSelectionChange;
@@ -1216,22 +1218,78 @@ public partial class MainWindow : Window
                 return true;
             }
 
-            var installed = await Dispatcher.InvokeAsync(() =>
+            var accepted = await Dispatcher.InvokeAsync(() =>
             {
-                var window = new ChromiumSetupWindow(_projectRoot, AppendLog) { Owner = this };
+                var window = new ChromiumSetupWindow { Owner = this };
                 return window.ShowDialog() == true;
             });
 
-            if (!installed)
+            if (!accepted)
             {
-                AppendLog("Browser download declined or cancelled.");
+                AppendLog("Browser download declined.");
+                return false;
             }
 
-            return installed;
+            return await DownloadChromiumWithOverlayAsync();
         }
         finally
         {
             _chromiumInstallGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Runs the download behind the shared busy overlay, so it shows progress and cancels exactly like
+    /// every other long operation. The overlay is restored afterwards because the operation that needed
+    /// the browser (a login, say) is still waiting behind it and owns the status the user should see.
+    /// </summary>
+    private async Task<bool> DownloadChromiumWithOverlayAsync()
+    {
+        var previous = RunOnUi(() =>
+            (BusyOverlay.Title, BusyOverlay.Text, BusyOverlay.IsBusy, BusyOverlay.ShowCancel));
+
+        using var cts = new CancellationTokenSource();
+        _chromiumInstallCts = cts;
+
+        // Created on the UI thread so the driver's background output marshals back on its own.
+        var progress = RunOnUi(() =>
+        {
+            BusyOverlay.ShowCancel = true;
+            BusyOverlay.Show("Browser setup", "Preparing download...");
+            return new Progress<ChromiumInstallProgress>(update => BusyOverlay.Text = update.Status);
+        });
+
+        try
+        {
+            await ChromiumInstaller.InstallChromiumAsync(_projectRoot, AppendLog, progress, cts.Token);
+            AppendLog("Browser component installed.");
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            AppendLog("Browser download cancelled.");
+            return false;
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Browser download failed: {ex.Message}");
+            return false;
+        }
+        finally
+        {
+            _chromiumInstallCts = null;
+            RunOnUi(() =>
+            {
+                BusyOverlay.ShowCancel = previous.ShowCancel;
+                if (previous.IsBusy)
+                {
+                    BusyOverlay.Show(previous.Title, previous.Text);
+                }
+                else
+                {
+                    BusyOverlay.Hide();
+                }
+            });
         }
     }
 

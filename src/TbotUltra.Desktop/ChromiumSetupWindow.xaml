@@ -3,14 +3,15 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Background="{DynamicResource AppBackgroundBrush}"
         Title="Browser setup"
-        Height="250"
+        Height="205"
         Width="470"
         ResizeMode="NoResize"
         ShowInTaskbar="False"
         WindowStartupLocation="CenterOwner">
+    <!-- Asks only. The download itself runs behind the shared busy overlay, so progress and cancelling
+         look the same here as for every other long operation in the app. -->
     <Grid Margin="18">
         <Grid.RowDefinitions>
-            <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
@@ -28,33 +29,20 @@
                    TextWrapping="Wrap"
                    LineHeight="18"
                    Foreground="{DynamicResource TextMutedBrush}"
-                   Text="Tbot Ultra needs a browser component that is not installed yet. It downloads once and is reused after that." />
+                   Text="Tbot Ultra needs a browser component that is not installed yet. It downloads once (about 190 MB) and is reused after that." />
 
-        <StackPanel Grid.Row="2" VerticalAlignment="Bottom" Margin="0,12,0,0">
-            <TextBlock x:Name="StatusTextBlock"
-                       Visibility="Collapsed"
-                       TextWrapping="Wrap"
-                       Foreground="{DynamicResource TextPrimaryBrush}"
-                       Margin="0,0,0,6" />
-            <ProgressBar x:Name="DownloadProgressBar"
-                         Visibility="Collapsed"
-                         Height="6"
-                         Minimum="0"
-                         Maximum="100"
-                         Foreground="{DynamicResource AccentBrush}"
-                         Background="{DynamicResource SurfaceBrush}"
-                         BorderThickness="0" />
-        </StackPanel>
-
-        <StackPanel Grid.Row="3"
+        <StackPanel Grid.Row="2"
                     Orientation="Horizontal"
                     HorizontalAlignment="Right"
                     Margin="0,14,0,0">
             <Button x:Name="NotNowButton"
-                    Content="Not now"
-                    Width="90"
+                    Content="Cancel"
+                    Width="100"
                     Height="32"
                     IsCancel="True"
+                    Background="{DynamicResource DangerBgBrush}"
+                    Foreground="{DynamicResource DangerTextBrush}"
+                    BorderBrush="{DynamicResource DangerBorderBrush}"
                     Click="NotNowButton_Click" />
             <Button x:Name="DownloadButton"
                     Content="Download"
@@ -62,9 +50,9 @@
                     Height="32"
                     Margin="0"
                     IsDefault="True"
-                    Background="{DynamicResource AccentBrush}"
-                    Foreground="{DynamicResource OnAccentBrush}"
-                    BorderBrush="{DynamicResource AccentBrush}"
+                    Background="{DynamicResource SuccessBgBrush}"
+                    Foreground="{DynamicResource SuccessTextBrush}"
+                    BorderBrush="{DynamicResource SuccessBorderBrush}"
                     Click="DownloadButton_Click" />
         </StackPanel>
     </Grid>
