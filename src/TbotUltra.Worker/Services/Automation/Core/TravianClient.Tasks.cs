@@ -217,6 +217,12 @@ public sealed partial class TravianClient
         {
             cancellationToken.ThrowIfCancellationRequested();
 
+            // Paced by the dedicated "Collect tasks/daily delay" setting, before every click, so the
+            // React page registers the previous claim and the burst does not look robotic. The click
+            // below therefore skips the generic click pacing — running both stacked two waits per
+            // reward and made collecting far slower than the configured delay implies.
+            await ApplyCollectStepDelayAsync(cancellationToken);
+
             bool clicked;
             try
             {
@@ -233,7 +239,8 @@ public sealed partial class TravianClient
                     timeoutMs: 3000,
                     // The reward dialog animates, so let a forced (still trusted) click land before we
                     // give up on the real click and fall through to synthetic dispatch.
-                    allowForcedRetry: true);
+                    allowForcedRetry: true,
+                    useClickPacing: false);
                 if (!clicked)
                 {
                     // Last resort only: the attempt above is already paced, so no extra delay here.
@@ -285,9 +292,6 @@ public sealed partial class TravianClient
             }
 
             collected += 1;
-            // Small randomized gap so the React page registers the claim before the next click and
-            // the burst does not look robotic. Configurable via the collect step-delay setting.
-            await ApplyCollectStepDelayAsync(cancellationToken);
         }
 
         return collected;
