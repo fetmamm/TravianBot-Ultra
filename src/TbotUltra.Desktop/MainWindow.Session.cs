@@ -897,6 +897,9 @@ public partial class MainWindow
         _demolishableBuildings.Clear();
         BuildingsInfoTextBlock.Text = "Buildings not loaded yet.";
         VillagesInfoTextBlock.Text = "Villages: 0";
+        // Gold/silver are account-scoped and deliberately sticky against unknown reads, so they must be
+        // force-cleared here or the previous account's balance would stay on screen for the next one.
+        SetGoldSilverStatusText(ServerResourcesTextBlock, SilverInfoTextBlock, "-", "-", allowClearToUnknown: true);
         ForceClearVillageSelectionUi();
         BuildQueueStatusTextBlock.Text = "Build queue: idle";
 

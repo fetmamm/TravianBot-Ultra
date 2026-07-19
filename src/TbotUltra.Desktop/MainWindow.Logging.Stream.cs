@@ -753,35 +753,45 @@ public partial class MainWindow
     /// it's a meaningful positive value.
     /// </summary>
     // Topbar Gold and Silver are now separate metric cards, so each value gets its own TextBlock.
-    // Gold turns metallic gold when meaningful; silver uses the primary text color when meaningful.
-    internal static void SetGoldSilverStatusText(TextBlock goldTarget, TextBlock silverTarget, string goldText, string silverText)
+    // Gold turns metallic gold when it's a non-zero value; silver uses the primary text color.
+    // Set allowClearToUnknown when the values must actually be wiped (account switch) — otherwise a
+    // "-" read is ignored whenever a known value is already on screen.
+    internal static void SetGoldSilverStatusText(
+        TextBlock goldTarget,
+        TextBlock silverTarget,
+        string goldText,
+        string silverText,
+        bool allowClearToUnknown = false)
     {
-        SetCurrencyValueText(goldTarget, goldText, GoldHighlightBrush);
-        SetCurrencyValueText(silverTarget, silverText, PrimaryStatsBrush);
+        SetCurrencyValueText(goldTarget, goldText, GoldHighlightBrush, allowClearToUnknown);
+        SetCurrencyValueText(silverTarget, silverText, PrimaryStatsBrush, allowClearToUnknown);
     }
 
-    private static void SetCurrencyValueText(TextBlock target, string text, SolidColorBrush meaningfulBrush)
-    {
-        var isMeaningful = text is not ("-" or "0") && !string.IsNullOrWhiteSpace(text);
+    // "Known" means the worker actually read the value — a real 0 counts. Only "-"/empty is unknown.
+    // Highlighting is a separate question: only a known, non-zero value gets the accent color.
+    private static bool IsKnownCurrencyValue(string? text)
+        => !string.IsNullOrWhiteSpace(text) && text != "-";
 
-        // Don't clobber a previously shown real value with "-"/empty: partial status reads carry no gold/
-        // silver and would otherwise blip the value to "-" between full reads.
-        if (!isMeaningful)
+    private static void SetCurrencyValueText(TextBlock target, string text, SolidColorBrush meaningfulBrush, bool allowClearToUnknown)
+    {
+        var isKnown = IsKnownCurrencyValue(text);
+
+        // Gold/silver are account-scoped but ride along on per-village status payloads, and a village
+        // switch (or a partial/cached read) carries no currency at all. Never let such an unknown read
+        // replace a value we already know — including a real 0, which previously counted as "no value"
+        // here and so got clobbered to "-" every time the user changed village.
+        if (!isKnown && !allowClearToUnknown && IsKnownCurrencyValue((target.Inlines.FirstInline as Run)?.Text))
         {
-            var existing = (target.Inlines.FirstInline as Run)?.Text;
-            var existingMeaningful = !string.IsNullOrWhiteSpace(existing) && existing is not ("-" or "0");
-            if (existingMeaningful)
-            {
-                return;
-            }
+            return;
         }
 
         target.Inlines.Clear();
-        var valueRun = new Run(string.IsNullOrWhiteSpace(text) ? "-" : text)
+        var isHighlighted = isKnown && text != "0";
+        var valueRun = new Run(isKnown ? text : "-")
         {
-            Foreground = isMeaningful ? meaningfulBrush : NeutralStatsBrush,
+            Foreground = isHighlighted ? meaningfulBrush : NeutralStatsBrush,
         };
-        if (isMeaningful)
+        if (isHighlighted)
         {
             valueRun.FontWeight = FontWeights.SemiBold;
         }
