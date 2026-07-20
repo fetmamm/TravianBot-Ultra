@@ -18,6 +18,7 @@ using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Release;
 using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
@@ -635,6 +636,7 @@ public partial class MainWindow : Window
         UpdateFarmingUiState();
         UpdateManualFarmingExecutionCounter();
         _heroViewModel.LoadPriorityFromConfig(null);
+        AppendLog(ReleaseSmokeContract.ReadyLogMarker);
         StartBackgroundWarmups();
     }
 

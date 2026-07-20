@@ -5,10 +5,10 @@
       "name": "Test",
       "createdByTribe": "Teutons",
       "createdAtUtc": "2026-07-07T07:19:07.9081978+00:00",
-      "updatedAtUtc": "2026-07-19T17:43:37.9335306+00:00",
+      "updatedAtUtc": "2026-07-20T21:15:07.6241544+00:00",
       "rows": [
         {
-          "id": "56c3fd2b-dc2f-453a-9dde-6b60fbefc10c",
+          "id": "8e2d4759-44cb-49cd-a3d5-5250cdd6d93a",
           "kind": "Building",
           "gid": 15,
           "buildingName": "Main Building",
@@ -18,7 +18,7 @@
           "resourceStrategy": "lowest"
         },
         {
-          "id": "b6df4ae7-4818-4e87-babc-761afa22fefe",
+          "id": "d7074171-d02e-46ff-b02b-2d5ebc161fb0",
           "kind": "Building",
           "gid": 32,
           "buildingName": "Earth Wall",
@@ -28,7 +28,7 @@
           "resourceStrategy": "lowest"
         },
         {
-          "id": "8e7b22c3-67df-4c05-b93d-7800125818d1",
+          "id": "5fe9aed8-7cfb-4a1a-b1c6-cf6e9e576d26",
           "kind": "Building",
           "gid": 16,
           "buildingName": "Rally Point",
@@ -38,7 +38,7 @@
           "resourceStrategy": "lowest"
         },
         {
-          "id": "16d6838f-4024-4338-89c3-baaee51cf772",
+          "id": "b0c0f6c9-8f91-4f8c-b6d6-b6d284a7600e",
           "kind": "Building",
           "gid": 10,
           "buildingName": "Warehouse",
@@ -48,7 +48,7 @@
           "resourceStrategy": "lowest"
         },
         {
-          "id": "6eae9352-a4df-4e30-a78f-318014d3c36d",
+          "id": "50a3205b-416b-4ce8-a7f6-67a4b8934a28",
           "kind": "Building",
           "gid": 11,
           "buildingName": "Granary",
@@ -58,7 +58,7 @@
           "resourceStrategy": "lowest"
         },
         {
-          "id": "778a92d7-cf03-4da4-9209-7576002a65a4",
+          "id": "d7f3eb0a-510d-4814-bfe3-96838d218182",
           "kind": "AllResources",
           "gid": null,
           "buildingName": "All resources",
@@ -68,7 +68,7 @@
           "resourceStrategy": "lowest"
         },
         {
-          "id": "3bcbbc26-f1c7-4df9-9064-6eb454277b50",
+          "id": "91eae0b3-5f69-4f96-9d41-192f8874e660",
           "kind": "Building",
           "gid": 17,
           "buildingName": "Marketplace",
@@ -78,7 +78,7 @@
           "resourceStrategy": "lowest"
         },
         {
-          "id": "6d448341-a85b-4dc2-b732-abe787409df2",
+          "id": "c5e39b62-c9e4-4e18-af99-cb4a8f18bab3",
           "kind": "Building",
           "gid": 19,
           "buildingName": "Barracks",
@@ -88,7 +88,7 @@
           "resourceStrategy": "lowest"
         },
         {
-          "id": "b7b7dc81-a660-417b-93d2-36d1bad7451a",
+          "id": "f879478b-da6e-429f-8a70-46e344e7c290",
           "kind": "Building",
           "gid": 22,
           "buildingName": "Academy",
@@ -98,7 +98,7 @@
           "resourceStrategy": "lowest"
         },
         {
-          "id": "c1309bcb-1a5b-422d-a37c-2a4b901e9dbc",
+          "id": "3b1cda99-9696-4c14-b0d1-e935986d2814",
           "kind": "Building",
           "gid": 13,
           "buildingName": "Smithy",
@@ -108,7 +108,7 @@
           "resourceStrategy": "lowest"
         },
         {
-          "id": "fea0fcd6-c260-4530-9304-ec077231efe9",
+          "id": "3120083c-868c-4d0e-b57a-e356d7c1efe3",
           "kind": "Building",
           "gid": 15,
           "buildingName": "Main Building",
@@ -118,7 +118,7 @@
           "resourceStrategy": "lowest"
         },
         {
-          "id": "004ee495-1172-410d-9fb8-1cc63123cd45",
+          "id": "36221875-defd-4570-aacc-5099af73efc3",
           "kind": "Building",
           "gid": 10,
           "buildingName": "Warehouse",
@@ -128,7 +128,7 @@
           "resourceStrategy": "lowest"
         },
         {
-          "id": "2b9d7818-fbe4-4827-aa86-df8a5141609a",
+          "id": "faf0081e-79da-4369-8b60-bccd249410f2",
           "kind": "Building",
           "gid": 11,
           "buildingName": "Granary",
@@ -138,7 +138,7 @@
           "resourceStrategy": "lowest"
         },
         {
-          "id": "43e01cd7-9c5c-41a4-b396-6206dc08f2bf",
+          "id": "1318a1b7-dd9e-4db5-baab-0595445b0efa",
           "kind": "Building",
           "gid": 25,
           "buildingName": "Residence",

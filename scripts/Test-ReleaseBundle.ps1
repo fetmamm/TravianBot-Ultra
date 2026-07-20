@@ -168,8 +168,7 @@ try {
     Write-Host "Starting packaged app smoke test from: $launchRoot"
     $process = Start-Process -FilePath $launchExe -WorkingDirectory $launchRoot -WindowStyle Hidden -PassThru
     $deadline = [DateTime]::UtcNow.AddSeconds($StartupTimeoutSeconds)
-    $warmupCompleted = $false
-    $catalogLoaded = $false
+    $startupReady = $false
     $lastSessionLog = $null
 
     while ([DateTime]::UtcNow -lt $deadline) {
@@ -189,13 +188,11 @@ try {
             Select-Object -First 1
         if ($null -ne $lastSessionLog) {
             $logText = Get-Content -LiteralPath $lastSessionLog.FullName -Raw -ErrorAction SilentlyContinue
-            if ($logText -match "Construction cost/time estimates are disabled") {
+            if ($logText.Contains("Construction cost/time estimates are disabled")) {
                 throw "Packaged app could not load the embedded building catalog."
             }
-            $catalogLoaded = $logText -match "\[catalog\] Embedded building catalog loaded\."
-            $warmupCompleted = $logText -match "Chromium warmup completed"
-            if ($catalogLoaded -and $warmupCompleted) {
-                $warmupCompleted = $true
+            $startupReady = $logText.Contains("[startup] Release smoke readiness completed.")
+            if ($startupReady) {
                 break
             }
         }
@@ -203,16 +200,16 @@ try {
         Start-Sleep -Seconds 1
     }
 
-    if (-not $catalogLoaded -or -not $warmupCompleted) {
+    if (-not $startupReady) {
         $details = if ($null -ne $lastSessionLog) {
             (Get-Content -LiteralPath $lastSessionLog.FullName -Tail 80) -join [Environment]::NewLine
         } else {
             "No session log was created."
         }
-        throw "Packaged app did not load its catalog and complete Chromium warmup within $StartupTimeoutSeconds seconds.`n$details"
+        throw "Packaged app did not complete startup readiness within $StartupTimeoutSeconds seconds.`n$details"
     }
 
-    Write-Host "Packaged app loaded its embedded catalog and completed Chromium warmup successfully."
+    Write-Host "Packaged app completed startup readiness successfully."
 }
 finally {
     if ($null -ne $process) {

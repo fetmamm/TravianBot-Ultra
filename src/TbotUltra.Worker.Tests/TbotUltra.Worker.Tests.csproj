@@ -20,5 +20,8 @@
     <None Include="..\..\.release-template\config\bot.json"
           Link="ReleaseTemplate\bot.json"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Include="..\..\scripts\Test-ReleaseBundle.ps1"
+          Link="ReleaseScripts\Test-ReleaseBundle.ps1"
+          CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>

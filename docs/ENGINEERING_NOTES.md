@@ -248,6 +248,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   partial-state merging; never let an older unknown-level snapshot override a newer live or merged read.
 - Queued and direct `Load buildings` must both produce a full village status with Warehouse/Granary capacity. A
   dorf2 building snapshot must be merged with the same village's existing status, never replace it with null capacity.
+- Release smoke tests must wait on `ReleaseSmokeContract.ReadyLogMarker`, not logs from optional/removed startup work.
+  Bundled Chromium is validated structurally by exact Playwright revision before launch; keep a contract test for the
+  PowerShell marker so application startup and the GitHub release workflow cannot silently drift apart again.
 - Templates preserve resource scope, reservations, ordered prerequisites, atomic insertion, and runtime slot
   rebinding. Tribe-incompatible choices remain disabled.
 - Catalog coverage is required for Romans, Teutons, Gauls, Egyptians, and Huns. Vikings are unsupported.
