@@ -681,7 +681,12 @@ public sealed partial class BotTaskRunner
             log($"[cache] goldclub=True loaded for '{account.Name}'.");
         }
 
-        if (analysis?.Villages is { Count: > 0 } villages)
+        // Seed only when the session has no village list yet — this method runs on EVERY lease of the
+        // shared browser, not just on login. Re-seeding overwrote the live sidebar-merged list with the
+        // stale on-disk analysis and reset CachedVillagesAt, forcing a sidebar re-read per lease (49
+        // misses vs 12 hits in one session) and logging this line 272 times. The tribe/goldclub blocks
+        // above are guarded the same way, which is why they appear once.
+        if (analysis?.Villages is { Count: > 0 } villages && sessionCache.CachedVillages is not { Count: > 0 })
         {
             sessionCache.CachedVillages = villages.Select(village => village with { }).ToList();
             // Force one cheap sidebar merge after login. It detects founded/renamed villages while
