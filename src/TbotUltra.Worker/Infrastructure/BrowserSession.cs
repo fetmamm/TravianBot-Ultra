@@ -32,6 +32,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
     private readonly HashSet<string> _transientExternalOrigins = new(StringComparer.OrdinalIgnoreCase);
     private readonly object _isolatedExternalContextsGate = new();
     private readonly HashSet<IBrowserContext> _isolatedExternalContexts = [];
+    private string _effectiveBaseUrl;
     private DateTimeOffset _lastTransientStorageCleanupLogAtUtc = DateTimeOffset.MinValue;
     private string _lastTransientStorageCleanupLog = string.Empty;
 
@@ -49,6 +50,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
         _account = account;
         _projectRoot = projectRoot;
         _log = log;
+        _effectiveBaseUrl = config.BaseUrl.TrimEnd('/');
         _browserTrace = new BrowserTraceLogger(config.DetailedBrowserLoggingEnabled, log);
     }
 
@@ -153,7 +155,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
 
         var contextOptions = new BrowserNewContextOptions
         {
-            BaseURL = _config.BaseUrl,
+            BaseURL = _effectiveBaseUrl,
             // Let headed Chrome use the real maximized window area instead of emulating a fixed
             // viewport that may be larger than the user's monitor.
             ViewportSize = ViewportSize.NoViewport,
@@ -324,7 +326,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
         string? workingHost = null;
         try
         {
-            workingHost = new Uri(_config.BaseUrl).Host;
+            workingHost = new Uri(_effectiveBaseUrl).Host;
         }
         catch
         {
@@ -415,10 +417,24 @@ public sealed partial class BrowserSession : IAsyncDisposable
         return page;
     }
 
-    public async Task<IPage> RotateMainContextFromSavedStateAsync(CancellationToken cancellationToken = default)
+    public async Task<IPage> RotateMainContextFromSavedStateAsync(
+        string effectiveBaseUrl,
+        CancellationToken cancellationToken = default)
     {
         var previousContext = _context
             ?? throw new InvalidOperationException("The main browser context is not open.");
+
+        if (!Uri.TryCreate(effectiveBaseUrl?.Trim(), UriKind.Absolute, out var effectiveUri)
+            || effectiveUri.Scheme != Uri.UriSchemeHttps
+            || !effectiveUri.Host.EndsWith(".travian.com", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException("The resolved game world is not a valid Official Travian server.");
+        }
+
+        // A manual lobby choice can correct a stale configured server. Use the origin that Play now
+        // actually reached when filtering and restoring state, otherwise the new world's SSO cookies
+        // are mistaken for foreign sibling-server state and removed during the consent cleanup.
+        _effectiveBaseUrl = effectiveUri.GetLeftPart(UriPartial.Authority).TrimEnd('/');
 
         // The lobby context is about to be destroyed, so do not spend time clearing its live external
         // origins. The serialized state is still filtered below; skipping live cleanup closes the SSO

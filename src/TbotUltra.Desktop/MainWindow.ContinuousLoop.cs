@@ -178,14 +178,19 @@ public partial class MainWindow
             return Dispatcher.Invoke(GetContinuousLoopConsideredGroupsInOrder);
         }
 
-        var ordered = new List<QueueGroup>(GetContinuousLoopEnabledGroupsInOrder());
+        // Account is a queue category, not a user-configurable automation group. Keep it permanently
+        // considered even when every village toggle group is disabled.
+        var ordered = new List<QueueGroup> { QueueGroup.Account };
+        ordered.AddRange(GetContinuousLoopEnabledGroupsInOrder());
         var seen = ordered.ToHashSet();
 
         foreach (var (_, enabledGroups) in _villageSettingsStore.GetEnabledVillagesGroups())
         {
             foreach (var key in enabledGroups ?? VillageSettingsStore.DefaultEnabledGroups)
             {
-                if (QueueGroupCatalog.TryParse(key, out var group) && seen.Add(group))
+                if (QueueGroupCatalog.TryParse(key, out var group)
+                    && group != QueueGroup.Account
+                    && seen.Add(group))
                 {
                     ordered.Add(group);
                 }
@@ -1030,17 +1035,9 @@ public partial class MainWindow
             return false;
         }
 
-        // Reward collection remains tied to the village's Construction automation choice even though it
-        // displays and schedules as Account work. The remaining Account tasks are explicit read-only or
-        // global commands and must be able to run immediately when queued by the user.
-        if (string.Equals(item.TaskName, "collect_tasks", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(item.TaskName, "collect_daily_quests", StringComparison.OrdinalIgnoreCase))
-        {
-            return IsQueueItemVillageEnabled(item)
-                && IsGroupEnabledForVillage(GetQueueItemVillageKey(item), QueueGroup.Construction);
-        }
-
-        if (ContinuousLoopSelector.IsAccountTaskIndependentOfVillageAutomation(item.TaskName))
+        // Account is an always-on queue category. Its tasks are never gated by village Auto or by a
+        // per-village automation group toggle.
+        if (item.Group == QueueGroup.Account)
         {
             return true;
         }
@@ -1052,6 +1049,11 @@ public partial class MainWindow
     // to the account default group set). Shared by per-item gating and per-village runtime generation.
     private bool IsGroupEnabledForVillage(string? villageKey, QueueGroup group)
     {
+        if (group == QueueGroup.Account)
+        {
+            return true;
+        }
+
         // Village-less (global) tasks like hero_manage are enabled when the group is on for ANY enabled
         // village — so e.g. Hero runs while the hero-home village has it on even
         // though another village is currently selected. Resolve this from the settings store only (no UI
@@ -1073,6 +1075,11 @@ public partial class MainWindow
     // village-less global tasks (e.g. hero_manage) without depending on the UI-selected village.
     private bool IsGroupEnabledForAnyVillage(QueueGroup group)
     {
+        if (group == QueueGroup.Account)
+        {
+            return true;
+        }
+
         var key = QueueGroupCatalog.GetKey(group);
         foreach (var (_, enabledGroups) in _villageSettingsStore.GetEnabledVillagesGroups())
         {

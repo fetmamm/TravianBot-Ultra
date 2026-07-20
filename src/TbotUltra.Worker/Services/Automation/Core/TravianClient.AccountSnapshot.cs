@@ -195,7 +195,7 @@ public async Task<AccountAnalysisSnapshot> ReadAccountAnalysisSnapshotAsync(Canc
             SchemaVersion: 1,
             AnalyzedAtUtc: DateTimeOffset.UtcNow,
             AccountName: _account.Name,
-            ServerUrl: _config.BaseUrl.TrimEnd('/'),
+            ServerUrl: ServerUrl,
             Tribe: tribe,
             GoldClubEnabled: goldClubEnabled,
             BuildingCatalog: catalog);

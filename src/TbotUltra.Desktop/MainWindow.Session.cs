@@ -146,6 +146,11 @@ public partial class MainWindow
                 keepBrowserOpenAfterLogin: true,
                 cancellationToken: operationToken);
 
+            // The lobby chooser may have corrected a stale server while login was running. Refresh the
+            // immutable options before any post-login operation so it cannot replace the authenticated
+            // browser with a session for the old configured server.
+            options = LoadValidatedActiveAccountOptions();
+
             BrowserInfoTextBlock.Text = "Browser: idle";
             StatusTextBlock.Text = "Login completed.";
             UpdateLoginButtonsVisual(true);

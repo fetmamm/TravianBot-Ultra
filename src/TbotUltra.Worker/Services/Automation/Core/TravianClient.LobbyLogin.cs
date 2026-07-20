@@ -209,7 +209,7 @@ public sealed partial class TravianClient
                 candidate.WorldUid,
                 candidate.Name,
                 resolvedServerUrl);
-            Notify($"[lobby-login] manually selected owned world resolved to '{SanitizeHost(resolvedServerUrl)}'; account correction pending authenticated game verification.");
+            Notify($"[lobby-login] manually selected owned world resolved to '{SanitizeHost(resolvedServerUrl)}'; account correction will be saved after game login.");
         }
 
         _pendingLobbyWorldUid = candidate.WorldUid;

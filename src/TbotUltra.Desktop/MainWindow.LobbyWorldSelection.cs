@@ -58,7 +58,7 @@ public partial class MainWindow
             this,
             content,
             "Choose Travian world",
-            [("Cancel", MessageBoxResult.Cancel), ("Select world", MessageBoxResult.Yes)],
+            [("Select world", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.Cancel)],
             MessageBoxImage.Question,
             MessageBoxResult.Yes,
             MessageBoxResult.Cancel,

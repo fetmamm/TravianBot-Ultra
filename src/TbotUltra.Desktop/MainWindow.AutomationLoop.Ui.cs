@@ -51,9 +51,9 @@ public partial class MainWindow
                     continue;
                 }
 
-                // NPC trade is controlled by the Auto settings master toggle + per-village choice, not as
-                // an Automation Loop group — never show it in the loop list or Function list.
-                if (group == QueueGroup.NpcTrade)
+                // NPC trade has its own settings. Account is an always-on queue category. Neither is a
+                // user-toggleable Automation Loop group or belongs in the per-village group matrix.
+                if (group is QueueGroup.NpcTrade or QueueGroup.Account)
                 {
                     continue;
                 }
@@ -156,7 +156,7 @@ public partial class MainWindow
         return (names ?? [])
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Select(name => name.Trim())
-            .Where(name => QueueGroupCatalog.TryParse(name, out _))
+            .Where(name => QueueGroupCatalog.TryParse(name, out var group) && group != QueueGroup.Account)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
     }
@@ -758,6 +758,7 @@ public partial class MainWindow
             if (!config.ContainsKey(DashboardVisibleGroupsConfigKey))
             {
                 return QueueGroupCatalog.AllGroups
+                    .Where(group => group != QueueGroup.Account)
                     .Select(QueueGroupCatalog.GetKey)
                     .ToList();
             }
@@ -766,7 +767,7 @@ public partial class MainWindow
                 .Select(node => node?.ToString())
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Select(name => name!.Trim())
-                .Where(name => QueueGroupCatalog.TryParse(name, out _))
+                .Where(name => QueueGroupCatalog.TryParse(name, out var group) && group != QueueGroup.Account)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
             return configuredVisible;
@@ -777,6 +778,7 @@ public partial class MainWindow
         }
 
         return QueueGroupCatalog.AllGroups
+            .Where(group => group != QueueGroup.Account)
             .Select(QueueGroupCatalog.GetKey)
             .ToList();
     }
@@ -790,7 +792,7 @@ public partial class MainWindow
                 .Select(node => node?.ToString())
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .Select(name => name!.Trim())
-                .Where(name => QueueGroupCatalog.TryParse(name, out _))
+                .Where(name => QueueGroupCatalog.TryParse(name, out var group) && group != QueueGroup.Account)
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
 
@@ -833,7 +835,7 @@ public partial class MainWindow
             .Select(QueueGroupCatalog.GetKey)
             // Append any group not covered above (defensive against future additions).
             .Concat(QueueGroupCatalog.AllGroups
-                .Where(group => !explicitOrder.Contains(group))
+                .Where(group => group != QueueGroup.Account && !explicitOrder.Contains(group))
                 .Select(QueueGroupCatalog.GetKey))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();

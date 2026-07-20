@@ -516,6 +516,7 @@ public partial class MainWindow
         if (value.Contains("[browser-session] active browser shutdown invalidated session generation")
             || value.Contains("chromium warmup started")
             || value.Contains("chromium warmup completed")
+            || value.Contains("[lobby-login] manually selected owned world resolved to")
             || (value.Contains("[browser-click]") && value.Contains("skipped candidate")))
         {
             return false;

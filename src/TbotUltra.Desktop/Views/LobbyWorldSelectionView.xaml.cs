@@ -9,12 +9,6 @@ public partial class LobbyWorldSelectionView : UserControl
     public LobbyWorldSelectionView(LobbyWorldSelectionRequest request)
     {
         InitializeComponent();
-        ConfiguredTarget = string.IsNullOrWhiteSpace(request.ConfiguredServerName)
-            ? request.ConfiguredServerUrl
-            : $"{request.ConfiguredServerName} · {request.ConfiguredServerUrl}";
-        SelectionHint = request.PreviousSelectionFailed
-            ? "The previous choice did not complete login. Choose another owned world."
-            : "Select the world you want to use for this Tbot Ultra account.";
         Worlds = request.Worlds
             .Select(world => new LobbyWorldCard(
                 world.WorldUid,
@@ -24,8 +18,6 @@ public partial class LobbyWorldSelectionView : UserControl
         DataContext = this;
     }
 
-    public string ConfiguredTarget { get; }
-    public string SelectionHint { get; }
     public IReadOnlyList<LobbyWorldCard> Worlds { get; }
 
     public string? SelectedWorldUid

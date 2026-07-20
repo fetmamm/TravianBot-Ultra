@@ -32,7 +32,7 @@ public sealed partial class TravianClient
     private readonly Action<bool>? _setConsentDomainsAllowed;
     private readonly Func<IPage, CancellationToken, Task>? _cleanupAfterBonusVideoAsync;
     private readonly Func<Func<IPage, CancellationToken, Task<string>>, CancellationToken, Task<string>>? _runInIsolatedBonusVideoBrowserAsync;
-    private readonly Func<CancellationToken, Task<IPage>>? _rotateAfterLobbyLoginAsync;
+    private readonly Func<string, CancellationToken, Task<IPage>>? _rotateAfterLobbyLoginAsync;
     private readonly Func<LobbyWorldSelectionRequest, CancellationToken, Task<string?>>? _lobbyWorldSelectionRequested;
     private readonly Func<LobbyWorldServerResolution, CancellationToken, Task>? _lobbyWorldServerResolved;
     private string? _resolvedServerUrl;
@@ -276,7 +276,7 @@ public sealed partial class TravianClient
         Action<bool>? setConsentDomainsAllowed = null,
         Func<IPage, CancellationToken, Task>? cleanupAfterBonusVideoAsync = null,
         Func<Func<IPage, CancellationToken, Task<string>>, CancellationToken, Task<string>>? runInIsolatedBonusVideoBrowserAsync = null,
-        Func<CancellationToken, Task<IPage>>? rotateAfterLobbyLoginAsync = null,
+        Func<string, CancellationToken, Task<IPage>>? rotateAfterLobbyLoginAsync = null,
         Func<LobbyWorldSelectionRequest, CancellationToken, Task<string?>>? lobbyWorldSelectionRequested = null,
         Func<LobbyWorldServerResolution, CancellationToken, Task>? lobbyWorldServerResolved = null,
         BrowserTraceLogger? browserTrace = null)

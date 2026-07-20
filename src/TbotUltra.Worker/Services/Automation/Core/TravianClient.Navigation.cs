@@ -244,7 +244,7 @@ public sealed partial class TravianClient
 
     private async Task GotoAsync(string pathOrUrl, CancellationToken cancellationToken)
     {
-        var url = TravianUrls.ToAbsoluteUrl(_config.BaseUrl, pathOrUrl);
+        var url = TravianUrls.ToAbsoluteUrl(ServerUrl, pathOrUrl);
         var beforeUrl = _page.Url;
         using var trace = _browserTrace.BeginOperation(
             "NAV",
@@ -600,7 +600,7 @@ public sealed partial class TravianClient
             return absolute.ToString();
         }
 
-        if (Uri.TryCreate(new Uri(_config.BaseUrl.TrimEnd('/') + "/"), href, out var combined))
+        if (Uri.TryCreate(new Uri(ServerUrl.TrimEnd('/') + "/"), href, out var combined))
         {
             return combined.ToString();
         }

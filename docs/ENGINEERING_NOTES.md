@@ -121,6 +121,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   configured game server or add direct-server fallback.
 - Preserve filtered SSO state only in in-app session transitions. Real process startup and user exit clear every
   account's saved Playwright auth state.
+- After Play now commits navigation to an Official game origin, rotate immediately to the clean in-app context that
+  blocks the consent/ad stack. State filtering and the replacement context must use the resolved runtime game origin,
+  not a stale configured base URL, so the selected world's SSO cookies survive the rotation.
 - Preserve the intentional headed/maximized anti-detection setup and `ViewportSize.NoViewport`.
 - Login automation requires English UI and fails clearly when required markers are missing.
 - The one-time Gold Shop offer is a blocking announcement, not an automation action. Dismiss it after game-page
@@ -137,6 +140,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   after a manual choice reaches an authenticated Official game origin, atomically update that account's server name
   and URL in Manage and sync the active runtime config. A failed selection reopens the picker with remaining worlds;
   persist the selected wuid and any server correction only after authenticated game-page verification.
+- A manually selected lobby world may temporarily differ from `BotOptions.BaseUrl` until verification persists the
+  correction. During that login flow, every navigation, URL resolution, and server-keyed cache must use the resolved
+  game origin rather than the stale configured base URL.
 - A recent-login cache hit is valid only on the configured game origin, never on lobby/login URLs, and still probes
   explicit restriction/challenge signals before skipping the full login check.
 - Account `.env` mutations hold one shared per-file read-modify-write lock and use atomic replacement. New values are
@@ -206,8 +212,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
 
 - Account reads (`status`, account/village snapshots, and village scans), automatic reward collection, account-wide
   reset detection, and free production-bonus activation are immediate Account tasks. They run before
-  village/group work and must never enter Construction's strict queue order. Reward collection still obeys its
-  feature and village automation settings.
+  village/group work and must never enter Construction's strict queue order. Account is an always-on queue category,
+  not a user-toggleable automation group; do not show it on the Dashboard or in per-village group settings.
 - `ActiveConstructions` is the source of truth for occupied construction slots. A full queue is a normal blocked
   state, not an exception.
 - Construction follows visible per-village queue order. A deferred head blocks later construction in that village;

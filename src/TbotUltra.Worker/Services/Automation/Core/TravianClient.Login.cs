@@ -57,8 +57,8 @@ public sealed partial class TravianClient : ISessionClient
         {
             if (_rotateAfterLobbyLoginAsync is not null)
             {
-                Notify("[lobby-login] SSO confirmed; isolating lobby state before normal game automation.");
-                _page = await _rotateAfterLobbyLoginAsync(cancellationToken);
+                Notify("[lobby-login] SSO confirmed; isolating lobby consent state before normal game automation.");
+                _page = await _rotateAfterLobbyLoginAsync(ServerUrl, cancellationToken);
                 await GotoAsync(Paths.Resources, cancellationToken);
                 if (!await WaitUntilLoggedInAsync(cancellationToken))
                 {

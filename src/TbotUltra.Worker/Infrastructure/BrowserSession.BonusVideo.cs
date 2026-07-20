@@ -46,7 +46,7 @@ public sealed partial class BrowserSession
                 .WaitAsync(phaseTimeout.Token);
             videoContext = await videoBrowser.NewContextAsync(new BrowserNewContextOptions
             {
-                BaseURL = _config.BaseUrl,
+                BaseURL = _effectiveBaseUrl,
                 ViewportSize = ViewportSize.NoViewport,
                 StorageState = stateJson,
             }).WaitAsync(phaseTimeout.Token);
@@ -394,7 +394,7 @@ public sealed partial class BrowserSession
         string? workingHost = null;
         try
         {
-            workingHost = new Uri(_config.BaseUrl).Host;
+            workingHost = new Uri(_effectiveBaseUrl).Host;
         }
         catch
         {
@@ -521,7 +521,7 @@ public sealed partial class BrowserSession
         IReadOnlyList<BrowserContextCookiesResult> cookies;
         try
         {
-            cookies = await _context.CookiesAsync(new[] { _config.BaseUrl });
+            cookies = await _context.CookiesAsync(new[] { _effectiveBaseUrl });
         }
         catch
         {

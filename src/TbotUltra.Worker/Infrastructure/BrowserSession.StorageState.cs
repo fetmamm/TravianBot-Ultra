@@ -59,7 +59,7 @@ public sealed partial class BrowserSession
         string accountHost;
         try
         {
-            accountHost = new Uri(_config.BaseUrl).Host.ToLowerInvariant();
+            accountHost = new Uri(_effectiveBaseUrl).Host.ToLowerInvariant();
         }
         catch
         {

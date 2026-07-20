@@ -747,7 +747,8 @@ public partial class MainWindow
 
         // Keep the popup stable even when the dashboard cards have been reordered by the user.
         var groupCards = _automationLoopTasks
-            .Where(card => card.IsVisible)
+            .Where(card => card.IsVisible
+                && (!QueueGroupCatalog.TryParse(card.TaskName, out var group) || group != QueueGroup.Account))
             .Select(card => (
                 Key: card.TaskName,
                 Title: string.Equals(

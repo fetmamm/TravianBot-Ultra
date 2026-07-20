@@ -13,35 +13,12 @@
                    LineHeight="20"
                    Foreground="{DynamicResource TextSecondaryBrush}" />
 
-        <Border Margin="0,14,0,0"
-                Padding="11,9"
-                CornerRadius="7"
-                Background="{DynamicResource WarningBgBrush}"
-                BorderBrush="{DynamicResource WarningBorderBrush}"
-                BorderThickness="1">
-            <StackPanel>
-                <TextBlock Text="CURRENTLY CONFIGURED"
-                           FontSize="10"
-                           FontWeight="SemiBold"
-                           Foreground="{DynamicResource WarningTextBrush}" />
-                <TextBlock Text="{Binding ConfiguredTarget}"
-                           Margin="0,3,0,0"
-                           TextWrapping="Wrap"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
-            </StackPanel>
-        </Border>
-
-        <TextBlock Text="{Binding SelectionHint}"
-                   Margin="0,12,0,8"
-                   TextWrapping="Wrap"
-                   Foreground="{DynamicResource TextMutedBrush}"
-                   FontSize="12" />
-
         <ListBox x:Name="WorldListBox"
                  ItemsSource="{Binding Worlds}"
                  SelectedIndex="0"
                  MinHeight="110"
                  MaxHeight="330"
+                 Margin="0,14,0,0"
                  Background="Transparent"
                  BorderThickness="0"
                  Padding="0"
@@ -83,35 +60,17 @@
                                 </Style.Triggers>
                             </Style>
                         </Border.Style>
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <StackPanel>
-                                <TextBlock Text="{Binding Name}"
-                                           FontSize="14"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <TextBlock Text="{Binding Details}"
-                                           Margin="0,5,12,0"
-                                           TextWrapping="Wrap"
-                                           LineHeight="18"
-                                           Foreground="{DynamicResource TextSecondaryBrush}" />
-                            </StackPanel>
-                            <Border Grid.Column="1"
-                                    Padding="7,3"
-                                    CornerRadius="5"
-                                    VerticalAlignment="Top"
-                                    Background="{DynamicResource SuccessBgBrush}"
-                                    BorderBrush="{DynamicResource SuccessBorderBrush}"
-                                    BorderThickness="1">
-                                <TextBlock Text="OWNED"
-                                           FontSize="9"
-                                           FontWeight="SemiBold"
-                                           Foreground="{DynamicResource SuccessTextBrush}" />
-                            </Border>
-                        </Grid>
+                        <StackPanel>
+                            <TextBlock Text="{Binding Name}"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Text="{Binding Details}"
+                                       Margin="0,5,12,0"
+                                       TextWrapping="Wrap"
+                                       LineHeight="18"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </StackPanel>
                     </Border>
                 </DataTemplate>
             </ListBox.ItemTemplate>

@@ -534,7 +534,7 @@ public sealed partial class BotTaskRunner
             setConsentDomainsAllowed: allowed => GetRequiredSharedVisibleSession().ConsentDomainsAllowed = allowed,
             cleanupAfterBonusVideoAsync: (page, ct) => GetRequiredSharedVisibleSession().CleanupAfterBonusVideoAsync(page, ct),
             runInIsolatedBonusVideoBrowserAsync: (action, ct) => GetRequiredSharedVisibleSession().RunInIsolatedBonusVideoBrowserAsync(action, ct),
-            rotateAfterLobbyLoginAsync: ct => RotateSharedVisibleContextAfterLobbyLoginAsync(log, leaseGeneration, ct),
+            rotateAfterLobbyLoginAsync: (serverUrl, ct) => RotateSharedVisibleContextAfterLobbyLoginAsync(serverUrl, log, leaseGeneration, ct),
             browserTrace: GetRequiredSharedVisibleSession().BrowserTrace);
         return new ClientLease(_sharedVisibleSession!, sharedClient, true);
     }
@@ -546,6 +546,7 @@ public sealed partial class BotTaskRunner
     }
 
     private async Task<IPage> RotateSharedVisibleContextAfterLobbyLoginAsync(
+        string effectiveBaseUrl,
         Action<string> log,
         long leaseGeneration,
         CancellationToken cancellationToken)
@@ -557,7 +558,7 @@ public sealed partial class BotTaskRunner
 
         try
         {
-            var cleanPage = await session.RotateMainContextFromSavedStateAsync(cancellationToken);
+            var cleanPage = await session.RotateMainContextFromSavedStateAsync(effectiveBaseUrl, cancellationToken);
             try
             {
                 _sessionGeneration.ThrowIfStale(leaseGeneration);
@@ -625,7 +626,7 @@ public sealed partial class BotTaskRunner
         Action<bool>? setConsentDomainsAllowed = null,
         Func<IPage, CancellationToken, Task>? cleanupAfterBonusVideoAsync = null,
         Func<Func<IPage, CancellationToken, Task<string>>, CancellationToken, Task<string>>? runInIsolatedBonusVideoBrowserAsync = null,
-        Func<CancellationToken, Task<IPage>>? rotateAfterLobbyLoginAsync = null,
+        Func<string, CancellationToken, Task<IPage>>? rotateAfterLobbyLoginAsync = null,
         BrowserTraceLogger? browserTrace = null)
     {
         return new TravianClient(
@@ -642,7 +643,19 @@ public sealed partial class BotTaskRunner
             runInIsolatedBonusVideoBrowserAsync: runInIsolatedBonusVideoBrowserAsync,
             rotateAfterLobbyLoginAsync: rotateAfterLobbyLoginAsync,
             lobbyWorldSelectionRequested: LobbyWorldSelectionRequested,
-            lobbyWorldServerResolved: LobbyWorldServerResolved,
+            lobbyWorldServerResolved: async (resolution, cancellationToken) =>
+            {
+                if (LobbyWorldServerResolved is not null)
+                {
+                    await LobbyWorldServerResolved(resolution, cancellationToken);
+                }
+
+                if (string.Equals(_sharedVisibleAccountName, resolution.AccountName, StringComparison.OrdinalIgnoreCase))
+                {
+                    _sharedVisibleBaseUrl = resolution.ServerUrl.TrimEnd('/');
+                    log($"[browser-session] active server identity updated to '{new Uri(_sharedVisibleBaseUrl).Host}' after verified lobby correction.");
+                }
+            },
             browserTrace: browserTrace);
     }
 

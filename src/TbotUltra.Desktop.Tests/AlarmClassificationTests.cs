@@ -5,6 +5,13 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class AlarmClassificationTests
 {
     [Fact]
+    public void LobbyWorldResolutionPendingSave_IsNotAlarm()
+    {
+        Assert.False(MainWindow.IsAlarmMessage(
+            "[lobby-login] manually selected owned world resolved to 'cw.x5.international.travian.com'; account correction pending authenticated game verification."));
+    }
+
+    [Fact]
     public void ExpectedBonusVideoFallback_IsWarningNotAlarm()
     {
         Assert.False(MainWindow.IsAlarmMessage(

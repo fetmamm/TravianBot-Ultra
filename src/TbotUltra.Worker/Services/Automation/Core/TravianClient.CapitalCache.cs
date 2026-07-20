@@ -171,7 +171,7 @@ public sealed partial class TravianClient
             _capitalCacheByKey[key] = new CapitalCacheEntry
             {
                 AccountName = _account.Name,
-                ServerUrl = _config.BaseUrl.TrimEnd('/'),
+                ServerUrl = ServerUrl,
                 VillageName = villageName,
                 IsCapital = resolvedIsCapital,
                 CoordX = coordX ?? existing?.CoordX,
@@ -389,7 +389,7 @@ public sealed partial class TravianClient
         => IsCapitalCacheEntryForAccount(entry, _account.Name)
             && string.Equals(
                 entry.ServerUrl.TrimEnd('/'),
-                _config.BaseUrl.TrimEnd('/'),
+                ServerUrl,
                 StringComparison.OrdinalIgnoreCase);
 
     private string BuildCapitalCacheKey(string villageName, int? coordX = null, int? coordY = null)
@@ -397,7 +397,7 @@ public sealed partial class TravianClient
         var identity = coordX.HasValue && coordY.HasValue
             ? $"xy:{coordX.Value}|{coordY.Value}"
             : $"name:{villageName}";
-        return CapitalCacheKey.Build(_account.Name, _config.BaseUrl.TrimEnd('/'), identity);
+        return CapitalCacheKey.Build(_account.Name, ServerUrl, identity);
     }
 
     private static string BuildCapitalCacheEntryKey(CapitalCacheEntry entry)
