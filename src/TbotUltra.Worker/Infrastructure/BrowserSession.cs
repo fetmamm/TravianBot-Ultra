@@ -22,9 +22,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
     private static readonly TimeSpan IsolatedBonusVideoCloseTimeout = TimeSpan.FromSeconds(10);
     private sealed record BonusVideoCooldownState(DateTimeOffset UntilUtc, BonusVideoFailureKind Kind);
     private static readonly ConcurrentDictionary<string, BonusVideoCooldownState> BonusVideoCooldownByRoute = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly SemaphoreSlim WarmupGate = new(1, 1);
     private static readonly SemaphoreSlim StorageStateGate = new(1, 1);
-    private static bool _warmupCompleted;
     private readonly BotOptions _config;
     private readonly AccountOptions _account;
     private readonly string _projectRoot;
@@ -121,7 +119,15 @@ public sealed partial class BrowserSession : IAsyncDisposable
         try
         {
             _playwright = await Playwright.CreateAsync();
-            _browser = await _playwright.Chromium.LaunchAsync(CreateChromiumLaunchOptions(keepNativePopupBlocker: true));
+            var launchOptions = CreateChromiumLaunchOptions(keepNativePopupBlocker: true);
+            // Record the process this launch creates so a crashed run's browser window can be closed on the
+            // next start. The session runs the user's system Chrome, so its processes are indistinguishable
+            // from the user's own by name or path — only the recorded identity makes cleanup safe.
+            _browser = await LaunchedBrowserRegistry.TrackAsync(
+                _projectRoot,
+                launchOptions.Channel,
+                () => _playwright.Chromium.LaunchAsync(launchOptions),
+                _log);
             return await OpenMainContextPageAsync(cancellationToken);
         }
         catch
@@ -678,6 +684,11 @@ public sealed partial class BrowserSession : IAsyncDisposable
                 cleanupFailure ??= ex;
             }
         }
+
+        // The browser closed on purpose, so nothing is left for the next start to clean up. Done even when
+        // cleanup reported a failure: a stale record would point at a PID that is gone (harmless) or reused
+        // (rejected by the start-time check), while keeping it risks acting on the wrong process later.
+        LaunchedBrowserRegistry.Forget(_projectRoot, _log);
 
         if (cleanupFailure is not null)
         {
