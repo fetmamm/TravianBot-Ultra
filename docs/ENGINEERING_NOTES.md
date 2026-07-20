@@ -107,6 +107,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
 
 - Validate bundled Chromium by its exact Playwright revision and executable, but do not hard-code the Windows
   archive directory name; supported Playwright versions have used both `chrome-win` and `chrome-win64`.
+- Never install or ship `chromium_headless_shell` (~270 MB). Headless game automation does not exist; install with
+  `install chromium --no-shell`, and the cleanup removes the shell folder at ANY revision. The two internal
+  headless launches (browser warmup, proxy IP check) MUST set `Channel = "chromium"` — a plain `Headless = true`
+  resolves to the shell and fails with "Executable doesn't exist at ...chromium_headless_shell-<rev>...".
 - `DOMContentLoaded` is sufficient only when followed by a required page-marker check.
 - Full login starts in the Travian lobby and enters the owned world through SSO; never submit credentials to the
   configured game server or add direct-server fallback.

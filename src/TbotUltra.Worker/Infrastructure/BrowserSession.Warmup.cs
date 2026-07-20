@@ -32,6 +32,10 @@ public sealed partial class BrowserSession
                 browser = await playwright.Chromium.LaunchAsync(new BrowserTypeLaunchOptions
                 {
                     Headless = true,
+                    // Channel pins this to the regular Chromium build. Without it Playwright resolves a
+                    // plain Headless=true to chromium_headless_shell, a second ~270 MB download the app
+                    // otherwise never needs and no longer installs.
+                    Channel = "chromium",
                 });
 
                 await browser.CloseAsync();
@@ -149,8 +153,9 @@ public sealed partial class BrowserSession
     }
 
     /// <summary>
-    /// Deletes browser folders left behind by an earlier Playwright version and returns how many were
-    /// removed. Each stale revision is a few hundred MB, and nothing else clears them: the app updater
+    /// Deletes browser folders this app cannot use and returns how many were removed: revisions left by an
+    /// earlier Playwright version, plus the headless shell at any revision (the bot always launches with
+    /// Headless=false). Each folder is a few hundred MB, and nothing else clears them: the app updater
     /// overlays files without mirroring, and Playwright's own cleanup only runs during an install, which
     /// the update path skips because the browsers arrive with the package.
     ///
@@ -184,7 +189,7 @@ public sealed partial class BrowserSession
             foreach (var directory in Directory.GetDirectories(playwrightRoot))
             {
                 var name = Path.GetFileName(directory);
-                if (!IsOutdatedChromiumRevisionFolder(name, expectedRevision))
+                if (!IsRemovableChromiumFolder(name, expectedRevision))
                 {
                     continue;
                 }
@@ -193,7 +198,7 @@ public sealed partial class BrowserSession
                 {
                     Directory.Delete(directory, recursive: true);
                     removed++;
-                    log?.Invoke($"[browser] removed outdated browser '{name}'.");
+                    log?.Invoke($"[browser] removed unused browser '{name}'.");
                 }
                 catch (Exception ex)
                 {
@@ -227,27 +232,30 @@ public sealed partial class BrowserSession
     }
 
     /// <summary>
-    /// True for a Chromium browser folder ("chromium-1161", "chromium_headless_shell-1161") whose revision
-    /// differs from the expected one. Other Playwright content (ffmpeg, winldd, .links) is never matched.
+    /// True for a Chromium browser folder this app has no use for: any "chromium-1161" whose revision
+    /// differs from the expected one, and EVERY "chromium_headless_shell-1161" regardless of revision —
+    /// the bot always launches with Headless=false, so the shell (~270 MB) is dead weight even at the
+    /// current revision. Other Playwright content (ffmpeg, winldd, .links) is never matched.
     /// </summary>
-    private static bool IsOutdatedChromiumRevisionFolder(string folderName, string expectedRevision)
+    private static bool IsRemovableChromiumFolder(string folderName, string expectedRevision)
     {
-        foreach (var prefix in new[] { "chromium-", "chromium_headless_shell-" })
+        const string headlessShellPrefix = "chromium_headless_shell-";
+        var isHeadlessShell = folderName.StartsWith(headlessShellPrefix, StringComparison.OrdinalIgnoreCase);
+        var prefix = isHeadlessShell ? headlessShellPrefix : "chromium-";
+        if (!folderName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
         {
-            if (!folderName.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            var revision = folderName[prefix.Length..];
-            // Digits only: never delete a folder whose suffix is not a plain revision, such as a
-            // "chromium-tip-of-tree" build a developer installed on purpose.
-            return revision.Length > 0
-                && revision.All(char.IsAsciiDigit)
-                && !string.Equals(revision, expectedRevision, StringComparison.Ordinal);
+            return false;
         }
 
-        return false;
+        var revision = folderName[prefix.Length..];
+        // Digits only: never delete a folder whose suffix is not a plain revision, such as a
+        // "chromium-tip-of-tree" build a developer installed on purpose.
+        if (revision.Length == 0 || !revision.All(char.IsAsciiDigit))
+        {
+            return false;
+        }
+
+        return isHeadlessShell || !string.Equals(revision, expectedRevision, StringComparison.Ordinal);
     }
 
     /// <summary>

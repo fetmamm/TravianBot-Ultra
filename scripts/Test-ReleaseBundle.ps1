@@ -75,6 +75,14 @@ if (-not $chromiumExe) {
         "(chromium-$expectedChromiumRevision). Present: $(if ($present) { $present } else { "none" }).")
 }
 
+# The headless shell is ~270 MB the app can never use: every launch is Headless=false, and the two
+# internal headless launches pin Channel="chromium" to this regular build.
+$headlessShell = Get-ChildItem -LiteralPath $browserRoot -Directory -Filter "chromium_headless_shell-*" -ErrorAction SilentlyContinue |
+    Select-Object -First 1
+if ($headlessShell) {
+    throw "Release bundle ships the unused Chromium headless shell: $($headlessShell.Name)."
+}
+
 foreach ($jsonFile in Get-ChildItem -LiteralPath (Join-Path $resolvedPackageRoot "config") -File -Filter "*.json") {
     try {
         Get-Content -LiteralPath $jsonFile.FullName -Raw | ConvertFrom-Json | Out-Null

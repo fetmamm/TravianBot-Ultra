@@ -67,6 +67,9 @@ public static class ChromiumInstaller
         startInfo.ArgumentList.Add(cliPath);
         startInfo.ArgumentList.Add("install");
         startInfo.ArgumentList.Add("chromium");
+        // "install chromium" also pulls chromium_headless_shell (~270 MB), a browser build this app can
+        // never use: every session launches with Headless=false. --no-shell skips that download.
+        startInfo.ArgumentList.Add("--no-shell");
         startInfo.Environment["PLAYWRIGHT_BROWSERS_PATH"] = browsersPath;
 
         using var process = new Process { StartInfo = startInfo, EnableRaisingEvents = true };

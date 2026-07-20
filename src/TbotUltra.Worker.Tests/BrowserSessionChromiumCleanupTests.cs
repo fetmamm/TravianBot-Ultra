@@ -29,6 +29,20 @@ public sealed class BrowserSessionChromiumCleanupTests : IDisposable
     }
 
     [Fact]
+    public void RemovesTheHeadlessShellEvenAtTheExpectedRevision()
+    {
+        // The bot always launches Headless=false, so the shell is ~270 MB that can never be used.
+        var expected = ExpectedRevision();
+        CreateChromiumFolder(expected);
+        CreateBrowserFolder($"chromium_headless_shell-{expected}");
+
+        Assert.Equal(1, BrowserSession.RemoveOutdatedChromiumRevisions(_root));
+
+        Assert.True(Directory.Exists(BrowserPath($"chromium-{expected}")));
+        Assert.False(Directory.Exists(BrowserPath($"chromium_headless_shell-{expected}")));
+    }
+
+    [Fact]
     public void RemovesNothingWhenTheExpectedRevisionIsNotInstalled()
     {
         // The safety rule: a half-broken install must never be stripped of the only browser present.

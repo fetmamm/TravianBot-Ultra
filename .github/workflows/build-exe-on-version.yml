@@ -119,9 +119,17 @@ jobs:
           if (-not (Test-Path $scriptPath)) {
             throw "Could not find playwright.ps1 in desktop build output."
           }
-          & $scriptPath install chromium
+          # --no-shell skips chromium_headless_shell (~270 MB). The app always launches with
+          # Headless=false, and the two internal headless launches (browser warmup, proxy IP check)
+          # pin Channel="chromium" so they use this regular build instead of the shell.
+          & $scriptPath install chromium --no-shell
           if ($LASTEXITCODE -ne 0) {
             throw "Playwright Chromium install failed with exit code $LASTEXITCODE."
+          }
+
+          $shell = Get-ChildItem $browserRoot -Directory -Filter "chromium_headless_shell-*" -ErrorAction SilentlyContinue
+          if ($shell) {
+            throw "Bundled browsers contain the unused headless shell: $($shell.Name)."
           }
 
       - name: Assemble release bundle

@@ -46,6 +46,11 @@ internal static class ProxyCheckService
             var launchOptions = new BrowserTypeLaunchOptions
             {
                 Headless = true,
+                // Channel pins this to the regular Chromium build. Without it Playwright resolves a plain
+                // Headless=true to chromium_headless_shell, a second ~270 MB download the app otherwise
+                // never needs and no longer installs — the IP check would fail with "Executable doesn't
+                // exist at ...chromium_headless_shell-<rev>...".
+                Channel = "chromium",
                 Timeout = 20000,
             };
             if (proxy is not null)
