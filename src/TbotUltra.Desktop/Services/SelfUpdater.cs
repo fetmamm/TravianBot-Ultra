@@ -104,7 +104,14 @@ public static class SelfUpdater
 
     // PowerShell updater: shows a small window (status label + marquee progress bar), waits for the app to
     // close, overlays the new files while excluding user-data paths, then relaunches the app.
-    private static string BuildUpdaterScript()
+    //
+    // Everything the user owns lives under config/ (bot.json, proxies.json, building_templates.json and
+    // config/accounts/<account>/ with queue.json, settings.json, proxy_plan.json, village_cache.json,
+    // session state) plus .env for the account credentials. Those are excluded from the overlay, and
+    // robocopy runs WITHOUT /MIR so files missing from the new build are never deleted. Data the app owns
+    // (e.g. buildings_catalog.json) is an embedded resource and travels with the binary instead.
+    // Internal for the test that locks these exclusions in — losing one silently wipes user accounts.
+    internal static string BuildUpdaterScript()
     {
         return """
             param(
