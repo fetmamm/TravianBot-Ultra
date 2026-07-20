@@ -934,6 +934,7 @@ public partial class MainWindow
         }
         _resourceClickCooldownBySlot.Clear();
         _collectTasksLastQueuedAtByVillage.Clear();
+        _productionBackfillStateByVillage.Clear();
         _resourceLastQueuedTargetBySlot.Clear();
         _resourcesViewModel.ClearPendingTargets();
         _resourcesViewModel.InfoText = "Resources not loaded yet.";

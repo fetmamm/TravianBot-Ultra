@@ -18,6 +18,18 @@ public partial class MainWindow
     private static readonly TimeSpan CollectTasksVillageCooldown = TimeSpan.FromMinutes(1);
     private readonly Dictionary<string, DateTimeOffset> _collectTasksLastQueuedAtByVillage = new(StringComparer.OrdinalIgnoreCase);
 
+    // dorf1 is the only page carrying a production table. Every cheaper read (dorf2, build pages,
+    // storage-only refreshes) returns no production at all, so a village the bot has not opened on dorf1
+    // shows "-/h" on the resources page and "not filling" on the storage timers until something happens
+    // to take it there. The backfill below fixes that by fetching dorf1 once for the village the user is
+    // looking at — but it navigates, so it is deliberately stingy and strictly budgeted.
+    private const int ProductionBackfillMaxAttempts = 3;
+    private static readonly TimeSpan ProductionBackfillRetryCooldown = TimeSpan.FromMinutes(5);
+    private readonly Dictionary<string, ProductionBackfillState> _productionBackfillStateByVillage = new(StringComparer.OrdinalIgnoreCase);
+    private bool _productionBackfillRunning;
+
+    private sealed record ProductionBackfillState(int Attempts, DateTimeOffset NextAttemptAt, bool GaveUpLogged);
+
     private async Task TryRefreshResourceProductionOnlyAsync(CancellationToken cancellationToken)
     {
         if (_lastResourceStatusForUi is null)
@@ -182,6 +194,7 @@ public partial class MainWindow
         ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
         TriggerDeferredConstructionWaitRefresh(status, "resource_status_refresh");
         TriggerDeferredTroopTrainingWaitRefresh(status, "resource_status_refresh");
+        TriggerProductionBackfillIfUnknown(status, "resource_status_refresh");
     }
 
     private void ApplyStorageStatusToUi(VillageStatus status, string source)
@@ -201,7 +214,107 @@ public partial class MainWindow
         TriggerDeferredConstructionWaitRefresh(status, "storage_status_refresh");
         TriggerDeferredTroopTrainingWaitRefresh(status, "storage_status_refresh");
         UpdateResourcesInfoText(status, _resourcesViewModel.AllFields.Count);
+        TriggerProductionBackfillIfUnknown(status, source);
     }
+
+    /// <summary>
+    /// Fetches dorf1 once for the selected village when its production per hour is still unknown.
+    ///
+    /// Robustness rules, because this is the only place that navigates on its own:
+    /// - only for the village currently shown (callers apply it after the selected-village check),
+    /// - never while logged out, sleeping, on hold, mid-operation, or with another refresh running,
+    /// - at most <see cref="ProductionBackfillMaxAttempts"/> tries per village, spaced by
+    ///   <see cref="ProductionBackfillRetryCooldown"/>; the attempt is counted BEFORE the read, so a
+    ///   read that throws still consumes budget and cannot loop,
+    /// - giving up is logged once per village, not on every status apply,
+    /// - production arriving from any source clears the budget, so a later genuine loss can retry.
+    /// </summary>
+    private void TriggerProductionBackfillIfUnknown(VillageStatus status, string source)
+    {
+        var villageKey = VillageStatusCache.TryResolveCoordinateKey(status.ActiveVillage, status)
+            ?? NormalizeVillageName(status.ActiveVillage);
+        if (string.IsNullOrWhiteSpace(villageKey))
+        {
+            return;
+        }
+
+        if (HasKnownProductionForUi(status))
+        {
+            if (_productionBackfillStateByVillage.Remove(villageKey))
+            {
+                AppendLog($"[production-backfill] village='{status.ActiveVillage}' now has production/h; retry budget reset.");
+            }
+
+            return;
+        }
+
+        if (_productionBackfillRunning
+            || _resourceSnapshotRefreshRunning
+            || !_isLoggedIn
+            || IsSessionSleeping
+            || _uiBusy
+            || ActiveAccountHold() is not null)
+        {
+            return;
+        }
+
+        _productionBackfillStateByVillage.TryGetValue(villageKey, out var state);
+        var attempts = state?.Attempts ?? 0;
+        if (attempts >= ProductionBackfillMaxAttempts)
+        {
+            if (state is { GaveUpLogged: false })
+            {
+                _productionBackfillStateByVillage[villageKey] = state with { GaveUpLogged = true };
+                AppendLog(
+                    $"[production-backfill] giving up for village='{status.ActiveVillage}' after "
+                    + $"{ProductionBackfillMaxAttempts} attempts; production/h stays unknown until it is read elsewhere.");
+            }
+
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (state is not null && now < state.NextAttemptAt)
+        {
+            return;
+        }
+
+        _productionBackfillStateByVillage[villageKey] = new ProductionBackfillState(
+            attempts + 1,
+            now + ProductionBackfillRetryCooldown,
+            GaveUpLogged: false);
+        _productionBackfillRunning = true;
+        AppendLog(
+            $"[production-backfill] village='{status.ActiveVillage}' has no production/h (source={source}); "
+            + $"reading dorf1 (attempt {attempts + 1}/{ProductionBackfillMaxAttempts}).");
+
+        _backgroundTasks.Run(async cancellationToken =>
+        {
+            try
+            {
+                // Default arguments read the SELECTED village's dorf1 (switching to it if needed), which is
+                // the only read that both produces production values and persists them to the village cache.
+                await RefreshResourceSnapshotForUiAsync(cancellationToken: cancellationToken);
+            }
+            catch (OperationCanceledException)
+            {
+                // Shutdown or a session stop; the retry budget already accounted for this attempt.
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"[production-backfill] dorf1 read failed for village='{status.ActiveVillage}': {ex.Message}");
+            }
+            finally
+            {
+                _productionBackfillRunning = false;
+            }
+        });
+    }
+
+    // "Known" means at least one resource reported a production value. A partial read that produced
+    // nothing must not count, or the backfill would consider the village done and never fill it in.
+    private static bool HasKnownProductionForUi(VillageStatus status)
+        => status.ResourceStorageForecasts?.Any(item => item.ProductionPerHour is not null) == true;
 
     private VillageStatus MergeResourceStatusForUi(VillageStatus status)
     {
