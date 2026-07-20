@@ -845,6 +845,31 @@ public sealed class TravianClientHelperTests
         InvokeEnsureBuildingCanBeConstructed(status, 10, "Warehouse");
     }
 
+    [Fact]
+    public void FindExistingNonDuplicateBuilding_FindsTownHallInDifferentSlot()
+    {
+        var buildings = new List<Building>
+        {
+            new(21, "Empty", 0, null, null),
+            new(27, "Town Hall", 1, null, 24),
+        };
+
+        var existing = InvokeFindExistingNonDuplicateBuilding(buildings, 24, "Town Hall");
+
+        Assert.NotNull(existing);
+        Assert.Equal(27, existing!.SlotId);
+    }
+
+    [Theory]
+    [InlineData(10, "Warehouse")]
+    [InlineData(23, "Cranny")]
+    public void FindExistingNonDuplicateBuilding_AllowsSupportedDuplicates(int gid, string name)
+    {
+        var buildings = new List<Building> { new(27, name, 20, null, gid) };
+
+        Assert.Null(InvokeFindExistingNonDuplicateBuilding(buildings, gid, name));
+    }
+
     [Theory]
     [InlineData(25, "Residence", 26, "Palace")]
     [InlineData(26, "Palace", 25, "Residence")]
@@ -872,6 +897,16 @@ public sealed class TravianClientHelperTests
         var method = typeof(TravianClient).GetMethod("EnsureBuildingCanBeConstructed", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(method);
         method!.Invoke(null, [status, gid, name]);
+    }
+
+    private static Building? InvokeFindExistingNonDuplicateBuilding(
+        IReadOnlyList<Building> buildings,
+        int gid,
+        string name)
+    {
+        var method = typeof(TravianClient).GetMethod("FindExistingNonDuplicateBuilding", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+        return (Building?)method!.Invoke(null, [buildings, gid, name]);
     }
 
     [Theory]

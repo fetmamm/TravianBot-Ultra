@@ -63,6 +63,17 @@ public sealed partial class TravianClient : IBuildingClient
                 return WithEffectiveSlot(humanizeDefer);
             }
 
+            // A queued construct can become stale when the user builds the requested building manually,
+            // possibly in a different slot. Read the complete live dorf2 overview immediately before
+            // opening the queued slot; checking only that slot cannot detect village-wide duplicates.
+            var liveBuildings = await ReadBuildingsAsync(cancellationToken);
+            var existingVillageBuilding = FindExistingNonDuplicateBuilding(liveBuildings, gid, buildingName);
+            if (existingVillageBuilding is not null)
+            {
+                Notify($"[construct] {buildingName} already exists at slot {existingVillageBuilding.SlotId} level {existingVillageBuilding.Level} on fresh dorf2 — removing stale task from queue.");
+                return WithEffectiveSlot($"Construct skipped: {buildingName} already exists at slot {existingVillageBuilding.SlotId} (confirmed level {existingVillageBuilding.Level} on dorf2). Removing from queue.");
+            }
+
             // Step 1: open the slot's construction page on the right category tab so the building's
             // wrapper actually exists in the DOM. Walls (slot 40) ignore category — only one option.
             var url = Paths.BuildBySlot(slotId);
@@ -566,6 +577,24 @@ public sealed partial class TravianClient : IBuildingClient
                 .Select(item => int.TryParse(item, out var slot) ? slot : 0)
                 .Where(slot => slot is >= 19 and <= 38)
                 .ToHashSet();
+
+    private static Building? FindExistingNonDuplicateBuilding(
+        IReadOnlyList<Building> buildings,
+        int gid,
+        string buildingName)
+    {
+        // These building families intentionally support multiple instances. Their normal prerequisite
+        // validation decides whether another instance is legal; mere presence must not discard the task.
+        if (gid is 23 or 31 or 32 or 33 or 38 or 39 or 42 or 43
+            || BuildingCatalogService.DuplicateRequiredExistingLevelFor(gid) is not null)
+        {
+            return null;
+        }
+
+        return buildings.FirstOrDefault(building =>
+            building.Level is >= 1
+            && (building.Gid == gid || BuildingNames.Same(building.Name, buildingName)));
+    }
 
     /// <summary>
     /// On the construct-choice page Official renders unmet prerequisites for a building as

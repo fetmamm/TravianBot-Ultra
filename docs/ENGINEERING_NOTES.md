@@ -238,6 +238,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   by another slot, never apply an unknown-slot same-name row to the target; use exact slot identity.
 - Existing buildings and level-zero sites are distinct. Select exact building types and verify active village,
   target slot, and result before considering an action successful.
+- Immediately before constructing a non-duplicate building, read the complete live dorf2 overview and remove a
+  stale queue item when that building already exists anywhere in the village, not only in the queued slot.
 - Templates preserve resource scope, reservations, ordered prerequisites, atomic insertion, and runtime slot
   rebinding. Tribe-incompatible choices remain disabled.
 - Catalog coverage is required for Romans, Teutons, Gauls, Egyptians, and Huns. Vikings are unsupported.
