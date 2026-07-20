@@ -18,6 +18,7 @@ public static class QueueGroupCatalog
             [QueueGroup.ResourceTransfer] = ("resource_transfer", "Resource Transfer", "Send resources between own villages."),
             [QueueGroup.Reinforcements] = ("reinforcements", "Reinforcements", "Send troops between own villages."),
             [QueueGroup.TownHallCelebration] = ("town_hall_celebration", "Town Hall celebration", "Small/big Town Hall celebrations."),
+            [QueueGroup.Account] = ("account", "Account", "Account and read-only status tasks."),
         };
 
     public static IReadOnlyList<QueueGroup> AllGroups => Metadata.Keys.ToList();
@@ -61,6 +62,7 @@ public static class QueueGroupCatalog
             TaskGroup.ResourceTransfer => QueueGroup.ResourceTransfer,
             TaskGroup.Reinforcements => QueueGroup.Reinforcements,
             TaskGroup.TownHallCelebration => QueueGroup.TownHallCelebration,
+            TaskGroup.Account => QueueGroup.Account,
             _ => QueueGroup.Construction,
         };
     }

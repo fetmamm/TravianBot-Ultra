@@ -262,7 +262,11 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     [InlineData("run_brewery_celebration", TaskGroup.BreweryCelebration, TaskPayloadKind.Brewery)]
     [InlineData("run_town_hall_celebration", TaskGroup.TownHallCelebration, TaskPayloadKind.None)]
     [InlineData("send_resources_between_villages", TaskGroup.ResourceTransfer, TaskPayloadKind.ResourceTransfer)]
-    [InlineData("collect_daily_quests", TaskGroup.Construction, TaskPayloadKind.None)]
+    [InlineData("status", TaskGroup.Account, TaskPayloadKind.None)]
+    [InlineData("scan_all_villages", TaskGroup.Account, TaskPayloadKind.None)]
+    [InlineData("account_snapshot", TaskGroup.Account, TaskPayloadKind.None)]
+    [InlineData("collect_daily_quests", TaskGroup.Account, TaskPayloadKind.None)]
+    [InlineData("load_buildings_snapshot", TaskGroup.Account, TaskPayloadKind.None)]
     public void TaskCatalog_Descriptors_ExposeGroupAndPayloadKind(string taskName, TaskGroup group, TaskPayloadKind payloadKind)
     {
         Assert.True(CoreTaskCatalog.TryGetDescriptor(taskName, out var descriptor));
@@ -271,7 +275,8 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     }
 
     [Theory]
-    [InlineData("status", QueueGroup.Construction)]
+    [InlineData("status", QueueGroup.Account)]
+    [InlineData("load_buildings_snapshot", QueueGroup.Account)]
     [InlineData("upgrade_resource_to_level", QueueGroup.Construction)]
     [InlineData("construct_building", QueueGroup.Construction)]
     [InlineData("hero_manage", QueueGroup.Hero)]
@@ -283,7 +288,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     [InlineData("send_farmlists", QueueGroup.Farming)]
     [InlineData("send_resources_between_villages", QueueGroup.ResourceTransfer)]
     [InlineData("send_reinforcements_between_villages", QueueGroup.Reinforcements)]
-    [InlineData("collect_daily_quests", QueueGroup.Construction)]
+    [InlineData("collect_daily_quests", QueueGroup.Account)]
     public void QueueGroupCatalog_ResolvesKnownTasks_FromDescriptors(string taskName, QueueGroup expected)
     {
         Assert.Equal(expected, QueueGroupCatalog.ResolveGroup(taskName));
@@ -590,6 +595,15 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         Assert.Equal(QueueGroup.Reinforcements, QueueGroupCatalog.ResolveGroup("send_reinforcements_between_villages"));
         Assert.True(QueueGroupCatalog.TryParse("reinforcements", out var group));
         Assert.Equal(QueueGroup.Reinforcements, group);
+    }
+
+    [Fact]
+    public void QueueGroupCatalog_ResolvesAccountTasks()
+    {
+        Assert.Equal(QueueGroup.Account, QueueGroupCatalog.ResolveGroup("load_buildings_snapshot"));
+        Assert.Equal(QueueGroup.Account, QueueGroupCatalog.ResolveGroup("scan_all_villages"));
+        Assert.True(QueueGroupCatalog.TryParse("account", out var group));
+        Assert.Equal(QueueGroup.Account, group);
     }
 
     [Fact]

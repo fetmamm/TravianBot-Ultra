@@ -75,8 +75,14 @@ public sealed class ContinuousLoopSelectorTests
     [Theory]
     [InlineData("collect_tasks", true)]
     [InlineData("COLLECT_DAILY_QUESTS", true)]
+    [InlineData("activate_production_bonus", true)]
+    [InlineData("READ_DAILY_RESET", true)]
+    [InlineData("load_buildings_snapshot", true)]
+    [InlineData("status", true)]
+    [InlineData("scan_all_villages", true)]
+    [InlineData("account_snapshot", true)]
     [InlineData("hero_manage", false)]
-    public void IsUtilityTask_UsesExistingTaskSet(string taskName, bool expected)
+    public void IsUtilityTask_RecognizesDirectTasks(string taskName, bool expected)
     {
         Assert.Equal(expected, ContinuousLoopSelector.IsUtilityTask(taskName));
     }
@@ -133,6 +139,35 @@ public sealed class ContinuousLoopSelectorTests
 
         Assert.Same(activeVillage, selection.PreferredItem);
         Assert.Equal([otherVillage, activeVillage], selection.ReadyItems);
+    }
+
+    [Fact]
+    public void SelectUtility_PrefersImmediateAccountTaskOverActiveVillageUtility()
+    {
+        var activeVillage = Item("collect_tasks", QueueStatus.Pending, 0);
+        activeVillage.Priority = 10;
+        var accountTask = Item("activate_production_bonus", QueueStatus.Pending, 0);
+        accountTask.Priority = -40;
+
+        var selection = ContinuousLoopSelector.SelectUtility(new ContinuousLoopUtilitySelectionInput(
+            [Candidate(activeVillage, "a", utilityEnabled: true), Candidate(accountTask, null, allowed: false, utilityEnabled: true)],
+            "a",
+            Now));
+
+        Assert.Same(accountTask, selection.PreferredItem);
+    }
+
+    [Fact]
+    public void SelectUtility_PrefersCollectTaskFromAnotherVillageAsImmediateAccountWork()
+    {
+        var collectTask = Item("collect_tasks", QueueStatus.Pending, 0);
+
+        var selection = ContinuousLoopSelector.SelectUtility(new ContinuousLoopUtilitySelectionInput(
+            [Candidate(collectTask, "b", allowed: true, utilityEnabled: true)],
+            "a",
+            Now));
+
+        Assert.Same(collectTask, selection.PreferredItem);
     }
 
     [Fact]

@@ -32,7 +32,9 @@ public static class QueueItemRowFactory
         {
             Id = item.Id,
             Group = item.Group,
-            GroupName = QueueGroupCatalog.GetTitle(item.Group),
+            GroupName = ContinuousLoopSelector.IsImmediateAccountTask(item.TaskName)
+                ? "Account"
+                : QueueGroupCatalog.GetTitle(item.Group),
             VillageName = resolveVillageName(item) ?? "-",
             VillageKey = resolveVillageKey(item) ?? string.Empty,
             DisplayName = displayName,

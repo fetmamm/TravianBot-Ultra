@@ -1030,6 +1030,21 @@ public partial class MainWindow
             return false;
         }
 
+        // Reward collection remains tied to the village's Construction automation choice even though it
+        // displays and schedules as Account work. The remaining Account tasks are explicit read-only or
+        // global commands and must be able to run immediately when queued by the user.
+        if (string.Equals(item.TaskName, "collect_tasks", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(item.TaskName, "collect_daily_quests", StringComparison.OrdinalIgnoreCase))
+        {
+            return IsQueueItemVillageEnabled(item)
+                && IsGroupEnabledForVillage(GetQueueItemVillageKey(item), QueueGroup.Construction);
+        }
+
+        if (ContinuousLoopSelector.IsAccountTaskIndependentOfVillageAutomation(item.TaskName))
+        {
+            return true;
+        }
+
         return IsQueueItemVillageEnabled(item) && IsQueueItemGroupEnabledForItsVillage(item);
     }
 

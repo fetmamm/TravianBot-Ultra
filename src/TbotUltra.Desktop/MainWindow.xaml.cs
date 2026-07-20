@@ -916,7 +916,11 @@ public partial class MainWindow : Window
             : "Support";
     }
 
-    private void EnqueueQuickTask(string taskName, string description, Dictionary<string, string>? payload = null)
+    private void EnqueueQuickTask(
+        string taskName,
+        string description,
+        Dictionary<string, string>? payload = null,
+        int priority = 0)
     {
         try
         {
@@ -947,7 +951,7 @@ public partial class MainWindow : Window
             }
             else
             {
-                item = _botService.Enqueue(taskName, payload, priority: 0, maxRetries: 3);
+                item = _botService.Enqueue(taskName, payload, priority, maxRetries: 3);
                 AppendLog($"Queued task: {taskName} (priority={item.Priority}, maxRetries={item.MaxRetries}).");
             }
 

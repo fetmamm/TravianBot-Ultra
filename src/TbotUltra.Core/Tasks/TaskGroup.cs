@@ -12,4 +12,5 @@ public enum TaskGroup
     ResourceTransfer = 7,
     Reinforcements = 8,
     TownHallCelebration = 9,
+    Account = 10,
 }

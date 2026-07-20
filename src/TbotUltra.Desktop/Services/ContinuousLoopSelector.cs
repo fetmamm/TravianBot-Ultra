@@ -52,14 +52,24 @@ internal static class ContinuousLoopSelector
             .Where(candidate =>
                 IsUtilityTask(candidate.Item.TaskName)
                 && candidate.IsUtilityEnabled
-                && candidate.IsAllowedByAutomationSettings
+                && (IsAccountTaskIndependentOfVillageAutomation(candidate.Item.TaskName)
+                    || candidate.IsAllowedByAutomationSettings)
                 && candidate.Item.Status == QueueStatus.Pending
                 && candidate.Item.NextAttemptAt <= input.Now));
         var readyUtilityItems = readyUtilityCandidates
             .Select(candidate => candidate.Item)
             .ToList();
         var preferredUtilityItem = readyUtilityCandidates
-            .FirstOrDefault(candidate =>
+            .FirstOrDefault(candidate => IsAccountTaskIndependentOfVillageAutomation(candidate.Item.TaskName))
+            ?.Item
+            ?? readyUtilityCandidates.FirstOrDefault(candidate =>
+                IsImmediateAccountTask(candidate.Item.TaskName)
+                && (input.ActiveVillageKey is null
+                    || string.Equals(candidate.VillageKey, input.ActiveVillageKey, StringComparison.OrdinalIgnoreCase)))
+            ?.Item
+            ?? readyUtilityCandidates.FirstOrDefault(candidate => IsImmediateAccountTask(candidate.Item.TaskName))
+            ?.Item
+            ?? readyUtilityCandidates.FirstOrDefault(candidate =>
                 input.ActiveVillageKey is null
                 || string.Equals(candidate.VillageKey, input.ActiveVillageKey, StringComparison.OrdinalIgnoreCase))
             ?.Item;
@@ -100,9 +110,25 @@ internal static class ContinuousLoopSelector
         return new ContinuousLoopGroupSelectionResult(candidate, rotationVillageKey);
     }
 
-    internal static bool IsUtilityTask(string? taskName) =>
+    internal static bool IsUtilityTask(string? taskName) => IsImmediateAccountTask(taskName);
+
+    internal static bool IsImmediateAccountTask(string? taskName) =>
         string.Equals(taskName, "collect_tasks", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(taskName, "collect_daily_quests", StringComparison.OrdinalIgnoreCase);
+        || string.Equals(taskName, "collect_daily_quests", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "activate_production_bonus", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "read_daily_reset", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "status", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "scan_all_villages", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "account_snapshot", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "load_buildings_snapshot", StringComparison.OrdinalIgnoreCase);
+
+    internal static bool IsAccountTaskIndependentOfVillageAutomation(string? taskName) =>
+        string.Equals(taskName, "activate_production_bonus", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "read_daily_reset", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "status", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "scan_all_villages", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "account_snapshot", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "load_buildings_snapshot", StringComparison.OrdinalIgnoreCase);
 
     internal static IReadOnlyList<QueueGroup> BuildConsideredGroups(
         IEnumerable<QueueGroup> configuredGroups,

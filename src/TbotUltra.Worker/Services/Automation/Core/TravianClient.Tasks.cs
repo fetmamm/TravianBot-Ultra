@@ -8,8 +8,7 @@ namespace TbotUltra.Worker.Services;
 // (the active village and "General tasks"), each with green "Collect" buttons.
 public sealed partial class TravianClient
 {
-    // The two markers that mean "task rewards are waiting". Kept in one place so the queue probe and
-    // the pre-collect guard below can never drift apart.
+    // The two markers that mean "task rewards are waiting" on normal pages.
     private const string ClaimableTaskMarkersSelector = "div.newQuestSpeechBubble, #questmasterButton.claimable";
 
     // Cheap, no-navigation probe used by the periodic refresh to decide whether to queue a
@@ -18,10 +17,8 @@ public sealed partial class TravianClient
     {
         try
         {
-            return await _page.EvaluateAsync<bool>(
-                $$"""
-                () => !!document.querySelector('{{ClaimableTaskMarkersSelector}}')
-                """);
+            var html = await _page.ContentAsync();
+            return TaskRewardDomParser.HasClaimableTasks(html, IsCurrentUrlForPath(Paths.Tasks));
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
         {

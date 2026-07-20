@@ -121,6 +121,25 @@ public sealed class QueueDisplayServicesTests
         Assert.Equal("[AUTO FIX] Construct Academy to level 1 (slot 30)", row.DisplayName);
     }
 
+    [Theory]
+    [InlineData("collect_tasks")]
+    [InlineData("collect_daily_quests")]
+    [InlineData("activate_production_bonus")]
+    [InlineData("read_daily_reset")]
+    public void Create_Row_DisplaysImmediateTasksUnderAccount(string taskName)
+    {
+        var row = QueueItemRowFactory.Create(
+            Item(taskName, []),
+            QueueItemEstimate.None,
+            displayRunningId: null,
+            resolveVillageName: _ => null,
+            resolveVillageKey: _ => null,
+            resolveDisplayName: item => item.TaskName,
+            formatServerTime: _ => "-");
+
+        Assert.Equal("Account", row.GroupName);
+    }
+
     [Fact]
     public void FormatQueueDurationTooltip_ShowsNormalAndConstructFasterTimes()
     {

@@ -38,7 +38,7 @@ public partial class MainWindow
         var loopRunning = _autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted);
         if (loopRunning)
         {
-            EnqueueQuickTask("load_buildings_snapshot", "Load buildings snapshot");
+            EnqueueQuickTask("load_buildings_snapshot", "Load buildings snapshot", priority: 100);
             BuildingsInfoTextBlock.Text = "Queued buildings load.";
             return;
         }

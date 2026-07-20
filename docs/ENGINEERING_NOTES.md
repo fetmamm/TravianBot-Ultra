@@ -129,6 +129,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Synchronize `BotOptions.BaseUrl` from the active account before login and fail fast when their normalized origins
   differ. An account switch invalidates the browser-session generation so a late `OpenPageAsync` cannot resurrect
   the previous account after shutdown.
+- Account-picker changes require confirmation only while both authenticated and backed by an open browser session;
+  logged-out/no-browser changes switch saved account immediately without a dialog.
 - Lobby world matching treats speed labels (`x3`, etc.) as optional display metadata but rejects an explicit
   conflicting speed. If neither cached wuid nor automatic name/host matching reaches the configured origin,
   interactive login shows every owned lobby world as selectable cards. The lobby-owned list is authoritative:
@@ -202,6 +204,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
 
 ## Construction and queue invariants
 
+- Account reads (`status`, account/village snapshots, and village scans), automatic reward collection, account-wide
+  reset detection, and free production-bonus activation are immediate Account tasks. They run before
+  village/group work and must never enter Construction's strict queue order. Reward collection still obeys its
+  feature and village automation settings.
 - `ActiveConstructions` is the source of truth for occupied construction slots. A full queue is a normal blocked
   state, not an exception.
 - Construction follows visible per-village queue order. A deferred head blocks later construction in that village;

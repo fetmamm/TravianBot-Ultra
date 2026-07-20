@@ -1,0 +1,168 @@
+<UserControl x:Class="TbotUltra.Desktop.Views.AccountSwitchConfirmationView"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             MinWidth="510">
+    <StackPanel>
+        <TextBlock Text="Switch active account?"
+                   FontSize="18"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource TextPrimaryBrush}" />
+        <Grid Margin="0,14,0,0">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition Width="44" />
+                <ColumnDefinition Width="*" />
+            </Grid.ColumnDefinitions>
+
+            <Border Grid.Column="0"
+                    Padding="14,12"
+                    CornerRadius="9"
+                    Background="{DynamicResource SurfaceAltBrush}"
+                    BorderBrush="{DynamicResource BorderSubtleBrush}"
+                    BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="CURRENT"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextMutedBrush}" />
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="40" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="34"
+                                Height="34"
+                                CornerRadius="17"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Background="{DynamicResource ControlBackgroundBrush}"
+                                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                BorderThickness="1">
+                            <TextBlock Text="{Binding Current.Initial}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </Border>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="{Binding Current.Title}"
+                                       TextTrimming="CharacterEllipsis"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Margin="0,3,0,0"
+                                       Text="{Binding Current.AccountName}"
+                                       TextTrimming="CharacterEllipsis"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource TextMutedBrush}" />
+                        </StackPanel>
+                    </Grid>
+                    <Border Margin="0,12,0,0"
+                            Padding="8,6"
+                            CornerRadius="5"
+                            Background="{DynamicResource SurfaceBrush}">
+                        <StackPanel>
+                            <TextBlock Text="SERVER"
+                                       FontSize="9"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextMutedBrush}" />
+                            <TextBlock Margin="0,2,0,0"
+                                       Text="{Binding Current.Server}"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+
+            <Border Grid.Column="1"
+                    Width="30"
+                    Height="30"
+                    CornerRadius="15"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Background="{DynamicResource ControlBackgroundBrush}"
+                    BorderBrush="{DynamicResource BorderSubtleBrush}"
+                    BorderThickness="1">
+                <TextBlock Text="→"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center"
+                           FontSize="17"
+                           Foreground="{DynamicResource TextSecondaryBrush}" />
+            </Border>
+
+            <Border Grid.Column="2"
+                    Padding="14,12"
+                    CornerRadius="9"
+                    Background="{DynamicResource SuccessBgBrush}"
+                    BorderBrush="{DynamicResource SuccessBorderBrush}"
+                    BorderThickness="1">
+                <StackPanel>
+                    <TextBlock Text="SWITCH TO"
+                               FontSize="10"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource SuccessTextBrush}" />
+                    <Grid Margin="0,10,0,0">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="40" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <Border Width="34"
+                                Height="34"
+                                CornerRadius="17"
+                                HorizontalAlignment="Left"
+                                VerticalAlignment="Top"
+                                Background="{DynamicResource SuccessBorderBrush}">
+                            <TextBlock Text="{Binding Target.Initial}"
+                                       HorizontalAlignment="Center"
+                                       VerticalAlignment="Center"
+                                       FontSize="14"
+                                       FontWeight="Bold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                        </Border>
+                        <StackPanel Grid.Column="1">
+                            <TextBlock Text="{Binding Target.Title}"
+                                       TextTrimming="CharacterEllipsis"
+                                       FontSize="14"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextPrimaryBrush}" />
+                            <TextBlock Margin="0,3,0,0"
+                                       Text="{Binding Target.AccountName}"
+                                       TextTrimming="CharacterEllipsis"
+                                       FontSize="11"
+                                       Foreground="{DynamicResource SuccessTextBrush}" />
+                        </StackPanel>
+                    </Grid>
+                    <Border Margin="0,12,0,0"
+                            Padding="8,6"
+                            CornerRadius="5"
+                            Background="{DynamicResource SurfaceBrush}">
+                        <StackPanel>
+                            <TextBlock Text="SERVER"
+                                       FontSize="9"
+                                       FontWeight="SemiBold"
+                                       Foreground="{DynamicResource TextMutedBrush}" />
+                            <TextBlock Margin="0,2,0,0"
+                                       Text="{Binding Target.Server}"
+                                       TextTrimming="CharacterEllipsis"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                        </StackPanel>
+                    </Border>
+                </StackPanel>
+            </Border>
+        </Grid>
+
+        <Border Margin="0,14,0,0"
+                Padding="11,9"
+                CornerRadius="7"
+                Background="{DynamicResource WarningBgBrush}"
+                BorderBrush="{DynamicResource WarningBorderBrush}"
+                BorderThickness="1">
+            <TextBlock Text="The current session will be logged out, the browser closed, and running operations stopped. Account queues and settings are kept."
+                       TextWrapping="Wrap"
+                       LineHeight="19"
+                       Foreground="{DynamicResource WarningTextBrush}" />
+        </Border>
+    </StackPanel>
+</UserControl>

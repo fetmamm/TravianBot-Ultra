@@ -6,6 +6,7 @@ using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Desktop.Views;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
 
@@ -723,10 +724,13 @@ public partial class MainWindow
             return;
         }
 
-        // Switching account is destructive to the running session (logout, browser close, automation
-        // stop), so it must never happen from a stray click in the picker. Confirm first and revert the
-        // picker to the still-active account when the user backs out.
-        if (!ConfirmAccountSwitch(current, selected.Name))
+        var hasLiveBrowserSession = AccountSwitchPolicy.HasLiveBrowserSession(
+            _isLoggedIn,
+            _browserSessionLikelyOpen);
+
+        // Only an authenticated, open browser session needs confirmation. With no live session the
+        // dropdown is just choosing which saved account the next Login will use.
+        if (hasLiveBrowserSession && !ConfirmAccountSwitch(FindAccount(current), selected))
         {
             AppendLog($"Account switch to '{selected.Name}' cancelled by user.");
             RefreshAccountPicker();
@@ -738,7 +742,7 @@ public partial class MainWindow
         {
             // Capture the previous account's options before switching so we can log it out cleanly.
             var previousOptions = ApplySelectedVillageToOptions(LoadBotOptions());
-            var previousLoggedIn = _isLoggedIn;
+            var previousLoggedIn = hasLiveBrowserSession;
 
             await ResetForAccountSwitchAsync(previousOptions, previousLoggedIn);
 
@@ -767,25 +771,19 @@ public partial class MainWindow
         }
     }
 
-    // Warns before an account switch. The consequences differ a lot depending on whether a session is
-    // live, so the message spells out what will actually be torn down in the current state.
-    private bool ConfirmAccountSwitch(string? currentAccountName, string newAccountName)
+    private bool ConfirmAccountSwitch(AccountEntry? currentAccount, AccountEntry newAccount)
     {
-        var from = string.IsNullOrWhiteSpace(currentAccountName) ? "the current account" : $"'{currentAccountName}'";
-        var consequences = _isLoggedIn
-            ? "The current session will be logged out, the browser closed and all running operations stopped."
-            : "All loaded account state (villages, resources, farm lists) will be cleared.";
-
-        var answer = AppDialog.ShowCustom(
+        var content = new AccountSwitchConfirmationView(currentAccount, newAccount);
+        var answer = AppDialog.ShowCustomContent(
             this,
-            $"You are about to switch from {from} to '{newAccountName}'.\n\n{consequences}\n\nThe queue and settings for each account are kept, so you can switch back later.",
+            content,
             "Switch account",
             [("Switch account", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.No)],
             MessageBoxImage.Warning,
             defaultResult: MessageBoxResult.No,
             cancelResult: MessageBoxResult.No,
             successResult: MessageBoxResult.Yes,
-            dangerResult: MessageBoxResult.No);
+            width: 610);
 
         return answer == MessageBoxResult.Yes;
     }
