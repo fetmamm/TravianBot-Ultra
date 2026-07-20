@@ -732,6 +732,17 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         Assert.Equal(expected, BotTaskRunner.ClassifyConstructionTaskResult("construct_building", result));
     }
 
+    [Fact]
+    public void BotTaskRunner_ClassifyConstructionTaskResult_MapsEmptyUpgradeSlot()
+    {
+        const string result = "Slot 38 is empty — construct the building before upgrading " +
+            "(page shows a construction menu, not an 'Upgrade to level 1' button). Upgrades performed: 0.";
+
+        Assert.Equal(
+            ConstructionTaskOutcome.MissingBuilding,
+            BotTaskRunner.ClassifyConstructionTaskResult("upgrade_building_to_level", result));
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_root))

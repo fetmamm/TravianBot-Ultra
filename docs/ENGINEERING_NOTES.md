@@ -240,6 +240,14 @@ Published artifacts belong under `artifacts/`, never beside source files.
   target slot, and result before considering an action successful.
 - Immediately before constructing a non-duplicate building, read the complete live dorf2 overview and remove a
   stale queue item when that building already exists anywhere in the village, not only in the queued slot.
+- After a successful hero resource transfer reloads the same verified build.php slot, retry its exact construct or
+  upgrade action directly; do not restart through queue and dorf2 probes unless the direct action remains unavailable.
+- An upgrade that confirms its planned slot is empty is not a successful no-op. Reconstruct the expected building in
+  that exact slot without slot fallback, keep the upgrade pending, then continue its original target level.
+- Every village-status cache write for the same village must also replace the preferred UI building snapshot after
+  partial-state merging; never let an older unknown-level snapshot override a newer live or merged read.
+- Queued and direct `Load buildings` must both produce a full village status with Warehouse/Granary capacity. A
+  dorf2 building snapshot must be merged with the same village's existing status, never replace it with null capacity.
 - Templates preserve resource scope, reservations, ordered prerequisites, atomic insertion, and runtime slot
   rebinding. Tribe-incompatible choices remain disabled.
 - Catalog coverage is required for Romans, Teutons, Gauls, Egyptians, and Huns. Vikings are unsupported.

@@ -186,7 +186,10 @@ public sealed partial class BotTaskRunner
 
     private static async Task ExecuteLoadBuildingsSnapshotAsync(TaskExecutionContext context)
     {
-        var status = await context.Client.ReadBuildingsStatusAsync(context.CancellationToken);
+        // The Desktop storage preflight consumes warehouse/granary capacity together with the building
+        // list. Read the full village status here so queued Load buildings behaves like the direct button
+        // path instead of persisting a dorf2-only snapshot with null capacities.
+        var status = await context.Client.ReadVillageStatusAsync(context.CancellationToken);
         await WriteBuildingsSnapshotAsync(context, status);
         context.Log($"Loaded {status.Buildings.Count} building slots.");
     }
@@ -205,6 +208,8 @@ public sealed partial class BotTaskRunner
             activeVillage = status.ActiveVillage,
             tribe = status.Tribe,
             isCapital = status.IsCapital,
+            warehouseCapacity = status.WarehouseCapacity,
+            granaryCapacity = status.GranaryCapacity,
             buildings = status.Buildings.Select(building => new
             {
                 slotId = building.SlotId,
@@ -573,6 +578,14 @@ public sealed partial class BotTaskRunner
         if (value.Contains("already exists at slot", StringComparison.Ordinal))
         {
             return ConstructionTaskOutcome.AlreadyExists;
+        }
+
+        if ((string.Equals(taskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
+            && value.Contains("is empty", StringComparison.Ordinal)
+            && value.Contains("construct the building before upgrading", StringComparison.Ordinal))
+        {
+            return ConstructionTaskOutcome.MissingBuilding;
         }
 
         if (value.Contains("queued", StringComparison.Ordinal)

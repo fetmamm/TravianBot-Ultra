@@ -1080,15 +1080,25 @@ public partial class MainWindow
             Tribe: snapshot.Tribe ?? "Unknown",
             VillageCount: 0,
             IsCapital: snapshot.IsCapital,
+            WarehouseCapacity: snapshot.WarehouseCapacity,
+            GranaryCapacity: snapshot.GranaryCapacity,
             ActiveVillageCoordX: snapshotVillage.CoordX,
             ActiveVillageCoordY: snapshotVillage.CoordY);
 
-        _lastBuildingStatus = status;
         await Dispatcher.InvokeAsync(() =>
         {
-            ApplyTroopsAvailabilityFromVillageStatus(status);
-            PopulateBuildingsTab(status);
-            BuildingsInfoTextBlock.Text = $"Loaded {status.Buildings.Count} building slots from queue snapshot.";
+            var uiStatus = MergeBuildingStatusForUi(status);
+            CacheVillageStatus(uiStatus, snapshotVillage.Name);
+            if (!IsStatusForSelectedVillage(uiStatus))
+            {
+                AppendLog($"Buildings snapshot cached for '{uiStatus.ActiveVillage}', but another village is selected.");
+                return;
+            }
+
+            _lastBuildingStatus = uiStatus;
+            ApplyTroopsAvailabilityFromVillageStatus(uiStatus);
+            PopulateBuildingsTab(uiStatus);
+            BuildingsInfoTextBlock.Text = $"Loaded {uiStatus.Buildings.Count} building slots from queue snapshot.";
         });
     }
 
@@ -1097,6 +1107,8 @@ public partial class MainWindow
         string? ActiveVillage,
         string? Tribe,
         bool? IsCapital,
+        long? WarehouseCapacity,
+        long? GranaryCapacity,
         List<BuildingSnapshotItemDto>? Buildings,
         List<ResourceFieldSnapshotItemDto>? ResourceFields);
 

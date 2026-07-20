@@ -23,4 +23,7 @@ public enum ConstructionTaskOutcome
     // Construct target slot already holds the building (confirmed live). The task can never construct and
     // is removed from the queue rather than retried/failed.
     AlreadyExists = 6,
+    // An upgrade opened a confirmed empty construction slot. The desktop reconstructs the expected
+    // building in that slot and keeps the upgrade queued.
+    MissingBuilding = 7,
 }

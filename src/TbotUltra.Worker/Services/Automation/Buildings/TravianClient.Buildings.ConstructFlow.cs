@@ -229,61 +229,104 @@ public sealed partial class TravianClient : IBuildingClient
                             gid,
                             cancellationToken))
                         {
-                            continue;
+                            // The transfer flow returns on the reloaded build.php for this exact slot.
+                            // Revalidate that context and use the newly enabled construct action directly;
+                            // restarting the outer loop would unnecessarily probe the queue and dorf2 first.
+                            await EnsureExpectedConstructChoicePageAsync(
+                                slotId,
+                                gid,
+                                url,
+                                "construct after hero transfer",
+                                cancellationToken);
+                            pageAnalysis = await ReadConstructionPageAnalysisAsync(
+                                slotId,
+                                "construct after hero transfer",
+                                cancellationToken,
+                                constructGid: gid);
+                            durationSeconds = pageAnalysis.DurationSeconds;
+                            populationDelta = pageAnalysis.PopulationDelta;
+
+                            constructFaster = await TryUseConstructFasterForBuildAsync(
+                                slotId,
+                                gid,
+                                buildingName,
+                                0,
+                                1,
+                                buildQueueBefore,
+                                durationSeconds,
+                                url,
+                                cancellationToken);
+                            clicked = constructFaster.ActionRegistered;
+                            usedConstructFasterVideo |= constructFaster.BonusConfirmed;
+                            if (!clicked)
+                            {
+                                clicked = await ClickConstructBuildingButtonAsync(gid, cancellationToken);
+                            }
+
+                            if (clicked)
+                            {
+                                Notify($"[construct] clicked {buildingName} directly on slot {slotId} after hero resource transfer; skipped queue/dorf2 re-probe.");
+                            }
                         }
                     }
 
-                    // The construct page has the exact resource block and hero-transfer control. Only
-                    // navigate to dorf2 after that direct attempt, matching the upgrade flow and avoiding
-                    // a false "No hero transfer offered" result from probing the overview page.
-                    var queueDefer = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, attempt, cancellationToken);
-                    if (queueDefer is not null)
+                    if (!clicked)
                     {
-                        return WithEffectiveSlot(queueDefer);
-                    }
-
-                    var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
-                        $"Building slot {slotId} construct {buildingName}",
-                        60,
-                        cancellationToken);
-
-                    if (!constructionNpcTradeAttempted)
-                    {
-                        constructionNpcTradeAttempted = true;
-                        if (await TryNpcTradeForConstructionAsync($"Building slot {slotId} construct {buildingName}", cancellationToken))
+                        // The construct page has the exact resource block and hero-transfer control. Only
+                        // navigate to dorf2 after that direct attempt, matching the upgrade flow and avoiding
+                        // a false "No hero transfer offered" result from probing the overview page.
+                        var queueDefer = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, attempt, cancellationToken);
+                        if (queueDefer is not null)
                         {
-                            continue;
+                            return WithEffectiveSlot(queueDefer);
                         }
+
+                        var snapshot = await ReadUpgradeResourceWaitSnapshotAsync(
+                            $"Building slot {slotId} construct {buildingName}",
+                            60,
+                            cancellationToken);
+
+                        if (!constructionNpcTradeAttempted)
+                        {
+                            constructionNpcTradeAttempted = true;
+                            if (await TryNpcTradeForConstructionAsync($"Building slot {slotId} construct {buildingName}", cancellationToken))
+                            {
+                                continue;
+                            }
+                        }
+
+                        return WithEffectiveSlot(UpgradeResourceWaitCalculator.BuildBlockedResultMessage(snapshot));
+                    }
+                }
+
+                if (!clicked)
+                {
+                    var waitAfterBusy = await WaitForConstructionSlotIfBusyAsync(ConstructionKind.Building, cancellationToken);
+                    if (waitAfterBusy > 0)
+                    {
+                        continue;
                     }
 
-                    return WithEffectiveSlot(UpgradeResourceWaitCalculator.BuildBlockedResultMessage(snapshot));
-                }
+                    var existingProgress = await DetectConstructProgressAsync(slotId, gid, buildingName, buildQueueBefore, 1, cancellationToken);
+                    if (existingProgress.Started)
+                    {
+                        return WithEffectiveSlot($"Queued {buildingName} in slot {slotId}. Evidence: {existingProgress.Evidence}.");
+                    }
 
-                var waitAfterBusy = await WaitForConstructionSlotIfBusyAsync(ConstructionKind.Building, cancellationToken);
-                if (waitAfterBusy > 0)
-                {
-                    continue;
-                }
-
-                var existingProgress = await DetectConstructProgressAsync(slotId, gid, buildingName, buildQueueBefore, 1, cancellationToken);
-                if (existingProgress.Started)
-                {
-                    return WithEffectiveSlot($"Queued {buildingName} in slot {slotId}. Evidence: {existingProgress.Evidence}.");
-                }
-
-                // Queue/progress verification navigates away from the construct page. Re-open and verify
-                // the exact slot/category before one final click attempt, covering transient redirects or
-                // a construct page that had not finished rendering on the first scan.
-                await EnsureExpectedConstructChoicePageAsync(
-                    slotId,
-                    gid,
-                    url,
-                    "construct retry",
-                    cancellationToken);
-                clicked = await ClickConstructBuildingButtonAsync(gid, cancellationToken);
-                if (clicked)
-                {
-                    Notify($"Slot {slotId}: construct button for gid {gid} found on verified retry.");
+                    // Queue/progress verification navigates away from the construct page. Re-open and verify
+                    // the exact slot/category before one final click attempt, covering transient redirects or
+                    // a construct page that had not finished rendering on the first scan.
+                    await EnsureExpectedConstructChoicePageAsync(
+                        slotId,
+                        gid,
+                        url,
+                        "construct retry",
+                        cancellationToken);
+                    clicked = await ClickConstructBuildingButtonAsync(gid, cancellationToken);
+                    if (clicked)
+                    {
+                        Notify($"Slot {slotId}: construct button for gid {gid} found on verified retry.");
+                    }
                 }
             }
 

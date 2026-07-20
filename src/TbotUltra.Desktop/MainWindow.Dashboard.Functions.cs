@@ -71,7 +71,7 @@ public partial class MainWindow
             && _villageStatusCache.TryGetByKey(selectedVillageKey, out var cachedStatus))
         {
             selectedStatus = ClearCachedActivityTimers(cachedStatus);
-            _villageStatusCache.Set(selectedVillageName, selectedStatus);
+            StoreVillageStatusCacheEntry(selectedVillageName, selectedStatus);
         }
 
         if (_lastBuildingStatus is not null && IsStatusForSelectedVillage(_lastBuildingStatus))

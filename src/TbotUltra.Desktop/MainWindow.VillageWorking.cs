@@ -395,7 +395,7 @@ public partial class MainWindow
                 ActiveUpgradeFinishes: activeUpgrades.Select(entry => entry.Finish!).ToList(),
                 ActiveUpgrades: activeUpgrades);
             var preserved = SmithyQueueState.PreserveKnownActiveQueue(incoming, existing, DateTimeOffset.UtcNow);
-            _villageStatusCache.Set(name, cached with { SmithyUpgradeStatus = preserved });
+            StoreVillageStatusCacheEntry(name, cached with { SmithyUpgradeStatus = preserved });
             _villageCacheStore.Save(_villageStatusCache.Snapshot);
 
             var selectedKey = GetSelectedVillageKey();
@@ -890,7 +890,7 @@ public partial class MainWindow
             }
         }
 
-        _villageStatusCache.Set(name, status);
+        StoreVillageStatusCacheEntry(name, status);
 
         if (isFullRead)
         {
@@ -970,7 +970,7 @@ public partial class MainWindow
             };
         }
 
-        _villageStatusCache.Set(name, updated);
+        StoreVillageStatusCacheEntry(name, updated);
         _villageCacheStore.Save(_villageStatusCache.Snapshot);
     }
 
@@ -1006,8 +1006,30 @@ public partial class MainWindow
             };
         }
 
-        _villageStatusCache.Set(name, updated);
+        StoreVillageStatusCacheEntry(name, updated);
         _villageCacheStore.Save(_villageStatusCache.Snapshot);
+    }
+
+    private void StoreVillageStatusCacheEntry(string name, VillageStatus status)
+    {
+        _villageStatusCache.Set(name, status);
+
+        // Queue guards and selected-village projections intentionally prefer _lastBuildingStatus when it
+        // represents the same village. Synchronize that preferred snapshot for every cache mutation,
+        // including timer-only writes, so it cannot shadow newer building levels or construction state.
+        var lastStatusKey = _lastBuildingStatus is null
+            ? null
+            : VillageStatusCache.TryResolveCoordinateKey(_lastBuildingStatus.ActiveVillage, _lastBuildingStatus);
+        var cachedStatusKey = VillageStatusCache.TryResolveCoordinateKey(name, status);
+        if (_lastBuildingStatus is null
+            || cachedStatusKey is null
+            || !string.Equals(cachedStatusKey, lastStatusKey, StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _lastBuildingStatus = status;
+        AppendLog($"[village-cache:verbose] synchronized preferred snapshot for key='{cachedStatusKey}'.");
     }
 
     private bool IsVillageNameAmbiguous(string villageName)

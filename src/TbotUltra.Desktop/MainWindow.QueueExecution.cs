@@ -3,6 +3,7 @@ using System.Diagnostics;
 using System.Threading;
 using System.Threading.Tasks;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
@@ -407,6 +408,11 @@ public partial class MainWindow
 
             var effectiveOptions = ApplyHeroResourceSettingsForQueueItem(options, item);
             var executionResult = await _botService.ExecuteQueueItemAsync(effectiveOptions, item, AppendLog, cancellationToken);
+            if (await TryRecoverMissingBuildingUpgradeAsync(item, executionResult, logPrefix, tickSw))
+            {
+                return true;
+            }
+
             freshBuildingsRefreshDone = await HandleQueueItemSucceededAsync(
                 item,
                 options,
@@ -590,6 +596,94 @@ public partial class MainWindow
                 "Skipping cached requirement guard; worker will validate the live construct page.");
             return false;
         }
+    }
+
+    private async Task<bool> TryRecoverMissingBuildingUpgradeAsync(
+        QueueItem item,
+        BotTaskExecutionResult executionResult,
+        string logPrefix,
+        Stopwatch timer)
+    {
+        if (executionResult.LastTask?.ConstructionOutcome != ConstructionTaskOutcome.MissingBuilding
+            || !BuildingUpgradePayload.TryFromDictionary(item.Payload, out var upgrade)
+            || upgrade is null)
+        {
+            return false;
+        }
+
+        var gid = BuildingCatalogService.GidForName(upgrade.Name);
+        if (gid is null)
+        {
+            AppendLog(
+                $"{logPrefix} FAIL {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                $"slot {upgrade.SlotId} is empty, but building '{upgrade.Name ?? "-"}' has no catalog gid; upgrade kept for retry");
+            _botService.MarkQueueItemDeferred(item.Id, TimeSpan.FromMinutes(1));
+            return true;
+        }
+
+        var constructPayload = new BuildingConstructPayload(upgrade.SlotId, gid.Value, upgrade.Name).ToDictionary();
+        constructPayload[BotOptionPayloadKeys.BuildingConstructAllowSlotFallback] = bool.FalseString;
+        constructPayload[BotOptionPayloadKeys.AutoAddedBy] = BotOptionPayloadKeys.AutoAddedByConstructionRequirementRepair;
+        constructPayload[BotOptionPayloadKeys.AutoAddedParentId] = item.Id.ToString();
+        constructPayload[BotOptionPayloadKeys.AutoAddedReason] =
+            $"Reconstruct canceled {upgrade.Name} in empty slot {upgrade.SlotId}";
+        CopyIfPresent(item.Payload, constructPayload, BotOptionPayloadKeys.TargetVillageName);
+        CopyIfPresent(item.Payload, constructPayload, BotOptionPayloadKeys.TargetVillageUrl);
+        CopyIfPresent(item.Payload, constructPayload, BotOptionPayloadKeys.TargetVillageKey);
+        CopyIfPresent(item.Payload, constructPayload, BotOptionPayloadKeys.NpcTradeEnabled);
+        CopyIfPresent(item.Payload, constructPayload, BotOptionPayloadKeys.ConstructFasterEnabled);
+        CopyIfPresent(item.Payload, constructPayload, BotOptionPayloadKeys.ConstructFasterMinBuildTimeEnabled);
+        CopyIfPresent(item.Payload, constructPayload, BotOptionPayloadKeys.ConstructFasterMinBuildMinutes);
+        CopyIfPresent(item.Payload, constructPayload, BotOptionPayloadKeys.ConstructFasterRandomEnabled);
+        CopyIfPresent(item.Payload, constructPayload, BotOptionPayloadKeys.ConstructFasterRandomChancePercent);
+        CopyIfPresent(item.Payload, constructPayload, BotOptionPayloadKeys.BuildingTemplateStepId);
+
+        var queueItems = _botService.GetQueueItemsForDisplay();
+        var sameVillage = BuildSameVillageQueueFilter(item);
+        var existingConstruct = queueItems.FirstOrDefault(candidate =>
+            candidate.Id != item.Id
+            && candidate.Status == QueueStatus.Pending
+            && sameVillage(candidate)
+            && TryReadBuildingConstructPayload(candidate.Payload, out var slotId, out var constructGid, out _)
+            && slotId == upgrade.SlotId
+            && constructGid == gid.Value);
+        var maxPriority = queueItems.Select(candidate => candidate.Priority).DefaultIfEmpty(item.Priority).Max();
+        var repairPriority = maxPriority == int.MaxValue ? int.MaxValue : maxPriority + 1;
+        Guid repairId;
+
+        if (existingConstruct is not null)
+        {
+            if (!_botService.UpdatePendingQueueItem(existingConstruct.Id, constructPayload, repairPriority, TimeSpan.Zero))
+            {
+                AppendLog(
+                    $"{logPrefix} FAIL {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                    $"could not promote queued reconstruction for slot {upgrade.SlotId}; upgrade kept for retry");
+                _botService.MarkQueueItemDeferred(item.Id, TimeSpan.FromMinutes(1));
+                return true;
+            }
+
+            repairId = existingConstruct.Id;
+        }
+        else
+        {
+            repairId = _botService.Enqueue("construct_building", constructPayload, repairPriority, maxRetries: 3).Id;
+        }
+
+        if (!_botService.MarkQueueItemDeferred(item.Id, TimeSpan.FromSeconds(30)))
+        {
+            AppendLog(
+                $"{logPrefix} FAIL {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                $"queued reconstruction id={repairId}, but could not keep the parent upgrade pending");
+            return false;
+        }
+
+        RequestQueueUiRefresh(selectId: repairId);
+        await Dispatcher.InvokeAsync(RefreshVillageActivityIndicatorsOnDashboard);
+        AppendLog(
+            $"{logPrefix} REPAIR {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+            $"slot {upgrade.SlotId} is confirmed empty; queued {upgrade.Name} reconstruction in the same slot " +
+            $"(id={repairId}, priority={repairPriority}) and kept target upgrade queued.");
+        return true;
     }
 
     private async Task<bool> HandleQueueItemSucceededAsync(
