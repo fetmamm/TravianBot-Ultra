@@ -6,6 +6,12 @@ namespace TbotUltra.Worker.Services;
 
 public sealed partial class TravianClient
 {
+    internal const string MobileOptimizationsDialogSelector = "#mobileOptimizationsDialog";
+    internal const string MobileOptimizationsSwitchSelector =
+        MobileOptimizationsDialogSelector + " label.switch:has(input[name='mobileOptimizations'])";
+    internal const string MobileOptimizationsPlayNowButtonSelector =
+        MobileOptimizationsDialogSelector + " .action button.framed.green.withText";
+
     private sealed record LobbyWorldCard(string WorldUid, string Name, string Details);
     private string? _pendingLobbyWorldUid;
     private LobbyWorldServerResolution? _pendingLobbyWorldServerResolution;
@@ -179,6 +185,7 @@ public sealed partial class TravianClient
         }
 
         Notify($"[lobby-login] trying world '{candidate.Name}' wuid='{candidate.WorldUid}'.");
+        await TryHandleMobileOptimizationsDialogAsync(cancellationToken);
         var card = _page.Locator($"{Selectors.LobbyGameWorldCard}[data-wuid='{candidate.WorldUid}']").First;
         var playNow = card.Locator(Selectors.LobbyPlayNowButton).First;
         if (await playNow.CountAsync() == 0 || !await playNow.IsVisibleAsync() || !await playNow.IsEnabledAsync())
@@ -190,6 +197,7 @@ public sealed partial class TravianClient
         await DelayBeforeClickAsync(cancellationToken, "lobby Play now");
         await SuppressConsentUiDuringSsoLandingAsync();
         await ClickPlayNowAndWaitForGameOriginAsync(playNow, allowServerCorrection, cancellationToken);
+        await WaitForMobileOptimizationsDialogAfterWorldSelectionAsync(cancellationToken);
 
         var configuredOriginReached = IsConfiguredGameOrigin(_page.Url);
         if (!configuredOriginReached
@@ -215,6 +223,127 @@ public sealed partial class TravianClient
         _pendingLobbyWorldUid = candidate.WorldUid;
         Notify($"[lobby-login] configured game origin committed for world UID '{candidate.WorldUid}'; isolating before game scripts settle.");
         return true;
+    }
+
+    private async Task<bool> TryHandleMobileOptimizationsDialogAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var dialog = _page.Locator(MobileOptimizationsDialogSelector).First;
+            if (await dialog.CountAsync() == 0 || !await dialog.IsVisibleAsync())
+            {
+                return false;
+            }
+
+            Notify("[lobby-login] mobile version dialog detected; disabling mobile options.");
+            var switches = dialog.Locator("label.switch:has(input[name='mobileOptimizations'])");
+            var switchCount = await switches.CountAsync();
+            if (switchCount != 2)
+            {
+                throw new InvalidOperationException($"Mobile version dialog contained {switchCount} mobile option switches instead of two.");
+            }
+
+            for (var switchIndex = 0; switchIndex < switchCount; switchIndex++)
+            {
+                await DisableMobileOptimizationSwitchAsync(switches.Nth(switchIndex), cancellationToken);
+            }
+
+            var useMobileBrowserVersion = switches.Nth(0).Locator("input[name='mobileOptimizations']").First;
+            var askAboutMobileBrowserVersion = switches.Nth(1).Locator("input[name='mobileOptimizations']").First;
+            if (await useMobileBrowserVersion.IsCheckedAsync())
+            {
+                throw new InvalidOperationException("Mobile version dialog still has 'Use the mobile browser version' enabled.");
+            }
+
+            if (await askAboutMobileBrowserVersion.IsCheckedAsync())
+            {
+                throw new InvalidOperationException("Mobile version dialog still has 'Ask me every time' enabled.");
+            }
+
+            if (!await TryClickFirstVisibleEnabledAsync(
+                    MobileOptimizationsPlayNowButtonSelector,
+                    cancellationToken,
+                    requiredText: "Play now",
+                    requireExactText: true,
+                    reason: "confirm mobile version dialog"))
+            {
+                throw new InvalidOperationException("Mobile version dialog Play now button was unavailable.");
+            }
+
+            Notify("[lobby-login] mobile version dialog confirmed with both mobile options disabled.");
+            return true;
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return false;
+        }
+    }
+
+    private async Task DisableMobileOptimizationSwitchAsync(ILocator mobileSwitch, CancellationToken cancellationToken)
+    {
+        var input = mobileSwitch.Locator("input[name='mobileOptimizations']").First;
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!await input.IsCheckedAsync())
+            {
+                return;
+            }
+
+            try
+            {
+                await DelayBeforeClickAsync(cancellationToken, "disable mobile version option");
+                await mobileSwitch.ClickAsync(new LocatorClickOptions
+                {
+                    Timeout = _config.TimeoutMs,
+                });
+            }
+            catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
+            {
+                Notify($"[lobby-login] mobile version switch click failed on attempt {attempt + 1}; using native input fallback: {ex.Message}");
+            }
+
+            if (!await input.IsCheckedAsync())
+            {
+                return;
+            }
+
+            Notify($"[lobby-login] mobile version switch remained enabled on attempt {attempt + 1}; applying native input fallback.");
+            await input.EvaluateAsync<bool>(
+                """
+                node => {
+                  if (!(node instanceof HTMLInputElement) || !node.checked) return true;
+                  const checkedSetter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'checked')?.set;
+                  if (!checkedSetter) return false;
+                  checkedSetter.call(node, false);
+                  node.dispatchEvent(new Event('input', { bubbles: true }));
+                  node.dispatchEvent(new Event('change', { bubbles: true }));
+                  return !node.checked;
+                }
+                """);
+            await Task.Delay(TimeSpan.FromMilliseconds(150), cancellationToken);
+
+            if (!await input.IsCheckedAsync())
+            {
+                return;
+            }
+        }
+
+        throw new InvalidOperationException("Mobile version dialog showed an enabled option that could not be turned off.");
+    }
+
+    private async Task WaitForMobileOptimizationsDialogAfterWorldSelectionAsync(CancellationToken cancellationToken)
+    {
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (await TryHandleMobileOptimizationsDialogAsync(cancellationToken))
+            {
+                return;
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(200), cancellationToken);
+        }
     }
 
     private async Task<AccountAccessState> ReadExplicitLobbyAccessStateAsync()
