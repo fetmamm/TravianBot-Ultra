@@ -25,6 +25,21 @@ public sealed class BuildingUpgradeSlotRebindPlannerTests
     }
 
     [Fact]
+    public void ConstructionQueueReconciliation_LeavesInputPayloadsUnchanged()
+    {
+        var construct = Item("construct_building", new BuildingConstructPayload(38, 22, "Academy").ToDictionary());
+        var upgrade = Item("upgrade_building_to_level", new BuildingUpgradePayload(38, 5, "Academy").ToDictionary());
+
+        var plan = ConstructionQueueReconciliation.Plan(
+            Status(new Building(37, "Academy", 3, "/build.php?id=37", 22)),
+            [construct, upgrade]);
+
+        Assert.Contains(construct.Id, plan.Removals);
+        Assert.Equal("38", upgrade.Payload[BotOptionPayloadKeys.BuildingUpgradeSlotId]);
+        Assert.Equal("37", Assert.Single(plan.Updates).Payload[BotOptionPayloadKeys.BuildingUpgradeSlotId]);
+    }
+
+    [Fact]
     public void Plan_RebindsAcademyUpgradesWhenLiveDuplicateIsInAnotherSlot()
     {
         var source = Item(

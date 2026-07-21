@@ -24,7 +24,6 @@ internal static class ConstructionQueueReconciliation
             foreach (var rebind in BuildingUpgradeSlotRebindPlanner.Plan(candidate, construct.LiveSlotId, candidates))
             {
                 updates[rebind.QueueItemId] = new QueuePayloadUpdate(rebind.QueueItemId, rebind.Payload);
-                candidates.First(item => item.Id == rebind.QueueItemId).Payload = rebind.Payload;
             }
             removals.Add(candidate.Id);
             candidates.Remove(candidate);
