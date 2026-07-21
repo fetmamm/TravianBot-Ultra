@@ -440,6 +440,33 @@ public sealed class JsonQueueStore : IQueueStore
         });
     }
 
+    public bool ApplyPendingReconciliation(IReadOnlyList<Guid> removals, IReadOnlyList<QueuePayloadUpdate> updates)
+    {
+        ArgumentNullException.ThrowIfNull(removals);
+        ArgumentNullException.ThrowIfNull(updates);
+        lock (_sync)
+        {
+            var items = LoadMutable();
+            var ids = removals.Concat(updates.Select(update => update.QueueItemId)).Distinct().ToList();
+            if (ids.Any(id => items.FirstOrDefault(item => item.Id == id)?.Status != QueueStatus.Pending))
+            {
+                return false;
+            }
+
+            var now = DateTimeOffset.UtcNow;
+            foreach (var update in updates.Where(update => !removals.Contains(update.QueueItemId)))
+            {
+                var item = items.First(item => item.Id == update.QueueItemId);
+                item.Payload = new Dictionary<string, string>(update.Payload, StringComparer.OrdinalIgnoreCase);
+                item.UpdatedAt = now;
+            }
+
+            items.RemoveAll(item => removals.Contains(item.Id));
+            if (ids.Count > 0) SaveMutable(items);
+            return true;
+        }
+    }
+
     public bool MarkExecutionFailed(Guid id)
     {
         return Update(id, item =>

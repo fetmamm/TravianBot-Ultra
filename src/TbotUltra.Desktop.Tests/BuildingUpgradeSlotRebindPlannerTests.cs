@@ -9,6 +9,22 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class BuildingUpgradeSlotRebindPlannerTests
 {
     [Fact]
+    public void ConstructionQueueReconciliation_RemovesStaleConstructAndRebindsDependentUpgrade()
+    {
+        var construct = Item("construct_building", new BuildingConstructPayload(38, 22, "Academy").ToDictionary());
+        var upgrade = Item("upgrade_building_to_level", new BuildingUpgradePayload(38, 5, "Academy").ToDictionary());
+
+        var plan = ConstructionQueueReconciliation.Plan(
+            Status(new Building(37, "Academy", 3, "/build.php?id=37", 22)),
+            [construct, upgrade]);
+
+        Assert.Contains(construct.Id, plan.Removals);
+        var update = Assert.Single(plan.Updates);
+        Assert.Equal(upgrade.Id, update.QueueItemId);
+        Assert.Equal("37", update.Payload[BotOptionPayloadKeys.BuildingUpgradeSlotId]);
+    }
+
+    [Fact]
     public void Plan_RebindsAcademyUpgradesWhenLiveDuplicateIsInAnotherSlot()
     {
         var source = Item(

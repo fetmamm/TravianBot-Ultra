@@ -18,6 +18,8 @@ public sealed class QueueItem
 
 }
 
+public sealed record QueuePayloadUpdate(Guid QueueItemId, Dictionary<string, string> Payload);
+
 public sealed record QueueItemCreateRequest(
     string TaskName,
     Dictionary<string, string>? Payload,

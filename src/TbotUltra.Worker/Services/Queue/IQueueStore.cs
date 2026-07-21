@@ -26,6 +26,7 @@ public interface IQueueStore
         IReadOnlyCollection<string>? keysToRemove,
         TimeSpan? delay = null);
     bool UpdatePending(Guid id, Dictionary<string, string>? payload, int? priority, TimeSpan? delay = null);
+    bool ApplyPendingReconciliation(IReadOnlyList<Guid> removals, IReadOnlyList<QueuePayloadUpdate> updates);
     bool MarkExecutionFailed(Guid id);
     bool MarkPermanentlyFailed(Guid id);
     int ResetOrphanedRunningItems();

@@ -55,6 +55,7 @@ public sealed class DesktopBotService : IDesktopBotService
         IReadOnlyCollection<string>? keysToRemove,
         TimeSpan? delay = null) => _queueStore.PatchDeferred(id, valuesToSet, keysToRemove, delay);
     public bool UpdatePendingQueueItem(Guid id, Dictionary<string, string>? payload, int? priority, TimeSpan? delay = null) => _queueStore.UpdatePending(id, payload, priority, delay);
+    public bool ApplyPendingQueueReconciliation(IReadOnlyList<Guid> removals, IReadOnlyList<QueuePayloadUpdate> updates) => _queueStore.ApplyPendingReconciliation(removals, updates);
     public bool MarkQueueItemExecutionFailed(Guid id) => _queueStore.MarkExecutionFailed(id);
     public bool MarkQueueItemPermanentlyFailed(Guid id) => _queueStore.MarkPermanentlyFailed(id);
     public int ResetOrphanedRunningQueueItems() => _queueStore.ResetOrphanedRunningItems();

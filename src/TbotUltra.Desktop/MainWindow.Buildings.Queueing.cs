@@ -162,70 +162,25 @@ public partial class MainWindow
         var candidates = _botService.GetQueueItemsForDisplay()
             .Where(item => IsQueueItemForVillage(item, villageName, villageKey))
             .ToList();
-        var changed = false;
-
-        foreach (var construct in candidates
-                     .Where(item => item.Status == QueueStatus.Pending)
-                     .Select(item => (Item: item, Match: BuildingUpgradeSlotRebindPlanner.FindExistingConstruct(status, item)))
-                     .Where(entry => entry.Match is not null)
-                     .ToList())
+        var plan = ConstructionQueueReconciliation.Plan(status, candidates);
+        if (!plan.HasChanges)
         {
-            var match = construct.Match!;
-            foreach (var rebind in BuildingUpgradeSlotRebindPlanner.Plan(
-                         construct.Item,
-                         match.LiveSlotId,
-                         candidates))
-            {
-                if (_botService.UpdatePendingQueueItem(rebind.QueueItemId, rebind.Payload, priority: null))
-                {
-                    var reboundItem = candidates.First(candidate => candidate.Id == rebind.QueueItemId);
-                    reboundItem.Payload = rebind.Payload;
-                    changed = true;
-                }
-            }
-
-            if (_botService.RemoveQueueItem(construct.Item.Id))
-            {
-                candidates.Remove(construct.Item);
-                AppendLog(
-                    $"[building-reconcile] removed stale {match.BuildingName} construct for slot " +
-                    $"{match.QueuedSlotId}: fresh dorf2 confirms slot {match.LiveSlotId} level {match.LiveLevel}.");
-                changed = true;
-            }
+            return;
         }
 
-        foreach (var reconciliation in BuildingUpgradeSlotRebindPlanner.PlanFromLiveStatus(status, candidates))
+        if (_botService.ApplyPendingQueueReconciliation(plan.Removals, plan.Updates))
         {
-            var item = candidates.First(candidate => candidate.Id == reconciliation.QueueItemId);
-            if (reconciliation.TargetSatisfied)
+            foreach (var removal in plan.Removals)
             {
-                if (_botService.RemoveQueueItem(reconciliation.QueueItemId))
-                {
-                    ForgetBuildingQueueCachesForItem(item);
-                    AppendLog(
-                        $"[building-reconcile] removed completed {reconciliation.BuildingName} upgrade: " +
-                        $"live dorf2 slot {reconciliation.LiveSlotId} is level {reconciliation.LiveLevel}, " +
-                        $"target {reconciliation.TargetLevel} (queued slot {reconciliation.QueuedSlotId}).");
-                    changed = true;
-                }
-
-                continue;
+                var item = candidates.FirstOrDefault(candidate => candidate.Id == removal);
+                if (item is not null) ForgetBuildingQueueCachesForItem(item);
             }
-
-            if (_botService.UpdatePendingQueueItem(reconciliation.QueueItemId, reconciliation.Payload, priority: null))
-            {
-                item.Payload = reconciliation.Payload;
-                AppendLog(
-                    $"[building-reconcile] moved pending {reconciliation.BuildingName} upgrade from stale slot " +
-                    $"{reconciliation.QueuedSlotId} to live dorf2 slot {reconciliation.LiveSlotId} " +
-                    $"(level {reconciliation.LiveLevel}).");
-                changed = true;
-            }
-        }
-
-        if (changed)
-        {
+            AppendLog($"[building-reconcile] applied live dorf2 plan: removed {plan.Removals.Count} queue item(s), rebound {plan.Updates.Count} queue item(s).");
             RequestQueueUiRefresh();
+        }
+        else
+        {
+            AppendLog("[building-reconcile] live dorf2 plan was not applied because a queue item changed state.");
         }
     }
 

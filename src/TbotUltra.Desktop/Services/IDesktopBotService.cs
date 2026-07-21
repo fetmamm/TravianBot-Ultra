@@ -29,6 +29,7 @@ public interface IDesktopBotService
         IReadOnlyCollection<string>? keysToRemove,
         TimeSpan? delay = null);
     bool UpdatePendingQueueItem(Guid id, Dictionary<string, string>? payload, int? priority, TimeSpan? delay = null);
+    bool ApplyPendingQueueReconciliation(IReadOnlyList<Guid> removals, IReadOnlyList<QueuePayloadUpdate> updates);
     bool MarkQueueItemExecutionFailed(Guid id);
     bool MarkQueueItemPermanentlyFailed(Guid id);
     int ResetOrphanedRunningQueueItems();

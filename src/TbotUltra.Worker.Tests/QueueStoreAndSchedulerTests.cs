@@ -10,6 +10,22 @@ namespace TbotUltra.Worker.Tests;
 
 public sealed class QueueStoreAndSchedulerTests : IDisposable
 {
+    [Fact]
+    public void ApplyPendingReconciliation_UpdatesAndRemovesInOneStoreOperation()
+    {
+        var store = new JsonQueueStore(_queuePath);
+        var removed = store.Add("upgrade_building_to_level", new Dictionary<string, string> { ["slot"] = "38" }, 1, 1);
+        var updated = store.Add("upgrade_building_to_level", new Dictionary<string, string> { ["slot"] = "38" }, 1, 1);
+
+        Assert.True(store.ApplyPendingReconciliation(
+            [removed.Id],
+            [new QueuePayloadUpdate(updated.Id, new Dictionary<string, string> { ["slot"] = "37" })]));
+
+        var item = Assert.Single(store.GetAll());
+        Assert.Equal(updated.Id, item.Id);
+        Assert.Equal("37", item.Payload["slot"]);
+    }
+
     private readonly string _root;
     private readonly string _queuePath;
 

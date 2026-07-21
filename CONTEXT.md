@@ -19,3 +19,7 @@ _Avoid_: Map data response, scan output
 **Construction Queue Reconciliation**:
 The application of a confirmed live village construction status to pending construction queue items, including satisfied targets, slot rebinding, and required dependencies.
 _Avoid_: Queue repair, build queue sync
+
+**Send Troops**:
+The verified Official Travian flow that opens the Rally Point troop form and prepares troop dispatch for combat or Farm Lists.
+_Avoid_: Manual attack flow, Natar farming

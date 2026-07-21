@@ -280,6 +280,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   the last valid snapshot or fabricate zero/empty state.
 - Construction mutations use the short fresh-read cache; read-only observations may use the longer cache but
   never past a known completion deadline. Navigation and state-changing clicks invalidate both.
+- Construction Queue Reconciliation plans only from confirmed full live status and applies all pending-item
+  changes atomically; cache or local timers are never reconciliation evidence.
 - Construction start-delay transition memory is village-scoped by `data-did` or coordinates, never display name;
   duplicate village names must not share a humanize deadline.
 - Persisted account analysis may seed the stable village list. Cold start without a snapshot reads the profile;
