@@ -69,7 +69,7 @@ public sealed class DesktopBotService : IDesktopBotService
         return _taskRunner.ExecuteOnceAsync(options, log, options.LoopTasks, null, cancellationToken);
     }
 
-    public Task<IReadOnlyList<MapOasisEntry>> ScanMapOasesAsync(
+    public Task<MapOasisScanResult> ScanMapOasesAsync(
         BotOptions options,
         bool includeOccupied,
         IReadOnlyCollection<string> selectedTypes,

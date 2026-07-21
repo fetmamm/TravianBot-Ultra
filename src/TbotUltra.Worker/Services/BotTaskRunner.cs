@@ -101,7 +101,7 @@ public sealed partial class BotTaskRunner
 
     public static IReadOnlyList<string> RegisteredTaskNames => TaskHandlers.Keys.ToList();
 
-    public async Task<IReadOnlyList<MapOasisEntry>> ScanMapOasesAsync(
+    public async Task<MapOasisScanResult> ScanMapOasesAsync(
         BotOptions options,
         bool includeOccupied,
         IReadOnlyCollection<string> selectedTypes,
@@ -111,7 +111,7 @@ public sealed partial class BotTaskRunner
         string? accountName = null,
         CancellationToken cancellationToken = default)
     {
-        IReadOnlyList<MapOasisEntry>? result = null;
+        MapOasisScanResult? result = null;
         try
         {
             await ExecuteWithClientAsync(
@@ -129,13 +129,18 @@ public sealed partial class BotTaskRunner
                         "manual-ui-function");
                     try
                     {
-                        result = await client.ScanMapOasesAsync(
-                            includeOccupied,
-                            selectedTypes,
-                            request,
+                        await client.PrepareMapOasisScanAsync(cancellationToken);
+                        var operation = new Automation.MapOasisScanOperation(
+                            client,
+                            _projectContext.RootPath,
+                            client.AccountName,
+                            client.ServerUrl,
+                            log);
+                        result = await operation.ExecuteAsync(
+                            new MapOasisScanInput(request, includeOccupied, selectedTypes),
                             progress,
                             cancellationToken);
-                        trace.Complete("success", $"count={result.Count}");
+                        trace.Complete("success", $"count={result.Oases.Count}");
                     }
                     catch (OperationCanceledException)
                     {
@@ -160,7 +165,7 @@ public sealed partial class BotTaskRunner
             throw new InvalidOperationException($"Map oasis analysis failed: {ex.Message}", ex);
         }
 
-        return result ?? [];
+        return result ?? new MapOasisScanResult([], 0, 0);
     }
 
     public async Task<BotTaskExecutionResult> ExecuteOnceAsync(

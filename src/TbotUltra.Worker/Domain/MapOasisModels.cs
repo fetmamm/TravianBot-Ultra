@@ -16,6 +16,12 @@ public sealed record MapOasisScanProgress(
     int OasisCount,
     bool IsPartialResult = false);
 
+public sealed record MapOasisScanResult(
+    IReadOnlyList<MapOasisEntry> Oases,
+    int CompletedAreas,
+    int TotalAreas,
+    bool IsPartialResult = false);
+
 public enum MapOasisScanScope
 {
     WholeMap,
@@ -37,4 +43,9 @@ public sealed record MapOasisScanRequest(
 {
     public const int DefaultRadius = 30;
 }
+
+public sealed record MapOasisScanInput(
+    MapOasisScanRequest Request,
+    bool IncludeOccupied,
+    IReadOnlyCollection<string> SelectedTypes);
 

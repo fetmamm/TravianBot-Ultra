@@ -19,7 +19,7 @@ public partial class MainWindow
             async token =>
             {
                 var options = LoadBotOptions();
-                var entries = await _botService.ScanMapOasesAsync(
+                var scanResult = await _botService.ScanMapOasesAsync(
                     options,
                     includeOccupied: true,
                     MapOasisAllTypes,
@@ -27,7 +27,7 @@ public partial class MainWindow
                     AppendLog,
                     progress,
                     token);
-                return entries.Select(entry => new OasisInfo
+                return scanResult.Oases.Select(entry => new OasisInfo
                 {
                     X = entry.X,
                     Y = entry.Y,

@@ -162,6 +162,7 @@ Published artifacts belong under `artifacts/`, never beside source files.
 ### Core and Worker
 
 - Parse HTML/JSON into domain models before scheduling decisions.
+- Map Oasis scan planning, filtering, pacing, retry, checkpoints, and results belong to `MapOasisScanOperation`; `TravianClient` only prepares the Official map page and reads map areas.
 - Put resource, time, capacity, prerequisite, and queue calculations in Core.
 - Worker owns browser interaction, timeouts, retries, cancellation, and operational logging.
 - Prefer explicit result types for expected unavailable, deferred, and blocked states.
