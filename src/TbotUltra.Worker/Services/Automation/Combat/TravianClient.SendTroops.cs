@@ -32,36 +32,8 @@ public sealed partial class TravianClient
         Paths.RallyPointSendTroops,
         Paths.FarmListFastUp);
 
-    private async Task<bool> IsSendTroopsPageAsync(CancellationToken cancellationToken)
-    {
-        return await _page.EvaluateAsync<bool>(
-            """
-            () => {
-              const hasCoords = !!document.querySelector('input[name="x"], input[name="y"], input[name*="xCoord" i], input[name*="yCoord" i], input[id*="xCoord" i], input[id*="yCoord" i]');
-              const hasAttackMode = !!document.querySelector('input[type="radio"][name="eventType"]');
-              const body = (document.body?.innerText || '').toLowerCase();
-              return hasCoords && hasAttackMode && body.includes('send troops');
-            }
-            """);
-    }
-
-    private async Task<bool> TryOpenSendTroopsTabAsync(CancellationToken cancellationToken)
-    {
-        return await _page.EvaluateAsync<bool>(
-            """
-            () => {
-              const candidates = Array.from(document.querySelectorAll('a.tabItem, .tabItem, a[href*="build.php?t=2"], a[href*="t=2"]'));
-              const target = candidates.find(node => {
-                const text = (node.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase();
-                const href = (node.getAttribute('href') || '').toLowerCase();
-                return text.includes('send troops') || href.includes('build.php?t=2') || href.includes('t=2');
-              });
-              if (!target) return false;
-              target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }));
-              return true;
-            }
-            """);
-    }
+    private Task<bool> IsSendTroopsPageAsync(CancellationToken cancellationToken)
+        => SendTroopsNavigator.IsSendTroopsPageAsync(_page, cancellationToken);
 
     private async Task<long?> ReadAvailableTroopCountAsync(string fieldToken, CancellationToken cancellationToken)
     {
@@ -215,7 +187,7 @@ public sealed partial class TravianClient
         }
     }
 
-    private async Task<bool> WaitForManualAttackConfirmationPageAsync(CancellationToken cancellationToken)
+    private async Task<bool> WaitForSendTroopsConfirmationPageAsync(CancellationToken cancellationToken)
     {
         for (var attempt = 1; attempt <= 12; attempt++)
         {
@@ -256,7 +228,7 @@ public sealed partial class TravianClient
         return false;
     }
 
-    private async Task WaitForManualAttackCompletionAsync(CancellationToken cancellationToken)
+    private async Task WaitForSendTroopsCompletionAsync(CancellationToken cancellationToken)
     {
         for (var attempt = 1; attempt <= 4; attempt++)
         {

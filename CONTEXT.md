@@ -22,4 +22,8 @@ _Avoid_: Queue repair, build queue sync
 
 **Send Troops**:
 The verified Official Travian flow that opens the Rally Point troop form and prepares troop dispatch for combat or Farm Lists.
-_Avoid_: Manual attack flow, Natar farming
+_Avoid_: Manual Farming, Natar farming
+
+**Manual Farming**:
+The removed desktop-only manual farming UI and its saved preferences. It is not Send Troops, Farm Lists, Catapults, or Reinforcements.
+_Avoid_: Manual attack flow

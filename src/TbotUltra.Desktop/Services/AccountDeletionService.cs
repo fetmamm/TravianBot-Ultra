@@ -80,7 +80,6 @@ public sealed class AccountDeletionService
         DeleteFileIfExists(AccountStoragePaths.FarmListsSnapshotPath(_projectRoot, accountName));
 
         DeleteLegacyAnalysisFiles(accountKey);
-        RemoveAccountFromLegacyManualFarmingPreferences(accountKey);
         RemoveAccountFromLegacyCapitalState(accountKey);
 
         var accountDirectory = AccountStoragePaths.AccountDirectory(_projectRoot, accountName);
@@ -111,40 +110,6 @@ public sealed class AccountDeletionService
             {
                 DeleteFileIfExists(filePath);
             }
-        }
-    }
-
-    private void RemoveAccountFromLegacyManualFarmingPreferences(string accountKey)
-    {
-        var path = AccountStoragePaths.LegacyManualFarmingPreferencePath(_projectRoot);
-        if (!File.Exists(path))
-        {
-            return;
-        }
-
-        try
-        {
-            var raw = File.ReadAllText(path);
-            var all = string.IsNullOrWhiteSpace(raw)
-                ? new Dictionary<string, ManualFarmingPreference>(StringComparer.OrdinalIgnoreCase)
-                : JsonSerializer.Deserialize<Dictionary<string, ManualFarmingPreference>>(raw, JsonOptions)
-                    ?? new Dictionary<string, ManualFarmingPreference>(StringComparer.OrdinalIgnoreCase);
-            if (!all.Remove(accountKey))
-            {
-                return;
-            }
-
-            if (all.Count == 0)
-            {
-                File.Delete(path);
-                return;
-            }
-
-            File.WriteAllText(path, JsonSerializer.Serialize(all, JsonOptions));
-        }
-        catch
-        {
-            // Corrupt legacy cache should not block account deletion.
         }
     }
 

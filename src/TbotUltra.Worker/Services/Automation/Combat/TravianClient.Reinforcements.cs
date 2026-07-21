@@ -309,7 +309,7 @@ public sealed partial class TravianClient
         }
 
         await WaitForPageReadyAsync(cancellationToken);
-        if (!await WaitForManualAttackConfirmationPageAsync(cancellationToken))
+        if (!await WaitForSendTroopsConfirmationPageAsync(cancellationToken))
         {
             var error = await ReadReinforcementFormErrorAsync(cancellationToken);
             return new ReinforcementSendAttemptResult(false, string.IsNullOrWhiteSpace(error) ? "Confirmation page did not load." : error);
@@ -321,7 +321,7 @@ public sealed partial class TravianClient
             return new ReinforcementSendAttemptResult(false, "Could not click final confirm.");
         }
 
-        await WaitForManualAttackCompletionAsync(cancellationToken);
+        await WaitForSendTroopsCompletionAsync(cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         return new ReinforcementSendAttemptResult(true, null);
     }

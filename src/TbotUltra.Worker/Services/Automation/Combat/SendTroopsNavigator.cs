@@ -18,21 +18,21 @@ internal sealed class SendTroopsNavigator(
 {
     public async Task OpenSendTroopsAsync(bool allowReuseCurrentPage, CancellationToken cancellationToken)
     {
-        if (allowReuseCurrentPage && await IsSendTroopsPageAsync()) return;
+        if (allowReuseCurrentPage && await IsSendTroopsPageAsync(page, cancellationToken)) return;
         await gotoAsync(sendTroopsPath, cancellationToken);
         await ensureLoggedInAsync(cancellationToken);
-        if (await IsSendTroopsPageAsync()) return;
+        if (await IsSendTroopsPageAsync(page, cancellationToken)) return;
         await gotoAsync(farmListFallbackPath, cancellationToken);
         await ensureLoggedInAsync(cancellationToken);
         await gotoAsync(sendTroopsPath, cancellationToken);
         await ensureLoggedInAsync(cancellationToken);
-        if (await IsSendTroopsPageAsync()) return;
+        if (await IsSendTroopsPageAsync(page, cancellationToken)) return;
         if (await TryOpenSendTroopsTabAsync())
         {
             await Task.Delay(Random.Shared.Next(150, 350), cancellationToken);
             await ensureLoggedInAsync(cancellationToken);
         }
-        if (!await IsSendTroopsPageAsync())
+        if (!await IsSendTroopsPageAsync(page, cancellationToken))
             throw new InvalidOperationException("Rally Point does not appear to be constructed yet. Build Rally Point before sending troops.");
     }
 
@@ -50,7 +50,11 @@ internal sealed class SendTroopsNavigator(
         }
     }
 
-    private Task<bool> IsSendTroopsPageAsync() => page.EvaluateAsync<bool>("""() => { const hasCoords = !!document.querySelector('input[name="x"], input[name="y"], input[name*="xCoord" i], input[name*="yCoord" i], input[id*="xCoord" i], input[id*="yCoord" i]'); const hasAttackMode = !!document.querySelector('input[type="radio"][name="eventType"]'); return hasCoords && hasAttackMode && (document.body?.innerText || '').toLowerCase().includes('send troops'); }""");
+    internal static Task<bool> IsSendTroopsPageAsync(IPage page, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return page.EvaluateAsync<bool>("""() => { const hasCoords = !!document.querySelector('input[name="x"], input[name="y"], input[name*="xCoord" i], input[name*="yCoord" i], input[id*="xCoord" i], input[id*="yCoord" i]'); const hasAttackMode = !!document.querySelector('input[type="radio"][name="eventType"]'); return hasCoords && hasAttackMode && (document.body?.innerText || '').toLowerCase().includes('send troops'); }""");
+    }
 
     private Task<bool> TryOpenSendTroopsTabAsync() => page.EvaluateAsync<bool>("""() => { const target = Array.from(document.querySelectorAll('a.tabItem, .tabItem, a[href*="build.php?t=2"], a[href*="t=2"]')).find(node => { const text = (node.textContent || '').replace(/\s+/g, ' ').trim().toLowerCase(); const href = (node.getAttribute('href') || '').toLowerCase(); return text.includes('send troops') || href.includes('build.php?t=2') || href.includes('t=2'); }); if (!target) return false; target.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true })); return true; }""");
 }

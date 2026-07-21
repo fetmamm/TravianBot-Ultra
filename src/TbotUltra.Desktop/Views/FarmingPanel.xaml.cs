@@ -18,8 +18,6 @@ public partial class FarmingPanel : UserControl
     internal Button SendAllButton => FarmListSendAllNowButton;
     internal ItemsControl FarmLists => FarmListsItemsControl;
     internal Button CancelOperationButton => CancelFarmingOperationButton;
-    internal TextBlock ManualExecutionCount => ManualFarmingExecutionCountTextBlock;
-    internal Button StartManualButton => StartManualFarmingButton;
     internal RadioButton SendListPerListOption => FarmSendListPerListRadioButton;
     internal RadioButton SendAllAtOnceOption => FarmSendAllAtOnceRadioButton;
     internal TextBox DispatchDelayMin => FarmDispatchDelayMinTextBox;
@@ -34,7 +32,6 @@ public partial class FarmingPanel : UserControl
     private void FarmListSendAllNowButton_Click(object sender, RoutedEventArgs e) => Host?.OnFarmListSendAllNowClicked(sender, e);
     private void FarmListSendNowButton_Click(object sender, RoutedEventArgs e) => Host?.OnFarmListSendNowClicked(sender, e);
     private void CancelFarmingOperationButton_Click(object sender, RoutedEventArgs e) => Host?.OnCancelFarmingOperationClicked(sender, e);
-    private void StartManualFarmingButton_Click(object sender, RoutedEventArgs e) => Host?.OnStartManualFarmingClicked(sender, e);
     private void FarmingSettings_Changed(object sender, RoutedEventArgs e) => Host?.OnFarmingSettingsChanged(sender, e);
     private void TravcoInactiveSearchButton_Click(object sender, RoutedEventArgs e) => Host?.OnTravcoInactiveSearchClicked(sender, e);
 }

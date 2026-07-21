@@ -3,11 +3,6 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private void StartManualFarmingButton_Click(object sender, System.Windows.RoutedEventArgs e)
-    {
-        AppendLog("[farm-manual] Start manual farming is disabled for now.");
-    }
-
     private void SetFarmingOperationBusy(bool busy)
     {
         if (!Dispatcher.CheckAccess())
@@ -82,22 +77,4 @@ public partial class MainWindow
         _loopController.CancelOperation();
     }
 
-    private void UpdateManualFarmingRunningState()
-    {
-        if (StartManualFarmingButton is not null)
-        {
-            StartManualFarmingButton.Content = "Start manual farming";
-            StartManualFarmingButton.IsEnabled = false;
-        }
-    }
-
-    private void UpdateManualFarmingExecutionCounter()
-    {
-        if (ManualFarmingExecutionCountTextBlock is null)
-        {
-            return;
-        }
-
-        ManualFarmingExecutionCountTextBlock.Text = _manualFarmSessionExecutionCount.ToString("N0");
-    }
 }

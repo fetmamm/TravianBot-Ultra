@@ -215,11 +215,6 @@ public static class AccountStoragePaths
         return Path.Combine(projectRoot, "config", "cache", "capital-state.json");
     }
 
-    public static string ManualFarmingPreferencePath(string projectRoot, string accountName)
-    {
-        return Path.Combine(AccountDirectory(projectRoot, accountName), "cache", "manual-farming.json");
-    }
-
     public static string HeroAttributeSnapshotPath(string projectRoot, string accountName, string? serverUrl = null)
     {
         return Path.Combine(
@@ -227,11 +222,6 @@ public static class AccountStoragePaths
             "cache",
             "hero-attributes",
             $"{NormalizeServerKey(serverUrl)}.json");
-    }
-
-    public static string LegacyManualFarmingPreferencePath(string projectRoot)
-    {
-        return Path.Combine(projectRoot, "config", "cache", "manual-farming-preferences.json");
     }
 
     public static string BuildingsSnapshotPath(string projectRoot, string accountName)

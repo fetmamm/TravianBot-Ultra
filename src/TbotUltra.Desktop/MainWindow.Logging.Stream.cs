@@ -175,12 +175,6 @@ public partial class MainWindow
                         }
                     }
 
-                    if (IsManualFarmingExecutionMessage(part))
-                    {
-                        _manualFarmSessionExecutionCount += 1;
-                        UpdateManualFarmingExecutionCounter();
-                    }
-
                     if (IsNpcTradeCompletedMessage(part))
                     {
                         _npcTradeSessionCount += 1;
@@ -603,11 +597,6 @@ public partial class MainWindow
             return false;
         }
 
-        if (value.Contains("manual farming loop") && value.Contains(" restarting"))
-        {
-            return false;
-        }
-
         if (value.Contains(" paused"))
         {
             return false;
@@ -672,18 +661,6 @@ public partial class MainWindow
     {
         return !string.IsNullOrWhiteSpace(message)
             && message.Contains("UI sync snapshot failed:", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private static bool IsManualFarmingExecutionMessage(string message)
-    {
-        if (string.IsNullOrWhiteSpace(message))
-        {
-            return false;
-        }
-
-        var value = message.ToLowerInvariant();
-        return value.Contains(" sent raid to (")
-            || value.Contains(" sent normal attack to (");
     }
 
     private static bool IsNpcTradeCompletedMessage(string message)

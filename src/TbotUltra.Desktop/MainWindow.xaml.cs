@@ -103,7 +103,6 @@ public partial class MainWindow : Window
     private AccountEntry? _uiActiveAccount;
     private readonly AccountAnalysisStore _accountAnalysisStore;
     private readonly HeroAttributeSnapshotStore _heroAttributeSnapshotStore;
-    private readonly ManualFarmingPreferenceStore _manualFarmingPreferenceStore;
     private readonly AccountDeletionService _accountDeletionService;
     private readonly AccountAutomationHoldStore _accountAutomationHoldStore;
     private readonly ServerCatalogStore _serverCatalogStore;
@@ -293,7 +292,6 @@ public partial class MainWindow : Window
     // When the next "idle browse" (open a non-functional page) is due. Same lifecycle as the idle
     // break. See MaybeDoIdleBrowseAsync.
     private DateTimeOffset _nextIdleBrowseDueUtc = DateTimeOffset.MinValue;
-    private int _manualFarmSessionExecutionCount;
     private string? _activeAutomationTaskName;
     private string? _activeFunctionDisplayName;
     private string? _troopsBlockedReasonKey;
@@ -420,7 +418,6 @@ public partial class MainWindow : Window
         InitializeSessionPacing();
         _accountAnalysisStore = new AccountAnalysisStore(_projectRoot);
         _heroAttributeSnapshotStore = new HeroAttributeSnapshotStore(_projectRoot);
-        _manualFarmingPreferenceStore = new ManualFarmingPreferenceStore(_projectRoot);
         _serverCatalogStore = new ServerCatalogStore(_serverCatalogPath);
         var projectContext = new ProjectContext(_projectRoot);
         var taskRunner = new BotTaskRunner(_accountProvider, projectContext);
@@ -500,10 +497,6 @@ public partial class MainWindow : Window
                 }
 
                 UpdateExecutionStateIndicator(updateAutomationLoopCards: dashboardTabSelected);
-                if (IsMainTabSelected(FarmingTabItem))
-                {
-                    UpdateManualFarmingRunningState();
-                }
             }
             catch (Exception ex)
             {
@@ -634,7 +627,6 @@ public partial class MainWindow : Window
         UpdateLoginButtonsVisual(false);
         UpdateSidebarSelection(DashboardNavButton);
         UpdateFarmingUiState();
-        UpdateManualFarmingExecutionCounter();
         _heroViewModel.LoadPriorityFromConfig(null);
         AppendLog(ReleaseSmokeContract.ReadyLogMarker);
         StartBackgroundWarmups();

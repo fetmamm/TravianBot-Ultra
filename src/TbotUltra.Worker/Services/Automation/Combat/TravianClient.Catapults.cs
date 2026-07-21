@@ -2,6 +2,7 @@ using Microsoft.Playwright;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Travian;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services.Automation.Combat;
 using System.Globalization;
 using System.Text.Json.Serialization;
 
@@ -177,7 +178,7 @@ public sealed partial class TravianClient : ICombatClient
             cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
-        if (!await IsSendTroopsPageAsync(cancellationToken))
+        if (!await SendTroopsNavigator.IsSendTroopsPageAsync(_page, cancellationToken))
         {
             await EnsureRallyPointAndOpenSendTroopsPageAsync(cancellationToken, allowReuseCurrentPage: false);
         }
@@ -190,12 +191,12 @@ public sealed partial class TravianClient : ICombatClient
         bool allowReuseCurrentPage,
         CancellationToken cancellationToken)
     {
-        if (!allowReuseCurrentPage || !await IsSendTroopsPageAsync(page, cancellationToken))
+        if (!allowReuseCurrentPage || !await SendTroopsNavigator.IsSendTroopsPageAsync(page, cancellationToken))
         {
             await GotoOnCatapultPageAsync(page, Paths.RallyPointSendTroops, cancellationToken);
         }
 
-        if (!await IsSendTroopsPageAsync(page, cancellationToken))
+        if (!await SendTroopsNavigator.IsSendTroopsPageAsync(page, cancellationToken))
         {
             throw new InvalidOperationException("Could not open Send Troops page for catapult waves.");
         }
@@ -241,7 +242,7 @@ public sealed partial class TravianClient : ICombatClient
             throw new InvalidOperationException(FormatCatapultAttackError(attack.Label, attackError));
         }
 
-        if (!await WaitForManualAttackConfirmationPageAsync(page, cancellationToken))
+        if (!await WaitForSendTroopsConfirmationPageAsync(page, cancellationToken))
         {
             attackError = await TryReadAttackErrorAsync(page, cancellationToken);
             if (!string.IsNullOrWhiteSpace(attackError))
@@ -495,20 +496,6 @@ public sealed partial class TravianClient : ICombatClient
         return false;
     }
 
-    private async Task<bool> IsSendTroopsPageAsync(IPage page, CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return await page.EvaluateAsync<bool>(
-            """
-            () => {
-              const hasCoords = !!document.querySelector('input[name="x"], input[name="y"], input[name*="xCoord" i], input[name*="yCoord" i], input[id*="xCoord" i], input[id*="yCoord" i]');
-              const hasAttackMode = !!document.querySelector('input[type="radio"][name="eventType"]');
-              const body = (document.body?.innerText || '').toLowerCase();
-              return hasCoords && hasAttackMode && body.includes('send troops');
-            }
-            """);
-    }
-
     private async Task<bool> TryFillTroopInputAsync(IPage page, string fieldToken, string troopType, int troopCountToSend, CancellationToken cancellationToken)
     {
         foreach (var selector in BuildTroopInputSelectors(fieldToken))
@@ -584,7 +571,7 @@ public sealed partial class TravianClient : ICombatClient
             raidAttack);
     }
 
-    private async Task<bool> WaitForManualAttackConfirmationPageAsync(IPage page, CancellationToken cancellationToken)
+    private async Task<bool> WaitForSendTroopsConfirmationPageAsync(IPage page, CancellationToken cancellationToken)
     {
         for (var attempt = 1; attempt <= 12; attempt++)
         {
@@ -612,7 +599,7 @@ public sealed partial class TravianClient : ICombatClient
         return false;
     }
 
-    // Intentionally separate from ManualAttack's TryClickConfirmButtonAsync: different selector set,
+    // Intentionally separate from SendTroops' TryClickConfirmButtonAsync: different selector set,
     // visibility gate and a forced single-pass click (no retry loop). Do not merge them.
     private async Task<bool> TryClickCatapultConfirmButtonAsync(IPage page, CancellationToken cancellationToken)
     {

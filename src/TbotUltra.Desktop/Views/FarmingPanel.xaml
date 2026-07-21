@@ -178,7 +178,7 @@
 
                                         <!-- Floats in the bottom-right corner of the Farm List
                                              Management box while any farming operation (Analyze,
-                                             Add Farms, Send Now, manual farming) is running, so the
+                                             Add Farms, Send Now) is running, so the
                                              user can always cancel from a fixed location. -->
                                         <Button x:Name="CancelFarmingOperationButton"
                                                 Grid.Row="2"
@@ -200,69 +200,10 @@
 
                                 <Grid Grid.Column="1" Margin="8,0,0,0">
                                     <Grid.RowDefinitions>
-                                        <RowDefinition Height="Auto" />
-                                        <RowDefinition Height="12" />
                                         <RowDefinition Height="*" />
                                     </Grid.RowDefinitions>
 
                                     <Border Grid.Row="0"
-                                            Background="{DynamicResource SurfaceBrush}"
-                                            BorderBrush="{DynamicResource BorderBrush}"
-                                            BorderThickness="1"
-                                            CornerRadius="8"
-                                            Padding="12">
-                                        <StackPanel>
-                                            <Grid Margin="0,0,0,12">
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="*" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <TextBlock Grid.Column="0"
-                                                           Text="Manual farming"
-                                                           FontSize="22"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="{DynamicResource TextPrimaryBrush}"
-                                                           VerticalAlignment="Center" />
-                                                <StackPanel Grid.Column="1"
-                                                            HorizontalAlignment="Right">
-                                                    <TextBlock Text="Farmlist executions"
-                                                               Foreground="{DynamicResource TextSubtleBrush}"
-                                                               FontSize="12"
-                                                               HorizontalAlignment="Right" />
-                                                    <TextBlock x:Name="ManualFarmingExecutionCountTextBlock"
-                                                               Text="0"
-                                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                                               FontSize="18"
-                                                               FontWeight="SemiBold"
-                                                               HorizontalAlignment="Right" />
-                                                </StackPanel>
-                                            </Grid>
-
-                                            <Grid>
-                                                <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="190" />
-                                                    <ColumnDefinition Width="Auto" />
-                                                </Grid.ColumnDefinitions>
-                                                <Grid.RowDefinitions>
-                                                    <RowDefinition Height="Auto" />
-                                                    <RowDefinition Height="Auto" />
-                                                    <RowDefinition Height="Auto" />
-                                                </Grid.RowDefinitions>
-
-                                                <Button x:Name="StartManualFarmingButton"
-                                                        Grid.Row="0"
-                                                        Grid.Column="0"
-                                                        Content="Start manual farming"
-                                                        Width="170"
-                                                        HorizontalAlignment="Center"
-                                                        IsEnabled="False"
-                                                        ToolTip="Starts manual farming with the selected farming settings."
-                                                        Click="StartManualFarmingButton_Click" />
-                                            </Grid>
-                                        </StackPanel>
-                                    </Border>
-
-                                    <Border Grid.Row="2"
                                             Background="{DynamicResource SurfaceBrush}"
                                             BorderBrush="{DynamicResource BorderBrush}"
                                             BorderThickness="1"

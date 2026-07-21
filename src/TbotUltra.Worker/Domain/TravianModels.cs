@@ -372,17 +372,6 @@ public sealed record FarmListCreateBatchResult(
     int CreatedCount,
     IReadOnlyList<string> CreatedNames);
 
-public sealed record ManualFarmRunResult(
-    int TotalTargets,
-    int AttemptedCount,
-    int SentCount,
-    int SkippedCount,
-    int FailedCount,
-    bool StoppedByNoTroopsAlarm,
-    string TroopType,
-    long TroopCount,
-    string AttackMode);
-
 public sealed record CatapultWaveRequest(
     int X,
     int Y,

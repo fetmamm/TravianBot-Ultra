@@ -1054,8 +1054,6 @@ public partial class MainWindow
         _lastContinuousBrowserActivityUtc = DateTimeOffset.MinValue;
         _lastContinuousKeepAliveFailureUtc = DateTimeOffset.MinValue;
         _inlineWaitUntilUtc = DateTimeOffset.MinValue;
-        _manualFarmSessionExecutionCount = 0;
-        UpdateManualFarmingExecutionCounter();
         _npcTradeSessionCount = 0;
         _npcTradeTroopSessionCount = 0;
         _npcTradeBuildingSessionCount = 0;
