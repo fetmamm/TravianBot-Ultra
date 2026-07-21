@@ -18,6 +18,11 @@ public sealed record TravcoSearchRequest(
     int DaysInactive,
     string OrderBy);
 
+public sealed record TravcoSearchProgress(
+    int CompletedSteps,
+    int TotalSteps,
+    string Status);
+
 public sealed record TravcoRawRow(
     IReadOnlyList<string> Cells,
     string? VillageHref);

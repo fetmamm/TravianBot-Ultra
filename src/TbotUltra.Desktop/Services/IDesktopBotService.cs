@@ -100,7 +100,7 @@ public interface IDesktopBotService
     Task<HeroAttributeSnapshot> ReadHeroAttributesAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<HeroInventoryResources> RefreshHeroInventoryAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<MapOasisScanResult> ScanMapOasesAsync(BotOptions options, bool includeOccupied, IReadOnlyCollection<string> selectedTypes, MapOasisScanRequest request, Action<string> log, IProgress<MapOasisScanProgress>? progress, CancellationToken cancellationToken);
-    Task OpenTravcoAndSearchAsync(BotOptions options, TravcoSearchRequest request, Action<string> log, CancellationToken cancellationToken);
+    Task OpenTravcoAndSearchAsync(BotOptions options, TravcoSearchRequest request, Action<string> log, IProgress<TravcoSearchProgress>? progress, CancellationToken cancellationToken);
     Task<TravcoScrapeResult> ScrapeTravcoPageAsync(Action<string> log, CancellationToken cancellationToken);
     Task<TravcoScrapeResult> ScrapeAllTravcoPagesAsync(Action<string> log, IProgress<(int CurrentPage, int TotalPages)> progress, CancellationToken cancellationToken);
     Task CloseTravcoTabAsync(Action<string> log);

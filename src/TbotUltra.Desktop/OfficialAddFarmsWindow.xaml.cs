@@ -433,13 +433,19 @@ public partial class OfficialAddFarmsWindow : Window
     private void UpdateAddingFarmsOverlayText()
     {
         var p = _lastAddProgress;
+        var total = Math.Max(1, p?.TotalCount ?? _addTotal);
+        var processed = Math.Clamp(p?.ProcessedCount ?? 0, 0, total);
+        var percent = (double)processed / total * 100;
+        LoadingOverlay.IsIndeterminate = false;
+        LoadingOverlay.ProgressValue = percent;
         LoadingOverlay.Text =
-            $"Elapsed: {FormatElapsed(_runStopwatch.Elapsed)}\n" +
-            $"Added villages: {(p?.AddedCount ?? 0)}/{(p?.TotalCount ?? _addTotal)}\n" +
+            $"{percent:0}% complete\n" +
+            $"Farms checked: {processed}/{total} - {total - processed} remaining\n" +
+            $"Added villages: {p?.AddedCount ?? 0}\n" +
             $"Current list: {(p?.FarmListName ?? "-")}\n" +
-            $"Checked: {(p?.ProcessedCount ?? 0)}\n" +
             $"Invalid: {(p?.NotFoundCount ?? 0)}\n" +
-            $"Occupied (oasis) skipped: {(p?.OccupiedOasisSkippedCount ?? 0)}";
+            $"Occupied (oasis) skipped: {(p?.OccupiedOasisSkippedCount ?? 0)}\n" +
+            $"Elapsed: {FormatElapsed(_runStopwatch.Elapsed)}";
     }
 
     private static string FormatElapsed(TimeSpan value) =>

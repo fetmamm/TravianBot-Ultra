@@ -18,6 +18,7 @@ public static class TravcoInactiveSearch
         string orderBy,
         int resultsPerPage,
         Action<string>? log,
+        IProgress<TravcoSearchProgress>? progress,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(page);
@@ -29,9 +30,11 @@ public static class TravcoInactiveSearch
         }
 
         log?.Invoke("[travco] opening inactive search.");
+        progress?.Report(new TravcoSearchProgress(0, 5, "Opening Travco..."));
         await page.GotoAsync(InactiveSearchUrl, new PageGotoOptions { WaitUntil = WaitUntilState.DOMContentLoaded })
             .WaitAsync(cancellationToken);
         log?.Invoke($"[nav] GOTO done target='{InactiveSearchUrl}' current='{page.Url}' pages={page.Context.Pages.Count}");
+        progress?.Report(new TravcoSearchProgress(1, 5, "Configuring the inactive search..."));
 
         var pageSize = Math.Clamp(resultsPerPage, 10, 100).ToString();
         var pageSizeSelect = page.Locator("#id_page_size");
@@ -99,6 +102,7 @@ public static class TravcoInactiveSearch
         }
 
         log?.Invoke($"[travco] fields ready: server={normalizedHost}, coordinates=({x}|{y}), days={days}, order={normalizedOrderBy}, pageSize={pageSize}.");
+        progress?.Report(new TravcoSearchProgress(2, 5, "Loading inactive villages..."));
         await page.Locator("button.btn.btn-light.primary[type='submit']")
             .ClickAsync()
             .WaitAsync(cancellationToken);
@@ -115,6 +119,7 @@ public static class TravcoInactiveSearch
         await WaitForResultsSettledAsync(page, cancellationToken);
 
         log?.Invoke("[travco] inactive search results loaded.");
+        progress?.Report(new TravcoSearchProgress(3, 5, "Inactive villages loaded."));
     }
 
     public static async Task<TravcoScrapeResult> ScrapePageAsync(

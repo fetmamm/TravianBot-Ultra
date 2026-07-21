@@ -21,7 +21,7 @@ public partial class TravcoToolsWindow : Window
     private bool _travcoReady;
     private bool _editMode;
 
-    public Func<TravcoSearchRequest, CancellationToken, Task<TravcoScrapeResult>>? SearchRequested { get; init; }
+    public Func<TravcoSearchRequest, IProgress<TravcoSearchProgress>, CancellationToken, Task<TravcoScrapeResult>>? SearchRequested { get; init; }
     public Func<IProgress<(int CurrentPage, int TotalPages)>, CancellationToken, Task<TravcoScrapeResult>>? ScrapeAllPagesRequested { get; init; }
     public Func<MapOasisScanRequest, IProgress<MapOasisScanProgress>, CancellationToken, Task<List<OasisInfo>>>? MapOasisScanRequested { get; init; }
     public Func<Task>? CloseRequested { get; init; }
@@ -98,10 +98,20 @@ public partial class TravcoToolsWindow : Window
             _viewModel.SelectedOrderBy);
         SetStatus(
             $"Analyzing Travco for {village.NameWithCoords}, {daysInactive} active day(s), order {_viewModel.SelectedOrderBy}.");
-        BusyOverlay.Show("Analyze Travco", "Opening Travco and loading inactive villages...");
+        BusyOverlay.Show("Analyze Travco", "0% complete\nWaiting for the browser session...");
+        BusyOverlay.IsIndeterminate = false;
+        BusyOverlay.ProgressValue = 0;
         try
         {
-            var result = await SearchRequested(request, _windowCts.Token);
+            var progress = new Progress<TravcoSearchProgress>(value =>
+            {
+                var total = Math.Max(1, value.TotalSteps);
+                var completed = Math.Clamp(value.CompletedSteps, 0, total);
+                var percent = (double)completed / total * 100;
+                BusyOverlay.ProgressValue = percent;
+                BusyOverlay.Text = $"{percent:0}% complete\n{value.Status}\nStep {completed}/{total}";
+            });
+            var result = await SearchRequested(request, progress, _windowCts.Token);
             _travcoReady = true;
             SetEditMode(false);
             _openedSavedListId = null;
@@ -157,12 +167,20 @@ public partial class TravcoToolsWindow : Window
         _activeOperationCts = operationCts;
         BusyOverlay.ShowCancel = true;
         BusyOverlay.Show("Save all Travco pages", "Preparing page collection...");
+        BusyOverlay.IsIndeterminate = false;
+        BusyOverlay.ProgressValue = 0;
         try
         {
             SetStatus("Reading all Travco result pages.");
             var progress = new Progress<(int CurrentPage, int TotalPages)>(value =>
             {
-                BusyOverlay.Text = $"Reading page {value.CurrentPage} of {value.TotalPages}...";
+                var total = Math.Max(1, value.TotalPages);
+                var current = Math.Clamp(value.CurrentPage, 0, total);
+                var percent = (double)current / total * 100;
+                BusyOverlay.ProgressValue = percent;
+                BusyOverlay.Text =
+                    $"{percent:0}% complete\n" +
+                    $"Page {current}/{total} - {total - current} remaining";
             });
             var result = await ScrapeAllPagesRequested(progress, operationCts.Token);
             SetEditMode(false);

@@ -8,7 +8,7 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class FarmListsViewModelTests
 {
     private static FarmListStatusRow Real(string name, int? remainingSeconds = null) =>
-        new() { Name = name, RemainingSeconds = remainingSeconds };
+        new() { Name = name, TotalFarmCount = 1, RemainingSeconds = remainingSeconds };
 
     [Fact]
     public void EnsurePlaceholderRow_EmptyCollectionGetsOnePlaceholder()

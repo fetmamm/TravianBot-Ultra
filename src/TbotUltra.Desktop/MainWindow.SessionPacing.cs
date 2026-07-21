@@ -865,7 +865,7 @@ public partial class MainWindow
         // blocks during sleep (SwitchToActiveVillageAsync -> BlockIfSessionSleeping), so sleep stays unbroken.
         SetEnabled(VillageComboBox, !_uiBusy);
         SetEnabled(AnalyzeFarmListsButton, !sleeping && !_farmingOperationBusy);
-        SetEnabled(FarmListSendAllNowButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable && _farmLists.Any(IsRealFarmListRow));
+        SetEnabled(FarmListSendAllNowButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable && HasFarmListWithFarms());
         SetEnabled(StartCatapultWavesButton, !sleeping && !_farmingOperationBusy);
         SetEnabled(ResourceTransferScanVillagesButton, !sleeping && !_uiBusy && !_resourceTransferScanRunning);
 

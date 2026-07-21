@@ -34,6 +34,9 @@ public partial class MainWindow
     private static bool IsRealFarmListRow(FarmListStatusRow row)
         => FarmListsViewModel.IsRealRow(row);
 
+    private bool HasFarmListWithFarms()
+        => _farmLists.Any(row => IsRealFarmListRow(row) && !row.IsEmpty);
+
     internal static bool CanReuseRecentFarmListAnalysis(DateTimeOffset lastAnalysisAt, DateTimeOffset now)
         => lastAnalysisAt != DateTimeOffset.MinValue
             && lastAnalysisAt >= now - RecentFarmListAnalysisWindow;
@@ -882,9 +885,9 @@ public partial class MainWindow
             return;
         }
 
-        if (!_farmLists.Any(IsRealFarmListRow))
+        if (!HasFarmListWithFarms())
         {
-            AppendLog("[farm-list] Send all now ignored: no farm lists loaded.");
+            AppendLog("[farm-list] Send all now ignored: no farms are available in the loaded lists.");
             return;
         }
 
@@ -925,7 +928,7 @@ public partial class MainWindow
         SetEnabled(AddFarmsToListButton, farmControlsEnabled);
         SetEnabled(CreateFarmListButton, sleepAllowsActions && !_farmingOperationBusy);
         SetEnabled(FarmListsItemsControl, farmControlsEnabled);
-        SetEnabled(FarmListSendAllNowButton, farmControlsEnabled && _farmLists.Any(IsRealFarmListRow));
+        SetEnabled(FarmListSendAllNowButton, farmControlsEnabled && HasFarmListWithFarms());
         SetEnabled(AnalyzeFarmListsButton, sleepAllowsActions && !_farmingOperationBusy);
         SetEnabled(StartCatapultWavesButton, sleepAllowsActions && !_farmingOperationBusy);
     }

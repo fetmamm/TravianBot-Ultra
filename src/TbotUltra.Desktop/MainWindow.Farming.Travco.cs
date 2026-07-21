@@ -65,6 +65,7 @@ public partial class MainWindow
 
     private async Task<TravcoScrapeResult> RunTravcoSearchAsync(
         TravcoSearchRequest request,
+        IProgress<TravcoSearchProgress> progress,
         CancellationToken cancellationToken)
     {
         var options = LoadBotOptions();
@@ -82,8 +83,11 @@ public partial class MainWindow
             "Analyze Travco",
             async token =>
             {
-                await _botService.OpenTravcoAndSearchAsync(options, request, AppendLog, token);
-                return await _botService.ScrapeTravcoPageAsync(AppendLog, token);
+                await _botService.OpenTravcoAndSearchAsync(options, request, AppendLog, progress, token);
+                progress.Report(new TravcoSearchProgress(4, 5, "Reading inactive villages..."));
+                var result = await _botService.ScrapeTravcoPageAsync(AppendLog, token);
+                progress.Report(new TravcoSearchProgress(5, 5, "Travco analysis complete."));
+                return result;
             },
             cancellationToken);
     }

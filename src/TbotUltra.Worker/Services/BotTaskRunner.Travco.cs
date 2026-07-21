@@ -16,10 +16,12 @@ public sealed partial class BotTaskRunner
         BotOptions options,
         TravcoSearchRequest request,
         Action<string> log,
+        IProgress<TravcoSearchProgress>? progress,
         CancellationToken cancellationToken)
     {
         var account = _accountProvider.LoadAccount();
         log("[travco] waiting for browser session.");
+        progress?.Report(new TravcoSearchProgress(0, 5, "Waiting for the browser session..."));
         if (!await _sessionGate.WaitAsync(TimeSpan.FromSeconds(45), cancellationToken))
         {
             throw new InvalidOperationException(
@@ -56,6 +58,7 @@ public sealed partial class BotTaskRunner
                     request.OrderBy,
                     resultsPerPage: 100,
                     log,
+                    progress,
                     cancellationToken);
                 await _travcoPage.BringToFrontAsync();
             }

@@ -38,16 +38,13 @@
                                         <WrapPanel Grid.Row="1" Margin="0,0,0,12">
                                             <Button x:Name="AnalyzeFarmListsButton"
                                                     Content="Analyze Farmlists"
-                                                    Background="{DynamicResource AccentBrush}"
-                                                    Foreground="White"
-                                                    BorderBrush="{DynamicResource AccentBrush}"
+                                                    Background="{DynamicResource SuccessBgBrush}"
+                                                    Foreground="{DynamicResource SuccessTextBrush}"
+                                                    BorderBrush="{DynamicResource SuccessBorderBrush}"
                                                     MinWidth="150"
                                                     Click="AnalyzeFarmListsButton_Click" />
                                             <Button x:Name="AddFarmsToListButton"
                                                     Content="Add Farms to List"
-                                                    Background="{DynamicResource AccentBrush}"
-                                                    Foreground="White"
-                                                    BorderBrush="{DynamicResource AccentBrush}"
                                                     MinWidth="140"
                                                     Click="AddFarmsToListButton_Click" />
                                             <Button x:Name="CreateFarmListButton"
@@ -69,11 +66,23 @@
                                                         Height="32"
                                                         Margin="0,0,0,8"
                                                         HorizontalAlignment="Right"
-                                                        Background="{DynamicResource AccentBrush}"
-                                                        Foreground="White"
-                                                        BorderBrush="{DynamicResource AccentBrush}"
                                                         IsEnabled="False"
-                                                        Click="FarmListSendAllNowButton_Click" />
+                                                        Click="FarmListSendAllNowButton_Click">
+                                                    <Button.Style>
+                                                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                            <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
+                                                            <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
+                                                            <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
+                                                            <Style.Triggers>
+                                                                <Trigger Property="IsEnabled" Value="False">
+                                                                    <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                                                                    <Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+                                                                    <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
+                                                                </Trigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </Button.Style>
+                                                </Button>
 
                                                 <ItemsControl x:Name="FarmListsItemsControl">
                                                     <ItemsControl.ItemTemplate>
@@ -173,9 +182,9 @@
                                                                                 Click="FarmListSendNowButton_Click">
                                                                             <Button.Style>
                                                                                 <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                                                                                    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
-                                                                                    <Setter Property="Foreground" Value="White" />
-                                                                                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                                                    <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
+                                                                                    <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
+                                                                                    <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
                                                                                     <Style.Triggers>
                                                                                         <DataTrigger Binding="{Binding IsEmpty}" Value="True">
                                                                                             <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />

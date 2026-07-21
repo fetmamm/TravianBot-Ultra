@@ -443,9 +443,9 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.ReadHeroInventoryResourcesAsync(options, log, null, cancellationToken);
     }
 
-    public Task OpenTravcoAndSearchAsync(BotOptions options, TravcoSearchRequest request, Action<string> log, CancellationToken cancellationToken)
+    public Task OpenTravcoAndSearchAsync(BotOptions options, TravcoSearchRequest request, Action<string> log, IProgress<TravcoSearchProgress>? progress, CancellationToken cancellationToken)
     {
-        return _taskRunner.OpenTravcoAndSearchAsync(options, request, log, cancellationToken);
+        return _taskRunner.OpenTravcoAndSearchAsync(options, request, log, progress, cancellationToken);
     }
 
     public Task<TravcoScrapeResult> ScrapeTravcoPageAsync(Action<string> log, CancellationToken cancellationToken)
