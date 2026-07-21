@@ -17,4 +17,20 @@ public sealed class AccountSwitchPolicyTests
     {
         Assert.Equal(expected, AccountSwitchPolicy.HasLiveBrowserSession(isLoggedIn, browserSessionOpen));
     }
+
+    [Theory]
+    [InlineData(true, true, false, true)]
+    [InlineData(false, false, true, true)]
+    [InlineData(true, false, true, true)]
+    [InlineData(false, false, false, false)]
+    public void RequiresConfirmation_IncludesSleepingSessions(
+        bool isLoggedIn,
+        bool browserSessionOpen,
+        bool isSessionSleeping,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            AccountSwitchPolicy.RequiresConfirmation(isLoggedIn, browserSessionOpen, isSessionSleeping));
+    }
 }

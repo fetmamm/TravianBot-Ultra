@@ -733,9 +733,13 @@ public partial class MainWindow
             _isLoggedIn,
             _browserSessionLikelyOpen);
 
-        // Only an authenticated, open browser session needs confirmation. With no live session the
-        // dropdown is just choosing which saved account the next Login will use.
-        if (hasLiveBrowserSession && !ConfirmAccountSwitch(FindAccount(current), selected))
+        // A live browser session must be closed before switching. Sleep has already closed the browser,
+        // but still requires an explicit confirmation because it changes the account that will resume.
+        var requiresConfirmation = AccountSwitchPolicy.RequiresConfirmation(
+            _isLoggedIn,
+            _browserSessionLikelyOpen,
+            IsSessionSleeping);
+        if (requiresConfirmation && !ConfirmAccountSwitch(FindAccount(current), selected))
         {
             AppendLog($"Account switch to '{selected.Name}' cancelled by user.");
             RefreshAccountPicker();
