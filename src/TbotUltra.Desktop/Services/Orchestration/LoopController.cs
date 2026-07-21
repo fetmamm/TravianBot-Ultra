@@ -212,10 +212,7 @@ public sealed class LoopController : IDisposable
     /// </summary>
     public CancellationToken StartLoop(string label)
     {
-        _loopCts?.Cancel();
-        _loopCts?.Dispose();
-        _loopCts = CreateCts(label);
-        return _loopCts.Token;
+        return StartReplacingScope(ref _loopCts, label);
     }
 
     /// <summary>Requests cancellation of the continuous loop, if any.</summary>
@@ -231,10 +228,15 @@ public sealed class LoopController : IDisposable
     /// </summary>
     public CancellationToken StartVillageSwitch(string label)
     {
-        _villageSwitchCts?.Cancel();
-        _villageSwitchCts?.Dispose();
-        _villageSwitchCts = CreateCts(label);
-        return _villageSwitchCts.Token;
+        return StartReplacingScope(ref _villageSwitchCts, label);
+    }
+
+    private CancellationToken StartReplacingScope(ref CancellationTokenSource? scope, string label)
+    {
+        scope?.Cancel();
+        scope?.Dispose();
+        scope = CreateCts(label);
+        return scope.Token;
     }
 
     /// <summary>Requests cancellation of the active village switch, if any.</summary>

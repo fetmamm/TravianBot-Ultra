@@ -20,6 +20,18 @@ public sealed class LoopControllerTests
     }
 
     [Fact]
+    public void StartVillageSwitch_CancelsThePreviousVillageSwitchToken()
+    {
+        using var controller = new LoopController();
+
+        var first = controller.StartVillageSwitch("first");
+        var second = controller.StartVillageSwitch("second");
+
+        Assert.True(first.IsCancellationRequested);
+        Assert.False(second.IsCancellationRequested);
+    }
+
+    [Fact]
     public void AcquireSessionScopeToken_RearmsAfterCancellation()
     {
         using var controller = new LoopController();
