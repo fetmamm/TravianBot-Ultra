@@ -9,73 +9,28 @@ using System.Text.Json;
 using System.Globalization;
 using System.Text.RegularExpressions;
 using System.Runtime.CompilerServices;
+using TbotUltra.Worker.Services.Automation.Combat;
 
 namespace TbotUltra.Worker.Services;
 
 public sealed partial class TravianClient
 {
-    private async Task EnsureRallyPointAndOpenSendTroopsPageAsync(CancellationToken cancellationToken, bool allowReuseCurrentPage)
-    {
-        if (allowReuseCurrentPage && await IsSendTroopsPageAsync(cancellationToken))
-        {
-            return;
-        }
-
-        await GotoAsync(Paths.RallyPointSendTroops, cancellationToken);
-        await EnsureLoggedInAsync();
-        if (await IsSendTroopsPageAsync(cancellationToken))
-        {
-            return;
-        }
-
-        await GotoAsync(Paths.FarmListFastUp, cancellationToken);
-        await EnsureLoggedInAsync();
-
-        await GotoAsync(Paths.RallyPointSendTroops, cancellationToken);
-        await EnsureLoggedInAsync();
-        if (await IsSendTroopsPageAsync(cancellationToken))
-        {
-            return;
-        }
-
-        var tabOpened = await TryOpenSendTroopsTabAsync(cancellationToken);
-        if (tabOpened)
-        {
-            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
-            await EnsureLoggedInAsync();
-        }
-
-        if (!await IsSendTroopsPageAsync(cancellationToken))
-        {
-            throw new InvalidOperationException("Rally Point does not appear to be constructed yet. Build Rally Point before sending troops.");
-        }
-    }
+    private Task EnsureRallyPointAndOpenSendTroopsPageAsync(CancellationToken cancellationToken, bool allowReuseCurrentPage)
+        => CreateSendTroopsNavigator().OpenSendTroopsAsync(allowReuseCurrentPage, cancellationToken);
 
     // True when the current page is the Rally Point build view showing "Level 0" — i.e. the Rally Point
     // is not built yet, so farm lists are unavailable. Scoped to the rally point construct view
     // (#content.buildRallyPoint), so an open farm list (built rally point) never matches.
-    private async Task<bool> IsRallyPointLevelZeroAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        try
-        {
-            return await _page.EvaluateAsync<bool>(
-                """
-                () => {
-                  const content = document.querySelector('#content.buildRallyPoint');
-                  if (!content) return false;
-                  const levelEl = content.querySelector('.titleInHeader .level');
-                  const match = (levelEl?.textContent || '').match(/(\d+)/);
-                  return match ? parseInt(match[1], 10) === 0 : false;
-                }
-                """);
-        }
-        catch (PlaywrightException ex)
-        {
-            Notify($"[farm-list] could not read Rally Point level: {ex.Message}");
-            return false;
-        }
-    }
+    private Task<bool> IsRallyPointLevelZeroAsync(CancellationToken cancellationToken)
+        => CreateSendTroopsNavigator().IsRallyPointLevelZeroAsync(cancellationToken);
+
+    private IRallyPointNavigator CreateSendTroopsNavigator() => new SendTroopsNavigator(
+        _page,
+        GotoAsync,
+        token => EnsureLoggedInAsync(cancellationToken: token),
+        Notify,
+        Paths.RallyPointSendTroops,
+        Paths.FarmListFastUp);
 
     private async Task<bool> IsSendTroopsPageAsync(CancellationToken cancellationToken)
     {
