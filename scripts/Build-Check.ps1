@@ -87,6 +87,7 @@ $arguments = @(
     $artifactsDir,
     "-m:1",
     "-p:NuGetAudit=false",
+    "-p:MSBuildEnableWorkloadResolver=false",
     "-p:UseSharedCompilation=false",
     "-p:BuildInParallel=false"
 )

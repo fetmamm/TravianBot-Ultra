@@ -21,9 +21,12 @@ Dependency direction is Desktop -> Worker -> Core. Core must not depend on Worke
 Build and test:
 
 ```powershell
-dotnet build TbotUltra.sln -c Release
-dotnet test TbotUltra.sln -c Release --no-build
+dotnet build TbotUltra.sln -c Release -p:MSBuildEnableWorkloadResolver=false
+dotnet test TbotUltra.sln -c Release --no-build -p:MSBuildEnableWorkloadResolver=false
 ```
+
+The solution uses no optional .NET workloads. Keep `MSBuildEnableWorkloadResolver=false` in build
+and test commands so a partial machine-wide workload installation cannot block the Desktop project.
 
 Published artifacts belong under `artifacts/`, never beside source files.
 

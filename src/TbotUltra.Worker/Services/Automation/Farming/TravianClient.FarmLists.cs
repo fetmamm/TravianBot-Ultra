@@ -680,7 +680,7 @@ public sealed partial class TravianClient : IFarmingClient
             .Where(row => !string.IsNullOrWhiteSpace(row.Name))
             .Select(row =>
             {
-                var timer = ResolveFarmListRemaining(row.TimerText, row.Disabled);
+                var timer = ResolveFarmListRemaining(row.TimerText);
                 return new FarmListOverview(
                     Name: row.Name!,
                     ActiveFarmCount: Math.Min(MaxFarmsPerFarmList, Math.Max(0, row.ActiveFarmCount ?? 0)),
@@ -695,18 +695,10 @@ public sealed partial class TravianClient : IFarmingClient
             .ToList();
     }
 
-    internal static (int? RemainingSeconds, bool IsEstimated) ResolveFarmListRemaining(string? timerText, bool disabled)
+    internal static (int? RemainingSeconds, bool IsEstimated) ResolveFarmListRemaining(string? timerText)
     {
         var seconds = TravianParsing.ParseDurationToSeconds(timerText);
-        if (seconds is > 0)
-        {
-            return (seconds, false);
-        }
-
-        // The Start Raid button is disabled while a raid timer is running. If we could not parse
-        // the exact countdown text, use a conservative one-minute retry instead of the old 1-second
-        // sentinel. The sentinel caused a tight read/defer loop while the button remained disabled.
-        return disabled ? (60, true) : (seconds, false);
+        return (seconds is > 0 ? seconds : null, false);
     }
 
     private async Task WaitForDispatchLimitToClearAsync(CancellationToken cancellationToken)

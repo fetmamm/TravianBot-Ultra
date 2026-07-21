@@ -79,6 +79,10 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(FarmCountText));
             OnPropertyChanged(nameof(FillPercent));
+            OnPropertyChanged(nameof(IsEmpty));
+            OnPropertyChanged(nameof(ReadyText));
+            OnPropertyChanged(nameof(ActionText));
+            OnPropertyChanged(nameof(CanSendNow));
         }
     }
 
@@ -129,13 +133,17 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
             _isPlaceholder = value;
             OnPropertyChanged();
             OnPropertyChanged(nameof(HasFarmList));
+            OnPropertyChanged(nameof(IsEmpty));
             OnPropertyChanged(nameof(FarmCountText));
             OnPropertyChanged(nameof(ReadyText));
+            OnPropertyChanged(nameof(ActionText));
             OnPropertyChanged(nameof(CanSendNow));
         }
     }
 
     public bool HasFarmList => !IsPlaceholder;
+
+    public bool IsEmpty => HasFarmList && TotalFarmCount == 0;
 
     public int? RemainingSeconds
     {
@@ -194,7 +202,9 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
 
     public bool IsReady => !HasTimer;
 
-    public string ReadyText => HasFarmList ? "Ready" : string.Empty;
+    public string ReadyText => !HasFarmList ? string.Empty : IsEmpty ? "Empty" : "Ready";
+
+    public string ActionText => IsEmpty ? "Empty" : "Send Now";
 
     public string TimerText
     {
@@ -212,7 +222,7 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
         }
     }
 
-    public bool CanSendNow => HasFarmList && IsEnabled && IsReady;
+    public bool CanSendNow => HasFarmList && !IsEmpty && IsEnabled && IsReady;
 
     public bool TickOneSecond()
     {

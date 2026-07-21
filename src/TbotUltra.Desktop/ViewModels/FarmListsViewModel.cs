@@ -55,7 +55,7 @@ public sealed class FarmListsViewModel : BaseViewModel
             return "No farm lists loaded. Click Analyze Farmlists.";
         }
 
-        var readyCount = realFarmLists.Count(item => item.IsReady);
+        var readyCount = realFarmLists.Count(item => item.IsReady && !item.IsEmpty);
         return $"Loaded {realFarmLists.Count} farm list(s). Ready: {readyCount}.";
     }
 }

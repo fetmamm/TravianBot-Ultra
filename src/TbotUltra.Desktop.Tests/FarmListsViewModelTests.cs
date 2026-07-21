@@ -56,6 +56,22 @@ public sealed class FarmListsViewModelTests
     }
 
     [Fact]
+    public void EmptyFarmList_IsNotReadyToSend_AndShowsEmptyAction()
+    {
+        var row = new FarmListStatusRow
+        {
+            Name = "Empty list",
+            IsEnabled = true,
+            TotalFarmCount = 0,
+        };
+
+        Assert.True(row.IsEmpty);
+        Assert.Equal("Empty", row.ReadyText);
+        Assert.Equal("Empty", row.ActionText);
+        Assert.False(row.CanSendNow);
+    }
+
+    [Fact]
     public void IsRealRow_PlaceholderIsNotReal()
     {
         Assert.False(FarmListsViewModel.IsRealRow(new FarmListStatusRow { IsPlaceholder = true }));

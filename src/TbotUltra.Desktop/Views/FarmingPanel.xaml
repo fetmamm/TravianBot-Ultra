@@ -134,6 +134,10 @@
                                                                                 <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
                                                                                 <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
                                                                                 <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                                                                                        <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                                                                                        <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
+                                                                                    </DataTrigger>
                                                                                     <DataTrigger Binding="{Binding HasTimer}" Value="True">
                                                                                         <Setter Property="Background" Value="{DynamicResource WarningBgBrush}" />
                                                                                         <Setter Property="BorderBrush" Value="{DynamicResource WarningBorderBrush}" />
@@ -147,6 +151,9 @@
                                                                                     <Setter Property="Text" Value="{Binding ReadyText}" />
                                                                                     <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
                                                                                     <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                                                                                            <Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+                                                                                        </DataTrigger>
                                                                                         <DataTrigger Binding="{Binding HasTimer}" Value="True">
                                                                                             <Setter Property="Text" Value="{Binding TimerText}" />
                                                                                             <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
@@ -158,15 +165,27 @@
                                                                     </Border>
 
                                                                     <StackPanel Grid.Column="3" VerticalAlignment="Center">
-                                                                        <Button Content="Send Now"
+                                                                        <Button Content="{Binding ActionText}"
                                                                                 MinWidth="90"
                                                                                 Height="32"
-                                                                                Background="{DynamicResource AccentBrush}"
-                                                                                Foreground="White"
-                                                                                BorderBrush="{DynamicResource AccentBrush}"
                                                                                 Tag="{Binding}"
                                                                                 IsEnabled="{Binding CanSendNow}"
-                                                                                Click="FarmListSendNowButton_Click" />
+                                                                                Click="FarmListSendNowButton_Click">
+                                                                            <Button.Style>
+                                                                                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                                                    <Setter Property="Background" Value="{DynamicResource AccentBrush}" />
+                                                                                    <Setter Property="Foreground" Value="White" />
+                                                                                    <Setter Property="BorderBrush" Value="{DynamicResource AccentBrush}" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding IsEmpty}" Value="True">
+                                                                                            <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                                                                                            <Setter Property="Foreground" Value="{DynamicResource TextDisabledBrush}" />
+                                                                                            <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </Button.Style>
+                                                                        </Button>
                                                                     </StackPanel>
                                                                 </Grid>
                                                             </Border>
