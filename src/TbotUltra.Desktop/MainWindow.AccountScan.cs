@@ -42,7 +42,8 @@ public partial class MainWindow
             },
             MessageBoxImage.Question,
             MessageBoxResult.Yes,
-            MessageBoxResult.Cancel);
+            MessageBoxResult.Cancel,
+            successResult: MessageBoxResult.Yes);
         if (choice != MessageBoxResult.Yes)
         {
             return;

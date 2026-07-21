@@ -357,9 +357,9 @@
                     DockPanel.Dock="Left"
                     Content="Clear accounts"
                     Width="120"
-                    Background="{DynamicResource PrimaryButtonBrush}"
-                    BorderBrush="{DynamicResource PrimaryButtonBrush}"
-                    Foreground="{DynamicResource TooltipForegroundBrush}"
+                    Background="{DynamicResource DangerBgBrush}"
+                    BorderBrush="{DynamicResource DangerBorderBrush}"
+                    Foreground="{DynamicResource DangerTextBrush}"
                     FontWeight="SemiBold"
                     Click="ClearAccountsButton_Click" />
             <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">

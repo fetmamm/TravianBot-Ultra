@@ -414,8 +414,8 @@ public partial class VillageSettingsWindow : Window
         _onConstructFasterSettingsRequested?.Invoke(_rows);
     }
 
-    // Persists every row's current state via the callbacks, then closes. The persist callbacks no-op when
-    // a value is unchanged, so writing all rows is cheap.
+    // Persists every row's current state via the callbacks. The persist callbacks no-op when a value is
+    // unchanged, so writing all rows is cheap.
     private void SaveAndCloseButton_Click(object sender, RoutedEventArgs e)
     {
         foreach (var row in _rows)
@@ -428,7 +428,6 @@ public partial class VillageSettingsWindow : Window
         }
 
         _onSaved?.Invoke();
-        Close();
     }
 
     private void CloseButton_Click(object sender, RoutedEventArgs e)

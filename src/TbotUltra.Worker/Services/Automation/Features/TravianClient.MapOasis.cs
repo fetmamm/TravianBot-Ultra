@@ -131,10 +131,27 @@ public sealed partial class TravianClient
         }
         catch (OperationCanceledException)
         {
-            // A user cancel must start over next time, not resume; drop any saved checkpoint.
+            var partialResult = found.Values
+                .OrderBy(oasis => oasis.Y)
+                .ThenBy(oasis => oasis.X)
+                .ToList();
+            // A user cancel keeps the completed work as a local list, but a later scan starts fresh.
+            // Local persistence must not inherit the canceled operation token.
+            await SaveMapOasisSnapshotAsync(
+                AccountStoragePaths.MapOasisCachePath(_projectRoot, AccountName, ServerUrl),
+                filterKey,
+                includeOccupied,
+                completedAreas,
+                partialResult,
+                CancellationToken.None);
             DeleteMapOasisCheckpoint(checkpointPath);
-            Notify("[map-oasis] scan canceled; checkpoint cleared, next scan starts from the beginning.");
-            throw;
+            progress?.Report(new MapOasisScanProgress(
+                completedAreas.Count,
+                centers.Count,
+                partialResult.Count,
+                IsPartialResult: true));
+            Notify($"[map-oasis] scan canceled; saved {partialResult.Count} oasis/oases from {completedAreas.Count}/{centers.Count} completed areas.");
+            return partialResult;
         }
         catch
         {

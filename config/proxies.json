@@ -290,7 +290,9 @@
     "isWorking": true,
     "lastFailureUtc": null,
     "assignedAccount": null,
-    "usedByAccounts": [],
+    "usedByAccounts": [
+      "fetmamm_hotmail_com_ts3_x1_international_travian_com_02a0c311ec6e72f0"
+    ],
     "createdAtUtc": "2026-07-19T19:10:05.9409791Z"
   },
   {

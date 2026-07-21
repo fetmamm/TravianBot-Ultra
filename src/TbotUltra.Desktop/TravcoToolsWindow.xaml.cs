@@ -304,18 +304,21 @@ public partial class TravcoToolsWindow : Window
         BusyOverlay.ProgressValue = 0;
         try
         {
+            var savedPartialResult = false;
             SetStatus(request.Scope == MapOasisScanScope.WholeMap
                 ? "Scanning the whole Travian map for oases."
                 : $"Scanning a radius of {request.Radius} around ({request.CenterX}|{request.CenterY}).");
             var progress = new Progress<MapOasisScanProgress>(value =>
             {
+                savedPartialResult = value.IsPartialResult;
                 var percent = value.TotalAreas == 0
                     ? 0
                     : (double)value.CompletedAreas / value.TotalAreas * 100;
                 BusyOverlay.ProgressValue = percent;
                 BusyOverlay.Text =
-                    $"{percent:0}% - map area {value.CompletedAreas}/{value.TotalAreas} - " +
-                    $"{value.TotalAreas - value.CompletedAreas} areas remaining - {value.OasisCount} oases found.";
+                    $"{percent:0}% complete\n" +
+                    $"Map area {value.CompletedAreas}/{value.TotalAreas} - {value.TotalAreas - value.CompletedAreas} remaining\n" +
+                    $"{value.OasisCount} oases found";
             });
             var oases = await MapOasisScanRequested(request, progress, operationCts.Token);
             if (oases.Count == 0)
@@ -333,7 +336,9 @@ public partial class TravcoToolsWindow : Window
                 _store.LoadAll().Select(list => list.Name));
             _viewModel.ListName = name;
             SaveCurrentRows(name);
-            SetStatus($"Saved '{name}' with {oases.Count} oasis/oases.");
+            SetStatus(savedPartialResult
+                ? $"Scan canceled. Saved partial list '{name}' with {oases.Count} oasis/oases."
+                : $"Saved '{name}' with {oases.Count} oasis/oases.");
         }
         catch (OperationCanceledException)
         {

@@ -363,9 +363,9 @@
                             Content="Test &amp; rank"
                             MinWidth="130"
                             Margin="0,0,8,0"
-                            Background="{DynamicResource PrimaryButtonBrush}"
-                            BorderBrush="{DynamicResource PrimaryButtonBrush}"
-                            Foreground="{DynamicResource TooltipForegroundBrush}"
+                            Background="{DynamicResource SuccessBgBrush}"
+                            BorderBrush="{DynamicResource SuccessBorderBrush}"
+                            Foreground="{DynamicResource SuccessTextBrush}"
                             FontWeight="SemiBold"
                             Click="TestButton_Click" />
                     <Button x:Name="CloseButtonControl"

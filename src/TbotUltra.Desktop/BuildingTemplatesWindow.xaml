@@ -47,9 +47,9 @@
                             Width="76"
                             Height="28"
                             Margin="0,0,6,0"
-                            Background="{DynamicResource AccentBrush}"
-                            Foreground="White"
-                            BorderBrush="{DynamicResource AccentBrush}"
+                            Background="{DynamicResource SuccessBgBrush}"
+                            Foreground="{DynamicResource SuccessTextBrush}"
+                            BorderBrush="{DynamicResource SuccessBorderBrush}"
                             Click="NewTemplateButton_Click" />
                     <Button Content="Delete"
                             Width="76"
@@ -298,30 +298,36 @@
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <TextBlock Text="{Binding StatusText}"
                                Foreground="{DynamicResource TextSubtleBrush}"
                                TextWrapping="Wrap"
                                VerticalAlignment="Center" />
-                    <StackPanel Grid.Column="1" Orientation="Horizontal">
-                        <Button Content="Save"
-                                Width="86"
-                                Height="30"
-                                Margin="0,0,8,0"
-                                Click="SaveButton_Click" />
-                        <Button Content="Queue template"
-                                Width="118"
-                                Height="30"
-                                Margin="0,0,8,0"
-                                Background="{DynamicResource AccentBrush}"
-                                Foreground="White"
-                                BorderBrush="{DynamicResource AccentBrush}"
-                                Click="QueueTemplateButton_Click" />
-                        <Button Content="Close"
-                                Width="82"
-                                Height="30"
-                                Click="CloseButton_Click" />
-                    </StackPanel>
+                    <Button Grid.Column="1"
+                            Content="Save"
+                            Width="86"
+                            Height="30"
+                            Margin="0,0,8,0"
+                            Background="{DynamicResource SuccessBgBrush}"
+                            Foreground="{DynamicResource SuccessTextBrush}"
+                            BorderBrush="{DynamicResource SuccessBorderBrush}"
+                            Click="SaveButton_Click" />
+                    <Button Grid.Column="2"
+                            Content="Close"
+                            Width="82"
+                            Height="30"
+                            Margin="0,0,8,0"
+                            Click="CloseButton_Click" />
+                    <Button Grid.Column="3"
+                            Content="Queue template"
+                            Width="118"
+                            Height="30"
+                            Background="{DynamicResource InfoBgBrush}"
+                            Foreground="{DynamicResource InfoTextBrush}"
+                            BorderBrush="{DynamicResource InfoBrush}"
+                            Click="QueueTemplateButton_Click" />
                 </Grid>
             </Grid>
         </Border>

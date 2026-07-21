@@ -13,9 +13,9 @@
                 <Button x:Name="LoadResourcesButton" Style="{StaticResource RefreshIconButtonStyle}" Margin="0,0,6,0" Click="LoadResourcesButton_Click" ToolTip="Refresh resources" IsEnabled="{Binding ActionsEnabled}" />
                 <TextBlock Text="Target level" VerticalAlignment="Center" Margin="0,0,8,0" />
                 <ComboBox Width="90" Margin="0,0,8,0" ItemsSource="{Binding TargetLevelOptions}" SelectedItem="{Binding SelectedTargetLevel}" IsEnabled="{Binding ActionsEnabled}" />
-                <Button Content="Upgrade all to level" Width="160" Background="{DynamicResource AccentBrush}" Foreground="White" BorderBrush="{DynamicResource AccentBrush}" Click="UpgradeAllResourcesButton_Click" IsEnabled="{Binding ActionsEnabled}"
+                <Button Content="Upgrade all to level" Width="160" Background="{DynamicResource SuccessBgBrush}" Foreground="{DynamicResource SuccessTextBrush}" BorderBrush="{DynamicResource SuccessBorderBrush}" Click="UpgradeAllResourcesButton_Click" IsEnabled="{Binding ActionsEnabled}"
                         ToolTip="Queue upgrades for every resource field up to the target level selected on the left, following the chosen Build order (Lowest level first or Smart)." />
-                <Button Content="Upgrade to max" Width="140" Margin="8,0,0,0" Background="{DynamicResource WarningButtonBgBrush}" Foreground="{DynamicResource OnWarningBrush}" BorderBrush="{DynamicResource WarningBorderBrush}" Click="UpgradeAllResourcesToMaxButton_Click" IsEnabled="{Binding ActionsEnabled}"
+                <Button Content="Upgrade to max" Width="140" Margin="8,0,0,0" Background="{DynamicResource WarningBgBrush}" Foreground="{DynamicResource WarningTextBrush}" BorderBrush="{DynamicResource WarningBorderBrush}" Click="UpgradeAllResourcesToMaxButton_Click" IsEnabled="{Binding ActionsEnabled}"
                         ToolTip="Queue upgrades for every resource field up to its maximum level, following the chosen Build order (Lowest level first or Smart)." />
             </StackPanel>
             <StackPanel Orientation="Horizontal" Margin="0,10,0,0" VerticalAlignment="Center">

@@ -29,9 +29,9 @@
                             MinWidth="175"
                             HorizontalAlignment="Left"
                             Content="1. Analyze Travco"
-                            Background="{DynamicResource AccentBrush}"
-                            BorderBrush="{DynamicResource AccentBrush}"
-                            Foreground="White"
+                            Background="{DynamicResource SuccessBgBrush}"
+                            BorderBrush="{DynamicResource SuccessBorderBrush}"
+                            Foreground="{DynamicResource SuccessTextBrush}"
                             Click="InactiveSearchButton_Click" />
                     <Button x:Name="SaveAllPagesButton"
                             Margin="0,8,0,0"
@@ -58,9 +58,9 @@
                         <Button x:Name="AnalyzeMapOasisButton"
                                 Content="Analyze map oasis"
                                 MinWidth="150"
-                                Background="{DynamicResource AccentBrush}"
-                                BorderBrush="{DynamicResource AccentBrush}"
-                                Foreground="White"
+                                Background="{DynamicResource SuccessBgBrush}"
+                                BorderBrush="{DynamicResource SuccessBorderBrush}"
+                                Foreground="{DynamicResource SuccessTextBrush}"
                                 Click="AnalyzeMapOasisButton_Click" />
                     </Border>
                     <Grid>

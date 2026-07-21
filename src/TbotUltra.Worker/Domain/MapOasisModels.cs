@@ -13,7 +13,8 @@ public sealed record MapOasisEntry(
 public sealed record MapOasisScanProgress(
     int CompletedAreas,
     int TotalAreas,
-    int OasisCount);
+    int OasisCount,
+    bool IsPartialResult = false);
 
 public enum MapOasisScanScope
 {

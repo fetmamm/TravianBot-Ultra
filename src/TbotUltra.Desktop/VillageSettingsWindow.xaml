@@ -202,11 +202,11 @@
         </TabControl>
 
         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,12,0,0">
-            <Button Width="100" Content="Close" Click="CloseButton_Click" Margin="0,0,8,0" />
-            <Button Width="140" Content="Save &amp; close" Click="SaveAndCloseButton_Click"
-                    Background="{DynamicResource PrimaryButtonBrush}"
-                    BorderBrush="{DynamicResource AccentBrush}"
-                    Foreground="{DynamicResource OnAccentBrush}" />
+            <Button Width="100" Content="Save" Click="SaveAndCloseButton_Click" Margin="0,0,8,0"
+                    Background="{DynamicResource SuccessBgBrush}"
+                    BorderBrush="{DynamicResource SuccessBorderBrush}"
+                    Foreground="{DynamicResource SuccessTextBrush}" />
+            <Button Width="100" Content="Close" Click="CloseButton_Click" />
         </StackPanel>
     </Grid>
 </Window>
