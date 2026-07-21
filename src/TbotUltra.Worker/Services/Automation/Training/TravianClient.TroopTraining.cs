@@ -1149,8 +1149,7 @@ public sealed partial class TravianClient
             }
 
             await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
-            await input.ClickAsync();
-            await input.FillAsync(maxAmount.Value.ToString());
+            await TypeHumanlyAsync(input, maxAmount.Value.ToString(), cancellationToken);
             Notify($"[troops:verbose] submit:filled '{inputName}' with max value '{maxAmount.Value}'.");
         }
         else
@@ -1163,8 +1162,7 @@ public sealed partial class TravianClient
             }
 
             await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
-            await input.ClickAsync();
-            await input.FillAsync(integerAmount.ToString());
+            await TypeHumanlyAsync(input, integerAmount.ToString(), cancellationToken);
             Notify($"[troops:verbose] submit:filled '{inputName}' with '{integerAmount}'.");
         }
 

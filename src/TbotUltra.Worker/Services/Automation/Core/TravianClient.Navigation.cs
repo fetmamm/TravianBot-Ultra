@@ -70,6 +70,26 @@ public sealed partial class TravianClient
         }
     }
 
+    private async Task<bool> TryTypeHumanlyIntoFirstMatchingInputAsync(
+        IReadOnlyList<string> selectors,
+        string value,
+        CancellationToken cancellationToken)
+    {
+        foreach (var selector in selectors)
+        {
+            var input = _page.Locator(selector).First;
+            if (await input.CountAsync() == 0 || !await input.IsVisibleAsync())
+            {
+                continue;
+            }
+
+            await TypeHumanlyAsync(input, value, cancellationToken);
+            return true;
+        }
+
+        return false;
+    }
+
 // Helper function for waiting on a page to fully load with retries, to mitigate transient timeouts on slow-loading pages.
     private async Task WaitForPageReadyAsync(CancellationToken cancellationToken = default)
     {

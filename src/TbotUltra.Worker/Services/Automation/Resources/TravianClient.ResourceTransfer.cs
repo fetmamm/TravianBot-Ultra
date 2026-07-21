@@ -362,59 +362,33 @@ public sealed partial class TravianClient
     private async Task<bool> FillMarketplaceResourceTransferFormAsync(Village targetVillage, ResourceTransferShipment shipment, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var filled = await _page.EvaluateAsync<bool>(
-            """
-            ({ targetName, x, y, wood, clay, iron, crop }) => {
-              const setValue = (el, value) => {
-                if (!el) return false;
-                el.focus();
-                el.value = String(value);
-                el.dispatchEvent(new Event('input', { bubbles: true }));
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-                return true;
-              };
-              const first = (selectors) => {
-                for (const selector of selectors) {
-                  const node = document.querySelector(selector);
-                  if (node) return node;
-                }
-                return null;
-              };
+        var resourcesFilled =
+            await TryTypeHumanlyIntoFirstMatchingInputAsync(["input[name='lumber']", "input[name*='wood' i]", "input[aria-label*='wood' i]"], shipment.Wood.ToString(), cancellationToken)
+            && await TryTypeHumanlyIntoFirstMatchingInputAsync(["input[name='clay']", "input[name*='clay' i]", "input[aria-label*='clay' i]"], shipment.Clay.ToString(), cancellationToken)
+            && await TryTypeHumanlyIntoFirstMatchingInputAsync(["input[name='iron']", "input[name*='iron' i]", "input[aria-label*='iron' i]"], shipment.Iron.ToString(), cancellationToken)
+            && await TryTypeHumanlyIntoFirstMatchingInputAsync(["input[name='crop']", "input[name*='crop' i]", "input[aria-label*='crop' i]"], shipment.Crop.ToString(), cancellationToken);
+        if (!resourcesFilled)
+        {
+            return false;
+        }
 
-              // Official Travian (T4.6) names resource inputs lumber/clay/iron/crop
-              // (wood is "lumber").
-              const resourceOk =
-                setValue(first(['input[name="lumber"]', 'input[name*="wood" i]', 'input[aria-label*="wood" i]']), wood) &&
-                setValue(first(['input[name="clay"]', 'input[name*="clay" i]', 'input[aria-label*="clay" i]']), clay) &&
-                setValue(first(['input[name="iron"]', 'input[name*="iron" i]', 'input[aria-label*="iron" i]']), iron) &&
-                setValue(first(['input[name="crop"]', 'input[name*="crop" i]', 'input[aria-label*="crop" i]']), crop);
-              if (!resourceOk) return false;
-
-              let targetOk = false;
-              if (Number.isFinite(x) && Number.isFinite(y)) {
-                const xOk = setValue(first(['input[name="x"]', 'input#xCoordInput', 'input[name*="x" i][type="text"]']), x);
-                const yOk = setValue(first(['input[name="y"]', 'input#yCoordInput', 'input[name*="y" i][type="text"]']), y);
-                targetOk = xOk && yOk;
-              }
-              if (!targetOk && targetName) {
-                targetOk = setValue(first(['input[name="dname"]', 'input[name="villageName"]', 'input[name*="village" i]', 'input[name*="name" i]']), targetName);
-              }
-
-              return targetOk;
-            }
-            """,
-            new
+        if (targetVillage.CoordX is int x && targetVillage.CoordY is int y)
+        {
+            var xFilled = await TryTypeHumanlyIntoFirstMatchingInputAsync(
+                ["input[name='x']", "input#xCoordInput", "input[name*='x' i][type='text']"], x.ToString(), cancellationToken);
+            var yFilled = await TryTypeHumanlyIntoFirstMatchingInputAsync(
+                ["input[name='y']", "input#yCoordInput", "input[name*='y' i][type='text']"], y.ToString(), cancellationToken);
+            if (xFilled && yFilled)
             {
-                targetName = targetVillage.Name,
-                x = targetVillage.CoordX,
-                y = targetVillage.CoordY,
-                wood = shipment.Wood,
-                clay = shipment.Clay,
-                iron = shipment.Iron,
-                crop = shipment.Crop,
-            });
+                return true;
+            }
+        }
 
-        return filled;
+        return !string.IsNullOrWhiteSpace(targetVillage.Name)
+            && await TryTypeHumanlyIntoFirstMatchingInputAsync(
+                ["input[name='dname']", "input[name='villageName']", "input[name*='village' i]", "input[name*='name' i]"],
+                targetVillage.Name,
+                cancellationToken);
     }
 
     private async Task<bool> ClickMarketplaceSendButtonAsync(CancellationToken cancellationToken)

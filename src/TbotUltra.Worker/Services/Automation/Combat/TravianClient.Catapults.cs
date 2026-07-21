@@ -470,7 +470,7 @@ public sealed partial class TravianClient : ICombatClient
                 continue;
             }
 
-            await locator.FillAsync(value, new LocatorFillOptions { Timeout = _config.TimeoutMs });
+            await TypeHumanlyAsync(locator, value, cancellationToken);
             return;
         }
 
@@ -517,7 +517,7 @@ public sealed partial class TravianClient : ICombatClient
                 continue;
             }
 
-            await locator.FillAsync(troopCountToSend.ToString(CultureInfo.InvariantCulture), new LocatorFillOptions { Timeout = _config.TimeoutMs });
+            await TypeHumanlyAsync(locator, troopCountToSend.ToString(CultureInfo.InvariantCulture), cancellationToken);
             var filledValue = await locator.InputValueAsync(new LocatorInputValueOptions { Timeout = _config.TimeoutMs });
             return string.Equals(filledValue.Trim(), troopCountToSend.ToString(CultureInfo.InvariantCulture), StringComparison.Ordinal);
         }

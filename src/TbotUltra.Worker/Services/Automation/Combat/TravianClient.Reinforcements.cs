@@ -377,26 +377,6 @@ public sealed partial class TravianClient
                 cancellationToken);
     }
 
-    private async Task<bool> TryTypeHumanlyIntoFirstMatchingInputAsync(
-        IReadOnlyList<string> selectors,
-        string value,
-        CancellationToken cancellationToken)
-    {
-        foreach (var selector in selectors)
-        {
-            var input = _page.Locator(selector).First;
-            if (await input.CountAsync() == 0 || !await input.IsVisibleAsync())
-            {
-                continue;
-            }
-
-            await TypeHumanlyAsync(input, value, cancellationToken);
-            return true;
-        }
-
-        return false;
-    }
-
     private async Task<bool> TrySelectReinforcementModeAsync(CancellationToken cancellationToken)
     {
         return await _page.EvaluateAsync<bool>(
