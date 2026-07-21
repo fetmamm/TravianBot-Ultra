@@ -23,7 +23,7 @@ public partial class TravcoToolsWindow : Window
 
     public Func<TravcoSearchRequest, CancellationToken, Task<TravcoScrapeResult>>? SearchRequested { get; init; }
     public Func<IProgress<(int CurrentPage, int TotalPages)>, CancellationToken, Task<TravcoScrapeResult>>? ScrapeAllPagesRequested { get; init; }
-    public Func<IProgress<MapOasisScanProgress>, CancellationToken, Task<List<OasisInfo>>>? MapOasisScanRequested { get; init; }
+    public Func<MapOasisScanRequest, IProgress<MapOasisScanProgress>, CancellationToken, Task<List<OasisInfo>>>? MapOasisScanRequested { get; init; }
     public Func<Task>? CloseRequested { get; init; }
 
     public TravcoToolsWindow(
@@ -195,19 +195,16 @@ public partial class TravcoToolsWindow : Window
 
     private void AnalyzeMapOasisButton_Click(object sender, RoutedEventArgs e)
     {
-        var confirm = AppDialog.Show(
-            this,
-            "Analyze map oasis scans the Travian map and can generate a high volume of requests.\n\n"
-                + "Recommended use: run this once per account, save the result, and do not repeat it unless you have a specific reason.",
-            "Analyze map oasis",
-            MessageBoxButton.YesNo,
-            MessageBoxImage.Warning);
-        if (confirm != MessageBoxResult.Yes)
+        var settings = new MapOasisSettingsWindow(_viewModel.Villages, _viewModel.SelectedVillage)
+        {
+            Owner = this,
+        };
+        if (settings.ShowDialog() != true || settings.Request is null)
         {
             return;
         }
 
-        _ = RunMapOasisScanAndSaveAsync();
+        _ = RunMapOasisScanAndSaveAsync(settings.Request);
     }
 
     private void CalculateDistanceButton_Click(object sender, RoutedEventArgs e)
@@ -289,9 +286,9 @@ public partial class TravcoToolsWindow : Window
         }
     }
 
-    // Scans the whole map for oases (all types, occupied and free) and saves them as one list. The
+    // Scans the selected map area for oases (all types, occupied and free) and saves them as one list. The
     // list keeps each oasis's type/occupied/animals/owner so the farm-add dialog can filter on them.
-    private async Task RunMapOasisScanAndSaveAsync()
+    private async Task RunMapOasisScanAndSaveAsync(MapOasisScanRequest request)
     {
         if (_busy || MapOasisScanRequested is null)
         {
@@ -302,16 +299,25 @@ public partial class TravcoToolsWindow : Window
         using var operationCts = CancellationTokenSource.CreateLinkedTokenSource(_windowCts.Token);
         _activeOperationCts = operationCts;
         BusyOverlay.ShowCancel = true;
-        BusyOverlay.Show("Analyze map oasis", "Scanning the Travian map for oases...");
+        BusyOverlay.Show("Analyze map oasis", "0% - preparing map scan...");
+        BusyOverlay.IsIndeterminate = false;
+        BusyOverlay.ProgressValue = 0;
         try
         {
-            SetStatus("Scanning the Travian map for oases.");
+            SetStatus(request.Scope == MapOasisScanScope.WholeMap
+                ? "Scanning the whole Travian map for oases."
+                : $"Scanning a radius of {request.Radius} around ({request.CenterX}|{request.CenterY}).");
             var progress = new Progress<MapOasisScanProgress>(value =>
             {
+                var percent = value.TotalAreas == 0
+                    ? 0
+                    : (double)value.CompletedAreas / value.TotalAreas * 100;
+                BusyOverlay.ProgressValue = percent;
                 BusyOverlay.Text =
-                    $"Scanning map area {value.CompletedAreas}/{value.TotalAreas} - {value.OasisCount} oases found.";
+                    $"{percent:0}% - map area {value.CompletedAreas}/{value.TotalAreas} - " +
+                    $"{value.TotalAreas - value.CompletedAreas} areas remaining - {value.OasisCount} oases found.";
             });
-            var oases = await MapOasisScanRequested(progress, operationCts.Token);
+            var oases = await MapOasisScanRequested(request, progress, operationCts.Token);
             if (oases.Count == 0)
             {
                 SetStatus("Map oasis scan finished with no oases found. No list was created.");

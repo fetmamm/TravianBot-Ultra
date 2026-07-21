@@ -135,5 +135,13 @@ public sealed class MapOasisApiParserTests
         Assert.Equal((187, 187), centers[^1]);
     }
 
+    [Fact]
+    public void CreateScanCenters_ForRadiusBounds_VisitsAdjacentRowsInAlternatingDirections()
+    {
+        var centers = MapOasisApiParser.CreateScanCenters(-30, 30, -30, 30);
+
+        Assert.Equal([(-15, -15), (16, -15), (16, 16), (-15, 16)], centers);
+    }
+
     private static string CreateResponse(string tiles) => $"{{\"tiles\":[{tiles}]}}";
 }

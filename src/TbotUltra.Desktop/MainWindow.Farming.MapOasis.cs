@@ -5,11 +5,12 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    // Runs a full map oasis scan and returns every recognized oasis (free and occupied, all bonus
-    // types). Type/occupied filtering is applied later when adding farms, so the scan stores everything.
+    // Runs an oasis scan and returns every recognized oasis (free and occupied, all bonus types).
+    // Type/occupied filtering is applied later when adding farms, so the scan stores everything.
     // Automation is already paused by the Travco tools window that hosts this scan, so no extra
     // pause/resume handling is needed here.
     private async Task<List<OasisInfo>> RunMapOasisScanAsync(
+        MapOasisScanRequest request,
         IProgress<MapOasisScanProgress> progress,
         CancellationToken cancellationToken)
     {
@@ -22,6 +23,7 @@ public partial class MainWindow
                     options,
                     includeOccupied: true,
                     MapOasisAllTypes,
+                    request,
                     AppendLog,
                     progress,
                     token);

@@ -15,3 +15,25 @@ public sealed record MapOasisScanProgress(
     int TotalAreas,
     int OasisCount);
 
+public enum MapOasisScanScope
+{
+    WholeMap,
+    Radius,
+}
+
+public enum MapOasisScanSpeed
+{
+    Normal,
+    Fast,
+}
+
+public sealed record MapOasisScanRequest(
+    int CenterX,
+    int CenterY,
+    MapOasisScanScope Scope,
+    int Radius,
+    MapOasisScanSpeed Speed)
+{
+    public const int DefaultRadius = 30;
+}
+

@@ -73,6 +73,7 @@ public sealed class DesktopBotService : IDesktopBotService
         BotOptions options,
         bool includeOccupied,
         IReadOnlyCollection<string> selectedTypes,
+        MapOasisScanRequest request,
         Action<string> log,
         IProgress<MapOasisScanProgress>? progress,
         CancellationToken cancellationToken)
@@ -81,6 +82,7 @@ public sealed class DesktopBotService : IDesktopBotService
             options,
             includeOccupied,
             selectedTypes,
+            request,
             log,
             progress,
             null,

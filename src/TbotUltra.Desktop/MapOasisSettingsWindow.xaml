@@ -1,0 +1,102 @@
+<Window x:Class="TbotUltra.Desktop.MapOasisSettingsWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Background="{DynamicResource AppBackgroundBrush}"
+        Title="Analyze map oasis settings"
+        Width="480"
+        SizeToContent="Height"
+        ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner">
+    <Grid Margin="18">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+        </Grid.RowDefinitions>
+
+        <TextBlock Text="Analyze map oasis"
+                   FontSize="18"
+                   FontWeight="SemiBold"
+                   Foreground="{DynamicResource TextPrimaryBrush}"
+                   Margin="0,0,0,14" />
+
+        <Border Grid.Row="1"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1"
+                CornerRadius="8"
+                Padding="12">
+            <Grid>
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
+                </Grid.RowDefinitions>
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <TextBlock Text="Starting point" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                <ContentControl Grid.Column="1" Style="{DynamicResource InfoTooltipIconStyle}"
+                                ToolTip="Specific village uses the selected village as the center. Center of map always uses 0|0." />
+                <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0">
+                    <StackPanel Orientation="Horizontal">
+                        <RadioButton x:Name="SpecificVillageRadioButton" Content="Specific village" GroupName="MapOasisStartingPoint"
+                                     IsChecked="True" Checked="StartingPoint_Changed" />
+                        <RadioButton x:Name="CenterOfMapRadioButton" Content="Center of map" GroupName="MapOasisStartingPoint"
+                                     Margin="18,0,0,0" Checked="StartingPoint_Changed" />
+                    </StackPanel>
+                    <ComboBox x:Name="VillageComboBox" Margin="0,8,0,0" ItemsSource="{Binding Villages}"
+                              DisplayMemberPath="NameWithCoords" SelectedItem="{Binding SelectedVillage}" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="2" Margin="0,10,0,0"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1" CornerRadius="8" Padding="12">
+            <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <TextBlock Text="Area" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                <ContentControl Grid.Column="1" Style="{DynamicResource InfoTooltipIconStyle}"
+                                ToolTip="Whole map scans every map area. Radius scans the selected number of coordinates north, south, east and west from the starting point." />
+                <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0">
+                    <RadioButton x:Name="WholeMapRadioButton" Content="Analyze whole map" GroupName="MapOasisArea"
+                                 IsChecked="True" Checked="Area_Changed" />
+                    <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
+                        <RadioButton x:Name="RadiusRadioButton" Content="Analyze radius" GroupName="MapOasisArea"
+                                     Checked="Area_Changed" VerticalAlignment="Center" />
+                        <TextBox x:Name="RadiusTextBox" Text="30" Width="58" Margin="10,0,0,0" VerticalContentAlignment="Center" />
+                    </StackPanel>
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <Border Grid.Row="3" Margin="0,10,0,0"
+                Background="{DynamicResource SurfaceBrush}"
+                BorderBrush="{DynamicResource BorderBrush}"
+                BorderThickness="1" CornerRadius="8" Padding="12">
+            <Grid>
+                <Grid.RowDefinitions><RowDefinition Height="Auto" /><RowDefinition Height="Auto" /></Grid.RowDefinitions>
+                <Grid.ColumnDefinitions><ColumnDefinition Width="*" /><ColumnDefinition Width="Auto" /></Grid.ColumnDefinitions>
+                <TextBlock Text="Speed" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+                <ContentControl Grid.Column="1" Style="{DynamicResource InfoTooltipIconStyle}"
+                                ToolTip="Normal uses longer variable pauses and regular breaks. Fast uses shorter pauses while retaining retry handling." />
+                <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Orientation="Horizontal" Margin="0,8,0,0">
+                    <RadioButton x:Name="NormalSpeedRadioButton" Content="Normal" GroupName="MapOasisSpeed" IsChecked="True" />
+                    <RadioButton x:Name="FastSpeedRadioButton" Content="Fast" GroupName="MapOasisSpeed" Margin="18,0,0,0" />
+                </StackPanel>
+            </Grid>
+        </Border>
+
+        <StackPanel Grid.Row="4" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,16,0,0">
+            <Button Content="Cancel" Width="82" Height="30" Margin="0,0,8,0" Click="CancelButton_Click" />
+            <Button Content="Start analysis" Width="116" Height="30" Click="StartButton_Click"
+                    Background="{DynamicResource PrimaryButtonBrush}" BorderBrush="{DynamicResource AccentBrush}"
+                    Foreground="{DynamicResource OnAccentBrush}" />
+        </StackPanel>
+    </Grid>
+</Window>

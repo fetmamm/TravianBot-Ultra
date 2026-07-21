@@ -105,6 +105,7 @@ public sealed partial class BotTaskRunner
         BotOptions options,
         bool includeOccupied,
         IReadOnlyCollection<string> selectedTypes,
+        MapOasisScanRequest request,
         Action<string> log,
         IProgress<MapOasisScanProgress>? progress,
         string? accountName = null,
@@ -131,6 +132,7 @@ public sealed partial class BotTaskRunner
                         result = await client.ScanMapOasesAsync(
                             includeOccupied,
                             selectedTypes,
+                            request,
                             progress,
                             cancellationToken);
                         trace.Complete("success", $"count={result.Count}");

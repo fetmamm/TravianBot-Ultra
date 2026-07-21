@@ -51,23 +51,39 @@ internal static partial class MapOasisApiParser
     }
 
     public static IReadOnlyList<(int X, int Y)> CreateScanCenters(
-        int minimumCoordinate = -200,
-        int maximumCoordinate = 200,
+        int minimumX = -200,
+        int maximumX = 200,
+        int minimumY = -200,
+        int maximumY = 200,
         int tileRadius = 15)
     {
-        if (minimumCoordinate > maximumCoordinate || tileRadius < 0)
+        if (minimumX > maximumX || minimumY > maximumY || tileRadius < 0)
         {
-            throw new ArgumentOutOfRangeException(nameof(minimumCoordinate));
+            throw new ArgumentOutOfRangeException(nameof(minimumX));
         }
 
         var width = (tileRadius * 2) + 1;
+        var xAxis = CreateScanAxis(minimumX, maximumX, width, tileRadius);
+        var yAxis = CreateScanAxis(minimumY, maximumY, width, tileRadius);
+        var centers = new List<(int X, int Y)>(xAxis.Count * yAxis.Count);
+        for (var row = 0; row < yAxis.Count; row++)
+        {
+            var xValues = row % 2 == 0 ? xAxis : xAxis.AsEnumerable().Reverse();
+            centers.AddRange(xValues.Select(x => (x, yAxis[row])));
+        }
+
+        return centers;
+    }
+
+    private static List<int> CreateScanAxis(int minimumCoordinate, int maximumCoordinate, int width, int tileRadius)
+    {
         var axis = new List<int>();
         for (var start = minimumCoordinate; start <= maximumCoordinate; start += width)
         {
             axis.Add(start + tileRadius);
         }
 
-        return axis.SelectMany(y => axis.Select(x => (x, y))).ToList();
+        return axis;
     }
 
     // Travian embeds Unicode bidi-control characters (U+202D/U+202C) throughout the tile text,
