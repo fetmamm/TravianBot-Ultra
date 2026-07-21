@@ -354,46 +354,47 @@ public sealed partial class TravianClient
 
     private async Task<bool> TryFillReinforcementTargetAsync(Village targetVillage, CancellationToken cancellationToken)
     {
-        var filled = await _page.EvaluateAsync<bool>(
-            """
-            ({ targetName, x, y }) => {
-              const setValue = (el, value) => {
-                if (!el) return false;
-                el.focus();
-                el.value = String(value);
-                el.dispatchEvent(new Event('input', { bubbles: true }));
-                el.dispatchEvent(new Event('change', { bubbles: true }));
-                return true;
-              };
-              const first = (selectors) => {
-                for (const selector of selectors) {
-                  const node = document.querySelector(selector);
-                  if (node) return node;
-                }
-                return null;
-              };
-
-              if (Number.isFinite(x) && Number.isFinite(y)) {
-                const xOk = setValue(first(['input[name="x"]', 'input[name="xCoord"]', 'input#xCoordInput', 'input[name*="x" i][type="text"]']), x);
-                const yOk = setValue(first(['input[name="y"]', 'input[name="yCoord"]', 'input#yCoordInput', 'input[name*="y" i][type="text"]']), y);
-                if (xOk && yOk) return true;
-              }
-
-              if (targetName) {
-                return setValue(first(['input[name="dname"]', 'input[name="villageName"]', 'input[name*="village" i]', 'input[name*="name" i]']), targetName);
-              }
-
-              return false;
-            }
-            """,
-            new
+        if (targetVillage.CoordX is int x && targetVillage.CoordY is int y)
+        {
+            var xFilled = await TryTypeHumanlyIntoFirstMatchingInputAsync(
+                ["input[name='x']", "input[name='xCoord']", "input#xCoordInput", "input[name*='x' i][type='text']"],
+                x.ToString(CultureInfo.InvariantCulture),
+                cancellationToken);
+            var yFilled = await TryTypeHumanlyIntoFirstMatchingInputAsync(
+                ["input[name='y']", "input[name='yCoord']", "input#yCoordInput", "input[name*='y' i][type='text']"],
+                y.ToString(CultureInfo.InvariantCulture),
+                cancellationToken);
+            if (xFilled && yFilled)
             {
-                targetName = targetVillage.Name,
-                x = targetVillage.CoordX,
-                y = targetVillage.CoordY,
-            });
+                return true;
+            }
+        }
 
-        return filled;
+        return !string.IsNullOrWhiteSpace(targetVillage.Name)
+            && await TryTypeHumanlyIntoFirstMatchingInputAsync(
+                ["input[name='dname']", "input[name='villageName']", "input[name*='village' i]", "input[name*='name' i]"],
+                targetVillage.Name,
+                cancellationToken);
+    }
+
+    private async Task<bool> TryTypeHumanlyIntoFirstMatchingInputAsync(
+        IReadOnlyList<string> selectors,
+        string value,
+        CancellationToken cancellationToken)
+    {
+        foreach (var selector in selectors)
+        {
+            var input = _page.Locator(selector).First;
+            if (await input.CountAsync() == 0 || !await input.IsVisibleAsync())
+            {
+                continue;
+            }
+
+            await TypeHumanlyAsync(input, value, cancellationToken);
+            return true;
+        }
+
+        return false;
     }
 
     private async Task<bool> TrySelectReinforcementModeAsync(CancellationToken cancellationToken)

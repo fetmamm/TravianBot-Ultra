@@ -866,8 +866,7 @@ public partial class MainWindow
         SetEnabled(VillageComboBox, !_uiBusy);
         SetEnabled(AnalyzeFarmListsButton, !sleeping && !_farmingOperationBusy);
         SetEnabled(FarmListSendAllNowButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable && _farmLists.Any(IsRealFarmListRow));
-        // Catapult waves temporarily disabled — feature under review.
-        SetEnabled(StartCatapultWavesButton, false);
+        SetEnabled(StartCatapultWavesButton, !sleeping && !_farmingOperationBusy);
         SetEnabled(ResourceTransferScanVillagesButton, !sleeping && !_uiBusy && !_resourceTransferScanRunning);
 
         if (_resourceTestFunctionsWindow is not null)

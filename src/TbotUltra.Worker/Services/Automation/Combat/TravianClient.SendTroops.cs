@@ -127,7 +127,7 @@ public sealed partial class TravianClient
 
             await RetryAsync($"fill troop input {selector}", async () =>
             {
-                await locator.FillAsync(troopCountToSend.ToString(CultureInfo.InvariantCulture), new LocatorFillOptions { Timeout = _config.TimeoutMs });
+                await TypeHumanlyAsync(locator, troopCountToSend.ToString(CultureInfo.InvariantCulture), cancellationToken);
             }, cancellationToken: cancellationToken);
             return true;
         }

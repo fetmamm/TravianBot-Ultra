@@ -26,12 +26,6 @@ public partial class MainWindow
 
     private async Task StartCatapultWavesAsync()
     {
-        if (!_farmingFeaturesAvailable)
-        {
-            AppendLog("Catapult waves are unavailable while Gold Club farming is disabled.");
-            return;
-        }
-
         var operationId = BeginOperation("Catapult Waves");
         var operationSw = Stopwatch.StartNew();
         var operationToken = _loopController.StartOperation("operation");
