@@ -715,15 +715,9 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         var allowed = TbotUltra.Worker.Services.TaskCatalog.AllowedTaskNames;
         var registered = BotTaskRunner.RegisteredTaskNames;
 
-        foreach (var task in allowed)
-        {
-            Assert.Contains(task, registered, StringComparer.OrdinalIgnoreCase);
-        }
-
-        foreach (var task in registered)
-        {
-            Assert.Contains(task, allowed, StringComparer.OrdinalIgnoreCase);
-        }
+        Assert.Equal(
+            allowed.OrderBy(task => task, StringComparer.OrdinalIgnoreCase),
+            registered.OrderBy(task => task, StringComparer.OrdinalIgnoreCase));
     }
 
     [Theory]
