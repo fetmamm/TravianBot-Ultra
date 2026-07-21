@@ -664,6 +664,7 @@ public partial class MainWindow
         {
             SetActiveWorkingVillageFromStatus(status);
             CacheVillageStatus(status);
+            ReconcilePendingBuildingQueueWithLiveStatus(status);
             if (!IsStatusForSelectedVillage(status))
             {
                 return;

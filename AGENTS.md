@@ -53,3 +53,17 @@
 - Förklara ändringen kort (max 2–4 meningar).
 - Om svaret kan vara under 20 rader, ska det vara det.
 -- Om en plan ska presenteras kan svaret vara längre.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked in GitHub Issues for this repo. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Use the default five-label triage vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Use a single-context domain docs layout. See `docs/agents/domain.md`.

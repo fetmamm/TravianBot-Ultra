@@ -73,6 +73,7 @@ public partial class MainWindow
 
             SetActiveWorkingVillageFromStatus(status);
             CacheVillageStatus(status);
+            ReconcilePendingBuildingQueueWithLiveStatus(status);
             var statusForSelectedVillage = IsStatusForSelectedVillage(status);
             ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
             if (statusForSelectedVillage)
@@ -1008,7 +1009,9 @@ public partial class MainWindow
         return AccountStoragePaths.BuildingsSnapshotPath(_projectRoot, account);
     }
 
-    private async Task LoadBuildingsSnapshotIntoUiAsync(CancellationToken cancellationToken)
+    private async Task LoadBuildingsSnapshotIntoUiAsync(
+        CancellationToken cancellationToken,
+        bool reconcileQueueWithFreshSnapshot = false)
     {
         var snapshotPath = GetBuildingsSnapshotPathForActiveAccount();
         if (!File.Exists(snapshotPath))
@@ -1089,6 +1092,10 @@ public partial class MainWindow
         {
             var uiStatus = MergeBuildingStatusForUi(status);
             CacheVillageStatus(uiStatus, snapshotVillage.Name);
+            if (reconcileQueueWithFreshSnapshot)
+            {
+                ReconcilePendingBuildingQueueWithLiveStatus(uiStatus);
+            }
             if (!IsStatusForSelectedVillage(uiStatus))
             {
                 AppendLog($"Buildings snapshot cached for '{uiStatus.ActiveVillage}', but another village is selected.");

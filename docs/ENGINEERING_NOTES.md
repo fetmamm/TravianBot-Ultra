@@ -244,6 +244,13 @@ Published artifacts belong under `artifacts/`, never beside source files.
   upgrade action directly; do not restart through queue and dorf2 probes unless the direct action remains unavailable.
 - An upgrade that confirms its planned slot is empty is not a successful no-op. Reconstruct the expected building in
   that exact slot without slot fallback, keep the upgrade pending, then continue its original target level.
+- Fresh full dorf2 reads reconcile single-instance building upgrades by gid across the whole village, not only the
+  queued slot: remove targets already reached and rebind unfinished targets to the confirmed live slot. Duplicate
+  construct detection must report that effective slot before removing the stale construct. Run reconciliation before
+  desktop queue/requirement defers at every live full-status entrypoint; a disk snapshot used only to repaint UI must
+  never mutate the queue.
+- Missing-building recovery may reconstruct only after a second complete 22-slot dorf2 read confirms that the expected
+  gid/name is absent village-wide. An incomplete or identity-ambiguous read defers without adding a construct.
 - Every village-status cache write for the same village must also replace the preferred UI building snapshot after
   partial-state merging; never let an older unknown-level snapshot override a newer live or merged read.
 - Queued and direct `Load buildings` must both produce a full village status with Warehouse/Granary capacity. A

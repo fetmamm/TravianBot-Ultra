@@ -132,6 +132,103 @@ public partial class MainWindow
         }
     }
 
+    private void RebindPendingSingleInstanceBuildingUpgrades(QueueItem source, int effectiveSlotId)
+    {
+        var sameVillage = BuildSameVillageQueueFilter(source);
+        var candidates = _botService.GetQueueItemsForDisplay()
+            .Where(sameVillage)
+            .ToList();
+        foreach (var rebind in BuildingUpgradeSlotRebindPlanner.Plan(source, effectiveSlotId, candidates))
+        {
+            if (_botService.UpdatePendingQueueItem(rebind.QueueItemId, rebind.Payload, priority: null))
+            {
+                AppendLog(
+                    $"[building-rebind] moved pending single-instance upgrade to confirmed slot {effectiveSlotId} " +
+                    $"after live dorf2 duplicate detection (id={rebind.QueueItemId}).");
+            }
+            else
+            {
+                AppendLog(
+                    $"[building-rebind] could not persist confirmed slot {effectiveSlotId} " +
+                    $"for pending upgrade id={rebind.QueueItemId}.");
+            }
+        }
+    }
+
+    private void ReconcilePendingBuildingQueueWithLiveStatus(VillageStatus status)
+    {
+        var villageName = status.ActiveVillage;
+        var villageKey = ResolveStatusVillageKey(status);
+        var candidates = _botService.GetQueueItemsForDisplay()
+            .Where(item => IsQueueItemForVillage(item, villageName, villageKey))
+            .ToList();
+        var changed = false;
+
+        foreach (var construct in candidates
+                     .Where(item => item.Status == QueueStatus.Pending)
+                     .Select(item => (Item: item, Match: BuildingUpgradeSlotRebindPlanner.FindExistingConstruct(status, item)))
+                     .Where(entry => entry.Match is not null)
+                     .ToList())
+        {
+            var match = construct.Match!;
+            foreach (var rebind in BuildingUpgradeSlotRebindPlanner.Plan(
+                         construct.Item,
+                         match.LiveSlotId,
+                         candidates))
+            {
+                if (_botService.UpdatePendingQueueItem(rebind.QueueItemId, rebind.Payload, priority: null))
+                {
+                    var reboundItem = candidates.First(candidate => candidate.Id == rebind.QueueItemId);
+                    reboundItem.Payload = rebind.Payload;
+                    changed = true;
+                }
+            }
+
+            if (_botService.RemoveQueueItem(construct.Item.Id))
+            {
+                candidates.Remove(construct.Item);
+                AppendLog(
+                    $"[building-reconcile] removed stale {match.BuildingName} construct for slot " +
+                    $"{match.QueuedSlotId}: fresh dorf2 confirms slot {match.LiveSlotId} level {match.LiveLevel}.");
+                changed = true;
+            }
+        }
+
+        foreach (var reconciliation in BuildingUpgradeSlotRebindPlanner.PlanFromLiveStatus(status, candidates))
+        {
+            var item = candidates.First(candidate => candidate.Id == reconciliation.QueueItemId);
+            if (reconciliation.TargetSatisfied)
+            {
+                if (_botService.RemoveQueueItem(reconciliation.QueueItemId))
+                {
+                    ForgetBuildingQueueCachesForItem(item);
+                    AppendLog(
+                        $"[building-reconcile] removed completed {reconciliation.BuildingName} upgrade: " +
+                        $"live dorf2 slot {reconciliation.LiveSlotId} is level {reconciliation.LiveLevel}, " +
+                        $"target {reconciliation.TargetLevel} (queued slot {reconciliation.QueuedSlotId}).");
+                    changed = true;
+                }
+
+                continue;
+            }
+
+            if (_botService.UpdatePendingQueueItem(reconciliation.QueueItemId, reconciliation.Payload, priority: null))
+            {
+                item.Payload = reconciliation.Payload;
+                AppendLog(
+                    $"[building-reconcile] moved pending {reconciliation.BuildingName} upgrade from stale slot " +
+                    $"{reconciliation.QueuedSlotId} to live dorf2 slot {reconciliation.LiveSlotId} " +
+                    $"(level {reconciliation.LiveLevel}).");
+                changed = true;
+            }
+        }
+
+        if (changed)
+        {
+            RequestQueueUiRefresh();
+        }
+    }
+
     // After a queue item is removed, queued buildings can lose a prerequisite (e.g. removing Main
     // Building level 3 leaves a queued Barracks construct that can no longer be built, or removing a
     // construct orphans the upgrades queued for that empty slot). Re-validate the remaining building
@@ -425,12 +522,24 @@ public partial class MainWindow
         // Upgrades of already-built buildings don't need their construction requirements re-checked.
         if ((string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
                 || string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
-            && TryReadBuildingUpgradePayload(item.Payload, out var upgradeSlotId, out _))
+            && BuildingUpgradePayload.TryFromDictionary(item.Payload, out var upgrade)
+            && upgrade is not null)
         {
+            var upgradeSlotId = upgrade.SlotId;
             var slotIsBuilt = status.Buildings
                 .Any(b => b.SlotId == upgradeSlotId && (b.Level ?? 0) > 0);
             if (slotIsBuilt)
             {
+                return false;
+            }
+
+            var upgradeGid = BuildingCatalogService.GidForName(upgrade.Name);
+            if (upgradeGid is int singleInstanceGid
+                && BuildingCatalogService.IsSingleInstance(singleInstanceGid)
+                && BuildingUpgradeSlotRebindPlanner.HasLiveBuildingIdentity(status, singleInstanceGid))
+            {
+                // The stored slot is stale, but the expected unique building still exists elsewhere.
+                // Keep the upgrade until the live reconciliation can rebind it; never cascade-delete it.
                 return false;
             }
 

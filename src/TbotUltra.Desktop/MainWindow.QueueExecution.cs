@@ -390,16 +390,23 @@ public partial class MainWindow
 
         try
         {
-            var constructGuardCanUseCache =
+            var constructRefresh =
                 await TryRefreshConstructTargetVillageStatusBeforeGuardAsync(item, options, cancellationToken);
-            if (constructGuardCanUseCache
+            if (constructRefresh.FreshStatus is not null
+                && TryHandleExistingConstructBeforeGuards(item, constructRefresh.FreshStatus, logPrefix, tickSw))
+            {
+                freshBuildingsRefreshDone = true;
+                return true;
+            }
+
+            if (constructRefresh.CanUseCache
                 && await TryHandleConstructQueueFullBeforeRequirementGuardAsync(item, logPrefix, tickSw))
             {
                 freshBuildingsRefreshDone = true;
                 return true;
             }
 
-            if (constructGuardCanUseCache
+            if (constructRefresh.CanUseCache
                 && await TryHandleConstructRequirementPreRunGuardAsync(item, logPrefix, tickSw))
             {
                 freshBuildingsRefreshDone = true;
@@ -408,7 +415,13 @@ public partial class MainWindow
 
             var effectiveOptions = ApplyHeroResourceSettingsForQueueItem(options, item);
             var executionResult = await _botService.ExecuteQueueItemAsync(effectiveOptions, item, AppendLog, cancellationToken);
-            if (await TryRecoverMissingBuildingUpgradeAsync(item, executionResult, logPrefix, tickSw))
+            if (await TryRecoverMissingBuildingUpgradeAsync(
+                    item,
+                    options,
+                    executionResult,
+                    logPrefix,
+                    tickSw,
+                    cancellationToken))
             {
                 return true;
             }
@@ -420,10 +433,9 @@ public partial class MainWindow
                 terminalCountBefore,
                 cancellationToken);
 
-            if (mode == QueueExecutionMode.ContinuousLoop
-                && string.Equals(item.TaskName, "load_buildings_snapshot", StringComparison.OrdinalIgnoreCase))
+            if (string.Equals(item.TaskName, "load_buildings_snapshot", StringComparison.OrdinalIgnoreCase))
             {
-                await LoadBuildingsSnapshotIntoUiAsync(cancellationToken);
+                await LoadBuildingsSnapshotIntoUiAsync(cancellationToken, reconcileQueueWithFreshSnapshot: true);
             }
 
             AppendLog(FormatQueueSuccessLog(logPrefix, tickSw, item, mode));
@@ -467,6 +479,31 @@ public partial class MainWindow
                 }
             }
         }
+    }
+
+    private bool TryHandleExistingConstructBeforeGuards(
+        QueueItem item,
+        VillageStatus freshStatus,
+        string logPrefix,
+        Stopwatch timer)
+    {
+        ReconcilePendingBuildingQueueWithLiveStatus(freshStatus);
+        var match = BuildingUpgradeSlotRebindPlanner.FindExistingConstruct(freshStatus, item);
+        if (match is null)
+        {
+            return false;
+        }
+
+        RebindPendingSingleInstanceBuildingUpgrades(item, match.LiveSlotId);
+        ReconcilePendingBuildingQueueWithLiveStatus(freshStatus);
+        _botService.MarkQueueItemSucceeded(item.Id);
+        _botService.RemoveQueueItem(item.Id);
+        RequestQueueUiRefresh();
+        AppendLog(
+            $"{logPrefix} SKIP {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+            $"fresh dorf2 confirms {match.BuildingName} at slot {match.LiveSlotId} level {match.LiveLevel}; " +
+            $"removed stale construct for slot {match.QueuedSlotId} before queue/requirement delays");
+        return true;
     }
 
     private async Task<bool> TryHandleConstructQueueFullBeforeRequirementGuardAsync(
@@ -551,21 +588,21 @@ public partial class MainWindow
         return true;
     }
 
-    private async Task<bool> TryRefreshConstructTargetVillageStatusBeforeGuardAsync(
+    private async Task<(bool CanUseCache, VillageStatus? FreshStatus)> TryRefreshConstructTargetVillageStatusBeforeGuardAsync(
         QueueItem item,
         BotOptions options,
         CancellationToken cancellationToken)
     {
         if (!string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase))
         {
-            return true;
+            return (true, null);
         }
 
         var targetVillageName = NormalizeVillageName(GetQueueItemVillageName(item));
         var targetVillageUrl = GetQueueItemPayloadValue(item, BotOptionPayloadKeys.TargetVillageUrl);
         if (targetVillageName is null && string.IsNullOrWhiteSpace(targetVillageUrl))
         {
-            return true;
+            return (true, null);
         }
 
         try
@@ -579,11 +616,15 @@ public partial class MainWindow
                 targetVillageName,
                 targetVillageUrl,
                 cancellationToken);
-            await Dispatcher.InvokeAsync(() => CacheVillageStatus(status, targetVillageName));
+            await Dispatcher.InvokeAsync(() =>
+            {
+                CacheVillageStatus(status, targetVillageName);
+                ReconcilePendingBuildingQueueWithLiveStatus(status);
+            });
             AppendLog(
                 $"[construction-preflight] cached live target village '{targetVillageName ?? status.ActiveVillage}': " +
                 $"fields={status.ResourceFields.Count}, buildings={status.Buildings.Count}.");
-            return true;
+            return (true, status);
         }
         catch (OperationCanceledException)
         {
@@ -594,15 +635,17 @@ public partial class MainWindow
             AppendLog(
                 $"[construction-preflight] live target village read failed before construct guard: {ex.Message}. " +
                 "Skipping cached requirement guard; worker will validate the live construct page.");
-            return false;
+            return (false, null);
         }
     }
 
     private async Task<bool> TryRecoverMissingBuildingUpgradeAsync(
         QueueItem item,
+        BotOptions options,
         BotTaskExecutionResult executionResult,
         string logPrefix,
-        Stopwatch timer)
+        Stopwatch timer,
+        CancellationToken cancellationToken)
     {
         if (executionResult.LastTask?.ConstructionOutcome != ConstructionTaskOutcome.MissingBuilding
             || !BuildingUpgradePayload.TryFromDictionary(item.Payload, out var upgrade)
@@ -618,6 +661,91 @@ public partial class MainWindow
                 $"{logPrefix} FAIL {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
                 $"slot {upgrade.SlotId} is empty, but building '{upgrade.Name ?? "-"}' has no catalog gid; upgrade kept for retry");
             _botService.MarkQueueItemDeferred(item.Id, TimeSpan.FromMinutes(1));
+            return true;
+        }
+
+        VillageStatus liveStatus;
+        var targetVillageName = NormalizeVillageName(GetQueueItemVillageName(item));
+        var targetVillageUrl = GetQueueItemPayloadValue(item, BotOptionPayloadKeys.TargetVillageUrl);
+        try
+        {
+            AppendLog(
+                $"[building-repair] validating the complete live dorf2 overview before reconstructing " +
+                $"{upgrade.Name} for empty slot {upgrade.SlotId}.");
+            liveStatus = await _botService.ReadVillageStatusAsync(
+                options,
+                AppendLog,
+                targetVillageName,
+                targetVillageUrl,
+                cancellationToken);
+            await Dispatcher.InvokeAsync(() =>
+            {
+                CacheVillageStatus(liveStatus, targetVillageName);
+                ReconcilePendingBuildingQueueWithLiveStatus(liveStatus);
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            AppendLog(
+                $"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                $"slot {upgrade.SlotId} looked empty, but full live dorf2 validation failed: {ex.Message}; " +
+                "no reconstruction was queued");
+            _botService.MarkQueueItemDeferred(item.Id, TimeSpan.FromMinutes(1));
+            return true;
+        }
+
+        if (BuildingUpgradeSlotRebindPlanner.PlanUpgradeFromLiveStatus(liveStatus, item) is { } reconciliation)
+        {
+            if (reconciliation.TargetSatisfied)
+            {
+                _botService.MarkQueueItemSucceeded(item.Id);
+                _botService.RemoveQueueItem(item.Id);
+                ReconcilePendingBuildingQueueWithLiveStatus(liveStatus);
+                RequestQueueUiRefresh();
+                AppendLog(
+                    $"{logPrefix} RECOVERED {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                    $"fresh dorf2 confirms {reconciliation.BuildingName} at slot {reconciliation.LiveSlotId} " +
+                    $"level {reconciliation.LiveLevel}, meeting target {reconciliation.TargetLevel}; " +
+                    "removed stale upgrade without reconstruction");
+                return true;
+            }
+
+            if (!_botService.MarkQueueItemDeferred(item.Id, TimeSpan.Zero)
+                || !_botService.UpdatePendingQueueItem(item.Id, reconciliation.Payload, priority: null, TimeSpan.Zero))
+            {
+                AppendLog(
+                    $"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                    $"fresh dorf2 found {reconciliation.BuildingName} at slot {reconciliation.LiveSlotId}, " +
+                    "but the queued slot could not be updated; no reconstruction was queued");
+                return true;
+            }
+
+            item.Payload = reconciliation.Payload;
+            ReconcilePendingBuildingQueueWithLiveStatus(liveStatus);
+            RequestQueueUiRefresh();
+            AppendLog(
+                $"{logPrefix} RECOVERED {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                $"fresh dorf2 found {reconciliation.BuildingName} level {reconciliation.LiveLevel}; " +
+                $"rebound upgrade from slot {reconciliation.QueuedSlotId} to {reconciliation.LiveSlotId} " +
+                "without reconstruction");
+            return true;
+        }
+
+        var overviewComplete = BuildingUpgradeSlotRebindPlanner.HasCompleteBuildingOverview(liveStatus);
+        var hasIdentityEvidence = BuildingUpgradeSlotRebindPlanner.HasLiveBuildingIdentity(liveStatus, gid.Value);
+        if (!overviewComplete || hasIdentityEvidence)
+        {
+            _botService.MarkQueueItemDeferred(item.Id, TimeSpan.FromMinutes(1));
+            var reason = !overviewComplete
+                ? $"dorf2 returned fewer than 22 distinct building slots ({liveStatus.Buildings.Count} rows)"
+                : $"dorf2 still contains gid/name identity evidence for {upgrade.Name}";
+            AppendLog(
+                $"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
+                $"slot {upgrade.SlotId} looked empty, but {reason}; no reconstruction was queued");
             return true;
         }
 
@@ -701,6 +829,7 @@ public partial class MainWindow
                 BotOptionPayloadKeys.BuildingConstructSlotId,
                 out var effectiveConstructSlot))
         {
+            RebindPendingSingleInstanceBuildingUpgrades(item, effectiveConstructSlot);
             RebindPendingBuildingTemplateStep(item, effectiveConstructSlot);
         }
 

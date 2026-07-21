@@ -15,6 +15,7 @@ public partial class MainWindow
     {
         var status = await ReadVillageStatusWithRetryAsync(options, cancellationToken, resourceOnly: false);
         CacheVillageStatus(status);
+        ReconcilePendingBuildingQueueWithLiveStatus(status);
         SetActiveWorkingVillageFromStatus(status);
         _lastBuildingStatus = status;
         PopulateBuildingsTab(status);
@@ -24,6 +25,7 @@ public partial class MainWindow
     {
         var status = await ReadVillageStatusWithRetryAsync(options, cancellationToken, resourceOnly: false, forceCurrentVillage: false);
         CacheVillageStatus(status);
+        ReconcilePendingBuildingQueueWithLiveStatus(status);
         SetActiveWorkingVillageFromStatus(status);
         ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
 
@@ -75,6 +77,7 @@ public partial class MainWindow
                     village.Url,
                     cancellationToken);
                 CacheVillageStatus(status, village.Name);
+                ReconcilePendingBuildingQueueWithLiveStatus(status);
                 loaded++;
                 AppendLog(
                     $"[new-village-startup] Cached '{village.Name}': "

@@ -1468,6 +1468,7 @@ public partial class MainWindow : Window
             await Dispatcher.InvokeAsync(() =>
             {
                 CacheVillageStatus(uiStatus);
+                ReconcilePendingBuildingQueueWithLiveStatus(uiStatus);
                 if (IsStatusForSelectedVillage(uiStatus))
                 {
                     _lastBuildingStatus = uiStatus;

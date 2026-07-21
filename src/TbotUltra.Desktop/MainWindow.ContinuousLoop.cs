@@ -699,6 +699,7 @@ public partial class MainWindow
             await Dispatcher.InvokeAsync(() =>
             {
                 CacheVillageStatus(status, entry.Name);
+                ReconcilePendingBuildingQueueWithLiveStatus(status);
                 _villagesPendingFirstAnalysis.Remove(entry.Key);
             });
             AppendLog($"[new-village-runtime] Cached '{entry.Name}' ({entry.Key}): fields={status.ResourceFields.Count}, buildings={status.Buildings.Count}.");
@@ -742,6 +743,7 @@ public partial class MainWindow
             await Dispatcher.InvokeAsync(() =>
             {
                 CacheVillageStatus(status);
+                ReconcilePendingBuildingQueueWithLiveStatus(status);
                 if (IsStatusForSelectedVillage(status))
                 {
                     _lastBuildingStatus = status;

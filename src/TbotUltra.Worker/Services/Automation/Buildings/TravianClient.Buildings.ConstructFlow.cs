@@ -39,13 +39,26 @@ public sealed partial class TravianClient : IBuildingClient
         var constructionNpcTradeAttempted = false;
         var heroTransferAttempted = false;
 
-        string WithEffectiveSlot(string message)
-            => $"{message} {BotOptionPayloadKeys.BuildingConstructSlotId}={slotId}";
+        string WithEffectiveSlot(string message, int? confirmedSlotId = null)
+            => $"{message} {BotOptionPayloadKeys.BuildingConstructSlotId}={confirmedSlotId ?? slotId}";
 
         for (var attempt = 0; attempt < safetyCap; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
             var buildQueueBefore = await ReadBuildQueueAsync(cancellationToken);
+
+            // A queued construct can become stale when the user builds the requested building manually,
+            // possibly in a different slot. Run this village-wide identity check before queue and pacing
+            // defers so an already-completed task is removed immediately instead of waiting another cycle.
+            var liveBuildings = await ReadBuildingsAsync(cancellationToken);
+            var existingVillageBuilding = FindExistingNonDuplicateBuilding(liveBuildings, gid, buildingName);
+            if (existingVillageBuilding is not null)
+            {
+                Notify($"[construct] {buildingName} already exists at slot {existingVillageBuilding.SlotId} level {existingVillageBuilding.Level} on fresh dorf2 — removing stale task from queue.");
+                return WithEffectiveSlot(
+                    $"Construct skipped: {buildingName} already exists at slot {existingVillageBuilding.SlotId} (confirmed level {existingVillageBuilding.Level} on dorf2). Removing from queue.",
+                    existingVillageBuilding.SlotId);
+            }
 
             // Pre-flight queue gate: defer to program queue if no construction slot is free.
             var deferMessage = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, attempt, cancellationToken);
@@ -61,17 +74,6 @@ public sealed partial class TravianClient : IBuildingClient
             if (humanizeDefer is not null)
             {
                 return WithEffectiveSlot(humanizeDefer);
-            }
-
-            // A queued construct can become stale when the user builds the requested building manually,
-            // possibly in a different slot. Read the complete live dorf2 overview immediately before
-            // opening the queued slot; checking only that slot cannot detect village-wide duplicates.
-            var liveBuildings = await ReadBuildingsAsync(cancellationToken);
-            var existingVillageBuilding = FindExistingNonDuplicateBuilding(liveBuildings, gid, buildingName);
-            if (existingVillageBuilding is not null)
-            {
-                Notify($"[construct] {buildingName} already exists at slot {existingVillageBuilding.SlotId} level {existingVillageBuilding.Level} on fresh dorf2 — removing stale task from queue.");
-                return WithEffectiveSlot($"Construct skipped: {buildingName} already exists at slot {existingVillageBuilding.SlotId} (confirmed level {existingVillageBuilding.Level} on dorf2). Removing from queue.");
             }
 
             // Step 1: open the slot's construction page on the right category tab so the building's

@@ -212,6 +212,7 @@ public partial class MainWindow
                         village,
                         operationToken);
                     CacheVillageStatus(status, village.Name);
+                    ReconcilePendingBuildingQueueWithLiveStatus(status);
                     SetActiveWorkingVillageFromStatus(status);
                     SyncDashboardVillageUiFromVillages(
                         villages,

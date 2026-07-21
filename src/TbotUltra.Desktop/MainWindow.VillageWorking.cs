@@ -624,6 +624,7 @@ public partial class MainWindow
                 status.ActiveVillageCoordY);
             SetActiveWorkingVillageFromStatus(status);
             CacheVillageStatus(status);
+            ReconcilePendingBuildingQueueWithLiveStatus(status);
             ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
             _resourcesViewModel.ApplyStorageForecasts(status);
             _lastBuildingStatus = status;
@@ -1453,6 +1454,7 @@ public partial class MainWindow
             _lastBuildingStatus = status;
             PopulateBuildingsTab(status);
             CacheVillageStatus(status, selected.Name);
+            ReconcilePendingBuildingQueueWithLiveStatus(status);
 
             BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"active village '{selected.Name}'");
             ApplyVillageTribeToUiIfSelected(status);
