@@ -18,23 +18,28 @@
 
         <StackPanel Margin="0,0,0,14">
             <TextBlock Text="Analyze map oasis"
-                       FontSize="18"
-                       FontWeight="SemiBold"
-                       Foreground="{DynamicResource TextPrimaryBrush}" />
-            <TextBlock Text="Scans the map for every oasis and saves the results as a local list in the program."
-                       Foreground="{DynamicResource TextSecondaryBrush}"
-                       TextWrapping="Wrap"
-                       Margin="0,5,0,0" />
+                    FontSize="18"
+                    FontWeight="SemiBold"
+                    Foreground="{DynamicResource TextPrimaryBrush}" />
+
+            <TextBlock Text="Scans the map for every oasis and saves as a local list in the program to use in 'Add farms to list'."
+                    Foreground="{DynamicResource TextSecondaryBrush}"
+                    TextWrapping="Wrap"
+                    Margin="0,5,0,0" />
+
             <Border Margin="0,10,0,0"
                     Padding="10,8"
                     Background="{DynamicResource WarningBgBrush}"
                     BorderBrush="{DynamicResource WarningBorderBrush}"
                     BorderThickness="1"
                     CornerRadius="6">
-                <TextBlock Text="Recommended: run this only once per account. Oases keep the same positions unless the server restarts."
-                           Foreground="{DynamicResource WarningTextBrush}"
-                           FontWeight="SemiBold"
-                           TextWrapping="Wrap" />
+                <TextBlock Foreground="{DynamicResource WarningTextBrush}"
+                        FontWeight="SemiBold"
+                        TextWrapping="Wrap">
+                    <Run Text="Recommended: Only run this ONCE per account to avoid ban!" />
+                    <LineBreak />
+                    <Run Text="Oases keep the same positions unless the server restarts." />
+                </TextBlock>
             </Border>
         </StackPanel>
 
