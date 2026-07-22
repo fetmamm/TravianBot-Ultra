@@ -1,9 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Windows;
+using System.Windows.Controls;
 using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services.Orchestration;
 using TbotUltra.Worker.Services;
 using TbotUltra.Worker.Infrastructure;
 
@@ -18,12 +20,26 @@ public partial class MainWindow
 
     private void StartLoopButton_Click(object sender, RoutedEventArgs e)
     {
-        if (BlockIfActiveAccountOnHold("Start bot"))
+        if (IsSessionSleeping)
         {
+            var changed = _sessionPacer.IsSleepPaused
+                ? _sessionPacer.ResumeSleep()
+                : _sessionPacer.PauseSleep();
+            if (changed)
+            {
+                UpdateSessionPacingUi();
+                UpdateExecutionStateIndicator();
+            }
+            else
+            {
+                AppendLog("[pacing] sleep controls are unavailable for this required sleep window.");
+                ShowRequiredSleepWarning();
+            }
+
             return;
         }
 
-        if (BlockIfSessionSleeping("Start bot"))
+        if (BlockIfActiveAccountOnHold("Start bot"))
         {
             return;
         }
@@ -59,6 +75,62 @@ public partial class MainWindow
         }
 
         StartContinuousLoopRunner();
+    }
+
+    private void ShowRequiredSleepWarning()
+    {
+        var isScheduledSleep = _sessionPacer.SleepReason == SessionSleepReason.Schedule;
+        var title = isScheduledSleep ? "Scheduled sleep is active" : "Daily limit sleep is active";
+        var reason = isScheduledSleep
+            ? "Pause sleep is unavailable during the configured off-hours."
+            : "Pause sleep is unavailable because the daily runtime limit has been reached.";
+        var timing = _sessionPacer.PlannedWakeAt is { } wakeAt
+            ? $"Next automatic wake: {wakeAt.LocalDateTime:HH:mm}."
+            : "The next wake time is being calculated.";
+        var content = new StackPanel();
+        content.Children.Add(CreatePacingDialogCard(reason, "InfoBgBrush", "InfoBrush", "InfoTextBrush"));
+        content.Children.Add(CreatePacingDialogCard(timing, "SurfaceAltBrush", "BorderSubtleBrush", "TextSecondaryBrush", new Thickness(0, 10, 0, 0)));
+
+        var buttons = isScheduledSleep
+            ? new (string Label, MessageBoxResult Result)[] { ("Cancel", MessageBoxResult.Cancel), ("Run program", MessageBoxResult.Yes) }
+            : new (string Label, MessageBoxResult Result)[] { ("Close", MessageBoxResult.Cancel) };
+        var result = AppDialog.ShowCustomContent(
+            this,
+            content,
+            title,
+            buttons,
+            MessageBoxImage.Warning,
+            isScheduledSleep ? MessageBoxResult.Yes : MessageBoxResult.Cancel,
+            MessageBoxResult.Cancel,
+            successResult: isScheduledSleep ? MessageBoxResult.Yes : null);
+        if (isScheduledSleep && result == MessageBoxResult.Yes)
+        {
+            // Run program is an explicit login request, never an automation-resume request.
+            _wasLoggedInBeforeSleep = true;
+            _wasContinuousLoopRunningBeforeSleep = false;
+            _wasQueueAutoRunningBeforeSleep = false;
+            _sessionPacer.WakeNow();
+        }
+    }
+
+    private Border CreatePacingDialogCard(string text, string backgroundResource, string borderResource, string foregroundResource, Thickness? margin = null)
+    {
+        var card = new Border
+        {
+            Background = (System.Windows.Media.Brush)FindResource(backgroundResource),
+            BorderBrush = (System.Windows.Media.Brush)FindResource(borderResource),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(5),
+            Padding = new Thickness(10, 8, 10, 8),
+            Margin = margin ?? new Thickness(0),
+        };
+        card.Child = new TextBlock
+        {
+            Text = text,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = (System.Windows.Media.Brush)FindResource(foregroundResource),
+        };
+        return card;
     }
 
     private void RequestImmediatePauseAutomation(string message)

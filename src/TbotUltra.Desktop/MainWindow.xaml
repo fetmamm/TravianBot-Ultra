@@ -357,9 +357,60 @@
                     <!-- Session pacing / Next sleep (background pulses via code) -->
                     <!-- Fixed width so the card does not resize as the status text/Run now button changes. -->
                     <Border x:Name="SessionPacingBorder" Style="{StaticResource MetricCard}" Width="194">
-                        <StackPanel>
-                            <TextBlock Text="Session" Style="{StaticResource MetricLabel}" />
-                            <Grid>
+                        <Grid>
+                            <Grid.RowDefinitions>
+                                <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
+                            </Grid.RowDefinitions>
+                            <Grid Grid.Row="0">
+                                <TextBlock Text="Session" Style="{StaticResource MetricLabel}" />
+                                <!-- Compact actions stay beside the Session heading so the metric card keeps
+                                     its original height while sleep exposes both controls. -->
+                                <StackPanel Orientation="Horizontal"
+                                            HorizontalAlignment="Right"
+                                            VerticalAlignment="Top">
+                                    <Button x:Name="SessionPacingRunNowButton"
+                                            Content="&#xE768;"
+                                            FontFamily="Segoe MDL2 Assets"
+                                            Margin="0"
+                                            Padding="0"
+                                            Width="20"
+                                            Height="20"
+                                            MinHeight="0"
+                                            FontSize="11"
+                                            Visibility="Collapsed"
+                                            ToolTip="Run now"
+                                            Click="SessionPacingRunNowButton_Click">
+                                        <Button.Style>
+                                            <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                                                <Style.Triggers>
+                                                    <Trigger Property="IsMouseOver" Value="True">
+                                                        <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
+                                                        <Setter Property="BorderBrush" Value="{DynamicResource SuccessTextStrongBrush}" />
+                                                        <Setter Property="Foreground" Value="{DynamicResource SuccessTextStrongBrush}" />
+                                                    </Trigger>
+                                                </Style.Triggers>
+                                            </Style>
+                                        </Button.Style>
+                                    </Button>
+                                    <Button x:Name="SessionPacingExtendButton"
+                                            Content="&#xE710;"
+                                            FontFamily="Segoe MDL2 Assets"
+                                            Margin="4,0,0,0"
+                                            Padding="0"
+                                            Width="20"
+                                            Height="20"
+                                            MinHeight="0"
+                                            FontSize="10"
+                                            Background="{DynamicResource SuccessBgBrush}"
+                                            Foreground="{DynamicResource SuccessTextBrush}"
+                                            BorderBrush="{DynamicResource SuccessBorderBrush}"
+                                            Visibility="Collapsed"
+                                            ToolTip="Extend session"
+                                            Click="SessionPacingExtendButton_Click" />
+                                </StackPanel>
+                            </Grid>
+                            <Grid Grid.Row="1">
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="Auto" />
                                     <ColumnDefinition Width="*" />
@@ -373,24 +424,8 @@
                                            FontSize="13"
                                            TextTrimming="CharacterEllipsis"
                                            VerticalAlignment="Center" />
-                                <!-- Compact play-glyph button (tooltip "Run now") so the card can stay narrow
-                                     while still fitting the sleeping status text plus the wake action. -->
-                                <Button x:Name="SessionPacingRunNowButton"
-                                        Grid.Column="2"
-                                        Content="&#xE768;"
-                                        FontFamily="Segoe MDL2 Assets"
-                                        Margin="6,0,0,0"
-                                        Padding="0"
-                                        Width="22"
-                                        Height="20"
-                                        MinHeight="0"
-                                        FontSize="11"
-                                        VerticalAlignment="Center"
-                                        Visibility="Collapsed"
-                                        ToolTip="Run now"
-                                        Click="SessionPacingRunNowButton_Click" />
                             </Grid>
-                        </StackPanel>
+                        </Grid>
                     </Border>
 
                     <Border x:Name="DailyPacingBorder" Style="{StaticResource MetricCard}" Width="156">

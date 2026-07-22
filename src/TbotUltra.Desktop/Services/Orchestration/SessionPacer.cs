@@ -62,6 +62,7 @@ public sealed class SessionPacer
     private TimeSpan? _activeRunDuration;
     private TimeSpan? _activeSleepDuration;
     private TimeSpan? _pausedRunRemaining;
+    private TimeSpan? _pausedSleepRemaining;
     private DateOnly _runtimeDate;
     private double _runtimeSeconds;
     private bool _sleepStartRaised;
@@ -101,13 +102,16 @@ public sealed class SessionPacer
     public TimeSpan? ActiveRunDuration => _activeRunDuration;
     public TimeSpan? ActiveSleepDuration => _activeSleepDuration;
     public DateTimeOffset? PlannedWakeAt => _wakeAt;
+    public bool IsSleepPaused => Phase == SessionPacerPhase.Sleeping && _pausedSleepRemaining is not null;
+    public TimeSpan? PausedSleepRemaining => _pausedSleepRemaining;
     public SessionPacerRuntimeState RuntimeState => new(_runtimeDate, _runtimeSeconds);
     public string StatusText => Phase switch
     {
         SessionPacerPhase.Running => $"Next sleep: {Format(TimeUntilSleep)}",
         SessionPacerPhase.Paused => "Paused",
-        // All sleep reasons (session pacing, scheduled off-hours, daily limit, manual) show the same
-        // "Sleeping: <countdown>" badge. The reason stays available via SleepReason / the Run-now button.
+        SessionPacerPhase.Sleeping when IsSleepPaused => $"Sleep paused: {Format(_pausedSleepRemaining)}",
+        // All non-paused sleep reasons (session pacing, scheduled off-hours, daily limit, manual) show
+        // the same countdown badge. The reason stays available via SleepReason / the Run-now button.
         SessionPacerPhase.Sleeping => $"Sleeping: {Format(TimeUntilWake)}",
         _ => _automationActive ? "Session pacing off" : "Session pacing",
     };
@@ -299,6 +303,7 @@ public sealed class SessionPacer
         _activeRunDuration = null;
         _activeSleepDuration = null;
         _pausedRunRemaining = null;
+        _pausedSleepRemaining = null;
         _lastRuntimeUpdate = null;
         _sleepStartRaised = false;
         _timer.Stop();
@@ -351,12 +356,106 @@ public sealed class SessionPacer
         _runDeadline = null;
         _runStartedAt = null;
         _pausedRunRemaining = null;
+        _pausedSleepRemaining = null;
         _lastRuntimeUpdate = null;
         _sleepStartRaised = false;
         _automationActive = false;
         _timer.Start();
         Logger?.Invoke($"{SleepReasonLabel(reason)} sleep starting; sleeping for {Format(TimeUntilWake)}.");
         RaiseTick();
+    }
+
+    public bool PauseSleep()
+    {
+        if (Phase != SessionPacerPhase.Sleeping
+            || IsSleepPaused
+            || SleepReason is SessionSleepReason.Schedule or SessionSleepReason.DailyLimit)
+        {
+            return false;
+        }
+
+        _pausedSleepRemaining = TimeUntilWake ?? TimeSpan.Zero;
+        _wakeAt = null;
+        _timer.Stop();
+        Logger?.Invoke($"[pacing] sleep paused; {Format(_pausedSleepRemaining)} remaining.");
+        RaiseTick();
+        return true;
+    }
+
+    public bool ResumeSleep()
+    {
+        if (!IsSleepPaused)
+        {
+            return false;
+        }
+
+        _wakeAt = _now().Add(_pausedSleepRemaining ?? TimeSpan.Zero);
+        _pausedSleepRemaining = null;
+        _timer.Start();
+        Logger?.Invoke($"[pacing] sleep resumed; {Format(TimeUntilWake)} remaining.");
+        RaiseTick();
+        return true;
+    }
+
+    public TimeSpan ExtendSleep(TimeSpan requested)
+    {
+        if (requested <= TimeSpan.Zero
+            || Phase != SessionPacerPhase.Sleeping
+            || SleepReason is SessionSleepReason.Schedule or SessionSleepReason.DailyLimit)
+        {
+            return TimeSpan.Zero;
+        }
+
+        if (IsSleepPaused)
+        {
+            _pausedSleepRemaining = (_pausedSleepRemaining ?? TimeSpan.Zero).Add(requested);
+        }
+        else if (_wakeAt is { } wakeAt)
+        {
+            _wakeAt = wakeAt.Add(requested);
+        }
+        else
+        {
+            return TimeSpan.Zero;
+        }
+
+        _activeSleepDuration = (_activeSleepDuration ?? TimeSpan.Zero).Add(requested);
+        Logger?.Invoke($"[pacing] sleep extended by {Format(requested)}.");
+        RaiseTick();
+        return requested;
+    }
+
+    public TimeSpan GetAllowedRunExtension(TimeSpan requested)
+    {
+        if (requested <= TimeSpan.Zero || Phase != SessionPacerPhase.Running || _runDeadline is null)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var now = _now();
+        var target = _runDeadline.Value.Add(requested);
+        var boundary = GetNextRestrictionAt(now);
+        if (boundary is { } limit && target > limit)
+        {
+            target = limit;
+        }
+
+        return Positive(target - _runDeadline.Value);
+    }
+
+    public TimeSpan ExtendRun(TimeSpan requested)
+    {
+        var allowed = GetAllowedRunExtension(requested);
+        if (allowed <= TimeSpan.Zero || _runDeadline is null)
+        {
+            return TimeSpan.Zero;
+        }
+
+        _runDeadline = _runDeadline.Value.Add(allowed);
+        _activeRunDuration = (_activeRunDuration ?? TimeSpan.Zero).Add(allowed);
+        Logger?.Invoke($"[pacing] active session extended by {Format(allowed)}.");
+        RaiseTick();
+        return allowed;
     }
 
     public void WakeNow()
@@ -394,7 +493,7 @@ public sealed class SessionPacer
     // during a planned off-hours / daily-limit window.
     public bool BeginScheduledSleepNow()
     {
-        if (!_settings.Enabled || Phase == SessionPacerPhase.Sleeping)
+        if (!_settings.Enabled)
         {
             return false;
         }
@@ -405,6 +504,15 @@ public sealed class SessionPacer
             return false;
         }
 
+        if (Phase == SessionPacerPhase.Sleeping && SleepReason == restriction)
+        {
+            return true;
+        }
+
+        _timer.Stop();
+        _wakeAt = null;
+        _pausedSleepRemaining = null;
+        _activeSleepDuration = null;
         _pendingSleepReason = restriction;
         BeginSleep(manual: false);
         return true;
@@ -490,6 +598,7 @@ public sealed class SessionPacer
         _wakeAt = null;
         _manualSleep = false;
         _activeSleepDuration = null;
+        _pausedSleepRemaining = null;
         SleepReason = SessionSleepReason.None;
         Phase = SessionPacerPhase.Disabled;
         _timer.Stop();

@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tbot Ultra — Sleep controls proposal</title>
+  <style>
+    :root {
+      --app: #0d1117; --sidebar: #10151d; --surface: #161b22; --surface-alt: #1c2230;
+      --control: #21262d; --border: #30363d; --border-soft: #262c36;
+      --text: #e6edf3; --secondary: #adb9c7; --muted: #909dab; --subtle: #768390;
+      --green: #238636; --green-hover: #2ea043; --green-bg: #12261a; --green-text: #56d364;
+      --amber: #e3b341; --amber-bg: #2a2008; --amber-border: #d29922;
+      --blue: #58a6ff; --scrim: rgba(1, 4, 9, .73);
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; min-width: 920px; min-height: 700px; background: #070a0f; color: var(--text); font: 14px/1.35 "Segoe UI", Arial, sans-serif; }
+    button, select { font: inherit; }
+    button { color: var(--text); cursor: pointer; }
+    .app { display: grid; grid-template-columns: 236px minmax(684px, 1fr); min-height: 700px; background: var(--app); }
+    .sidebar { background: var(--sidebar); border-right: 1px solid var(--border); padding: 14px 10px; display: flex; flex-direction: column; gap: 8px; }
+    .brand { display: flex; align-items: center; gap: 10px; padding: 2px 2px 7px; }
+    .brand-mark { width: 52px; height: 52px; display: grid; place-items: center; color: #a8f0b1; font-weight: 800; font-size: 19px; border-radius: 12px; border: 1px solid #2e6e3d; background: linear-gradient(145deg, #183f24, #112318); box-shadow: inset 0 1px 0 rgba(255,255,255,.08); }
+    .brand h1 { margin: 0; font-size: 24px; letter-spacing: -.4px; }
+    .brand p { margin: 2px 0 0; color: var(--subtle); font-size: 12px; }
+    .side-card, .metric, .panel { border: 1px solid var(--border-soft); border-radius: 8px; background: var(--surface-alt); }
+    .side-card { padding: 8px; }
+    .eyebrow { color: var(--subtle); font-size: 11px; }
+    .select { width: 100%; height: 30px; margin-top: 5px; padding: 0 8px; color: var(--text); border: 1px solid var(--border); border-radius: 4px; background: var(--control); }
+    .nav { display: grid; gap: 2px; margin-top: 2px; }
+    .nav button { height: 32px; text-align: left; padding: 0 10px; border: 1px solid transparent; border-radius: 5px; background: transparent; color: var(--secondary); }
+    .nav button.active { color: var(--text); border-color: #284334; background: #152a1d; }
+    .controls { margin-top: auto; padding: 8px; }
+    .state { display: inline-flex; align-items: center; gap: 6px; margin-bottom: 8px; padding: 3px 9px; color: var(--amber); border: 1px solid var(--amber-border); border-radius: 999px; background: var(--amber-bg); font-weight: 600; font-size: 12px; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--amber); box-shadow: 0 0 0 3px rgba(227,179,65,.11); }
+    .button-row { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+    .button { min-height: 31px; padding: 5px 9px; border: 1px solid var(--border); border-radius: 4px; background: var(--control); }
+    .button:hover { border-color: #6e7681; background: #292f37; }
+    .button.primary { color: white; border-color: var(--green); background: var(--green); }
+    .button.primary:hover { border-color: var(--green-hover); background: var(--green-hover); }
+    .button.sleep-pause { color: #f0c674; border-color: var(--amber-border); background: #3a2d08; }
+    .button.sleep-start { color: white; border-color: var(--green); background: var(--green); }
+    .button.sleep-start:hover { background: var(--green-hover); }
+    main { padding: 14px 16px 20px; overflow: hidden; }
+    .topbar { display: flex; align-items: stretch; gap: 8px; }
+    .metric { min-width: 130px; padding: 8px 10px; background: var(--surface); }
+    .metric.session { width: 252px; min-width: 252px; border-color: #624d13; background: linear-gradient(135deg, #211d10, #161b22 70%); }
+    .metric-label { color: var(--subtle); font-size: 11px; margin-bottom: 4px; }
+    .session-line { display: flex; align-items: center; gap: 7px; }
+    .session-icon { color: var(--amber); font-size: 16px; }
+    .session-status { flex: 1; font-weight: 650; font-size: 14px; white-space: nowrap; }
+    .icon-button { width: 24px; height: 22px; padding: 0; border: 1px solid var(--border-soft); border-radius: 4px; background: var(--surface); color: var(--muted); font-size: 14px; line-height: 1; }
+    .icon-button:hover { color: var(--green-text); border-color: var(--green-text); background: var(--green-bg); }
+    .session-actions { display: grid; gap: 3px; }
+    .icon-button.run { color: var(--green-text); border-color: #2a5a36; background: #13261a; }
+    .icon-button.run:hover { color: #fff; border-color: var(--green-hover); background: var(--green-hover); }
+    .metric-value { font-weight: 650; font-size: 15px; }
+    .metric.spacer { flex: 1; min-width: 0; padding: 0; border: 0; background: transparent; }
+    .workspace { margin-top: 12px; display: grid; grid-template-columns: minmax(430px, 1.4fr) minmax(260px, .8fr); gap: 12px; }
+    .panel { min-height: 245px; padding: 16px; background: var(--surface); }
+    .panel h2 { margin: 0; font-size: 16px; }
+    .panel p { margin: 5px 0 0; color: var(--muted); }
+    .sleep-card { position: relative; overflow: hidden; border-color: #5c4b17; background: radial-gradient(circle at 96% 5%, #392b0b 0, transparent 35%), var(--surface); }
+    .sleep-card::after { content: ""; position: absolute; right: -60px; bottom: -80px; width: 210px; height: 210px; border: 1px solid rgba(227,179,65,.18); border-radius: 50%; box-shadow: 0 0 0 26px rgba(227,179,65,.025), 0 0 0 52px rgba(227,179,65,.018); }
+    .sleep-readout { position: relative; z-index: 1; display: flex; align-items: baseline; gap: 12px; margin: 34px 0 4px; }
+    .sleep-readout strong { color: #f0c674; font-size: 46px; letter-spacing: -1.8px; line-height: 1; }
+    .sleep-readout span { color: var(--secondary); font-size: 13px; }
+    .frozen { display: inline-flex; gap: 6px; align-items: center; margin-top: 13px; padding: 4px 8px; color: #f0c674; border: 1px solid #6b5310; border-radius: 4px; background: #2a2208; font-size: 12px; }
+    .timeline { display: grid; gap: 13px; margin-top: 16px; }
+    .timeline-item { display: grid; grid-template-columns: 8px 1fr; gap: 10px; }
+    .line-dot { width: 8px; height: 8px; margin-top: 5px; border-radius: 50%; background: var(--green-text); box-shadow: 0 0 0 4px rgba(86,211,100,.08); }
+    .line-dot.muted { background: #6e7681; box-shadow: none; }
+    .timeline strong { display: block; font-size: 13px; }
+    .timeline span { color: var(--muted); font-size: 12px; }
+    .proposal-note { margin-top: 12px; color: var(--subtle); font-size: 12px; }
+    .mode-switch { position: fixed; z-index: 10; top: 12px; right: 15px; display: flex; padding: 3px; border: 1px solid var(--border); border-radius: 6px; background: #0d1117; box-shadow: 0 6px 24px rgba(0,0,0,.28); }
+    .mode-switch button { padding: 5px 9px; border: 0; border-radius: 4px; background: transparent; color: var(--muted); font-size: 12px; }
+    .mode-switch button.selected { color: var(--text); background: var(--control); }
+    .modal-backdrop { position: fixed; z-index: 20; inset: 0; display: none; align-items: center; justify-content: center; padding: 24px; background: var(--scrim); }
+    .modal-backdrop.open { display: flex; }
+    .modal { width: 425px; padding: 20px; border: 1px solid #3e4954; border-radius: 10px; background: #161b22; box-shadow: 0 22px 70px rgba(0,0,0,.55); }
+    .modal h2 { margin: 0; font-size: 17px; }
+    .modal p { margin: 5px 0 0; color: var(--secondary); }
+    .modal .field-label { display: block; margin: 20px 0 6px; color: var(--subtle); font-size: 12px; }
+    .modal select { width: 100%; height: 34px; padding: 0 9px; color: var(--text); border: 1px solid var(--border); border-radius: 5px; outline: none; background: var(--control); }
+    .modal select:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(88,166,255,.15); }
+    .modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; }
+    .modal-actions .button { min-width: 112px; }
+    .toast { position: fixed; z-index: 30; right: 20px; bottom: 20px; display: none; padding: 10px 13px; color: var(--green-text); border: 1px solid #2a5a36; border-radius: 6px; background: #12261a; box-shadow: 0 10px 30px rgba(0,0,0,.3); }
+    .toast.show { display: block; }
+  </style>
+</head>
+<body>
+  <div class="mode-switch" aria-label="Mockup state">
+    <button class="selected" data-mode="sleep">Sleep view</button><button data-mode="active">Active view</button>
+  </div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand"><div class="brand-mark">TU</div><div><h1>Tbot Ultra</h1><p>Version 1.0.0</p></div></div>
+      <div class="side-card"><div class="eyebrow">Account</div><select class="select"><option>jespe — ts1.travian.com</option></select></div>
+      <nav class="nav"><button class="active">⌂ &nbsp; Dashboard</button><button>◈ &nbsp; Resources</button><button>⌂ &nbsp; Buildings</button><button>♙ &nbsp; Hero / Adventures</button><button>⌁ &nbsp; Farming</button><button>☷ &nbsp; Queue</button><button>☰ &nbsp; Logs</button></nav>
+      <div class="side-card controls">
+        <div class="state"><span class="dot"></span><span id="stateText">State: sleeping</span></div>
+        <div class="button-row" id="sleepControls"><button class="button sleep-pause" id="pauseButton">Pause sleep</button><button class="button sleep-start" id="startButton">Start sleep</button></div>
+        <div class="button-row" id="activeControls" hidden><button class="button sleep-pause">Pause bot</button><button class="button primary">Start bot</button></div>
+      </div>
+    </aside>
+    <main>
+      <div class="topbar">
+        <section class="metric session">
+          <div class="metric-label">Session</div>
+          <div class="session-line"><span class="session-icon">◷</span><span class="session-status" id="sessionStatus">Sleeping · 17 min left</span><div class="session-actions"><button class="icon-button run" title="Run now">▶</button><button class="icon-button" id="extendButton" title="Extend sleep">+</button></div></div>
+        </section>
+        <section class="metric"><div class="metric-label">Online today</div><div class="metric-value">01:42</div></section>
+        <section class="metric"><div class="metric-label">Time left</div><div class="metric-value">02:18</div></section>
+        <div class="metric spacer"></div>
+        <section class="metric"><div class="metric-label">Gold</div><div class="metric-value">37</div></section>
+        <section class="metric"><div class="metric-label">Silver</div><div class="metric-value">12,480</div></section>
+        <section class="metric"><div class="metric-label">Active village</div><div class="metric-value">Village 01</div></section>
+      </div>
+      <div class="workspace">
+        <section class="panel sleep-card">
+          <div class="eyebrow" id="panelEyebrow">SESSION PACING</div><h2 id="panelTitle">Sleep is paused</h2><p id="panelText">The remaining sleep time is held exactly where you paused it.</p>
+          <div class="sleep-readout"><strong id="readout">17:00</strong><span id="readoutLabel">minutes remaining</span></div>
+          <div class="frozen" id="frozen">❚❚ &nbsp; Timer frozen — no background work will begin</div>
+          <div class="proposal-note">The same controls are always in the sidebar, so the sleep state is clear from every page.</div>
+        </section>
+        <section class="panel"><div class="eyebrow">NEXT STEPS</div><h2>Automation timeline</h2><div class="timeline"><div class="timeline-item"><span class="line-dot muted"></span><div><strong>Sleep paused</strong><span>Remaining time: 17 minutes</span></div></div><div class="timeline-item"><span class="line-dot"></span><div><strong>Start sleep</strong><span>Continues the same timer from 17:00</span></div></div><div class="timeline-item"><span class="line-dot muted"></span><div><strong>Next automation cycle</strong><span>Runs after sleep finishes</span></div></div></div></section>
+      </div>
+    </main>
+  </div>
+  <div class="modal-backdrop" id="modalBackdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal"><div class="modal-head"><h2 id="modalTitle">Extend sleep</h2><p id="modalDescription">You are about to extend sleep by 20 minutes.</p></div><label class="field-label" for="extendMinutes">Extend by</label><select id="extendMinutes"><option value="5">5 minutes</option><option value="10">10 minutes</option><option value="20" selected>20 minutes</option><option value="30">30 minutes</option><option value="60">60 minutes</option></select><div class="modal-actions"><button class="button" id="cancelButton">Cancel</button><button class="button primary" id="confirmButton">Extend sleep</button></div></div>
+  </div>
+  <div class="toast" id="toast"></div>
+  <script>
+    const state = { mode: 'sleep', paused: true };
+    const $ = id => document.getElementById(id);
+    function render() {
+      const sleep = state.mode === 'sleep';
+      $('sleepControls').hidden = !sleep; $('activeControls').hidden = sleep;
+      $('stateText').textContent = sleep ? 'State: sleeping' : 'State: running';
+      $('extendButton').title = sleep ? 'Extend sleep' : 'Extend active session';
+      $('sessionStatus').textContent = sleep ? (state.paused ? 'Sleep paused · 17 min left' : 'Sleeping · 17 min left') : 'Active session · 42 min left';
+      $('panelEyebrow').textContent = sleep ? 'SESSION PACING' : 'ACTIVE SESSION';
+      $('panelTitle').textContent = sleep ? (state.paused ? 'Sleep is paused' : 'Sleep in progress') : 'Session is active';
+      $('panelText').textContent = sleep ? (state.paused ? 'The remaining sleep time is held exactly where you paused it.' : 'Automation will resume after the remaining sleep time.') : 'Automation is running within the active session window.';
+      $('readout').textContent = sleep ? '17:00' : '42:00'; $('readoutLabel').textContent = sleep ? 'minutes remaining' : 'minutes in the active session';
+      $('frozen').style.display = sleep && state.paused ? 'inline-flex' : 'none';
+      $('pauseButton').textContent = 'Pause sleep'; $('startButton').textContent = 'Start sleep';
+      document.querySelectorAll('[data-mode]').forEach(b => b.classList.toggle('selected', b.dataset.mode === state.mode));
+    }
+    function updateModalCopy() { const minutes = $('extendMinutes').value; const sleep = state.mode === 'sleep'; $('modalTitle').textContent = sleep ? 'Extend sleep' : 'Extend active session'; $('modalDescription').textContent = sleep ? `You are about to extend sleep by ${minutes} minutes.` : `You are about to extend the active session by ${minutes} minutes.`; $('confirmButton').textContent = sleep ? 'Extend sleep' : 'Extend session'; }
+    document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { state.mode = b.dataset.mode; state.paused = state.mode === 'sleep'; render(); }));
+    $('pauseButton').addEventListener('click', () => { state.paused = true; render(); }); $('startButton').addEventListener('click', () => { state.paused = false; render(); });
+    $('extendButton').addEventListener('click', () => { updateModalCopy(); $('modalBackdrop').classList.add('open'); }); $('cancelButton').addEventListener('click', () => $('modalBackdrop').classList.remove('open')); $('modalBackdrop').addEventListener('click', e => { if (e.target === $('modalBackdrop')) $('modalBackdrop').classList.remove('open'); });
+    $('extendMinutes').addEventListener('change', updateModalCopy); $('confirmButton').addEventListener('click', () => { const sleep = state.mode === 'sleep'; const minutes = $('extendMinutes').value; $('modalBackdrop').classList.remove('open'); $('toast').textContent = sleep ? `Sleep extended by ${minutes} minutes.` : `Active session extended by ${minutes} minutes.`; $('toast').classList.add('show'); setTimeout(() => $('toast').classList.remove('show'), 2600); });
+  </script>
+</body>
+</html>

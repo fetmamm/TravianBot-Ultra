@@ -11,6 +11,12 @@ public sealed partial class TravianClient
         MobileOptimizationsDialogSelector + " label.switch:has(input[name='mobileOptimizations'])";
     internal const string MobileOptimizationsPlayNowButtonSelector =
         MobileOptimizationsDialogSelector + " .action button.framed.green.withText";
+    internal const string UnexpectedErrorPageSelector = "main#errorPage.unexpectedError";
+    internal const string UnexpectedErrorBringMeBackButtonSelector =
+        UnexpectedErrorPageSelector + " button.gold.decorative.buttonSecondary.withText";
+    internal const string StartPageLoginButtonSelector =
+        "header .headerContainerEnd button.gold.buttonSecondary.login.withText";
+    internal const string StartPageGoToLobbyButtonSelector = "button.playNowCTAButton";
 
     private sealed record LobbyWorldCard(string WorldUid, string Name, string Details);
     private string? _pendingLobbyWorldUid;
@@ -22,6 +28,10 @@ public sealed partial class TravianClient
         {
             Notify($"[lobby-login] opening lobby for account '{_account.Name}'.");
             await GotoAsync(Paths.LobbyAccount, cancellationToken);
+            if (await TryRecoverFromUnexpectedLobbyErrorPageAsync(cancellationToken))
+            {
+                await TryResumeLobbyFromRecoveredStartPageAsync(cancellationToken);
+            }
             ThrowIfAccountAccessBlocked(await ReadExplicitLobbyAccessStateAsync());
 
             if (await _page.Locator(Selectors.LobbyGameWorldCard).CountAsync() == 0)
@@ -356,11 +366,20 @@ public sealed partial class TravianClient
     {
         var deadline = DateTime.UtcNow.AddSeconds(Math.Max(10, _config.ManualLoginTimeoutSeconds));
         var navigationRetryLogged = false;
+        var unexpectedErrorRecoveryAttempted = false;
         while (DateTime.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
             try
             {
+                if (!unexpectedErrorRecoveryAttempted
+                    && await TryRecoverFromUnexpectedLobbyErrorPageAsync(cancellationToken))
+                {
+                    unexpectedErrorRecoveryAttempted = true;
+                    await Task.Delay(TimeSpan.FromMilliseconds(500), cancellationToken);
+                    continue;
+                }
+
                 if (await _page.Locator(Selectors.LobbyGameWorldCard).CountAsync() > 0)
                 {
                     await _page.WaitForLoadStateAsync(LoadState.DOMContentLoaded, new PageWaitForLoadStateOptions
@@ -385,6 +404,82 @@ public sealed partial class TravianClient
             await Task.Delay(Random.Shared.Next(400, 600), cancellationToken);
         }
 
+        return false;
+    }
+
+    private async Task<bool> TryRecoverFromUnexpectedLobbyErrorPageAsync(CancellationToken cancellationToken)
+    {
+        try
+        {
+            var errorPage = _page.Locator(UnexpectedErrorPageSelector).First;
+            if (await errorPage.CountAsync() == 0 || !await errorPage.IsVisibleAsync())
+            {
+                return false;
+            }
+
+            Notify("[lobby-login] Travian unexpected error page detected; returning to the start page.");
+            if (!await TryClickFirstVisibleEnabledAsync(
+                    UnexpectedErrorBringMeBackButtonSelector,
+                    cancellationToken,
+                    requiredText: "Bring me back",
+                    requireExactText: true,
+                    reason: "return from Travian error page"))
+            {
+                Notify("[lobby-login] unexpected error page had no actionable Bring me back button.");
+                return false;
+            }
+
+            Notify("[lobby-login] clicked Bring me back; resolving the start-page login route.");
+            return true;
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            return false;
+        }
+    }
+
+    private async Task<bool> TryResumeLobbyFromRecoveredStartPageAsync(CancellationToken cancellationToken)
+    {
+        var goToLobbyClickAttempted = false;
+        var loginClickAttempted = false;
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (IsLobbyAccountUrl(_page.Url)
+                || await _page.Locator(Selectors.LobbyGameWorldCard).CountAsync() > 0
+                || await HasAnySelectorAsync(Selectors.LoginUsernameField))
+            {
+                return true;
+            }
+
+            if (!goToLobbyClickAttempted
+                && await TryClickFirstVisibleEnabledAsync(
+                    StartPageGoToLobbyButtonSelector,
+                    cancellationToken,
+                    requiredText: "Go to lobby",
+                    requireExactText: true,
+                    reason: "open lobby from Travian start page"))
+            {
+                goToLobbyClickAttempted = true;
+                Notify("[lobby-login] clicked start-page Go to lobby after the unexpected error page.");
+            }
+            else if (!goToLobbyClickAttempted
+                && !loginClickAttempted
+                && await TryClickFirstVisibleEnabledAsync(
+                    StartPageLoginButtonSelector,
+                    cancellationToken,
+                    requiredText: "Login",
+                    requireExactText: true,
+                    reason: "open login from Travian start page"))
+            {
+                loginClickAttempted = true;
+                Notify("[lobby-login] clicked start-page Login after the unexpected error page.");
+            }
+
+            await Task.Delay(TimeSpan.FromMilliseconds(250), cancellationToken);
+        }
+
+        Notify("[lobby-login] start-page Go to lobby/Login was not available after the unexpected error page.");
         return false;
     }
 
