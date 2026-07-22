@@ -668,7 +668,7 @@ public partial class MainWindow
     // Background resource-snapshot refresher (fires on the jittered dashboard timer).
     private async Task HandleResourceSnapshotRefreshTickAsync()
     {
-        if (!ShouldRunBackgroundResourceSnapshotRefresh())
+        if (IsFreezeActive || !ShouldRunBackgroundResourceSnapshotRefresh())
         {
             return;
         }

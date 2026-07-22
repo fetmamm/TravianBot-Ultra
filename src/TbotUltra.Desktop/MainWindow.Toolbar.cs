@@ -20,6 +20,12 @@ public partial class MainWindow
 
     private void StartLoopButton_Click(object sender, RoutedEventArgs e)
     {
+        if (IsFreezeActive)
+        {
+            AppendLog("Skipped: freeze is active. Start bot will not run.");
+            return;
+        }
+
         if (IsSessionSleeping)
         {
             var changed = _sessionPacer.IsSleepPaused
@@ -147,66 +153,11 @@ public partial class MainWindow
         AppendLog(message);
     }
 
-    private void StopBotButton_Click(object sender, RoutedEventArgs e)
+    private void FreezeButton_Click(object sender, RoutedEventArgs e)
     {
-        if (BlockIfSessionSleeping("Stop bot"))
-        {
-            return;
-        }
-
-        // Confirm before the hard stop so an accidental click cannot wipe the active queue. The
-        // message is explicit that stopping clears the queue for all villages.
-        var choice = AppDialog.ShowCustom(
-            this,
-            "Stopping the bot will also clear the active queue for all villages. Are you sure you want to continue?",
-            "Stop bot",
-            new (string, MessageBoxResult)[]
-            {
-                ("Yes", MessageBoxResult.Yes),
-                ("Cancel", MessageBoxResult.Cancel),
-            },
-            MessageBoxImage.Warning,
-            MessageBoxResult.Cancel,
-            MessageBoxResult.Cancel);
-        if (choice != MessageBoxResult.Yes)
-        {
-            return;
-        }
-
-        ResetSessionPacing();
-
-        // Hard stop: abort whatever is running right now (including waits) and clear state.
-        _loopController.RequestQueueStop();
-        _loopController.CancelOperation();
-        _loopController.CancelAutoQueueRun();
-        _loopController.RequestLoopStop();
-        _loopController.CancelLoop();
-        _loopController.CancelSessionScope();
-
-        EndInlineWait();
-        ClearPendingResourceLevelsFromUi();
-        _buildingDemolishingSlots.Clear();
-        _buildingLastQueuedTargetBySlot.Clear();
-        _buildingLastQueuedConstructBySlot.Clear();
-        _buildingClickCooldownBySlot.Clear();
-
-        // Drop pending/deferred queue items, but keep the hero return timer across Stop.
-        try
-        {
-            var preservedHeroTimers = ClearQueuePreservingDeferredHeroTimers();
-            if (preservedHeroTimers > 0)
-            {
-                AppendLog($"Preserved {preservedHeroTimers} deferred hero timer(s) on stop.");
-            }
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not clear queue on stop: {ex.Message}");
-        }
-
-        SetActiveFunctionExecution(null);
-        UpdateExecutionStateIndicator();
-        AppendLog("Stop requested. Running actions and waits were stopped.");
+        _ = sender;
+        _ = e;
+        ActivateFreeze();
     }
 
     private void SettingsButton_Click(object sender, RoutedEventArgs e)

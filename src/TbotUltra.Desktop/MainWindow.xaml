@@ -262,7 +262,7 @@
 								    <ColumnDefinition Width="Auto" />
 							    </Grid.ColumnDefinitions>
 							    <Button x:Name="StartLoopButton" Grid.Column="0" Content="Start bot" Background="{DynamicResource AccentBrush}" Foreground="White" BorderBrush="{DynamicResource AccentBrush}" Click="StartLoopButton_Click" />
-							    <Button x:Name="StopBotButton" Grid.Column="1" Content="&#9632;" Width="30" Padding="0" Margin="6,0,0,0" Background="{DynamicResource DangerBgBrush}" BorderBrush="{DynamicResource DangerBorderBrush}" Foreground="{DynamicResource DangerTextBrush}" Click="StopBotButton_Click" ToolTip="Stop bot" />
+                            <Button x:Name="FreezeButton" Grid.Column="1" Content="&#10052;" Width="30" Padding="0" Margin="6,0,0,0" Background="{DynamicResource InfoBgBrush}" BorderBrush="{DynamicResource FocusBorderBrush}" Foreground="{DynamicResource InfoTextBrush}" Click="FreezeButton_Click" ToolTip="Freeze program" />
 						    </Grid>
 
                         <Grid Margin="0,0,0,0">
@@ -767,6 +767,87 @@
         <views:BusyOverlayControl x:Name="BusyOverlay"
                                   Grid.Column="0" Grid.ColumnSpan="2"
                                   Cancelled="BusyOverlay_Cancelled" />
+
+        <Grid x:Name="FreezeOverlay"
+              Grid.Column="0" Grid.ColumnSpan="2"
+              Panel.ZIndex="20"
+              Visibility="Collapsed"
+              Background="#F20D1117">
+            <Grid IsHitTestVisible="False">
+                <Canvas x:Name="FreezeSnowCanvas" Opacity="0.48" />
+            </Grid>
+            <Border Width="620"
+                    Padding="24"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderThickness="2"
+                    CornerRadius="10"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+                <Border.BorderBrush>
+                    <LinearGradientBrush StartPoint="0,0" EndPoint="1,0" SpreadMethod="Repeat">
+                        <GradientStop Color="#0D2847" Offset="0" />
+                        <GradientStop Color="#58A6FF" Offset="0.28" />
+                        <GradientStop Color="#79C0FF" Offset="0.50" />
+                        <GradientStop Color="#58A6FF" Offset="0.72" />
+                        <GradientStop Color="#0D2847" Offset="1" />
+                        <LinearGradientBrush.RelativeTransform>
+                            <RotateTransform x:Name="FreezeBorderRotation" CenterX="0.5" CenterY="0.5" />
+                        </LinearGradientBrush.RelativeTransform>
+                    </LinearGradientBrush>
+                </Border.BorderBrush>
+                <Border.Triggers>
+                    <EventTrigger RoutedEvent="Border.Loaded">
+                        <BeginStoryboard>
+                            <Storyboard RepeatBehavior="Forever">
+                                <DoubleAnimation Storyboard.TargetName="FreezeBorderRotation"
+                                                 Storyboard.TargetProperty="Angle"
+                                                 From="0" To="360" Duration="0:0:5" />
+                            </Storyboard>
+                        </BeginStoryboard>
+                    </EventTrigger>
+                </Border.Triggers>
+                <Grid>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="210" />
+                        <ColumnDefinition Width="*" />
+                    </Grid.ColumnDefinitions>
+                    <Border Grid.Column="0"
+                            Height="165"
+                            Margin="0,0,22,0"
+                            Background="{DynamicResource InfoBgBrush}"
+                            BorderBrush="{DynamicResource BorderBrush}"
+                            BorderThickness="1"
+                            CornerRadius="7">
+                        <Image Source="/Assets/elmo_freeze.jpg" Stretch="Uniform" />
+                    </Border>
+                    <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                        <TextBlock Text="Tbot Ultra is frozen"
+                                   FontSize="20"
+                                   FontWeight="SemiBold"
+                                   Foreground="{DynamicResource TextPrimaryBrush}" />
+                        <TextBlock Margin="0,7,0,0"
+                                   Text="Automation, navigation, manual actions and program-originated Travian traffic are locked. Local display calculations may continue."
+                                   TextWrapping="Wrap"
+                                   Foreground="{DynamicResource TextSecondaryBrush}" />
+                        <TextBlock Margin="0,7,0,0"
+                                   Text="Leaving freeze only removes the lock. It does not log in, reload, navigate or restart the browser."
+                                   TextWrapping="Wrap"
+                                   FontSize="12"
+                                   Foreground="{DynamicResource TextSubtleBrush}" />
+                        <Button x:Name="LeaveFreezeButton"
+                                Content="Leave freeze"
+                                Width="120"
+                                Height="32"
+                                HorizontalAlignment="Left"
+                                Margin="0,20,0,0"
+                                Background="{DynamicResource InfoBgBrush}"
+                                BorderBrush="{DynamicResource FocusBorderBrush}"
+                                Foreground="{DynamicResource InfoTextBrush}"
+                                Click="LeaveFreezeButton_Click" />
+                    </StackPanel>
+                </Grid>
+            </Border>
+        </Grid>
 
     </Grid>
 </Window>

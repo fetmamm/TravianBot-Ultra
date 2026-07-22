@@ -186,6 +186,12 @@ public partial class MainWindow
 
     private async Task HandleSessionPacingSleepStartingAsync(bool manual = false)
     {
+        if (IsFreezeActive)
+        {
+            AppendLog("[pacing] sleep start skipped: freeze is active.");
+            return;
+        }
+
         if (_sessionPacingSleepInProgress)
         {
             return;
@@ -291,7 +297,7 @@ public partial class MainWindow
         }
 
         _sessionPacingSleepDeferredForManualOperation = false;
-        if (IsSessionSleeping || _sessionPacingSleepInProgress || _loopController.HasActiveOperation)
+        if (IsFreezeActive || IsSessionSleeping || _sessionPacingSleepInProgress || _loopController.HasActiveOperation)
         {
             return;
         }
@@ -302,6 +308,12 @@ public partial class MainWindow
 
     private async Task HandleSessionPacingWakeRequestedAsync()
     {
+        if (IsFreezeActive)
+        {
+            AppendLog("[pacing] wake skipped: freeze is active.");
+            return;
+        }
+
         if (_sessionPacingWakeInProgress)
         {
             return;
@@ -926,6 +938,14 @@ public partial class MainWindow
 
     private bool BlockIfSessionSleeping(string actionName)
     {
+        if (IsFreezeActive)
+        {
+            AppendLog(string.IsNullOrWhiteSpace(actionName)
+                ? "Skipped: freeze is active."
+                : $"Skipped: freeze is active. {actionName} will not run.");
+            return true;
+        }
+
         if (!IsSessionSleeping)
         {
             return false;
@@ -946,17 +966,19 @@ public partial class MainWindow
         }
 
         var sleeping = IsSessionSleeping;
-        SetEnabled(LoginButton, !sleeping && !_uiBusy);
-        SetEnabled(LogoutButton, !sleeping && !_uiBusy);
-        SetEnabled(StartLoopButton, sleeping || (!sleeping && !_uiBusy && _isLoggedIn));
-        SetEnabled(StopBotButton, !sleeping);
-        SetEnabled(LoadResourcesButton, !sleeping && !_uiBusy);
-        SetEnabled(OpenResourceTestFunctionsButton, !sleeping && !_uiBusy);
-        SetEnabled(StorageRefreshButton, !sleeping && !_uiBusy);
+        var frozen = IsFreezeActive;
+        SetEnabled(LoginButton, !sleeping && !frozen && !_uiBusy);
+        SetEnabled(LogoutButton, !sleeping && !frozen && !_uiBusy);
+        SetEnabled(StartLoopButton, !frozen && (sleeping || (!sleeping && !_uiBusy && _isLoggedIn)));
+        SetEnabled(FreezeButton, !sleeping && !frozen);
+        SetEnabled(LoadResourcesButton, !sleeping && !frozen && !_uiBusy);
+        SetEnabled(OpenResourceTestFunctionsButton, !sleeping && !frozen && !_uiBusy);
+        SetEnabled(StorageRefreshButton, !sleeping && !frozen && !_uiBusy);
         var automationActive = _autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted);
         SetEnabled(
             AccountScanButton,
             !sleeping
+            && !frozen
             && _isLoggedIn
             && !_accountScanInProgress
             && (!_uiBusy || automationActive));
@@ -964,15 +986,15 @@ public partial class MainWindow
         // navigates the browser or wakes the bot; see VillageComboBox_SelectionChanged). Keep it usable while
         // sleeping so the user can browse villages and inspect queues. The actual "Switch village" move still
         // blocks during sleep (SwitchToActiveVillageAsync -> BlockIfSessionSleeping), so sleep stays unbroken.
-        SetEnabled(VillageComboBox, !_uiBusy);
-        SetEnabled(AnalyzeFarmListsButton, !sleeping && !_farmingOperationBusy);
-        SetEnabled(FarmListSendAllNowButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable && HasFarmListWithFarms());
-        SetEnabled(StartCatapultWavesButton, !sleeping && !_farmingOperationBusy);
-        SetEnabled(ResourceTransferScanVillagesButton, !sleeping && !_uiBusy && !_resourceTransferScanRunning);
+        SetEnabled(VillageComboBox, !frozen && !_uiBusy);
+        SetEnabled(AnalyzeFarmListsButton, !sleeping && !frozen && !_farmingOperationBusy);
+        SetEnabled(FarmListSendAllNowButton, !sleeping && !frozen && !_farmingOperationBusy && _farmingFeaturesAvailable && HasFarmListWithFarms());
+        SetEnabled(StartCatapultWavesButton, !sleeping && !frozen && !_farmingOperationBusy);
+        SetEnabled(ResourceTransferScanVillagesButton, !sleeping && !frozen && !_uiBusy && !_resourceTransferScanRunning);
 
         if (_resourceTestFunctionsWindow is not null)
         {
-            _resourceTestFunctionsWindow.IsEnabled = !sleeping && !_uiBusy;
+            _resourceTestFunctionsWindow.IsEnabled = !sleeping && !frozen && !_uiBusy;
         }
     }
 
