@@ -138,6 +138,11 @@ public partial class MainWindow
 
     private async Task HandleInboxRefreshTickAsync()
     {
+        if (IsFreezeActive)
+        {
+            return;
+        }
+
         await RefreshInboxIndicatorsAsync(logErrors: false);
     }
 

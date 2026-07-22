@@ -186,6 +186,12 @@ public partial class MainWindow
 
     private async Task HandleSessionPacingSleepStartingAsync(bool manual = false)
     {
+        if (IsFreezeActive)
+        {
+            AppendLog("[pacing] sleep start skipped: freeze is active.");
+            return;
+        }
+
         if (_sessionPacingSleepInProgress)
         {
             return;
@@ -291,7 +297,7 @@ public partial class MainWindow
         }
 
         _sessionPacingSleepDeferredForManualOperation = false;
-        if (IsSessionSleeping || _sessionPacingSleepInProgress || _loopController.HasActiveOperation)
+        if (IsFreezeActive || IsSessionSleeping || _sessionPacingSleepInProgress || _loopController.HasActiveOperation)
         {
             return;
         }
@@ -302,6 +308,12 @@ public partial class MainWindow
 
     private async Task HandleSessionPacingWakeRequestedAsync()
     {
+        if (IsFreezeActive)
+        {
+            AppendLog("[pacing] wake skipped: freeze is active.");
+            return;
+        }
+
         if (_sessionPacingWakeInProgress)
         {
             return;
@@ -513,6 +525,100 @@ public partial class MainWindow
         _sessionPacer.WakeNow();
     }
 
+    private void SessionPacingExtendButton_Click(object sender, RoutedEventArgs e)
+    {
+        var extendingSleep = IsSessionSleeping;
+        var allowed = extendingSleep
+            ? TimeSpan.FromMinutes(60)
+            : _sessionPacer.GetAllowedRunExtension(TimeSpan.FromMinutes(60));
+        if (allowed <= TimeSpan.Zero)
+        {
+            AppendLog("[pacing] session extension is unavailable because the next restriction is due.");
+            return;
+        }
+
+        var selectedMinutes = 20;
+        var description = new TextBlock { TextWrapping = TextWrapping.Wrap, Foreground = (Brush)FindResource("InfoTextBrush") };
+        var descriptionCard = new Border
+        {
+            Background = (Brush)FindResource("InfoBgBrush"),
+            BorderBrush = (Brush)FindResource("InfoBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(5),
+            Padding = new Thickness(10, 8, 10, 8),
+            Child = description,
+        };
+        var picker = new ComboBox
+        {
+            Height = 30,
+            Width = 360,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 6, 0, 0),
+            ItemsSource = new[] { "5 minutes", "10 minutes", "20 minutes", "30 minutes", "60 minutes" },
+            SelectedItem = "20 minutes",
+        };
+        var content = new StackPanel();
+        content.Children.Add(new TextBlock
+        {
+            Text = extendingSleep ? "Extend sleep" : "Extend active session",
+            Margin = new Thickness(0, 0, 0, 8),
+            Foreground = (Brush)FindResource("TextPrimaryBrush"),
+            FontSize = 16,
+            FontWeight = FontWeights.SemiBold,
+        });
+        content.Children.Add(descriptionCard);
+        content.Children.Add(new TextBlock
+        {
+            Text = "Extend by",
+            Margin = new Thickness(0, 12, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Foreground = (Brush)FindResource("TextSubtleBrush"),
+            FontSize = 12,
+        });
+        content.Children.Add(picker);
+
+        void UpdateDescription()
+        {
+            selectedMinutes = picker.SelectedItem is string value
+                && int.TryParse(value.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0], out var minutes)
+                ? minutes
+                : 20;
+            var requested = TimeSpan.FromMinutes(selectedMinutes);
+            var actual = extendingSleep ? requested : _sessionPacer.GetAllowedRunExtension(requested);
+            var subject = extendingSleep ? "sleep" : "the active session";
+            description.Text = actual == requested
+                ? $"You are about to extend {subject} by {selectedMinutes} minutes."
+                : $"You are about to extend {subject} by {(int)Math.Floor(actual.TotalMinutes)} minutes (limited by the next restriction).";
+        }
+
+        picker.SelectionChanged += (_, _) => UpdateDescription();
+        UpdateDescription();
+        var result = AppDialog.ShowCustomContent(
+            this,
+            content,
+            extendingSleep ? "Extend sleep" : "Extend active session",
+            [("Cancel", MessageBoxResult.Cancel), (extendingSleep ? "Extend sleep" : "Extend session", MessageBoxResult.Yes)],
+            MessageBoxImage.Information,
+            MessageBoxResult.Yes,
+            MessageBoxResult.Cancel,
+            successResult: MessageBoxResult.Yes,
+            hideIcon: true);
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        var requestedExtension = TimeSpan.FromMinutes(selectedMinutes);
+        var extended = extendingSleep
+            ? _sessionPacer.ExtendSleep(requestedExtension)
+            : _sessionPacer.ExtendRun(requestedExtension);
+        if (extended > TimeSpan.Zero)
+        {
+            AppendLog($"[pacing] {(extendingSleep ? "sleep" : "active session")} extended by {SessionPacer.FormatDuration(extended)}.");
+            UpdateSessionPacingUi();
+        }
+    }
+
     private void UpdateSessionPacingUi()
     {
         if (SessionPacingStatusTextBlock is null)
@@ -528,6 +634,13 @@ public partial class MainWindow
         SessionPacingRunNowButton.ToolTip = _sessionPacer.SleepReason == SessionSleepReason.Schedule
             ? "Run now (override the off-hours schedule)"
             : "Run now";
+        var canExtendSleep = IsSessionSleeping
+            && _sessionPacer.SleepReason is SessionSleepReason.SessionPacing or SessionSleepReason.Manual;
+        var canExtendRun = _sessionPacer.Phase == SessionPacerPhase.Running;
+        SessionPacingExtendButton.Visibility = canExtendSleep || canExtendRun
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        SessionPacingExtendButton.ToolTip = canExtendSleep ? "Extend sleep" : "Extend active session";
         UpdateSessionPacingTooltip();
         ApplySessionSleepingUiState();
 
@@ -825,6 +938,14 @@ public partial class MainWindow
 
     private bool BlockIfSessionSleeping(string actionName)
     {
+        if (IsFreezeActive)
+        {
+            AppendLog(string.IsNullOrWhiteSpace(actionName)
+                ? "Skipped: freeze is active."
+                : $"Skipped: freeze is active. {actionName} will not run.");
+            return true;
+        }
+
         if (!IsSessionSleeping)
         {
             return false;
@@ -845,17 +966,19 @@ public partial class MainWindow
         }
 
         var sleeping = IsSessionSleeping;
-        SetEnabled(LoginButton, !sleeping && !_uiBusy);
-        SetEnabled(LogoutButton, !sleeping && !_uiBusy);
-        SetEnabled(StartLoopButton, !sleeping && !_uiBusy && _isLoggedIn);
-        SetEnabled(StopBotButton, !sleeping);
-        SetEnabled(LoadResourcesButton, !sleeping && !_uiBusy);
-        SetEnabled(OpenResourceTestFunctionsButton, !sleeping && !_uiBusy);
-        SetEnabled(StorageRefreshButton, !sleeping && !_uiBusy);
+        var frozen = IsFreezeActive;
+        SetEnabled(LoginButton, !sleeping && !frozen && !_uiBusy);
+        SetEnabled(LogoutButton, !sleeping && !frozen && !_uiBusy);
+        SetEnabled(StartLoopButton, !frozen && (sleeping || (!sleeping && !_uiBusy && _isLoggedIn)));
+        SetEnabled(FreezeButton, !sleeping && !frozen);
+        SetEnabled(LoadResourcesButton, !sleeping && !frozen && !_uiBusy);
+        SetEnabled(OpenResourceTestFunctionsButton, !sleeping && !frozen && !_uiBusy);
+        SetEnabled(StorageRefreshButton, !sleeping && !frozen && !_uiBusy);
         var automationActive = _autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted);
         SetEnabled(
             AccountScanButton,
             !sleeping
+            && !frozen
             && _isLoggedIn
             && !_accountScanInProgress
             && (!_uiBusy || automationActive));
@@ -863,15 +986,15 @@ public partial class MainWindow
         // navigates the browser or wakes the bot; see VillageComboBox_SelectionChanged). Keep it usable while
         // sleeping so the user can browse villages and inspect queues. The actual "Switch village" move still
         // blocks during sleep (SwitchToActiveVillageAsync -> BlockIfSessionSleeping), so sleep stays unbroken.
-        SetEnabled(VillageComboBox, !_uiBusy);
-        SetEnabled(AnalyzeFarmListsButton, !sleeping && !_farmingOperationBusy);
-        SetEnabled(FarmListSendAllNowButton, !sleeping && !_farmingOperationBusy && _farmingFeaturesAvailable && HasFarmListWithFarms());
-        SetEnabled(StartCatapultWavesButton, !sleeping && !_farmingOperationBusy);
-        SetEnabled(ResourceTransferScanVillagesButton, !sleeping && !_uiBusy && !_resourceTransferScanRunning);
+        SetEnabled(VillageComboBox, !frozen && !_uiBusy);
+        SetEnabled(AnalyzeFarmListsButton, !sleeping && !frozen && !_farmingOperationBusy);
+        SetEnabled(FarmListSendAllNowButton, !sleeping && !frozen && !_farmingOperationBusy && _farmingFeaturesAvailable && HasFarmListWithFarms());
+        SetEnabled(StartCatapultWavesButton, !sleeping && !frozen && !_farmingOperationBusy);
+        SetEnabled(ResourceTransferScanVillagesButton, !sleeping && !frozen && !_uiBusy && !_resourceTransferScanRunning);
 
         if (_resourceTestFunctionsWindow is not null)
         {
-            _resourceTestFunctionsWindow.IsEnabled = !sleeping && !_uiBusy;
+            _resourceTestFunctionsWindow.IsEnabled = !sleeping && !frozen && !_uiBusy;
         }
     }
 

@@ -7,6 +7,80 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class SessionPacerTests
 {
     [Fact]
+    public void PauseAndResumeSleep_PreservesRemainingTime()
+    {
+        var now = new DateTimeOffset(2026, 7, 22, 12, 0, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(true, 120, 120, 30, 30));
+        pacer.BeginSleep();
+
+        now = now.AddMinutes(7);
+        Assert.True(pacer.PauseSleep());
+        var paused = pacer.PausedSleepRemaining;
+
+        now = now.AddMinutes(20);
+        Assert.True(pacer.IsSleepPaused);
+        Assert.Equal(TimeSpan.FromMinutes(23), paused);
+        Assert.True(pacer.ResumeSleep());
+        Assert.InRange(pacer.TimeUntilWake!.Value.TotalMinutes, 22.9, 23.1);
+    }
+
+    [Fact]
+    public void ExtendSleep_WhilePaused_AddsToFrozenRemainingTime()
+    {
+        var now = new DateTimeOffset(2026, 7, 22, 12, 0, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(true, 120, 120, 30, 30));
+        pacer.BeginSleep();
+        Assert.True(pacer.PauseSleep());
+
+        var extended = pacer.ExtendSleep(TimeSpan.FromMinutes(20));
+
+        Assert.Equal(TimeSpan.FromMinutes(20), extended);
+        Assert.Equal(TimeSpan.FromMinutes(50), pacer.PausedSleepRemaining);
+    }
+
+    [Fact]
+    public void ExtendRun_StopsAtNextScheduleRestriction()
+    {
+        var now = new DateTimeOffset(2026, 6, 14, 1, 30, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(
+            true,
+            20,
+            20,
+            30,
+            30,
+            Enumerable.Range(0, 24).Except([2]).ToArray(),
+            HoursVariationPercent: 0));
+        pacer.NotifyAutomationStarted();
+
+        var extended = pacer.ExtendRun(TimeSpan.FromMinutes(20));
+
+        Assert.InRange(extended.TotalMinutes, 9.9, 10.1);
+        Assert.InRange(pacer.TimeUntilSleep!.Value.TotalMinutes, 29.9, 30.1);
+    }
+
+    [Fact]
+    public void BeginScheduledSleepNow_ReplacesPersistedNormalSleepDuringOffHours()
+    {
+        var now = new DateTimeOffset(2026, 7, 22, 2, 0, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(
+            true,
+            120,
+            120,
+            30,
+            30,
+            Enumerable.Range(0, 24).Except([2]).ToArray(),
+            HoursVariationPercent: 0));
+        pacer.BeginSleep();
+
+        Assert.True(pacer.BeginScheduledSleepNow());
+        Assert.Equal(SessionSleepReason.Schedule, pacer.SleepReason);
+    }
+
+    [Fact]
     public void ProxyTransition_AlignsSleepAndKeepsWakeAfterBoundary()
     {
         var now = new DateTimeOffset(2026, 7, 13, 3, 0, 0, TimeSpan.Zero);

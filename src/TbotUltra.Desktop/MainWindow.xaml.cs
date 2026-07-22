@@ -1094,33 +1094,35 @@ public partial class MainWindow : Window
         try
         {
             var sleeping = IsSessionSleeping;
-            var defaultEnabled = !busy && !sleeping;
+            var frozen = IsFreezeActive;
+            var defaultEnabled = !busy && !sleeping && !frozen;
             SetEnabled(AccountComboBox, defaultEnabled);
             SetEnabled(LoginButton, defaultEnabled);
             SetEnabled(LogoutButton, defaultEnabled);
-            SetEnabled(SettingsButton, !busy);
-            SetEnabled(QueueRemoveButton, !busy);
-            SetEnabled(QueueMoveUpButton, !busy);
-            SetEnabled(QueueMoveDownButton, !busy);
-            SetEnabled(QueueClearButton, !busy);
-            SetEnabled(QueueRefreshButton, !busy);
-            SetEnabled(ResetProgramButton, true);
+            SetEnabled(SettingsButton, !busy && !frozen);
+            SetEnabled(QueueRemoveButton, !busy && !frozen);
+            SetEnabled(QueueMoveUpButton, !busy && !frozen);
+            SetEnabled(QueueMoveDownButton, !busy && !frozen);
+            SetEnabled(QueueClearButton, !busy && !frozen);
+            SetEnabled(QueueRefreshButton, !busy && !frozen);
+            SetEnabled(ResetProgramButton, !frozen);
             SetEnabled(StorageRefreshButton, defaultEnabled);
             var automationActive = _autoQueueRunning || (_loopTask is not null && !_loopTask.IsCompleted);
             SetEnabled(
                 AccountScanButton,
                 _isLoggedIn
                 && !sleeping
+                && !frozen
                 && !_accountScanInProgress
                 && (!busy || automationActive));
             UpdateResourceTransferStatus();
-            _resourcesViewModel.ActionsEnabled = !busy;
+            _resourcesViewModel.ActionsEnabled = !busy && !frozen;
             _inboxViewModel.ActionsEnabled = defaultEnabled;
-            SetEnabled(StopBotButton, true);
+            SetEnabled(FreezeButton, !frozen);
 
             if (StartLoopButton is not null)
             {
-                StartLoopButton.IsEnabled = _isLoggedIn && !sleeping && !_travianLanguageGateActive;
+                StartLoopButton.IsEnabled = _isLoggedIn && !sleeping && !frozen && !_travianLanguageGateActive;
                 StartLoopButton.Content = (busy || _autoQueueRunning || !string.IsNullOrWhiteSpace(_activeFunctionDisplayName) || (_loopTask is not null && !_loopTask.IsCompleted))
                     ? "Pause bot"
                     : "Start bot";
@@ -1544,11 +1546,12 @@ public partial class MainWindow : Window
                 }
 
                 StartLoopButton.Content = "Start bot";
-                StartLoopButton.IsEnabled = true;
+                StartLoopButton.IsEnabled = !IsFreezeActive;
                 SetLoopIndicator(false);
                 NotifySessionPacingAutomationStopped();
                 AppendLog("Loop stopped.");
-                if (_restartContinuousLoopAfterStop
+                if (!IsFreezeActive
+                    && _restartContinuousLoopAfterStop
                     && _isLoggedIn
                     && !IsContinuousLoopRunning())
                 {

@@ -22,7 +22,8 @@ public partial class MainWindow
     // Called every second from the clock tick; cheap guards first, real work at most every 15s.
     private void TickPreSleepConstructionFill()
     {
-        if (_sessionPacer.Phase != SessionPacerPhase.Running
+        if (IsFreezeActive
+            || _sessionPacer.Phase != SessionPacerPhase.Running
             || _sessionPacer.TimeUntilSleep is not { } untilSleep)
         {
             return;

@@ -12,6 +12,7 @@ public partial class AppDialog : Window
     private readonly MessageBoxResult _defaultResult;
     private readonly MessageBoxResult _cancelResult;
     private readonly MessageBoxResult? _successResult;
+    private readonly MessageBoxResult? _infoResult;
     private readonly MessageBoxResult? _accentResult;
     private readonly MessageBoxResult? _warningResult;
     private readonly MessageBoxResult? _dangerResult;
@@ -29,9 +30,11 @@ public partial class AppDialog : Window
         MessageBoxResult? cancelResult = null,
         IReadOnlyList<(string Label, MessageBoxResult Result)>? customButtons = null,
         MessageBoxResult? successResult = null,
+        MessageBoxResult? infoResult = null,
         MessageBoxResult? accentResult = null,
         MessageBoxResult? warningResult = null,
-        MessageBoxResult? dangerResult = null)
+        MessageBoxResult? dangerResult = null,
+        bool hideIcon = false)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
@@ -42,6 +45,7 @@ public partial class AppDialog : Window
         _buttons = buttons;
         _customButtons = customButtons;
         _successResult = successResult;
+        _infoResult = infoResult;
         _accentResult = accentResult;
         _warningResult = warningResult;
         _dangerResult = dangerResult;
@@ -49,6 +53,12 @@ public partial class AppDialog : Window
         _cancelResult = ResolveCancelResult(buttons, cancelResult, customButtons);
         _result = ResolveDefaultResult(buttons, defaultResult, customButtons);
         ApplyIcon(icon);
+        if (hideIcon)
+        {
+            IconBorder.Visibility = Visibility.Collapsed;
+            IconColumn.Width = new GridLength(0);
+            IconSpacerColumn.Width = new GridLength(0);
+        }
         BuildButtons();
     }
 
@@ -63,8 +73,21 @@ public partial class AppDialog : Window
         IReadOnlyList<(string Label, MessageBoxResult Result)>? customButtons = null,
         MessageBoxResult? successResult = null,
         MessageBoxResult? accentResult = null,
-        MessageBoxResult? warningResult = null)
-        : this(owner, string.Empty, title, buttons, icon, defaultResult, cancelResult, customButtons, successResult, accentResult, warningResult)
+        MessageBoxResult? warningResult = null,
+        bool hideIcon = false)
+        : this(
+            owner,
+            string.Empty,
+            title,
+            buttons,
+            icon,
+            defaultResult,
+            cancelResult,
+            customButtons,
+            successResult: successResult,
+            accentResult: accentResult,
+            warningResult: warningResult,
+            hideIcon: hideIcon)
     {
         MessageContentControl.Content = content;
     }
@@ -145,7 +168,9 @@ public partial class AppDialog : Window
         MessageBoxResult defaultResult,
         MessageBoxResult cancelResult,
         MessageBoxResult? successResult = null,
-        MessageBoxResult? dangerResult = null)
+        MessageBoxResult? dangerResult = null,
+        MessageBoxResult? accentResult = null,
+        MessageBoxResult? infoResult = null)
     {
         var dialog = new AppDialog(
             owner,
@@ -157,7 +182,8 @@ public partial class AppDialog : Window
             cancelResult,
             buttons,
             successResult,
-            accentResult: null,
+            infoResult,
+            accentResult: accentResult,
             warningResult: null,
             dangerResult: dangerResult);
         _ = dialog.ShowDialog();
@@ -177,7 +203,8 @@ public partial class AppDialog : Window
         MessageBoxResult? accentResult = null,
         MessageBoxResult? warningResult = null,
         MessageBoxResult? successResult = null,
-        double? width = null)
+        double? width = null,
+        bool hideIcon = false)
     {
         var dialog = new AppDialog(
             owner,
@@ -190,7 +217,8 @@ public partial class AppDialog : Window
             buttons,
             successResult,
             accentResult,
-            warningResult);
+            warningResult,
+            hideIcon: hideIcon);
         if (width is > 0)
         {
             dialog.Width = Math.Clamp(width.Value, dialog.MinWidth, dialog.MaxWidth);
@@ -234,6 +262,13 @@ public partial class AppDialog : Window
                 button.SetResourceReference(Control.BackgroundProperty, "SuccessBgBrush");
                 button.SetResourceReference(Control.BorderBrushProperty, "SuccessBorderBrush");
                 button.SetResourceReference(Control.ForegroundProperty, "SuccessTextBrush");
+                button.FontWeight = FontWeights.SemiBold;
+            }
+            else if (result == _infoResult)
+            {
+                button.SetResourceReference(Control.BackgroundProperty, "InfoBgBrush");
+                button.SetResourceReference(Control.BorderBrushProperty, "FocusBorderBrush");
+                button.SetResourceReference(Control.ForegroundProperty, "InfoTextBrush");
                 button.FontWeight = FontWeights.SemiBold;
             }
             else if (result == _accentResult)

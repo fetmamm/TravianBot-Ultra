@@ -54,7 +54,7 @@ public partial class MainWindow
 
     private async Task TriggerQueueAutoRunAsync()
     {
-        if (IsSessionSleeping)
+        if (IsFreezeActive || IsSessionSleeping)
         {
             return;
         }

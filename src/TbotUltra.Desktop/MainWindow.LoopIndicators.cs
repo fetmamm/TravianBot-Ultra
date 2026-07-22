@@ -23,7 +23,8 @@ public partial class MainWindow
         StartLoopButton.Content = startButtonText;
         StartLoopButton.IsEnabled = !string.Equals(startButtonText, "Pausing...", StringComparison.Ordinal);
 
-        var highlightPauseState = string.Equals(startButtonText, "Pause bot", StringComparison.Ordinal);
+        var highlightPauseState = string.Equals(startButtonText, "Pause bot", StringComparison.Ordinal)
+            || string.Equals(startButtonText, "Pause sleep", StringComparison.Ordinal);
         if (highlightPauseState)
         {
             StartLoopButton.Background = new SolidColorBrush(ThemeColors.Get("AmberBg200Brush"));
@@ -59,6 +60,15 @@ public partial class MainWindow
         if (updateAutomationLoopCards)
         {
             UpdateAutomationLoopRunningIndicators();
+        }
+
+        if (IsSessionSleeping)
+        {
+            SetLoopStateBadge(
+                _sessionPacer.IsSleepPaused ? "sleep paused" : "sleeping",
+                ThemeColors.Get("AmberBrush"),
+                _sessionPacer.IsSleepPaused ? "Start sleep" : "Pause sleep");
+            return;
         }
 
         var loopRunning = _loopTask is not null && !_loopTask.IsCompleted;

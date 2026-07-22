@@ -26,6 +26,7 @@
     <Resource Include="..\..\assets\icons\Tbot_ultra_appicon_2.png" Link="Assets\Tbot_ultra_appicon_2.png" />
     <Resource Include="..\..\assets\icons\Tbot_ultra_2.png" Link="Assets\Tbot_ultra_2.png" />
     <Resource Include="..\..\assets\images\travian_dorf2_slots.png" Link="Assets\travian_dorf2_slots.png" />
+    <Resource Include="..\..\assets\images\elmo_freeze.jpg" Link="Assets\elmo_freeze.jpg" />
   </ItemGroup>
 
 </Project>
