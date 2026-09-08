@@ -69,6 +69,21 @@ public sealed class IncomingAttackRallyPointPolicyTests
     }
 
     [Fact]
+    public void GetConstructionState_CompleteOverviewThatOmitsEmptyFixedSlot_IsMissing()
+    {
+        var scan = CreateScan(slotCount: 22, new BuildingInfo
+        {
+            SlotId = 39,
+            BuildingName = "Empty",
+        });
+        scan.Buildings.Remove(39);
+
+        Assert.Equal(
+            RallyPointConstructionState.Missing,
+            IncomingAttackRallyPointPolicy.GetConstructionState(scan));
+    }
+
+    [Fact]
     public void GetConstructionState_IncompleteOverview_IsUnknown()
     {
         var scan = CreateScan(slotCount: 12, new BuildingInfo

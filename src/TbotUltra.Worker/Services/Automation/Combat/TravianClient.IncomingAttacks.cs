@@ -56,6 +56,12 @@ public sealed partial class TravianClient
         try
         {
             await GotoAsync("/build.php?gid=16&tt=1&filter=1&subfilters=1", cancellationToken);
+            if (IsCurrentUrlForPath(Paths.Buildings))
+            {
+                Notify($"[incoming-attacks] Rally Point is not constructed in '{activeVillage}'; Travian returned to Dorf2. Using {fallbackArrivals.Count} red Dorf1 timer(s).");
+                trace.Complete("fallback", $"village={activeVillage} reason=rally-point-redirect timers={fallbackArrivals.Count}");
+                return new IncomingAttackSnapshot(activeVillage, resolvedKey, coords.X, coords.Y, dorf1ObservedAtUtc, [], false, fallbackArrivals);
+            }
             await EnsureIncomingAttackFilterAsync(cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException && fallbackArrivals.Count > 0)

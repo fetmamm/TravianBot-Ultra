@@ -97,6 +97,18 @@ public sealed class IncomingAttackFlowSourceTests
     }
 
     [Fact]
+    public void ExpiredFallbackTimer_PreservesRetryDeadline()
+    {
+        var source = Read("TbotUltra.Desktop", "MainWindow.IncomingAttacks.cs");
+        var start = source.IndexOf("foreach (var key in expiredPendingKeys)", StringComparison.Ordinal);
+        var end = source.IndexOf("if (expiredKeys.Count", start, StringComparison.Ordinal);
+        var expiryCleanup = source[start..end];
+
+        Assert.Contains("_incomingAttackPendingSignals.Remove(key)", expiryCleanup, StringComparison.Ordinal);
+        Assert.DoesNotContain("_incomingAttackLastReadUtc.Remove(key)", expiryCleanup, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void DisabledVillage_GatesIncomingReadsAndTroopEvasion()
     {
         var incomingSource = Read("TbotUltra.Desktop", "MainWindow.IncomingAttacks.cs");

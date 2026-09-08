@@ -110,13 +110,6 @@ public sealed class IncomingAttackStore(string projectRoot, Action<string>? log 
         }
 
         var path = AccountStoragePaths.IncomingAttacksSnapshotPath(projectRoot, accountName, serverUrl);
-        var directory = Path.GetDirectoryName(path);
-        if (!string.IsNullOrWhiteSpace(directory))
-        {
-            Directory.CreateDirectory(directory);
-        }
-
-        var temporaryPath = $"{path}.{Guid.NewGuid():N}.tmp";
         try
         {
             var file = new IncomingAttackFile(
@@ -129,27 +122,12 @@ public sealed class IncomingAttackStore(string projectRoot, Action<string>? log 
                     : new Dictionary<string, int>(confirmedMovementCounts, StringComparer.OrdinalIgnoreCase));
             lock (FileIoLock)
             {
-                File.WriteAllText(temporaryPath, JsonSerializer.Serialize(file, SerializerOptions));
-                File.Move(temporaryPath, path, overwrite: true);
+                AtomicFile.WriteAllText(path, JsonSerializer.Serialize(file, SerializerOptions));
             }
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
-            log?.Invoke($"[incoming-attacks] could not save snapshot: {ex.Message}");
-        }
-        finally
-        {
-            try
-            {
-                if (File.Exists(temporaryPath))
-                {
-                    File.Delete(temporaryPath);
-                }
-            }
-            catch
-            {
-                // Best-effort cleanup of a failed atomic write.
-            }
+            log?.Invoke($"[incoming-attacks] could not save snapshot '{path}': {ex.Message}");
         }
     }
 }

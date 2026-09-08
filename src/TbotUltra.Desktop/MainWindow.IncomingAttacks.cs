@@ -307,7 +307,6 @@ public partial class MainWindow
         foreach (var key in expiredPendingKeys)
         {
             _incomingAttackPendingSignals.Remove(key);
-            _incomingAttackLastReadUtc.Remove(key);
         }
 
         if (expiredKeys.Count > 0 || expiredPendingKeys.Count > 0)
