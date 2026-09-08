@@ -151,20 +151,6 @@ public partial class MainWindow
         }
     }
 
-    private bool ResolveIsRomansTribe()
-    {
-        foreach (var status in _villageStatusCache.Values)
-        {
-            if (!string.IsNullOrWhiteSpace(status.Tribe)
-                && status.Tribe.Contains("Roman", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     // Fills the Buildings/Troops/Hero overview indicators on each village item from the per-village status
     // cache. Non-active villages show their last-scanned state (the bot reads one village at a time).
     private void ApplyVillageActivityIndicators(IReadOnlyList<VillageSelectionItem> items)
@@ -187,10 +173,8 @@ public partial class MainWindow
             var name = NormalizeVillageName(item.Name);
             var villageKey = GetVillageKey(item);
             TryGetCachedVillageStatus(item, out var status);
-            var buildingSlotCount = (TroopCatalog.IsKnownTribe(status?.Tribe) ? status!.Tribe : item.Tribe)
-                .Contains("Roman", StringComparison.OrdinalIgnoreCase)
-                    ? 3
-                    : 2;
+            var tribe = TroopCatalog.IsKnownTribe(status?.Tribe) ? status!.Tribe : item.Tribe;
+            var buildingSlotCount = ConstructionSlotCapacity.Resolve(tribe);
 
             HashSet<QueueGroup>? deferredGroups = null;
             deferredByVillage.TryGetValue(villageKey, out deferredGroups);

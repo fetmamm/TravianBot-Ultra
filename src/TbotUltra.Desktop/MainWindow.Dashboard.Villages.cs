@@ -433,11 +433,11 @@ public partial class MainWindow
         QueueNewVillagesForFirstAnalysis(villages);
     }
 
-    private static string BuildVillageSignature(IReadOnlyList<Village> villages)
+    internal static string BuildVillageSignature(IReadOnlyList<Village> villages)
     {
         return string.Join(";", villages
             .Where(v => !string.IsNullOrWhiteSpace(v.Name))
-            .Select(v => $"{GetVillageKey(v.Url, v.CoordX, v.CoordY, v.Name)}|{v.Name}|{v.CoordX}|{v.CoordY}|{v.IsCapital}|{v.Population}"));
+            .Select(v => $"{GetVillageKey(v.Url, v.CoordX, v.CoordY, v.Name)}|{v.Name}|{v.CoordX}|{v.CoordY}|{v.IsCapital}|{v.Population}|{v.Tribe}"));
     }
 
     private void ReconcileConfirmedVillageList(IReadOnlyList<Village> villages, string source)

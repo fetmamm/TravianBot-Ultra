@@ -298,10 +298,7 @@ public partial class MainWindow
             && !string.Equals(status.Tribe, "Unknown", StringComparison.OrdinalIgnoreCase)
                 ? status.Tribe
                 : ResolveStoredTroopTrainingTribe();
-        var slotCount = tribe.Contains("Roman", StringComparison.OrdinalIgnoreCase)
-            || ResolveIsRomansTribe()
-                ? 3
-                : 2;
+        var slotCount = ConstructionSlotCapacity.Resolve(tribe);
 
         var rows = LiveQueueRowFactory.BuildConstructionRows(
                      activeConstructions,

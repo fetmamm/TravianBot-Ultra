@@ -461,7 +461,7 @@ internal static class VillageOverviewFactory
 
         var snapshot = ConstructionQueueState.ResolveSnapshot(status, nowUtc);
         var hasStatus = snapshot.Knowledge != ConstructionQueueKnowledge.Unknown;
-        var slotCount = tribe.Contains("Roman", StringComparison.OrdinalIgnoreCase) ? 3 : 2;
+        var slotCount = ConstructionSlotCapacity.Resolve(tribe);
         var rows = LiveQueueRowFactory.BuildConstructionRows(
             active,
             slotCount,
