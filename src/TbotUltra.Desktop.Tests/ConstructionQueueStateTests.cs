@@ -7,6 +7,23 @@ namespace TbotUltra.Desktop.Tests;
 
 public sealed class ConstructionQueueStateTests
 {
+    [Theory]
+    [InlineData("Romans", true)]
+    [InlineData("Gauls", false)]
+    [InlineData("Teutons", false)]
+    [InlineData("Huns", false)]
+    [InlineData("Egyptians", false)]
+    [InlineData("Spartans", false)]
+    [InlineData(null, false)]
+    public void SupportsIndependentConstructionCategories_OnlyAllowsRomans(string? tribe, bool expected)
+    {
+        VillageStatus? status = tribe is null
+            ? null
+            : CreateStatus([], [], 0, null) with { Tribe = tribe };
+
+        Assert.Equal(expected, ConstructionQueueState.SupportsIndependentConstructionCategories(status));
+    }
+
     private static readonly DateTimeOffset Now = new(2026, 8, 1, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
@@ -471,6 +488,26 @@ public sealed class ConstructionQueueStateTests
             ActiveConstructions =
             [
                 new ActiveConstruction(ConstructionKind.Resource, "Cropland", 5, 600, "00:10:00"),
+            ],
+            ActiveConstructionsFromOverview = true,
+        };
+        var resourceItem = new QueueItem { TaskName = "upgrade_all_resources_to_level" };
+
+        var result = ConstructionQueueState.ResolveAvailabilityForItem(status, true, resourceItem);
+
+        Assert.Equal(ConstructionQueueAvailability.Available, result);
+    }
+
+    [Fact]
+    public void ResolveAvailabilityForItem_RomansPlusAllowsResourceWhenTwoBuildingSlotsAreOccupied()
+    {
+        var status = CreateStatus([], [], 2, 600) with
+        {
+            Tribe = "Romans",
+            ActiveConstructions =
+            [
+                new ActiveConstruction(ConstructionKind.Building, "Warehouse", 5, 600, "00:10:00"),
+                new ActiveConstruction(ConstructionKind.Building, "Granary", 5, 500, "00:08:20"),
             ],
             ActiveConstructionsFromOverview = true,
         };

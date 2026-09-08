@@ -451,15 +451,18 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - A confirmed empty dorf1/dorf2 construction overview arms a short per-village immediate-fill burst: start all
   available official resource/building slots without the construction start delay, then resume normal humanized
   timing. Romans have one resource plus one building slot without Plus; Plus adds one flexible third slot (up to
-  two resources or two buildings, three total). Every pending construction row, including an in-progress parent such
-  as `upgrade_all_resources_to_level`, preserves visible queue order and blocks later rows until it is complete.
+  two resources or two buildings, three total). Romans preserve FIFO independently within the resource and building
+  categories: when one category is full, its rows may be passed only to run the earliest ready row from the other
+  category. Other tribes preserve one strict construction order. An in-progress aggregate such as
+  `upgrade_all_resources_to_level` remains the head of the Roman resource category until it is complete.
 - A confirmed empty overview gives the first stale resource `page_timer` head one immediate live validation so a
   free slot cannot idle behind an obsolete timer. Hero inventory is never polled for this: only an observed inventory
   increase wakes the first resource-deferred construction head per village; identical reads and transfer deductions do not.
 - A new resource-defer snapshot replaces the previous snapshot's costs, current stock, production and capacity fields.
   If the live page cannot expose new costs, never reuse old requirements to wake that `page_timer` early.
-- Construction follows visible per-village queue order. A deferred head blocks later construction in that village;
-  verified automatic prerequisite repair may be promoted only when a live slot is available.
+- Construction follows visible per-village queue order subject to the Roman category rule above. A deferred head
+  blocks later construction in the same applicable order; verified automatic prerequisite repair may be promoted
+  only when a live slot is available.
 - Check storage, prerequisites, available slots, and resources before a Build/Upgrade click.
 - Storage-capacity blocks create the required Warehouse/Granary dependency at highest queue priority and keep the
   parent deferred. Queue-time storage preflight covers constructs, selected/max building upgrades, single/bulk

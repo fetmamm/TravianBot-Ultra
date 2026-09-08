@@ -6,7 +6,8 @@ public sealed record ConstructionQueueSelection(
     QueueItem? Item,
     string? SkipReason,
     QueueItem? QueueFullBlocker,
-    bool ForcedLiveValidation);
+    bool ForcedLiveValidation,
+    bool UsedIndependentCategoryLookAhead = false);
 
 public static class ConstructionQueueSelector
 {
@@ -15,7 +16,8 @@ public static class ConstructionQueueSelector
         DateTimeOffset now,
         ConstructionQueueAvailability availability,
         Func<int, bool>? isBlockedByEarlierDependency = null,
-        Func<int, ConstructionQueueAvailability>? availabilityForIndex = null)
+        Func<int, ConstructionQueueAvailability>? availabilityForIndex = null,
+        bool allowIndependentCategoryLookAhead = false)
     {
         if (orderedItems.Count == 0)
         {
@@ -73,6 +75,18 @@ public static class ConstructionQueueSelector
                     return new ConstructionQueueSelection(item, null, null, true);
                 }
 
+                var lookAhead = TrySelectIndependentCategoryLane(
+                    orderedItems,
+                    itemIndex,
+                    now,
+                    allowIndependentCategoryLookAhead,
+                    isBlockedByEarlierDependency,
+                    availabilityForIndex);
+                if (lookAhead is not null)
+                {
+                    return lookAhead;
+                }
+
                 var queueWaitSeconds = Math.Max(0, (item.NextAttemptAt - now).TotalSeconds);
                 return new ConstructionQueueSelection(
                     null,
@@ -92,6 +106,18 @@ public static class ConstructionQueueSelector
         var itemAvailability = availabilityForIndex?.Invoke(itemIndex) ?? availability;
         if (itemAvailability == ConstructionQueueAvailability.Full)
         {
+            var lookAhead = TrySelectIndependentCategoryLane(
+                orderedItems,
+                itemIndex,
+                now,
+                allowIndependentCategoryLookAhead,
+                isBlockedByEarlierDependency,
+                availabilityForIndex);
+            if (lookAhead is not null)
+            {
+                return lookAhead;
+            }
+
             return new ConstructionQueueSelection(
                 null,
                 $"group=Construction task='{item.TaskName}' blocked by live full build queue; holding queue order",
@@ -109,6 +135,50 @@ public static class ConstructionQueueSelector
         }
 
         return new ConstructionQueueSelection(item, null, null, false);
+    }
+
+    private static ConstructionQueueSelection? TrySelectIndependentCategoryLane(
+        IReadOnlyList<QueueItem> orderedItems,
+        int blockedIndex,
+        DateTimeOffset now,
+        bool allowIndependentCategoryLookAhead,
+        Func<int, bool>? isBlockedByEarlierDependency,
+        Func<int, ConstructionQueueAvailability>? availabilityForIndex)
+    {
+        if (!allowIndependentCategoryLookAhead || availabilityForIndex is null)
+        {
+            return null;
+        }
+
+        var blockedIsResource = ConstructionQueueState.IsResourceConstructionTask(
+            orderedItems[blockedIndex].TaskName);
+        for (var index = blockedIndex + 1; index < orderedItems.Count; index++)
+        {
+            var candidate = orderedItems[index];
+            if (ConstructionQueueState.IsResourceConstructionTask(candidate.TaskName) == blockedIsResource)
+            {
+                continue;
+            }
+
+            // A started one-level task may yield within its own category just as it does at the
+            // normal queue head. Every other row remains the head of this category lane.
+            if (CanYieldQueueOrderAfterInProgress(candidate, now))
+            {
+                continue;
+            }
+
+            if (candidate.Status != QueueStatus.Pending
+                || candidate.NextAttemptAt > now
+                || availabilityForIndex(index) != ConstructionQueueAvailability.Available
+                || isBlockedByEarlierDependency?.Invoke(index) == true)
+            {
+                return null;
+            }
+
+            return new ConstructionQueueSelection(candidate, null, null, false, true);
+        }
+
+        return null;
     }
 
     private static bool CanYieldQueueOrderAfterInProgress(QueueItem item, DateTimeOffset now)

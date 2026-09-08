@@ -130,6 +130,92 @@ public sealed class ConstructionQueueSelectorTests
     }
 
     [Fact]
+    public void SelectNext_RomanBuildingCategoryFull_SelectsLaterResourceLaneHead()
+    {
+        var blockedBuilding = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonQueueFull);
+        blockedBuilding.Payload[BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
+            ConstructionQueueState.CurrentDeferClassificationVersion;
+        var laterBuilding = CreateReadyItem();
+        var resource = CreateReadyItem("upgrade_all_resources_to_level");
+
+        var result = ConstructionQueueSelector.SelectNext(
+            [blockedBuilding, laterBuilding, resource],
+            Now,
+            ConstructionQueueAvailability.Full,
+            availabilityForIndex: index => index == 2
+                ? ConstructionQueueAvailability.Available
+                : ConstructionQueueAvailability.Full,
+            allowIndependentCategoryLookAhead: true);
+
+        Assert.Same(resource, result.Item);
+        Assert.True(result.UsedIndependentCategoryLookAhead);
+    }
+
+    [Fact]
+    public void SelectNext_RomanResourceCategoryFull_SelectsLaterBuildingLaneHead()
+    {
+        var blockedResource = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonQueueFull);
+        blockedResource.TaskName = "upgrade_all_resources_to_level";
+        blockedResource.Payload[BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
+            ConstructionQueueState.CurrentDeferClassificationVersion;
+        var laterResource = CreateReadyItem("upgrade_resource_to_level");
+        var building = CreateReadyItem();
+
+        var result = ConstructionQueueSelector.SelectNext(
+            [blockedResource, laterResource, building],
+            Now,
+            ConstructionQueueAvailability.Full,
+            availabilityForIndex: index => index == 2
+                ? ConstructionQueueAvailability.Available
+                : ConstructionQueueAvailability.Full,
+            allowIndependentCategoryLookAhead: true);
+
+        Assert.Same(building, result.Item);
+        Assert.True(result.UsedIndependentCategoryLookAhead);
+    }
+
+    [Fact]
+    public void SelectNext_RomanLookAhead_PreservesOrderWithinResourceLane()
+    {
+        var blockedBuilding = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonQueueFull);
+        var waitingResource = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonResources);
+        waitingResource.TaskName = "upgrade_all_resources_to_level";
+        var laterResource = CreateReadyItem("upgrade_resource_to_level");
+
+        var result = ConstructionQueueSelector.SelectNext(
+            [blockedBuilding, waitingResource, laterResource],
+            Now,
+            ConstructionQueueAvailability.Full,
+            availabilityForIndex: index => index > 0
+                ? ConstructionQueueAvailability.Available
+                : ConstructionQueueAvailability.Full,
+            allowIndependentCategoryLookAhead: true);
+
+        Assert.Null(result.Item);
+        Assert.Same(blockedBuilding, result.QueueFullBlocker);
+    }
+
+    [Fact]
+    public void SelectNext_RomanLookAhead_DoesNotBypassCandidateDependency()
+    {
+        var blockedBuilding = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonQueueFull);
+        var resource = CreateReadyItem("upgrade_all_resources_to_level");
+
+        var result = ConstructionQueueSelector.SelectNext(
+            [blockedBuilding, resource],
+            Now,
+            ConstructionQueueAvailability.Full,
+            isBlockedByEarlierDependency: index => index == 1,
+            availabilityForIndex: index => index == 1
+                ? ConstructionQueueAvailability.Available
+                : ConstructionQueueAvailability.Full,
+            allowIndependentCategoryLookAhead: true);
+
+        Assert.Null(result.Item);
+        Assert.Same(blockedBuilding, result.QueueFullBlocker);
+    }
+
+    [Fact]
     public void SelectNext_InProgressHoldsQueueOrderWhenQueueFull()
     {
         var inProgress = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonInProgress);
@@ -272,11 +358,11 @@ public sealed class ConstructionQueueSelectorTests
         };
     }
 
-    private static QueueItem CreateReadyItem()
+    private static QueueItem CreateReadyItem(string taskName = "upgrade_building_to_level")
     {
         return new QueueItem
         {
-            TaskName = "upgrade_building_to_level",
+            TaskName = taskName,
             Status = QueueStatus.Pending,
             NextAttemptAt = Now,
         };

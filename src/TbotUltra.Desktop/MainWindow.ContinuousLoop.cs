@@ -2245,7 +2245,10 @@ public partial class MainWindow
         out string? skipReason,
         bool preview = false)
     {
-        var availability = ResolveConstructionQueueAvailability(orderedGroupItems.FirstOrDefault(), now);
+        var firstItem = orderedGroupItems.FirstOrDefault();
+        var availability = ResolveConstructionQueueAvailability(firstItem, now);
+        var allowIndependentCategoryLookAhead = ConstructionQueueState.SupportsIndependentConstructionCategories(
+            firstItem is null ? null : ResolveBuildingStatusForQueueItem(firstItem));
         var selection = ConstructionQueueSelector.SelectNext(
             orderedGroupItems,
             now,
@@ -2257,7 +2260,8 @@ public partial class MainWindow
                         && HasEarlierPendingConstructForSlot(orderedGroupItems, index, item, upgradeSlotId))
                     || HasEarlierStoragePreflightDependency(orderedGroupItems, index);
             },
-            index => ResolveConstructionQueueAvailability(orderedGroupItems[index], now));
+            index => ResolveConstructionQueueAvailability(orderedGroupItems[index], now),
+            allowIndependentCategoryLookAhead);
         skipReason = selection.SkipReason;
 
         if (selection.QueueFullBlocker is not null && !preview)
@@ -2275,6 +2279,14 @@ public partial class MainWindow
         if (selection.Item is null)
         {
             return null;
+        }
+
+        if (selection.UsedIndependentCategoryLookAhead && !preview)
+        {
+            var villageName = NormalizeVillageName(GetQueueItemVillageName(selection.Item)) ?? "-";
+            AppendLog(
+                $"[construction-queue] Roman category look-ahead selected " +
+                $"task='{selection.Item.TaskName}' village='{villageName}' because the earlier category is blocked.");
         }
 
         if (TryDeferConstructUntilActivePrerequisiteFinishes(selection.Item, now, preview, out var dependencySkipReason))

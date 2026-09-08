@@ -58,6 +58,17 @@ public static class ConstructionQueueState
     public const string CurrentDeferClassificationVersion = "3";
     private const string PageTimerWaitReason = "page_timer";
 
+    public static bool SupportsIndependentConstructionCategories(VillageStatus? status)
+    {
+        return string.Equals(status?.Tribe, "Romans", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsResourceConstructionTask(string? taskName)
+    {
+        return string.Equals(taskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(taskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase);
+    }
+
     public static IReadOnlyList<Building> MergeObservedBuildingLevels(
         IReadOnlyList<Building> buildings,
         IReadOnlyList<ActiveConstruction> activeConstructions)
@@ -491,8 +502,7 @@ public static class ConstructionQueueState
             return ConstructionQueueAvailability.Unknown;
         }
 
-        var isResourceTask = string.Equals(item.TaskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(item.TaskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase);
+        var isResourceTask = IsResourceConstructionTask(item.TaskName);
         var active = ResolveCurrentActiveConstructions(status, now);
         var relevantCount = isResourceTask
             ? active.Count(construction => construction.Kind == ConstructionKind.Resource)
@@ -551,8 +561,7 @@ public static class ConstructionQueueState
         var active = ResolveCurrentActiveConstructions(status, capturedAt);
         if (string.Equals(status.Tribe, "Romans", StringComparison.OrdinalIgnoreCase))
         {
-            var isResourceTask = string.Equals(item.TaskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
-                || string.Equals(item.TaskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase);
+            var isResourceTask = IsResourceConstructionTask(item.TaskName);
             active = active
                 .Where(construction => isResourceTask
                     ? construction.Kind == ConstructionKind.Resource
