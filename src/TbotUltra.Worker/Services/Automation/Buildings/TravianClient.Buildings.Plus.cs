@@ -27,6 +27,25 @@ public sealed partial class TravianClient : IBuildingClient
         return state == PlusState.On;
     }
 
+    internal async Task<bool?> ReadCurrentPageTravianPlusActiveAsync(CancellationToken cancellationToken = default)
+    {
+        var state = await EvaluatePlusStateOnCurrentPageAsync(cancellationToken);
+        bool? active = state switch
+        {
+            PlusState.On => true,
+            PlusState.Off => false,
+            _ => null,
+        };
+
+        if (active.HasValue && _cachedTravianPlusActive != active)
+        {
+            _cachedTravianPlusActive = active;
+            Notify($"[plus] active={active.Value} source=current-page");
+        }
+
+        return active;
+    }
+
     private async Task<string> ReadTravianPlusStateAsync(CancellationToken cancellationToken)
     {
         var state = await EvaluatePlusStateOnCurrentPageAsync(cancellationToken);

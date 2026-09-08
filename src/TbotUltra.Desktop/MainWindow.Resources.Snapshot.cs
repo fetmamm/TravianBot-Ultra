@@ -171,6 +171,11 @@ public partial class MainWindow
 
     private void ApplyResourceStatusToUi(VillageStatus status)
     {
+        if (status.TravianPlusActive.HasValue)
+        {
+            UpdatePlusInfo(status.TravianPlusActive);
+        }
+
         // The live refresh reads the active (browser) village. Keep the active-village indicator in sync
         // and remember this village's latest read (merged, so buildings from a prior full read persist),
         // but if the user is currently viewing a DIFFERENT village in the dropdown, don't overwrite that

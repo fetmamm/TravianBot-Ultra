@@ -336,7 +336,10 @@ public sealed record VillageStatus(
     // Null means the Dorf1 unit infobox was not inspected. False is authoritative only for that live
     // Dorf1 read and means Travian rendered #troops td.noTroops (no units currently at home).
     bool? HasTroopsAtHome = null,
-    DateTimeOffset? TroopPresenceObservedAtUtc = null);
+    DateTimeOffset? TroopPresenceObservedAtUtc = null,
+    // Current-page observation captured by the jitter resource read. Null means the page did not
+    // expose an authoritative Plus marker, so consumers must retain their last known state.
+    bool? TravianPlusActive = null);
 
 public enum IncomingAttackMovementType
 {

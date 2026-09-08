@@ -238,6 +238,10 @@ public sealed partial class BotTaskRunner
                 status = await client.ReadVillageResourceStatusAsync(
                     cancellationToken,
                     allowNavigationToResourcePage: false);
+                status = status with
+                {
+                    TravianPlusActive = await client.ReadCurrentPageTravianPlusActiveAsync(cancellationToken),
+                };
             },
             saveStateMode: BrowserStateSaveMode.Skip);
 
