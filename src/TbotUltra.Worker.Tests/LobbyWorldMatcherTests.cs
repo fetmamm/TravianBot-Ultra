@@ -1,3 +1,4 @@
+using System.Reflection;
 using TbotUltra.Worker.Services;
 using TbotUltra.Worker.Domain;
 using Xunit;
@@ -6,6 +7,15 @@ namespace TbotUltra.Worker.Tests;
 
 public sealed class LobbyWorldMatcherTests
 {
+    [Fact]
+    public void LobbyWorldCardSelector_AcceptsOwnedAndDualWorlds()
+    {
+        var selectors = typeof(TravianClient).GetNestedType("Selectors", BindingFlags.NonPublic);
+        var field = selectors?.GetField("LobbyGameWorldCard", BindingFlags.Public | BindingFlags.Static);
+
+        Assert.Equal("div.gameworld[data-wuid]", field?.GetRawConstantValue());
+    }
+
     [Theory]
     [InlineData("Choose in lobby", true)]
     [InlineData(" choose in lobby ", true)]
