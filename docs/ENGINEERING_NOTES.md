@@ -66,6 +66,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   or a tool for genuine React/hidden controls. Preserve the farm-list real-click-with-JS-fallback pattern.
 - React inputs may require native value assignment plus `input`/`change` events.
 - Numeric parsing must handle locale separators, Unicode minus, and bidirectional markers.
+- On Official Travian, a sidebar `li.infoType_22` containing a countdown timer marks an avatar pending
+  deletion. Shop-backed flows must detect it before opening Shop; +15% production videos are then disabled
+  in that account's settings instead of being classified as transient video failures.
 - The account server picker loads active and upcoming non-standard Official worlds from Travian Lobby's public
   `/api/metadata` and `/api/calendar`. Treat any published `.travian.com` URL whose type is not `normal`, or
   whose host does not match the regular regional `ts{N}.x{speed}.{region}` scheme, as `Special`; ignore entries

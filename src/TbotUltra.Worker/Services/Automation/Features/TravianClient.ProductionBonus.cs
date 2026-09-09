@@ -139,6 +139,13 @@ public sealed partial class TravianClient
             await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
             var initialState = await ReadProductionBonusPageStateInMainBrowserAsync(cancellationToken);
+            if (initialState.AccountDeletionPending)
+            {
+                Notify("[production-bonus] disabled — the account is pending deletion and Shop is unavailable.");
+                return "Production bonus: disabled because the account is pending deletion. "
+                    + ProductionBonusDomParser.BuildAccountDeletionPendingToken();
+            }
+
             var activatable = initialState.Boxes
                 .Where(box => box.PurplePresent && box.PurpleEnabled && !box.Active)
                 .Select(box => box.Resource)
@@ -253,6 +260,13 @@ public sealed partial class TravianClient
         {
             await EnsureLoggedInAsync(cancellationToken: cancellationToken);
             var pageState = await ReadProductionBonusPageStateInMainBrowserAsync(cancellationToken);
+            if (pageState.AccountDeletionPending)
+            {
+                Notify("[production-bonus] disabled — the account is pending deletion and Shop is unavailable.");
+                return "Production bonus: disabled because the account is pending deletion. "
+                    + ProductionBonusDomParser.BuildAccountDeletionPendingToken();
+            }
+
             var states = ProductionBonusDomParser.Classify(pageState.Boxes, afterActivationAttempt: false);
             var freeAvailable = ProductionBonusDomParser.AnyActivatable(pageState.Boxes);
             Notify($"[production-bonus] scan done — {FormatProductionBonusLog(states)}.");
@@ -278,7 +292,8 @@ public sealed partial class TravianClient
     // iframe is left loaded in the main context.
     private sealed record ProductionBonusPageState(
         IReadOnlyList<ProductionBonusDomParser.ProductionBonusBox> Boxes,
-        TimeSpan? ServerUtcOffset);
+        TimeSpan? ServerUtcOffset,
+        bool AccountDeletionPending = false);
 
     private async Task<ProductionBonusPageState> ReadProductionBonusPageStateInMainBrowserAsync(
         CancellationToken cancellationToken)
@@ -289,6 +304,12 @@ public sealed partial class TravianClient
             {
                 // A fresh dorf1 load gives a slow or stalled React wizard one clean retry.
                 await ReloadOrGotoAsync(Paths.Resources, cancellationToken);
+                var pageHtml = await _page.ContentAsync();
+                if (AccountDeletionDomParser.IsPending(pageHtml))
+                {
+                    return new ProductionBonusPageState([], null, AccountDeletionPending: true);
+                }
+
                 if (!await OpenAdvantagesTabAsync(cancellationToken))
                 {
                     Notify($"[production-bonus:verbose] Advantages tab did not finish rendering (open attempt {openAttempt}/{AdvantagesOpenAttempts}).");

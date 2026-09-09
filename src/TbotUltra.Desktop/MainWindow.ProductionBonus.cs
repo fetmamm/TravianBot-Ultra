@@ -55,6 +55,12 @@ public partial class MainWindow
     private void ApplyProductionBonusResult(string? message)
     {
         var account = _accountStore.ActiveAccountName();
+        if (ProductionBonusDomParser.ParseAccountDeletionPendingToken(message))
+        {
+            DisableProductionBonusForPendingAccountDeletion(account);
+            return;
+        }
+
         var states = ProductionBonusDomParser.ParseResultToken(message);
         if (states.Count == 0)
         {
@@ -97,6 +103,33 @@ public partial class MainWindow
 
         ProductionBonusStateStore.Save(_projectRoot, account, timers);
         AppendLog($"Production bonus: saved timers ({FormatProductionBonusStates(states)}); next-run delay +{delay.TotalMinutes:0} min.");
+    }
+
+    private void DisableProductionBonusForPendingAccountDeletion(string? account)
+    {
+        if (string.IsNullOrWhiteSpace(account))
+        {
+            AppendLog("Production bonus: account deletion detected, but no active account was available to update.");
+            return;
+        }
+
+        var config = _botConfigStore.LoadForAccount(account);
+        config[BotOptionPayloadKeys.ProductionBonusVideoEnabled] = false;
+        _botConfigStore.SaveForAccount(account, config);
+        ProductionBonusStateStore.Clear(_projectRoot, account);
+
+        _suppressProductionBonusVideoConfigWrite = true;
+        try
+        {
+            ProductionBonusVideoCheckBox.IsChecked = false;
+        }
+        finally
+        {
+            _suppressProductionBonusVideoConfigWrite = false;
+        }
+
+        RemovePendingProductionBonus();
+        AppendLog($"Production bonus: disabled for '{account}' because the avatar is pending deletion and Shop is unavailable.");
     }
 
     // True when a manual scan found no active bonus on any resource but the free +15% videos are

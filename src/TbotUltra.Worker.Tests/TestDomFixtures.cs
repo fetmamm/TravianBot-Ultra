@@ -16,6 +16,7 @@ internal static class TestDomFixtures
             "TS50_Village - Buildings.txt" => BuildingOverview,
             "daily_quests.txt" => DailyQuests,
             "daily_quests_1.txt" => DailyQuestsAlternative,
+            "account_deletion_pending.txt" => AccountDeletionPending,
             _ => throw new FileNotFoundException($"Could not find DOM fixture '{fileName}'."),
         };
     }
@@ -144,5 +145,14 @@ internal static class TestDomFixtures
           <span>Daily quests</span>
           <div class="active indicator">!</div>
         </a>
+        """;
+
+    private const string AccountDeletionPending = """
+        <ul class="messages">
+          <li id="infoID_302235" class="infoType_22">
+            The avatar will be deleted in
+            <span class="timer" counting="down" value="185506" data-value="185506">51:31:46</span>.
+          </li>
+        </ul>
         """;
 }

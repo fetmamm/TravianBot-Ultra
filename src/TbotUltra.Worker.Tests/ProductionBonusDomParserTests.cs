@@ -5,6 +5,24 @@ namespace TbotUltra.Worker.Tests;
 
 public sealed class ProductionBonusDomParserTests
 {
+    [Fact]
+    public void AccountDeletionPending_DetectsOfficialSidebarNotice()
+    {
+        var html = TestDomFixtures.Read("account_deletion_pending.txt");
+
+        Assert.True(AccountDeletionDomParser.IsPending(html));
+        Assert.False(AccountDeletionDomParser.IsPending(html.Replace("infoType_22", "infoType_21")));
+    }
+
+    [Fact]
+    public void AccountDeletionPendingToken_RoundTrips()
+    {
+        var token = ProductionBonusDomParser.BuildAccountDeletionPendingToken();
+
+        Assert.True(ProductionBonusDomParser.ParseAccountDeletionPendingToken($"Production bonus disabled. {token}"));
+        Assert.False(ProductionBonusDomParser.ParseAccountDeletionPendingToken("Production bonus: scanned."));
+    }
+
     [Theory]
     [InlineData("07:59:53", 28793)]
     [InlineData("03:52:15", 13935)]

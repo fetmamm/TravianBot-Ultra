@@ -31,6 +31,8 @@ public static class ProductionBonusDomParser
     // Nothing active and the video was not activatable (missing/disabled/no ad) → back off before retry.
     public const int CooldownRetrySeconds = 4 * 60 * 60;
 
+    private const string AccountDeletionPendingToken = "production_bonus_account_deletion_pending=1";
+
     /// <summary>One resource box as read from the Advantages tab DOM.</summary>
     public sealed record ProductionBonusBox(
         string Resource,
@@ -316,6 +318,11 @@ public static class ProductionBonusDomParser
 
         return payload.Trim() == "1";
     }
+
+    public static string BuildAccountDeletionPendingToken() => AccountDeletionPendingToken;
+
+    public static bool ParseAccountDeletionPendingToken(string? result)
+        => result?.Contains(AccountDeletionPendingToken, StringComparison.Ordinal) == true;
 
     public static string BuildServerUtcOffsetToken(TimeSpan serverUtcOffset)
         => "production_bonus_server_utc_offset_seconds="

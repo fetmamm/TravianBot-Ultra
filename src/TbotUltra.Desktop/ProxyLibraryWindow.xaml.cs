@@ -330,6 +330,13 @@ public partial class ProxyLibraryWindow : Window
             return;
         }
 
+        // Choosing Save in the unsaved-changes prompt runs SaveButton_Click, which already sets
+        // DialogResult and closes this modal window. Do not set DialogResult again after it closed.
+        if (_isClosing)
+        {
+            return;
+        }
+
         _isClosing = true;
         DialogResult = false;
         Close();

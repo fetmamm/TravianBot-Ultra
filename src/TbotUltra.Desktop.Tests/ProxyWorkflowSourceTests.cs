@@ -52,6 +52,19 @@ public sealed class ProxyWorkflowSourceTests
     }
 
     [Fact]
+    public void ProxyLibraryClose_DoesNotResetDialogResultAfterPromptSaveClosedTheWindow()
+    {
+        var source = ReadDesktopSource("ProxyLibraryWindow.xaml.cs");
+        var method = MethodBody(source, "private void CloseButton_Click");
+        var prompt = method.IndexOf("PromptToSaveUnsavedChanges()", StringComparison.Ordinal);
+        var alreadyClosingGuard = method.IndexOf("if (_isClosing)", StringComparison.Ordinal);
+        var dialogResult = method.IndexOf("DialogResult = false", StringComparison.Ordinal);
+
+        Assert.True(prompt >= 0 && alreadyClosingGuard > prompt && dialogResult > alreadyClosingGuard,
+            "Close must return when prompt-save already closed the modal window.");
+    }
+
+    [Fact]
     public void ProxyLibraryCheck_RequiresTravianReachability()
     {
         var source = ReadDesktopSource("ProxyLibraryWindow.xaml.cs");
