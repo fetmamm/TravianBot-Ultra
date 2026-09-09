@@ -319,6 +319,7 @@
                   AutoGenerateColumns="False"
                   IsReadOnly="True"
                   CanUserAddRows="False"
+                  CanUserResizeColumns="False"
                   VirtualizingPanel.IsVirtualizingWhenGrouping="True"
                   HeadersVisibility="Column"
                   SelectionMode="Single"
@@ -365,7 +366,7 @@
             </GroupStyle>
           </DataGrid.GroupStyle>
           <DataGrid.Columns>
-            <DataGridTemplateColumn Header="Type" Width="90">
+            <DataGridTemplateColumn Header="Type" Width="90" MinWidth="90">
               <DataGridTemplateColumn.CellTemplate>
                 <DataTemplate>
                   <TextBlock Text="{Binding TypeText}">
@@ -386,11 +387,11 @@
                 </DataTemplate>
               </DataGridTemplateColumn.CellTemplate>
             </DataGridTemplateColumn>
-            <DataGridTextColumn Header="Player" Binding="{Binding SourcePlayerName}" Width="*" />
-            <DataGridTextColumn Header="Village" Binding="{Binding SourceVillageName}" Width="*" />
-            <DataGridTextColumn Header="Coords" Binding="{Binding SourceCoordinatesText}" Width="90" />
-            <DataGridTextColumn Header="Arrival (server)" Binding="{Binding ArrivalText}" Width="155" />
-            <DataGridTextColumn Header="Countdown" Binding="{Binding CountdownText}" Width="110" />
+            <DataGridTextColumn Header="Player" Binding="{Binding SourcePlayerName}" Width="*" MinWidth="160" />
+            <DataGridTextColumn Header="Village" Binding="{Binding SourceVillageName}" Width="*" MinWidth="160" />
+            <DataGridTextColumn Header="Coords" Binding="{Binding SourceCoordinatesText}" Width="90" MinWidth="90" />
+            <DataGridTextColumn Header="Arrival (server)" Binding="{Binding ArrivalText}" Width="155" MinWidth="155" />
+            <DataGridTextColumn Header="Countdown" Binding="{Binding CountdownText}" Width="110" MinWidth="110" />
           </DataGrid.Columns>
         </DataGrid>
       </Grid>

@@ -216,6 +216,8 @@ public sealed class PanelSmokeTests
             Assert.Equal("Incoming attacks", attacks.Header);
             Assert.Equal(6, grid.Columns.Count);
             Assert.Single(grid.GroupStyle);
+            Assert.False(grid.CanUserResizeColumns);
+            Assert.All(grid.Columns, column => Assert.True(column.MinWidth >= 80));
             Assert.Equal("Player", grid.Columns[1].Header);
             Assert.Equal("Village", grid.Columns[2].Header);
             Assert.Equal("Clear list", clearListButton.Content);
