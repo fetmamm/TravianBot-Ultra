@@ -272,7 +272,26 @@
               <Button x:Name="ToggleAllIncomingAttackMonitoringButton"
                       Content="Toggle all" Margin="10,0,0,0" Padding="8,2" MinHeight="0"
                       FontSize="10" Click="ToggleAllIncomingAttackMonitoringButton_Click"
-                      ToolTip="Enable all villages if any are off; otherwise disable all villages" />
+                       ToolTip="Enable all villages if any are off; otherwise disable all villages" />
+            </StackPanel>
+            <StackPanel Orientation="Horizontal" Margin="0,0,0,9">
+              <CheckBox x:Name="IncomingAttackSoundAlertCheckBox"
+                        Content="Play sound for new attacks"
+                        VerticalAlignment="Center"
+                        Checked="IncomingAttackSoundSetting_Changed"
+                        Unchecked="IncomingAttackSoundSetting_Changed"
+                        ToolTip="Play one sound when one or more new incoming attacks are confirmed" />
+              <TextBlock Text="Cooldown" Margin="18,0,7,0" VerticalAlignment="Center"
+                         Foreground="{DynamicResource SlateTextBrush}" />
+              <ComboBox x:Name="IncomingAttackSoundCooldownComboBox"
+                        Width="82" SelectedIndex="0"
+                        SelectionChanged="IncomingAttackSoundSetting_Changed"
+                        ToolTip="Minimum time between incoming attack sounds">
+                <ComboBoxItem Content="1 min" Tag="1" />
+                <ComboBoxItem Content="2 min" Tag="2" />
+                <ComboBoxItem Content="5 min" Tag="5" />
+                <ComboBoxItem Content="10 min" Tag="10" />
+              </ComboBox>
             </StackPanel>
             <ItemsControl x:Name="IncomingAttackMonitoringVillageItemsControl">
               <ItemsControl.ItemsPanel>

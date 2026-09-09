@@ -74,6 +74,32 @@ public sealed class TravianSessionCache
     // TravianClient instances so the deferred attempts and the eventual start share the same memory.
     public System.Collections.Generic.Dictionary<string, int> ConstructionOngoingByKey { get; } = new();
 
+    // Categories first observed with an empty queue stay in immediate-fill mode until their live
+    // capacity is full. This survives short-lived clients and multi-level queue items.
+    private System.Collections.Generic.HashSet<string> ConstructionInitialFillCategories { get; } =
+        new(System.StringComparer.OrdinalIgnoreCase);
+
+    internal bool ObserveConstructionInitialFill(string categoryKey, int ongoingCount, bool canStart)
+    {
+        if (!canStart)
+        {
+            ConstructionInitialFillCategories.Remove(categoryKey);
+            return false;
+        }
+
+        // Only the first observation of a category may arm this mode. If the category was known to
+        // contain a construction and later becomes empty, the ordinary post-timer delay still applies.
+        if (ongoingCount == 0 && !ConstructionOngoingByKey.ContainsKey(categoryKey))
+        {
+            ConstructionInitialFillCategories.Add(categoryKey);
+        }
+
+        return ConstructionInitialFillCategories.Contains(categoryKey);
+    }
+
+    internal bool IsConstructionInitialFillActive(string categoryKey)
+        => ConstructionInitialFillCategories.Contains(categoryKey);
+
     // When the humanized construction delay defers a specific build, the computed "start no earlier
     // than" deadline is stored here keyed by "{villageNewdid}:{kind}:{slotId}". On the retry after
     // the wait the gate finds now>=deadline and lets the build proceed instead of re-computing (which
@@ -96,6 +122,7 @@ public sealed class TravianSessionCache
         }
 
         ConstructionOngoingByKey.Clear();
+        ConstructionInitialFillCategories.Clear();
         ConstructionHumanizeUntilBySlot.Clear();
         ConstructionHumanizeStateVersion = stateVersion;
         return true;

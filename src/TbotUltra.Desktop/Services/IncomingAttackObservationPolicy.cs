@@ -45,4 +45,31 @@ public static class IncomingAttackObservationPolicy
 
         return hasActiveConfirmedMovements || !hasConfirmedMovementHistory;
     }
+
+    public static int CountNewConfirmedAttacks(
+        IEnumerable<IncomingAttack> previousAttacks,
+        IEnumerable<IncomingAttack> currentAttacks)
+    {
+        var previousIds = previousAttacks
+            .Select(attack => attack.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        return currentAttacks
+            .Select(attack => attack.Id)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count(id => !previousIds.Contains(id));
+    }
+
+    public static bool ShouldPlaySound(
+        bool soundEnabled,
+        int newAttackCount,
+        DateTimeOffset? lastSoundUtc,
+        TimeSpan cooldown,
+        DateTimeOffset nowUtc)
+    {
+        return soundEnabled
+               && newAttackCount > 0
+               && (!lastSoundUtc.HasValue || nowUtc - lastSoundUtc.Value >= cooldown);
+    }
 }

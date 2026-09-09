@@ -10,6 +10,8 @@ public partial class TroopsHubPanel : UserControl
     internal ReinforcementsPanel CatapultWavesPanel => CatapultWavesContent;
     internal DataGrid IncomingAttacksGrid => IncomingAttacksContent.IncomingAttacksGrid;
     internal ItemsControl IncomingAttackMonitoringVillages => IncomingAttacksContent.IncomingAttackMonitoringVillages;
+    internal CheckBox IncomingAttackSoundAlert => IncomingAttacksContent.IncomingAttackSoundAlert;
+    internal ComboBox IncomingAttackSoundCooldown => IncomingAttacksContent.IncomingAttackSoundCooldown;
     internal TroopEvasionPanel EvasionPanel => EvasionContent;
 
     internal void SelectIncomingAttacks()

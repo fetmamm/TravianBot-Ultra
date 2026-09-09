@@ -208,6 +208,8 @@ public sealed class PanelSmokeTests
             var infoIcon = Assert.IsType<ContentControl>(panel.FindName("IncomingAttacksInfoIcon"));
             var clearListButton = Assert.IsType<Button>(panel.FindName("ClearIncomingAttackListButton"));
             var toggleAllButton = Assert.IsType<Button>(panel.FindName("ToggleAllIncomingAttackMonitoringButton"));
+            var soundAlert = Assert.IsType<CheckBox>(panel.FindName("IncomingAttackSoundAlertCheckBox"));
+            var soundCooldown = Assert.IsType<ComboBox>(panel.FindName("IncomingAttackSoundCooldownComboBox"));
             var catapultInfoIcon = Assert.IsType<ContentControl>(panel.FindName("CatapultWavesInfoIcon"));
 
             Assert.Equal(3, tabs.Items.Count);
@@ -218,6 +220,9 @@ public sealed class PanelSmokeTests
             Assert.Equal("Village", grid.Columns[2].Header);
             Assert.Equal("Clear list", clearListButton.Content);
             Assert.Equal("Toggle all", toggleAllButton.Content);
+            Assert.False(soundAlert.IsChecked);
+            Assert.Equal("1 min", Assert.IsType<ComboBoxItem>(soundCooldown.SelectedItem).Content);
+            Assert.Equal(4, soundCooldown.Items.Count);
             Assert.Equal(
                 Assert.IsType<SolidColorBrush>(Application.Current.FindResource("DangerBgBrush")).Color,
                 Assert.IsType<SolidColorBrush>(clearListButton.Background).Color);

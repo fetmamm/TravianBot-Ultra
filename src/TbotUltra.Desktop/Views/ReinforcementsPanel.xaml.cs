@@ -58,6 +58,8 @@ public partial class ReinforcementsPanel : UserControl
     internal TabItem IncomingAttacksTab => IncomingAttacksTabItem;
     internal DataGrid IncomingAttacksGrid => IncomingAttackDataGrid;
     internal ItemsControl IncomingAttackMonitoringVillages => IncomingAttackMonitoringVillageItemsControl;
+    internal CheckBox IncomingAttackSoundAlert => IncomingAttackSoundAlertCheckBox;
+    internal ComboBox IncomingAttackSoundCooldown => IncomingAttackSoundCooldownComboBox;
 
     private void ReinforcementSetting_SelectionChanged(object sender, SelectionChangedEventArgs e) =>
         Host?.OnReinforcementSettingSelectionChanged(sender, e);
@@ -82,6 +84,9 @@ public partial class ReinforcementsPanel : UserControl
 
     private void ToggleAllIncomingAttackMonitoringButton_Click(object sender, RoutedEventArgs e) =>
         Host?.OnToggleAllIncomingAttackMonitoringClicked(sender, e);
+
+    private void IncomingAttackSoundSetting_Changed(object sender, RoutedEventArgs e) =>
+        Host?.OnIncomingAttackSoundSettingChanged(sender, e);
 
     private void ClearIncomingAttackListButton_Click(object sender, RoutedEventArgs e) =>
         Host?.OnClearIncomingAttackListClicked(sender, e);

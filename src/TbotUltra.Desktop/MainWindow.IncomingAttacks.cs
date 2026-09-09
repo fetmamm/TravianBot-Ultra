@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.ComponentModel;
+using System.Media;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
@@ -21,6 +22,10 @@ public partial class MainWindow
     private readonly HashSet<string> _incomingAttackReadsInFlight = new(StringComparer.OrdinalIgnoreCase);
     private readonly HashSet<string> _incomingAttackVisiblePlusMarkerKeys = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, long> _incomingAttackDorf1ClearVersions = new(StringComparer.OrdinalIgnoreCase);
+    private bool _incomingAttackSoundEnabled;
+    private int _incomingAttackSoundCooldownMinutes = IncomingAttackMonitoringSettingsStore.DefaultSoundCooldownMinutes;
+    private DateTimeOffset? _incomingAttackLastSoundUtc;
+    private bool _incomingAttackSoundSettingsSync;
 
     private ICollectionView CreateIncomingAttackRowsView()
     {
@@ -241,10 +246,18 @@ public partial class MainWindow
                     return;
                 }
 
-                _incomingAttacksByVillage[resolvedKey] = snapshot.Attacks
+                var activeAttacks = snapshot.Attacks
                     .Where(attack => attack.ArrivalAtUtc > DateTimeOffset.UtcNow)
                     .OrderBy(attack => attack.ArrivalAtUtc)
                     .ToList();
+                var previousAttacks = _incomingAttacksByVillage.GetValueOrDefault(resolvedKey) ?? [];
+                if (!string.Equals(resolvedKey, villageKey, StringComparison.OrdinalIgnoreCase)
+                    && _incomingAttacksByVillage.TryGetValue(villageKey, out var unresolvedAttacks))
+                {
+                    previousAttacks = previousAttacks.Concat(unresolvedAttacks).ToList();
+                }
+                var newAttackCount = IncomingAttackObservationPolicy.CountNewConfirmedAttacks(previousAttacks, activeAttacks);
+                _incomingAttacksByVillage[resolvedKey] = activeAttacks;
                 var confirmedMovementCount = Math.Max(
                     _incomingAttackConfirmedMovementCounts.GetValueOrDefault(resolvedKey),
                     _incomingAttackConfirmedMovementCounts.GetValueOrDefault(villageKey));
@@ -266,6 +279,7 @@ public partial class MainWindow
                 _incomingAttackLastReadUtc[resolvedKey] = DateTimeOffset.UtcNow;
                 RefreshIncomingAttackUi();
                 SaveIncomingAttackState();
+                PlayIncomingAttackSoundIfDue(newAttackCount, snapshot.ObservedAtUtc);
             });
         }
         catch (OperationCanceledException)
@@ -557,6 +571,10 @@ public partial class MainWindow
         _incomingAttackRows.Clear();
         _incomingAttackMonitoringVillages.Clear();
         _incomingAttackMonitoringDisabledKeys.Clear();
+        _incomingAttackSoundEnabled = false;
+        _incomingAttackSoundCooldownMinutes = IncomingAttackMonitoringSettingsStore.DefaultSoundCooldownMinutes;
+        _incomingAttackLastSoundUtc = null;
+        SyncIncomingAttackSoundSettings();
         ClearTroopEvasionUiState();
     }
 
@@ -565,11 +583,36 @@ public partial class MainWindow
 
     private void LoadIncomingAttackMonitoringSettings()
     {
+        var settings = _incomingAttackMonitoringStore.Load(
+            _accountStore.ActiveAccountName(), LoadBotOptions().BaseUrl);
         _incomingAttackMonitoringDisabledKeys.Clear();
-        foreach (var key in _incomingAttackMonitoringStore.Load(
-                     _accountStore.ActiveAccountName(), LoadBotOptions().BaseUrl))
+        foreach (var key in settings.DisabledVillageKeys)
         {
             _incomingAttackMonitoringDisabledKeys.Add(key);
+        }
+        _incomingAttackSoundEnabled = settings.SoundEnabled;
+        _incomingAttackSoundCooldownMinutes = settings.SoundCooldownMinutes;
+        _incomingAttackLastSoundUtc = null;
+        SyncIncomingAttackSoundSettings();
+    }
+
+    private void SyncIncomingAttackSoundSettings()
+    {
+        if (TroopsHubPanelControl?.IncomingAttackSoundAlert is null) return;
+        _incomingAttackSoundSettingsSync = true;
+        try
+        {
+            TroopsHubPanelControl.IncomingAttackSoundAlert.IsChecked = _incomingAttackSoundEnabled;
+            var selectedItem = TroopsHubPanelControl.IncomingAttackSoundCooldown.Items
+                .OfType<ComboBoxItem>()
+                .FirstOrDefault(item => int.TryParse(item.Tag?.ToString(), out var minutes)
+                                        && minutes == _incomingAttackSoundCooldownMinutes);
+            TroopsHubPanelControl.IncomingAttackSoundCooldown.SelectedItem = selectedItem
+                ?? TroopsHubPanelControl.IncomingAttackSoundCooldown.Items[0];
+        }
+        finally
+        {
+            _incomingAttackSoundSettingsSync = false;
         }
     }
 
@@ -627,6 +670,18 @@ public partial class MainWindow
         PersistIncomingAttackMonitoringChanges();
     }
 
+    internal void OnIncomingAttackSoundSettingChanged(object sender, RoutedEventArgs e)
+    {
+        if (_incomingAttackSoundSettingsSync) return;
+        _incomingAttackSoundEnabled = TroopsHubPanelControl.IncomingAttackSoundAlert.IsChecked == true;
+        if (TroopsHubPanelControl.IncomingAttackSoundCooldown.SelectedItem is ComboBoxItem selected
+            && int.TryParse(selected.Tag?.ToString(), out var minutes))
+        {
+            _incomingAttackSoundCooldownMinutes = minutes;
+        }
+        PersistIncomingAttackMonitoringChanges();
+    }
+
     private void ApplyIncomingAttackMonitoring(string villageKey, bool enabled)
     {
         if (enabled)
@@ -649,11 +704,43 @@ public partial class MainWindow
         _incomingAttackMonitoringStore.Save(
             _accountStore.ActiveAccountName(),
             LoadBotOptions().BaseUrl,
-            _incomingAttackMonitoringDisabledKeys);
+            _incomingAttackMonitoringDisabledKeys,
+            _incomingAttackSoundEnabled,
+            _incomingAttackSoundCooldownMinutes);
         SaveIncomingAttackState();
         RefreshIncomingAttackUi();
         UpdateTroopEvasionRuntimeStatuses();
         SyncVillageProtectionSettingsRows();
+    }
+
+    private void PlayIncomingAttackSoundIfDue(int newAttackCount, DateTimeOffset observedAtUtc)
+    {
+        var nowUtc = observedAtUtc.ToUniversalTime();
+        var cooldown = TimeSpan.FromMinutes(_incomingAttackSoundCooldownMinutes);
+        if (!IncomingAttackObservationPolicy.ShouldPlaySound(
+                _incomingAttackSoundEnabled,
+                newAttackCount,
+                _incomingAttackLastSoundUtc,
+                cooldown,
+                nowUtc))
+        {
+            if (_incomingAttackSoundEnabled && newAttackCount > 0)
+            {
+                AppendLog($"[incoming-attacks] sound suppressed by {_incomingAttackSoundCooldownMinutes}-minute cooldown for {newAttackCount} new movement(s).");
+            }
+            return;
+        }
+
+        try
+        {
+            SystemSounds.Exclamation.Play();
+            _incomingAttackLastSoundUtc = nowUtc;
+            AppendLog($"[incoming-attacks] played one bulk sound for {newAttackCount} new confirmed movement(s).");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[incoming-attacks] sound could not be played: {ex.Message}");
+        }
     }
 
     internal void OnClearIncomingAttackListClicked(object sender, RoutedEventArgs e)

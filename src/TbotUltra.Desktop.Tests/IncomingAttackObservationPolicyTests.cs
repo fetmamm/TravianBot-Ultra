@@ -185,4 +185,77 @@ public sealed class IncomingAttackObservationPolicyTests
 
         Assert.True(shouldKeep);
     }
+
+    [Fact]
+    public void ConfirmedSnapshot_CountsOnlyPreviouslyUnknownAttackIds()
+    {
+        var previous = new[]
+        {
+            new IncomingAttack("known", "BRE", Now.AddMinutes(10)),
+        };
+        var current = new[]
+        {
+            new IncomingAttack("new-2", "BRE", Now.AddMinutes(12)),
+            new IncomingAttack("known", "BRE", Now.AddMinutes(10)),
+            new IncomingAttack("new-1", "BRE", Now.AddMinutes(11)),
+        };
+
+        var count = IncomingAttackObservationPolicy.CountNewConfirmedAttacks(previous, current);
+
+        Assert.Equal(2, count);
+    }
+
+    [Fact]
+    public void RepeatedConfirmedSnapshot_DoesNotReportNewAttacks()
+    {
+        var previous = new[]
+        {
+            new IncomingAttack("one", "BRE", Now.AddMinutes(10)),
+            new IncomingAttack("two", "BRE", Now.AddMinutes(11)),
+        };
+        var reordered = previous.Reverse().ToArray();
+
+        var count = IncomingAttackObservationPolicy.CountNewConfirmedAttacks(previous, reordered);
+
+        Assert.Equal(0, count);
+    }
+
+    [Fact]
+    public void MultipleNewAttacksInOneSnapshot_AllowOneBulkSound()
+    {
+        var shouldPlay = IncomingAttackObservationPolicy.ShouldPlaySound(
+            soundEnabled: true,
+            newAttackCount: 10,
+            lastSoundUtc: null,
+            TimeSpan.FromMinutes(1),
+            Now);
+
+        Assert.True(shouldPlay);
+    }
+
+    [Fact]
+    public void NewAttacksInsideCooldown_DoNotAllowAnotherSound()
+    {
+        var shouldPlay = IncomingAttackObservationPolicy.ShouldPlaySound(
+            soundEnabled: true,
+            newAttackCount: 3,
+            lastSoundUtc: Now.AddSeconds(-30),
+            TimeSpan.FromMinutes(1),
+            Now);
+
+        Assert.False(shouldPlay);
+    }
+
+    [Fact]
+    public void NewAttacksAfterCooldown_AllowAnotherBulkSound()
+    {
+        var shouldPlay = IncomingAttackObservationPolicy.ShouldPlaySound(
+            soundEnabled: true,
+            newAttackCount: 2,
+            lastSoundUtc: Now.AddMinutes(-1),
+            TimeSpan.FromMinutes(1),
+            Now);
+
+        Assert.True(shouldPlay);
+    }
 }

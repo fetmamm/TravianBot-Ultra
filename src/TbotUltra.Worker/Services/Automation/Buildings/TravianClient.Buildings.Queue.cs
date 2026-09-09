@@ -383,19 +383,35 @@ public sealed partial class TravianClient
         }
 
         var status = await EvaluateConstructionSlotsAsync(tribe, plusActive, cancellationToken, allowNavigationToBuildings);
+        var isRomans = string.Equals(tribe, "Romans", StringComparison.OrdinalIgnoreCase);
         var canStart = kind == ConstructionKind.Resource ? status.CanStartResource : status.CanStartBuilding;
+        string? villageToken = null;
+        string? categoryKey = null;
+        var ongoingInCategory = 0;
+        if (_config.ConstructionHumanizeDelayEnabled)
+        {
+            villageToken = await ResolveConstructionHumanizeVillageTokenAsync(cancellationToken);
+            categoryKey = ConstructionCategoryKey(kind, isRomans, villageToken);
+            ongoingInCategory = (isRomans
+                    ? status.Active.Where(a => kind == ConstructionKind.Resource
+                        ? a.Kind == ConstructionKind.Resource
+                        : a.Kind != ConstructionKind.Resource)
+                    : status.Active)
+                .Count(a => a.TimeLeftSeconds is int v && v > 0);
+            _session.ObserveConstructionInitialFill(categoryKey, ongoingInCategory, canStart);
+        }
         if (canStart)
         {
             if (kind == ConstructionKind.Resource)
             {
-                var knownVillageToken = await ResolveConstructionHumanizeVillageTokenAsync(cancellationToken);
-                _session.ConstructionUncertainPlusRetriesByVillage.Remove(knownVillageToken);
+                villageToken ??= await ResolveConstructionHumanizeVillageTokenAsync(cancellationToken);
+                _session.ConstructionUncertainPlusRetriesByVillage.Remove(villageToken);
             }
             return null;
         }
 
-        var isRomans = string.Equals(tribe, "Romans", StringComparison.OrdinalIgnoreCase);
-        var villageToken = await ResolveConstructionHumanizeVillageTokenAsync(cancellationToken);
+        villageToken ??= await ResolveConstructionHumanizeVillageTokenAsync(cancellationToken);
+        categoryKey ??= ConstructionCategoryKey(kind, isRomans, villageToken);
         if (retryUncertainResourceSlot
             && kind == ConstructionKind.Resource
             && !plusStateKnown
@@ -410,13 +426,7 @@ public sealed partial class TravianClient
         // sees previous>0 and applies the no-Plus delay (the gate itself only runs once the slot is free).
         if (_config.ConstructionHumanizeDelayEnabled)
         {
-            var ongoingInCategory = (isRomans
-                    ? status.Active.Where(a => kind == ConstructionKind.Resource
-                        ? a.Kind == ConstructionKind.Resource
-                        : a.Kind != ConstructionKind.Resource)
-                    : status.Active)
-                .Count(a => a.TimeLeftSeconds is int v && v > 0);
-            _session.ConstructionOngoingByKey[ConstructionCategoryKey(kind, isRomans, villageToken)] = ongoingInCategory;
+            _session.ConstructionOngoingByKey[categoryKey] = ongoingInCategory;
         }
 
         var relevantActive = (isRomans
@@ -590,6 +600,12 @@ public sealed partial class TravianClient
             var categoryKey = ConstructionCategoryKey(kind, isRomans, villageToken);
             var previousOngoingCount = _session.ConstructionOngoingByKey.GetValueOrDefault(categoryKey, 0);
             _session.ConstructionOngoingByKey[categoryKey] = ongoingCount;
+
+            if (_session.IsConstructionInitialFillActive(categoryKey))
+            {
+                Notify($"[construction-humanize] slot {slotId}: initial empty queue fill — starting immediately.");
+                return null;
+            }
 
             double delaySeconds;
             string reason;
