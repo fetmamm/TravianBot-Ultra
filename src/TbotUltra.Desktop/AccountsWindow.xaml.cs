@@ -39,6 +39,7 @@ public partial class AccountsWindow : Window
     private bool _showPassword;
     private string _editorProxyUsername = string.Empty;
     private string _editorProxyPassword = string.Empty;
+    private string _editorProxyId = string.Empty;
     private bool _editingExistingAccount;
     private string _editingOriginalName = string.Empty;
     private string _editingOriginalServerName = string.Empty;
@@ -132,9 +133,10 @@ public partial class AccountsWindow : Window
 
     private void Reload()
     {
+        ReloadProxyLibraryEntries();
+        _store.SynchronizeProxyBindings(_proxyLibraryEntries);
         LoadAccountsIntoList();
         EnsureServerListContainsDefaults();
-        ReloadProxyLibraryEntries();
 
         if (_accounts.Count > 0)
         {
@@ -196,6 +198,7 @@ public partial class AccountsWindow : Window
         UseProxyCheckBox.IsChecked = selected.ProxyEnabled;
         SafeRunAccountEditorAction(() =>
         {
+            _editorProxyId = selected.ProxyId;
             LoadProxyFields(selected.ProxyServer);
             RefreshSavedProxySelection();
             SetProxyFieldsEnabled(UseProxyCheckBox.IsChecked == true);
@@ -332,6 +335,7 @@ public partial class AccountsWindow : Window
                 entry.ProxyEnabled = current is not null;
                 if (current is not null)
                 {
+                    entry.ProxyId = current.Id;
                     entry.ProxyServer = current.Server;
                 }
             }
@@ -681,6 +685,7 @@ public partial class AccountsWindow : Window
         UseProxyCheckBox.IsChecked = true;
         SafeRunAccountEditorAction(() =>
         {
+            _editorProxyId = ProxyLibraryStore.FindByServer(_proxyLibraryEntries, pick.Server)?.Id ?? string.Empty;
             LoadProxyFields(pick.Server);
             RefreshSavedProxySelection();
         }, "apply selected proxy");
@@ -703,6 +708,8 @@ public partial class AccountsWindow : Window
         if (dialog.ShowDialog() == true)
         {
             ReloadProxyLibraryEntries();
+            _store.SynchronizeProxyBindings(_proxyLibraryEntries);
+            RefreshEditorProxyFromBinding();
             RefreshSavedProxySelection();
             InfoTextBlock.Text = "Proxy list updated.";
         }
@@ -818,6 +825,7 @@ public partial class AccountsWindow : Window
             return;
         }
 
+        _editorProxyId = proxy.Id;
         LoadProxyFields(proxy.Server);
     }
 
@@ -844,8 +852,15 @@ public partial class AccountsWindow : Window
         account.ProxyEnabled = proxy is not null;
         if (proxy is not null)
         {
+            account.ProxyId = proxy.Id;
             account.ProxyServer = proxy.Server;
+            _editorProxyId = proxy.Id;
             LoadProxyFields(proxy.Server);
+        }
+        else
+        {
+            account.ProxyId = string.Empty;
+            _editorProxyId = string.Empty;
         }
 
         _store.SaveAccount(account, setActive: false);
@@ -915,6 +930,7 @@ public partial class AccountsWindow : Window
         UseProxyCheckBox.IsChecked = true;
         SafeRunAccountEditorAction(() =>
         {
+            _editorProxyId = entry.Id;
             LoadProxyFields(entry.Server);
         }, "apply saved proxy");
         UpdateActionButtons();
@@ -1044,6 +1060,38 @@ public partial class AccountsWindow : Window
 
         RebuildSavedProxyOptions(ResolveCurrentEditorAccountName());
         SetProxyFieldsEnabled(UseProxyCheckBox.IsChecked == true);
+    }
+
+    private void RefreshEditorProxyFromBinding()
+    {
+        var account = new AccountEntry
+        {
+            Name = ResolveCurrentEditorAccountName(),
+            ProxyId = _editorProxyId,
+            ProxyServer = BuildProxyServerString(),
+        };
+        var proxy = AccountProxyBindingResolver.Resolve(account, _proxyLibraryEntries);
+        if (proxy is null)
+        {
+            return;
+        }
+
+        _editorProxyId = proxy.Id;
+        LoadProxyFields(proxy.Server);
+        System.Diagnostics.Debug.WriteLine(
+            $"[proxy-binding] refreshed proxy id '{proxy.Id}' in the account editor.");
+    }
+
+    private string ResolveEditorProxyId(string proxyServer)
+    {
+        var current = _proxyLibraryEntries.FirstOrDefault(entry =>
+            string.Equals(entry.Id, _editorProxyId, StringComparison.OrdinalIgnoreCase));
+        if (current is not null && string.Equals(current.Server, proxyServer, StringComparison.Ordinal))
+        {
+            return current.Id;
+        }
+
+        return ProxyLibraryStore.FindByServer(_proxyLibraryEntries, proxyServer)?.Id ?? string.Empty;
     }
 
     private void RefreshSavedProxySelection()
@@ -1182,6 +1230,12 @@ public partial class AccountsWindow : Window
         var serverUrl = selectedServer?.BaseUrl ?? _defaultServerUrl;
         var proxyScheme = (ProxySchemeComboBox.SelectedItem as System.Windows.Controls.ComboBoxItem)?.Tag?.ToString()
             ?? "socks5";
+        var proxyServer = AccountEditorState.BuildProxyServer(
+            proxyScheme,
+            ProxyHostTextBox.Text,
+            ProxyPortTextBox.Text,
+            _editorProxyUsername,
+            _editorProxyPassword);
         return AccountEditorState.BuildAccountEntry(new AccountEditorInput(
             UsernameTextBox.Text,
             password,
@@ -1196,7 +1250,8 @@ public partial class AccountsWindow : Window
             _editingExistingAccount,
             _editingOriginalName,
             _editorProxyUsername,
-            _editorProxyPassword));
+            _editorProxyPassword,
+            ResolveEditorProxyId(proxyServer)));
     }
 
     private void SelectByName(string name)
@@ -1213,6 +1268,7 @@ public partial class AccountsWindow : Window
         _editingExistingAccount = false;
         _editingOriginalName = string.Empty;
         _editingOriginalServerName = string.Empty;
+        _editorProxyId = string.Empty;
         UsernameTextBox.Text = string.Empty;
         PasswordBox.Password = string.Empty;
         PasswordTextBox.Text = string.Empty;

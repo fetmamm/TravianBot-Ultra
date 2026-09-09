@@ -10,7 +10,7 @@ public sealed class AccountEditorStateTests
     public void AuthenticatedProxy_SurvivesAccountSaveAndIpCheck()
     {
         var input = new AccountEditorInput("player", "game-password", false, "World", "https://example.com",
-            true, true, "http", "proxy.example", "8080", false, "", "proxy-user", " p@ss:% ");
+            true, true, "http", "proxy.example", "8080", false, "", "proxy-user", " p@ss:% ", "proxy-id");
         var account = AccountEditorState.BuildAccountEntry(input);
         var checkServer = AccountEditorState.ValidateProxyFieldsForCheck(input.ProxyScheme, input.ProxyHost,
             input.ProxyPort, input.ProxyUsername, input.ProxyPassword);
@@ -18,6 +18,7 @@ public sealed class AccountEditorStateTests
         Assert.True(TbotUltra.Worker.Infrastructure.ProxyParser.TryBuild(account.ProxyServer, out var proxy, out _));
         Assert.Equal(input.ProxyUsername, proxy!.Username);
         Assert.Equal(input.ProxyPassword, proxy.Password);
+        Assert.Equal(input.ProxyId, account.ProxyId);
     }
 
     [Fact]

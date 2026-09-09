@@ -69,6 +69,7 @@ public sealed class EnvAccountStore
                     ServerName = values.GetValueOrDefault($"{prefix}SERVER_NAME", string.Empty),
                     ServerUrl = values.GetValueOrDefault($"{prefix}SERVER_URL", string.Empty),
                     ProxyEnabled = ParseBool(values.GetValueOrDefault($"{prefix}PROXY_ENABLED", string.Empty)),
+                    ProxyId = values.GetValueOrDefault($"{prefix}PROXY_ID", string.Empty),
                     ProxyServer = values.GetValueOrDefault($"{prefix}PROXY_SERVER", string.Empty),
                     NeverUseOwnIp = ParseBool(values.GetValueOrDefault($"{prefix}NEVER_USE_OWN_IP", string.Empty)),
                     IsActive = string.Equals(name, active, StringComparison.OrdinalIgnoreCase),
@@ -124,6 +125,7 @@ public sealed class EnvAccountStore
             values[$"{prefix}SERVER_NAME"] = account.ServerName.Trim();
             values[$"{prefix}SERVER_URL"] = account.ServerUrl.Trim().TrimEnd('/');
             values[$"{prefix}PROXY_ENABLED"] = account.ProxyEnabled ? "true" : "false";
+            values[$"{prefix}PROXY_ID"] = account.ProxyId.Trim();
             values[$"{prefix}PROXY_SERVER"] = account.ProxyServer.Trim();
             values[$"{prefix}NEVER_USE_OWN_IP"] = account.NeverUseOwnIp ? "true" : "false";
 
@@ -159,6 +161,31 @@ public sealed class EnvAccountStore
         }
     }
 
+    public int SynchronizeProxyBindings(IEnumerable<ProxyLibraryEntry> proxyEntries)
+    {
+        var entries = proxyEntries.ToList();
+        var changed = 0;
+        foreach (var account in ListAccounts())
+        {
+            var proxy = AccountProxyBindingResolver.Resolve(account, entries);
+            if (proxy is null
+                || (string.Equals(account.ProxyId, proxy.Id, StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(account.ProxyServer, proxy.Server, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            account.ProxyId = proxy.Id;
+            account.ProxyServer = proxy.Server;
+            SaveAccount(account, setActive: false);
+            changed++;
+            System.Diagnostics.Debug.WriteLine(
+                $"[proxy-binding] synchronized proxy id '{proxy.Id}' for account '{account.Name}'.");
+        }
+
+        return changed;
+    }
+
     public void DeleteAccount(string accountName)
     {
         lock (_fileState.Sync)
@@ -175,6 +202,7 @@ public sealed class EnvAccountStore
                 values.Remove($"{prefix}SERVER_NAME");
                 values.Remove($"{prefix}SERVER_URL");
                 values.Remove($"{prefix}PROXY_ENABLED");
+                values.Remove($"{prefix}PROXY_ID");
                 values.Remove($"{prefix}PROXY_SERVER");
                 values.Remove($"{prefix}NEVER_USE_OWN_IP");
                 values["TBOT_ACCOUNTS"] = string.Join(",", names);
@@ -266,6 +294,7 @@ public sealed class EnvAccountStore
             // Always emit a deterministic true/false so the file never carries an empty enabled flag.
             var proxyEnabled = ParseBool(values.GetValueOrDefault($"{prefix}PROXY_ENABLED", string.Empty));
             lines.Add($"{prefix}PROXY_ENABLED={(proxyEnabled ? "true" : "false")}");
+            lines.Add($"{prefix}PROXY_ID={EnvFileParser.FormatValue(values.GetValueOrDefault($"{prefix}PROXY_ID", string.Empty))}");
             lines.Add($"{prefix}PROXY_SERVER={EnvFileParser.FormatValue(values.GetValueOrDefault($"{prefix}PROXY_SERVER", string.Empty))}");
             var neverUseOwnIp = ParseBool(values.GetValueOrDefault($"{prefix}NEVER_USE_OWN_IP", string.Empty));
             lines.Add($"{prefix}NEVER_USE_OWN_IP={(neverUseOwnIp ? "true" : "false")}");

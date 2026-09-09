@@ -111,7 +111,7 @@ public partial class MainWindow
         }
         var target = library.FirstOrDefault(proxy => string.Equals(proxy.Id, resolution.ProxyId, StringComparison.OrdinalIgnoreCase));
         if (target is not null && account.ProxyEnabled
-            && string.Equals(account.ProxyServer.Trim(), target.Server.Trim(), StringComparison.OrdinalIgnoreCase))
+            && ProxyParser.SameConnection(account.ProxyServer, target.Server))
         {
             return;
         }
@@ -149,6 +149,7 @@ public partial class MainWindow
             {
                 var changed = CloneAccount(account);
                 changed.ProxyEnabled = false;
+                changed.ProxyId = string.Empty;
                 _accountStore.SaveAccount(changed, setActive: false);
                 AppendLog($"[proxy-plan] {reason}: no proxy is scheduled; using the allowed direct connection.");
             }
@@ -166,10 +167,11 @@ public partial class MainWindow
             return !account.NeverUseOwnIp;
         }
 
-        if (!string.Equals(account.ProxyServer.Trim(), target.Server.Trim(), StringComparison.OrdinalIgnoreCase) || !account.ProxyEnabled)
+        if (!ProxyParser.SameConnection(account.ProxyServer, target.Server) || !account.ProxyEnabled)
         {
             var changed = CloneAccount(account);
             changed.ProxyEnabled = true;
+            changed.ProxyId = target.Id;
             changed.ProxyServer = target.Server;
             _accountStore.SaveAccount(changed, setActive: false);
             AppendLog($"[proxy-plan] {reason}: activated {ProxyParser.MaskForLog(target.Server)}.");

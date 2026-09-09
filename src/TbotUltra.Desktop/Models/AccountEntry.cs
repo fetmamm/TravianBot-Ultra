@@ -14,6 +14,7 @@ public sealed class AccountEntry
     public string ServerName { get; set; } = string.Empty;
     public string ServerUrl { get; set; } = string.Empty;
     public bool ProxyEnabled { get; set; }
+    public string ProxyId { get; set; } = string.Empty;
     public string ProxyServer { get; set; } = string.Empty;
     public bool NeverUseOwnIp { get; set; }
     public bool IsActive { get; set; }

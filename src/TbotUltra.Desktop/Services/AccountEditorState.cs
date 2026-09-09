@@ -53,7 +53,8 @@ internal sealed record AccountEditorInput(
     bool EditingExistingAccount,
     string ExistingAccountName,
     string ProxyUsername = "",
-    string ProxyPassword = "");
+    string ProxyPassword = "",
+    string ProxyId = "");
 
 /// <summary>
 /// Stateless account-editor state comparisons and saved-proxy presentation ordering.
@@ -115,6 +116,7 @@ internal static class AccountEditorState
             ServerName = input.ServerName,
             ServerUrl = input.ServerUrl,
             ProxyEnabled = proxyEnabled,
+            ProxyId = input.ProxyId,
             ProxyServer = proxyServer,
             NeverUseOwnIp = neverUseOwnIp,
         };

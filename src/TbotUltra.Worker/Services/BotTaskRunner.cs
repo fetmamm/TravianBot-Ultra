@@ -537,7 +537,7 @@ public sealed partial class BotTaskRunner
         }
 
         if (_sharedVisibleSession is not null
-            && !string.Equals(_sharedVisibleProxyFingerprint, desiredProxyFingerprint, StringComparison.OrdinalIgnoreCase))
+            && !ProxyFingerprintsMatch(_sharedVisibleProxyFingerprint, desiredProxyFingerprint))
         {
             // Mask inline proxy credentials before logging.
             replaceReasons.Add($"proxy='{MaskProxyFingerprint(_sharedVisibleProxyFingerprint)}'->'{MaskProxyFingerprint(desiredProxyFingerprint)}'");
@@ -555,7 +555,7 @@ public sealed partial class BotTaskRunner
             _sharedVisiblePage.IsClosed ||
             !string.Equals(_sharedVisibleAccountName, account.Name, StringComparison.OrdinalIgnoreCase) ||
             !string.Equals(_sharedVisibleBaseUrl, desiredBaseUrl, StringComparison.OrdinalIgnoreCase) ||
-            !string.Equals(_sharedVisibleProxyFingerprint, desiredProxyFingerprint, StringComparison.OrdinalIgnoreCase) ||
+            !ProxyFingerprintsMatch(_sharedVisibleProxyFingerprint, desiredProxyFingerprint) ||
             _sharedVisibleManualLogin != account.ManualLogin;
 
         if (mustReplaceSession)
@@ -693,6 +693,18 @@ public sealed partial class BotTaskRunner
     }
 
     // Fingerprint format is "off" or "on|<server>"; the server part may carry inline credentials.
+    internal static bool ProxyFingerprintsMatch(string? left, string? right)
+    {
+        var leftEnabled = left?.StartsWith("on|", StringComparison.OrdinalIgnoreCase) == true;
+        var rightEnabled = right?.StartsWith("on|", StringComparison.OrdinalIgnoreCase) == true;
+        if (leftEnabled && rightEnabled)
+        {
+            return ProxyParser.SameConnection(left![3..], right![3..]);
+        }
+
+        return string.Equals(left, right, StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string MaskProxyFingerprint(string? fingerprint)
     {
         if (string.IsNullOrEmpty(fingerprint))

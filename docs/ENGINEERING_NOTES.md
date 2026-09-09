@@ -247,7 +247,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
   Proxy library/finder entries carry username and password separately; migrate legacy inline Host credentials
   before normalization. Serialize credentials with `ProxyParser.BuildServer` and use `BuildWebProxy` for HTTP
   probes/IP lookups so authentication is explicit. Connection matching is credential-sensitive, while account
-  reuse protection remains endpoint-scoped. Account selection, editing, and rotation must preserve credentials.
+  reuse protection remains endpoint-scoped. An account bound to a saved proxy persists its stable proxy ID and
+  refreshes its serialized `ProxyServer` from that library entry, so credential changes cannot leave the account
+  using a stale copy; keep separate IDs when accounts share an endpoint with different credentials. Account
+  selection, editing, rotation, and recovery must preserve that binding and its credentials.
   Playwright inherits launch proxy credentials in new contexts; do not add context overrides without a failing repro.
 - Proxy Finder and Proxy Library classify a proxy as reliable only after three consecutive neutral HTTPS probes
   and two consecutive Travian reachability probes. All five probes use fresh connections and the active cancellation

@@ -18,6 +18,7 @@ public static class ProxyParser
         "ERR_TUNNEL_CONNECTION_FAILED",
         "ERR_PROXY_AUTH_REQUESTED",
         "ERR_PROXY_AUTH_UNSUPPORTED",
+        "ERR_INVALID_AUTH_CREDENTIALS",
         "ERR_NO_SUPPORTED_PROXIES",
         "ERR_MANDATORY_PROXY_CONFIGURATION_FAILED",
         "ERR_SOCKS_CONNECTION_FAILED",
@@ -122,6 +123,19 @@ public static class ProxyParser
             Credentials = proxy.Username is null && proxy.Password is null
                 ? null : new NetworkCredential(proxy.Username ?? string.Empty, proxy.Password ?? string.Empty),
         };
+    }
+
+    /// <summary>Compares proxy routes without treating case-sensitive credentials as endpoint text.</summary>
+    public static bool SameConnection(string? left, string? right)
+    {
+        if (!TryBuild(left, out var leftProxy, out _) || !TryBuild(right, out var rightProxy, out _))
+        {
+            return string.Equals(left?.Trim(), right?.Trim(), StringComparison.Ordinal);
+        }
+
+        return string.Equals(leftProxy!.Server, rightProxy!.Server, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(leftProxy.Username, rightProxy.Username, StringComparison.Ordinal)
+            && string.Equals(leftProxy.Password, rightProxy.Password, StringComparison.Ordinal);
     }
 
     /// <summary>

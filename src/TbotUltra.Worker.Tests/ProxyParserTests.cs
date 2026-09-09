@@ -1,4 +1,5 @@
 using TbotUltra.Worker.Infrastructure;
+using TbotUltra.Worker.Services;
 using Xunit;
 
 namespace TbotUltra.Worker.Tests;
@@ -28,6 +29,28 @@ public sealed class ProxyParserTests
     public void BuildWebProxy_UnauthenticatedProxyHasNoCredentials()
     {
         Assert.Null(ProxyParser.BuildWebProxy("http://proxy.example:8080").Credentials);
+    }
+
+    [Fact]
+    public void SameConnection_IgnoresEndpointCaseButNotCredentialCase()
+    {
+        Assert.True(ProxyParser.SameConnection(
+            "http://user:Password@PROXY.EXAMPLE:8080",
+            "http://user:Password@proxy.example:8080"));
+        Assert.False(ProxyParser.SameConnection(
+            "http://user:Password@proxy.example:8080",
+            "http://user:password@proxy.example:8080"));
+    }
+
+    [Fact]
+    public void ProxyFingerprintComparison_ReplacesSessionWhenCredentialCaseChanges()
+    {
+        Assert.True(BotTaskRunner.ProxyFingerprintsMatch(
+            "on|http://user:Password@PROXY.EXAMPLE:8080",
+            "on|http://user:Password@proxy.example:8080"));
+        Assert.False(BotTaskRunner.ProxyFingerprintsMatch(
+            "on|http://user:Password@proxy.example:8080",
+            "on|http://user:password@proxy.example:8080"));
     }
 
     [Theory]
@@ -113,6 +136,7 @@ public sealed class ProxyParserTests
     [InlineData("net::ERR_PROXY_CONNECTION_FAILED at https://...", true)]
     [InlineData("net::ERR_TUNNEL_CONNECTION_FAILED", true)]
     [InlineData("Page.goto: net::ERR_PROXY_AUTH_REQUESTED", true)]
+    [InlineData("Page.goto: net::ERR_INVALID_AUTH_CREDENTIALS", true)]
     [InlineData("net::ERR_NAME_NOT_RESOLVED", false)]
     [InlineData("Timeout 30000ms exceeded", false)]
     [InlineData("", false)]

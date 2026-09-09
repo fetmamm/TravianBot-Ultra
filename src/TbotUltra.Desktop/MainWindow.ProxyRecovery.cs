@@ -119,6 +119,7 @@ public partial class MainWindow
             if (result.Kind == ProxyFailoverKind.ReplacementProxy && result.Proxy is not null)
             {
                 changedAccount.ProxyEnabled = true;
+                changedAccount.ProxyId = result.Proxy.Id;
                 changedAccount.ProxyServer = result.Proxy.Server;
                 if (plan?.Enabled == true)
                 {
@@ -137,6 +138,7 @@ public partial class MainWindow
             else
             {
                 changedAccount.ProxyEnabled = false;
+                changedAccount.ProxyId = string.Empty;
                 AppendLog("[proxy-recovery] no replacement proxy passed; switching to the allowed direct connection.");
             }
 

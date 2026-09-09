@@ -9,6 +9,7 @@ using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.Views;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Infrastructure;
 using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
@@ -583,6 +584,7 @@ public partial class MainWindow
             // immediately, before a controlled logout/login can run.
             var runtimeAccount = CloneAccount(activeAccountAfterEdit);
             runtimeAccount.ProxyEnabled = activeAccountBeforeDialog.ProxyEnabled;
+            runtimeAccount.ProxyId = activeAccountBeforeDialog.ProxyId;
             runtimeAccount.ProxyServer = activeAccountBeforeDialog.ProxyServer;
             runtimeAccount.NeverUseOwnIp = activeAccountBeforeDialog.NeverUseOwnIp;
             _accountStore.SaveAccount(runtimeAccount, setActive: false);
@@ -626,7 +628,7 @@ public partial class MainWindow
     private static bool ProxyConfigurationChanged(AccountEntry before, AccountEntry after) =>
         before.ProxyEnabled != after.ProxyEnabled
         || before.NeverUseOwnIp != after.NeverUseOwnIp
-        || !string.Equals(before.ProxyServer.Trim(), after.ProxyServer.Trim(), StringComparison.OrdinalIgnoreCase);
+        || !ProxyParser.SameConnection(before.ProxyServer, after.ProxyServer);
 
     private static AccountEntry CloneAccount(AccountEntry source) => new()
     {
@@ -637,6 +639,7 @@ public partial class MainWindow
         ServerName = source.ServerName,
         ServerUrl = source.ServerUrl,
         ProxyEnabled = source.ProxyEnabled,
+        ProxyId = source.ProxyId,
         ProxyServer = source.ProxyServer,
         NeverUseOwnIp = source.NeverUseOwnIp,
         IsActive = source.IsActive,
