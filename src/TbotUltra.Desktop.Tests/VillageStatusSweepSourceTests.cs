@@ -6,6 +6,40 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class VillageStatusSweepSourceTests
 {
     [Fact]
+    public void Automation_VerifiesVillageMembershipBeforeSweepOrQueueMutation()
+    {
+        var projectRoot = ProjectRootLocator.FindProjectRoot();
+        var source = File.ReadAllText(Path.Combine(
+            projectRoot,
+            "src",
+            "TbotUltra.Desktop",
+            "MainWindow.ContinuousLoop.cs"));
+        var methodStart = source.IndexOf(
+            "private async ValueTask<AutomationStateSnapshot> ReadContinuousAutomationStateAsync(",
+            StringComparison.Ordinal);
+        var methodEnd = source.IndexOf(
+            "private async ValueTask<AutomationActionOutcome> ExecuteContinuousAutomationActionAsync(",
+            methodStart,
+            StringComparison.Ordinal);
+
+        Assert.True(methodStart >= 0 && methodEnd > methodStart);
+        var methodBody = source[methodStart..methodEnd];
+        var preflight = methodBody.IndexOf(
+            "EnsureVillageMembershipVerifiedBeforeAutomationAsync(options, cancellationToken)",
+            StringComparison.Ordinal);
+        var sweep = methodBody.IndexOf(
+            "MaybeRunVillageStatusSweepAsync(options, cancellationToken",
+            StringComparison.Ordinal);
+        var queueSelection = methodBody.IndexOf(
+            "SelectNextQueueItemForContinuousLoop()",
+            StringComparison.Ordinal);
+
+        Assert.True(preflight >= 0);
+        Assert.True(sweep > preflight);
+        Assert.True(queueSelection > preflight);
+    }
+
+    [Fact]
     public void ScanNowButton_IsBoundToTheVillageStatusRoundCommand()
     {
         var projectRoot = ProjectRootLocator.FindProjectRoot();

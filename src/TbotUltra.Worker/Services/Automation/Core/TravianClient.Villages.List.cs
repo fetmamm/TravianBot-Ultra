@@ -15,6 +15,19 @@ namespace TbotUltra.Worker.Services;
 
 public sealed partial class TravianClient
 {
+    public async Task<IReadOnlyList<Village>> ReadCurrentVillageMembershipAsync(
+        CancellationToken cancellationToken = default)
+    {
+        using var trace = _browserTrace.BeginOperation(
+            "READ",
+            "village-membership-sidebar",
+            "scope=account source=live-sidebar");
+        await WaitForPageReadyAsync(cancellationToken);
+        var villages = await ReadVillagesFromCurrentPageAsync(cancellationToken);
+        trace.Complete("success", $"count={villages.Count}");
+        return villages;
+    }
+
     private async Task<IReadOnlyList<Village>> ReadVillagesAsync(CancellationToken cancellationToken)
     {
         using var trace = _browserTrace.BeginOperation("READ", "villages", "scope=account source=cache-or-profile");

@@ -6,6 +6,37 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class VillageListUpdatePolicyTests
 {
     [Fact]
+    public void HasPotentialMembershipMismatch_DetectsLostVillagesBeforeMutation()
+    {
+        var known = Enumerable.Range(1, 8)
+            .Select(index => new TestVillage($"village-{index}", index))
+            .ToList();
+        var liveSidebar = known.Take(5).ToList();
+
+        var mismatch = VillageListUpdatePolicy.HasPotentialMembershipMismatch(
+            liveSidebar,
+            known,
+            village => village.Key);
+
+        Assert.True(mismatch);
+    }
+
+    [Fact]
+    public void HasPotentialMembershipMismatch_AcceptsSameVillageSet()
+    {
+        var known = Enumerable.Range(1, 5)
+            .Select(index => new TestVillage($"village-{index}", index))
+            .ToList();
+
+        var mismatch = VillageListUpdatePolicy.HasPotentialMembershipMismatch(
+            known.AsEnumerable().Reverse().ToList(),
+            known,
+            village => village.Key);
+
+        Assert.False(mismatch);
+    }
+
+    [Fact]
     public void PreserveKnownVillages_MergesTransientPartialRefresh()
     {
         var existing = Enumerable.Range(1, 8)

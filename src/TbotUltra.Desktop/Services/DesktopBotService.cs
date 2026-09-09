@@ -346,6 +346,22 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.ReadAccountSnapshotForScanAsync(options, log, null, cancellationToken);
     }
 
+    public Task<IReadOnlyList<Village>> ReadCurrentVillageMembershipAsync(
+        BotOptions options,
+        Action<string> log,
+        CancellationToken cancellationToken)
+    {
+        return _taskRunner.ReadCurrentVillageMembershipAsync(options, log, null, cancellationToken);
+    }
+
+    public Task<AccountSnapshot> VerifyVillageMembershipAsync(
+        BotOptions options,
+        Action<string> log,
+        CancellationToken cancellationToken)
+    {
+        return _taskRunner.VerifyVillageMembershipAsync(options, log, null, cancellationToken);
+    }
+
     public Task<VillageStatus> ReadVillageStatusWithSmithyAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken)
     {
         return _taskRunner.ReadVillageStatusWithSmithyAsync(

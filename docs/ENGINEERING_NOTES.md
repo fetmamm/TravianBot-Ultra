@@ -614,6 +614,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
   later full logins merge the live sidebar so new/renamed villages are found without another profile visit.
 - A transient village refresh that returns only part of an already verified list must merge fresh rows into the
   existing list instead of shrinking the Dashboard; only an explicitly complete login list may remove villages.
+- Before Continuous Loop or Auto Queue performs state-changing work, compare the live sidebar membership with the
+  Desktop's known villages. A mismatch must be verified once on the player profile; its authoritative result removes
+  lost villages from the live UI and pauses their pending work. Failed verification blocks mutation and retries with
+  bounded backoff; repeated identical sidebar evidence must not spam profile navigation.
 - New-account analysis is account+server scoped. A pending first-login analysis forces hero inventory, hero
   attributes, and new-village startup until all three succeed; legacy account snapshots are already initialized.
 - Browser activity statistics are account-scoped: lifetime counters persist; session counters do not.

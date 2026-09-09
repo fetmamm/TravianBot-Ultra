@@ -2,6 +2,28 @@ namespace TbotUltra.Desktop.Services;
 
 internal static class VillageListUpdatePolicy
 {
+    internal static bool HasPotentialMembershipMismatch<T>(
+        IReadOnlyList<T> liveVillages,
+        IReadOnlyList<T> knownVillages,
+        Func<T, string> keySelector)
+    {
+        if (liveVillages.Count == 0 || knownVillages.Count == 0)
+        {
+            return liveVillages.Count != knownVillages.Count;
+        }
+
+        var liveKeys = liveVillages
+            .Select(keySelector)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var knownKeys = knownVillages
+            .Select(keySelector)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return liveKeys.Count != knownKeys.Count || !liveKeys.SetEquals(knownKeys);
+    }
+
     internal static IReadOnlyList<T> PreserveKnownVillages<T>(
         IReadOnlyList<T> incoming,
         IReadOnlyList<T> existing,

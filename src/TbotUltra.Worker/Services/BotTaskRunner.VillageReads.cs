@@ -12,6 +12,60 @@ namespace TbotUltra.Worker.Services;
 
 public sealed partial class BotTaskRunner
 {
+    public async Task<IReadOnlyList<Village>> ReadCurrentVillageMembershipAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        IReadOnlyList<Village> villages = [];
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                villages = await client.ReadCurrentVillageMembershipAsync(cancellationToken);
+                log($"[village-membership] live sidebar read {villages.Count} village(s).");
+            },
+            saveStateMode: BrowserStateSaveMode.Skip);
+
+        return villages;
+    }
+
+    public async Task<AccountSnapshot> VerifyVillageMembershipAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        AccountSnapshot? snapshot = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                log("[village-membership] opening player profile to verify village ownership.");
+                snapshot = await client.ReadAccountSnapshotAsync(
+                    forceRefreshVillages: true,
+                    preferCurrentPageVillages: false,
+                    restorePageAfterProfile: true,
+                    suppressEnsureUiSync: true,
+                    cancellationToken: cancellationToken);
+                log($"[village-membership] profile verification returned {snapshot.Villages.Count} village(s).");
+            },
+            saveStateMode: BrowserStateSaveMode.Skip);
+
+        return snapshot ?? throw new InvalidOperationException("Could not verify village membership.");
+    }
+
     public async Task<IncomingAttackSnapshot> ReadIncomingAttacksAsync(
         BotOptions options,
         Action<string> log,

@@ -92,6 +92,8 @@ public interface IDesktopBotService
     Task<string> RunScanProductionBonusTimersAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<string> RunActivateProductionBonusVideosAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<AccountSnapshot> ReadAccountSnapshotForScanAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<IReadOnlyList<Village>> ReadCurrentVillageMembershipAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<AccountSnapshot> VerifyVillageMembershipAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<VillageStatus> ReadVillageStatusWithSmithyAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken);
     Task<IncomingAttackSnapshot> ReadIncomingAttacksAsync(BotOptions options, Action<string> log, string villageName, string? villageUrl, string? villageKey, CancellationToken cancellationToken);
     Task<VillageStatus> ReadVillageStatusAsync(BotOptions options, Action<string> log, string? villageName, string? villageUrl, CancellationToken cancellationToken);

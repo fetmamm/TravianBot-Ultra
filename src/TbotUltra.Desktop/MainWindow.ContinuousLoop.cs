@@ -18,6 +18,16 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
+    private static readonly TimeSpan VillageMembershipPreflightInterval = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan VillageMembershipVerificationRetryDelay = TimeSpan.FromMinutes(15);
+    private static readonly TimeSpan VillageMembershipConfirmationRefreshInterval = TimeSpan.FromMinutes(20);
+    private string? _villageMembershipPreflightAccount;
+    private DateTimeOffset _lastVillageMembershipPreflightAtUtc = DateTimeOffset.MinValue;
+    private DateTimeOffset _villageMembershipVerificationNotBeforeUtc = DateTimeOffset.MinValue;
+    private string? _failedVillageMembershipSignature;
+    private string? _confirmedVillageMembershipSignature;
+    private DateTimeOffset _confirmedVillageMembershipAtUtc = DateTimeOffset.MinValue;
+
     private DateTimeOffset GetContinuousKeepAliveNextReloadUtc()
         => _automationSessionRuntime.NextKeepAliveAtUtc;
 
@@ -113,6 +123,12 @@ public partial class MainWindow
         if ((!options.VillageStatusSweepEnabled && !force)
             || (!force && DateTimeOffset.UtcNow < GetVillageStatusSweepNextScanUtc()))
         {
+            return;
+        }
+
+        if (!await EnsureVillageMembershipVerifiedBeforeAutomationAsync(options, token))
+        {
+            AppendLog("[village-scan] round deferred until village ownership can be verified.");
             return;
         }
 
@@ -720,6 +736,156 @@ public partial class MainWindow
             _botService.BrowserGeneration);
     }
 
+    private async Task<bool> EnsureVillageMembershipVerifiedBeforeAutomationAsync(
+        BotOptions options,
+        CancellationToken cancellationToken)
+    {
+        var accountName = _accountStore.ActiveAccountName();
+        if (string.IsNullOrWhiteSpace(accountName))
+        {
+            return false;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        if (!string.Equals(_villageMembershipPreflightAccount, accountName, StringComparison.OrdinalIgnoreCase))
+        {
+            _villageMembershipPreflightAccount = accountName;
+            _lastVillageMembershipPreflightAtUtc = DateTimeOffset.MinValue;
+            _villageMembershipVerificationNotBeforeUtc = DateTimeOffset.MinValue;
+            _failedVillageMembershipSignature = null;
+            _confirmedVillageMembershipSignature = null;
+            _confirmedVillageMembershipAtUtc = DateTimeOffset.MinValue;
+        }
+
+        if (_failedVillageMembershipSignature is not null
+            && now < _villageMembershipVerificationNotBeforeUtc)
+        {
+            return false;
+        }
+
+        if (now - _lastVillageMembershipPreflightAtUtc < VillageMembershipPreflightInterval)
+        {
+            return true;
+        }
+
+        var knownVillages = await Dispatcher.InvokeAsync(() =>
+        {
+            var source = (DashboardVillageList.ItemsSource as IEnumerable<VillageSelectionItem>)
+                ?? (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>)
+                ?? Enumerable.Empty<VillageSelectionItem>();
+            return source
+                .Where(village => !string.IsNullOrWhiteSpace(village.Name)
+                    && !string.Equals(village.Name, "-", StringComparison.Ordinal))
+                .GroupBy(GetVillageKey, StringComparer.OrdinalIgnoreCase)
+                .Select(group => group.First())
+                .ToList();
+        });
+        if (knownVillages.Count == 0)
+        {
+            return true;
+        }
+
+        IReadOnlyList<Village> liveVillages;
+        try
+        {
+            liveVillages = await _botService.ReadCurrentVillageMembershipAsync(
+                options,
+                AppendLog,
+                cancellationToken);
+            _lastVillageMembershipPreflightAtUtc = now;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _failedVillageMembershipSignature = "sidebar-read-failed";
+            _villageMembershipVerificationNotBeforeUtc = now + VillageMembershipVerificationRetryDelay;
+            AppendLog(
+                "[village-membership] sidebar preflight failed; state-changing automation is paused "
+                + $"until {_villageMembershipVerificationNotBeforeUtc:HH:mm}: {FormatExceptionForLog(ex)}");
+            return false;
+        }
+
+        var knownKeys = knownVillages.Select(GetVillageKey).ToList();
+        var liveKeys = liveVillages
+            .Select(village => GetVillageKey(village.Url, village.CoordX, village.CoordY, village.Name))
+            .ToList();
+        if (!VillageListUpdatePolicy.HasPotentialMembershipMismatch(liveKeys, knownKeys, key => key))
+        {
+            _failedVillageMembershipSignature = null;
+            _confirmedVillageMembershipSignature = null;
+            _villageMembershipVerificationNotBeforeUtc = DateTimeOffset.MinValue;
+            return true;
+        }
+
+        var mismatchSignature = string.Join(";", liveKeys.OrderBy(key => key, StringComparer.OrdinalIgnoreCase));
+        if (string.Equals(
+                mismatchSignature,
+                _confirmedVillageMembershipSignature,
+                StringComparison.OrdinalIgnoreCase)
+            && now - _confirmedVillageMembershipAtUtc < VillageMembershipConfirmationRefreshInterval)
+        {
+            return true;
+        }
+
+        if (string.Equals(mismatchSignature, _failedVillageMembershipSignature, StringComparison.OrdinalIgnoreCase)
+            && now < _villageMembershipVerificationNotBeforeUtc)
+        {
+            return false;
+        }
+
+        AppendLog(
+            $"[village-membership] live sidebar differs from the verified UI list "
+            + $"({liveVillages.Count}/{knownVillages.Count}); blocking automation until profile verification completes.");
+        try
+        {
+            var snapshot = await _botService.VerifyVillageMembershipAsync(
+                options,
+                AppendLog,
+                cancellationToken);
+            if (snapshot.Villages.Count == 0)
+            {
+                throw new InvalidOperationException("The player profile returned no villages.");
+            }
+
+            await Dispatcher.InvokeAsync(() =>
+            {
+                SyncDashboardVillageUiFromVillages(
+                    snapshot.Villages,
+                    snapshot.ActiveVillage,
+                    activeVillageCoordX: snapshot.ActiveVillageCoordX,
+                    activeVillageCoordY: snapshot.ActiveVillageCoordY,
+                    allowVillageRemoval: true);
+                ReconcileConfirmedVillageList(snapshot.Villages, "automation_membership_preflight");
+                QueueNewVillagesForFirstAnalysis(snapshot.Villages);
+            });
+            _failedVillageMembershipSignature = null;
+            _villageMembershipVerificationNotBeforeUtc = DateTimeOffset.MinValue;
+            _confirmedVillageMembershipSignature = mismatchSignature;
+            _confirmedVillageMembershipAtUtc = DateTimeOffset.UtcNow;
+            AppendLog(
+                $"[village-membership] ownership verified; automation may resume with "
+                + $"{snapshot.Villages.Count} confirmed village(s).");
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _failedVillageMembershipSignature = mismatchSignature;
+            _villageMembershipVerificationNotBeforeUtc = DateTimeOffset.UtcNow
+                + VillageMembershipVerificationRetryDelay;
+            AppendLog(
+                "[village-membership] profile verification failed; state-changing automation remains paused "
+                + $"until {_villageMembershipVerificationNotBeforeUtc:HH:mm}: {FormatExceptionForLog(ex)}");
+            return false;
+        }
+    }
+
     private async ValueTask<AutomationStateSnapshot> ReadContinuousAutomationStateAsync(
         CancellationToken cancellationToken)
     {
@@ -742,6 +908,16 @@ public partial class MainWindow
                     NextWakeAt: DateTimeOffset.UtcNow.Add(networkBackoffRemaining));
             }
 
+            await EnsureChromiumInstalledAsync();
+            if (!await EnsureVillageMembershipVerifiedBeforeAutomationAsync(options, cancellationToken))
+            {
+                return new AutomationStateSnapshot(
+                    [],
+                    NextWakeAt: _villageMembershipVerificationNotBeforeUtc > DateTimeOffset.UtcNow
+                        ? _villageMembershipVerificationNotBeforeUtc
+                        : DateTimeOffset.UtcNow.AddSeconds(30));
+            }
+
             var immediateWorkRequested = _automationPassRuntime.ConsumeImmediateWorkRequest();
             if (!immediateWorkRequested)
             {
@@ -753,7 +929,6 @@ public partial class MainWindow
                 await MaybeDoIdleBrowseAsync(options, cancellationToken);
             }
 
-            await EnsureChromiumInstalledAsync();
             await HonorPendingVillageSwitchAsync(options, cancellationToken);
             var forceVillageStatusSweep = _villageStatusRoundRuntime.ConsumeForceRequest();
             await MaybeRunVillageStatusSweepAsync(options, cancellationToken, forceVillageStatusSweep);
