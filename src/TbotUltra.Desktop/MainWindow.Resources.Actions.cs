@@ -75,6 +75,7 @@ public partial class MainWindow
         _resourceTestFunctionsWindow.NpcTradeBuildingTestRequested += TestNpcTradeBuildingButton_Click;
         _resourceTestFunctionsWindow.ReadSmithyQueueTestRequested += TestReadSmithyQueueButton_Click;
         _resourceTestFunctionsWindow.ReinforcementsTestRequested += TestReinforcementsButton_Click;
+        _resourceTestFunctionsWindow.IncomingAttackSoundTestRequested += TestIncomingAttackSoundButton_Click;
         _resourceTestFunctionsWindow.MoveLossFarmsTestRequested += TestMoveLossFarmsButton_Click;
         _resourceTestFunctionsWindow.CheckCapitalRequested += CheckCapitalButton_Click;
         _resourceTestFunctionsWindow.IncreaseAdventuresToHardRequested += TestIncreaseAdventuresToHardButton_Click;
@@ -94,6 +95,7 @@ public partial class MainWindow
             _resourceTestFunctionsWindow.NpcTradeBuildingTestRequested -= TestNpcTradeBuildingButton_Click;
             _resourceTestFunctionsWindow.ReadSmithyQueueTestRequested -= TestReadSmithyQueueButton_Click;
             _resourceTestFunctionsWindow.ReinforcementsTestRequested -= TestReinforcementsButton_Click;
+            _resourceTestFunctionsWindow.IncomingAttackSoundTestRequested -= TestIncomingAttackSoundButton_Click;
             _resourceTestFunctionsWindow.MoveLossFarmsTestRequested -= TestMoveLossFarmsButton_Click;
             _resourceTestFunctionsWindow.CheckCapitalRequested -= CheckCapitalButton_Click;
             _resourceTestFunctionsWindow.IncreaseAdventuresToHardRequested -= TestIncreaseAdventuresToHardButton_Click;

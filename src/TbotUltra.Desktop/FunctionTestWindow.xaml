@@ -134,6 +134,12 @@
                                     ToolTip="Runs the reinforcement function with the saved Reinforcements settings. If only one village exists, the test still starts and reports the function result."
                                     ToolTipService.InitialShowDelay="500"
                                     Click="TestReinforcementsButton_Click" />
+                            <Button x:Name="TestIncomingAttackSoundButton"
+                                    Style="{DynamicResource DebugActionButtonStyle}"
+                                    Content="Test incoming attack sound"
+                                    ToolTip="Plays the incoming attack alarm once without changing its cooldown or saved settings."
+                                    ToolTipService.InitialShowDelay="500"
+                                    Click="TestIncomingAttackSoundButton_Click" />
                             <Button x:Name="TestMoveLossFarmsButton"
                                     Style="{DynamicResource DebugActionButtonStyle}"
                                     Content="Move red/yellow farms"

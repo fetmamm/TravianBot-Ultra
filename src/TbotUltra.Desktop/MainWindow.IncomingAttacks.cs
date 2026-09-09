@@ -731,15 +731,30 @@ public partial class MainWindow
             return;
         }
 
+        if (TryPlayIncomingAttackSound(
+                $"[incoming-attacks] played one bulk sound for {newAttackCount} new confirmed movement(s)."))
+        {
+            _incomingAttackLastSoundUtc = nowUtc;
+        }
+    }
+
+    private void TestIncomingAttackSoundButton_Click(object sender, RoutedEventArgs e)
+    {
+        TryPlayIncomingAttackSound("[incoming-attacks] played test alarm sound from Debug.");
+    }
+
+    private bool TryPlayIncomingAttackSound(string successLog)
+    {
         try
         {
             SystemSounds.Exclamation.Play();
-            _incomingAttackLastSoundUtc = nowUtc;
-            AppendLog($"[incoming-attacks] played one bulk sound for {newAttackCount} new confirmed movement(s).");
+            AppendLog(successLog);
+            return true;
         }
         catch (Exception ex)
         {
             AppendLog($"[incoming-attacks] sound could not be played: {ex.Message}");
+            return false;
         }
     }
 
