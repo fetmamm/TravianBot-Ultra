@@ -87,6 +87,7 @@ public sealed class BuildingTemplatePlanner
         var errors = new List<string>();
         var state = ProjectedVillageState.From(status);
         var assignedMultiInstanceSlots = new HashSet<int>();
+        var multiInstanceAssignments = new Dictionary<int, List<MultiInstanceTemplateAssignment>>();
 
         double totalSeconds = 0;
         long totalWood = 0, totalClay = 0, totalIron = 0, totalCrop = 0;
@@ -119,18 +120,40 @@ public sealed class BuildingTemplatePlanner
                 continue;
             }
 
-            var excludedExistingSlots = BuildingCatalogService.AllowsMultipleInstances(gid)
-                ? assignedMultiInstanceSlots
-                : null;
+            var targetLevel = Math.Clamp(Math.Max(1, row.TargetLevel), 1, BuildingCatalogService.MaxLevelFor(gid));
+            List<MultiInstanceTemplateAssignment>? assignments = null;
+            MultiInstanceTemplateAssignment? continuingAssignment = null;
+            if (BuildingCatalogService.AllowsMultipleInstances(gid))
+            {
+                if (!multiInstanceAssignments.TryGetValue(gid, out assignments))
+                {
+                    assignments = [];
+                    multiInstanceAssignments[gid] = assignments;
+                }
+
+                continuingAssignment = row.PreferredSlotId is int preferredSlotId
+                    ? assignments
+                        .Where(item => item.PreferredSlotId == preferredSlotId)
+                        .OrderByDescending(item => item.LastRowIndex)
+                        .FirstOrDefault()
+                    : assignments
+                        .Where(item => item.PreferredSlotId is null && item.TargetLevel < targetLevel)
+                        .OrderByDescending(item => item.LastRowIndex)
+                        .FirstOrDefault();
+            }
+
+            var excludedExistingSlots = assignments is not null ? assignedMultiInstanceSlots : null;
+            var existing = continuingAssignment is not null
+                ? state.FindExistingBuildingInSlot(continuingAssignment.SlotId, gid, name)
+                : state.FindExistingBuilding(gid, name, excludedExistingSlots);
             if (enforceVillageLocationRules
-                && state.FindExistingBuilding(gid, name, excludedExistingSlots) is null
+                && existing is null
                 && !BuildingCatalogService.CanConstructInVillage(gid, status.IsCapital, out var locationReason))
             {
                 errors.Add(locationReason);
                 continue;
             }
 
-            var targetLevel = Math.Clamp(Math.Max(1, row.TargetLevel), 1, BuildingCatalogService.MaxLevelFor(gid));
             var requirements = BuildingCatalogService.RequirementsFor(gid);
             var missing = MissingRequirements(requirements, state);
             if (missing.Count > 0)
@@ -139,13 +162,25 @@ public sealed class BuildingTemplatePlanner
                 continue;
             }
 
-            var existing = state.FindExistingBuilding(gid, name, excludedExistingSlots);
             if (existing is not null)
             {
                 var existingValue = existing.Value;
-                if (excludedExistingSlots is not null)
+                if (assignments is not null)
                 {
                     assignedMultiInstanceSlots.Add(existingValue.SlotId);
+                    if (continuingAssignment is null)
+                    {
+                        assignments.Add(new MultiInstanceTemplateAssignment(
+                            existingValue.SlotId,
+                            row.PreferredSlotId,
+                            targetLevel,
+                            rowIndex));
+                    }
+                    else
+                    {
+                        continuingAssignment.TargetLevel = targetLevel;
+                        continuingAssignment.LastRowIndex = rowIndex;
+                    }
                 }
 
                 if (existingValue.Level < targetLevel)
@@ -188,9 +223,14 @@ public sealed class BuildingTemplatePlanner
             actions.Add(construct);
             AddTotals(construct);
             state.ApplyBuilding(slotId.Value, gid, name, Math.Max(1, targetLevel));
-            if (excludedExistingSlots is not null)
+            if (assignments is not null)
             {
                 assignedMultiInstanceSlots.Add(slotId.Value);
+                assignments.Add(new MultiInstanceTemplateAssignment(
+                    slotId.Value,
+                    row.PreferredSlotId,
+                    targetLevel,
+                    rowIndex));
             }
         }
 
@@ -1013,6 +1053,18 @@ public sealed class BuildingTemplatePlanner
             ? row.Gid?.ToString() ?? "building"
             : row.BuildingName;
 
+    private sealed class MultiInstanceTemplateAssignment(
+        int slotId,
+        int? preferredSlotId,
+        int targetLevel,
+        int lastRowIndex)
+    {
+        public int SlotId { get; } = slotId;
+        public int? PreferredSlotId { get; } = preferredSlotId;
+        public int TargetLevel { get; set; } = targetLevel;
+        public int LastRowIndex { get; set; } = lastRowIndex;
+    }
+
     private sealed class ProjectedVillageState
     {
         private readonly Dictionary<int, (int Gid, string Name, int Level)> _slots = new();
@@ -1111,6 +1163,20 @@ public sealed class BuildingTemplatePlanner
                 .OrderByDescending(item => item.Value.Level)
                 .FirstOrDefault();
             return match.Key == 0 ? null : (match.Key, match.Value.Level);
+        }
+
+        public (int SlotId, int Level)? FindExistingBuildingInSlot(int slotId, int gid, string name)
+        {
+            if (!_slots.TryGetValue(slotId, out var building)
+                || building.Level <= 0
+                || (building.Gid != gid
+                    && !string.Equals(Normalize(building.Name), Normalize(name), StringComparison.OrdinalIgnoreCase)
+                    && !(WallGids.Contains(gid) && WallGids.Contains(building.Gid))))
+            {
+                return null;
+            }
+
+            return (slotId, building.Level);
         }
 
         public int LevelForRequirement(string name)

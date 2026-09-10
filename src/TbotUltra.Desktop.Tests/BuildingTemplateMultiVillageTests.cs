@@ -109,6 +109,36 @@ public sealed class BuildingTemplateMultiVillageTests
     }
 
     [Fact]
+    public void VillageRow_StagedWarehouseAndGranaryRowsRemainSelectable()
+    {
+        var village = Village("Storage stages", enabled: true);
+        var status = Status(
+            "Storage stages",
+            new Building(19, "Warehouse", 1, null, 10),
+            new Building(20, "Granary", 1, null, 11));
+        var rows = new[]
+        {
+            BuildingRow(10, "Warehouse", 4),
+            BuildingRow(11, "Granary", 4),
+            BuildingRow(10, "Warehouse", 9),
+            BuildingRow(11, "Granary", 10),
+            BuildingRow(10, "Warehouse", 14),
+            BuildingRow(11, "Granary", 14),
+            BuildingRow(10, "Warehouse", 20),
+            BuildingRow(11, "Granary", 20),
+        };
+        var target = new BuildingTemplateVillageTarget(village, status, status, []);
+
+        var row = BuildingTemplateVillageQueueRow.Create(target, rows, new BuildingTemplatePlanner(), 1);
+
+        Assert.True(row.CanSelect);
+        Assert.Equal("Ready to queue.", row.StatusText);
+        Assert.Empty(row.Plan!.Errors);
+        Assert.Single(row.Plan.Actions.Where(action => action.Gid == 10).Select(action => action.SlotId).Distinct());
+        Assert.Single(row.Plan.Actions.Where(action => action.Gid == 11).Select(action => action.SlotId).Distinct());
+    }
+
+    [Fact]
     public void TemplateWindow_ExposesMultiVillageQueueActionAndNewVillageEstimate()
     {
         var root = TbotUltra.Worker.ProjectRootLocator.FindProjectRoot();
@@ -129,6 +159,14 @@ public sealed class BuildingTemplateMultiVillageTests
         CoordY = -name.Length,
         Tribe = "Romans",
         IsEnabledForAutomation = enabled,
+    };
+
+    private static BuildingTemplateRow BuildingRow(int gid, string name, int targetLevel) => new()
+    {
+        Kind = BuildingTemplateRowKind.Building,
+        Gid = gid,
+        BuildingName = name,
+        TargetLevel = targetLevel,
     };
 
     private static VillageStatus Status(string name, params Building[] occupiedBuildings)

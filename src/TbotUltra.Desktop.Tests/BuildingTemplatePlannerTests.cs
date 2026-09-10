@@ -180,6 +180,49 @@ public sealed class BuildingTemplatePlannerTests
         Assert.Contains(result.Errors, error => error.Contains("level 20", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Theory]
+    [InlineData(10, "Warehouse", 8, 4, 9, 14, 20)]
+    [InlineData(11, "Granary", 8, 4, 10, 14, 20)]
+    public void Plan_AscendingMultiInstanceRows_ContinueTheSameInstance(
+        int gid,
+        string name,
+        int existingLevel,
+        params int[] targetLevels)
+    {
+        var rows = targetLevels.Select(level => Row(gid, name, level)).ToList();
+
+        var result = _planner.Plan(
+            rows,
+            Status("Huns", Building(19, name, existingLevel, gid)),
+            serverSpeed: 1,
+            mainBuildingLevel: 1);
+
+        Assert.Empty(result.Errors);
+        Assert.NotEmpty(result.Actions);
+        Assert.All(result.Actions, action => Assert.Equal(19, action.SlotId));
+        Assert.Equal(targetLevels[^1], result.Actions[^1].TargetLevel);
+    }
+
+    [Fact]
+    public void Plan_TwoAscendingWarehouseSequences_UseTwoDistinctInstances()
+    {
+        var result = _planner.Plan(
+            [
+                Row(10, "Warehouse", 4),
+                Row(10, "Warehouse", 9),
+                Row(10, "Warehouse", 20),
+                Row(10, "Warehouse", 4),
+                Row(10, "Warehouse", 9),
+                Row(10, "Warehouse", 20),
+            ],
+            Status("Huns"),
+            serverSpeed: 1,
+            mainBuildingLevel: 1);
+
+        Assert.Empty(result.Errors);
+        Assert.Equal(2, result.Actions.Select(action => action.SlotId).Distinct().Count());
+    }
+
     [Fact]
     public void Plan_PreferredSlotCollision_ShiftsAndSkipsOnlyUnplaceableRow()
     {

@@ -107,8 +107,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   dependent rows but are not persisted until the user reviews the repaired template and clicks Save again.
   Template editing, prerequisite repair, validation, and estimates use a synthetic standard new-village baseline:
   4/4/4/6 resource fields at level 0, Main Building level 1, and starter storage. Location restrictions are checked
-  against each real target village when queueing. Repeated rows for a building that allows multiple instances each
-  claim a distinct existing or projected slot; conditional duplicates may use an earlier row's projected max-level
+  against each real target village when queueing. For buildings that allow multiple instances, ascending Auto rows
+  continue the most recent compatible instance while an equal or lower target starts another instance; repeated
+  explicit slots remain the same instance. Conditional duplicates may use an earlier row's projected max-level
   upgrade to satisfy their duplicate threshold. The Official internal-building set is Warehouse, Granary, Cranny,
   Great Warehouse, and Great Granary; the Great variants remain unavailable until their plan/WW eligibility can be
   verified without guessing. Multi-village template queueing never navigates to fill missing
