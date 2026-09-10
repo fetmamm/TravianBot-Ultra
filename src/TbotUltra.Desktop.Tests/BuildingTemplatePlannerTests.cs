@@ -117,6 +117,69 @@ public sealed class BuildingTemplatePlannerTests
         Assert.Equal(22, upgrade.SlotId);
     }
 
+    [Theory]
+    [InlineData(10, "Warehouse", 8, 20)]
+    [InlineData(11, "Granary", 8, 20)]
+    [InlineData(23, "Cranny", 8, 10)]
+    public void Plan_RepeatedMultiInstanceRows_FinishesExistingAndConstructsRemainingInstances(
+        int gid,
+        string name,
+        int existingLevel,
+        int targetLevel)
+    {
+        var status = Status("Teutons", Building(19, name, existingLevel, gid));
+        var rows = Enumerable.Range(0, 4)
+            .Select(_ => Row(gid, name, targetLevel))
+            .ToList();
+
+        var result = _planner.Plan(rows, status, serverSpeed: 1, mainBuildingLevel: 1);
+
+        Assert.Empty(result.Errors);
+        var upgrade = Assert.Single(result.Actions, action => action.TaskName == "upgrade_building_to_level");
+        Assert.Equal(19, upgrade.SlotId);
+        Assert.Equal(targetLevel, upgrade.TargetLevel);
+        var constructs = result.Actions.Where(action => action.TaskName == "construct_building").ToList();
+        Assert.Equal(3, constructs.Count);
+        Assert.Equal(3, constructs.Select(action => action.SlotId).Distinct().Count());
+        Assert.All(constructs, action => Assert.Equal(targetLevel, action.TargetLevel));
+    }
+
+    [Theory]
+    [InlineData(10, "Warehouse", 20)]
+    [InlineData(11, "Granary", 20)]
+    [InlineData(23, "Cranny", 10)]
+    public void Plan_RepeatedMultiInstanceRows_FromEmptyVillageConstructsEveryInstance(
+        int gid,
+        string name,
+        int targetLevel)
+    {
+        var rows = Enumerable.Range(0, 4)
+            .Select(_ => Row(gid, name, targetLevel))
+            .ToList();
+
+        var result = _planner.Plan(rows, Status("Teutons"), serverSpeed: 1, mainBuildingLevel: 1);
+
+        Assert.Empty(result.Errors);
+        Assert.Equal(4, result.Actions.Count);
+        Assert.All(result.Actions, action => Assert.Equal("construct_building", action.TaskName));
+        Assert.Equal(4, result.Actions.Select(action => action.SlotId).Distinct().Count());
+    }
+
+    [Theory]
+    [InlineData(10, "Warehouse")]
+    [InlineData(11, "Granary")]
+    public void Plan_RepeatedConditionalDuplicateRows_RequireFirstInstanceAtLevelTwenty(int gid, string name)
+    {
+        var result = _planner.Plan(
+            [Row(gid, name, 10), Row(gid, name, 10)],
+            Status("Teutons", Building(19, name, 8, gid)),
+            serverSpeed: 1,
+            mainBuildingLevel: 1);
+
+        Assert.Single(result.Actions, action => action.TaskName == "upgrade_building_to_level");
+        Assert.Contains(result.Errors, error => error.Contains("level 20", StringComparison.OrdinalIgnoreCase));
+    }
+
     [Fact]
     public void Plan_PreferredSlotCollision_ShiftsAndSkipsOnlyUnplaceableRow()
     {

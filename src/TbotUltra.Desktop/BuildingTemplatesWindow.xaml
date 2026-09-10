@@ -400,7 +400,7 @@
                             <ColumnDefinition Width="Auto" />
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0"
-                                   Text="Totals:"
+                                   Text="From new village:"
                                    FontWeight="SemiBold"
                                    Margin="0,0,10,0" />
                         <TextBlock Grid.Column="1" Text="Cost" Margin="0,0,5,0" />
@@ -439,6 +439,7 @@
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
                         <ColumnDefinition Width="Auto" />
+                        <ColumnDefinition Width="Auto" />
                     </Grid.ColumnDefinitions>
                     <Button Content="Show building slots"
                             Width="142"
@@ -468,6 +469,15 @@
                             Foreground="{DynamicResource InfoTextBrush}"
                             BorderBrush="{DynamicResource InfoBrush}"
                             Click="QueueTemplateButton_Click" />
+                    <Button Grid.Column="4"
+                            Content="Queue to multiple villages"
+                            Width="190"
+                            Height="30"
+                            Margin="8,0,0,0"
+                            Background="{DynamicResource InfoBgBrush}"
+                            Foreground="{DynamicResource InfoTextBrush}"
+                            BorderBrush="{DynamicResource InfoBrush}"
+                            Click="QueueMultipleVillagesButton_Click" />
                 </Grid>
             </Grid>
         </Border>

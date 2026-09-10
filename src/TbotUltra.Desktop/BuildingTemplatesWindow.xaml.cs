@@ -25,7 +25,9 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
     private readonly BuildingTemplateExchangeService _exchangeService = new();
     private readonly BuildingTemplatePlanner _planner = new();
     private readonly string _projectRoot;
+    private readonly VillageStatus _selectedVillageStatus;
     private readonly VillageStatus _status;
+    private readonly IReadOnlyList<BuildingTemplateVillageTarget> _queueTargets;
     private readonly double _serverSpeed;
     private readonly int _mainBuildingLevel;
     private readonly int _storageUpgradeLevelsAhead;
@@ -57,6 +59,7 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
         Enumerable.Range(1, 20).Select(item => item.ToString()).ToList();
 
     public BuildingTemplatePlanResult? QueuePlan { get; private set; }
+    public IReadOnlyList<BuildingTemplateQueueSelection> QueueSelections { get; private set; } = [];
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -139,8 +142,8 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
     public BuildingTemplatesWindow(
         string projectRoot,
         VillageStatus status,
+        IReadOnlyList<BuildingTemplateVillageTarget> queueTargets,
         double serverSpeed,
-        int mainBuildingLevel,
         int storageUpgradeLevelsAhead)
     {
         InitializeComponent();
@@ -149,9 +152,11 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
 
         _projectRoot = projectRoot;
         _store = new BuildingTemplateStore(projectRoot);
-        _status = status;
+        _selectedVillageStatus = status;
+        _status = BuildingTemplateBaselineFactory.Create(status.Tribe);
+        _queueTargets = queueTargets;
         _serverSpeed = serverSpeed;
-        _mainBuildingLevel = mainBuildingLevel;
+        _mainBuildingLevel = 1;
         _storageUpgradeLevelsAhead = storageUpgradeLevelsAhead;
 
         Rows.CollectionChanged += Rows_CollectionChanged;
@@ -397,13 +402,15 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
             _status,
             _serverSpeed,
             _mainBuildingLevel,
-            _storageUpgradeLevelsAhead);
+            _storageUpgradeLevelsAhead,
+            enforceVillageLocationRules: false);
         var requiredStorage = _planner.PlanStoragePrerequisites(
             rowsThroughTarget,
             _status,
             _serverSpeed,
             _mainBuildingLevel,
-            _storageUpgradeLevelsAhead);
+            _storageUpgradeLevelsAhead,
+            enforceVillageLocationRules: false);
         if (!string.IsNullOrWhiteSpace(requiredStorage.CannotPlanReason))
         {
             return;
@@ -756,7 +763,8 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
             _status,
             _serverSpeed,
             _mainBuildingLevel,
-            reservedSlotId);
+            reservedSlotId,
+            enforceVillageLocationRules: false);
         if (prerequisitePlan.Blockers.Count > 0)
         {
             AppDialog.Show(
@@ -832,7 +840,8 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
             rowIndex,
             _status,
             _serverSpeed,
-            _mainBuildingLevel);
+            _mainBuildingLevel,
+            enforceVillageLocationRules: false);
         if (losses.Count > 0)
         {
             var affectedRows = string.Join(
@@ -936,7 +945,7 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
         _planPreviewTimer.Stop();
         _pendingStorageCheckRows.Clear();
         var rows = BuildTemplateRowsFromUi();
-        var plan = _planner.Plan(rows, _status, _serverSpeed, _mainBuildingLevel);
+        var plan = _planner.Plan(rows, _status, _serverSpeed, _mainBuildingLevel, enforceVillageLocationRules: false);
         if (plan.Errors.Count > 0)
         {
             StatusText = string.Join(" ", plan.Errors.Take(2));
@@ -955,7 +964,8 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
             _status,
             _serverSpeed,
             _mainBuildingLevel,
-            _storageUpgradeLevelsAhead);
+            _storageUpgradeLevelsAhead,
+            enforceVillageLocationRules: false);
         if (!string.IsNullOrWhiteSpace(storagePlan.CannotPlanReason))
         {
             StatusText = storagePlan.CannotPlanReason;
@@ -1038,7 +1048,15 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
         }
 
         var rows = BuildTemplateRowsFromUi();
-        var plan = _planner.Plan(rows, _status, _serverSpeed, _mainBuildingLevel);
+        var selectedTarget = _queueTargets.FirstOrDefault();
+        var targetStatus = selectedTarget?.PlanningStatus ?? _selectedVillageStatus;
+        var sourceStatus = selectedTarget?.SourceStatus ?? _selectedVillageStatus;
+        var mainBuildingLevel = targetStatus.Buildings
+            .Where(building => building.Gid == 15 || string.Equals(building.Name, "Main Building", StringComparison.OrdinalIgnoreCase))
+            .Select(building => building.Level ?? 0)
+            .DefaultIfEmpty(1)
+            .Max();
+        var plan = _planner.Plan(rows, targetStatus, _serverSpeed, Math.Max(1, mainBuildingLevel));
         if (plan.Errors.Count > 0)
         {
             var message = string.Join("\n", plan.Errors);
@@ -1067,6 +1085,38 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
         }
 
         QueuePlan = plan;
+        if (selectedTarget is not null)
+        {
+            QueueSelections =
+            [
+                new BuildingTemplateQueueSelection(
+                    selectedTarget.Village,
+                    sourceStatus,
+                    selectedTarget.ExistingQueueItems,
+                    plan),
+            ];
+        }
+        DialogResult = true;
+    }
+
+    private void QueueMultipleVillagesButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!SaveAllTemplates(skipValidation: true))
+        {
+            return;
+        }
+
+        var window = new BuildingTemplateVillageQueueWindow(_queueTargets, BuildTemplateRowsFromUi(), _serverSpeed)
+        {
+            Owner = this,
+        };
+        if (window.ShowDialog() != true)
+        {
+            return;
+        }
+
+        QueueSelections = window.Selections;
+        QueuePlan = QueueSelections.FirstOrDefault()?.Plan;
         DialogResult = true;
     }
 
@@ -1090,7 +1140,7 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
 
         if (!skipValidation)
         {
-            var plan = _planner.Plan(BuildTemplateRowsFromUi(), _status, _serverSpeed, _mainBuildingLevel);
+            var plan = _planner.Plan(BuildTemplateRowsFromUi(), _status, _serverSpeed, _mainBuildingLevel, enforceVillageLocationRules: false);
             if (plan.Errors.Count > 0)
             {
                 StatusText = string.Join(" ", plan.Errors.Take(2));
@@ -1131,7 +1181,7 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
         _isRefreshingPlanPreview = true;
         try
         {
-            var plan = existingPlan ?? _planner.Plan(BuildTemplateRowsFromUi(), _status, _serverSpeed, _mainBuildingLevel);
+            var plan = existingPlan ?? _planner.Plan(BuildTemplateRowsFromUi(), _status, _serverSpeed, _mainBuildingLevel, enforceVillageLocationRules: false);
             foreach (var row in Rows)
             {
                 row.Status = string.Empty;
@@ -1189,7 +1239,8 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
                 precedingRows,
                 _status,
                 _serverSpeed,
-                _mainBuildingLevel);
+                _mainBuildingLevel,
+                enforceVillageLocationRules: false);
             return option with
             {
                 Availability = result.Availability,

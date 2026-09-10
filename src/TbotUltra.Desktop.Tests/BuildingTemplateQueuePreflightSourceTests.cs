@@ -10,12 +10,14 @@ public sealed class BuildingTemplateQueuePreflightSourceTests
     {
         var root = ProjectRootLocator.FindProjectRoot();
         var source = File.ReadAllText(Path.Combine(root, "src", "TbotUltra.Desktop", "MainWindow.Buildings.cs"));
-        var start = source.IndexOf("private void QueueBuildingTemplatePlan", StringComparison.Ordinal);
+        var start = source.IndexOf("private void QueueBuildingTemplatePlans", StringComparison.Ordinal);
         var end = source.IndexOf("private void HandleBuildingSlotSelection", start, StringComparison.Ordinal);
         var method = source[start..end];
 
-        Assert.Equal(2, Count(method, "confirmUpgrades: false"));
-        Assert.Equal(1, Count(method, "ConfirmBuildingTemplateStoragePreflight(storageUpgrades)"));
+        Assert.Equal(1, Count(method, "AppDialog.ShowCustomContent("));
+        Assert.Equal(1, Count(method, "_buildingsPanelService.EnqueueBatch(finalRequests)"));
+        Assert.Contains("storageVillages", method, StringComparison.Ordinal);
+        Assert.Contains("All selected villages are shown together", method, StringComparison.Ordinal);
     }
 
     private static int Count(string source, string value)

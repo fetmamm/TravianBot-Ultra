@@ -63,6 +63,17 @@ public sealed class IncomingAttackFlowSourceTests
     }
 
     [Fact]
+    public void IncomingAttackSoundSettings_HaveExplanatoryInfoTooltips()
+    {
+        var xaml = Read("TbotUltra.Desktop", "Views", "ReinforcementsPanel.xaml");
+
+        Assert.Contains("x:Name=\"IncomingAttackSoundInfoIcon\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Turning this off does not disable attack monitoring.", xaml, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"IncomingAttackSoundCooldownInfoIcon\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("New attacks are still recorded during the cooldown", xaml, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void IncomingAttackUi_PreservesAllVillagesAndGroupsTheirRows()
     {
         var source = Read("TbotUltra.Desktop", "MainWindow.IncomingAttacks.cs");

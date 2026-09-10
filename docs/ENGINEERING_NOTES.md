@@ -105,6 +105,15 @@ Published artifacts belong under `artifacts/`, never beside source files.
   confirmation; planning remains stepwise and no queue items are written before that combined confirmation succeeds.
   Saving also runs the full template and storage preflight. Accepted storage repairs are inserted before their
   dependent rows but are not persisted until the user reviews the repaired template and clicks Save again.
+  Template editing, prerequisite repair, validation, and estimates use a synthetic standard new-village baseline:
+  4/4/4/6 resource fields at level 0, Main Building level 1, and starter storage. Location restrictions are checked
+  against each real target village when queueing. Repeated rows for a building that allows multiple instances each
+  claim a distinct existing or projected slot; conditional duplicates may use an earlier row's projected max-level
+  upgrade to satisfy their duplicate threshold. The Official internal-building set is Warehouse, Granary, Cranny,
+  Great Warehouse, and Great Granary; the Great variants remain unavailable until their plan/WW eligibility can be
+  verified without guessing. Multi-village template queueing never navigates to fill missing
+  snapshots; unavailable targets remain unselected, existing active village queue work is projected first, storage
+  additions are confirmed once across all selected villages, and the final cross-village insert is atomic.
 - New settings require the complete pipeline: model, defaults, load/save, ViewModel, UI, and tests.
 - Resource bulk-upgrade payloads must capture the four checkbox values currently visible for the selected village;
   explicitly commit their two-way WPF bindings before reading `SelectedUpgradeTypes` at the queue boundary.

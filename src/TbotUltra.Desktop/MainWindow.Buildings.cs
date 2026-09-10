@@ -13,6 +13,7 @@ using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.ViewModels;
+using TbotUltra.Desktop.Views;
 using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
@@ -175,22 +176,48 @@ public partial class MainWindow
             return;
         }
 
+        var selectedVillage = VillageComboBox.SelectedItem as VillageSelectionItem;
+        var villages = (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem> ?? [])
+            .OrderByDescending(village => ReferenceEquals(village, selectedVillage))
+            .ToList();
+        var activeQueueItems = GetActiveQueueItems();
+        var targets = villages.Select(village =>
+        {
+            var villageStatus = ReferenceEquals(village, selectedVillage)
+                ? status
+                : TryGetCachedVillageStatus(village, out var cached) ? cached : null;
+            if (villageStatus is null)
+            {
+                return new BuildingTemplateVillageTarget(village, null, null, []);
+            }
+
+            var villageKey = GetVillageKey(village);
+            var villageQueueItems = activeQueueItems
+                .Where(item => IsQueueItemForVillage(item, village.Name, villageKey))
+                .ToList();
+            return new BuildingTemplateVillageTarget(
+                village,
+                villageStatus,
+                BuildProjectedTemplateStatus(villageStatus, villageQueueItems),
+                villageQueueItems);
+        }).ToList();
+
         var window = new BuildingTemplatesWindow(
             _projectRoot,
             status,
+            targets,
             ResolveServerSpeed(),
-            ResolveMainBuildingLevel(),
             LoadBotOptions().ConstructionStorageUpgradeLevelsAhead)
         {
             Owner = this,
         };
 
-        if (window.ShowDialog() != true || window.QueuePlan is null)
+        if (window.ShowDialog() != true || window.QueueSelections.Count == 0)
         {
             return;
         }
 
-        QueueBuildingTemplatePlan(window.QueuePlan);
+        QueueBuildingTemplatePlans(window.QueueSelections);
     }
 
     // Static reference image only — no village state needed, so unlike the templates window this
@@ -200,82 +227,56 @@ public partial class MainWindow
         new BuildingSlotsWindow { Owner = this }.ShowDialog();
     }
 
-    private void QueueBuildingTemplatePlan(BuildingTemplatePlanResult plan)
+    private void QueueBuildingTemplatePlans(IReadOnlyList<BuildingTemplateQueueSelection> selections)
     {
-        var prepared = plan.Actions.Select(action =>
+        var preparedVillages = new List<PreparedBuildingTemplateVillage>();
+        foreach (var selection in selections)
         {
-            var payload = new Dictionary<string, string>(action.Payload, StringComparer.OrdinalIgnoreCase);
-            ApplySelectedVillageToPayload(payload);
-            return (Action: action, Request: new QueueItemCreateRequest(action.TaskName, payload, 0, 3));
-        }).ToList();
-
-        IReadOnlyList<StoragePreflightUpgrade> storageUpgrades = [];
-        var finalRequests = new List<QueueItemCreateRequest>();
-        var priorTemplateRequests = new List<QueueItemCreateRequest>();
-        foreach (var item in prepared)
-        {
-            if (string.Equals(item.Action.TaskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase)
-                && item.Request.Payload is not null
-                && item.Request.Payload.TryGetValue(BotOptionPayloadKeys.ResourceUpgradeTargetLevel, out var rawTarget)
-                && int.TryParse(rawTarget, out var targetLevel))
+            if (!TryPrepareBuildingTemplateVillage(selection, out var prepared, out var failure))
             {
-                if (!TryPrepareUpgradeAllStoragePreflight(
-                        targetLevel,
-                        item.Request.Payload,
-                        out var stagedRequests,
-                        out var stagedStorageUpgrades,
-                        precedingTemplateRequests: priorTemplateRequests,
-                        confirmUpgrades: false))
-                {
-                    BuildingsInfoTextBlock.Text = "Building template cancelled by storage capacity preflight.";
-                    return;
-                }
-
-                finalRequests.AddRange(stagedRequests);
-                priorTemplateRequests.AddRange(stagedRequests);
-                storageUpgrades = storageUpgrades.Concat(stagedStorageUpgrades).ToList();
-                continue;
+                AppDialog.Show(
+                    this,
+                    $"{selection.Village.NameWithCoords} could not be queued.\n\n{failure}",
+                    "Cannot queue template",
+                    MessageBoxButton.OK,
+                    MessageBoxImage.Warning);
+                return;
             }
 
-            if (string.Equals(item.Action.TaskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase))
+            preparedVillages.Add(prepared!);
+        }
+
+        var storageVillages = preparedVillages.Where(village => village.StorageUpgrades.Count > 0).ToList();
+        if (storageVillages.Count > 0)
+        {
+            var stages = storageVillages
+                .Select((village, index) => StoragePreflightPlanView.CreateStage(
+                    $"VILLAGE {index + 1}",
+                    village.Selection.Village.NameWithCoords,
+                    village.StorageUpgrades))
+                .ToList();
+            var content = new StoragePreflightPlanView(
+                "This template needs additional Warehouse and/or Granary actions. All selected villages are shown together." +
+                FormatStorageBufferSetting(LoadBotOptions().ConstructionStorageUpgradeLevelsAhead),
+                stages);
+            var choice = AppDialog.ShowCustomContent(
+                this,
+                content,
+                "Storage upgrades required",
+                [("Add required storage upgrades", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.Cancel)],
+                MessageBoxImage.Warning,
+                MessageBoxResult.Yes,
+                MessageBoxResult.Cancel,
+                successResult: MessageBoxResult.Yes,
+                width: 660);
+            if (choice != MessageBoxResult.Yes)
             {
-                finalRequests.Add(item.Request);
-                priorTemplateRequests.Add(item.Request);
-                continue;
+                BuildingsInfoTextBlock.Text = "Building template queue cancelled.";
+                return;
             }
-
-            finalRequests.Add(item.Request);
-            priorTemplateRequests.Add(item.Request);
         }
 
-        if (!TryPrepareConstructionStoragePreflight(
-                finalRequests,
-                out var fullyPlannedRequests,
-                out var additionalStorageUpgrades,
-                confirmUpgrades: false))
-        {
-            BuildingsInfoTextBlock.Text = "Building template cancelled by construction storage preflight.";
-            return;
-        }
-
-        // Re-stamp every final row after both planners have expanded the template. This guarantees that
-        // constructs, upgrades, resource stages, and auto-added storage dependencies all retain the exact
-        // selected village coordinate key even when multiple villages share the same display name.
-        finalRequests = fullyPlannedRequests.Select(request =>
-        {
-            var payload = request.Payload is null
-                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
-                : new Dictionary<string, string>(request.Payload, StringComparer.OrdinalIgnoreCase);
-            ApplySelectedVillageToPayload(payload);
-            return request with { Payload = payload };
-        }).ToList();
-        storageUpgrades = storageUpgrades.Concat(additionalStorageUpgrades).ToList();
-        if (!ConfirmBuildingTemplateStoragePreflight(storageUpgrades))
-        {
-            BuildingsInfoTextBlock.Text = "Building template cancelled by storage capacity preflight.";
-            return;
-        }
-
+        var finalRequests = preparedVillages.SelectMany(village => village.Requests).ToList();
         IReadOnlyList<QueueItem> created;
         try
         {
@@ -284,45 +285,160 @@ public partial class MainWindow
         catch (Exception ex)
         {
             BuildingsInfoTextBlock.Text = $"Could not queue template: {ex.Message}";
-            AppendLog($"[building-template] atomic queue insert failed; no template rows were added: {ex.Message}");
+            AppendLog($"[building-template] atomic multi-village insert failed; no template rows were added: {ex.Message}");
             return;
-        }
-
-        ApplyStoragePreflightPendingState(storageUpgrades);
-
-        foreach (var item in prepared)
-        {
-            var action = item.Action;
-            if (string.Equals(action.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
-                && action.Gid is int constructGid)
-            {
-                SetPendingBuildingConstruct(action.SlotId, action.Payload.GetValueOrDefault(BotOptionPayloadKeys.BuildingConstructName, action.DisplayName), constructGid);
-                if (action.TargetLevel is > 1)
-                {
-                    SetPendingBuildingUpgrade(action.SlotId, action.TargetLevel.Value);
-                }
-            }
-            else if (string.Equals(action.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
-                && action.TargetLevel is int targetLevel
-                && action.SlotId > 0)
-            {
-                SetPendingBuildingUpgrade(action.SlotId, targetLevel);
-            }
         }
 
         RequestQueueUiRefresh(selectId: created.LastOrDefault()?.Id);
         TriggerQueueAutoRunFromEnqueue();
-        var warningSuffix = plan.Warnings.Count > 0
-            ? $" Warnings: {string.Join(" ", plan.Warnings.Take(2))}"
-            : string.Empty;
-        var storageSuffix = storageUpgrades.Count > 0
-            ? $" Added {storageUpgrades.Count} storage prerequisite(s)."
-            : string.Empty;
-        BuildingsInfoTextBlock.Text = $"Queued building template: {created.Count} item(s).{storageSuffix}{warningSuffix}";
+        var storageCount = preparedVillages.Sum(village => village.StorageUpgrades.Count);
+        BuildingsInfoTextBlock.Text = $"Queued building template to {preparedVillages.Count} village(s): {created.Count} item(s).";
         AppendLog(
-            $"Building template queued atomically: {created.Count} item(s), "
-            + $"villageKey='{GetSelectedVillageKey() ?? "-"}'.{storageSuffix}{warningSuffix}");
+            $"Building template queued atomically: villages={preparedVillages.Count}, items={created.Count}, " +
+            $"storagePrerequisites={storageCount}.");
     }
+
+    private bool TryPrepareBuildingTemplateVillage(
+        BuildingTemplateQueueSelection selection,
+        out PreparedBuildingTemplateVillage? prepared,
+        out string failure)
+    {
+        prepared = null;
+        failure = string.Empty;
+        var finalRequests = new List<QueueItemCreateRequest>();
+        var priorTemplateRequests = new List<QueueItemCreateRequest>();
+        var storageUpgrades = new List<StoragePreflightUpgrade>();
+        var storageUpgradeLevelsAhead = LoadBotOptions().ConstructionStorageUpgradeLevelsAhead;
+
+        foreach (var action in selection.Plan.Actions)
+        {
+            var payload = new Dictionary<string, string>(action.Payload, StringComparer.OrdinalIgnoreCase);
+            ApplyVillageToPayload(payload, selection.Village);
+            var request = new QueueItemCreateRequest(action.TaskName, payload, 0, 3);
+            if (!string.Equals(action.TaskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase)
+                || !payload.TryGetValue(BotOptionPayloadKeys.ResourceUpgradeTargetLevel, out var rawTarget)
+                || !int.TryParse(rawTarget, out var targetLevel))
+            {
+                finalRequests.Add(request);
+                priorTemplateRequests.Add(request);
+                continue;
+            }
+
+            var precedingItems = selection.ExistingQueueItems
+                .Concat(priorTemplateRequests.Select(ToPendingQueueItem))
+                .ToList();
+            var resourcePlan = StorageCapacityQueuePreflightPlanner.PlanUpgradeAllResourcesStepwise(
+                selection.Status,
+                precedingItems,
+                targetLevel,
+                storageUpgradeLevelsAhead,
+                ResourceUpgradeSelection.Parse(payload.GetValueOrDefault(BotOptionPayloadKeys.ResourceUpgradeTypes)));
+            if (!string.IsNullOrWhiteSpace(resourcePlan.CannotPlanReason))
+            {
+                failure = resourcePlan.CannotPlanReason;
+                return false;
+            }
+
+            var planId = Guid.NewGuid().ToString();
+            foreach (var stage in resourcePlan.Stages)
+            {
+                var batchId = stage.StorageUpgradesBefore.Count > 0 ? Guid.NewGuid().ToString() : null;
+                foreach (var upgrade in stage.StorageUpgradesBefore)
+                {
+                    var name = upgrade.Kind == StorageCapacityKind.Warehouse ? "Warehouse" : "Granary";
+                    Dictionary<string, string> storagePayload;
+                    string taskName;
+                    if (upgrade.RequiresConstruction)
+                    {
+                        var gid = upgrade.Kind == StorageCapacityKind.Warehouse ? 10 : 11;
+                        storagePayload = new BuildingConstructPayload(upgrade.SlotId, gid, name, upgrade.TargetLevel).ToDictionary();
+                        storagePayload[BotOptionPayloadKeys.BuildingConstructAllowSlotFallback] = bool.TrueString;
+                        taskName = "construct_building";
+                    }
+                    else
+                    {
+                        storagePayload = new BuildingUpgradePayload(upgrade.SlotId, upgrade.TargetLevel, name).ToDictionary();
+                        taskName = "upgrade_building_to_level";
+                    }
+
+                    ApplyTemplateStorageMetadata(storagePayload, selection.Village, planId, batchId!);
+                    var storageRequest = new QueueItemCreateRequest(taskName, storagePayload, 0, 3);
+                    finalRequests.Add(storageRequest);
+                    priorTemplateRequests.Add(storageRequest);
+                }
+
+                var resourcePayload = new Dictionary<string, string>(payload, StringComparer.OrdinalIgnoreCase)
+                {
+                    [BotOptionPayloadKeys.ResourceUpgradeTargetLevel] = stage.ResourceTargetLevel.ToString(),
+                    [BotOptionPayloadKeys.StoragePreflightPlanId] = planId,
+                };
+                if (batchId is not null)
+                {
+                    resourcePayload[BotOptionPayloadKeys.StoragePreflightBatchId] = batchId;
+                }
+                ApplyVillageToPayload(resourcePayload, selection.Village);
+                var resourceRequest = new QueueItemCreateRequest("upgrade_all_resources_to_level", resourcePayload, 0, 3);
+                finalRequests.Add(resourceRequest);
+                priorTemplateRequests.Add(resourceRequest);
+            }
+
+            storageUpgrades.AddRange(resourcePlan.Upgrades);
+        }
+
+        var constructionPlan = StorageCapacityQueuePreflightPlanner.PlanConstructionRequestsStepwise(
+            selection.Status,
+            selection.ExistingQueueItems,
+            finalRequests,
+            storageUpgradeLevelsAhead);
+        if (!string.IsNullOrWhiteSpace(constructionPlan.CannotPlanReason))
+        {
+            failure = constructionPlan.CannotPlanReason;
+            return false;
+        }
+
+        var constructionPlanId = constructionPlan.Upgrades.Count > 0 ? Guid.NewGuid().ToString() : null;
+        var requests = constructionPlan.Requests.Select(request =>
+        {
+            var stampedPayload = request.Payload is null
+                ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                : new Dictionary<string, string>(request.Payload, StringComparer.OrdinalIgnoreCase);
+            ApplyVillageToPayload(stampedPayload, selection.Village);
+            if (constructionPlanId is not null)
+            {
+                stampedPayload[BotOptionPayloadKeys.StoragePreflightPlanId] = constructionPlanId;
+            }
+            return request with { Payload = stampedPayload };
+        }).ToList();
+        storageUpgrades.AddRange(constructionPlan.Upgrades);
+        prepared = new PreparedBuildingTemplateVillage(selection, requests, storageUpgrades);
+        return true;
+    }
+
+    private void ApplyTemplateStorageMetadata(
+        Dictionary<string, string> payload,
+        VillageSelectionItem village,
+        string planId,
+        string batchId)
+    {
+        ApplyVillageToPayload(payload, village);
+        payload[BotOptionPayloadKeys.StoragePreflightPlanId] = planId;
+        payload[BotOptionPayloadKeys.StoragePreflightBatchId] = batchId;
+        payload[BotOptionPayloadKeys.AutoAddedBy] = BotOptionPayloadKeys.AutoAddedByStorageCapacityPreflight;
+    }
+
+    private static QueueItem ToPendingQueueItem(QueueItemCreateRequest request) => new()
+    {
+        TaskName = request.TaskName,
+        Payload = request.Payload is null
+            ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            : new Dictionary<string, string>(request.Payload, StringComparer.OrdinalIgnoreCase),
+        Status = QueueStatus.Pending,
+    };
+
+    private sealed record PreparedBuildingTemplateVillage(
+        BuildingTemplateQueueSelection Selection,
+        IReadOnlyList<QueueItemCreateRequest> Requests,
+        IReadOnlyList<StoragePreflightUpgrade> StorageUpgrades);
 
     private void HandleBuildingSlotSelection(BuildingSlotRow row)
     {

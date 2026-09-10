@@ -79,12 +79,14 @@ public sealed class BuildingTemplatePlanner
         IReadOnlyList<BuildingTemplateRow> rows,
         VillageStatus status,
         double serverSpeed,
-        int mainBuildingLevel)
+        int mainBuildingLevel,
+        bool enforceVillageLocationRules = true)
     {
         var actions = new List<BuildingTemplatePlanAction>();
         var warnings = new List<string>();
         var errors = new List<string>();
         var state = ProjectedVillageState.From(status);
+        var assignedMultiInstanceSlots = new HashSet<int>();
 
         double totalSeconds = 0;
         long totalWood = 0, totalClay = 0, totalIron = 0, totalCrop = 0;
@@ -117,7 +119,11 @@ public sealed class BuildingTemplatePlanner
                 continue;
             }
 
-            if (state.FindExistingBuilding(gid, name) is null
+            var excludedExistingSlots = BuildingCatalogService.AllowsMultipleInstances(gid)
+                ? assignedMultiInstanceSlots
+                : null;
+            if (enforceVillageLocationRules
+                && state.FindExistingBuilding(gid, name, excludedExistingSlots) is null
                 && !BuildingCatalogService.CanConstructInVillage(gid, status.IsCapital, out var locationReason))
             {
                 errors.Add(locationReason);
@@ -133,10 +139,15 @@ public sealed class BuildingTemplatePlanner
                 continue;
             }
 
-            var existing = state.FindExistingBuilding(gid, name);
+            var existing = state.FindExistingBuilding(gid, name, excludedExistingSlots);
             if (existing is not null)
             {
                 var existingValue = existing.Value;
+                if (excludedExistingSlots is not null)
+                {
+                    assignedMultiInstanceSlots.Add(existingValue.SlotId);
+                }
+
                 if (existingValue.Level < targetLevel)
                 {
                     var upgrade = PlanBuildingUpgrade(existingValue.SlotId, gid, name, existingValue.Level, targetLevel, serverSpeed, mainBuildingLevel);
@@ -165,7 +176,7 @@ public sealed class BuildingTemplatePlanner
                 continue;
             }
 
-            if (!CanConstructNew(gid, name, status, state, out var reason))
+            if (!CanConstructNew(gid, name, status, state, enforceVillageLocationRules, out var reason))
             {
                 errors.Add(reason);
                 continue;
@@ -177,6 +188,10 @@ public sealed class BuildingTemplatePlanner
             actions.Add(construct);
             AddTotals(construct);
             state.ApplyBuilding(slotId.Value, gid, name, Math.Max(1, targetLevel));
+            if (excludedExistingSlots is not null)
+            {
+                assignedMultiInstanceSlots.Add(slotId.Value);
+            }
         }
 
         AddTemplateSlotFallbackMetadata(actions);
@@ -197,9 +212,10 @@ public sealed class BuildingTemplatePlanner
         VillageStatus status,
         double serverSpeed,
         int mainBuildingLevel,
-        int storageUpgradeLevelsAhead = ConstructionDefaults.StorageUpgradeLevelsAhead)
+        int storageUpgradeLevelsAhead = ConstructionDefaults.StorageUpgradeLevelsAhead,
+        bool enforceVillageLocationRules = true)
     {
-        var plan = Plan(rowsThroughTarget, status, serverSpeed, mainBuildingLevel);
+        var plan = Plan(rowsThroughTarget, status, serverSpeed, mainBuildingLevel, enforceVillageLocationRules);
         if (plan.Errors.Count > 0)
         {
             return new BuildingTemplateStoragePrerequisitePlan([], [], plan.Errors[0]);
@@ -256,7 +272,8 @@ public sealed class BuildingTemplatePlanner
         VillageStatus status,
         double serverSpeed,
         int mainBuildingLevel,
-        int storageUpgradeLevelsAhead = ConstructionDefaults.StorageUpgradeLevelsAhead)
+        int storageUpgradeLevelsAhead = ConstructionDefaults.StorageUpgradeLevelsAhead,
+        bool enforceVillageLocationRules = true)
     {
         var insertions = new List<BuildingTemplateStorageInsertion>();
         var precedingRows = new List<BuildingTemplateRow>();
@@ -267,13 +284,15 @@ public sealed class BuildingTemplatePlanner
                 status,
                 serverSpeed,
                 mainBuildingLevel,
-                storageUpgradeLevelsAhead);
+                storageUpgradeLevelsAhead,
+                enforceVillageLocationRules);
             var requiredStorage = PlanStoragePrerequisites(
                 precedingRows.Append(targetRow).ToList(),
                 status,
                 serverSpeed,
                 mainBuildingLevel,
-                storageUpgradeLevelsAhead);
+                storageUpgradeLevelsAhead,
+                enforceVillageLocationRules);
             if (!string.IsNullOrWhiteSpace(requiredStorage.CannotPlanReason))
             {
                 return new BuildingTemplateStorageInsertionPlan(insertions, requiredStorage.CannotPlanReason);
@@ -339,7 +358,8 @@ public sealed class BuildingTemplatePlanner
         IReadOnlyList<BuildingTemplateRow> precedingRows,
         VillageStatus status,
         double serverSpeed,
-        int mainBuildingLevel)
+        int mainBuildingLevel,
+        bool enforceVillageLocationRules = true)
     {
         var entry = BuildingCatalogService.GetFullCatalog(status.Tribe).FirstOrDefault(item => item.Gid == gid);
         if (entry is null || UnsupportedPlanGids.Contains(gid))
@@ -354,8 +374,9 @@ public sealed class BuildingTemplatePlanner
                 $"Only available for {entry.RequiredTribe ?? "another tribe"}.");
         }
 
-        var state = BuildProjectedState(precedingRows, status, serverSpeed, mainBuildingLevel);
-        if (state.FindExistingBuilding(gid, entry.Name) is null
+        var state = BuildProjectedState(precedingRows, status, serverSpeed, mainBuildingLevel, enforceVillageLocationRules);
+        if (enforceVillageLocationRules
+            && state.FindExistingBuilding(gid, entry.Name) is null
             && !BuildingCatalogService.CanConstructInVillage(gid, status.IsCapital, out var locationReason))
         {
             return new(BuildingTemplateAvailability.Unavailable, locationReason);
@@ -374,7 +395,7 @@ public sealed class BuildingTemplatePlanner
             return new(BuildingTemplateAvailability.Available, "Available: the building already exists.");
         }
 
-        if (!CanConstructNew(gid, entry.Name, status, state, out var reason))
+        if (!CanConstructNew(gid, entry.Name, status, state, enforceVillageLocationRules, out var reason))
         {
             return new(BuildingTemplateAvailability.Unavailable, reason);
         }
@@ -392,7 +413,8 @@ public sealed class BuildingTemplatePlanner
         int removedRowIndex,
         VillageStatus status,
         double serverSpeed,
-        int mainBuildingLevel)
+        int mainBuildingLevel,
+        bool enforceVillageLocationRules = true)
     {
         if (removedRowIndex < 0 || removedRowIndex >= rows.Count)
         {
@@ -419,7 +441,8 @@ public sealed class BuildingTemplatePlanner
                 rows.Take(rowIndex).ToList(),
                 status,
                 serverSpeed,
-                mainBuildingLevel);
+                mainBuildingLevel,
+                enforceVillageLocationRules);
             if (before.Availability == BuildingTemplateAvailability.MissingRequirements)
             {
                 continue;
@@ -430,7 +453,8 @@ public sealed class BuildingTemplatePlanner
                 rows.Take(rowIndex).Where((_, index) => index != removedRowIndex).ToList(),
                 status,
                 serverSpeed,
-                mainBuildingLevel);
+                mainBuildingLevel,
+                enforceVillageLocationRules);
             if (after.Availability != BuildingTemplateAvailability.MissingRequirements)
             {
                 continue;
@@ -452,12 +476,13 @@ public sealed class BuildingTemplatePlanner
         VillageStatus status,
         double serverSpeed,
         int mainBuildingLevel,
-        int? reservedSlotId = null)
+        int? reservedSlotId = null,
+        bool enforceVillageLocationRules = true)
     {
         var rows = new List<BuildingTemplateRow>();
         var blockers = new List<string>();
         var stack = new HashSet<int>();
-        var state = BuildProjectedState(precedingRows, status, serverSpeed, mainBuildingLevel);
+        var state = BuildProjectedState(precedingRows, status, serverSpeed, mainBuildingLevel, enforceVillageLocationRules);
         var reservedSlots = reservedSlotId is >= 19 and <= 38
             ? new HashSet<int> { reservedSlotId.Value }
             : [];
@@ -542,7 +567,7 @@ public sealed class BuildingTemplatePlanner
             }
             else
             {
-                if (!CanConstructNew(requirementGid, entry.Name, status, state, out var reason))
+                if (!CanConstructNew(requirementGid, entry.Name, status, state, enforceVillageLocationRules, out var reason))
                 {
                     blockers.Add(reason);
                     return;
@@ -574,7 +599,8 @@ public sealed class BuildingTemplatePlanner
         IReadOnlyList<BuildingTemplateRow> rows,
         VillageStatus status,
         double serverSpeed,
-        int mainBuildingLevel)
+        int mainBuildingLevel,
+        bool enforceVillageLocationRules)
     {
         var state = ProjectedVillageState.From(status);
         foreach (var row in rows.Where(item => item.Kind == BuildingTemplateRowKind.AllResources))
@@ -582,7 +608,7 @@ public sealed class BuildingTemplatePlanner
             state.ApplyResources(ResourceScope(row), Math.Max(1, row.TargetLevel));
         }
 
-        var plan = Plan(rows, status, serverSpeed, mainBuildingLevel);
+        var plan = Plan(rows, status, serverSpeed, mainBuildingLevel, enforceVillageLocationRules);
         foreach (var action in plan.Actions.Where(item => item.Gid.HasValue))
         {
             state.ApplyBuilding(
@@ -933,10 +959,17 @@ public sealed class BuildingTemplatePlanner
             : null;
     }
 
-    private static bool CanConstructNew(int gid, string name, VillageStatus status, ProjectedVillageState state, out string reason)
+    private static bool CanConstructNew(
+        int gid,
+        string name,
+        VillageStatus status,
+        ProjectedVillageState state,
+        bool enforceVillageLocationRules,
+        out string reason)
     {
         reason = string.Empty;
-        if (!BuildingCatalogService.CanConstructInVillage(gid, status.IsCapital, out reason))
+        if (enforceVillageLocationRules
+            && !BuildingCatalogService.CanConstructInVillage(gid, status.IsCapital, out reason))
         {
             return false;
         }
@@ -1064,10 +1097,14 @@ public sealed class BuildingTemplatePlanner
                 .DefaultIfEmpty(0)
                 .Max();
 
-        public (int SlotId, int Level)? FindExistingBuilding(int gid, string name)
+        public (int SlotId, int Level)? FindExistingBuilding(
+            int gid,
+            string name,
+            IReadOnlySet<int>? excludedSlotIds = null)
         {
             var match = _slots
                 .Where(item => item.Value.Level > 0)
+                .Where(item => excludedSlotIds?.Contains(item.Key) != true)
                 .Where(item => item.Value.Gid == gid
                     || string.Equals(Normalize(item.Value.Name), Normalize(name), StringComparison.OrdinalIgnoreCase)
                     || (WallGids.Contains(gid) && WallGids.Contains(item.Value.Gid)))

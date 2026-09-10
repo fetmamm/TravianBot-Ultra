@@ -158,6 +158,16 @@ public sealed class BuildingCatalogServiceTests
         Assert.False(BuildingCatalogService.IsSingleInstance(gid));
     }
 
+    [Fact]
+    public void AllowsMultipleInstances_MatchesOfficialInternalBuildingSet()
+    {
+        var multipleInstanceGids = Enumerable.Range(5, 45)
+            .Where(BuildingCatalogService.AllowsMultipleInstances)
+            .ToList();
+
+        Assert.Equal([10, 11, 23, 38, 39], multipleInstanceGids);
+    }
+
     [Theory]
     [InlineData(1)]
     [InlineData(15)]

@@ -570,6 +570,28 @@ public partial class MainWindow
         }
     }
 
+    private void ApplyVillageToPayload(Dictionary<string, string> payload, VillageSelectionItem village)
+    {
+        if (!string.IsNullOrWhiteSpace(village.Name))
+        {
+            payload[BotOptionPayloadKeys.TargetVillageName] = village.Name;
+        }
+
+        if (!string.IsNullOrWhiteSpace(village.Url))
+        {
+            payload[BotOptionPayloadKeys.TargetVillageUrl] = village.Url;
+        }
+
+        var villageKey = GetVillageKey(village);
+        if (!string.IsNullOrWhiteSpace(villageKey))
+        {
+            payload[BotOptionPayloadKeys.TargetVillageKey] = villageKey;
+        }
+
+        ApplyConstructFasterSettingsToPayload(payload, villageKey, village.Name);
+        payload[BotOptionPayloadKeys.NpcTradeEnabled] = IsNpcTradeEnabledForVillageKey(villageKey) ? "true" : "false";
+    }
+
     private QueueItem? EnqueueBuildingConstructTaskCoalesced(
         Dictionary<string, string> payload,
         int slotId,
@@ -713,6 +735,46 @@ public partial class MainWindow
         }
 
         return status with { Buildings = bySlot.Values.ToList() };
+    }
+
+    private VillageStatus BuildProjectedTemplateStatus(VillageStatus status, IReadOnlyList<QueueItem> queueItems)
+    {
+        var projected = BuildProjectedBuildingStatus(status, queueItems);
+        var fieldsBySlot = projected.ResourceFields
+            .Where(field => field.SlotId is >= 1 and <= 18)
+            .ToDictionary(field => field.SlotId!.Value, field => field with { });
+
+        foreach (var item in queueItems)
+        {
+            if (string.Equals(item.TaskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
+                && ResourceUpgradePayload.TryFromDictionary(item.Payload, out var resource)
+                && resource is not null
+                && fieldsBySlot.TryGetValue(resource.SlotId, out var field))
+            {
+                fieldsBySlot[resource.SlotId] = field with { Level = Math.Max(field.Level ?? 0, resource.TargetLevel) };
+                continue;
+            }
+
+            if (!string.Equals(item.TaskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase)
+                || !item.Payload.TryGetValue(BotOptionPayloadKeys.ResourceUpgradeTargetLevel, out var rawTarget)
+                || !int.TryParse(rawTarget, out var targetLevel))
+            {
+                continue;
+            }
+
+            var selectedTypes = ResourceUpgradeSelection.Parse(
+                item.Payload.GetValueOrDefault(BotOptionPayloadKeys.ResourceUpgradeTypes));
+            foreach (var candidate in fieldsBySlot.Values.Where(field =>
+                         ResourceUpgradeSelection.Matches(field.FieldType, field.Name, selectedTypes)).ToList())
+            {
+                fieldsBySlot[candidate.SlotId!.Value] = candidate with
+                {
+                    Level = Math.Max(candidate.Level ?? 0, targetLevel),
+                };
+            }
+        }
+
+        return projected with { ResourceFields = fieldsBySlot.Values.OrderBy(field => field.SlotId).ToList() };
     }
 
     private IReadOnlyDictionary<int, string> GetQueuedBuildingConstructsBySlot(IReadOnlyList<QueueItem>? queueItems = null)

@@ -281,10 +281,16 @@
                         Checked="IncomingAttackSoundSetting_Changed"
                         Unchecked="IncomingAttackSoundSetting_Changed"
                         ToolTip="Play one sound when one or more new incoming attacks are confirmed" />
-              <TextBlock Text="Cooldown" Margin="18,0,7,0" VerticalAlignment="Center"
+              <ContentControl x:Name="IncomingAttackSoundInfoIcon"
+                              Style="{StaticResource SettingInfoIconStyle}"
+                              ToolTip="Plays one alert sound when one or more new incoming attacks are confirmed. Turning this off does not disable attack monitoring." />
+              <TextBlock Text="Cooldown" Margin="18,0,0,0" VerticalAlignment="Center"
                          Foreground="{DynamicResource SlateTextBrush}" />
+              <ContentControl x:Name="IncomingAttackSoundCooldownInfoIcon"
+                              Style="{StaticResource SettingInfoIconStyle}"
+                              ToolTip="Sets the minimum time between alert sounds. New attacks are still recorded during the cooldown, but no additional sound plays until it expires." />
               <ComboBox x:Name="IncomingAttackSoundCooldownComboBox"
-                        Width="82" SelectedIndex="0"
+                        Width="82" Margin="7,0,0,0" SelectedIndex="0"
                         SelectionChanged="IncomingAttackSoundSetting_Changed"
                         ToolTip="Minimum time between incoming attack sounds">
                 <ComboBoxItem Content="1 min" Tag="1" />
