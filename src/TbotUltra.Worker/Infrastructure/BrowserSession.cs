@@ -273,6 +273,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
         var contextOptions = new BrowserNewContextOptions
         {
             BaseURL = _effectiveBaseUrl,
+            Proxy = ResolveContextProxy(),
             // Let headed Chrome use the real maximized window area instead of emulating a fixed
             // viewport that may be larger than the user's monitor.
             ViewportSize = ViewportSize.NoViewport,
@@ -660,8 +661,8 @@ public sealed partial class BrowserSession : IAsyncDisposable
                 $"Account '{_account.Name}' has 'Never use own IP address' enabled, but no valid proxy is configured. Browser startup blocked.");
         }
 
-        // Per-account proxy. Set on launch so every context of this browser (main, bonus-video,
-        // isolated external) routes through it — traffic cannot leak past the proxy. OFF by default.
+        // Per-account proxy. Set on both launch and each context: Chromium uses the context
+        // credentials to answer authenticated-proxy challenges without showing its native dialog.
         if (_account.ProxyEnabled && ProxyParser.TryBuild(_account.ProxyServer, out var proxy, out var proxyWarning))
         {
             launchOptions.Proxy = proxy;
@@ -714,6 +715,12 @@ public sealed partial class BrowserSession : IAsyncDisposable
 
         return launchOptions;
     }
+
+    private Proxy? ResolveContextProxy()
+        => _account.ProxyEnabled
+           && ProxyParser.TryBuild(_account.ProxyServer, out var contextProxy, out _)
+            ? contextProxy
+            : null;
 
     internal static bool ShouldKeepNativePopupBlocker(bool manualLoginAccount)
         // Manual identity providers may create their authentication tab asynchronously after the

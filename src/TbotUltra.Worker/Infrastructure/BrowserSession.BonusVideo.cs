@@ -58,6 +58,7 @@ public sealed partial class BrowserSession
             videoContext = await videoBrowser.NewContextAsync(new BrowserNewContextOptions
             {
                 BaseURL = _effectiveBaseUrl,
+                Proxy = ResolveContextProxy(),
                 ViewportSize = ViewportSize.NoViewport,
                 StorageState = stateJson,
             }).WaitAsync(phaseTimeout.Token);
@@ -209,6 +210,7 @@ public sealed partial class BrowserSession
 
         var context = await _browser.NewContextAsync(new BrowserNewContextOptions
         {
+            Proxy = ResolveContextProxy(),
             ViewportSize = ViewportSize.NoViewport,
         });
         context.SetDefaultTimeout(_config.TimeoutMs);

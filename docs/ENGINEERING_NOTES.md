@@ -264,7 +264,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
   refreshes its serialized `ProxyServer` from that library entry, so credential changes cannot leave the account
   using a stale copy; keep separate IDs when accounts share an endpoint with different credentials. Account
   selection, editing, rotation, and recovery must preserve that binding and its credentials.
-  Playwright inherits launch proxy credentials in new contexts; do not add context overrides without a failing repro.
+  Set the same parsed proxy explicitly on both Playwright browser launch and every browser context. Chromium can
+  otherwise show its native authentication dialog or return `ERR_INVALID_AUTH_CREDENTIALS` for authenticated HTTP
+  proxies; context credentials must answer the challenge without user input. Keep invalid-proxy and `NeverUseOwnIp`
+  handling at browser launch so contexts can never introduce a direct-route fallback.
 - Proxy Finder and Proxy Library classify a proxy as reliable only after three consecutive neutral HTTPS probes
   and two consecutive Travian reachability probes. All five probes use fresh connections and the active cancellation
   token; a single failed probe rejects the proxy. Only HTTP 2xx/3xx responses count as usable; blocked, proxy-auth
