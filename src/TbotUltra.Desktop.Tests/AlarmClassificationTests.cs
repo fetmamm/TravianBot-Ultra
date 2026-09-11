@@ -18,6 +18,24 @@ public sealed class AlarmClassificationTests
             "[construct-faster] WARNING: video unavailable after timeout; building normally."));
     }
 
+    [Theory]
+    [InlineData("[construct-faster] video attempt 1/2 ended before normal completion: Timeout 20000ms exceeded. Verifying on fresh dorf2 before fallback.")]
+    [InlineData("[construct-faster] skipping immediate video retry after Timeout; building normally without changing route.")]
+    [InlineData("[construct-faster] skipped video — shared account/proxy cooldown active after video timeout; building normally.")]
+    [InlineData("[browser-video] isolated bonus-video browser closed reason='action failed with video timeout'.")]
+    public void ExpectedBonusVideoDegradation_IsWarningNotAlarm(string message)
+    {
+        Assert.False(MainWindow.IsAlarmMessage(message));
+    }
+
+    [Theory]
+    [InlineData("[resource-refresh] FAIL Unable to retrieve content because the page is navigating and changing the content.")]
+    [InlineData("Background resource refresh skipped: Unable to retrieve content because the page is navigating and changing the content.")]
+    public void ResourceRefreshNavigationRace_IsNotAlarm(string message)
+    {
+        Assert.False(MainWindow.IsAlarmMessage(message));
+    }
+
     [Fact]
     public void ProductionBonusInspectionFallback_IsWarningNotAlarm()
     {

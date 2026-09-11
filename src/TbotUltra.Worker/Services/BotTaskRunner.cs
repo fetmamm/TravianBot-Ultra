@@ -110,6 +110,7 @@ public sealed partial class BotTaskRunner
     public event Action<FarmLossDestinationChange>? FarmLossDestinationChanged;
     public event Action<VerifiedActiveVillage>? ActiveVillageVerified;
     public event Action<ConstructionQueueObservation>? ConstructionQueueObserved;
+    public event Action<BotTaskActivity>? TaskActivityRecorded;
 
     private void RaiseFarmLossDestinationChanged(FarmLossDestinationChange change)
         => FarmLossDestinationChanged?.Invoke(change);
@@ -247,6 +248,7 @@ public sealed partial class BotTaskRunner
                         }
 
                         var taskSw = System.Diagnostics.Stopwatch.StartNew();
+                        var taskResultStartIndex = taskResults.Count;
                         using var taskTrace = client.BeginBrowserTraceFlow(
                             traceRunId,
                             taskName,
@@ -258,6 +260,13 @@ public sealed partial class BotTaskRunner
                             await client.EnsureAccountAccessAllowedAsync(cancellationToken);
                             await handler(context);
                             await client.EnsureAccountAccessAllowedAsync(cancellationToken);
+                            PublishTaskActivities(
+                                client.AccountName,
+                                taskName,
+                                taskResults.Skip(taskResultStartIndex).ToList(),
+                                handlerCompleted: true,
+                                waitReasonCode: null,
+                                log);
                             taskTrace.Complete("success");
                             log($"[{taskName} COMPLETED] in {taskSw.Elapsed.TotalSeconds:F1}s ({taskIndex}/{tasks.Count})");
                         }
@@ -270,6 +279,13 @@ public sealed partial class BotTaskRunner
                         catch (TaskWaitException waitEx)
                         {
                             await client.EnsureAccountAccessAllowedAsync(cancellationToken);
+                            PublishTaskActivities(
+                                client.AccountName,
+                                taskName,
+                                taskResults.Skip(taskResultStartIndex).ToList(),
+                                handlerCompleted: false,
+                                waitEx.ReasonCode,
+                                log);
                             taskTrace.Complete("deferred", $"waitSeconds={waitEx.DelaySeconds}");
                             log($"[{taskName} DEFERRED] after {taskSw.Elapsed.TotalSeconds:F1}s — wait {waitEx.DelaySeconds}s: {waitEx.Message}");
                             throw;
@@ -327,6 +343,61 @@ public sealed partial class BotTaskRunner
                 }
             });
         return new BotTaskExecutionResult(taskResults);
+    }
+
+    private void PublishTaskActivities(
+        string accountName,
+        string taskName,
+        IReadOnlyList<BotTaskResult> taskResults,
+        bool handlerCompleted,
+        string? waitReasonCode,
+        Action<string> log)
+    {
+        var count = CountVerifiedActivities(taskName, taskResults, handlerCompleted, waitReasonCode);
+        for (var index = 0; index < count; index++)
+        {
+            var activity = new BotTaskActivity(accountName, taskName, DateTimeOffset.UtcNow);
+            var subscribers = TaskActivityRecorded;
+            if (subscribers is null)
+            {
+                continue;
+            }
+
+            foreach (Action<BotTaskActivity> subscriber in subscribers.GetInvocationList())
+            {
+                try
+                {
+                    subscriber(activity);
+                }
+                catch (Exception ex)
+                {
+                    log($"[task-activity:verbose] could not persist confirmed activity for '{taskName}': {ex.Message}");
+                }
+            }
+        }
+    }
+
+    internal static int CountVerifiedActivities(
+        string taskName,
+        IReadOnlyList<BotTaskResult> taskResults,
+        bool handlerCompleted,
+        string? waitReasonCode)
+    {
+        if (IsConstructionTaskResult(taskName))
+        {
+            return taskResults.Count(result =>
+                result.ConstructionOutcome is ConstructionTaskOutcome.QueuedOrInProgress
+                    or ConstructionTaskOutcome.ConfirmedComplete);
+        }
+
+        if (handlerCompleted)
+        {
+            return 1;
+        }
+
+        return string.Equals(waitReasonCode, TaskWaitReasons.WorkQueued, StringComparison.Ordinal)
+            ? 1
+            : 0;
     }
 
     public async Task ShutdownAsync(Action<string>? log = null)

@@ -9,18 +9,34 @@ public sealed partial class TravianClient
 {
     public async Task<VillageStatus> ReadVillageResourceStatusAsync(CancellationToken cancellationToken = default, bool allowNavigationToResourcePage = true)
     {
-        if (allowNavigationToResourcePage && !IsCurrentUrlForPath(Paths.Resources))
+        const int attempts = 2;
+        for (var attempt = 1; attempt <= attempts; attempt++)
         {
-            await GotoAsync(Paths.Resources, cancellationToken);
+            try
+            {
+                if (allowNavigationToResourcePage && !IsCurrentUrlForPath(Paths.Resources))
+                {
+                    await GotoAsync(Paths.Resources, cancellationToken);
+                }
+
+                await EnsureLoggedInAsync(cancellationToken: cancellationToken);
+                if (allowNavigationToResourcePage)
+                {
+                    await WaitForResourceSnapshotWidgetsAsync(cancellationToken);
+                }
+
+                return await ReadCurrentVillageResourceStatusAsync(cancellationToken, allowNavigationToResourcePage);
+            }
+            catch (Exception ex) when (attempt < attempts && BrowserFailureClassifier.IsTransientNavigation(ex))
+            {
+                Notify(
+                    $"Resource status read hit transient navigation on attempt {attempt}/{attempts}; "
+                    + "waiting for the new page before retrying.");
+                await WaitForPageReadyAsync(cancellationToken);
+            }
         }
 
-        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
-        if (allowNavigationToResourcePage)
-        {
-            await WaitForResourceSnapshotWidgetsAsync(cancellationToken);
-        }
-
-        return await ReadCurrentVillageResourceStatusAsync(cancellationToken, allowNavigationToResourcePage);
+        throw new InvalidOperationException("Resource status read exhausted its retry attempts.");
     }
 
     public async Task<VillageStatus> ReadCurrentPageStorageStatusAsync(CancellationToken cancellationToken = default)

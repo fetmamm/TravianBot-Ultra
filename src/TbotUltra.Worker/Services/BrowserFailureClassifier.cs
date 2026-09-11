@@ -72,6 +72,7 @@ public static class BrowserFailureClassifier
 
             if (message.Contains("Execution context was destroyed", StringComparison.OrdinalIgnoreCase)
                 || message.Contains("Cannot find context with specified id", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("Unable to retrieve content because the page is navigating and changing the content", StringComparison.OrdinalIgnoreCase)
                 || message.Contains("ERR_ABORTED", StringComparison.OrdinalIgnoreCase)
                 || message.Contains("Frame was detached", StringComparison.OrdinalIgnoreCase)
                 || message.Contains("Navigation interrupted", StringComparison.OrdinalIgnoreCase))

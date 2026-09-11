@@ -68,6 +68,15 @@ public sealed class BrowserFailureClassifierTests
     }
 
     [Fact]
+    public void IsTransientNavigation_MatchesPageContentReadDuringNavigation()
+    {
+        var exception = new Exception(
+            "Unable to retrieve content because the page is navigating and changing the content.");
+
+        Assert.True(BrowserFailureClassifier.IsTransientNavigation(exception));
+    }
+
+    [Fact]
     public void IsTransientNavigation_RejectsFatalDisconnect()
     {
         var exception = new Exception("Target page, context or browser has been closed");

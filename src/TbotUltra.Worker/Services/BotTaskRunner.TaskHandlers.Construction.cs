@@ -88,6 +88,7 @@ public sealed partial class BotTaskRunner
                 TargetLevel: context.Options.TargetLevel,
                 TargetBuildingSlotOrName: context.Options.TargetBuildingSlotOrName),
             context.CancellationToken);
+        context.RecordTaskResult("demolish_building_to_level", result);
         if (TryExtractQueueWaitSeconds(result, out var serverWaitSeconds))
         {
             var delay = DemolishDefaults.CalculateDelay(

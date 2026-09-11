@@ -361,7 +361,10 @@ public sealed partial class TravianClient
             throw new InvalidOperationException("isolated bonus-video browser is not logged in");
         }
 
-        await AcceptConsentManagerIfPresentAsync(cancellationToken, "[construct-faster:verbose]");
+        await AcceptConsentManagerIfPresentAsync(
+            cancellationToken,
+            "[construct-faster:verbose]",
+            observeLateOverlay: true);
 
         var state = await ReadConstructFasterButtonStateAsync(cancellationToken);
         Notify($"[construct-faster] button state before watching: present={state.Present}, disabled={state.Disabled}, text='{state.Text}'.");
@@ -465,25 +468,46 @@ public sealed partial class TravianClient
 
     private async Task<bool> ClickConstructFasterWatchButtonAsync(CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        await DelayBeforeClickAsync(cancellationToken);
-        var locator = _page.Locator(ConstructFasterButtonSelector).First;
-        if (await locator.CountAsync() <= 0)
+        for (var attempt = 1; attempt <= 2; attempt++)
         {
-            return false;
+            cancellationToken.ThrowIfCancellationRequested();
+            await DelayBeforeClickAsync(cancellationToken);
+            var locator = _page.Locator(ConstructFasterButtonSelector).First;
+            if (await locator.CountAsync() <= 0)
+            {
+                return false;
+            }
+
+            try
+            {
+                await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
+                Notify("[construct-faster] clicked video feature button.");
+                return true;
+            }
+            catch (PlaywrightException ex) when (attempt == 1 && IsConsentOverlayInterception(ex))
+            {
+                Notify(
+                    "[construct-faster:verbose] consent overlay blocked the video feature button; "
+                    + "accepting it before one safe click retry.");
+                if (await AcceptConsentManagerIfPresentAsync(
+                        cancellationToken,
+                        "[construct-faster:verbose]",
+                        observeLateOverlay: true))
+                {
+                    continue;
+                }
+
+                Notify("[construct-faster:verbose] consent overlay remained unresolved; video button was not force-clicked.");
+                return false;
+            }
+            catch (PlaywrightException ex)
+            {
+                Notify($"[construct-faster:verbose] click video feature button failed: {ex.Message}");
+                return false;
+            }
         }
 
-        try
-        {
-            await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
-            Notify("[construct-faster] clicked video feature button.");
-            return true;
-        }
-        catch (PlaywrightException ex)
-        {
-            Notify($"[construct-faster:verbose] click video feature button failed: {ex.Message}");
-            return false;
-        }
+        return false;
     }
 
     private async Task<bool> ConfirmConstructFasterVideoDialogAsync(CancellationToken cancellationToken)

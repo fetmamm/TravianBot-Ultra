@@ -140,6 +140,14 @@ _Avoid_: Manual attack flow
 What was actually running (logged-in state, continuous loop, queue auto-run) when session sleep began, captured so the next wake restores the same state instead of always starting the continuous loop. Modeled by the `SleepSnapshot` record; the pure wake decisions live in `SessionWakeDecisions`.
 _Avoid_: pre-sleep flags, wake state
 
+**Smart Sleep**:
+A bot-behavior mode that closes the browser when a trusted next automation deadline leaves a sufficient sleep opportunity, then restores the prior automation state within its Smart Sleep Wake Window. When no work deadline exists, it uses a randomized fallback check. Smart Sleep and Session Pacing are mutually exclusive, but both may be disabled.
+_Avoid_: adaptive session pacing, idle break
+
+**Smart Sleep Wake Window**:
+The configurable period before and after a trusted next automation deadline within which Smart Sleep randomly schedules login. Allowed hours and the daily online limit remain hard boundaries.
+_Avoid_: fixed wake delay, always-late wake
+
 **New Account Analysis**:
 The account-and-world-specific first-login initialization that reads hero inventory, hero attributes, and missing
 new-village status. It remains pending until all three reads succeed.

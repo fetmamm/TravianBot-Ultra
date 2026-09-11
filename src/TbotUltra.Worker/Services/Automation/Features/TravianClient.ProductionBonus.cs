@@ -359,7 +359,10 @@ public sealed partial class TravianClient
             return $"{resource}: skipped — the bonus-video browser could not load Travian.";
         }
 
-        await AcceptConsentManagerIfPresentAsync(cancellationToken, "[production-bonus:verbose]");
+        await AcceptConsentManagerIfPresentAsync(
+            cancellationToken,
+            "[production-bonus:verbose]",
+            observeLateOverlay: true);
 
         if (!await OpenAdvantagesTabAsync(cancellationToken))
         {

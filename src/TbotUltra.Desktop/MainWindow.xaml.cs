@@ -53,6 +53,7 @@ public partial class MainWindow : Window
     {
         public string OperationId { get; init; } = string.Empty;
         public string OperationName { get; init; } = string.Empty;
+        public string TaskName { get; init; } = string.Empty;
         public Guid QueueItemId { get; init; }
         public ManualExecutionOutcome Outcome { get; set; }
     }
@@ -499,6 +500,7 @@ public partial class MainWindow : Window
         _botService.FarmLossDestinationChanged += OnFarmLossDestinationChanged;
         _botService.ActiveVillageVerified += OnActiveVillageVerified;
         _botService.ConstructionQueueObserved += OnConstructionQueueObserved;
+        _botService.TaskActivityRecorded += OnTaskActivityRecorded;
         _travianQueueViewModel.RemoveRequested += QueueRemoveSelected;
         _travianQueueViewModel.RestoreRequested += RestoreRemovedQueueItems;
         _travianQueueViewModel.MoveUpRequested += MoveSelectedQueueItemUp;

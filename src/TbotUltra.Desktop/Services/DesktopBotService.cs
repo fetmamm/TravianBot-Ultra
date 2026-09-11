@@ -40,6 +40,12 @@ public sealed class DesktopBotService : IDesktopBotService
         remove => _taskRunner.ConstructionQueueObserved -= value;
     }
 
+    public event Action<BotTaskActivity>? TaskActivityRecorded
+    {
+        add => _taskRunner.TaskActivityRecorded += value;
+        remove => _taskRunner.TaskActivityRecorded -= value;
+    }
+
     public QueueItem Enqueue(string taskName, Dictionary<string, string>? payload, int priority, int maxRetries)
     {
         return _queueStore.Add(taskName, payload, priority, maxRetries);

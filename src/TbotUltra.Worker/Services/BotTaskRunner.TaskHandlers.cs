@@ -27,8 +27,15 @@ public sealed partial class BotTaskRunner
     internal static ConstructionTaskOutcome ClassifyConstructionTaskResult(string taskName, string? result)
     {
         if (!IsConstructionTaskResult(taskName) || string.IsNullOrWhiteSpace(result)) return ConstructionTaskOutcome.None;
-        if (IsBlockedTaskResult(result)) return ConstructionTaskOutcome.WaitingOrBlocked;
         var value = result.ToLowerInvariant();
+        if (string.Equals(taskName, "demolish_building_to_level", StringComparison.OrdinalIgnoreCase))
+        {
+            if (value.Contains("started demolition for", StringComparison.Ordinal)) return ConstructionTaskOutcome.QueuedOrInProgress;
+            if (value.Contains("demolition already running", StringComparison.Ordinal)
+                || value.Contains("nothing to demolish", StringComparison.Ordinal)
+                || value.Contains("already at level", StringComparison.Ordinal)) return ConstructionTaskOutcome.AlreadySatisfied;
+        }
+        if (IsBlockedTaskResult(result)) return ConstructionTaskOutcome.WaitingOrBlocked;
         if (value.Contains("already exists at slot", StringComparison.Ordinal)) return ConstructionTaskOutcome.AlreadyExists;
         if ((string.Equals(taskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase) || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase)) && value.Contains("is empty", StringComparison.Ordinal) && value.Contains("construct the building before upgrading", StringComparison.Ordinal)) return ConstructionTaskOutcome.MissingBuilding;
         if (value.Contains("queued", StringComparison.Ordinal) || value.Contains("still in progress", StringComparison.Ordinal) || value.Contains("active construction detected", StringComparison.Ordinal) || value.Contains("build queue contains", StringComparison.Ordinal)) return ConstructionTaskOutcome.QueuedOrInProgress;
@@ -42,7 +49,8 @@ public sealed partial class BotTaskRunner
         || string.Equals(taskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase)
         || string.Equals(taskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
         || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase)
-        || string.Equals(taskName, "construct_building", StringComparison.OrdinalIgnoreCase);
+        || string.Equals(taskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "demolish_building_to_level", StringComparison.OrdinalIgnoreCase);
 
     private static void ThrowIfTroopsGroupBlocked(string result)
     {

@@ -770,32 +770,28 @@ public partial class MainWindow
     private IReadOnlyList<DailyPacingTaskRow> BuildDailyPacingTaskRows()
     {
         var cutoff = DateTimeOffset.UtcNow.AddDays(-7);
-        var rows = _botService.GetQueueItemsForDisplay()
-            .Where(item => item.UpdatedAt >= cutoff)
-            .Where(item => item.Status is QueueStatus.Running or QueueStatus.Succeeded or QueueStatus.Failed or QueueStatus.Canceled)
-            .GroupBy(item => HumanizeTaskNameForStats(item.TaskName), StringComparer.OrdinalIgnoreCase)
-            .Select(group =>
-            {
-                var ordered = group.OrderByDescending(item => item.UpdatedAt).ToList();
-                var peakHour = ordered
-                    .GroupBy(item => item.UpdatedAt.ToLocalTime().Hour)
-                    .OrderByDescending(hourGroup => hourGroup.Count())
-                    .ThenBy(hourGroup => hourGroup.Key)
-                    .FirstOrDefault();
-                return new DailyPacingTaskRow(
-                    group.Key,
-                    ordered.Count,
-                    ordered[0].UpdatedAt.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
-                    peakHour is null ? "-" : $"{peakHour.Key:00}:00-{(peakHour.Key + 1) % 24:00}:00");
-            })
-            .OrderByDescending(row => row.Runs)
-            .ThenBy(row => row.Task, StringComparer.OrdinalIgnoreCase)
-            .Take(20)
+        var rows = TaskActivityStatistics.Build(
+                TaskActivityStore.Load(_projectRoot, _accountStore.ActiveAccountName()),
+                cutoff)
+            .Select(summary => new DailyPacingTaskRow(
+                HumanizeTaskNameForStats(summary.TaskName),
+                summary.Runs,
+                summary.LastRunUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm"),
+                $"{summary.PeakLocalHour:00}:00-{(summary.PeakLocalHour + 1) % 24:00}:00"))
             .ToList();
 
         return rows.Count > 0
             ? rows
-            : [new DailyPacingTaskRow("No task history", 0, "-", "-")];
+            : [new DailyPacingTaskRow("No verified task activity yet", 0, "-", "-")];
+    }
+
+    private void OnTaskActivityRecorded(BotTaskActivity activity)
+    {
+        TaskActivityStore.Record(
+            _projectRoot,
+            activity.AccountName,
+            activity.TaskName,
+            activity.OccurredAtUtc);
     }
 
     private void UpsertDailyPacingHistory(JsonObject config, SessionPacerDailyProgress progress)

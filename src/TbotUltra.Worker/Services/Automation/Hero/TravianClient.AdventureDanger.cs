@@ -324,7 +324,9 @@ public sealed partial class TravianClient
         // The isolated video browser is seeded without consent (FilterForeignSubdomainState strips it), so
         // in GDPR/consent regions the consentmanager dialog overlays the page on load. Accept it up front so
         // the box state reads correctly and the ad stack is allowed to initialize. No-op when absent.
-        await AcceptConsentManagerIfPresentAsync(cancellationToken);
+        await AcceptConsentManagerIfPresentAsync(
+            cancellationToken,
+            observeLateOverlay: true);
 
         var state = await ReadAdventureVideoStateAsync(boxClass, cancellationToken);
         Notify($"[adventure-video] {label}: box state before watching: {state}");
@@ -932,7 +934,8 @@ public sealed partial class TravianClient
     /// </summary>
     private async Task<bool> AcceptConsentManagerIfPresentAsync(
         CancellationToken cancellationToken,
-        string logPrefix = "[adventure-video:verbose]")
+        string logPrefix = "[adventure-video:verbose]",
+        bool observeLateOverlay = false)
     {
         cancellationToken.ThrowIfCancellationRequested();
         const string acceptScript =
@@ -954,40 +957,108 @@ public sealed partial class TravianClient
             }
             """;
 
-        // First-party overlay on the Travian page.
-        try
+        var observationDeadlineUtc = observeLateOverlay
+            ? DateTimeOffset.UtcNow.AddSeconds(3)
+            : DateTimeOffset.UtcNow;
+        do
         {
-            if (await _page.EvaluateAsync<bool>(acceptScript, null))
-            {
-                Notify($"{logPrefix} accepted consentmanager consent (first-party overlay).");
-                return true;
-            }
-        }
-        catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
-        {
-            // Page mid-navigation; the next poll retries.
-        }
-
-        // consentmanager.net iframe fallback.
-        foreach (var frame in _page.Frames)
-        {
-            if (string.IsNullOrEmpty(frame.Url)
-                || !frame.Url.Contains("consentmanager", StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
+            // First-party overlay on the Travian page.
             try
             {
-                if (await frame.EvaluateAsync<bool>(acceptScript, null))
+                if (await _page.EvaluateAsync<bool>(acceptScript, null))
                 {
-                    Notify($"{logPrefix} accepted consentmanager consent (iframe).");
+                    Notify($"{logPrefix} accepted consentmanager consent (first-party overlay).");
+                    await WaitForConsentManagerOverlayToClearAsync(cancellationToken, logPrefix);
                     return true;
                 }
             }
             catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
             {
-                // Frame detached/navigating; ignore and let the next poll retry.
+                // Page mid-navigation; the next poll retries.
+            }
+
+            // consentmanager.net iframe fallback.
+            foreach (var frame in _page.Frames)
+            {
+                if (string.IsNullOrEmpty(frame.Url)
+                    || !frame.Url.Contains("consentmanager", StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                try
+                {
+                    if (await frame.EvaluateAsync<bool>(acceptScript, null))
+                    {
+                        Notify($"{logPrefix} accepted consentmanager consent (iframe).");
+                        await WaitForConsentManagerOverlayToClearAsync(cancellationToken, logPrefix);
+                        return true;
+                    }
+                }
+                catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
+                {
+                    // Frame detached/navigating; ignore and let the next poll retry.
+                }
+            }
+
+            if (!observeLateOverlay || DateTimeOffset.UtcNow >= observationDeadlineUtc)
+            {
+                return false;
+            }
+
+            await Task.Delay(200, cancellationToken);
+        }
+        while (true);
+    }
+
+    private async Task WaitForConsentManagerOverlayToClearAsync(
+        CancellationToken cancellationToken,
+        string logPrefix)
+    {
+        var deadlineUtc = DateTimeOffset.UtcNow.AddSeconds(3);
+        while (DateTimeOffset.UtcNow < deadlineUtc)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                var blocking = await _page.EvaluateAsync<bool>(
+                    """
+                    () => Array.from(document.querySelectorAll('#cmpwrapper, .cmpwrapper, #cmpbox, .cmpbox'))
+                      .some(node => {
+                        const style = getComputedStyle(node);
+                        const rect = node.getBoundingClientRect();
+                        return style.display !== 'none'
+                          && style.visibility !== 'hidden'
+                          && style.pointerEvents !== 'none'
+                          && rect.width > 0
+                          && rect.height > 0;
+                      })
+                    """);
+                if (!blocking)
+                {
+                    return;
+                }
+            }
+            catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
+            {
+                return;
+            }
+
+            await Task.Delay(100, cancellationToken);
+        }
+
+        Notify($"{logPrefix} consentmanager overlay was still blocking after acceptance.");
+    }
+
+    internal static bool IsConsentOverlayInterception(Exception ex)
+    {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current.Message.Contains("intercepts pointer events", StringComparison.OrdinalIgnoreCase)
+                && (current.Message.Contains("cmpwrapper", StringComparison.OrdinalIgnoreCase)
+                    || current.Message.Contains("cmpbox", StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
             }
         }
 

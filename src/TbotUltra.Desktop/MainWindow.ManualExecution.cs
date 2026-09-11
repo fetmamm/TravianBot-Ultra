@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using TbotUltra.Desktop.Services;
 
 namespace TbotUltra.Desktop;
 
@@ -29,6 +30,7 @@ public partial class MainWindow
         {
             OperationId = operationId,
             OperationName = operationName,
+            TaskName = taskName,
             QueueItemId = queueItem.Id,
             Outcome = ManualExecutionOutcome.None,
         };
@@ -52,6 +54,11 @@ public partial class MainWindow
             {
                 case ManualExecutionOutcome.Succeeded:
                     _botService.MarkQueueItemSucceeded(execution.QueueItemId);
+                    TaskActivityStore.Record(
+                        _projectRoot,
+                        _accountStore.ActiveAccountName(),
+                        execution.TaskName,
+                        DateTimeOffset.UtcNow);
                     break;
                 case ManualExecutionOutcome.Failed:
                     _botService.MarkQueueItemExecutionFailed(execution.QueueItemId);

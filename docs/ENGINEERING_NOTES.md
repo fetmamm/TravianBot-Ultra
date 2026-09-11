@@ -120,6 +120,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
   explicitly commit their two-way WPF bindings before reading `SelectedUpgradeTypes` at the queue boundary.
 - Synthetic `desktop_runtime_manual:*` history rows are classified by their domain. Unknown manual runtime names
   default to Account, never Construction; only explicit resource/building operations may use Construction.
+- Daily details task counts come from the account-scoped task-activity journal, never queue-row status or timestamps.
+  Record completed task handlers, successful manual operations, and typed `work_queued` actions; construction counts
+  require `QueuedOrInProgress` or `ConfirmedComplete` evidence, while waits, failures, cancellations, and
+  already-satisfied observations never count as work performed. Do not fabricate activity before the journal exists.
 - Account `Manual login` is account-scoped and permits an empty password. It opens the Official lobby
   without submitting credentials, blocks the desktop behind a `Login done`/`Cancel` confirmation, verifies
   the live lobby before continuing, and temporarily permits browser popups, user-opened tabs, and authentication
@@ -735,6 +739,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   General/Village tab click; that makes a Collect-to-tab transition effectively instantaneous.
 - Bonus-video failures use shared protected timing, typed cooldowns, account proxy routing, and sanitized logs.
   See [bonus-video ADR](adr/2026-07-18-bonus-video.md).
+  Consentmanager may render after initial page readiness. Initial isolated-video flows observe it for a bounded
+  window, wait for its overlay to stop intercepting input after acceptance, and retry a trusted trigger click once
+  only when Playwright confirms that the CMP overlay blocked that click; never force-click through the overlay.
   Start playback only through the exact visible provider play control after ancestry, geometry, and center hit-testing;
   never use a blind video-area/iframe-center click because a partially rendered player may expose an advertiser link.
   Optional audio muting is strictly best-effort and defaults enabled through General settings. Click only the exact

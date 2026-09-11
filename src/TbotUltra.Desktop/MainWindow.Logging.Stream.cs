@@ -558,7 +558,13 @@ public partial class MainWindow
             || value.Contains("chromium warmup started")
             || value.Contains("chromium warmup completed")
             || value.Contains("[lobby-login] manually selected owned world resolved to")
-            || (value.Contains("[browser-click]") && value.Contains("skipped candidate")))
+            || (value.Contains("[browser-click]") && value.Contains("skipped candidate"))
+            || value.Contains("unable to retrieve content because the page is navigating and changing the content")
+            || (value.Contains("[browser-video] isolated bonus-video browser closed reason="))
+            || (value.Contains("[construct-faster]")
+                && (value.Contains("video attempt") && value.Contains("ended before normal completion")
+                    || value.Contains("skipping immediate video retry after")
+                    || value.Contains("skipped video — shared account/proxy cooldown active"))))
         {
             return false;
         }

@@ -289,7 +289,13 @@ public partial class MainWindow
             return;
         }
 
-        RequestQueueUiRefresh(selectId: created.LastOrDefault()?.Id);
+        RequestQueueUiRefresh(selectId: created.LastOrDefault()?.Id, immediate: true);
+        var selectedStatus = ResolveSelectedVillageBuildingStatus();
+        if (selectedStatus is not null)
+        {
+            PopulateBuildingsTab(selectedStatus, requestQueueEstimateRefresh: false);
+        }
+
         TriggerQueueAutoRunFromEnqueue();
         var storageCount = preparedVillages.Sum(village => village.StorageUpgrades.Count);
         BuildingsInfoTextBlock.Text = $"Queued building template to {preparedVillages.Count} village(s): {created.Count} item(s).";
