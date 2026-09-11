@@ -541,7 +541,14 @@ public partial class MainWindow
     {
         try
         {
-            await action();
+            if (Dispatcher.CheckAccess())
+            {
+                await action();
+            }
+            else
+            {
+                await (await Dispatcher.InvokeAsync(action));
+            }
         }
         catch (Exception ex)
         {
@@ -666,7 +673,8 @@ public partial class MainWindow
             : "Run now";
         var canExtendSleep = IsSessionSleeping
             && _sessionPacer.SleepReason is SessionSleepReason.SessionPacing or SessionSleepReason.Manual;
-        var canExtendRun = _sessionPacer.Phase == SessionPacerPhase.Running;
+        var canExtendRun = _sessionPacer.Phase == SessionPacerPhase.Running
+            && _sessionPacer.IsRunTimerEnabled;
         SessionPacingExtendButton.Visibility = canExtendSleep || canExtendRun
             ? Visibility.Visible
             : Visibility.Collapsed;
@@ -979,11 +987,13 @@ public partial class MainWindow
             return;
         }
 
-        var runTime = SessionPacer.FormatDuration(_sessionPacer.ActiveRunDuration ?? _sessionPacer.TimeUntilSleep);
         var sleepTime = SessionPacer.FormatDuration(_sessionPacer.ActiveSleepDuration ?? _sessionPacer.TimeUntilWake);
         SessionPacingBorder.ToolTip = new ToolTip
         {
-            Content = $"Run time: {runTime}\nSleep time: {sleepTime}",
+            Content = _sessionPacer.Phase == SessionPacerPhase.Running
+                && !_sessionPacer.IsRunTimerEnabled
+                    ? "Smart sleep is active. The browser will close when there is a long enough idle window."
+                    : $"Run time: {SessionPacer.FormatDuration(_sessionPacer.ActiveRunDuration ?? _sessionPacer.TimeUntilSleep)}\nSleep time: {sleepTime}",
         };
     }
 

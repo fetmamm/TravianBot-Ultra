@@ -17,10 +17,12 @@ public sealed class SessionPacerTests
         pacer.SleepStarting += (_, _) => pacer.BeginSleep();
 
         Assert.Null(pacer.TimeUntilSleep);
+        Assert.Equal("Smart sleep", pacer.StatusText);
         Assert.True(pacer.RequestSmartSleep(wakeAt));
 
         Assert.Equal(SessionSleepReason.SmartSleep, pacer.SleepReason);
         Assert.Equal(wakeAt, pacer.PlannedWakeAt);
+        Assert.Equal("Sleeping: 00:45:00", pacer.StatusText);
     }
 
     [Fact]

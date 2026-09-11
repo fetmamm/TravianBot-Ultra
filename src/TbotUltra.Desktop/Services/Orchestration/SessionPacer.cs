@@ -105,11 +105,13 @@ public sealed class SessionPacer
     public TimeSpan? ActiveRunDuration => _activeRunDuration;
     public TimeSpan? ActiveSleepDuration => _activeSleepDuration;
     public DateTimeOffset? PlannedWakeAt => _wakeAt;
+    public bool IsRunTimerEnabled => _settings.Enabled && _settings.RunTimerEnabled;
     public bool IsSleepPaused => Phase == SessionPacerPhase.Sleeping && _pausedSleepRemaining is not null;
     public TimeSpan? PausedSleepRemaining => _pausedSleepRemaining;
     public SessionPacerRuntimeState RuntimeState => new(_runtimeDate, _runtimeSeconds);
     public string StatusText => Phase switch
     {
+        SessionPacerPhase.Running when !IsRunTimerEnabled => "Smart sleep",
         SessionPacerPhase.Running => $"Next sleep: {Format(TimeUntilSleep)}",
         SessionPacerPhase.Paused => "Paused",
         SessionPacerPhase.Sleeping when IsSleepPaused => $"Sleep paused: {Format(_pausedSleepRemaining)}",

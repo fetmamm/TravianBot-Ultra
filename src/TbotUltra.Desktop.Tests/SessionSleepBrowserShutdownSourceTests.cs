@@ -35,6 +35,17 @@ public sealed class SessionSleepBrowserShutdownSourceTests
         Assert.DoesNotContain("planned sleep browser close failed", methodBody, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void SessionPacingCallbacks_AreMarshaledToDispatcher()
+    {
+        var methodBody = ReadMethod(
+            "    private async Task SafeSessionPacingInvokeAsync(Func<Task> action)",
+            "    private void SessionPacingRunNowButton_Click");
+
+        Assert.Contains("Dispatcher.CheckAccess()", methodBody, StringComparison.Ordinal);
+        Assert.Contains("Dispatcher.InvokeAsync(action)", methodBody, StringComparison.Ordinal);
+    }
+
     private static string ReadMethod(string startMarker, string endMarker)
     {
         var projectRoot = ProjectRootLocator.FindProjectRoot();
