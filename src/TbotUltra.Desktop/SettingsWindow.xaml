@@ -364,7 +364,7 @@
                                                     <TextBlock Grid.Row="1" Grid.Column="2" Text="minutes" VerticalAlignment="Center" Margin="6,2,0,2" />
                                                     <StackPanel Grid.Row="2" Orientation="Horizontal" VerticalAlignment="Center">
                                                         <TextBlock Text="Wake window" VerticalAlignment="Center" />
-                                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}" ToolTip="Randomizes login around the next task. Min is minutes before the deadline; Max is minutes after it. Default: 5 before / 10 after." />
+                                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}" ToolTip="Randomizes login around the next task. Min is minutes before the deadline; Max is minutes after it." />
                                                     </StackPanel>
                                                     <TextBox x:Name="SmartSleepWakeBeforeTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2" Text="{Binding SettingsVm.Pacing.SmartSleepWakeBeforeMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                     <TextBox x:Name="SmartSleepWakeAfterTextBox" Grid.Row="2" Grid.Column="2" Height="24" Margin="6,2,0,2" Text="{Binding SettingsVm.Pacing.SmartSleepWakeAfterMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />

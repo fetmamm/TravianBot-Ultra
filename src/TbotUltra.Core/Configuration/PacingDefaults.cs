@@ -18,8 +18,8 @@ public static class PacingDefaults
 
     public const bool SmartSleepEnabled = false;
     public const int SmartSleepMinimumOpportunityMinutes = 20;
-    public const int SmartSleepWakeBeforeMinutes = 5;
-    public const int SmartSleepWakeAfterMinutes = 10;
+    public const int SmartSleepWakeBeforeMinutes = 10;
+    public const int SmartSleepWakeAfterMinutes = 20;
     public const int SmartSleepFallbackMinMinutes = 30;
     public const int SmartSleepFallbackMaxMinutes = 60;
 

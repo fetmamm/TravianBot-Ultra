@@ -37,6 +37,8 @@ public sealed class PacingSettingsViewModelTests
         Assert.Equal("1", vm.FarmListStepDelayMinSeconds);
         Assert.Equal("4", vm.FarmListStepDelayMaxSeconds);
         Assert.Equal(60, vm.ShortVillageDeferSeconds);
+        Assert.Equal("10", vm.SmartSleepWakeBeforeMinutes);
+        Assert.Equal("20", vm.SmartSleepWakeAfterMinutes);
     }
 
     [Theory]
