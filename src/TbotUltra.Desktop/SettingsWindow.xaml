@@ -298,76 +298,90 @@
 
                             <Border Style="{StaticResource SettingsGroupBox}">
                                 <StackPanel>
-                                    <Grid Margin="0,0,0,8">
+                                    <Grid Margin="0,0,0,12">
                                         <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="320" />
+                                            <ColumnDefinition Width="*" />
+                                            <ColumnDefinition Width="14" />
                                             <ColumnDefinition Width="*" />
                                         </Grid.ColumnDefinitions>
-                                        <StackPanel Grid.Column="0" Orientation="Horizontal">
-                                        <CheckBox x:Name="SessionPacingEnabledCheckBox"
-                                                  Content="Session pacing"
-                                                  IsChecked="{Binding SettingsVm.Pacing.SessionPacingEnabled, Mode=TwoWay}" />
-                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
-                                                        ToolTip="Limits how long the bot runs before it logs out, sleeps, and resumes automatically." />
-                                        </StackPanel>
-                                        <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                            <CheckBox x:Name="SmartSleepEnabledCheckBox"
-                                                      Content="Smart sleep"
-                                                      IsChecked="{Binding SettingsVm.Pacing.SmartSleepEnabled, Mode=TwoWay}" />
-                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}"
-                                                            ToolTip="Closes the browser during trusted idle opportunities and wakes near the next deadline." />
-                                        </StackPanel>
+
+                                        <Border Grid.Column="0" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="6" Padding="12">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <CheckBox x:Name="SessionPacingEnabledCheckBox" Content="Session pacing" FontWeight="SemiBold" IsChecked="{Binding SettingsVm.Pacing.SessionPacingEnabled, Mode=TwoWay}" />
+                                                    <ContentControl Style="{StaticResource SettingInfoIconStyle}" ToolTip="Uses random run and sleep periods. Choose this for a regular online/offline rhythm that does not depend on task timers." />
+                                                </StackPanel>
+                                                <TextBlock Text="Random online and offline periods." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="20,3,0,10" />
+                                                <Grid Margin="20,0,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="120" />
+                                                        <ColumnDefinition Width="80" />
+                                                        <ColumnDefinition Width="80" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+                                                    <TextBlock Grid.Column="1" Text="Min" FontWeight="SemiBold" Margin="0,2" />
+                                                    <TextBlock Grid.Column="2" Text="Max" FontWeight="SemiBold" Margin="6,2,0,2" />
+                                                    <TextBlock Grid.Row="1" Text="Run (min)" VerticalAlignment="Center" Margin="0,2" />
+                                                    <TextBox x:Name="SessionRunMinMinutesTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2" Text="{Binding SettingsVm.Pacing.SessionRunMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBox x:Name="SessionRunMaxMinutesTextBox" Grid.Row="1" Grid.Column="2" Height="24" Margin="6,2,0,2" Text="{Binding SettingsVm.Pacing.SessionRunMaxMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBlock Grid.Row="2" Text="Sleep (min)" VerticalAlignment="Center" Margin="0,2" />
+                                                    <TextBox x:Name="SessionSleepMinMinutesTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2" Text="{Binding SettingsVm.Pacing.SessionSleepMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBox x:Name="SessionSleepMaxMinutesTextBox" Grid.Row="2" Grid.Column="2" Height="24" Margin="6,2,0,2" Text="{Binding SettingsVm.Pacing.SessionSleepMaxMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
+
+                                        <Border Grid.Column="2" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="6" Padding="12">
+                                            <StackPanel>
+                                                <StackPanel Orientation="Horizontal">
+                                                    <CheckBox x:Name="SmartSleepEnabledCheckBox" Content="Smart sleep" FontWeight="SemiBold" IsChecked="{Binding SettingsVm.Pacing.SmartSleepEnabled, Mode=TwoWay}" />
+                                                    <ContentControl Style="{StaticResource SettingInfoIconStyle}" ToolTip="Sleeps only when the scheduler knows that no task is needed soon, then wakes near the next task." />
+                                                </StackPanel>
+                                                <TextBlock Text="Sleep between known task deadlines." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="20,3,0,10" />
+                                                <Grid Margin="20,0,0,0">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="130" />
+                                                        <ColumnDefinition Width="68" />
+                                                        <ColumnDefinition Width="68" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Grid.RowDefinitions>
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                        <RowDefinition Height="Auto" />
+                                                    </Grid.RowDefinitions>
+                                                    <TextBlock Grid.Column="1" Text="Min" FontWeight="SemiBold" Margin="0,2" />
+                                                    <TextBlock Grid.Column="2" Text="Max" FontWeight="SemiBold" Margin="6,2,0,2" />
+                                                    <StackPanel Grid.Row="1" Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <TextBlock Text="Sleep opportunity" VerticalAlignment="Center" />
+                                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}" ToolTip="Minimum free time required before Smart Sleep closes the browser. Shorter gaps stay online. Default: 20 minutes." />
+                                                    </StackPanel>
+                                                    <TextBox x:Name="SmartSleepMinimumOpportunityTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2" Text="{Binding SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBlock Grid.Row="1" Grid.Column="2" Text="minutes" VerticalAlignment="Center" Margin="6,2,0,2" />
+                                                    <StackPanel Grid.Row="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <TextBlock Text="Wake window" VerticalAlignment="Center" />
+                                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}" ToolTip="Randomizes login around the next task. Min is minutes before the deadline; Max is minutes after it. Default: 5 before / 10 after." />
+                                                    </StackPanel>
+                                                    <TextBox x:Name="SmartSleepWakeBeforeTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2" Text="{Binding SettingsVm.Pacing.SmartSleepWakeBeforeMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBox x:Name="SmartSleepWakeAfterTextBox" Grid.Row="2" Grid.Column="2" Height="24" Margin="6,2,0,2" Text="{Binding SettingsVm.Pacing.SmartSleepWakeAfterMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <StackPanel Grid.Row="3" Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <TextBlock Text="Fallback check" VerticalAlignment="Center" />
+                                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}" ToolTip="When no future task time is known, log in after a random Min–Max delay and run one village status check. Default: 30–60 minutes." />
+                                                    </StackPanel>
+                                                    <TextBox x:Name="SmartSleepFallbackMinTextBox" Grid.Row="3" Grid.Column="1" Height="24" Margin="0,2" Text="{Binding SettingsVm.Pacing.SmartSleepFallbackMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                    <TextBox x:Name="SmartSleepFallbackMaxTextBox" Grid.Row="3" Grid.Column="2" Height="24" Margin="6,2,0,2" Text="{Binding SettingsVm.Pacing.SmartSleepFallbackMaxMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
                                     </Grid>
-                                    <Grid Margin="18,0,0,12">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="320" />
-                                            <ColumnDefinition Width="*" />
-                                        </Grid.ColumnDefinitions>
-                                    <Grid Grid.Column="0">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="140" />
-                                            <ColumnDefinition Width="80" />
-                                            <ColumnDefinition Width="90" />
-                                        </Grid.ColumnDefinitions>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="Min" FontWeight="SemiBold" Margin="0,2" />
-                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Max" FontWeight="SemiBold" Margin="6,2,0,2" />
-                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Run (min)" VerticalAlignment="Center" Margin="0,2" />
-                                        <TextBox x:Name="SessionRunMinMinutesTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2" Text="{Binding SettingsVm.Pacing.SessionRunMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBox x:Name="SessionRunMaxMinutesTextBox" Grid.Row="1" Grid.Column="2" Height="24" Margin="6,2,0,2" Text="{Binding SettingsVm.Pacing.SessionRunMaxMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Sleep (min)" VerticalAlignment="Center" Margin="0,2" />
-                                        <TextBox x:Name="SessionSleepMinMinutesTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2" Text="{Binding SettingsVm.Pacing.SessionSleepMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBox x:Name="SessionSleepMaxMinutesTextBox" Grid.Row="2" Grid.Column="2" Height="24" Margin="6,2,0,2" Text="{Binding SettingsVm.Pacing.SessionSleepMaxMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    </Grid>
-                                    <Grid Grid.Column="1">
-                                        <Grid.ColumnDefinitions>
-                                            <ColumnDefinition Width="150" />
-                                            <ColumnDefinition Width="80" />
-                                            <ColumnDefinition Width="80" />
-                                        </Grid.ColumnDefinitions>
-                                        <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                            <RowDefinition Height="Auto" />
-                                        </Grid.RowDefinitions>
-                                        <TextBlock Grid.Row="0" Grid.Column="1" Text="Min" FontWeight="SemiBold" Margin="0,2" />
-                                        <TextBlock Grid.Row="0" Grid.Column="2" Text="Max" FontWeight="SemiBold" Margin="6,2,0,2" />
-                                        <TextBlock Grid.Row="1" Grid.Column="0" Text="Sleep opportunity" VerticalAlignment="Center" Margin="0,2" />
-                                        <TextBox x:Name="SmartSleepMinimumOpportunityTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2" Text="{Binding SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Grid.Row="1" Grid.Column="2" Text="min" VerticalAlignment="Center" Margin="6,2,0,2" />
-                                        <TextBlock Grid.Row="2" Grid.Column="0" Text="Wake window" VerticalAlignment="Center" Margin="0,2" />
-                                        <TextBox x:Name="SmartSleepWakeBeforeTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2" ToolTip="Maximum minutes before the deadline." Text="{Binding SettingsVm.Pacing.SmartSleepWakeBeforeMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBox x:Name="SmartSleepWakeAfterTextBox" Grid.Row="2" Grid.Column="2" Height="24" Margin="6,2,0,2" ToolTip="Maximum minutes after the deadline." Text="{Binding SettingsVm.Pacing.SmartSleepWakeAfterMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBlock Grid.Row="3" Grid.Column="0" Text="Fallback check" VerticalAlignment="Center" Margin="0,2" />
-                                        <TextBox x:Name="SmartSleepFallbackMinTextBox" Grid.Row="3" Grid.Column="1" Height="24" Margin="0,2" Text="{Binding SettingsVm.Pacing.SmartSleepFallbackMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                        <TextBox x:Name="SmartSleepFallbackMaxTextBox" Grid.Row="3" Grid.Column="2" Height="24" Margin="6,2,0,2" Text="{Binding SettingsVm.Pacing.SmartSleepFallbackMaxMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
-                                    </Grid>
-                                    </Grid>
+                                    <StackPanel Orientation="Horizontal" Margin="0,2,0,8">
+                                        <TextBlock Text="Shared limits" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}" ToolTip="These limits apply to whichever sleep mode is enabled. They do nothing when both Session pacing and Smart sleep are off." />
+                                    </StackPanel>
                                     <Grid Margin="18,0,0,12">
                                         <Grid.ColumnDefinitions>
                                             <ColumnDefinition Width="140" />
