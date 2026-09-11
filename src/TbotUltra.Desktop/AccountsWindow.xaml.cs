@@ -789,8 +789,12 @@ public partial class AccountsWindow : Window
     private (bool PacingEnabled, IReadOnlyCollection<int> AllowedHours, int SleepMinMinutes) ReadProxyPlanSettings(string accountName)
     {
         var config = _botConfigStore.LoadForAccount(accountName);
-        var pacingEnabled = config[BotOptionPayloadKeys.SessionPacingEnabled]?.GetValue<bool>() ?? PacingDefaults.SessionPacingEnabled;
-        var sleepMin = config[BotOptionPayloadKeys.SessionPacingSleepMinMinutes]?.GetValue<int>() ?? PacingDefaults.SessionPacingSleepMinMinutes;
+        var sessionPacingEnabled = config[BotOptionPayloadKeys.SessionPacingEnabled]?.GetValue<bool>() ?? PacingDefaults.SessionPacingEnabled;
+        var smartSleepEnabled = config[BotOptionPayloadKeys.SmartSleepEnabled]?.GetValue<bool>() ?? PacingDefaults.SmartSleepEnabled;
+        var pacingEnabled = sessionPacingEnabled || smartSleepEnabled;
+        var sleepMin = smartSleepEnabled
+            ? config[BotOptionPayloadKeys.SmartSleepMinimumOpportunityMinutes]?.GetValue<int>() ?? PacingDefaults.SmartSleepMinimumOpportunityMinutes
+            : config[BotOptionPayloadKeys.SessionPacingSleepMinMinutes]?.GetValue<int>() ?? PacingDefaults.SessionPacingSleepMinMinutes;
         var hours = config[BotOptionPayloadKeys.SessionPacingAllowedHours] is JsonArray array
             ? array.Select(node => node?.GetValue<int>() ?? -1).Where(hour => hour is >= 0 and <= 23).ToArray()
             : Enumerable.Range(0, 24).ToArray();

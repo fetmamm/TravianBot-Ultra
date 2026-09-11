@@ -15,6 +15,7 @@ public enum SessionSleepReason
 {
     None,
     SessionPacing,
+    SmartSleep,
     Manual,
     Schedule,
     DailyLimit,
@@ -31,7 +32,8 @@ public sealed record SessionPacerSettings(
     DateOnly? RuntimeDate = null,
     double RuntimeSeconds = 0,
     int DailyMaxVariationPercent = PacingDefaults.SessionPacingDailyMaxVariationPercent,
-    int HoursVariationPercent = PacingDefaults.SessionPacingHoursVariationPercent);
+    int HoursVariationPercent = PacingDefaults.SessionPacingHoursVariationPercent,
+    bool RunTimerEnabled = true);
 
 public sealed record SessionPacerRuntimeState(DateOnly Date, double RuntimeSeconds);
 
@@ -76,6 +78,7 @@ public sealed class SessionPacer
     // (the next moment the schedule would allow running on its own), so the bot can run through a
     // disallowed off-hours window the user explicitly chose to override.
     private DateTimeOffset? _scheduleOverrideUntil;
+    private DateTimeOffset? _requestedSmartWakeAt;
 
     public SessionPacer(Func<DateTimeOffset>? now = null)
     {
@@ -96,7 +99,7 @@ public sealed class SessionPacer
     public SessionPacerPhase Phase { get; private set; } = SessionPacerPhase.Disabled;
     public SessionSleepReason SleepReason { get; private set; }
     public bool CanWakeNow => Phase == SessionPacerPhase.Sleeping
-        && SleepReason is SessionSleepReason.SessionPacing or SessionSleepReason.Manual or SessionSleepReason.Schedule;
+        && SleepReason is SessionSleepReason.SessionPacing or SessionSleepReason.SmartSleep or SessionSleepReason.Manual or SessionSleepReason.Schedule;
     public TimeSpan? TimeUntilSleep => _runDeadline is null ? null : Positive(_runDeadline.Value - _now());
     public TimeSpan? TimeUntilWake => _wakeAt is null ? null : Positive(_wakeAt.Value - _now());
     public TimeSpan? ActiveRunDuration => _activeRunDuration;
@@ -218,7 +221,7 @@ public sealed class SessionPacer
     public void SetNextProxyTransition(DateTimeOffset? transitionAt)
     {
         _proxyTransitionAt = transitionAt;
-        if (Phase == SessionPacerPhase.Running && transitionAt is { } target)
+        if (_settings.RunTimerEnabled && Phase == SessionPacerPhase.Running && transitionAt is { } target)
         {
             var alignedSleepStart = target.AddMinutes(-Math.Max(5, _settings.SleepMinMinutes));
             _runDeadline = Earliest(_runDeadline, alignedSleepStart <= _now() ? _now() : alignedSleepStart);
@@ -327,6 +330,7 @@ public sealed class SessionPacer
         SleepReason = SessionSleepReason.None;
         _pendingSleepReason = SessionSleepReason.None;
         _scheduleOverrideUntil = null;
+        _requestedSmartWakeAt = null;
         Phase = SessionPacerPhase.Disabled;
         _runStartedAt = null;
         _runDeadline = null;
@@ -350,7 +354,7 @@ public sealed class SessionPacer
                 : _pendingSleepReason;
         _pendingSleepReason = SessionSleepReason.None;
 
-        if (!_settings.Enabled && reason == SessionSleepReason.SessionPacing)
+        if (!_settings.Enabled && reason is SessionSleepReason.SessionPacing or SessionSleepReason.SmartSleep)
         {
             SetDisabled();
             return;
@@ -364,6 +368,12 @@ public sealed class SessionPacer
         {
             _wakeAt = ResolveRestrictionWake(now);
             _activeSleepDuration = Positive(_wakeAt.Value - now);
+        }
+        else if (reason == SessionSleepReason.SmartSleep && _requestedSmartWakeAt is { } smartWakeAt)
+        {
+            _wakeAt = smartWakeAt > now ? smartWakeAt : now;
+            _activeSleepDuration = Positive(_wakeAt.Value - now);
+            _requestedSmartWakeAt = null;
         }
         else
         {
@@ -390,6 +400,7 @@ public sealed class SessionPacer
         _pausedSleepRemaining = null;
         _lastRuntimeUpdate = null;
         _sleepStartRaised = false;
+        _requestedSmartWakeAt = null;
         _automationActive = false;
         _timer.Start();
         Logger?.Invoke($"{SleepReasonLabel(reason)} sleep starting; sleeping for {Format(TimeUntilWake)}.");
@@ -549,6 +560,18 @@ public sealed class SessionPacer
         return true;
     }
 
+    public bool RequestSmartSleep(DateTimeOffset wakeAt)
+    {
+        if (!_settings.Enabled || Phase != SessionPacerPhase.Running || _sleepStartRaised || wakeAt <= _now())
+        {
+            return false;
+        }
+
+        _requestedSmartWakeAt = wakeAt;
+        RequestSleep(SessionSleepReason.SmartSleep);
+        return true;
+    }
+
     public void TickForTests() => TickTimer();
 
     // Re-evaluates the manual-function pause immediately (host calls this when such a function starts or
@@ -608,9 +631,13 @@ public sealed class SessionPacer
         Phase = SessionPacerPhase.Running;
         SleepReason = SessionSleepReason.None;
         _runStartedAt = now;
-        _activeRunDuration = TimeSpan.FromMinutes(RandomMinutesInRange(_settings.RunMinMinutes, _settings.RunMaxMinutes));
-        _runDeadline = Earliest(now.Add(_activeRunDuration.Value), GetNextRestrictionAt(now));
-        if (_proxyTransitionAt is { } proxyAt)
+        _activeRunDuration = _settings.RunTimerEnabled
+            ? TimeSpan.FromMinutes(RandomMinutesInRange(_settings.RunMinMinutes, _settings.RunMaxMinutes))
+            : null;
+        _runDeadline = _settings.RunTimerEnabled
+            ? Earliest(now.Add(_activeRunDuration!.Value), GetNextRestrictionAt(now))
+            : GetNextRestrictionAt(now);
+        if (_settings.RunTimerEnabled && _proxyTransitionAt is { } proxyAt)
         {
             var alignedSleepStart = proxyAt.AddMinutes(-Math.Max(5, _settings.SleepMinMinutes));
             _runDeadline = Earliest(_runDeadline, alignedSleepStart <= now ? now : alignedSleepStart);
@@ -620,7 +647,9 @@ public sealed class SessionPacer
         _sleepStartRaised = false;
         _lastRuntimeUpdate = now;
         _timer.Start();
-        Logger?.Invoke($"[pacing] session run timer started; next sleep in {Format(TimeUntilSleep)}.");
+        Logger?.Invoke(_settings.RunTimerEnabled
+            ? $"[pacing] session run timer started; next sleep in {Format(TimeUntilSleep)}."
+            : "[smart-sleep] online; waiting for a trusted idle deadline.");
         RaiseTick();
     }
 
@@ -657,7 +686,7 @@ public sealed class SessionPacer
             {
                 RequestSleep(restriction);
             }
-            else if (TimeUntilSleep <= TimeSpan.Zero)
+            else if (_settings.RunTimerEnabled && TimeUntilSleep <= TimeSpan.Zero)
             {
                 RequestSleep(SessionSleepReason.SessionPacing);
             }
@@ -869,6 +898,7 @@ public sealed class SessionPacer
         _pausedRunRemaining = null;
         _lastRuntimeUpdate = null;
         _sleepStartRaised = false;
+        _requestedSmartWakeAt = null;
         _timer.Stop();
         RaiseTick();
     }

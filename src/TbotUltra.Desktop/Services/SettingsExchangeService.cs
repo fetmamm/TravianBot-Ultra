@@ -36,6 +36,7 @@ internal sealed class SettingsExchangeService
     [
         (BotOptionPayloadKeys.SessionPacingRunMinMinutes, BotOptionPayloadKeys.SessionPacingRunMaxMinutes),
         (BotOptionPayloadKeys.SessionPacingSleepMinMinutes, BotOptionPayloadKeys.SessionPacingSleepMaxMinutes),
+        (BotOptionPayloadKeys.SmartSleepFallbackMinMinutes, BotOptionPayloadKeys.SmartSleepFallbackMaxMinutes),
         (BotOptionPayloadKeys.ActionPacingTaskMinSeconds, BotOptionPayloadKeys.ActionPacingTaskMaxSeconds),
         (BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds, BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds),
         (BotOptionPayloadKeys.ActionPacingClickMinSeconds, BotOptionPayloadKeys.ActionPacingClickMaxSeconds),
@@ -316,6 +317,7 @@ internal sealed class SettingsExchangeService
         foreach (var key in new[]
         {
             BotOptionPayloadKeys.SessionPacingEnabled,
+            BotOptionPayloadKeys.SmartSleepEnabled,
             BotOptionPayloadKeys.ActionPacingEnabled,
             BotOptionPayloadKeys.ContinuousKeepAliveEnabled,
             BotOptionPayloadKeys.VillageStatusSweepEnabled,
@@ -345,6 +347,11 @@ internal sealed class SettingsExchangeService
         Add(Int(BotOptionPayloadKeys.SessionPacingDailyMaxVariationPercent, "Pacing", 0, 50, [0, 10, 20, 30, 40, 50]));
         Add(Hours(BotOptionPayloadKeys.SessionPacingAllowedHours, "Pacing"));
         Add(Int(BotOptionPayloadKeys.SessionPacingHoursVariationPercent, "Pacing", 0, 30, [0, 10, 20, 30]));
+        Add(Int(BotOptionPayloadKeys.SmartSleepMinimumOpportunityMinutes, "Pacing", 1, 1440));
+        Add(Int(BotOptionPayloadKeys.SmartSleepWakeBeforeMinutes, "Pacing", 0, 1440));
+        Add(Int(BotOptionPayloadKeys.SmartSleepWakeAfterMinutes, "Pacing", 0, 1440));
+        Add(Int(BotOptionPayloadKeys.SmartSleepFallbackMinMinutes, "Pacing", 1, 10080));
+        Add(Int(BotOptionPayloadKeys.SmartSleepFallbackMaxMinutes, "Pacing", 1, 10080));
         Add(Int(BotOptionPayloadKeys.ShortVillageDeferSeconds, "Pacing", 20, 90, PacingDefaults.ShortVillageDeferChoicesSeconds));
         Add(Int(BotOptionPayloadKeys.ContinuousKeepAliveMinMinutes, "Pacing", 1, 1440));
         Add(Int(BotOptionPayloadKeys.ContinuousKeepAliveMaxMinutes, "Pacing", 1, 1440));

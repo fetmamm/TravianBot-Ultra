@@ -15,6 +15,14 @@ public partial class MainWindow
     private bool _sessionPacingSleepInProgress;
     private bool _sessionPacingWakeInProgress;
     private bool _sessionPacingSleepDeferredForManualOperation;
+    private bool _smartSleepForceVillageScanOnWake;
+    private SmartSleepSettings _smartSleepSettings = new(
+        PacingDefaults.SmartSleepEnabled,
+        PacingDefaults.SmartSleepMinimumOpportunityMinutes,
+        PacingDefaults.SmartSleepWakeBeforeMinutes,
+        PacingDefaults.SmartSleepWakeAfterMinutes,
+        PacingDefaults.SmartSleepFallbackMinMinutes,
+        PacingDefaults.SmartSleepFallbackMaxMinutes);
     private string _sessionPacingAccountName = string.Empty;
 
     // >0 while a scope-limited manual function (Analyze farmlists / Add farms / Create farmlists / Travco)
@@ -82,8 +90,21 @@ public partial class MainWindow
         }
 
         _sessionPacingAccountName = accountName;
+        var sessionPacingEnabled = ReadBool(config, BotOptionPayloadKeys.SessionPacingEnabled, PacingDefaults.SessionPacingEnabled);
+        var smartSleepEnabled = ReadBool(config, BotOptionPayloadKeys.SmartSleepEnabled, PacingDefaults.SmartSleepEnabled);
+        if (sessionPacingEnabled && smartSleepEnabled)
+        {
+            sessionPacingEnabled = false;
+        }
+        _smartSleepSettings = new SmartSleepSettings(
+            smartSleepEnabled,
+            ReadInt(config, BotOptionPayloadKeys.SmartSleepMinimumOpportunityMinutes, PacingDefaults.SmartSleepMinimumOpportunityMinutes, 1, 1440),
+            ReadInt(config, BotOptionPayloadKeys.SmartSleepWakeBeforeMinutes, PacingDefaults.SmartSleepWakeBeforeMinutes, 0, 1440),
+            ReadInt(config, BotOptionPayloadKeys.SmartSleepWakeAfterMinutes, PacingDefaults.SmartSleepWakeAfterMinutes, 0, 1440),
+            ReadInt(config, BotOptionPayloadKeys.SmartSleepFallbackMinMinutes, PacingDefaults.SmartSleepFallbackMinMinutes, 1, 10080),
+            ReadInt(config, BotOptionPayloadKeys.SmartSleepFallbackMaxMinutes, PacingDefaults.SmartSleepFallbackMaxMinutes, 1, 10080));
         _sessionPacer.Configure(new SessionPacerSettings(
-            ReadBool(config, BotOptionPayloadKeys.SessionPacingEnabled, PacingDefaults.SessionPacingEnabled),
+            sessionPacingEnabled || smartSleepEnabled,
             ReadInt(config, BotOptionPayloadKeys.SessionPacingRunMinMinutes, PacingDefaults.SessionPacingRunMinMinutes, 1, 10080),
             ReadInt(config, BotOptionPayloadKeys.SessionPacingRunMaxMinutes, PacingDefaults.SessionPacingRunMaxMinutes, 1, 10080),
             ReadInt(config, BotOptionPayloadKeys.SessionPacingSleepMinMinutes, PacingDefaults.SessionPacingSleepMinMinutes, 5, 10080),
@@ -93,7 +114,8 @@ public partial class MainWindow
             ReadRuntimeDate(config),
             ReadDouble(config, BotOptionPayloadKeys.SessionPacingRuntimeSeconds, 0, 0, 86400),
             ReadInt(config, BotOptionPayloadKeys.SessionPacingDailyMaxVariationPercent, PacingDefaults.SessionPacingDailyMaxVariationPercent, 0, 50),
-            ReadInt(config, BotOptionPayloadKeys.SessionPacingHoursVariationPercent, PacingDefaults.SessionPacingHoursVariationPercent, 0, 49)),
+            ReadInt(config, BotOptionPayloadKeys.SessionPacingHoursVariationPercent, PacingDefaults.SessionPacingHoursVariationPercent, 0, 49),
+            RunTimerEnabled: sessionPacingEnabled),
             reloadRuntime);
         ConfigureProxyPlanTransition(accountName);
     }
@@ -151,6 +173,7 @@ public partial class MainWindow
     {
         _sleepSnapshot = SleepSnapshot.Idle;
         _sessionPacingSleepDeferredForManualOperation = false;
+        _smartSleepForceVillageScanOnWake = false;
         _pacingPauseRequestCount = 0;
         _sessionPacer.Reset();
     }
@@ -365,6 +388,13 @@ public partial class MainWindow
             if (!await TryWakeLoginWithRetryAsync())
             {
                 return;
+            }
+
+            if (_smartSleepForceVillageScanOnWake)
+            {
+                _smartSleepForceVillageScanOnWake = false;
+                _villageStatusRoundRuntime.RequestForce();
+                AppendLog("[smart-sleep] fallback wake will run one Village Status Round.");
             }
 
             var loopIdle = !IsContinuousLoopRunning();
@@ -783,6 +813,31 @@ public partial class MainWindow
         return rows.Count > 0
             ? rows
             : [new DailyPacingTaskRow("No verified task activity yet", 0, "-", "-")];
+    }
+
+    private bool TryRequestSmartSleep(DateTimeOffset? trustedDeadlineUtc)
+    {
+        if (!_smartSleepSettings.Enabled || IsSessionSleeping || _sessionPacingSleepInProgress)
+        {
+            return false;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var plan = SmartSleepPlanner.Plan(now, trustedDeadlineUtc, _smartSleepSettings);
+        if (!plan.ShouldSleep || plan.WakeAtUtc is not { } wakeAt)
+        {
+            return false;
+        }
+
+        AppendLog(
+            $"[smart-sleep] idle opportunity detected; wake planned at {FormatQueueServerTime(wakeAt)} "
+            + (plan.UsesFallback ? "(fallback check)." : "(automation deadline)."));
+        var requested = _sessionPacer.RequestSmartSleep(wakeAt);
+        if (requested)
+        {
+            _smartSleepForceVillageScanOnWake = plan.UsesFallback;
+        }
+        return requested;
     }
 
     private void OnTaskActivityRecorded(BotTaskActivity activity)

@@ -949,6 +949,10 @@ public partial class MainWindow
 
             await MaybeKeepBrowserFreshDuringContinuousLoopAsync(options, cancellationToken);
             var waitDelay = ResolveContinuousLoopWaitDelay(options);
+            DateTimeOffset? smartSleepDeadline = waitDelay is { } trustedDelay
+                ? DateTimeOffset.UtcNow.Add(trustedDelay)
+                : null;
+            _ = TryRequestSmartSleep(smartSleepDeadline);
             var totalSeconds = AutomationDeadlinePolicy.ResolveWaitSeconds(
                 waitDelay,
                 options,
@@ -1036,6 +1040,7 @@ public partial class MainWindow
             $"[AUTOQ {_automationPassRuntime.AutoQueueRunLogId}] WAIT "
             + $"{Math.Max(0, (nextDeferredItem.NextAttemptAt - now).TotalSeconds):F0}s "
             + $"for deferred task={nextDeferredItem.TaskName}");
+        _ = TryRequestSmartSleep(nextDeferredItem.NextAttemptAt);
         return new AutomationStateSnapshot([AutomationCandidate.FromQueueItem(nextDeferredItem)]);
     }
 

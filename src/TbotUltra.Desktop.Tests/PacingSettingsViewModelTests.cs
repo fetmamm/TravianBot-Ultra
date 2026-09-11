@@ -6,6 +6,19 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class PacingSettingsViewModelTests
 {
     [Fact]
+    public void SleepModes_AreMutuallyExclusiveButMayBothBeOff()
+    {
+        var vm = new PacingSettingsViewModel();
+
+        vm.SmartSleepEnabled = true;
+        Assert.False(vm.SessionPacingEnabled);
+        vm.SmartSleepEnabled = false;
+
+        Assert.False(vm.SessionPacingEnabled);
+        Assert.False(vm.SmartSleepEnabled);
+    }
+
+    [Fact]
     public void ResetDefaults_RestoresEditablePacingValues()
     {
         var vm = new PacingSettingsViewModel

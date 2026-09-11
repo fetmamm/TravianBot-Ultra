@@ -16,6 +16,13 @@ public static class PacingDefaults
     // 0 disables (exact boundaries). Capped at 49% so adjacent boundaries never reorder.
     public const int SessionPacingHoursVariationPercent = 30;
 
+    public const bool SmartSleepEnabled = false;
+    public const int SmartSleepMinimumOpportunityMinutes = 20;
+    public const int SmartSleepWakeBeforeMinutes = 5;
+    public const int SmartSleepWakeAfterMinutes = 10;
+    public const int SmartSleepFallbackMinMinutes = 30;
+    public const int SmartSleepFallbackMaxMinutes = 60;
+
     public const bool ActionPacingEnabled = true;
     public const double ActionPacingTaskMinSeconds = 0.8;
     public const double ActionPacingTaskMaxSeconds = 2.0;

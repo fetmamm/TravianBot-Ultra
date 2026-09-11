@@ -301,6 +301,12 @@ public static class BotOptionPayloadKeys
     public const string SessionPacingRuntimeDate = "session_pacing_runtime_date";
     public const string SessionPacingRuntimeSeconds = "session_pacing_runtime_seconds";
     public const string SessionPacingDailyHistory = "session_pacing_daily_history";
+    public const string SmartSleepEnabled = "smart_sleep_enabled";
+    public const string SmartSleepMinimumOpportunityMinutes = "smart_sleep_minimum_opportunity_minutes";
+    public const string SmartSleepWakeBeforeMinutes = "smart_sleep_wake_before_minutes";
+    public const string SmartSleepWakeAfterMinutes = "smart_sleep_wake_after_minutes";
+    public const string SmartSleepFallbackMinMinutes = "smart_sleep_fallback_min_minutes";
+    public const string SmartSleepFallbackMaxMinutes = "smart_sleep_fallback_max_minutes";
     public const string SessionActivityHistory = "session_activity_history";
 
     public const string ActionPacingEnabled = "action_pacing_enabled";

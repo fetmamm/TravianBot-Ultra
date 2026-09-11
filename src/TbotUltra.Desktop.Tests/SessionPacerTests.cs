@@ -7,6 +7,23 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class SessionPacerTests
 {
     [Fact]
+    public void SmartSleep_UsesRequestedWakeAndDisablesRunTimer()
+    {
+        var now = new DateTimeOffset(2026, 9, 11, 10, 0, 0, TimeSpan.Zero);
+        var wakeAt = now.AddMinutes(45);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(true, 15, 50, 10, 40, RunTimerEnabled: false));
+        pacer.NotifyAutomationStarted();
+        pacer.SleepStarting += (_, _) => pacer.BeginSleep();
+
+        Assert.Null(pacer.TimeUntilSleep);
+        Assert.True(pacer.RequestSmartSleep(wakeAt));
+
+        Assert.Equal(SessionSleepReason.SmartSleep, pacer.SleepReason);
+        Assert.Equal(wakeAt, pacer.PlannedWakeAt);
+    }
+
+    [Fact]
     public void PauseAndResumeSleep_PreservesRemainingTime()
     {
         var now = new DateTimeOffset(2026, 7, 22, 12, 0, 0, TimeSpan.Zero);

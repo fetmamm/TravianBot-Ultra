@@ -132,6 +132,10 @@ _Avoid_: Loop tick, Auto Queue iteration
 The verified Official Travian flow that opens the Rally Point troop form and prepares troop dispatch for combat or Farm Lists.
 _Avoid_: Manual Farming, Natar farming
 
+**Farm List Dispatch Interval**:
+The optional minimum/maximum wait for one toggled Farm List, measured from its latest successful dispatch. When absent, the account-wide farming interval applies.
+_Avoid_: Farm-list pacing, round delay
+
 **Manual Farming**:
 The removed desktop-only manual farming UI and its saved preferences. It is not Send Troops, Farm Lists, Catapults, or Reinforcements.
 _Avoid_: Manual attack flow

@@ -452,6 +452,7 @@ public partial class MainWindow
         Services.Orchestration.SessionSleepReason.DailyLimit => "Daily runtime limit",
         Services.Orchestration.SessionSleepReason.Manual => "Manual sleep",
         Services.Orchestration.SessionSleepReason.SessionPacing => "Session pacing",
+        Services.Orchestration.SessionSleepReason.SmartSleep => "Smart sleep",
         _ => "Sleeping",
     };
 }

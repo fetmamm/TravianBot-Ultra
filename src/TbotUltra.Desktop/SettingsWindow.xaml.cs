@@ -817,6 +817,11 @@ public partial class SettingsWindow : Window
             (SessionRunMaxMinutesTextBox, "Session pacing run maximum", true, 1, 10080),
             (SessionSleepMinMinutesTextBox, "Session pacing sleep minimum", true, 5, 10080),
             (SessionSleepMaxMinutesTextBox, "Session pacing sleep maximum", true, 5, 10080),
+            (SmartSleepMinimumOpportunityTextBox, "Smart sleep opportunity", true, 1, 1440),
+            (SmartSleepWakeBeforeTextBox, "Smart sleep wake-before", true, 0, 1440),
+            (SmartSleepWakeAfterTextBox, "Smart sleep wake-after", true, 0, 1440),
+            (SmartSleepFallbackMinTextBox, "Smart sleep fallback minimum", true, 1, 10080),
+            (SmartSleepFallbackMaxTextBox, "Smart sleep fallback maximum", true, 1, 10080),
             (ActionTaskMinTextBox, "Task action delay minimum", false, 0, 3600),
             (ActionTaskMaxTextBox, "Task action delay maximum", false, 0, 3600),
             (ActionPageLoadMinTextBox, "Page-load delay minimum", false, 0, 3600),
@@ -893,6 +898,7 @@ public partial class SettingsWindow : Window
         {
             (SessionRunMinMinutesTextBox, SessionRunMaxMinutesTextBox, "Session pacing run", true),
             (SessionSleepMinMinutesTextBox, SessionSleepMaxMinutesTextBox, "Session pacing sleep", true),
+            (SmartSleepFallbackMinTextBox, SmartSleepFallbackMaxTextBox, "Smart sleep fallback", true),
             (ActionTaskMinTextBox, ActionTaskMaxTextBox, "Task action delay", false),
             (ActionPageLoadMinTextBox, ActionPageLoadMaxTextBox, "Page-load delay", false),
             (ActionClickMinTextBox, ActionClickMaxTextBox, "Click delay", false),
@@ -1340,6 +1346,12 @@ public partial class SettingsWindow : Window
         ContinuousKeepAliveMinMinutesTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.ContinuousKeepAliveMinMinutes);
         ContinuousKeepAliveMaxMinutesTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.ContinuousKeepAliveMaxMinutes);
         SessionPacingEnabledCheckBox.SetCurrentValue(ToggleButton.IsCheckedProperty, SettingsVm.Pacing.SessionPacingEnabled);
+        SmartSleepEnabledCheckBox.SetCurrentValue(ToggleButton.IsCheckedProperty, SettingsVm.Pacing.SmartSleepEnabled);
+        SmartSleepMinimumOpportunityTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes);
+        SmartSleepWakeBeforeTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.SmartSleepWakeBeforeMinutes);
+        SmartSleepWakeAfterTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.SmartSleepWakeAfterMinutes);
+        SmartSleepFallbackMinTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.SmartSleepFallbackMinMinutes);
+        SmartSleepFallbackMaxTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.SmartSleepFallbackMaxMinutes);
         SessionRunMinMinutesTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.SessionRunMinMinutes);
         SessionRunMaxMinutesTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.SessionRunMaxMinutes);
         SessionSleepMinMinutesTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.SessionSleepMinMinutes);
@@ -1532,6 +1544,12 @@ public partial class SettingsWindow : Window
     private void LoadPacingConfigToUi()
     {
         SettingsVm.Pacing.SessionPacingEnabled = ReadBool(BotOptionPayloadKeys.SessionPacingEnabled, PacingDefaults.SessionPacingEnabled);
+        SettingsVm.Pacing.SmartSleepEnabled = ReadBool(BotOptionPayloadKeys.SmartSleepEnabled, PacingDefaults.SmartSleepEnabled);
+        SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes = ReadInt(BotOptionPayloadKeys.SmartSleepMinimumOpportunityMinutes, PacingDefaults.SmartSleepMinimumOpportunityMinutes).ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.SmartSleepWakeBeforeMinutes = ReadInt(BotOptionPayloadKeys.SmartSleepWakeBeforeMinutes, PacingDefaults.SmartSleepWakeBeforeMinutes).ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.SmartSleepWakeAfterMinutes = ReadInt(BotOptionPayloadKeys.SmartSleepWakeAfterMinutes, PacingDefaults.SmartSleepWakeAfterMinutes).ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.SmartSleepFallbackMinMinutes = ReadInt(BotOptionPayloadKeys.SmartSleepFallbackMinMinutes, PacingDefaults.SmartSleepFallbackMinMinutes).ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.SmartSleepFallbackMaxMinutes = ReadInt(BotOptionPayloadKeys.SmartSleepFallbackMaxMinutes, PacingDefaults.SmartSleepFallbackMaxMinutes).ToString(CultureInfo.InvariantCulture);
         SettingsVm.Pacing.SessionRunMinMinutes = ReadInt(BotOptionPayloadKeys.SessionPacingRunMinMinutes, PacingDefaults.SessionPacingRunMinMinutes).ToString(CultureInfo.InvariantCulture);
         SettingsVm.Pacing.SessionRunMaxMinutes = ReadInt(BotOptionPayloadKeys.SessionPacingRunMaxMinutes, PacingDefaults.SessionPacingRunMaxMinutes).ToString(CultureInfo.InvariantCulture);
         SettingsVm.Pacing.SessionSleepMinMinutes = ReadInt(BotOptionPayloadKeys.SessionPacingSleepMinMinutes, PacingDefaults.SessionPacingSleepMinMinutes).ToString(CultureInfo.InvariantCulture);
@@ -1598,6 +1616,12 @@ public partial class SettingsWindow : Window
     private void SavePacingConfigFromUi(JsonObject target)
     {
         target[BotOptionPayloadKeys.SessionPacingEnabled] = SettingsVm.Pacing.SessionPacingEnabled;
+        target[BotOptionPayloadKeys.SmartSleepEnabled] = SettingsVm.Pacing.SmartSleepEnabled;
+        target[BotOptionPayloadKeys.SmartSleepMinimumOpportunityMinutes] = ReadIntText(SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes, PacingDefaults.SmartSleepMinimumOpportunityMinutes, 1, 1440);
+        target[BotOptionPayloadKeys.SmartSleepWakeBeforeMinutes] = ReadIntText(SettingsVm.Pacing.SmartSleepWakeBeforeMinutes, PacingDefaults.SmartSleepWakeBeforeMinutes, 0, 1440);
+        target[BotOptionPayloadKeys.SmartSleepWakeAfterMinutes] = ReadIntText(SettingsVm.Pacing.SmartSleepWakeAfterMinutes, PacingDefaults.SmartSleepWakeAfterMinutes, 0, 1440);
+        target[BotOptionPayloadKeys.SmartSleepFallbackMinMinutes] = ReadIntText(SettingsVm.Pacing.SmartSleepFallbackMinMinutes, PacingDefaults.SmartSleepFallbackMinMinutes, 1, 10080);
+        target[BotOptionPayloadKeys.SmartSleepFallbackMaxMinutes] = ReadIntText(SettingsVm.Pacing.SmartSleepFallbackMaxMinutes, PacingDefaults.SmartSleepFallbackMaxMinutes, 1, 10080);
         target[BotOptionPayloadKeys.SessionPacingRunMinMinutes] = ReadIntText(SettingsVm.Pacing.SessionRunMinMinutes, PacingDefaults.SessionPacingRunMinMinutes, 1, 10080);
         target[BotOptionPayloadKeys.SessionPacingRunMaxMinutes] = ReadIntText(SettingsVm.Pacing.SessionRunMaxMinutes, PacingDefaults.SessionPacingRunMaxMinutes, 1, 10080);
         target[BotOptionPayloadKeys.SessionPacingSleepMinMinutes] = ReadIntText(SettingsVm.Pacing.SessionSleepMinMinutes, PacingDefaults.SessionPacingSleepMinMinutes, 5, 10080);

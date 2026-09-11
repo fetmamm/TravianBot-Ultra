@@ -41,6 +41,12 @@ public sealed class PacingSettingsViewModel : BaseViewModel
     private string _continuousKeepAliveMinMinutes = PacingDefaults.ContinuousKeepAliveMinMinutes.ToString(CultureInfo.InvariantCulture);
     private string _continuousKeepAliveMaxMinutes = PacingDefaults.ContinuousKeepAliveMaxMinutes.ToString(CultureInfo.InvariantCulture);
     private bool _sessionPacingEnabled = PacingDefaults.SessionPacingEnabled;
+    private bool _smartSleepEnabled = PacingDefaults.SmartSleepEnabled;
+    private string _smartSleepMinimumOpportunityMinutes = PacingDefaults.SmartSleepMinimumOpportunityMinutes.ToString(CultureInfo.InvariantCulture);
+    private string _smartSleepWakeBeforeMinutes = PacingDefaults.SmartSleepWakeBeforeMinutes.ToString(CultureInfo.InvariantCulture);
+    private string _smartSleepWakeAfterMinutes = PacingDefaults.SmartSleepWakeAfterMinutes.ToString(CultureInfo.InvariantCulture);
+    private string _smartSleepFallbackMinMinutes = PacingDefaults.SmartSleepFallbackMinMinutes.ToString(CultureInfo.InvariantCulture);
+    private string _smartSleepFallbackMaxMinutes = PacingDefaults.SmartSleepFallbackMaxMinutes.ToString(CultureInfo.InvariantCulture);
     private string _sessionRunMinMinutes = PacingDefaults.SessionPacingRunMinMinutes.ToString(CultureInfo.InvariantCulture);
     private string _sessionRunMaxMinutes = PacingDefaults.SessionPacingRunMaxMinutes.ToString(CultureInfo.InvariantCulture);
     private string _sessionSleepMinMinutes = PacingDefaults.SessionPacingSleepMinMinutes.ToString(CultureInfo.InvariantCulture);
@@ -108,7 +114,35 @@ public sealed class PacingSettingsViewModel : BaseViewModel
     public bool ContinuousKeepAliveEnabled { get => _continuousKeepAliveEnabled; set => SetProperty(ref _continuousKeepAliveEnabled, value); }
     public string ContinuousKeepAliveMinMinutes { get => _continuousKeepAliveMinMinutes; set => SetProperty(ref _continuousKeepAliveMinMinutes, value); }
     public string ContinuousKeepAliveMaxMinutes { get => _continuousKeepAliveMaxMinutes; set => SetProperty(ref _continuousKeepAliveMaxMinutes, value); }
-    public bool SessionPacingEnabled { get => _sessionPacingEnabled; set => SetProperty(ref _sessionPacingEnabled, value); }
+    public bool SessionPacingEnabled
+    {
+        get => _sessionPacingEnabled;
+        set
+        {
+            if (SetProperty(ref _sessionPacingEnabled, value) && value && _smartSleepEnabled)
+            {
+                _smartSleepEnabled = false;
+                OnPropertyChanged(nameof(SmartSleepEnabled));
+            }
+        }
+    }
+    public bool SmartSleepEnabled
+    {
+        get => _smartSleepEnabled;
+        set
+        {
+            if (SetProperty(ref _smartSleepEnabled, value) && value && _sessionPacingEnabled)
+            {
+                _sessionPacingEnabled = false;
+                OnPropertyChanged(nameof(SessionPacingEnabled));
+            }
+        }
+    }
+    public string SmartSleepMinimumOpportunityMinutes { get => _smartSleepMinimumOpportunityMinutes; set => SetProperty(ref _smartSleepMinimumOpportunityMinutes, value); }
+    public string SmartSleepWakeBeforeMinutes { get => _smartSleepWakeBeforeMinutes; set => SetProperty(ref _smartSleepWakeBeforeMinutes, value); }
+    public string SmartSleepWakeAfterMinutes { get => _smartSleepWakeAfterMinutes; set => SetProperty(ref _smartSleepWakeAfterMinutes, value); }
+    public string SmartSleepFallbackMinMinutes { get => _smartSleepFallbackMinMinutes; set => SetProperty(ref _smartSleepFallbackMinMinutes, value); }
+    public string SmartSleepFallbackMaxMinutes { get => _smartSleepFallbackMaxMinutes; set => SetProperty(ref _smartSleepFallbackMaxMinutes, value); }
     public string SessionRunMinMinutes { get => _sessionRunMinMinutes; set => SetProperty(ref _sessionRunMinMinutes, value); }
     public string SessionRunMaxMinutes { get => _sessionRunMaxMinutes; set => SetProperty(ref _sessionRunMaxMinutes, value); }
     public string SessionSleepMinMinutes { get => _sessionSleepMinMinutes; set => SetProperty(ref _sessionSleepMinMinutes, value); }
@@ -188,6 +222,12 @@ public sealed class PacingSettingsViewModel : BaseViewModel
         ContinuousKeepAliveMinMinutes = PacingDefaults.ContinuousKeepAliveMinMinutes.ToString(CultureInfo.InvariantCulture);
         ContinuousKeepAliveMaxMinutes = PacingDefaults.ContinuousKeepAliveMaxMinutes.ToString(CultureInfo.InvariantCulture);
         SessionPacingEnabled = PacingDefaults.SessionPacingEnabled;
+        SmartSleepEnabled = PacingDefaults.SmartSleepEnabled;
+        SmartSleepMinimumOpportunityMinutes = PacingDefaults.SmartSleepMinimumOpportunityMinutes.ToString(CultureInfo.InvariantCulture);
+        SmartSleepWakeBeforeMinutes = PacingDefaults.SmartSleepWakeBeforeMinutes.ToString(CultureInfo.InvariantCulture);
+        SmartSleepWakeAfterMinutes = PacingDefaults.SmartSleepWakeAfterMinutes.ToString(CultureInfo.InvariantCulture);
+        SmartSleepFallbackMinMinutes = PacingDefaults.SmartSleepFallbackMinMinutes.ToString(CultureInfo.InvariantCulture);
+        SmartSleepFallbackMaxMinutes = PacingDefaults.SmartSleepFallbackMaxMinutes.ToString(CultureInfo.InvariantCulture);
         SessionRunMinMinutes = PacingDefaults.SessionPacingRunMinMinutes.ToString(CultureInfo.InvariantCulture);
         SessionRunMaxMinutes = PacingDefaults.SessionPacingRunMaxMinutes.ToString(CultureInfo.InvariantCulture);
         SessionSleepMinMinutes = PacingDefaults.SessionPacingSleepMinMinutes.ToString(CultureInfo.InvariantCulture);
