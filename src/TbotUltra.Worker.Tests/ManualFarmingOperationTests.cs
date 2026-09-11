@@ -55,11 +55,16 @@ public sealed class ManualFarmingOperationTests
         public Task<IReadOnlyList<FarmListOverview>> ReadFarmListsOverviewAsync(CancellationToken cancellationToken = default) => Record("overview", cancellationToken, Overview);
         public Task<int?> SendFarmListNowAsync(string farmListName, CancellationToken cancellationToken = default) => Record("one", cancellationToken, (int?)1);
         public Task<int> SendAllFarmListsNowAsync(CancellationToken cancellationToken = default) => Record("all", cancellationToken, 2);
-        public Task<int> SendSelectedFarmListsNowAsync(IReadOnlyCollection<string> selectedNames, IReadOnlyCollection<string> selectedIds, CancellationToken cancellationToken = default)
+        public Task<FarmListSendBatchResult> SendSelectedFarmListsNowAsync(IReadOnlyCollection<string> selectedNames, IReadOnlyCollection<string> selectedIds, CancellationToken cancellationToken = default)
         {
             SelectedNames = selectedNames;
             SelectedIds = selectedIds;
-            return Record("selected", cancellationToken, 3);
+            return Record(
+                "selected",
+                cancellationToken,
+                new FarmListSendBatchResult(
+                    [new("A", "1"), new("B", "2"), new("C", "3")],
+                    [new("A", "1"), new("B", "2"), new("C", "3")]));
         }
         public Task<int> SendAllFarmListsViaStartAllButtonAsync(CancellationToken cancellationToken = default) => Record("start-all", cancellationToken, 4);
         public Task<FarmListLossDeactivationResult> DeactivateFarmListLossTargetsAsync(bool includeUnoccupiedOasis, CancellationToken cancellationToken = default) => throw new NotSupportedException();

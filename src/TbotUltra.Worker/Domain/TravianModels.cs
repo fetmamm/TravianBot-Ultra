@@ -412,6 +412,15 @@ public sealed record FarmListOverview(
     // wrapper, so this ordinal is the grouping key that keeps two villages with the same display name apart.
     int? VillageIndex = null);
 
+public sealed record FarmListSendEntry(string Name, string? ListId);
+
+public sealed record FarmListSendBatchResult(
+    IReadOnlyList<FarmListSendEntry> AttemptedLists,
+    IReadOnlyList<FarmListSendEntry> SentLists)
+{
+    public int SentCount => SentLists.Count;
+}
+
 public sealed record FarmListLossDeactivationResult(
     int RowsFound,
     int RowsDeactivated,

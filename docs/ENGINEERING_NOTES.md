@@ -673,8 +673,11 @@ Published artifacts belong under `artifacts/`, never beside source files.
   The wait between clicks is the "Send farmlists" action pacing (`FarmListStepDelayMin/MaxSeconds`, default
   1-4s, on the Settings pacing tab). "Send all lists" instead performs one click on Travian's
   `button.startAllFarmLists` control, using the established real-click-with-JS-fallback flow.
-  `ContinuousFarmDispatchDelay` (minutes) is the gap between whole rounds,
-  not between individual lists.
+  In "Send toggled lists", each list may override `ContinuousFarmDispatchDelay` with an account-scoped
+  Min/Max interval keyed by stable `lid`; blank overrides retain the global fallback. Persist the randomly
+  selected `NextSendAtUtc` with `LastSentAtUtc`, advance only confirmed sends, and reuse that deadline after
+  restart. Runtime edits and successful manual sends recalculate from the latest successful dispatch and wake
+  the existing farming task. "Send all lists" retains the global whole-round delay.
 - Farm-list rows dedupe/merge by stable `lid` (data-list), never by display name — two villages can hold
   same-named lists that a name key would collapse into one row/group. Rows are grouped in the UI by the owning
   `.villageWrapper` ordinal (read per analyze), not by name, so two villages that share a display name stay in
@@ -709,6 +712,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - A Farm Lists overview read refreshes the Official Farm Lists page exactly once before reading its React state,
   even when the browser is already on that page. Wait for the refreshed page and list wrappers before projecting
   counts and capacities into Add farms or the Desktop UI; later retry attempts may reuse the hydrated page.
+- A rendered empty Official Farm Lists page is identified by `#rallyPointFarmList .farmListCount .nominator`
+  containing zero. Treat that explicit count as complete immediately and skip the reopen retry; missing
+  `.farmListWrapper` elements alone are not proof that the React page finished rendering.
 - When Travian leaves a valid Add-target lookup unresolved, close/reopen the form and retry that same coordinate once
   before marking it failed. Definitive invalid-coordinate, occupied-oasis, duplicate, and verified Save outcomes are
   never retried; an exhausted lookup retry must state that Save was not attempted.

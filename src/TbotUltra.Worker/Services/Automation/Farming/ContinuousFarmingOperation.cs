@@ -58,24 +58,68 @@ internal sealed class ContinuousFarmingOperation(IFarmingClient client)
                 request.DispatchDelaySeconds);
         }
 
-        var readyLists = matchingLists.Where(item => item.RemainingSeconds is null or <= 0).ToList();
+        var nowUtc = request.NowUtc ?? DateTimeOffset.UtcNow;
+        var dueLists = matchingLists
+            .Where(item => !TryGetNextSendAt(request.NextSendAtUtcByKey, item, out var nextSendAtUtc)
+                || nextSendAtUtc <= nowUtc)
+            .ToList();
+        if (dueLists.Count <= 0)
+        {
+            var nextSendAtUtc = matchingLists
+                .Select(item => TryGetNextSendAt(request.NextSendAtUtcByKey, item, out var value)
+                    ? value
+                    : nowUtc)
+                .Min();
+            var waitSeconds = Math.Max(1, (int)Math.Ceiling((nextSendAtUtc - nowUtc).TotalSeconds));
+            log($"Continuous farming: no toggled farm list is due. Next list is due in {waitSeconds}s.");
+            return ContinuousFarmingDispatchResult.ForDefer("No toggled farm list is due.", waitSeconds);
+        }
+
+        var readyLists = dueLists.Where(item => item.RemainingSeconds is null or <= 0).ToList();
         if (readyLists.Count <= 0)
         {
-            var soonestRemaining = matchingLists.Min(item => item.RemainingSeconds is > 0 ? item.RemainingSeconds.Value : 1);
+            var soonestRemaining = dueLists.Min(item => item.RemainingSeconds is > 0 ? item.RemainingSeconds.Value : 1);
             var waitSeconds = Math.Max(1, soonestRemaining + Random.Shared.Next(5, 16));
-            log($"Continuous farming: none of the {matchingLists.Count} toggled list(s) is ready. Soonest ready in {waitSeconds}s.");
+            log($"Continuous farming: none of the {dueLists.Count} due list(s) is ready. Soonest ready in {waitSeconds}s.");
             return ContinuousFarmingDispatchResult.ForDefer("No toggled farm list is ready.", waitSeconds);
         }
 
         var lossHandlingResults = await HandleLossesIfEnabledAsync(request, log, cancellationToken);
-        log($"Continuous farming (toggled lists): sending {readyLists.Count}/{matchingLists.Count} ready list(s) this round; delay between rounds={request.DispatchDelaySeconds}s.");
-        var sent = await client.SendSelectedFarmListsNowAsync(selectedNames, selectedIds, cancellationToken);
-        log($"Continuous farming (toggled lists): {sent} list(s) dispatched this round.");
+        var dueNames = readyLists.Select(item => item.Name).ToList();
+        var dueIds = readyLists
+            .Select(item => item.ListId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id!)
+            .ToList();
+        log($"Continuous farming (toggled lists): sending {readyLists.Count}/{matchingLists.Count} due and ready list(s).");
+        var sendResult = await client.SendSelectedFarmListsNowAsync(dueNames, dueIds, cancellationToken);
+        log($"Continuous farming (toggled lists): {sendResult.SentCount} list(s) dispatched.");
         var refreshedOverview = await client.ReadFarmListsOverviewAsync(cancellationToken);
         return ContinuousFarmingDispatchResult.ForCompletedRound(
             refreshedOverview,
             request.DispatchDelaySeconds,
-            lossHandlingResults);
+            lossHandlingResults,
+            sendResult.AttemptedLists,
+            sendResult.SentLists);
+    }
+
+    private static bool TryGetNextSendAt(
+        IReadOnlyDictionary<string, DateTimeOffset?>? nextSendAtUtcByKey,
+        FarmListOverview list,
+        out DateTimeOffset nextSendAtUtc)
+    {
+        nextSendAtUtc = default;
+        if (nextSendAtUtcByKey is null ||
+            !nextSendAtUtcByKey.TryGetValue(
+                TbotUltra.Core.Farming.FarmListDispatchStateStore.CreateKey(list.ListId, list.Name),
+                out var value) ||
+            value is null)
+        {
+            return false;
+        }
+
+        nextSendAtUtc = value.Value;
+        return true;
     }
 
     private async Task<IReadOnlyList<FarmListLossDeactivationResult>?> HandleLossesIfEnabledAsync(
@@ -112,7 +156,9 @@ internal sealed record ContinuousFarmingDispatchRequest(
     int DispatchDelaySeconds,
     bool DeactivateLosses,
     FarmListLossHandlingRequest? LossHandlingRequest,
-    IReadOnlyList<FarmListLossHandlingRequest>? LossHandlingRequests = null);
+    IReadOnlyList<FarmListLossHandlingRequest>? LossHandlingRequests = null,
+    IReadOnlyDictionary<string, DateTimeOffset?>? NextSendAtUtcByKey = null,
+    DateTimeOffset? NowUtc = null);
 
 internal sealed record ContinuousFarmingDispatchResult(
     string WaitMessage,
@@ -121,7 +167,9 @@ internal sealed record ContinuousFarmingDispatchResult(
     IReadOnlyList<FarmListOverview>? Snapshot,
     FarmListLossDeactivationResult? LossHandlingResult,
     bool ScheduleNextRound,
-    IReadOnlyList<FarmListLossDeactivationResult>? LossHandlingResults = null)
+    IReadOnlyList<FarmListLossDeactivationResult>? LossHandlingResults = null,
+    IReadOnlyList<FarmListSendEntry>? AttemptedLists = null,
+    IReadOnlyList<FarmListSendEntry>? SentLists = null)
 {
     public static ContinuousFarmingDispatchResult ForDefer(string message, int waitSeconds) =>
         new(message, Math.Max(1, waitSeconds), null, null, null, false);
@@ -129,9 +177,11 @@ internal sealed record ContinuousFarmingDispatchResult(
     public static ContinuousFarmingDispatchResult ForCompletedRound(
         IReadOnlyList<FarmListOverview> snapshot,
         int waitSeconds,
-        IReadOnlyList<FarmListLossDeactivationResult>? lossHandlingResults) =>
+        IReadOnlyList<FarmListLossDeactivationResult>? lossHandlingResults,
+        IReadOnlyList<FarmListSendEntry>? attemptedLists = null,
+        IReadOnlyList<FarmListSendEntry>? sentLists = null) =>
         new("Continuous farming cooldown active.", Math.Max(1, waitSeconds), TaskWaitReasons.WorkQueued,
-            snapshot, CombineLossResults(lossHandlingResults), true, lossHandlingResults);
+            snapshot, CombineLossResults(lossHandlingResults), true, lossHandlingResults, attemptedLists, sentLists);
 
     private static FarmListLossDeactivationResult? CombineLossResults(IReadOnlyList<FarmListLossDeactivationResult>? results)
     {

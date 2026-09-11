@@ -110,6 +110,26 @@ public sealed class FarmListsViewModelTests
     }
 
     [Fact]
+    public void DispatchInterval_IsOptionalAndRequiresOrderedPositiveValues()
+    {
+        var row = Real("Raiders");
+
+        Assert.True(row.TryGetDispatchInterval(out var emptyMin, out var emptyMax));
+        Assert.Null(emptyMin);
+        Assert.Null(emptyMax);
+
+        row.IntervalMinMinutesText = "10";
+        row.IntervalMaxMinutesText = "5";
+        Assert.False(row.TryGetDispatchInterval(out _, out _));
+        Assert.True(row.HasIntervalError);
+
+        row.IntervalMaxMinutesText = "20";
+        Assert.True(row.TryGetDispatchInterval(out var min, out var max));
+        Assert.Equal(10, min);
+        Assert.Equal(20, max);
+    }
+
+    [Fact]
     public void IsRealRow_PlaceholderIsNotReal()
     {
         Assert.False(FarmListsViewModel.IsRealRow(new FarmListStatusRow { IsPlaceholder = true }));
@@ -171,6 +191,20 @@ public sealed class FarmListsViewModelTests
         Assert.Equal(1, changes);
         Assert.True(vm.SendAllLists);
         Assert.Equal("10", vm.DispatchDelayMinMinutes);
+    }
+
+    [Fact]
+    public void DispatchMode_ExplainsWhetherTheSharedIntervalIsFallbackOrAuthoritative()
+    {
+        var vm = new FarmListsViewModel();
+
+        Assert.Equal("Fallback interval", vm.DispatchIntervalTitle);
+        Assert.Contains("no individual interval", vm.DispatchIntervalDescription);
+
+        vm.SendAllLists = true;
+
+        Assert.Equal("Shared interval", vm.DispatchIntervalTitle);
+        Assert.Contains("all lists", vm.DispatchIntervalDescription);
     }
 
     [Fact]

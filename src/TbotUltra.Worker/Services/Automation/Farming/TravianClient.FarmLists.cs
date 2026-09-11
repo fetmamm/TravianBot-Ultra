@@ -39,10 +39,10 @@ public sealed partial class TravianClient : IFarmingClient
                 refreshCurrentPage: attempt == 1);
             await DismissDeactivatedTargetsNoticeAsync(cancellationToken);
             await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-            await WaitForFarmListsRenderedAsync(cancellationToken);
+            var confirmedEmpty = await WaitForFarmListsRenderedAsync(cancellationToken);
             await EnsureOfficialFarmListsExpandedAsync(cancellationToken);
             rows = await ReadFarmListsFromCurrentPageAsync(cancellationToken);
-            if (rows.Count > 0 || attempt == maxAttempts)
+            if (confirmedEmpty || rows.Count > 0 || attempt == maxAttempts)
             {
                 break;
             }
@@ -55,25 +55,53 @@ public sealed partial class TravianClient : IFarmingClient
         return rows;
     }
 
-    // Waits for the farm list wrappers to render before reading, so a slow React mount does
-    // not make us read an empty page. A genuinely empty account simply times out and reads zero.
-    private async Task WaitForFarmListsRenderedAsync(CancellationToken cancellationToken)
+    // Waits for either list wrappers or Travian's explicit zero-count marker. Missing wrappers
+    // alone are not enough to prove that React finished rendering an empty account.
+    private async Task<bool> WaitForFarmListsRenderedAsync(CancellationToken cancellationToken)
     {
         try
         {
             await _page.WaitForFunctionAsync(
-                "() => document.querySelectorAll('#rallyPointFarmList .farmListWrapper').length > 0",
+                """
+                () => {
+                    const root = document.querySelector('#rallyPointFarmList');
+                    if (!root) return false;
+                    if (root.querySelector('.farmListWrapper')) return true;
+
+                    const count = root.querySelector('.farmListCount .nominator')?.textContent ?? '';
+                    return count.replace(/[^0-9]/g, '') === '0';
+                }
+                """,
                 null,
                 new PageWaitForFunctionOptions { Timeout = 8000 }).WaitAsync(cancellationToken);
+
+            var confirmedEmpty = await _page.EvaluateAsync<bool>(
+                """
+                () => {
+                    const root = document.querySelector('#rallyPointFarmList');
+                    const count = root?.querySelector('.farmListCount .nominator')?.textContent ?? '';
+                    return !!root
+                        && !root.querySelector('.farmListWrapper')
+                        && count.replace(/[^0-9]/g, '') === '0';
+                }
+                """).WaitAsync(cancellationToken);
+            if (confirmedEmpty)
+            {
+                Notify("[farm-list] page rendered with an explicit zero farm-list count.");
+            }
+
+            return confirmedEmpty;
         }
         catch (TimeoutException)
         {
-            Notify("[farm-list] no farm list wrappers rendered within 8 seconds; the account may have no farm lists.");
+            Notify("[farm-list] neither farm list wrappers nor an explicit zero count rendered within 8 seconds.");
         }
         catch (PlaywrightException ex)
         {
             Notify($"[farm-list] waiting for farm list wrappers failed: {ex.Message}");
         }
+
+        return false;
     }
 
     public async Task<int?> SendFarmListNowAsync(string farmListName, CancellationToken cancellationToken = default)
@@ -106,10 +134,10 @@ public sealed partial class TravianClient : IFarmingClient
         return remaining;
     }
 
-    public Task<int> SendAllFarmListsNowAsync(CancellationToken cancellationToken = default)
-        => SendFarmListsSequentiallyAsync(selectedNames: null, selectedIds: null, throwIfNoneSendable: true, cancellationToken);
+    public async Task<int> SendAllFarmListsNowAsync(CancellationToken cancellationToken = default)
+        => (await SendFarmListsSequentiallyAsync(selectedNames: null, selectedIds: null, throwIfNoneSendable: true, cancellationToken)).SentCount;
 
-    public Task<int> SendSelectedFarmListsNowAsync(
+    public Task<FarmListSendBatchResult> SendSelectedFarmListsNowAsync(
         IReadOnlyCollection<string> selectedNames,
         IReadOnlyCollection<string> selectedIds,
         CancellationToken cancellationToken = default)
@@ -124,7 +152,7 @@ public sealed partial class TravianClient : IFarmingClient
     // "being raided" counter to rise (Travian's live confirmation the raids were dispatched) before the next
     // click. Clicking every list at once — or the single "start all" button — is unsafe: a list can silently
     // fail to send with no per-list feedback. The wait between each click is the "Send farmlists" pacing.
-    private async Task<int> SendFarmListsSequentiallyAsync(
+    private async Task<FarmListSendBatchResult> SendFarmListsSequentiallyAsync(
         IReadOnlySet<string>? selectedNames,
         IReadOnlySet<string>? selectedIds,
         bool throwIfNoneSendable,
@@ -159,11 +187,14 @@ public sealed partial class TravianClient : IFarmingClient
             }
 
             Notify("[farm-list] send: none of the selected farm lists is ready to send right now.");
-            return 0;
+            return new FarmListSendBatchResult([], []);
         }
 
         Notify($"[farm-list] send: sending {sendable.Count} list(s) one at a time.");
-        var sent = 0;
+        var attempted = sendable
+            .Select(entry => new FarmListSendEntry(entry.Name, entry.Lid))
+            .ToList();
+        var sent = new List<FarmListSendEntry>();
         for (var index = 0; index < sendable.Count; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -190,7 +221,7 @@ public sealed partial class TravianClient : IFarmingClient
 
             if (await WaitForFarmListRaidConfirmedAsync(entry.Lid, beingRaidedBefore, cancellationToken))
             {
-                sent++;
+                sent.Add(new FarmListSendEntry(entry.Name, entry.Lid));
                 Notify($"[farm-list] send: '{entry.Name}' dispatched (confirmed — being raided rose from {beingRaidedBefore}).");
             }
             else
@@ -199,8 +230,8 @@ public sealed partial class TravianClient : IFarmingClient
             }
         }
 
-        Notify($"[farm-list] send completed: {sent}/{sendable.Count} list(s) confirmed dispatched.");
-        return sent;
+        Notify($"[farm-list] send completed: {sent.Count}/{sendable.Count} list(s) confirmed dispatched.");
+        return new FarmListSendBatchResult(attempted, sent);
     }
 
     /// <summary>

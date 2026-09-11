@@ -16,6 +16,7 @@ using System.Windows.Data;
 using System.Windows.Threading;
 using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Farming;
 using TbotUltra.Core.Tasks;
 using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
@@ -300,6 +301,9 @@ public partial class MainWindow
                         IsEnabled = isSelected,
                         RemainingSeconds = value.RemainingSeconds,
                         LastSentAtUtc = dispatchState?.LastSentAtUtc,
+                        NextSendAtUtc = dispatchState?.NextSendAtUtc,
+                        IntervalMinMinutesText = dispatchState?.IntervalMinMinutes?.ToString() ?? string.Empty,
+                        IntervalMaxMinutesText = dispatchState?.IntervalMaxMinutes?.ToString() ?? string.Empty,
                         LastSendFailed = dispatchState?.Failed == true,
                         ShowLastSentTimer = _showFarmListLastSentTimer,
                         LastSentLimitEnabled = _farmListLastSentLimitEnabled,
@@ -388,15 +392,17 @@ public partial class MainWindow
             FarmingDefaults.NormalizeSendMode(LoadBotOptions().ContinuousFarmSendMode),
             FarmingDefaults.SendModeAllAtOnce,
             StringComparison.Ordinal);
-        var attemptedKeys = _farmLists
-            .Where(row => IsRealFarmListRow(row)
-                && FarmListDispatchStateStore.ShouldTrackDispatch(
-                    sendAllLists,
-                    row.IsEnabled,
-                    row.IsReady,
-                    row.IsEmpty))
-            .Select(FarmListDispatchKey)
-            .ToList();
+        var attemptedKeys = sendAllLists
+            ? _farmLists
+                .Where(row => IsRealFarmListRow(row) &&
+                    FarmListDispatchStateStore.ShouldTrackDispatch(
+                        true,
+                        row.IsEnabled,
+                        row.IsReady,
+                        row.IsEmpty))
+                .Select(FarmListDispatchKey)
+                .ToList()
+            : [];
 
         try
         {
@@ -405,7 +411,10 @@ public partial class MainWindow
             // rename ("not found") there is no fresh snapshot, so fall back to a full re-analyze.
             if (sendHappened && await TryApplyFarmListsSnapshotAsync())
             {
-                ReconcileFarmListDispatches(attemptedKeys);
+                if (sendAllLists)
+                {
+                    ReconcileFarmListDispatches(attemptedKeys);
+                }
                 return;
             }
 
@@ -1240,13 +1249,32 @@ public partial class MainWindow
             return;
         }
 
-        if (!string.Equals(e.PropertyName, nameof(FarmListStatusRow.IsEnabled), StringComparison.Ordinal))
+        if (sender is not FarmListStatusRow row)
         {
             return;
         }
 
-        PersistContinuousFarmListSelectionToConfig();
-        RefreshQueuedContinuousFarmListSelections();
+        if (string.Equals(e.PropertyName, nameof(FarmListStatusRow.IsEnabled), StringComparison.Ordinal))
+        {
+            PersistContinuousFarmListSelectionToConfig();
+            RefreshQueuedContinuousFarmListSelections();
+        }
+        else if (string.Equals(e.PropertyName, nameof(FarmListStatusRow.IntervalMinMinutesText), StringComparison.Ordinal) ||
+                 string.Equals(e.PropertyName, nameof(FarmListStatusRow.IntervalMaxMinutesText), StringComparison.Ordinal))
+        {
+            if (!row.TryGetDispatchInterval(out var minMinutes, out var maxMinutes))
+            {
+                UpdateFarmingUiState();
+                return;
+            }
+
+            PersistFarmListDispatchInterval(row, minMinutes, maxMinutes);
+        }
+        else
+        {
+            return;
+        }
+
         UpdateAutomationLoopRunningIndicators();
         UpdateFarmingUiState();
     }
@@ -1409,20 +1437,102 @@ public partial class MainWindow
     {
         try
         {
-            var states = FarmListDispatchStateStore.Load(_projectRoot, _accountStore.ActiveAccountName())
-                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
             var key = FarmListDispatchKey(row);
-            var state = new FarmListDispatchState(
-                succeeded ? DateTimeOffset.UtcNow : states.GetValueOrDefault(key)?.LastSentAtUtc,
-                Failed: !succeeded);
-            states[key] = state;
-            FarmListDispatchStateStore.Save(_projectRoot, _accountStore.ActiveAccountName(), states);
+            var options = LoadBotOptions();
+            var state = FarmListDispatchStateStore.Update(
+                _projectRoot,
+                _accountStore.ActiveAccountName(),
+                key,
+                previous =>
+                {
+                    previous ??= new FarmListDispatchState(null, Failed: false);
+                    if (!succeeded)
+                    {
+                        return previous with { Failed = true };
+                    }
+
+                    var sentAtUtc = DateTimeOffset.UtcNow;
+                    return previous with
+                    {
+                        LastSentAtUtc = sentAtUtc,
+                        Failed = false,
+                        NextSendAtUtc = sentAtUtc.AddSeconds(CalculateFarmListDispatchDelaySeconds(previous, options)),
+                    };
+                });
             row.LastSentAtUtc = state.LastSentAtUtc;
+            row.NextSendAtUtc = state.NextSendAtUtc;
             row.LastSendFailed = state.Failed;
+            if (succeeded)
+            {
+                WakeContinuousFarmScheduling();
+            }
         }
         catch (Exception ex)
         {
             AppendLog($"Could not save farm list dispatch status: {ex.Message}");
+        }
+    }
+
+    private void PersistFarmListDispatchInterval(FarmListStatusRow row, int? minMinutes, int? maxMinutes)
+    {
+        try
+        {
+            var options = LoadBotOptions();
+            var state = FarmListDispatchStateStore.Update(
+                _projectRoot,
+                _accountStore.ActiveAccountName(),
+                FarmListDispatchKey(row),
+                previous =>
+                {
+                    previous ??= new FarmListDispatchState(null, Failed: false);
+                    var updated = previous with
+                    {
+                        IntervalMinMinutes = minMinutes,
+                        IntervalMaxMinutes = maxMinutes,
+                    };
+                    return updated with
+                    {
+                        NextSendAtUtc = updated.LastSentAtUtc?.AddSeconds(
+                            CalculateFarmListDispatchDelaySeconds(updated, options)),
+                    };
+                });
+            row.NextSendAtUtc = state.NextSendAtUtc;
+            AppendLog(minMinutes is null
+                ? $"[farm-list] '{row.Name}' now uses the global dispatch interval."
+                : $"[farm-list] '{row.Name}' dispatch interval set to {minMinutes}-{maxMinutes} minutes.");
+            WakeContinuousFarmScheduling();
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"Could not save farm list dispatch interval: {ex.Message}");
+        }
+    }
+
+    private static int CalculateFarmListDispatchDelaySeconds(FarmListDispatchState state, BotOptions options)
+    {
+        var minMinutes = state.IntervalMinMinutes
+            ?? FarmingDefaults.NormalizeDispatchDelayMinMinutes(options.ContinuousFarmDispatchDelayMinMinutes);
+        var maxMinutes = state.IntervalMaxMinutes
+            ?? FarmingDefaults.NormalizeDispatchDelayMaxMinutes(options.ContinuousFarmDispatchDelayMaxMinutes);
+        return FarmingDefaults.CalculateDispatchDelaySeconds(minMinutes, Math.Max(minMinutes, maxMinutes));
+    }
+
+    private void WakeContinuousFarmScheduling()
+    {
+        var updated = false;
+        foreach (var item in _botService.GetQueueItemsForDisplay())
+        {
+            if (string.Equals(item.TaskName, "send_farmlists", StringComparison.OrdinalIgnoreCase) &&
+                item.Status == QueueStatus.Pending &&
+                _botService.UpdateDeferredQueueItem(item.Id, item.Payload, TimeSpan.Zero))
+            {
+                updated = true;
+            }
+        }
+
+        if (updated)
+        {
+            _automationDesk.Wake(AutomationWakeReason.QueueChanged);
         }
     }
 

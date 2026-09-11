@@ -35,8 +35,70 @@ public sealed class ContinuousFarmingOperationTests
         Assert.Equal(600, result.WaitSeconds);
         Assert.Equal(TaskWaitReasons.WorkQueued, result.WaitReasonCode);
         Assert.Equal("Mercs", Assert.Single(result.Snapshot!).Name);
+        Assert.Equal("42", Assert.Single(result.SentLists!).ListId);
         Assert.NotNull(result.LossHandlingResult);
         Assert.Contains(logs, line => line.Contains("1 list(s) dispatched", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_SelectedListWithFutureDeadline_DefersUntilItsOwnDeadline()
+    {
+        var now = new DateTimeOffset(2026, 9, 11, 12, 0, 0, TimeSpan.Zero);
+        var client = new FakeFarmingClient([new FarmListOverview("Mercs", 3, 3, 0, "42")]);
+        var operation = new ContinuousFarmingOperation(client);
+
+        var result = await operation.ExecuteAsync(
+            new ContinuousFarmingDispatchRequest(
+                FarmingDefaults.SendModeListPerList,
+                ["Mercs"],
+                ["42"],
+                600,
+                false,
+                null,
+                NextSendAtUtcByKey: new Dictionary<string, DateTimeOffset?>
+                {
+                    ["lid:42"] = now.AddMinutes(5),
+                },
+                NowUtc: now),
+            _ => { },
+            CancellationToken.None);
+
+        Assert.Equal(["read"], client.Calls);
+        Assert.Equal(300, result.WaitSeconds);
+        Assert.Equal("No toggled farm list is due.", result.WaitMessage);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_MixedDeadlines_SendsOnlyDueList()
+    {
+        var now = new DateTimeOffset(2026, 9, 11, 12, 0, 0, TimeSpan.Zero);
+        var overview = new[]
+        {
+            new FarmListOverview("Near", 3, 3, 0, "1"),
+            new FarmListOverview("Far", 3, 3, 0, "2"),
+        };
+        var client = new FakeFarmingClient(overview);
+        var operation = new ContinuousFarmingOperation(client);
+
+        var result = await operation.ExecuteAsync(
+            new ContinuousFarmingDispatchRequest(
+                FarmingDefaults.SendModeListPerList,
+                ["Near", "Far"],
+                ["1", "2"],
+                600,
+                false,
+                null,
+                NextSendAtUtcByKey: new Dictionary<string, DateTimeOffset?>
+                {
+                    ["lid:1"] = now,
+                    ["lid:2"] = now.AddMinutes(10),
+                },
+                NowUtc: now),
+            _ => { },
+            CancellationToken.None);
+
+        Assert.Equal(["1"], client.SelectedIds);
+        Assert.Equal("1", Assert.Single(result.SentLists!).ListId);
     }
 
     [Fact]
@@ -87,6 +149,32 @@ public sealed class ContinuousFarmingOperationTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_AllAtOnce_IgnoresPerListDeadlines()
+    {
+        var now = new DateTimeOffset(2026, 9, 11, 12, 0, 0, TimeSpan.Zero);
+        var client = new FakeFarmingClient([new FarmListOverview("Mercs", 3, 3, 0, "42")]);
+        var operation = new ContinuousFarmingOperation(client);
+
+        await operation.ExecuteAsync(
+            new ContinuousFarmingDispatchRequest(
+                FarmingDefaults.SendModeAllAtOnce,
+                [],
+                [],
+                600,
+                false,
+                null,
+                NextSendAtUtcByKey: new Dictionary<string, DateTimeOffset?>
+                {
+                    ["lid:42"] = now.AddHours(1),
+                },
+                NowUtc: now),
+            _ => { },
+            CancellationToken.None);
+
+        Assert.Equal(["start-all", "read"], client.Calls);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_HandlesRedAndYellowWithSeparateRequestsBeforeSending()
     {
         var client = new FakeFarmingClient([new FarmListOverview("Mercs", 3, 3, 0, "42")]);
@@ -119,6 +207,7 @@ public sealed class ContinuousFarmingOperationTests
 
         public List<string> Calls { get; } = [];
         public List<FarmListLossHandlingRequest> LossRequests { get; } = [];
+        public IReadOnlyCollection<string> SelectedIds { get; private set; } = [];
 
         public Task<IReadOnlyList<FarmListOverview>> ReadFarmListsOverviewAsync(CancellationToken cancellationToken = default)
         {
@@ -134,12 +223,17 @@ public sealed class ContinuousFarmingOperationTests
             return Task.FromResult(1);
         }
 
-        public Task<int> SendSelectedFarmListsNowAsync(IReadOnlyCollection<string> selectedNames, IReadOnlyCollection<string> selectedIds, CancellationToken cancellationToken = default)
+        public Task<FarmListSendBatchResult> SendSelectedFarmListsNowAsync(IReadOnlyCollection<string> selectedNames, IReadOnlyCollection<string> selectedIds, CancellationToken cancellationToken = default)
         {
             Calls.Add("send-selected");
-            Assert.Contains("Mercs", selectedNames);
-            Assert.Contains("42", selectedIds);
-            return Task.FromResult(1);
+            SelectedIds = selectedIds.ToList();
+            var sent = initialOverview
+                .Where(item => selectedIds.Count > 0
+                    ? item.ListId is not null && selectedIds.Contains(item.ListId)
+                    : selectedNames.Contains(item.Name))
+                .Select(item => new FarmListSendEntry(item.Name, item.ListId))
+                .ToList();
+            return Task.FromResult(new FarmListSendBatchResult(sent, sent));
         }
 
         public Task<int> SendAllFarmListsViaStartAllButtonAsync(CancellationToken cancellationToken = default)

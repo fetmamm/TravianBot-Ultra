@@ -1,4 +1,4 @@
-using TbotUltra.Desktop.Services;
+using TbotUltra.Core.Farming;
 using Xunit;
 
 namespace TbotUltra.Desktop.Tests;
@@ -22,6 +22,24 @@ public sealed class FarmListDispatchStateStoreTests
         Assert.Equal("lid:12345", key);
         Assert.Equal(sentAt, loaded[key].LastSentAtUtc);
         Assert.False(loaded[key].Failed);
+    }
+
+    [Fact]
+    public void SaveAndLoad_PersistsIndependentIntervalAndDeadline()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "tbot-farmlist-dispatch-tests", Guid.NewGuid().ToString("N"));
+        var next = new DateTimeOffset(2026, 9, 11, 12, 10, 0, TimeSpan.Zero);
+
+        FarmListDispatchStateStore.Save(root, "alice", new Dictionary<string, FarmListDispatchState>
+        {
+            ["lid:42"] = new(next.AddMinutes(-5), false, 5, 10, next),
+        });
+
+        var state = FarmListDispatchStateStore.Load(root, "alice")["lid:42"];
+
+        Assert.Equal(5, state.IntervalMinMinutes);
+        Assert.Equal(10, state.IntervalMaxMinutes);
+        Assert.Equal(next, state.NextSendAtUtc);
     }
 
     [Fact]

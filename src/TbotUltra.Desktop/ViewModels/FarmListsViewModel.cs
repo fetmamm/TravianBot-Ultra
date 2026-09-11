@@ -89,6 +89,8 @@ public sealed class FarmListsViewModel : BaseViewModel
             if (SetProperty(ref _sendAllLists, value))
             {
                 OnPropertyChanged(nameof(SendToggledLists));
+                OnPropertyChanged(nameof(DispatchIntervalTitle));
+                OnPropertyChanged(nameof(DispatchIntervalDescription));
                 OnSettingsChanged();
             }
         }
@@ -105,6 +107,12 @@ public sealed class FarmListsViewModel : BaseViewModel
             }
         }
     }
+
+    public string DispatchIntervalTitle => SendAllLists ? "Shared interval" : "Fallback interval";
+
+    public string DispatchIntervalDescription => SendAllLists
+        ? "A random delay is selected before all lists run again."
+        : "Used only when an enabled list has no individual interval.";
 
     public string DispatchDelayMinMinutes
     {

@@ -25,42 +25,33 @@
                                         CornerRadius="8"
                                         Padding="12"
                                         Margin="0,0,8,0">
-                                    <Grid MaxWidth="560" HorizontalAlignment="Left">
+                                    <Grid>
                                         <Grid.RowDefinitions>
-                                            <RowDefinition Height="Auto" />
                                             <RowDefinition Height="Auto" />
                                             <RowDefinition Height="*" />
                                         </Grid.RowDefinitions>
 
-                                        <TextBlock Grid.Row="0"
-                                                   Text="Farm List Management"
-                                                   FontSize="22"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                                   Margin="0,0,0,12" />
-
-                                        <StackPanel Grid.Row="1" Margin="0,0,0,12">
-                                            <!-- Analyze and Send-all share the top row so Send-all stays visible
-                                                 while the list below scrolls. Create sits under Analyze. -->
-                                            <Grid Margin="0,0,0,8">
+                                        <StackPanel Grid.Row="0" Margin="0,0,0,10">
+                                            <Grid>
                                                 <Grid.ColumnDefinitions>
-                                                    <ColumnDefinition Width="Auto" />
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <Button x:Name="AnalyzeFarmListsButton"
-                                                        Grid.Column="0"
-                                                        Content="Analyze Farmlists"
-                                                        Background="{DynamicResource SuccessBgBrush}"
-                                                        Foreground="{DynamicResource SuccessTextBrush}"
-                                                        BorderBrush="{DynamicResource SuccessBorderBrush}"
-                                                        MinWidth="150"
-                                                        Command="{Binding AnalyzeCommand}" />
+                                                <StackPanel>
+                                                    <TextBlock Text="Farm lists"
+                                                               FontSize="22"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                    <TextBlock Text="Choose which lists run and set their sending cadence."
+                                                               Foreground="{DynamicResource TextSubtleBrush}"
+                                                               Margin="0,3,0,0" />
+                                                </StackPanel>
                                                 <Button x:Name="FarmListSendAllNowButton"
-                                                        Grid.Column="2"
-                                                        Content="Send all Now"
-                                                        MinWidth="110"
+                                                        Grid.Column="1"
+                                                        Content="Send now"
+                                                        MinWidth="105"
                                                         Height="32"
+                                                        VerticalAlignment="Center"
                                                         IsEnabled="False"
                                                         Command="{Binding SendAllNowCommand}">
                                                     <Button.Style>
@@ -79,26 +70,14 @@
                                                     </Button.Style>
                                                 </Button>
                                             </Grid>
-                                            <WrapPanel>
-                                                <StackPanel>
-                                                    <Button x:Name="CreateFarmListButton"
-                                                            Content="Create Farmlist"
-                                                            MinWidth="150"
-                                                            Command="{Binding CreateFarmListCommand}" />
-                                                </StackPanel>
-                                                <Button x:Name="AddFarmsToListButton"
-                                                        Content="Add Farms to List"
-                                                        MinWidth="140"
-                                                        Command="{Binding AddFarmsCommand}" />
-                                            </WrapPanel>
                                             <TextBlock x:Name="FarmingStatusTextBlock"
                                                        Foreground="{DynamicResource TextMutedBrush}"
-                                                       Margin="0,8,0,0"
+                                                       Margin="0,6,0,0"
                                                        TextWrapping="Wrap"
                                                        Visibility="Collapsed" />
                                         </StackPanel>
 
-                                        <ScrollViewer Grid.Row="2" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                                        <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
                                                 <ItemsControl x:Name="FarmListsItemsControl"
                                                               ItemsSource="{Binding FarmLists}">
                                                     <ItemsControl.GroupStyle>
@@ -173,6 +152,10 @@
                                                                     </Style>
                                                                 </Border.Style>
                                                                 <Grid>
+                                                                    <Grid.RowDefinitions>
+                                                                        <RowDefinition Height="Auto" />
+                                                                        <RowDefinition Height="Auto" />
+                                                                    </Grid.RowDefinitions>
                                                                     <Grid.ColumnDefinitions>
                                                                         <ColumnDefinition Width="Auto" />
                                                                         <ColumnDefinition Width="*" />
@@ -181,6 +164,7 @@
                                                                     </Grid.ColumnDefinitions>
 
                                                                     <ToggleButton Grid.Column="0"
+                                                                                  Grid.RowSpan="2"
                                                                                   Style="{StaticResource AutomationToggleStyle}"
                                                                                   VerticalAlignment="Center"
                                                                                   Margin="0,0,10,0"
@@ -200,6 +184,95 @@
                                                                                              Value="{Binding FillPercent, Mode=OneWay}" />
                                                                             </StackPanel>
                                                                         </StackPanel>
+                                                                    </Border>
+
+                                                                    <Border Grid.Row="1"
+                                                                            Grid.Column="1"
+                                                                            Grid.ColumnSpan="3"
+                                                                            Margin="10,8,0,0"
+                                                                            Padding="8,5"
+                                                                            VerticalAlignment="Center"
+                                                                            Background="{DynamicResource ControlBackgroundBrush}"
+                                                                            BorderBrush="{DynamicResource BorderMutedBrush}"
+                                                                            BorderThickness="1"
+                                                                            CornerRadius="6"
+                                                                            IsEnabled="{Binding DataContext.SendToggledLists, RelativeSource={RelativeSource AncestorType={x:Type views:FarmingPanel}}}"
+                                                                            ToolTip="{Binding IntervalErrorText}">
+                                                                        <StackPanel>
+                                                                        <TextBlock Text="SEND EVERY (MIN)"
+                                                                                   FontSize="9"
+                                                                                   FontWeight="SemiBold"
+                                                                                   Foreground="{DynamicResource TextSubtleBrush}"
+                                                                                   Margin="0,0,0,3" />
+                                                                        <StackPanel Orientation="Horizontal">
+                                                                            <TextBox Width="42"
+                                                                                     Height="25"
+                                                                                     VerticalContentAlignment="Center"
+                                                                                     Text="{Binding IntervalMinMinutesText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                                                     ToolTip="Optional minimum. Leave both fields empty to use the global delay." />
+                                                                            <TextBlock Text="to" Margin="4,0" VerticalAlignment="Center"
+                                                                                       Foreground="{DynamicResource TextSubtleBrush}" />
+                                                                            <TextBox Width="42"
+                                                                                     Height="25"
+                                                                                     VerticalContentAlignment="Center"
+                                                                                     Text="{Binding IntervalMaxMinutesText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}"
+                                                                                     ToolTip="Optional maximum. Leave both fields empty to use the global delay." />
+                                                                        </StackPanel>
+                                                                        <Grid Margin="0,3,0,0">
+                                                                            <Grid.ColumnDefinitions>
+                                                                                <ColumnDefinition Width="*" />
+                                                                                <ColumnDefinition Width="Auto" />
+                                                                            </Grid.ColumnDefinitions>
+                                                                            <TextBlock FontSize="10"
+                                                                                       Foreground="{DynamicResource TextSubtleBrush}">
+                                                                                <TextBlock.Style>
+                                                                                    <Style TargetType="TextBlock">
+                                                                                        <Setter Property="Text" Value="Uses fallback interval" />
+                                                                                        <Style.Triggers>
+                                                                                            <DataTrigger Binding="{Binding HasIntervalOverride}" Value="True">
+                                                                                                <Setter Property="Text" Value="Individual interval" />
+                                                                                            </DataTrigger>
+                                                                                        </Style.Triggers>
+                                                                                    </Style>
+                                                                                </TextBlock.Style>
+                                                                            </TextBlock>
+                                                                            <TextBlock Grid.Column="1"
+                                                                                       Text="{Binding NextSendText}"
+                                                                                       FontSize="10"
+                                                                                       FontWeight="SemiBold"
+                                                                                       Foreground="{DynamicResource TextMutedBrush}" />
+                                                                        </Grid>
+                                                                        <TextBlock Text="{Binding IntervalErrorText}"
+                                                                                   FontSize="10"
+                                                                                   Foreground="{DynamicResource DangerTextBrush}"
+                                                                                   TextWrapping="Wrap"
+                                                                                   MaxWidth="110">
+                                                                            <TextBlock.Style>
+                                                                                <Style TargetType="TextBlock">
+                                                                                    <Setter Property="Visibility" Value="Collapsed" />
+                                                                                    <Style.Triggers>
+                                                                                        <DataTrigger Binding="{Binding HasIntervalError}" Value="True">
+                                                                                            <Setter Property="Visibility" Value="Visible" />
+                                                                                        </DataTrigger>
+                                                                                    </Style.Triggers>
+                                                                                </Style>
+                                                                            </TextBlock.Style>
+                                                                        </TextBlock>
+                                                                        </StackPanel>
+                                                                        <Border.Style>
+                                                                            <Style TargetType="Border">
+                                                                                <Setter Property="Opacity" Value="1" />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding HasFarmList}" Value="False">
+                                                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                                                    </DataTrigger>
+                                                                                    <Trigger Property="IsEnabled" Value="False">
+                                                                                        <Setter Property="Opacity" Value="0.45" />
+                                                                                        <Setter Property="ToolTip" Value="Switch to Individual schedules to set a separate interval for this list." />
+                                                                                    </Trigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </Border.Style>
                                                                     </Border>
 
                                                                     <Border Grid.Column="2"
@@ -288,12 +361,54 @@
                                     </Grid>
                                 </Border>
 
-                                <Grid Grid.Column="1" Margin="8,0,0,0">
-                                    <Grid.RowDefinitions>
-                                        <RowDefinition Height="*" />
-                                    </Grid.RowDefinitions>
+                                <ScrollViewer Grid.Column="1"
+                                              Margin="8,0,0,0"
+                                              VerticalScrollBarVisibility="Auto"
+                                              HorizontalScrollBarVisibility="Disabled">
+                                    <StackPanel>
+                                        <Border Background="{DynamicResource SurfaceBrush}"
+                                                BorderBrush="{DynamicResource BorderBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="8"
+                                                Padding="12"
+                                                Margin="0,0,0,10">
+                                            <StackPanel>
+                                                <TextBlock Text="Farm list tools"
+                                                           FontSize="18"
+                                                           FontWeight="SemiBold"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                <TextBlock Text="Refresh the overview or change list contents."
+                                                           Foreground="{DynamicResource TextSubtleBrush}"
+                                                           Margin="0,3,0,10" />
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="*" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <Button x:Name="AnalyzeFarmListsButton"
+                                                            Grid.Column="0"
+                                                            Content="Analyze lists"
+                                                            Background="{DynamicResource SuccessBgBrush}"
+                                                            Foreground="{DynamicResource SuccessTextBrush}"
+                                                            BorderBrush="{DynamicResource SuccessBorderBrush}"
+                                                            Margin="0,0,4,0"
+                                                            Command="{Binding AnalyzeCommand}" />
+                                                    <Button x:Name="CreateFarmListButton"
+                                                            Grid.Column="1"
+                                                            Content="Create list"
+                                                            Margin="4,0"
+                                                            Command="{Binding CreateFarmListCommand}" />
+                                                    <Button x:Name="AddFarmsToListButton"
+                                                            Grid.Column="2"
+                                                            Content="Add farms"
+                                                            Margin="4,0,0,0"
+                                                            Command="{Binding AddFarmsCommand}" />
+                                                </Grid>
+                                            </StackPanel>
+                                        </Border>
 
-                                    <Border Grid.Row="0"
+                                        <Border
                                             Background="{DynamicResource SurfaceBrush}"
                                             BorderBrush="{DynamicResource BorderBrush}"
                                             BorderThickness="1"
@@ -315,26 +430,73 @@
                                                     Padding="12"
                                                     Margin="0,0,0,10">
                                                 <StackPanel>
-                                                    <TextBlock Text="DISPATCH"
+                                                    <TextBlock Text="SENDING SCHEDULE"
                                                                FontSize="11"
                                                                FontWeight="SemiBold"
                                                                Foreground="{DynamicResource TextSubtleBrush}"
                                                                Margin="0,0,0,9" />
-                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,12">
-                                                        <RadioButton x:Name="FarmSendListPerListRadioButton"
-                                                                     Content="Send toggled lists"
-                                                                     GroupName="FarmSendMode"
-                                                                     Margin="0,0,18,0"
-                                                                     IsChecked="{Binding SendToggledLists, Mode=TwoWay}" />
-                                                        <RadioButton x:Name="FarmSendAllAtOnceRadioButton"
-                                                                     Content="Send all lists"
-                                                                     GroupName="FarmSendMode"
-                                                                     Margin="0,0,8,0"
-                                                                     IsChecked="{Binding SendAllLists, Mode=TwoWay}" />
-                                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
-                                                                        VerticalAlignment="Center"
-                                                                        ToolTip="Send toggled lists: each round sends every farm list toggled on above, one at a time. Send all lists: sends every farm list on the account. Either way the lists go out one at a time (paced by 'Send farmlists'); the delay is the wait between whole rounds." />
-                                                    </StackPanel>
+                                                    <Grid Margin="0,0,0,12">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="*" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Border Grid.Column="0" CornerRadius="6" Padding="10" Margin="0,0,5,0">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                                                                    <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
+                                                                    <Setter Property="BorderThickness" Value="1" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding SendToggledLists}" Value="True">
+                                                                            <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
+                                                                            <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <RadioButton x:Name="FarmSendListPerListRadioButton"
+                                                                         GroupName="FarmSendMode"
+                                                                         HorizontalContentAlignment="Stretch"
+                                                                         IsChecked="{Binding SendToggledLists, Mode=TwoWay}">
+                                                                <StackPanel Margin="4,0,0,0">
+                                                                    <TextBlock Text="Individual schedules" FontWeight="SemiBold" />
+                                                                    <TextBlock Text="Each enabled list uses its own timing."
+                                                                               FontSize="10"
+                                                                               Foreground="{DynamicResource TextSubtleBrush}"
+                                                                               TextWrapping="Wrap"
+                                                                               Margin="0,2,0,0" />
+                                                                </StackPanel>
+                                                            </RadioButton>
+                                                        </Border>
+                                                        <Border Grid.Column="1" CornerRadius="6" Padding="10" Margin="5,0,0,0">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                                                                    <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
+                                                                    <Setter Property="BorderThickness" Value="1" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding SendAllLists}" Value="True">
+                                                                            <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
+                                                                            <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <RadioButton x:Name="FarmSendAllAtOnceRadioButton"
+                                                                         GroupName="FarmSendMode"
+                                                                         HorizontalContentAlignment="Stretch"
+                                                                         IsChecked="{Binding SendAllLists, Mode=TwoWay}">
+                                                                <StackPanel Margin="4,0,0,0">
+                                                                    <TextBlock Text="Send all together" FontWeight="SemiBold" />
+                                                                    <TextBlock Text="All lists use the same timing."
+                                                                               FontSize="10"
+                                                                               Foreground="{DynamicResource TextSubtleBrush}"
+                                                                               TextWrapping="Wrap"
+                                                                               Margin="0,2,0,0" />
+                                                                </StackPanel>
+                                                            </RadioButton>
+                                                        </Border>
+                                                    </Grid>
                                                     <Border BorderBrush="{DynamicResource BorderMutedBrush}"
                                                             BorderThickness="0,1,0,0"
                                                             Padding="0,11,0,0">
@@ -344,11 +506,13 @@
                                                                 <ColumnDefinition Width="Auto" />
                                                             </Grid.ColumnDefinitions>
                                                             <StackPanel Grid.Column="0" VerticalAlignment="Center">
-                                                                <TextBlock Text="Delay between sends"
+                                                                <TextBlock Text="{Binding DispatchIntervalTitle}"
                                                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                                <TextBlock Text="A random delay is selected for each round."
+                                                                <TextBlock Text="{Binding DispatchIntervalDescription}"
                                                                            FontSize="11"
-                                                                           Foreground="{DynamicResource TextSubtleBrush}" />
+                                                                           Foreground="{DynamicResource TextSubtleBrush}"
+                                                                           TextWrapping="Wrap"
+                                                                           MaxWidth="210" />
                                                             </StackPanel>
                                                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                                                 <TextBlock Text="Min" VerticalAlignment="Center" Margin="0,0,5,0"
@@ -520,9 +684,10 @@
                                                     </StackPanel>
                                                 </Grid>
                                             </Border>
-                                         </StackPanel>
-                                     </Border>
-                                 </Grid>
+                                          </StackPanel>
+                                      </Border>
+                                    </StackPanel>
+                                  </ScrollViewer>
                              </Grid>
                          </Grid>
                      </Grid>

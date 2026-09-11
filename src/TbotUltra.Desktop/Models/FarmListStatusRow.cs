@@ -16,6 +16,9 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
     private int? _capacity;
     private int? _remainingSeconds;
     private DateTimeOffset? _lastSentAtUtc;
+    private DateTimeOffset? _nextSendAtUtc;
+    private string _intervalMinMinutesText = string.Empty;
+    private string _intervalMaxMinutesText = string.Empty;
     private bool _lastSendFailed;
     private bool _showLastSentTimer = true;
     private bool _lastSentLimitEnabled = true;
@@ -179,6 +182,7 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
             OnPropertyChanged();
             OnPropertyChanged(nameof(CanSendNow));
             OnPropertyChanged(nameof(LastSentText));
+            OnPropertyChanged(nameof(NextSendText));
         }
     }
 
@@ -215,6 +219,126 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
     }
 
     public bool HasLastSent => LastSentAtUtc is not null;
+
+    public DateTimeOffset? NextSendAtUtc
+    {
+        get => _nextSendAtUtc;
+        set
+        {
+            if (_nextSendAtUtc == value)
+            {
+                return;
+            }
+
+            _nextSendAtUtc = value;
+            OnPropertyChanged();
+            OnPropertyChanged(nameof(NextSendText));
+        }
+    }
+
+    public string IntervalMinMinutesText
+    {
+        get => _intervalMinMinutesText;
+        set
+        {
+            if (_intervalMinMinutesText == value)
+            {
+                return;
+            }
+
+            _intervalMinMinutesText = value?.Trim() ?? string.Empty;
+            OnPropertyChanged();
+            NotifyIntervalValidationChanged();
+        }
+    }
+
+    public string IntervalMaxMinutesText
+    {
+        get => _intervalMaxMinutesText;
+        set
+        {
+            if (_intervalMaxMinutesText == value)
+            {
+                return;
+            }
+
+            _intervalMaxMinutesText = value?.Trim() ?? string.Empty;
+            OnPropertyChanged();
+            NotifyIntervalValidationChanged();
+        }
+    }
+
+    public bool HasIntervalOverride => TryGetDispatchInterval(out _, out _) &&
+        !string.IsNullOrWhiteSpace(IntervalMinMinutesText);
+
+    public bool HasIntervalError => !TryGetDispatchInterval(out _, out _);
+
+    public string IntervalErrorText
+    {
+        get
+        {
+            if (string.IsNullOrWhiteSpace(IntervalMinMinutesText) &&
+                string.IsNullOrWhiteSpace(IntervalMaxMinutesText))
+            {
+                return string.Empty;
+            }
+
+            if (!int.TryParse(IntervalMinMinutesText, out var min) || min <= 0 ||
+                !int.TryParse(IntervalMaxMinutesText, out var max) || max <= 0)
+            {
+                return "Enter positive Min and Max values, or leave both empty.";
+            }
+
+            return max < min ? "Max must be greater than or equal to Min." : string.Empty;
+        }
+    }
+
+    public string NextSendText
+    {
+        get
+        {
+            if (!IsEnabled)
+            {
+                return "Disabled";
+            }
+
+            if (NextSendAtUtc is null)
+            {
+                return "Due now";
+            }
+
+            var remaining = NextSendAtUtc.Value - DateTimeOffset.UtcNow;
+            if (remaining <= TimeSpan.Zero)
+            {
+                return "Due now";
+            }
+
+            return remaining.TotalHours >= 1
+                ? $"Next {(int)remaining.TotalHours:00}:{remaining.Minutes:00}:{remaining.Seconds:00}"
+                : $"Next {remaining.Minutes:00}:{remaining.Seconds:00}";
+        }
+    }
+
+    public bool TryGetDispatchInterval(out int? minMinutes, out int? maxMinutes)
+    {
+        minMinutes = null;
+        maxMinutes = null;
+        if (string.IsNullOrWhiteSpace(IntervalMinMinutesText) &&
+            string.IsNullOrWhiteSpace(IntervalMaxMinutesText))
+        {
+            return true;
+        }
+
+        if (!int.TryParse(IntervalMinMinutesText, out var min) || min <= 0 ||
+            !int.TryParse(IntervalMaxMinutesText, out var max) || max < min)
+        {
+            return false;
+        }
+
+        minMinutes = min;
+        maxMinutes = max;
+        return true;
+    }
 
     public bool ShowLastSentTimer
     {
@@ -397,6 +521,12 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
             changed = true;
         }
 
+        if (NextSendAtUtc is not null)
+        {
+            OnPropertyChanged(nameof(NextSendText));
+            changed = true;
+        }
+
         if (!HasTimer || RemainingSeconds is null)
         {
             return changed;
@@ -411,5 +541,12 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
     private void OnPropertyChanged([CallerMemberName] string? propertyName = null)
     {
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
+    private void NotifyIntervalValidationChanged()
+    {
+        OnPropertyChanged(nameof(HasIntervalOverride));
+        OnPropertyChanged(nameof(HasIntervalError));
+        OnPropertyChanged(nameof(IntervalErrorText));
     }
 }
