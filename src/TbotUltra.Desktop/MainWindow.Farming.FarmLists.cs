@@ -2044,7 +2044,7 @@ public partial class MainWindow
     }
 
     private const string AddFarmsTroopCountConfigKey = "addFarmsTroopCount";
-    private const int AddFarmsDefaultTroopCount = 100;
+    private const int AddFarmsDefaultTroopCount = 2;
 
     private int LoadAddFarmsTroopCount()
     {

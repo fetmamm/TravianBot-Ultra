@@ -3,12 +3,31 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:views="clr-namespace:TbotUltra.Desktop.Views"
         Title="Add Farms to Lists"
-        Width="720"
-        Height="680"
-        MinWidth="660"
-        MinHeight="600"
+        Width="820"
+        Height="780"
+        MinWidth="740"
+        MinHeight="660"
         Background="{DynamicResource AppBackgroundBrush}"
         WindowStartupLocation="CenterOwner">
+    <Window.Resources>
+        <Style x:Key="WorkflowCardStyle" TargetType="Border">
+            <Setter Property="Background" Value="{DynamicResource AppBackgroundBrush}" />
+            <Setter Property="BorderBrush" Value="{DynamicResource BorderSubtleBrush}" />
+            <Setter Property="BorderThickness" Value="1" />
+            <Setter Property="CornerRadius" Value="6" />
+            <Setter Property="Padding" Value="12" />
+        </Style>
+        <Style x:Key="WorkflowStepTitleStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="13" />
+            <Setter Property="FontWeight" Value="SemiBold" />
+            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+        </Style>
+        <Style x:Key="WorkflowStepDescriptionStyle" TargetType="TextBlock">
+            <Setter Property="FontSize" Value="11" />
+            <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
+            <Setter Property="Margin" Value="0,2,0,0" />
+        </Style>
+    </Window.Resources>
     <Grid>
         <Grid Margin="16">
             <Grid.RowDefinitions>
@@ -17,14 +36,15 @@
                 <RowDefinition Height="Auto" />
             </Grid.RowDefinitions>
 
-            <StackPanel Margin="0,0,0,12">
-                <TextBlock Text="Add farms to farmlist"
-                           FontSize="18"
+            <StackPanel Margin="2,0,2,12">
+                <TextBlock Text="Add farms to lists"
+                           FontSize="20"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                <TextBlock Text="Select one source list and one or more destination farm lists."
+                <TextBlock Text="Choose where farms come from, where they go, and how they are added."
                            Margin="0,4,0,0"
-                           Foreground="{DynamicResource TextSecondaryBrush}" />
+                           FontSize="12"
+                           Foreground="{DynamicResource TextSubtleBrush}" />
                 <Border x:Name="IncompleteReadWarningBorder" Visibility="Collapsed"
                         Margin="0,8,0,0" CornerRadius="6" Padding="10,8"
                         Background="#3A2A00" BorderBrush="#C9962B" BorderThickness="1">
@@ -33,52 +53,89 @@
                 </Border>
             </StackPanel>
 
-            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto">
-                <StackPanel>
-                    <Border BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                            Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="12">
+            <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
+                <Border Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderSubtleBrush}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="12"
+                        Margin="2,0,4,0">
+                    <Grid>
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                            <RowDefinition Height="Auto" />
+                        </Grid.RowDefinitions>
+                    <Border Grid.Row="0" Style="{StaticResource WorkflowCardStyle}">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="Source" Style="{StaticResource WorkflowStepTitleStyle}" />
+                                    <TextBlock Text="Select the saved targets and the village used to calculate distance."
+                                               Style="{StaticResource WorkflowStepDescriptionStyle}" />
+                                </StackPanel>
+                            </DockPanel>
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <TextBlock Text="Source list" VerticalAlignment="Center" />
-                            <ComboBox x:Name="SourceListComboBox" Grid.Column="1"
-                                      DisplayMemberPath="DisplayName" SelectionChanged="SourceListComboBox_SelectionChanged" />
-                            <TextBlock Grid.Row="1" Text="Distance from village" Margin="0,10,0,0" VerticalAlignment="Center" />
-                            <ComboBox x:Name="FromVillageComboBox" Grid.Row="1" Grid.Column="1" Margin="0,10,0,0"
-                                      DisplayMemberPath="DisplayName" SelectionChanged="InputChanged" />
-                            <TextBlock Grid.Row="2" Text="Available source farms" Margin="0,10,0,0" />
-                            <TextBlock x:Name="SourceCountTextBlock" Grid.Row="2" Grid.Column="1"
-                                       Margin="0,10,0,0" FontWeight="SemiBold" />
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="SOURCE LIST" FontSize="10" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextSubtleBrush}" />
+                                <ComboBox x:Name="SourceListComboBox" Margin="0,5,0,0"
+                                          DisplayMemberPath="DisplayName"
+                                          SelectionChanged="SourceListComboBox_SelectionChanged" />
+                                <Border Margin="0,10,0,0"
+                                        Background="{DynamicResource SurfaceBrush}"
+                                        BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                        BorderThickness="1"
+                                        CornerRadius="6"
+                                        Padding="10,7">
+                                    <DockPanel>
+                                        <TextBlock x:Name="SourceCountTextBlock"
+                                                   DockPanel.Dock="Right"
+                                                   FontSize="16"
+                                                   FontWeight="SemiBold"
+                                                   Foreground="{DynamicResource SuccessTextStrongBrush}" />
+                                        <TextBlock Text="AVAILABLE FARMS" FontSize="10" FontWeight="SemiBold"
+                                                   VerticalAlignment="Center"
+                                                   Foreground="{DynamicResource TextSubtleBrush}" />
+                                    </DockPanel>
+                                </Border>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="DISTANCE FROM VILLAGE" FontSize="10" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextSubtleBrush}" />
+                                <ComboBox x:Name="FromVillageComboBox" Margin="0,5,0,0"
+                                          DisplayMemberPath="DisplayName" SelectionChanged="InputChanged" />
+                            </StackPanel>
                         </Grid>
+                        </StackPanel>
                     </Border>
 
-                    <Border Margin="0,10,0,0"
-                            BorderBrush="{DynamicResource BorderBrush}"
-                            BorderThickness="1"
-                            Background="{DynamicResource SurfaceBrush}"
-                            CornerRadius="6"
-                            Padding="12">
+                    <Border Grid.Row="4" Margin="0,10,0,0" Style="{StaticResource WorkflowCardStyle}">
                         <StackPanel>
-                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
-                                <TextBlock Text="Target protection"
-                                           FontWeight="SemiBold"
-                                           VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                                <ContentControl Style="{StaticResource SettingInfoIconStyle}">
-                                    <ContentControl.ToolTip>
-                                        <ToolTip MaxWidth="340">
-                                            <TextBlock TextWrapping="Wrap"
-                                                       Text="Player and alliance are checked live in Travian after coordinates resolve and before Save. Use semicolons or new lines between names." />
-                                        </ToolTip>
-                                    </ContentControl.ToolTip>
-                                </ContentControl>
+                            <StackPanel Margin="0,0,0,12">
+                                <StackPanel Orientation="Horizontal">
+                                    <TextBlock Text="Target protection"
+                                               Style="{StaticResource WorkflowStepTitleStyle}"
+                                               VerticalAlignment="Center" />
+                                    <ContentControl Style="{StaticResource SettingInfoIconStyle}">
+                                        <ContentControl.ToolTip>
+                                            <ToolTip MaxWidth="340">
+                                                <TextBlock TextWrapping="Wrap"
+                                                           Text="Player and alliance are checked live in Travian after coordinates resolve and before Save. Use semicolons or new lines between names." />
+                                            </ToolTip>
+                                        </ContentControl.ToolTip>
+                                    </ContentControl>
+                                </StackPanel>
+                                <TextBlock Text="Skip account allies and named targets before they are saved."
+                                           Style="{StaticResource WorkflowStepDescriptionStyle}" />
                             </StackPanel>
 
                             <CheckBox x:Name="ExcludeOwnAllianceCheckBox"
@@ -90,45 +147,49 @@
 
                             <Grid Margin="0,10,0,0">
                                 <Grid.ColumnDefinitions>
-                                    <ColumnDefinition Width="170" />
+                                    <ColumnDefinition Width="*" />
+                                    <ColumnDefinition Width="12" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <Grid.RowDefinitions>
-                                    <RowDefinition Height="Auto" />
-                                    <RowDefinition Height="Auto" />
-                                </Grid.RowDefinitions>
-                                <TextBlock Text="Excluded alliances" VerticalAlignment="Center" />
-                                <TextBox x:Name="ExcludedAlliancesTextBox"
-                                         Grid.Column="1"
-                                         MinHeight="42"
-                                         AcceptsReturn="True"
-                                         TextWrapping="Wrap"
-                                         VerticalScrollBarVisibility="Auto"
-                                         ToolTip="Separate names with semicolons or new lines." />
-                                <TextBlock Grid.Row="1"
-                                           Text="Excluded players"
-                                           Margin="0,10,0,0"
-                                           VerticalAlignment="Center" />
-                                <TextBox x:Name="ExcludedPlayersTextBox"
-                                         Grid.Row="1"
-                                         Grid.Column="1"
-                                         Margin="0,10,0,0"
-                                         MinHeight="42"
-                                         AcceptsReturn="True"
-                                         TextWrapping="Wrap"
-                                         VerticalScrollBarVisibility="Auto"
-                                         ToolTip="Separate names with semicolons or new lines." />
+                                <StackPanel Grid.Column="0">
+                                    <TextBlock Text="EXCLUDED ALLIANCES" FontSize="10" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextSubtleBrush}" />
+                                    <TextBox x:Name="ExcludedAlliancesTextBox"
+                                             Margin="0,5,0,0"
+                                             Height="28"
+                                             AcceptsReturn="False"
+                                             TextWrapping="NoWrap"
+                                             ToolTip="Separate names with semicolons." />
+                                </StackPanel>
+                                <StackPanel Grid.Column="2">
+                                    <TextBlock Text="EXCLUDED PLAYERS" FontSize="10" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextSubtleBrush}" />
+                                    <TextBox x:Name="ExcludedPlayersTextBox"
+                                             Margin="0,5,0,0"
+                                             Height="28"
+                                             AcceptsReturn="False"
+                                             TextWrapping="NoWrap"
+                                             ToolTip="Separate names with semicolons." />
+                                </StackPanel>
                             </Grid>
                         </StackPanel>
                     </Border>
 
-                    <Border Margin="0,10,0,0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                            Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="12">
+                    <Border Grid.Row="1" Margin="0,10,0,0" Style="{StaticResource WorkflowCardStyle}">
                         <StackPanel>
-                            <TextBlock Text="Destination farm lists"
-                                       FontWeight="SemiBold"
-                                       Foreground="{DynamicResource TextPrimaryBrush}"
-                                       Margin="0,0,0,8" />
+                            <DockPanel Margin="0,0,0,12">
+                                <Button x:Name="CheckAllTargetsButton"
+                                        DockPanel.Dock="Right"
+                                        Content="Check all"
+                                        MinWidth="90"
+                                        Padding="12,4"
+                                        Click="CheckAllTargets_Click" />
+                                <StackPanel Margin="0,0,12,0">
+                                    <TextBlock Text="Destination farm lists" Style="{StaticResource WorkflowStepTitleStyle}" />
+                                    <TextBlock Text="Choose one or more lists to receive farms."
+                                               Style="{StaticResource WorkflowStepDescriptionStyle}" />
+                                </StackPanel>
+                            </DockPanel>
                             <ListBox x:Name="TargetListsListBox" MaxHeight="190">
                                 <ListBox.ItemContainerStyle>
                                     <Style TargetType="ListBoxItem">
@@ -154,17 +215,18 @@
                                     </DataTemplate>
                                 </ListBox.ItemTemplate>
                             </ListBox>
-                            <Button x:Name="CheckAllTargetsButton"
-                                    Content="Check all"
-                                    HorizontalAlignment="Left"
-                                    MinWidth="90"
-                                    Margin="0,8,0,0"
-                                    Click="CheckAllTargets_Click" />
                         </StackPanel>
                     </Border>
 
-                    <Border Margin="0,10,0,0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                            Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="12">
+                    <Border Grid.Row="3" Margin="0,10,0,0" Style="{StaticResource WorkflowCardStyle}">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="Settings" Style="{StaticResource WorkflowStepTitleStyle}" />
+                                    <TextBlock Text="Control capacity, ordering, distance, and duplicate handling."
+                                               Style="{StaticResource WorkflowStepDescriptionStyle}" />
+                                </StackPanel>
+                            </DockPanel>
                         <Grid>
                             <Grid.ColumnDefinitions>
                                 <ColumnDefinition Width="170" />
@@ -230,38 +292,53 @@
                                       Content="Don't add villages with 8 population or less"
                                       IsChecked="False" Checked="InputChanged" Unchecked="InputChanged" />
                         </Grid>
+                        </StackPanel>
                     </Border>
 
-                    <Border Margin="0,10,0,0" BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                            Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="12">
+                    <Border Grid.Row="2" Margin="0,10,0,0" Style="{StaticResource WorkflowCardStyle}">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,12">
+                                <StackPanel>
+                                    <TextBlock Text="Troops" Style="{StaticResource WorkflowStepTitleStyle}" />
+                                    <TextBlock Text="Use each list's saved troops or apply one custom troop setup."
+                                               Style="{StaticResource WorkflowStepDescriptionStyle}" />
+                                </StackPanel>
+                            </DockPanel>
                         <Grid>
                             <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="170" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="12" />
                                 <ColumnDefinition Width="*" />
                             </Grid.ColumnDefinitions>
-                            <Grid.RowDefinitions>
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                                <RowDefinition Height="Auto" />
-                            </Grid.RowDefinitions>
-                            <TextBlock Text="Troops" VerticalAlignment="Center" />
-                            <ComboBox x:Name="TroopModeComboBox" Grid.Column="1"
-                                      SelectionChanged="TroopModeComboBox_SelectionChanged">
-                                <ComboBoxItem Tag="default" Content="Default" IsSelected="True" />
-                                <ComboBoxItem Tag="custom" Content="Custom" />
-                            </ComboBox>
-                            <TextBlock Grid.Row="1" Text="Troop type" Margin="0,10,0,0" VerticalAlignment="Center" />
-                            <ComboBox x:Name="TroopTypeComboBox" Grid.Row="1" Grid.Column="1" Margin="0,10,0,0"
-                                      SelectionChanged="InputChanged" />
-                            <TextBlock Grid.Row="2" Text="Troop count" Margin="0,10,0,0" VerticalAlignment="Center" />
-                            <TextBox x:Name="TroopCountTextBox" Grid.Row="2" Grid.Column="1" Margin="0,10,0,0"
-                                     TextChanged="InputChanged" />
+                            <StackPanel Grid.Column="0">
+                                <TextBlock Text="SEND WITH" FontSize="10" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextSubtleBrush}" />
+                                <ComboBox x:Name="TroopModeComboBox" Margin="0,5,0,0"
+                                          SelectionChanged="TroopModeComboBox_SelectionChanged">
+                                    <ComboBoxItem Tag="default" Content="Default" IsSelected="True" />
+                                    <ComboBoxItem Tag="custom" Content="Custom" />
+                                </ComboBox>
+                            </StackPanel>
+                            <StackPanel Grid.Column="2">
+                                <TextBlock Text="TROOP TYPE" FontSize="10" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextSubtleBrush}" />
+                                <ComboBox x:Name="TroopTypeComboBox" Margin="0,5,0,0"
+                                          SelectionChanged="InputChanged" />
+                            </StackPanel>
+                            <StackPanel Grid.Column="4">
+                                <TextBlock Text="TROOP COUNT" FontSize="10" FontWeight="SemiBold"
+                                           Foreground="{DynamicResource TextSubtleBrush}" />
+                                <TextBox x:Name="TroopCountTextBox" Margin="0,5,0,0"
+                                         TextChanged="InputChanged" />
+                            </StackPanel>
                         </Grid>
+                        </StackPanel>
                     </Border>
 
-                    <Border x:Name="OasisFilterBorder" Margin="0,10,0,0" Visibility="Collapsed"
-                            BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1"
-                            Background="{DynamicResource SurfaceBrush}" CornerRadius="6" Padding="12">
+                    <Border x:Name="OasisFilterBorder" Grid.Row="5" Margin="0,10,0,0"
+                            Visibility="Collapsed" Style="{StaticResource WorkflowCardStyle}">
                         <StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                                 <TextBlock Text="Oasis filter"
@@ -311,9 +388,8 @@
                         </StackPanel>
                     </Border>
 
-                    <TextBlock x:Name="SummaryTextBlock" Margin="0,14,0,0"
-                               Foreground="{DynamicResource TextSecondaryBrush}" TextWrapping="Wrap" />
-                </StackPanel>
+                    </Grid>
+                </Border>
             </ScrollViewer>
 
             <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Right" Margin="0,14,0,0">

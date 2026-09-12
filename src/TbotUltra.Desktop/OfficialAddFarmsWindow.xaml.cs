@@ -565,20 +565,18 @@ public partial class OfficialAddFarmsWindow : Window
 
     private void RefreshState()
     {
-        if (SummaryTextBlock is null || AddButton is null)
+        if (AddButton is null)
         {
             return;
         }
 
         var sourceCount = (SourceListComboBox.SelectedItem as SourceOption)?.SelectedCount ?? 0;
+        var populationMode = (PopulationFilterComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
+        PopulationTextBox.IsEnabled = populationMode is "under" or "over";
         var plans = BuildPlans();
         var requested = plans.Sum(plan => plan.DesiredCount);
-        var selectedTargets = plans.Count;
         AmountComboBox.IsEnabled = AmountModeRadioButton.IsChecked == true;
         SourceCountTextBlock.Text = sourceCount.ToString(CultureInfo.InvariantCulture);
-        SummaryTextBlock.Text =
-            $"Selected destination lists: {selectedTargets}. Villages scheduled: {requested}. " +
-            $"Analyzed existing farm coordinates: {_existingCoordinates.Count}.";
         if (CheckAllTargetsButton is not null)
         {
             var targetOptions = (TargetListsListBox?.ItemsSource as IEnumerable<TargetOption>)?.ToList() ?? [];
