@@ -3,6 +3,7 @@ namespace TbotUltra.Core.Configuration;
 public static class FarmingDefaults
 {
     public const string SendModeListPerList = "list_per_list";
+    public const string SendModeSharedSchedule = "shared_schedule";
     public const string SendModeAllAtOnce = "all_at_once";
 
     // Delay between farm sends is a random pick in [min, max] minutes.
@@ -37,8 +38,14 @@ public static class FarmingDefaults
 
     public static string NormalizeSendMode(string? value)
     {
-        return string.Equals(value?.Trim(), SendModeAllAtOnce, StringComparison.OrdinalIgnoreCase)
-            ? SendModeAllAtOnce
+        var normalized = value?.Trim();
+        if (string.Equals(normalized, SendModeAllAtOnce, StringComparison.OrdinalIgnoreCase))
+        {
+            return SendModeAllAtOnce;
+        }
+
+        return string.Equals(normalized, SendModeSharedSchedule, StringComparison.OrdinalIgnoreCase)
+            ? SendModeSharedSchedule
             : SendModeListPerList;
     }
 }

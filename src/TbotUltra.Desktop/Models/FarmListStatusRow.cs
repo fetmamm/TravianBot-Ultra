@@ -125,6 +125,7 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
             _activeFarmCount = Math.Max(0, value);
             OnPropertyChanged();
             OnPropertyChanged(nameof(FarmCountText));
+            OnPropertyChanged(nameof(FarmCountCompactText));
             OnPropertyChanged(nameof(FillPercent));
         }
     }
@@ -142,6 +143,7 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
             _totalFarmCount = Math.Max(0, value);
             OnPropertyChanged();
             OnPropertyChanged(nameof(FarmCountText));
+            OnPropertyChanged(nameof(FarmCountCompactText));
             OnPropertyChanged(nameof(FillPercent));
             OnPropertyChanged(nameof(IsEmpty));
             OnPropertyChanged(nameof(ReadyText));
@@ -164,6 +166,7 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
             _capacity = normalized;
             OnPropertyChanged();
             OnPropertyChanged(nameof(FarmCountText));
+            OnPropertyChanged(nameof(FarmCountCompactText));
             OnPropertyChanged(nameof(FillPercent));
         }
     }
@@ -268,8 +271,7 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
         }
     }
 
-    public bool HasIntervalOverride => TryGetDispatchInterval(out _, out _) &&
-        !string.IsNullOrWhiteSpace(IntervalMinMinutesText);
+    public bool HasValidInterval => TryGetDispatchInterval(out _, out _);
 
     public bool HasIntervalError => !TryGetDispatchInterval(out _, out _);
 
@@ -280,13 +282,13 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
             if (string.IsNullOrWhiteSpace(IntervalMinMinutesText) &&
                 string.IsNullOrWhiteSpace(IntervalMaxMinutesText))
             {
-                return string.Empty;
+                return "Min and Max are required.";
             }
 
             if (!int.TryParse(IntervalMinMinutesText, out var min) || min <= 0 ||
                 !int.TryParse(IntervalMaxMinutesText, out var max) || max <= 0)
             {
-                return "Enter positive Min and Max values, or leave both empty.";
+                return "Enter positive Min and Max values.";
             }
 
             return max < min ? "Max must be greater than or equal to Min." : string.Empty;
@@ -323,12 +325,6 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
     {
         minMinutes = null;
         maxMinutes = null;
-        if (string.IsNullOrWhiteSpace(IntervalMinMinutesText) &&
-            string.IsNullOrWhiteSpace(IntervalMaxMinutesText))
-        {
-            return true;
-        }
-
         if (!int.TryParse(IntervalMinMinutesText, out var min) || min <= 0 ||
             !int.TryParse(IntervalMaxMinutesText, out var max) || max < min)
         {
@@ -403,6 +399,7 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
             OnPropertyChanged(nameof(HasFarmList));
             OnPropertyChanged(nameof(IsEmpty));
             OnPropertyChanged(nameof(FarmCountText));
+            OnPropertyChanged(nameof(FarmCountCompactText));
             OnPropertyChanged(nameof(ReadyText));
             OnPropertyChanged(nameof(ActionText));
             OnPropertyChanged(nameof(CanSendNow));
@@ -452,6 +449,10 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
         ? $"{TotalFarmCount}/{Capacity ?? TotalFarmCount} farms"
         : string.Empty;
 
+    public string FarmCountCompactText => HasFarmList
+        ? $"{TotalFarmCount}/{Capacity ?? TotalFarmCount}"
+        : string.Empty;
+
     public double FillPercent
     {
         get
@@ -492,7 +493,7 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
         }
     }
 
-    public string ActionText => IsEmpty ? "Empty" : "Send Now";
+    public string ActionText => IsEmpty ? "Empty" : "Send";
 
     public string TimerText
     {
@@ -510,7 +511,7 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
         }
     }
 
-    public bool CanSendNow => HasFarmList && !IsEmpty && IsEnabled && IsReady;
+    public bool CanSendNow => HasFarmList && !IsEmpty && IsEnabled && IsReady && HasValidInterval;
 
     public bool TickOneSecond()
     {
@@ -545,8 +546,9 @@ public sealed class FarmListStatusRow : INotifyPropertyChanged
 
     private void NotifyIntervalValidationChanged()
     {
-        OnPropertyChanged(nameof(HasIntervalOverride));
+        OnPropertyChanged(nameof(HasValidInterval));
         OnPropertyChanged(nameof(HasIntervalError));
         OnPropertyChanged(nameof(IntervalErrorText));
+        OnPropertyChanged(nameof(CanSendNow));
     }
 }

@@ -9,6 +9,7 @@ public partial class MainWindow
     private System.Windows.Controls.Button FarmListSendAllNowButton => FarmingPanelControl.SendAllButton;
     private System.Windows.Controls.ItemsControl FarmListsItemsControl => FarmingPanelControl.FarmLists;
     private System.Windows.Controls.RadioButton FarmSendListPerListRadioButton => FarmingPanelControl.SendListPerListOption;
+    private System.Windows.Controls.RadioButton FarmSendSharedScheduleRadioButton => FarmingPanelControl.SendSharedScheduleOption;
     private System.Windows.Controls.RadioButton FarmSendAllAtOnceRadioButton => FarmingPanelControl.SendAllAtOnceOption;
     private System.Windows.Controls.TextBox FarmDispatchDelayMinTextBox => FarmingPanelControl.DispatchDelayMin;
     private System.Windows.Controls.TextBox FarmDispatchDelayMaxTextBox => FarmingPanelControl.DispatchDelayMax;

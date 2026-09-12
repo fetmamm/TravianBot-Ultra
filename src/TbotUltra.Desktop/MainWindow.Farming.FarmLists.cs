@@ -184,12 +184,19 @@ public partial class MainWindow
     // server re-analyze and the instant post-send snapshot load so both produce identical rows.
     private async Task ApplyFarmListOverviewToUiAsync(IReadOnlyList<FarmListOverview> lists)
     {
+        var options = LoadBotOptions();
+        var defaultIntervalMinMinutes = FarmingDefaults.NormalizeDispatchDelayMinMinutes(
+            options.ContinuousFarmDispatchDelayMinMinutes);
+        var defaultIntervalMaxMinutes = Math.Max(
+            defaultIntervalMinMinutes,
+            FarmingDefaults.NormalizeDispatchDelayMaxMinutes(options.ContinuousFarmDispatchDelayMaxMinutes));
         var selectedFarmLists = LoadConfiguredContinuousFarmListNames();
         var selectedFarmListIds = LoadConfiguredContinuousFarmListIds();
-        IReadOnlyDictionary<string, FarmListDispatchState> dispatchStates;
+        Dictionary<string, FarmListDispatchState> dispatchStates;
         try
         {
-            dispatchStates = FarmListDispatchStateStore.Load(_projectRoot, _accountStore.ActiveAccountName());
+            dispatchStates = FarmListDispatchStateStore.Load(_projectRoot, _accountStore.ActiveAccountName())
+                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
         }
         catch (Exception ex)
         {
@@ -258,6 +265,39 @@ public partial class MainWindow
                 Coordinates: existing.Coordinates.Concat(incomingCoordinates).Distinct(StringComparer.OrdinalIgnoreCase).ToList());
         }
 
+        var initializedIntervals = 0;
+        foreach (var key in orderedKeys)
+        {
+            var value = mergedByKey[key];
+            var stateKey = FarmListDispatchStateStore.CreateKey(value.ListId, value.Name);
+            var previous = dispatchStates.GetValueOrDefault(stateKey);
+            var initialized = FarmListDispatchStateStore.WithDefaultInterval(
+                previous ?? new FarmListDispatchState(null, Failed: false),
+                defaultIntervalMinMinutes,
+                defaultIntervalMaxMinutes);
+            dispatchStates[stateKey] = initialized;
+            if (previous is null || initialized != previous)
+            {
+                initializedIntervals++;
+            }
+        }
+
+        if (initializedIntervals > 0)
+        {
+            try
+            {
+                FarmListDispatchStateStore.Save(
+                    _projectRoot,
+                    _accountStore.ActiveAccountName(),
+                    dispatchStates);
+                AppendLog($"[farm-list] initialized {initializedIntervals} list interval(s) from the shared default {defaultIntervalMinMinutes}-{defaultIntervalMaxMinutes} minutes.");
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"Could not save default farm list intervals: {ex.Message}");
+            }
+        }
+
         await Dispatcher.InvokeAsync(() =>
         {
             _suppressFarmListUiRefresh = true;
@@ -302,8 +342,8 @@ public partial class MainWindow
                         RemainingSeconds = value.RemainingSeconds,
                         LastSentAtUtc = dispatchState?.LastSentAtUtc,
                         NextSendAtUtc = dispatchState?.NextSendAtUtc,
-                        IntervalMinMinutesText = dispatchState?.IntervalMinMinutes?.ToString() ?? string.Empty,
-                        IntervalMaxMinutesText = dispatchState?.IntervalMaxMinutes?.ToString() ?? string.Empty,
+                        IntervalMinMinutesText = dispatchState?.IntervalMinMinutes?.ToString() ?? defaultIntervalMinMinutes.ToString(),
+                        IntervalMaxMinutesText = dispatchState?.IntervalMaxMinutes?.ToString() ?? defaultIntervalMaxMinutes.ToString(),
                         LastSendFailed = dispatchState?.Failed == true,
                         ShowLastSentTimer = _showFarmListLastSentTimer,
                         LastSentLimitEnabled = _farmListLastSentLimitEnabled,
@@ -1268,7 +1308,7 @@ public partial class MainWindow
                 return;
             }
 
-            PersistFarmListDispatchInterval(row, minMinutes, maxMinutes);
+            PersistFarmListDispatchInterval(row, minMinutes!.Value, maxMinutes!.Value);
         }
         else
         {
@@ -1363,7 +1403,7 @@ public partial class MainWindow
         {
             var mode = FarmingDefaults.NormalizeSendMode(options.ContinuousFarmSendMode);
             _farmListsViewModel.LoadSettings(
-                string.Equals(mode, FarmingDefaults.SendModeAllAtOnce, StringComparison.Ordinal),
+                mode,
                 options.ContinuousFarmDispatchDelayMinMinutes,
                 options.ContinuousFarmDispatchDelayMaxMinutes,
                 options.ContinuousFarmDeactivateRedLosses,
@@ -1396,7 +1436,7 @@ public partial class MainWindow
                 FarmingDefaults.NormalizeDispatchDelayMaxMinutes(
                     int.TryParse(_farmListsViewModel.DispatchDelayMaxMinutes, out var parsedMax) ? parsedMax : 0));
             var saved = _farmingPanelService.SaveSettings(new FarmingPanelSettings(
-                _farmListsViewModel.SendAllLists,
+                _farmListsViewModel.SendMode,
                 delayMinMinutes,
                 delayMaxMinutes,
                 _farmListsViewModel.DeactivateRedLosses,
@@ -1445,7 +1485,10 @@ public partial class MainWindow
                 key,
                 previous =>
                 {
-                    previous ??= new FarmListDispatchState(null, Failed: false);
+                    previous = FarmListDispatchStateStore.WithDefaultInterval(
+                        previous ?? new FarmListDispatchState(null, Failed: false),
+                        FarmingDefaults.NormalizeDispatchDelayMinMinutes(options.ContinuousFarmDispatchDelayMinMinutes),
+                        FarmingDefaults.NormalizeDispatchDelayMaxMinutes(options.ContinuousFarmDispatchDelayMaxMinutes));
                     if (!succeeded)
                     {
                         return previous with { Failed = true };
@@ -1473,7 +1516,7 @@ public partial class MainWindow
         }
     }
 
-    private void PersistFarmListDispatchInterval(FarmListStatusRow row, int? minMinutes, int? maxMinutes)
+    private void PersistFarmListDispatchInterval(FarmListStatusRow row, int minMinutes, int maxMinutes)
     {
         try
         {
@@ -1497,9 +1540,7 @@ public partial class MainWindow
                     };
                 });
             row.NextSendAtUtc = state.NextSendAtUtc;
-            AppendLog(minMinutes is null
-                ? $"[farm-list] '{row.Name}' now uses the global dispatch interval."
-                : $"[farm-list] '{row.Name}' dispatch interval set to {minMinutes}-{maxMinutes} minutes.");
+            AppendLog($"[farm-list] '{row.Name}' dispatch interval set to {minMinutes}-{maxMinutes} minutes.");
             WakeContinuousFarmScheduling();
         }
         catch (Exception ex)
@@ -1510,10 +1551,12 @@ public partial class MainWindow
 
     private static int CalculateFarmListDispatchDelaySeconds(FarmListDispatchState state, BotOptions options)
     {
-        var minMinutes = state.IntervalMinMinutes
-            ?? FarmingDefaults.NormalizeDispatchDelayMinMinutes(options.ContinuousFarmDispatchDelayMinMinutes);
-        var maxMinutes = state.IntervalMaxMinutes
-            ?? FarmingDefaults.NormalizeDispatchDelayMaxMinutes(options.ContinuousFarmDispatchDelayMaxMinutes);
+        var initialized = FarmListDispatchStateStore.WithDefaultInterval(
+            state,
+            FarmingDefaults.NormalizeDispatchDelayMinMinutes(options.ContinuousFarmDispatchDelayMinMinutes),
+            FarmingDefaults.NormalizeDispatchDelayMaxMinutes(options.ContinuousFarmDispatchDelayMaxMinutes));
+        var minMinutes = initialized.IntervalMinMinutes!.Value;
+        var maxMinutes = initialized.IntervalMaxMinutes!.Value;
         return FarmingDefaults.CalculateDispatchDelaySeconds(minMinutes, Math.Max(minMinutes, maxMinutes));
     }
 

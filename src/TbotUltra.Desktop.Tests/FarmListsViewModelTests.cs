@@ -1,4 +1,5 @@
 using System.Linq;
+using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.ViewModels;
 using Xunit;
@@ -8,7 +9,14 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class FarmListsViewModelTests
 {
     private static FarmListStatusRow Real(string name, int? remainingSeconds = null) =>
-        new() { Name = name, TotalFarmCount = 1, RemainingSeconds = remainingSeconds };
+        new()
+        {
+            Name = name,
+            TotalFarmCount = 1,
+            RemainingSeconds = remainingSeconds,
+            IntervalMinMinutesText = "15",
+            IntervalMaxMinutesText = "30",
+        };
 
     [Fact]
     public void EnsurePlaceholderRow_EmptyCollectionGetsOnePlaceholder()
@@ -110,13 +118,13 @@ public sealed class FarmListsViewModelTests
     }
 
     [Fact]
-    public void DispatchInterval_IsOptionalAndRequiresOrderedPositiveValues()
+    public void DispatchInterval_IsRequiredAndRequiresOrderedPositiveValues()
     {
-        var row = Real("Raiders");
+        var row = new FarmListStatusRow { Name = "Raiders", TotalFarmCount = 1 };
 
-        Assert.True(row.TryGetDispatchInterval(out var emptyMin, out var emptyMax));
-        Assert.Null(emptyMin);
-        Assert.Null(emptyMax);
+        Assert.False(row.TryGetDispatchInterval(out _, out _));
+        Assert.True(row.HasIntervalError);
+        Assert.Equal("Min and Max are required.", row.IntervalErrorText);
 
         row.IntervalMinMinutesText = "10";
         row.IntervalMaxMinutesText = "5";
@@ -177,7 +185,7 @@ public sealed class FarmListsViewModelTests
         vm.SettingsChanged += () => changes++;
 
         vm.LoadSettings(
-            sendAllLists: true,
+            sendMode: FarmingDefaults.SendModeAllAtOnce,
             dispatchDelayMinMinutes: 10,
             dispatchDelayMaxMinutes: 20,
             deactivateRedLosses: true,
@@ -194,17 +202,25 @@ public sealed class FarmListsViewModelTests
     }
 
     [Fact]
-    public void DispatchMode_ExplainsWhetherTheSharedIntervalIsFallbackOrAuthoritative()
+    public void DispatchMode_SeparatesIndividualSharedAndSendAllBehavior()
     {
         var vm = new FarmListsViewModel();
 
-        Assert.Equal("Fallback interval", vm.DispatchIntervalTitle);
-        Assert.Contains("no individual interval", vm.DispatchIntervalDescription);
+        Assert.Equal("Default interval", vm.DispatchIntervalTitle);
+        Assert.Contains("first loaded", vm.DispatchIntervalDescription);
+        Assert.True(vm.UseIndividualSchedules);
+
+        vm.UseSharedSchedule = true;
+
+        Assert.Equal("Shared interval", vm.DispatchIntervalTitle);
+        Assert.Contains("enabled lists", vm.DispatchModeDescription);
+        Assert.True(vm.UseSharedSchedule);
 
         vm.SendAllLists = true;
 
-        Assert.Equal("Shared interval", vm.DispatchIntervalTitle);
-        Assert.Contains("all lists", vm.DispatchIntervalDescription);
+        Assert.Contains("Start all", vm.DispatchModeDescription);
+        Assert.True(vm.SendAllLists);
+        Assert.False(vm.UseSharedSchedule);
     }
 
     [Fact]
@@ -215,7 +231,7 @@ public sealed class FarmListsViewModelTests
         vm.MoveRedLossesEnabledRequested += () => requests++;
 
         vm.LoadSettings(
-            sendAllLists: false,
+            sendMode: FarmingDefaults.SendModeListPerList,
             dispatchDelayMinMinutes: 15,
             dispatchDelayMaxMinutes: 30,
             deactivateRedLosses: true,

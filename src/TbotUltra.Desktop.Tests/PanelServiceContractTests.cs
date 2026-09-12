@@ -193,7 +193,7 @@ public sealed class PanelServiceContractTests : IDisposable
         var service = new FarmingPanelService(new RecordingFarmingClient(), store);
 
         var result = service.SaveSettings(new FarmingPanelSettings(
-            SendAllLists: false,
+            SendMode: FarmingDefaults.SendModeSharedSchedule,
             DispatchDelayMinMinutes: 4,
             DispatchDelayMaxMinutes: 9,
             DeactivateRedLosses: true,
@@ -207,7 +207,8 @@ public sealed class PanelServiceContractTests : IDisposable
         service.SaveDestinationBaseName(true, "Pinned red base");
         var persisted = store.Load();
 
-        Assert.Equal(FarmingDefaults.SendModeListPerList, result.SendMode);
+        Assert.Equal(FarmingDefaults.SendModeSharedSchedule, result.SendMode);
+        Assert.Equal(FarmingDefaults.SendModeSharedSchedule, persisted[BotOptionPayloadKeys.ContinuousFarmSendMode]!.GetValue<string>());
         Assert.True(result.MoveRedLossesEnabled);
         Assert.True(result.MoveYellowLossesEnabled);
         Assert.Equal("red-id", persisted[BotOptionPayloadKeys.ContinuousFarmRedLossDestinationListId]!.GetValue<string>());
@@ -220,7 +221,7 @@ public sealed class PanelServiceContractTests : IDisposable
         Assert.Equal("keep", persisted["unrelated"]!.GetValue<string>());
 
         var disabled = service.SaveSettings(new FarmingPanelSettings(
-            true, 1, 2,
+            FarmingDefaults.SendModeAllAtOnce, 1, 2,
             false, false,
             false, false,
             true, true,

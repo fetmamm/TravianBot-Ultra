@@ -133,8 +133,12 @@ The verified Official Travian flow that opens the Rally Point troop form and pre
 _Avoid_: Manual Farming, Natar farming
 
 **Farm List Dispatch Interval**:
-The optional minimum/maximum wait for one toggled Farm List, measured from its latest successful dispatch. When absent, the account-wide farming interval applies.
+The required minimum/maximum wait for one Farm List in Individual schedule mode, measured from its latest successful dispatch. New lists copy the account-wide shared interval as their initial value.
 _Avoid_: Farm-list pacing, round delay
+
+**Farm List Send Mode**:
+One of Individual schedule (enabled UI lists use their own intervals), Shared schedule (enabled UI lists use one account-wide interval), or Send all (Travian's Start all sends every account list regardless of UI toggles).
+_Avoid_: Send toggled lists, fallback interval
 
 **Manual Farming**:
 The removed desktop-only manual farming UI and its saved preferences. It is not Send Troops, Farm Lists, Catapults, or Reinforcements.

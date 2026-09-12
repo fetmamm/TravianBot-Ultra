@@ -33,6 +33,7 @@
                     CornerRadius="8">
                 <StackPanel>
                     <RadioButton x:Name="UseExistingRadioButton"
+                                 GroupName="LossFarmDestinationMode"
                                  Content="Use an existing farmlist"
                                  FontWeight="SemiBold"
                                  Checked="DestinationMode_Changed" />
@@ -49,6 +50,7 @@
                     CornerRadius="8">
                 <StackPanel>
                     <RadioButton x:Name="CreateNewRadioButton"
+                                 GroupName="LossFarmDestinationMode"
                                  Content="Create a new farmlist"
                                  FontWeight="SemiBold"
                                  Checked="DestinationMode_Changed" />

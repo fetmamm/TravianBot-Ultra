@@ -107,18 +107,32 @@ public sealed partial class BotTaskRunner
     {
         var states = FarmListDispatchStateStore.Load(context.Runner._projectContext.RootPath, activeAccount)
             .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+        var defaultMinMinutes = FarmingDefaults.NormalizeDispatchDelayMinMinutes(
+            context.Options.ContinuousFarmDispatchDelayMinMinutes);
+        var defaultMaxMinutes = FarmingDefaults.NormalizeDispatchDelayMaxMinutes(
+            context.Options.ContinuousFarmDispatchDelayMaxMinutes);
         var changed = false;
         foreach (var pair in states.ToList())
         {
-            if (pair.Value.LastSentAtUtc is null || pair.Value.NextSendAtUtc is not null)
+            var initialized = FarmListDispatchStateStore.WithDefaultInterval(
+                pair.Value,
+                defaultMinMinutes,
+                defaultMaxMinutes);
+            if (initialized != pair.Value)
+            {
+                states[pair.Key] = initialized;
+                changed = true;
+            }
+
+            if (initialized.LastSentAtUtc is null || initialized.NextSendAtUtc is not null)
             {
                 continue;
             }
 
-            var delaySeconds = CalculateFarmListDelaySeconds(pair.Value, context.Options);
-            states[pair.Key] = pair.Value with
+            var delaySeconds = CalculateFarmListDelaySeconds(initialized);
+            states[pair.Key] = initialized with
             {
-                NextSendAtUtc = pair.Value.LastSentAtUtc.Value.AddSeconds(delaySeconds),
+                NextSendAtUtc = initialized.LastSentAtUtc.Value.AddSeconds(delaySeconds),
             };
             changed = true;
         }
@@ -126,7 +140,7 @@ public sealed partial class BotTaskRunner
         if (changed)
         {
             FarmListDispatchStateStore.Save(context.Runner._projectContext.RootPath, activeAccount, states);
-            context.Log("[farm-list] initialized missing per-list deadlines from the latest successful dispatch.");
+            context.Log("[farm-list] initialized missing per-list intervals and deadlines from the shared default.");
         }
 
         return states;
@@ -153,13 +167,16 @@ public sealed partial class BotTaskRunner
                 key,
                 previous =>
                 {
-                    previous ??= new FarmListDispatchState(null, Failed: false);
+                    previous = FarmListDispatchStateStore.WithDefaultInterval(
+                        previous ?? new FarmListDispatchState(null, Failed: false),
+                        FarmingDefaults.NormalizeDispatchDelayMinMinutes(context.Options.ContinuousFarmDispatchDelayMinMinutes),
+                        FarmingDefaults.NormalizeDispatchDelayMaxMinutes(context.Options.ContinuousFarmDispatchDelayMaxMinutes));
                     return sentKeys.Contains(key)
                         ? previous with
                         {
                             LastSentAtUtc = sentAtUtc,
                             Failed = false,
-                            NextSendAtUtc = sentAtUtc.AddSeconds(CalculateFarmListDelaySeconds(previous, context.Options)),
+                            NextSendAtUtc = sentAtUtc.AddSeconds(CalculateFarmListDelaySeconds(previous)),
                         }
                         : previous with { Failed = true };
                 });
@@ -208,12 +225,17 @@ public sealed partial class BotTaskRunner
         return waits.Count > 0 ? waits.Min() : Math.Max(1, fallbackSeconds);
     }
 
-    private static int CalculateFarmListDelaySeconds(FarmListDispatchState state, BotOptions options)
+    private static int CalculateFarmListDelaySeconds(FarmListDispatchState state)
     {
-        var minMinutes = state.IntervalMinMinutes
-            ?? FarmingDefaults.NormalizeDispatchDelayMinMinutes(options.ContinuousFarmDispatchDelayMinMinutes);
-        var maxMinutes = state.IntervalMaxMinutes
-            ?? FarmingDefaults.NormalizeDispatchDelayMaxMinutes(options.ContinuousFarmDispatchDelayMaxMinutes);
+        if (state.IntervalMinMinutes is not > 0 ||
+            state.IntervalMaxMinutes is null ||
+            state.IntervalMaxMinutes < state.IntervalMinMinutes)
+        {
+            throw new InvalidOperationException("Farm-list dispatch interval must contain valid Min and Max values.");
+        }
+
+        var minMinutes = state.IntervalMinMinutes.Value;
+        var maxMinutes = state.IntervalMaxMinutes.Value;
         return FarmingDefaults.CalculateDispatchDelaySeconds(minMinutes, Math.Max(minMinutes, maxMinutes));
     }
 

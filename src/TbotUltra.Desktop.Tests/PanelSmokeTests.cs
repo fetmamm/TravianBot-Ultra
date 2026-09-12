@@ -142,6 +142,7 @@ public sealed class PanelSmokeTests
             var panel = new FarmingPanel();
             var tabs = Assert.IsType<TabControl>(panel.FindName("FarmingTabControl"));
             var travcoHost = Assert.IsType<ContentControl>(panel.FindName("TravcoToolsHost"));
+            Assert.IsType<RadioButton>(panel.FindName("FarmSendSharedScheduleRadioButton"));
 
             Assert.Equal(
                 new[] { "Farming", "Inactive / oasis scan" },

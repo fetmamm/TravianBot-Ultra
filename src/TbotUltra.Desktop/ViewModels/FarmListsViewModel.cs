@@ -4,6 +4,7 @@ using System.Linq;
 using System.Windows.Input;
 using TbotUltra.Desktop.Common;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Core.Configuration;
 
 namespace TbotUltra.Desktop.ViewModels;
 
@@ -24,7 +25,7 @@ public sealed class FarmListsViewModel : BaseViewModel
     private bool _canCreate = true;
     private bool _canSendAll;
     private int _settingsNotificationSuppressionCount;
-    private bool _sendAllLists;
+    private string _sendMode = FarmingDefaults.SendModeListPerList;
     private string _dispatchDelayMinMinutes = "15";
     private string _dispatchDelayMaxMinutes = "30";
     private bool _deactivateRedLosses;
@@ -81,14 +82,18 @@ public sealed class FarmListsViewModel : BaseViewModel
         _sendNowCommand.RaiseCanExecuteChanged();
     }
 
-    public bool SendAllLists
+    public string SendMode
     {
-        get => _sendAllLists;
+        get => _sendMode;
         set
         {
-            if (SetProperty(ref _sendAllLists, value))
+            var normalized = FarmingDefaults.NormalizeSendMode(value);
+            if (SetProperty(ref _sendMode, normalized))
             {
-                OnPropertyChanged(nameof(SendToggledLists));
+                OnPropertyChanged(nameof(UseIndividualSchedules));
+                OnPropertyChanged(nameof(UseSharedSchedule));
+                OnPropertyChanged(nameof(SendAllLists));
+                OnPropertyChanged(nameof(DispatchModeDescription));
                 OnPropertyChanged(nameof(DispatchIntervalTitle));
                 OnPropertyChanged(nameof(DispatchIntervalDescription));
                 OnSettingsChanged();
@@ -96,23 +101,54 @@ public sealed class FarmListsViewModel : BaseViewModel
         }
     }
 
-    public bool SendToggledLists
+    public bool UseIndividualSchedules
     {
-        get => !_sendAllLists;
+        get => string.Equals(SendMode, FarmingDefaults.SendModeListPerList, StringComparison.Ordinal);
         set
         {
             if (value)
             {
-                SendAllLists = false;
+                SendMode = FarmingDefaults.SendModeListPerList;
             }
         }
     }
 
-    public string DispatchIntervalTitle => SendAllLists ? "Shared interval" : "Fallback interval";
+    public bool UseSharedSchedule
+    {
+        get => string.Equals(SendMode, FarmingDefaults.SendModeSharedSchedule, StringComparison.Ordinal);
+        set
+        {
+            if (value)
+            {
+                SendMode = FarmingDefaults.SendModeSharedSchedule;
+            }
+        }
+    }
 
-    public string DispatchIntervalDescription => SendAllLists
-        ? "A random delay is selected before all lists run again."
-        : "Used only when an enabled list has no individual interval.";
+    public bool SendAllLists
+    {
+        get => string.Equals(SendMode, FarmingDefaults.SendModeAllAtOnce, StringComparison.Ordinal);
+        set
+        {
+            if (value)
+            {
+                SendMode = FarmingDefaults.SendModeAllAtOnce;
+            }
+        }
+    }
+
+    public string DispatchModeDescription => SendMode switch
+    {
+        FarmingDefaults.SendModeSharedSchedule => "Only enabled lists run, all on the shared interval.",
+        FarmingDefaults.SendModeAllAtOnce => "Travian Start all sends every account list, ignoring UI toggles.",
+        _ => "Only enabled lists run, each on its own interval.",
+    };
+
+    public string DispatchIntervalTitle => UseIndividualSchedules ? "Default interval" : "Shared interval";
+
+    public string DispatchIntervalDescription => UseIndividualSchedules
+        ? "Prefills lists when they are first loaded; existing values stay independent."
+        : "A random delay is selected before the next shared run.";
 
     public string DispatchDelayMinMinutes
     {
@@ -299,7 +335,7 @@ public sealed class FarmListsViewModel : BaseViewModel
     }
 
     public void LoadSettings(
-        bool sendAllLists,
+        string sendMode,
         int dispatchDelayMinMinutes,
         int dispatchDelayMaxMinutes,
         bool deactivateRedLosses,
@@ -310,7 +346,7 @@ public sealed class FarmListsViewModel : BaseViewModel
         bool moveYellowLosses)
     {
         using var suppress = SuppressSettingsNotifications();
-        SendAllLists = sendAllLists;
+        SendMode = sendMode;
         DispatchDelayMinMinutes = dispatchDelayMinMinutes.ToString();
         DispatchDelayMaxMinutes = dispatchDelayMaxMinutes.ToString();
         DeactivateRedLosses = deactivateRedLosses;

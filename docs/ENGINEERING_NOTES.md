@@ -669,17 +669,20 @@ Published artifacts belong under `artifacts/`, never beside source files.
   recipients from a verified send. The analysis preview shows the summed map.sql village population per player in
   the exact selected send order.
 - Farm-list exact timers get a 5-15s render margin; unreadable disabled timers use an estimated 60s wait.
-- "Send toggled lists" sends selected farm lists ONE AT A TIME via `SendFarmListsSequentiallyAsync`: click each list's Start,
+- "Individual schedule" and "Shared schedule" send only UI-enabled farm lists ONE AT A TIME via
+  `SendFarmListsSequentiallyAsync`: click each list's Start,
   then wait for that list's `.farmListStatus` "N/M being raided" numerator to rise (or its Start to disable)
   before the next individual click so a failed list is detected before advancing.
   The wait between clicks is the "Send farmlists" action pacing (`FarmListStepDelayMin/MaxSeconds`, default
-  1-4s, on the Settings pacing tab). "Send all lists" instead performs one click on Travian's
-  `button.startAllFarmLists` control, using the established real-click-with-JS-fallback flow.
-  In "Send toggled lists", each list may override `ContinuousFarmDispatchDelay` with an account-scoped
-  Min/Max interval keyed by stable `lid`; blank overrides retain the global fallback. Persist the randomly
-  selected `NextSendAtUtc` with `LastSentAtUtc`, advance only confirmed sends, and reuse that deadline after
-  restart. Runtime edits and successful manual sends recalculate from the latest successful dispatch and wake
-  the existing farming task. "Send all lists" retains the global whole-round delay.
+  1-4s, on the Settings pacing tab). "Send all" instead performs one click on Travian's
+  `button.startAllFarmLists` control, using the established real-click-with-JS-fallback flow, and ignores UI toggles.
+  In "Individual schedule", every list requires an account-scoped Min/Max interval keyed by stable `lid`.
+  When a list has no valid saved pair, copy and persist `ContinuousFarmDispatchDelay` as its initial values;
+  those values are then independent and empty/partial edits are invalid rather than a runtime fallback.
+  Persist the randomly selected `NextSendAtUtc` with `LastSentAtUtc`, advance only confirmed sends, and reuse
+  that deadline after restart. Runtime edits and successful manual sends recalculate from the latest successful
+  dispatch and wake the existing farming task. "Shared schedule" ignores individual deadlines and uses the global
+  whole-round delay for enabled lists; "Send all" uses the same whole-round delay for every account list.
 - Farm-list rows dedupe/merge by stable `lid` (data-list), never by display name — two villages can hold
   same-named lists that a name key would collapse into one row/group. Rows are grouped in the UI by the owning
   `.villageWrapper` ordinal (read per analyze), not by name, so two villages that share a display name stay in

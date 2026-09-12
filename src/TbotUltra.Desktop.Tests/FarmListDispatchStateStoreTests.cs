@@ -49,6 +49,20 @@ public sealed class FarmListDispatchStateStoreTests
     }
 
     [Fact]
+    public void WithDefaultInterval_CopiesDefaultsOnlyWhenAValidPairIsMissing()
+    {
+        var missing = new FarmListDispatchState(null, Failed: false);
+        var custom = new FarmListDispatchState(null, Failed: false, 5, 10);
+
+        var initialized = FarmListDispatchStateStore.WithDefaultInterval(missing, 30, 90);
+        var unchanged = FarmListDispatchStateStore.WithDefaultInterval(custom, 30, 90);
+
+        Assert.Equal(30, initialized.IntervalMinMinutes);
+        Assert.Equal(90, initialized.IntervalMaxMinutes);
+        Assert.Same(custom, unchanged);
+    }
+
+    [Fact]
     public void IsSuccessfulDispatch_CompletedSendWithoutCooldown_IsSuccessful()
     {
         Assert.True(FarmListDispatchStateStore.IsSuccessfulDispatch(

@@ -59,10 +59,16 @@ internal sealed class ContinuousFarmingOperation(IFarmingClient client)
         }
 
         var nowUtc = request.NowUtc ?? DateTimeOffset.UtcNow;
-        var dueLists = matchingLists
-            .Where(item => !TryGetNextSendAt(request.NextSendAtUtcByKey, item, out var nextSendAtUtc)
-                || nextSendAtUtc <= nowUtc)
-            .ToList();
+        var usesIndividualSchedules = string.Equals(
+            request.SendMode,
+            FarmingDefaults.SendModeListPerList,
+            StringComparison.Ordinal);
+        var dueLists = usesIndividualSchedules
+            ? matchingLists
+                .Where(item => !TryGetNextSendAt(request.NextSendAtUtcByKey, item, out var nextSendAtUtc)
+                    || nextSendAtUtc <= nowUtc)
+                .ToList()
+            : matchingLists;
         if (dueLists.Count <= 0)
         {
             var nextSendAtUtc = matchingLists
@@ -91,9 +97,10 @@ internal sealed class ContinuousFarmingOperation(IFarmingClient client)
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .Select(id => id!)
             .ToList();
-        log($"Continuous farming (toggled lists): sending {readyLists.Count}/{matchingLists.Count} due and ready list(s).");
+        var scheduleLabel = usesIndividualSchedules ? "individual schedules" : "shared schedule";
+        log($"Continuous farming ({scheduleLabel}): sending {readyLists.Count}/{matchingLists.Count} ready list(s).");
         var sendResult = await client.SendSelectedFarmListsNowAsync(dueNames, dueIds, cancellationToken);
-        log($"Continuous farming (toggled lists): {sendResult.SentCount} list(s) dispatched.");
+        log($"Continuous farming ({scheduleLabel}): {sendResult.SentCount} list(s) dispatched.");
         var refreshedOverview = await client.ReadFarmListsOverviewAsync(cancellationToken);
         return ContinuousFarmingDispatchResult.ForCompletedRound(
             refreshedOverview,

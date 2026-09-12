@@ -20,6 +20,7 @@ public partial class FarmingPanel : UserControl
     internal Button SendAllButton => FarmListSendAllNowButton;
     internal ItemsControl FarmLists => FarmListsItemsControl;
     internal RadioButton SendListPerListOption => FarmSendListPerListRadioButton;
+    internal RadioButton SendSharedScheduleOption => FarmSendSharedScheduleRadioButton;
     internal RadioButton SendAllAtOnceOption => FarmSendAllAtOnceRadioButton;
     internal TextBox DispatchDelayMin => FarmDispatchDelayMinTextBox;
     internal TextBox DispatchDelayMax => FarmDispatchDelayMaxTextBox;

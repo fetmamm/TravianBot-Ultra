@@ -37,6 +37,28 @@ public static class FarmListDispatchStateStore
         return $"name:{(listName ?? string.Empty).Trim()}";
     }
 
+    public static FarmListDispatchState WithDefaultInterval(
+        FarmListDispatchState state,
+        int defaultMinMinutes,
+        int defaultMaxMinutes)
+    {
+        ArgumentNullException.ThrowIfNull(state);
+        if (state.IntervalMinMinutes is > 0 &&
+            state.IntervalMaxMinutes is not null &&
+            state.IntervalMaxMinutes >= state.IntervalMinMinutes)
+        {
+            return state;
+        }
+
+        var minMinutes = Math.Max(1, defaultMinMinutes);
+        var maxMinutes = Math.Max(minMinutes, defaultMaxMinutes);
+        return state with
+        {
+            IntervalMinMinutes = minMinutes,
+            IntervalMaxMinutes = maxMinutes,
+        };
+    }
+
     public static IReadOnlyDictionary<string, FarmListDispatchState> Load(string projectRoot, string accountName)
     {
         lock (Gate)

@@ -149,6 +149,40 @@ public sealed class ContinuousFarmingOperationTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_SharedSchedule_SendsEnabledListsAndIgnoresIndividualDeadlines()
+    {
+        var now = new DateTimeOffset(2026, 9, 11, 12, 0, 0, TimeSpan.Zero);
+        var overview = new[]
+        {
+            new FarmListOverview("Enabled", 3, 3, 0, "1"),
+            new FarmListOverview("Not selected", 3, 3, 0, "2"),
+        };
+        var client = new FakeFarmingClient(overview);
+        var operation = new ContinuousFarmingOperation(client);
+
+        var result = await operation.ExecuteAsync(
+            new ContinuousFarmingDispatchRequest(
+                FarmingDefaults.SendModeSharedSchedule,
+                ["Enabled"],
+                ["1"],
+                600,
+                false,
+                null,
+                NextSendAtUtcByKey: new Dictionary<string, DateTimeOffset?>
+                {
+                    ["lid:1"] = now.AddHours(1),
+                },
+                NowUtc: now),
+            _ => { },
+            CancellationToken.None);
+
+        Assert.Equal(["read", "send-selected", "read"], client.Calls);
+        Assert.Equal(["1"], client.SelectedIds);
+        Assert.True(result.ScheduleNextRound);
+        Assert.Equal(600, result.WaitSeconds);
+    }
+
+    [Fact]
     public async Task ExecuteAsync_AllAtOnce_IgnoresPerListDeadlines()
     {
         var now = new DateTimeOffset(2026, 9, 11, 12, 0, 0, TimeSpan.Zero);

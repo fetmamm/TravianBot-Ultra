@@ -389,6 +389,41 @@ public sealed class WindowSmokeTests
             Visibility.Visible);
     }
 
+    [Fact]
+    public void CreateLossFarmListWindow_DestinationModesAreExclusiveAndEnableTheirInput()
+    {
+        _wpf.Run(() =>
+        {
+            var destination = new FarmLossDestinationOption("42", "FET", "TT", 0, 100);
+            var window = new CreateLossFarmListWindow("Red farms", [destination]);
+            try
+            {
+                var useExisting = Assert.IsType<RadioButton>(window.FindName("UseExistingRadioButton"));
+                var createNew = Assert.IsType<RadioButton>(window.FindName("CreateNewRadioButton"));
+                var existingLists = Assert.IsType<ComboBox>(window.FindName("ExistingListsComboBox"));
+                var listName = Assert.IsType<TextBox>(window.FindName("ListNameTextBox"));
+
+                createNew.IsChecked = true;
+
+                Assert.False(useExisting.IsChecked);
+                Assert.True(createNew.IsChecked);
+                Assert.False(existingLists.IsEnabled);
+                Assert.True(listName.IsEnabled);
+
+                useExisting.IsChecked = true;
+
+                Assert.True(useExisting.IsChecked);
+                Assert.False(createNew.IsChecked);
+                Assert.True(existingLists.IsEnabled);
+                Assert.False(listName.IsEnabled);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
     private void AssertTribeColumnVisibility(IReadOnlyList<VillageSettingsRow> rows, Visibility expected)
     {
         _wpf.Run(() =>

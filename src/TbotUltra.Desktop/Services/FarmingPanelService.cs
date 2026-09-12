@@ -44,9 +44,8 @@ public sealed class FarmingPanelService(IFarmingPanelClient client, BotConfigSto
         var redMoveEnabled = settings.DeactivateRedLosses && settings.MoveRedLosses && redDestination is not null;
         var yellowMoveEnabled = settings.DeactivateYellowLosses && settings.MoveYellowLosses && yellowDestination is not null;
 
-        config[BotOptionPayloadKeys.ContinuousFarmSendMode] = settings.SendAllLists
-            ? FarmingDefaults.SendModeAllAtOnce
-            : FarmingDefaults.SendModeListPerList;
+        var sendMode = FarmingDefaults.NormalizeSendMode(settings.SendMode);
+        config[BotOptionPayloadKeys.ContinuousFarmSendMode] = sendMode;
         config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinMinutes] = settings.DispatchDelayMinMinutes;
         config[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMaxMinutes] = settings.DispatchDelayMaxMinutes;
         config[BotOptionPayloadKeys.ContinuousFarmDeactivateRedLosses] = settings.DeactivateRedLosses;
@@ -65,7 +64,7 @@ public sealed class FarmingPanelService(IFarmingPanelClient client, BotConfigSto
         configStore.Save(config);
 
         return new FarmingSettingsSaveResult(
-            settings.SendAllLists ? FarmingDefaults.SendModeAllAtOnce : FarmingDefaults.SendModeListPerList,
+            sendMode,
             settings.DispatchDelayMinMinutes,
             settings.DispatchDelayMaxMinutes,
             redMoveEnabled,
@@ -105,7 +104,7 @@ public sealed class FarmingPanelService(IFarmingPanelClient client, BotConfigSto
 }
 
 public sealed record FarmingPanelSettings(
-    bool SendAllLists,
+    string SendMode,
     int DispatchDelayMinMinutes,
     int DispatchDelayMaxMinutes,
     bool DeactivateRedLosses,

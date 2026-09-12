@@ -83,6 +83,7 @@ public sealed class OfficialFarmSelectionTests
         };
 
         Assert.Equal("5/100 farms", row.FarmCountText);
+        Assert.Equal("5/100", row.FarmCountCompactText);
     }
 
     [Fact]
