@@ -31,7 +31,7 @@ public sealed class FarmListPageReuseTests
     public void FarmListRenderWait_RecognizesExplicitZeroCountAsCompletedRender()
     {
         var root = ProjectRootLocator.FindProjectRoot();
-        var emptyPage = File.ReadAllText(Path.Combine(root, "docs", "DOM", "no_farmlists.txt"));
+        var emptyPage = TestDomFixtures.Read("no_farmlists.txt");
         Assert.Contains("<span class=\"nominator\">", emptyPage, StringComparison.Ordinal);
         Assert.DoesNotContain("farmListWrapper", emptyPage, StringComparison.Ordinal);
 

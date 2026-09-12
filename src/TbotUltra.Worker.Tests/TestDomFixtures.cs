@@ -17,6 +17,7 @@ internal static class TestDomFixtures
             "daily_quests.txt" => DailyQuests,
             "daily_quests_1.txt" => DailyQuestsAlternative,
             "account_deletion_pending.txt" => AccountDeletionPending,
+            "no_farmlists.txt" => NoFarmLists,
             _ => throw new FileNotFoundException($"Could not find DOM fixture '{fileName}'."),
         };
     }
@@ -154,5 +155,14 @@ internal static class TestDomFixtures
             <span class="timer" counting="down" value="185506" data-value="185506">51:31:46</span>.
           </li>
         </ul>
+        """;
+
+    private const string NoFarmLists = """
+        <div id="rallyPointFarmList">
+          <div class="farmListCount">
+            <span class="nominator">0</span>
+            <span class="denominator">0</span>
+          </div>
+        </div>
         """;
 }
