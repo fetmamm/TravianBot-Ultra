@@ -99,7 +99,7 @@ public static class OfficialFarmSelection
                 continue;
             }
 
-            result.Add(new FarmCoordinate(row.X, row.Y, requireUnoccupiedOasis));
+            result.Add(new FarmCoordinate(row.X, row.Y, requireUnoccupiedOasis, IsOasis: oasisTypes is not null));
             if (result.Count >= amount)
             {
                 break;

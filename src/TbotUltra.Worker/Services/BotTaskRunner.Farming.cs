@@ -332,6 +332,7 @@ public sealed partial class BotTaskRunner
         Action<string> log,
         string? accountName = null,
         IProgress<FarmAddProgress>? progress = null,
+        FarmTargetProtectionContext? protection = null,
         CancellationToken cancellationToken = default)
     {
         FarmAddBatchResult? result = null;
@@ -352,10 +353,33 @@ public sealed partial class BotTaskRunner
                     coordinates,
                     useDefaultTroops,
                     progress,
+                    protection,
                     cancellationToken);
             });
 
         return result ?? throw new InvalidOperationException("Could not add farms from Travco list.");
+    }
+
+    public async Task<FarmTargetIdentity> ReadFarmTargetProtectionIdentityAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        FarmTargetIdentity? identity = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                identity = await client.ReadCurrentFarmTargetIdentityAsync(cancellationToken);
+            });
+
+        return identity ?? new FarmTargetIdentity(false, null, null);
     }
 
     public async Task<FarmListCreateBatchResult> CreateFarmListsAsync(

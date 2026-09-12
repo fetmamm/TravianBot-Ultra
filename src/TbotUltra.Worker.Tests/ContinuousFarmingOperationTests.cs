@@ -285,6 +285,6 @@ public sealed class ContinuousFarmingOperationTests
         }
 
         public Task<FarmListCreateBatchResult> CreateFarmListsAsync(FarmListCreateRequest request, IProgress<FarmListCreateProgress>? progress = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
-        public Task<FarmAddBatchResult> AddFarmsFromCoordinatesAsync(string farmListName, string troopType, int troopCount, int requestedCount, IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops = false, IProgress<FarmAddProgress>? progress = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<FarmAddBatchResult> AddFarmsFromCoordinatesAsync(string farmListName, string troopType, int troopCount, int requestedCount, IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops = false, IProgress<FarmAddProgress>? progress = null, FarmTargetProtectionContext? protection = null, CancellationToken cancellationToken = default) => throw new NotSupportedException();
     }
 }

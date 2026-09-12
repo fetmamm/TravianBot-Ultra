@@ -1,3 +1,4 @@
+using TbotUltra.Desktop;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.Models;
 using Xunit;
@@ -187,6 +188,15 @@ public sealed class OfficialFarmSelectionTests
         var coordinate = Assert.Single(result);
         Assert.Equal((1, 1), (coordinate.X, coordinate.Y));
         Assert.True(coordinate.RequireUnoccupiedOasis);
+        Assert.True(coordinate.IsOasis);
+    }
+
+    [Fact]
+    public void ParseProtectionList_AcceptsSemicolonsAndNewLines()
+    {
+        var result = OfficialAddFarmsWindow.ParseProtectionList(" Alpha ; Beta\r\nalpha\n Gamma ");
+
+        Assert.Equal(["Alpha", "Beta", "Gamma"], result);
     }
 
     private static TravcoListStore.TravcoSavedRow Row(string coordinates, long pop, double distance) =>

@@ -714,13 +714,18 @@ public partial class MainWindow
                         Capacity = _farmListCapacitiesByName.GetValueOrDefault(item.Name),
                     })
                     .ToList();
+                var ownIdentity = await _farmingPanelService.ReadTargetProtectionIdentityAsync(
+                    options,
+                    AppendLog,
+                    cancellationToken);
                 return new OfficialAddFarmsLoadResult(
                     true,
                     null,
                     sourceLists,
                     targetLists,
                     new HashSet<string>(_analyzedFarmCoordinates, StringComparer.OrdinalIgnoreCase),
-                    _farmListIncompleteReads);
+                    _farmListIncompleteReads,
+                    ownIdentity);
             }
 
             async Task<OfficialFarmAddRunResult> RunOfficialPlansAsync(
@@ -728,6 +733,7 @@ public partial class MainWindow
                 bool useDefaultTroops,
                 string troopType,
                 int troopCount,
+                FarmTargetProtectionContext protection,
                 IProgress<FarmAddProgress> progress,
                 CancellationToken cancellationToken)
             {
@@ -738,6 +744,9 @@ public partial class MainWindow
                 var failed = 0;
                 var notFound = 0;
                 var occupiedSkipped = 0;
+                var excludedPlayers = 0;
+                var excludedAlliances = 0;
+                var identityUnavailable = 0;
                 var invalidCoordinates = new List<FarmCoordinate>();
 
                 foreach (var plan in plans)
@@ -747,6 +756,9 @@ public partial class MainWindow
                     var addedBeforeList = added;
                     var notFoundBeforeList = notFound;
                     var occupiedBeforeList = occupiedSkipped;
+                    var excludedPlayersBeforeList = excludedPlayers;
+                    var excludedAlliancesBeforeList = excludedAlliances;
+                    var identityUnavailableBeforeList = identityUnavailable;
                     var aggregateProgress = new Progress<FarmAddProgress>(value =>
                     {
                         progress.Report(new FarmAddProgress(
@@ -756,7 +768,10 @@ public partial class MainWindow
                             addedBeforeList + value.AddedCount,
                             notFoundBeforeList + value.NotFoundCount,
                             value.InvalidCoordinate,
-                            occupiedBeforeList + value.OccupiedOasisSkippedCount));
+                            occupiedBeforeList + value.OccupiedOasisSkippedCount,
+                            excludedPlayersBeforeList + value.ExcludedPlayerCount,
+                            excludedAlliancesBeforeList + value.ExcludedAllianceCount,
+                            identityUnavailableBeforeList + value.IdentityUnavailableCount));
                     });
 
                     AppendLog(
@@ -771,6 +786,7 @@ public partial class MainWindow
                         plan.DesiredCount,
                         plan.Coordinates,
                         useDefaultTroops,
+                        protection,
                         AppendLog,
                         aggregateProgress,
                         cancellationToken);
@@ -780,11 +796,16 @@ public partial class MainWindow
                     failed += result.FailedCount;
                     notFound += result.NotFoundCount;
                     occupiedSkipped += result.OccupiedOasisSkippedCount;
+                    excludedPlayers += result.ExcludedPlayerCount;
+                    excludedAlliances += result.ExcludedAllianceCount;
+                    identityUnavailable += result.IdentityUnavailableCount;
                     invalidCoordinates.AddRange(result.InvalidCoordinates ?? []);
                     AppendLog(
                         $"Finished '{plan.TargetName}': added={result.AddedCount}, " +
                         $"duplicates={result.AlreadyInListCount}, invalid={result.NotFoundCount}, " +
-                        $"occupiedSkipped={result.OccupiedOasisSkippedCount}, failed={result.FailedCount}.");
+                        $"occupiedSkipped={result.OccupiedOasisSkippedCount}, " +
+                        $"excludedPlayers={result.ExcludedPlayerCount}, excludedAlliances={result.ExcludedAllianceCount}, " +
+                        $"identityUnavailable={result.IdentityUnavailableCount}, failed={result.FailedCount}.");
                 }
 
                 return new OfficialFarmAddRunResult(
@@ -795,7 +816,10 @@ public partial class MainWindow
                     invalidCoordinates
                         .Distinct()
                         .ToList(),
-                    OccupiedSkipped: occupiedSkipped);
+                    OccupiedSkipped: occupiedSkipped,
+                    ExcludedPlayers: excludedPlayers,
+                    ExcludedAlliances: excludedAlliances,
+                    IdentityUnavailable: identityUnavailable);
             }
 
             var villageOptions = GetFarmListCreationVillages()
@@ -810,6 +834,8 @@ public partial class MainWindow
                 LoadOfficialAsync,
                 RunOfficialPlansAsync,
                 operationToken,
+                LoadAddFarmsProtectionPreferences(),
+                SaveAddFarmsProtectionPreferences,
                 villageOptions,
                 GetSelectedVillageName())
             {
@@ -851,6 +877,9 @@ public partial class MainWindow
                 runResult.Added,
                 runResult.Duplicates,
                 runResult.OccupiedSkipped,
+                runResult.ExcludedPlayers,
+                runResult.ExcludedAlliances,
+                runResult.IdentityUnavailable,
                 runResult.Failed,
                 elapsed,
                 runResult.InvalidCoordinates.Count,
@@ -869,7 +898,9 @@ public partial class MainWindow
             CompleteOperation(
                 operationId,
                 operationSw,
-                $"Added {runResult.Added}; duplicates {runResult.Duplicates}; occupied skipped {runResult.OccupiedSkipped}; failed {runResult.Failed}.");
+                $"Added {runResult.Added}; duplicates {runResult.Duplicates}; occupied skipped {runResult.OccupiedSkipped}; " +
+                $"players skipped {runResult.ExcludedPlayers}; alliances skipped {runResult.ExcludedAlliances}; " +
+                $"identity unavailable {runResult.IdentityUnavailable}; failed {runResult.Failed}.");
 
             return;
         }
@@ -2053,6 +2084,42 @@ public partial class MainWindow
         catch (Exception ex)
         {
             AppendLog($"Could not save add-farms troop count: {ex.Message}");
+        }
+    }
+
+    private AddFarmsProtectionPreferences LoadAddFarmsProtectionPreferences()
+    {
+        try
+        {
+            var config = _botConfigStore.Load();
+            var excludeOwnAlliance = !config.TryGetPropertyValue(BotOptionPayloadKeys.AddFarmsExcludeOwnAlliance, out var ownNode)
+                || ownNode is null
+                || ownNode.GetValue<bool>();
+            var excludedPlayers = config[BotOptionPayloadKeys.AddFarmsExcludedPlayers]?.GetValue<string>() ?? string.Empty;
+            var excludedAlliances = config[BotOptionPayloadKeys.AddFarmsExcludedAlliances]?.GetValue<string>() ?? string.Empty;
+            return new AddFarmsProtectionPreferences(excludeOwnAlliance, excludedPlayers, excludedAlliances);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[farm-list] Could not load Add farms protection settings: {ex.Message}");
+            return new AddFarmsProtectionPreferences(true, string.Empty, string.Empty);
+        }
+    }
+
+    private void SaveAddFarmsProtectionPreferences(AddFarmsProtectionPreferences preferences)
+    {
+        try
+        {
+            var config = _botConfigStore.Load();
+            config[BotOptionPayloadKeys.AddFarmsExcludeOwnAlliance] = JsonValue.Create(preferences.ExcludeOwnAlliance);
+            config[BotOptionPayloadKeys.AddFarmsExcludedPlayers] = JsonValue.Create(preferences.ExcludedPlayers);
+            config[BotOptionPayloadKeys.AddFarmsExcludedAlliances] = JsonValue.Create(preferences.ExcludedAlliances);
+            _botConfigStore.Save(config);
+            AppendLog("[farm-list] Saved Add farms target-protection settings.");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[farm-list] Could not save Add farms protection settings: {ex.Message}");
         }
     }
 

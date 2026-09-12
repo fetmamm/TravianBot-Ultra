@@ -16,6 +16,7 @@ public sealed partial class TravianClient
         IReadOnlyList<FarmCoordinate> coordinates,
         bool useDefaultTroops = false,
         IProgress<FarmAddProgress>? progress = null,
+        FarmTargetProtectionContext? protection = null,
         CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
@@ -60,6 +61,7 @@ public sealed partial class TravianClient
                 coordinates,
                 progress,
                 useDefaultTroops,
+                protection,
                 cancellationToken);
         }
         catch (OperationCanceledException)
@@ -84,6 +86,7 @@ public sealed partial class TravianClient
         IReadOnlyList<FarmCoordinate> coordinates,
         IProgress<FarmAddProgress>? progress,
         bool useDefaultTroops,
+        FarmTargetProtectionContext? protection,
         CancellationToken cancellationToken)
     {
         if (_session.FarmListReloadRequiredBeforeAdd)
@@ -124,8 +127,22 @@ public sealed partial class TravianClient
         var failed = 0;
         var notFound = 0;
         var occupiedSkipped = 0;
+        var excludedPlayers = 0;
+        var excludedAlliances = 0;
+        var identityUnavailable = 0;
         var attempted = 0;
         var invalidCoordinates = new List<FarmCoordinate>();
+        void ReportProgress(FarmCoordinate? invalidCoordinate = null) => progress?.Report(new FarmAddProgress(
+            farmListName,
+            attempted,
+            targetAddedCount,
+            added,
+            notFound,
+            invalidCoordinate,
+            occupiedSkipped,
+            excludedPlayers,
+            excludedAlliances,
+            identityUnavailable));
         // When a coordinate is skipped before Save the Add-target form is left open (see TryFillAddRaidFormAndSaveAsync),
         // so the next coordinate is typed straight into it instead of closing + reopening the dialog every miss.
         var reuseOpenForm = false;
@@ -152,6 +169,24 @@ public sealed partial class TravianClient
             attempted++;
             var stepPrefix = $"[checked={attempted}, added={added}/{targetAddedCount}]";
 
+            if (protection is not null
+                && protection.TryGetCachedDecision(coordinate.X, coordinate.Y, out var cachedDecision)
+                && cachedDecision is FarmTargetProtectionDecision.ExcludedPlayer or FarmTargetProtectionDecision.ExcludedAlliance)
+            {
+                if (cachedDecision == FarmTargetProtectionDecision.ExcludedPlayer)
+                {
+                    excludedPlayers++;
+                }
+                else
+                {
+                    excludedAlliances++;
+                }
+
+                Notify($"{stepPrefix} Skipped ({coordinate.X}|{coordinate.Y}): cached {cachedDecision} protection decision.");
+                ReportProgress();
+                continue;
+            }
+
             if (!reuseOpenForm)
             {
                 await OpenAddRaidFormAsync(lid, cancellationToken);
@@ -173,9 +208,12 @@ public sealed partial class TravianClient
                         lid,
                         useDefaultTroops,
                         coordinate.RequireUnoccupiedOasis,
+                        coordinate.IsOasis,
                         reuseAfterInvalidCoordinates: reuseAfterInvalidCoordinates,
+                        protection,
                         cancellationToken);
-                    if (saveOutcome != AddRaidSaveOutcome.LookupTimedOut || lookupAttempt >= AddTargetLookupMaxAttempts)
+                    if (saveOutcome is not (AddRaidSaveOutcome.LookupTimedOut or AddRaidSaveOutcome.IdentityUnavailable)
+                        || lookupAttempt >= AddTargetLookupMaxAttempts)
                     {
                         break;
                     }
@@ -204,7 +242,7 @@ public sealed partial class TravianClient
                 reuseOpenForm = false;
                 reuseOpenFormAfterInvalidCoordinates = false;
                 Notify($"{stepPrefix} Add target for ({coordinate.X}|{coordinate.Y}) failed and was skipped: {ex.Message}");
-                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound, OccupiedOasisSkippedCount: occupiedSkipped));
+                ReportProgress();
                 await CloseAnyOpenAddTargetDialogAsync(cancellationToken);
                 if (++consecutiveFillExceptions >= 5)
                 {
@@ -226,7 +264,7 @@ public sealed partial class TravianClient
                 // exactly one farm, so the maintained count stays correct for the next capacity check.
                 currentFarmCount = currentFarmCount.Value + 1;
                 Notify($"{stepPrefix} Added farm ({coordinate.X}|{coordinate.Y}) to '{farmListName}'.");
-                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound, OccupiedOasisSkippedCount: occupiedSkipped));
+                ReportProgress();
                 continue;
             }
 
@@ -234,7 +272,7 @@ public sealed partial class TravianClient
             {
                 alreadyInList++;
                 Notify($"{stepPrefix} Farm ({coordinate.X}|{coordinate.Y}) is already in '{farmListName}' (This village is already in the selected farm list.).");
-                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound, OccupiedOasisSkippedCount: occupiedSkipped));
+                ReportProgress();
                 reuseOpenForm = saveOutcome == AddRaidSaveOutcome.AlreadyInListFormOpen;
                 continue;
             }
@@ -245,7 +283,7 @@ public sealed partial class TravianClient
                 notFound++;
                 invalidCoordinates.Add(coordinate);
                 Notify($"{stepPrefix} Skipped ({coordinate.X}|{coordinate.Y}): there is no village at these coordinates.");
-                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound, coordinate, occupiedSkipped));
+                ReportProgress(coordinate);
                 // Keep the open form and type the next coordinate straight into it.
                 reuseOpenForm = true;
                 reuseOpenFormAfterInvalidCoordinates = true;
@@ -256,9 +294,39 @@ public sealed partial class TravianClient
             {
                 occupiedSkipped++;
                 Notify($"{stepPrefix} Skipped occupied oasis ({coordinate.X}|{coordinate.Y}) for '{farmListName}'.");
-                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound, OccupiedOasisSkippedCount: occupiedSkipped));
+                ReportProgress();
                 // Keep the open form and type the next coordinate straight into it.
                 reuseOpenForm = true;
+                continue;
+            }
+
+            if (saveOutcome == AddRaidSaveOutcome.ExcludedPlayer)
+            {
+                excludedPlayers++;
+                Notify($"{stepPrefix} Skipped ({coordinate.X}|{coordinate.Y}): player is protected by the Add farms filters.");
+                ReportProgress();
+                reuseOpenForm = true;
+                continue;
+            }
+
+            if (saveOutcome == AddRaidSaveOutcome.ExcludedAlliance)
+            {
+                excludedAlliances++;
+                Notify($"{stepPrefix} Skipped ({coordinate.X}|{coordinate.Y}): alliance is protected by the Add farms filters.");
+                ReportProgress();
+                reuseOpenForm = true;
+                continue;
+            }
+
+            if (saveOutcome == AddRaidSaveOutcome.IdentityUnavailable)
+            {
+                failed++;
+                identityUnavailable++;
+                Notify(
+                    $"{stepPrefix} Skipped ({coordinate.X}|{coordinate.Y}): target identity was unavailable " +
+                    $"after {AddTargetLookupMaxAttempts} attempts; Save was not attempted.");
+                ReportProgress();
+                await DismissAddTargetDialogAsync($"unresolved target identity for ({coordinate.X}|{coordinate.Y})");
                 continue;
             }
 
@@ -269,14 +337,14 @@ public sealed partial class TravianClient
                     $"{stepPrefix} Failed to validate farm ({coordinate.X}|{coordinate.Y}) in '{farmListName}' " +
                     $"after {AddTargetLookupMaxAttempts} attempts because Travian left the Add target form unresolved; " +
                     "Save was not attempted.");
-                progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound, OccupiedOasisSkippedCount: occupiedSkipped));
+                ReportProgress();
                 await DismissAddTargetDialogAsync($"unresolved lookup for ({coordinate.X}|{coordinate.Y})");
                 continue;
             }
 
             failed++;
             Notify($"{stepPrefix} Failed to save farm ({coordinate.X}|{coordinate.Y}) in '{farmListName}'.");
-            progress?.Report(new FarmAddProgress(farmListName, attempted, targetAddedCount, added, notFound, OccupiedOasisSkippedCount: occupiedSkipped));
+            ReportProgress();
             await DismissAddTargetDialogAsync($"failed save for ({coordinate.X}|{coordinate.Y})");
         }
 
@@ -295,7 +363,10 @@ public sealed partial class TravianClient
             failed,
             notFound,
             invalidCoordinates,
-            occupiedSkipped);
+            occupiedSkipped,
+            excludedPlayers,
+            excludedAlliances,
+            identityUnavailable);
     }
 
     private async Task OpenAddRaidFormAsync(string lid, CancellationToken cancellationToken)
@@ -400,7 +471,9 @@ public sealed partial class TravianClient
         string lid,
         bool useDefaultTroops,
         bool requireUnoccupiedOasis,
+        bool isOasis,
         bool reuseAfterInvalidCoordinates,
+        FarmTargetProtectionContext? protection,
         CancellationToken cancellationToken)
     {
         var troopIndex = TroopCatalog.ResolveTroopIndex(troopType);
@@ -584,22 +657,36 @@ public sealed partial class TravianClient
             return AddRaidSaveOutcome.InvalidCoordinates;
         }
 
+        FarmTargetIdentity? targetIdentity = null;
+        if (protection is not null
+            && (!protection.TryGetCachedDecision(x, y, out var cachedDecision)
+                || cachedDecision != FarmTargetProtectionDecision.Allowed))
+        {
+            targetIdentity = await ReadAddTargetIdentityAsync(cancellationToken);
+            var decision = protection.EvaluateAndCache(x, y, isOasis, targetIdentity);
+            if (decision == FarmTargetProtectionDecision.IdentityUnavailable)
+            {
+                Notify($"[farm-list] Target identity was unavailable for ({x}|{y}) in '{farmListName}'.");
+                return AddRaidSaveOutcome.IdentityUnavailable;
+            }
+
+            if (decision == FarmTargetProtectionDecision.ExcludedPlayer)
+            {
+                Notify($"[farm-list] Protected player '{targetIdentity.PlayerName}' at ({x}|{y}) skipped before Save.");
+                return AddRaidSaveOutcome.ExcludedPlayer;
+            }
+
+            if (decision == FarmTargetProtectionDecision.ExcludedAlliance)
+            {
+                Notify($"[farm-list] Protected alliance '{targetIdentity.Alliance}' at ({x}|{y}) skipped before Save.");
+                return AddRaidSaveOutcome.ExcludedAlliance;
+            }
+        }
+
         if (requireUnoccupiedOasis)
         {
-            var ownerText = await _page.EvaluateAsync<string?>(
-                """
-                () => {
-                  const form = document.querySelector('#farmListTargetForm');
-                  const player = form?.querySelector('.targetSelectionResultWrapper .targetWrapper .player');
-                  const owner =
-                    player?.querySelector('a[href*="/profile"], a[href*="spieler.php"]') ||
-                    player?.querySelector('.value') ||
-                    player;
-                  const text = (owner?.textContent || '').replace(/\s+/g, ' ').trim().replace(/^Player:\s*/i, '').trim();
-                  if (!text || text === '-' || text === '–' || text === '—') return null;
-                  return text;
-                }
-                """);
+            targetIdentity ??= await ReadAddTargetIdentityAsync(cancellationToken);
+            var ownerText = targetIdentity.PlayerName;
             if (!string.IsNullOrWhiteSpace(ownerText))
             {
                 Notify($"[farm-list] Occupied oasis ({x}|{y}) owned by '{ownerText}' skipped before Save.");
@@ -706,6 +793,33 @@ public sealed partial class TravianClient
 
         Notify($"[farm-list] Add target save ended in unexpected state '{saveState}' for ({x}|{y}) in '{farmListName}'.");
         return AddRaidSaveOutcome.Failed;
+    }
+
+    private async Task<FarmTargetIdentity> ReadAddTargetIdentityAsync(CancellationToken cancellationToken)
+    {
+        return await _page.EvaluateAsync<FarmTargetIdentity>(
+            """
+            () => {
+              const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
+              const readValue = (node, label) => {
+                const preferred = node?.querySelector('a, .value') || node;
+                const text = clean(preferred?.textContent)
+                  .replace(new RegExp(`^${label}:\\s*`, 'i'), '')
+                  .trim();
+                return !text || text === '-' || text === '–' || text === '—' ? null : text;
+              };
+              const wrapper = document.querySelector(
+                '#farmListTargetForm .targetSelectionResultWrapper .targetWrapper');
+              const player = wrapper?.querySelector('.player');
+              const alliance = wrapper?.querySelector('.alliance');
+              return {
+                isResolved: !!wrapper && !!player && !!alliance,
+                playerName: readValue(player, 'Player'),
+                alliance: readValue(alliance, 'Alliance')
+              };
+            }
+            """).WaitAsync(cancellationToken)
+            ?? new FarmTargetIdentity(false, null, null);
     }
 
     // Reused Add-target forms can restore the previous React-controlled value immediately after a normal
@@ -1007,5 +1121,8 @@ public sealed partial class TravianClient
         OccupiedOasisSkipped = 4,
         AlreadyInListFormOpen = 5,
         LookupTimedOut = 6,
+        ExcludedPlayer = 7,
+        ExcludedAlliance = 8,
+        IdentityUnavailable = 9,
     }
 }

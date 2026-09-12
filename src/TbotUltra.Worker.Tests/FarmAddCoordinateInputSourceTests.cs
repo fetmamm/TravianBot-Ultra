@@ -83,7 +83,10 @@ public sealed class FarmAddCoordinateInputSourceTests
 
         var retryLoop = source.IndexOf("for (var lookupAttempt = 1; lookupAttempt <= AddTargetLookupMaxAttempts; lookupAttempt++)", StringComparison.Ordinal);
         var firstAttempt = source.IndexOf("saveOutcome = await TryFillAddRaidFormAndSaveAsync", retryLoop, StringComparison.Ordinal);
-        var retryCheck = source.IndexOf("saveOutcome != AddRaidSaveOutcome.LookupTimedOut", firstAttempt, StringComparison.Ordinal);
+        var retryCheck = source.IndexOf(
+            "saveOutcome is not (AddRaidSaveOutcome.LookupTimedOut or AddRaidSaveOutcome.IdentityUnavailable)",
+            firstAttempt,
+            StringComparison.Ordinal);
         var reopenForm = source.IndexOf("await OpenAddRaidFormAsync(lid, cancellationToken);", retryCheck, StringComparison.Ordinal);
         var failedOutcome = source.IndexOf("Failed to validate farm", reopenForm, StringComparison.Ordinal);
 

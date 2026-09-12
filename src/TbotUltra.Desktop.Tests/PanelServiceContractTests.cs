@@ -165,13 +165,14 @@ public sealed class PanelServiceContractTests : IDisposable
 
         Assert.True(await service.ReadAndPersistGoldClubStatusAsync(options, log, cancellation.Token));
         Assert.Same(client.Overview, await service.ReadOverviewAsync(options, log, cancellation.Token));
-        Assert.Equal(client.AddResult, await service.AddFarmsAsync(options, "A", "Phalanx", 3, 5, coordinates, true, log, null, cancellation.Token));
+        Assert.Equal(client.AddResult, await service.AddFarmsAsync(options, "A", "Phalanx", 3, 5, coordinates, true, null, log, null, cancellation.Token));
+        Assert.Equal(client.Identity, await service.ReadTargetProtectionIdentityAsync(options, log, cancellation.Token));
         Assert.Equal(client.CreateResult, await service.CreateListsAsync(options, request, log, null, cancellation.Token));
         Assert.Equal(2, await service.SendOneAsync(options, "A", log, cancellation.Token));
         Assert.Equal(3, await service.SendSelectedAsync(options, ["A"], ["11"], log, cancellation.Token));
         Assert.Equal(4, await service.SendAllAsync(options, log, cancellation.Token));
 
-        Assert.Equal(["gold", "overview", "add", "create", "one", "selected", "all"], client.Calls);
+        Assert.Equal(["gold", "overview", "add", "identity", "create", "one", "selected", "all"], client.Calls);
         Assert.Same(coordinates, client.Coordinates);
         Assert.Same(request, client.CreateRequest);
         Assert.Equal("A", client.SendOneName);
@@ -385,6 +386,7 @@ public sealed class PanelServiceContractTests : IDisposable
     {
         public IReadOnlyList<FarmListOverview> Overview { get; } = [new("A", 1, 2, 30)];
         public FarmAddBatchResult AddResult { get; } = new("A", 5, 5, 3, 1, 1);
+        public FarmTargetIdentity Identity { get; } = new(true, "Owner", "Alliance");
         public FarmListCreateBatchResult CreateResult { get; } = new(1, 1, ["A"]);
         public List<string> Calls { get; } = [];
         public List<CancellationToken> CancellationTokens { get; } = [];
@@ -395,7 +397,8 @@ public sealed class PanelServiceContractTests : IDisposable
         public IReadOnlyCollection<string>? SelectedIds { get; private set; }
         public Task<bool> ReadAndPersistGoldClubStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken) => Record("gold", cancellationToken, true);
         public Task<IReadOnlyList<FarmListOverview>> ReadOverviewAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken) => Record("overview", cancellationToken, Overview);
-        public Task<FarmAddBatchResult> AddFarmsAsync(BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount, IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops, Action<string> log, IProgress<FarmAddProgress>? progress, CancellationToken cancellationToken) { Coordinates = coordinates; return Record("add", cancellationToken, AddResult); }
+        public Task<FarmAddBatchResult> AddFarmsAsync(BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount, IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops, FarmTargetProtectionContext? protection, Action<string> log, IProgress<FarmAddProgress>? progress, CancellationToken cancellationToken) { Coordinates = coordinates; return Record("add", cancellationToken, AddResult); }
+        public Task<FarmTargetIdentity> ReadTargetProtectionIdentityAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken) => Record("identity", cancellationToken, Identity);
         public Task<FarmListCreateBatchResult> CreateListsAsync(BotOptions options, FarmListCreateRequest request, Action<string> log, IProgress<FarmListCreateProgress>? progress, CancellationToken cancellationToken) { CreateRequest = request; return Record("create", cancellationToken, CreateResult); }
         public Task<int?> SendOneAsync(BotOptions options, string farmListName, Action<string> log, CancellationToken cancellationToken) { SendOneName = farmListName; return Record("one", cancellationToken, (int?)2); }
         public Task<int> SendSelectedAsync(BotOptions options, IReadOnlyCollection<string> names, IReadOnlyCollection<string> ids, Action<string> log, CancellationToken cancellationToken) { SelectedNames = names; SelectedIds = ids; return Record("selected", cancellationToken, 3); }

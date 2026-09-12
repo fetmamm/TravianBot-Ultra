@@ -19,6 +19,9 @@ public partial class AddFarmsCompleteWindow : Window
         int added,
         int duplicates,
         int occupiedSkipped,
+        int excludedPlayers,
+        int excludedAlliances,
+        int identityUnavailable,
         int failed,
         TimeSpan elapsed,
         int invalidCount,
@@ -33,6 +36,9 @@ public partial class AddFarmsCompleteWindow : Window
         AddedValueText.Text = added.ToString(CultureInfo.InvariantCulture);
         DuplicatesValueText.Text = duplicates.ToString(CultureInfo.InvariantCulture);
         OccupiedValueText.Text = occupiedSkipped.ToString(CultureInfo.InvariantCulture);
+        ExcludedPlayersValueText.Text = excludedPlayers.ToString(CultureInfo.InvariantCulture);
+        ExcludedAlliancesValueText.Text = excludedAlliances.ToString(CultureInfo.InvariantCulture);
+        IdentityUnavailableValueText.Text = identityUnavailable.ToString(CultureInfo.InvariantCulture);
         FailedValueText.Text = failed.ToString(CultureInfo.InvariantCulture);
         ElapsedValueText.Text =
             $"{(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}";

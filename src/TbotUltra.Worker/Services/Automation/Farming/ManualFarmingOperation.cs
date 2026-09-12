@@ -36,6 +36,7 @@ internal sealed class ManualFarmingOperation(IFarmingClient client)
         IReadOnlyList<FarmCoordinate> coordinates,
         bool useDefaultTroops,
         IProgress<FarmAddProgress>? progress,
+        FarmTargetProtectionContext? protection,
         CancellationToken cancellationToken)
         => client.AddFarmsFromCoordinatesAsync(
             farmListName,
@@ -45,6 +46,7 @@ internal sealed class ManualFarmingOperation(IFarmingClient client)
             coordinates,
             useDefaultTroops,
             progress,
+            protection,
             cancellationToken);
 
     public Task<FarmListCreateBatchResult> CreateListsAsync(

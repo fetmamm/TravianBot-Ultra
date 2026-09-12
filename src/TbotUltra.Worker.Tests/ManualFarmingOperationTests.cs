@@ -26,7 +26,7 @@ public sealed class ManualFarmingOperationTests
         Assert.Equal(2, await operation.SendAllAsync(cancellation.Token));
         Assert.Equal(3, await operation.SendSelectedAsync(names, ids, cancellation.Token));
         Assert.Equal(4, await operation.SendAllViaStartAllButtonAsync(cancellation.Token));
-        Assert.Same(client.AddResult, await operation.AddFarmsAsync("A", "Phalanx", 3, 5, coordinates, true, null, cancellation.Token));
+        Assert.Same(client.AddResult, await operation.AddFarmsAsync("A", "Phalanx", 3, 5, coordinates, true, null, null, cancellation.Token));
         Assert.Same(client.CreateResult, await operation.CreateListsAsync(createRequest, null, cancellation.Token));
 
         Assert.Equal(["loss", "overview", "one", "all", "selected", "start-all", "add", "create"], client.Calls);
@@ -78,7 +78,7 @@ public sealed class ManualFarmingOperationTests
             CreateRequest = request;
             return Record("create", cancellationToken, CreateResult);
         }
-        public Task<FarmAddBatchResult> AddFarmsFromCoordinatesAsync(string farmListName, string troopType, int troopCount, int requestedCount, IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops = false, IProgress<FarmAddProgress>? progress = null, CancellationToken cancellationToken = default)
+        public Task<FarmAddBatchResult> AddFarmsFromCoordinatesAsync(string farmListName, string troopType, int troopCount, int requestedCount, IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops = false, IProgress<FarmAddProgress>? progress = null, FarmTargetProtectionContext? protection = null, CancellationToken cancellationToken = default)
         {
             Coordinates = coordinates;
             return Record("add", cancellationToken, AddResult);

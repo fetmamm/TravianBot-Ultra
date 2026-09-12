@@ -15,10 +15,14 @@ public sealed class FarmingPanelService(IFarmingPanelClient client, BotConfigSto
 
     public Task<FarmAddBatchResult> AddFarmsAsync(
         BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount,
-        IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops, Action<string> log,
+        IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops, FarmTargetProtectionContext? protection, Action<string> log,
         IProgress<FarmAddProgress>? progress, CancellationToken cancellationToken)
         => client.AddFarmsAsync(options, farmListName, troopType, troopCount, requestedCount,
-            coordinates, useDefaultTroops, log, progress, cancellationToken);
+            coordinates, useDefaultTroops, protection, log, progress, cancellationToken);
+
+    public Task<FarmTargetIdentity> ReadTargetProtectionIdentityAsync(
+        BotOptions options, Action<string> log, CancellationToken cancellationToken)
+        => client.ReadTargetProtectionIdentityAsync(options, log, cancellationToken);
 
     public Task<FarmListCreateBatchResult> CreateListsAsync(
         BotOptions options, FarmListCreateRequest request, Action<string> log,

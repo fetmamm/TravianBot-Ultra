@@ -60,6 +60,7 @@ public sealed partial class TravianClient
         public const string LobbyGameWorldName = ".gameworldName";
         public const string LobbyPlayNowButton = "button.playNow";
         public const string CurrentPlayerName = ".content > .playerName";
+        public const string CurrentAllianceName = "#sidebarBoxAlliance .content .boxTitle .name";
 
         public static readonly string[] LoginUsernameField =
         {

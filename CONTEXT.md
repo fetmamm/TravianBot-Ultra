@@ -140,6 +140,10 @@ _Avoid_: Farm-list pacing, round delay
 One of Individual schedule (enabled UI lists use their own intervals), Shared schedule (enabled UI lists use one account-wide interval), or Send all (Travian's Start all sends every account list regardless of UI toggles).
 _Avoid_: Send toggled lists, fallback interval
 
+**Farm Target Protection**:
+The live pre-save validation used by Add Farms to skip the account owner, configured players, and configured alliances after Travian resolves a coordinate. Protection preferences are account- and world-specific; decisions are cached only for the current Add Farms run.
+_Avoid_: Map-owner filter, permanent target cache
+
 **Manual Farming**:
 The removed desktop-only manual farming UI and its saved preferences. It is not Send Troops, Farm Lists, Catapults, or Reinforcements.
 _Avoid_: Manual attack flow

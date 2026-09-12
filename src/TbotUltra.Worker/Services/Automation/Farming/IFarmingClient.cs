@@ -51,6 +51,7 @@ public interface IFarmingClient
         IReadOnlyList<FarmCoordinate> coordinates,
         bool useDefaultTroops = false,
         IProgress<FarmAddProgress>? progress = null,
+        FarmTargetProtectionContext? protection = null,
         CancellationToken cancellationToken = default);
 
 }

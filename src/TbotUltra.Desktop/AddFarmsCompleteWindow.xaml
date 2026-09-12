@@ -14,6 +14,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <!-- Header -->
@@ -89,8 +90,35 @@
             </Border>
         </UniformGrid>
 
+        <UniformGrid Grid.Row="2" Columns="3" Margin="0,0,0,12">
+            <Border Background="{DynamicResource SurfaceMutedBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="10,7" Margin="0,0,6,0">
+                <StackPanel>
+                    <TextBlock Text="Players skipped" FontSize="11" Foreground="{DynamicResource TextSubtleBrush}" />
+                    <TextBlock x:Name="ExcludedPlayersValueText" Text="0" FontSize="16" FontWeight="SemiBold" />
+                </StackPanel>
+            </Border>
+            <Border Background="{DynamicResource SurfaceMutedBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="10,7" Margin="0,0,6,0">
+                <StackPanel>
+                    <TextBlock Text="Alliances skipped" FontSize="11" Foreground="{DynamicResource TextSubtleBrush}" />
+                    <TextBlock x:Name="ExcludedAlliancesValueText" Text="0" FontSize="16" FontWeight="SemiBold" />
+                </StackPanel>
+            </Border>
+            <Border Background="{DynamicResource SurfaceMutedBrush}"
+                    BorderBrush="{DynamicResource BorderBrush}"
+                    BorderThickness="1" CornerRadius="8" Padding="10,7">
+                <StackPanel>
+                    <TextBlock Text="Identity errors" FontSize="11" Foreground="{DynamicResource TextSubtleBrush}" />
+                    <TextBlock x:Name="IdentityUnavailableValueText" Text="0" FontSize="16" FontWeight="SemiBold" />
+                </StackPanel>
+            </Border>
+        </UniformGrid>
+
         <!-- Elapsed -->
-        <Border Grid.Row="2"
+        <Border Grid.Row="3"
                 Background="{DynamicResource SurfaceMutedBrush}"
                 BorderBrush="{DynamicResource BorderBrush}"
                 BorderThickness="1"
@@ -111,7 +139,7 @@
 
         <!-- Invalid coordinates info (only when invalid > 0) -->
         <Border x:Name="InvalidPanel"
-                Grid.Row="3"
+                Grid.Row="4"
                 Visibility="Collapsed"
                 Background="{DynamicResource InfoBgBrush}"
                 BorderBrush="{DynamicResource FocusBorderBrush}"
@@ -126,7 +154,7 @@
         </Border>
 
         <!-- Buttons -->
-        <Grid Grid.Row="4" Margin="0,18,0,0">
+        <Grid Grid.Row="5" Margin="0,18,0,0">
             <Button x:Name="CloseButton"
                     Content="Close"
                     Width="100"

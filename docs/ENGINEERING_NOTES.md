@@ -725,6 +725,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - When Travian leaves a valid Add-target lookup unresolved, close/reopen the form and retry that same coordinate once
   before marking it failed. Definitive invalid-coordinate, occupied-oasis, duplicate, and verified Save outcomes are
   never retried; an exhausted lookup retry must state that Save was not attempted.
+- Add farms target protection reads the resolved `.targetWrapper .player` and `.targetWrapper .alliance` before Save.
+  The account player is always excluded; the optional current-alliance and account-scoped player/alliance lists use
+  normalized exact matching. Missing identity retries the lookup once and must never click Save. Cache resolved
+  protection decisions only for the current Add farms run so a blocked coordinate is not reopened for each target list.
 - Program-created farm lists carry the account-scoped Create-popup preference `Only create reports with losses`,
   defaulting enabled when absent. Before Create, set and verify `#createFarmListForm input[name='onlyLosses']` with
   a direct input click (the wrapping label can be covered by `.onlyLossesSelection`); use a short actionability wait
