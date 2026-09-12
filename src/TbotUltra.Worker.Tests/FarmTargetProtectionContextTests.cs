@@ -1,4 +1,5 @@
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 using Xunit;
 
 namespace TbotUltra.Worker.Tests;
@@ -55,5 +56,26 @@ public sealed class FarmTargetProtectionContextTests
             context.EvaluateAndCache(1, 2, false, new FarmTargetIdentity(true, "blocked", null)));
         Assert.True(context.TryGetCachedDecision(1, 2, out var cached));
         Assert.Equal(FarmTargetProtectionDecision.ExcludedPlayer, cached);
+    }
+
+    [Fact]
+    public void ParseFarmTargetIdentity_ReadsPlaywrightJsonPayload()
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(
+            """{"isResolved":true,"playerName":"Player One","alliance":"Alliance One"}""");
+
+        var identity = TravianClient.ParseFarmTargetIdentity(document.RootElement);
+
+        Assert.Equal(new FarmTargetIdentity(true, "Player One", "Alliance One"), identity);
+    }
+
+    [Fact]
+    public void ParseFarmTargetIdentity_ReturnsUnresolvedForMalformedPayload()
+    {
+        using var document = System.Text.Json.JsonDocument.Parse("[]");
+
+        var identity = TravianClient.ParseFarmTargetIdentity(document.RootElement);
+
+        Assert.Equal(new FarmTargetIdentity(false, null, null), identity);
     }
 }

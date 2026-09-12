@@ -1,5 +1,6 @@
 namespace TbotUltra.Worker.Services;
 
+using System.Text.Json;
 using TbotUltra.Worker.Domain;
 
 public sealed partial class TravianClient
@@ -44,7 +45,7 @@ public sealed partial class TravianClient
         LogFunctionStarted();
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
-        var identity = await _page.EvaluateAsync<FarmTargetIdentity>(
+        var payload = await _page.EvaluateAsync<JsonElement>(
             """
             (selectors) => {
               const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
@@ -65,13 +66,26 @@ public sealed partial class TravianClient
             {
                 player = Selectors.CurrentPlayerName,
                 alliance = Selectors.CurrentAllianceName,
-            }).WaitAsync(cancellationToken)
-            ?? new FarmTargetIdentity(false, null, null);
+            }).WaitAsync(cancellationToken);
+        var identity = ParseFarmTargetIdentity(payload);
 
         Notify(identity.IsResolved
             ? $"[farm-list] Target protection identity loaded for '{identity.PlayerName}' " +
               $"(alliance='{identity.Alliance ?? "None"}')."
             : "[farm-list] Target protection identity was unavailable in the global sidebar.");
         return identity;
+    }
+
+    internal static FarmTargetIdentity ParseFarmTargetIdentity(JsonElement payload)
+    {
+        try
+        {
+            return payload.Deserialize<FarmTargetIdentity>()
+                ?? new FarmTargetIdentity(false, null, null);
+        }
+        catch (JsonException)
+        {
+            return new FarmTargetIdentity(false, null, null);
+        }
     }
 }

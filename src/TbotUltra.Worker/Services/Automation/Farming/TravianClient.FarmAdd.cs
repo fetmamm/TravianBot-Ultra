@@ -1,4 +1,5 @@
 using Microsoft.Playwright;
+using System.Text.Json;
 using TbotUltra.Core.Travian;
 using TbotUltra.Worker.Domain;
 
@@ -797,7 +798,7 @@ public sealed partial class TravianClient
 
     private async Task<FarmTargetIdentity> ReadAddTargetIdentityAsync(CancellationToken cancellationToken)
     {
-        return await _page.EvaluateAsync<FarmTargetIdentity>(
+        var payload = await _page.EvaluateAsync<JsonElement>(
             """
             () => {
               const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
@@ -818,8 +819,8 @@ public sealed partial class TravianClient
                 alliance: readValue(alliance, 'Alliance')
               };
             }
-            """).WaitAsync(cancellationToken)
-            ?? new FarmTargetIdentity(false, null, null);
+            """).WaitAsync(cancellationToken);
+        return ParseFarmTargetIdentity(payload);
     }
 
     // Reused Add-target forms can restore the previous React-controlled value immediately after a normal
