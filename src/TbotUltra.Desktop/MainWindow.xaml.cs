@@ -668,6 +668,8 @@ public partial class MainWindow : Window
         _farmListsViewModel.CreateFarmListRequested += () => _ = GuardUiAsync(CreateFarmListButtonClickAsync);
         _farmListsViewModel.SendAllNowRequested += () => _ = GuardUiAsync(FarmListSendAllNowButtonClickAsync);
         _farmListsViewModel.SendNowRequested += list => _ = GuardUiAsync(() => FarmListSendNowButtonClickAsync(list));
+        _farmListsViewModel.IntervalsReset += (count, min, max) =>
+            AppendLog($"[farm-list] reset {count} individual interval(s) to the {min}-{max} minute default.");
         _farmListsViewModel.SettingsChanged += PersistFarmingSettings;
         _farmListsViewModel.MoveRedLossesEnabledRequested += () => _ = GuardUiAsync(() => EnsureFarmLossDestinationSelectedAsync(FarmListLossColors.Red));
         _farmListsViewModel.MoveYellowLossesEnabledRequested += () => _ = GuardUiAsync(() => EnsureFarmLossDestinationSelectedAsync(FarmListLossColors.Yellow));

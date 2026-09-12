@@ -683,6 +683,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   that deadline after restart. Runtime edits and successful manual sends recalculate from the latest successful
   dispatch and wake the existing farming task. "Shared schedule" ignores individual deadlines and uses the global
   whole-round delay for enabled lists; "Send all" uses the same whole-round delay for every account list.
+  The Farm lists reset action copies the current global Min/Max default to every real list; the existing row-change
+  persistence then recalculates each saved individual deadline from its latest successful dispatch.
 - Farm-list rows dedupe/merge by stable `lid` (data-list), never by display name — two villages can hold
   same-named lists that a name key would collapse into one row/group. Rows are grouped in the UI by the owning
   `.villageWrapper` ordinal (read per analyze), not by name, so two villages that share a display name stay in

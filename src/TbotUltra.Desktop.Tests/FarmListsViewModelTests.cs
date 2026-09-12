@@ -224,6 +224,36 @@ public sealed class FarmListsViewModelTests
     }
 
     [Fact]
+    public void ResetIntervalsCommand_AppliesCurrentDefaultToEveryRealList()
+    {
+        var vm = new FarmListsViewModel
+        {
+            DispatchDelayMinMinutes = "30",
+            DispatchDelayMaxMinutes = "90",
+        };
+        var first = Real("List A");
+        first.IntervalMinMinutesText = "2";
+        first.IntervalMaxMinutesText = "2";
+        var second = Real("List B");
+        second.IntervalMinMinutesText = "10";
+        second.IntervalMaxMinutesText = "20";
+        vm.FarmLists.Add(first);
+        vm.FarmLists.Add(second);
+        vm.FarmLists.Add(new FarmListStatusRow { IsPlaceholder = true });
+        (int Count, int Min, int Max)? reset = null;
+        vm.IntervalsReset += (count, min, max) => reset = (count, min, max);
+
+        vm.ResetIntervalsCommand.Execute(null);
+
+        Assert.Equal((2, 30, 90), reset);
+        Assert.All(new[] { first, second }, row =>
+        {
+            Assert.Equal("30", row.IntervalMinMinutesText);
+            Assert.Equal("90", row.IntervalMaxMinutesText);
+        });
+    }
+
+    [Fact]
     public void MoveLosses_UserEnableRequestsMatchingDestinationSetup_InitialLoadDoesNot()
     {
         var vm = new FarmListsViewModel();

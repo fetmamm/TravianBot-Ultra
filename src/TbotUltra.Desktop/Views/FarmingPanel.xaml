@@ -10,15 +10,16 @@
                             <RowDefinition Height="Auto" />
                             <RowDefinition Height="*" />
                         </Grid.RowDefinitions>
-                        <StackPanel Grid.Row="0" Margin="2,2,2,12">
+                        <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="2,2,2,8">
                             <TextBlock Text="Farming"
                                        FontSize="22"
                                        FontWeight="SemiBold"
+                                       VerticalAlignment="Center"
                                        Foreground="{DynamicResource TextPrimaryBrush}" />
-                            <TextBlock Text="Choose farm lists, set their schedule, and handle failed attacks."
-                                       FontSize="12"
-                                       Foreground="{DynamicResource TextSubtleBrush}"
-                                       Margin="0,4,0,0" />
+                            <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                            Margin="7,0,0,0"
+                                            VerticalAlignment="Center"
+                                            ToolTip="Choose farm lists, set their schedule, and handle failed attacks." />
                         </StackPanel>
                         <Border Grid.Row="1"
                                 Background="{DynamicResource SurfaceBrush}"
@@ -32,15 +33,16 @@
                                     <RowDefinition Height="Auto" />
                                     <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
-                                <StackPanel Grid.Row="0" Margin="0,0,0,12">
+                                <StackPanel Grid.Row="0" Orientation="Horizontal" Margin="0,0,0,8">
                                     <TextBlock Text="Farm control"
                                                FontSize="14"
                                                FontWeight="SemiBold"
+                                               VerticalAlignment="Center"
                                                Foreground="{DynamicResource TextPrimaryBrush}" />
-                                    <TextBlock Text="Review list readiness, choose how they run, and manage loss handling."
-                                               FontSize="11"
-                                               Foreground="{DynamicResource TextSubtleBrush}"
-                                               Margin="0,3,0,0" />
+                                    <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                    Margin="7,0,0,0"
+                                                    VerticalAlignment="Center"
+                                                    ToolTip="Review list readiness, choose how they run, and manage loss handling." />
                                 </StackPanel>
                                 <Grid Grid.Row="1">
                                 <Grid.ColumnDefinitions>
@@ -66,21 +68,47 @@
                                                 <Grid.ColumnDefinitions>
                                                     <ColumnDefinition Width="*" />
                                                     <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
+                                                    <ColumnDefinition Width="Auto" />
                                                 </Grid.ColumnDefinitions>
-                                                <StackPanel>
+                                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                                     <TextBlock Text="Farm lists"
                                                                FontSize="13"
                                                                FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
                                                                Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                    <TextBlock Text="Choose lists and set their sending cadence."
-                                                               Foreground="{DynamicResource TextSubtleBrush}"
-                                                               Margin="0,3,0,0" />
+                                                    <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                                    Margin="7,0,0,0"
+                                                                    VerticalAlignment="Center"
+                                                                    ToolTip="Choose lists and set their sending cadence." />
                                                 </StackPanel>
+                                                <Border Grid.Column="1"
+                                                        x:Name="FarmListNextSendBadge"
+                                                        Tag="FarmListNextSendBadge"
+                                                        Padding="8,3"
+                                                        CornerRadius="8"
+                                                        VerticalAlignment="Center"
+                                                        Background="{DynamicResource WarningBgBrush}"
+                                                        BorderBrush="{DynamicResource WarningBorderBrush}"
+                                                        BorderThickness="1">
+                                                    <TextBlock x:Name="FarmListNextSendText"
+                                                               Tag="FarmListNextSendText"
+                                                               Text="{Binding NextSendDisplay, RelativeSource={RelativeSource AncestorType={x:Type views:FarmingPanel}}}"
+                                                               FontSize="12"
+                                                               FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource WarningTextBrush}" />
+                                                </Border>
+                                                <Button Grid.Column="2"
+                                                        x:Name="FarmListIntervalsResetButton"
+                                                        Style="{StaticResource RefreshIconButtonStyle}"
+                                                        Command="{Binding ResetIntervalsCommand}"
+                                                        ToolTip="Reset every individual list interval to the current default interval." />
                                                 <Button x:Name="FarmListSendAllNowButton"
-                                                        Grid.Column="1"
+                                                        Grid.Column="3"
                                                         Content="Send now"
                                                         MinWidth="105"
                                                         Height="32"
+                                                        Margin="8,0,0,0"
                                                         VerticalAlignment="Center"
                                                         IsEnabled="False"
                                                         Command="{Binding SendAllNowCommand}">
@@ -132,33 +160,10 @@
                                                                                 </Style.Triggers>
                                                                             </Style>
                                                                         </Border.Style>
-                                                                        <Grid>
-                                                                            <Grid.ColumnDefinitions>
-                                                                                <ColumnDefinition Width="*" />
-                                                                                <ColumnDefinition Width="Auto" />
-                                                                                <ColumnDefinition Width="80" />
-                                                                                <ColumnDefinition Width="90" />
-                                                                            </Grid.ColumnDefinitions>
-                                                                            <TextBlock Text="{Binding Items[0].VillageHeaderText}"
-                                                                                       FontWeight="SemiBold"
-                                                                                       FontSize="13"
-                                                                                       Foreground="{DynamicResource TextSecondaryBrush}" />
-                                                                            <Border Grid.Column="1"
-                                                                                    Tag="FarmListNextSendBadge"
-                                                                                    Margin="0,0,8,0"
-                                                                                    Padding="8,3"
-                                                                                    CornerRadius="8"
-                                                                                    VerticalAlignment="Center"
-                                                                                    Background="{DynamicResource WarningBgBrush}"
-                                                                                    BorderBrush="{DynamicResource WarningBorderBrush}"
-                                                                                    BorderThickness="1">
-                                                                                <TextBlock Tag="FarmListNextSendText"
-                                                                                           Text="{Binding NextSendDisplay, RelativeSource={RelativeSource AncestorType={x:Type views:FarmingPanel}}}"
-                                                                                           FontSize="12"
-                                                                                           FontWeight="SemiBold"
-                                                                                           Foreground="{DynamicResource WarningTextBrush}" />
-                                                                            </Border>
-                                                                        </Grid>
+                                                                        <TextBlock Text="{Binding Items[0].VillageHeaderText}"
+                                                                                   FontWeight="SemiBold"
+                                                                                   FontSize="13"
+                                                                                   Foreground="{DynamicResource TextSecondaryBrush}" />
                                                                     </Border>
                                                                 </DataTemplate>
                                                             </GroupStyle.HeaderTemplate>
@@ -350,14 +355,17 @@
                                                 Padding="12"
                                                 Margin="0,0,0,10">
                                             <StackPanel>
-                                                <TextBlock Text="Farm list tools"
-                                                           FontSize="13"
-                                                           FontWeight="SemiBold"
-                                                           Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                <TextBlock Text="Refresh the overview or change list contents."
-                                                           FontSize="11"
-                                                           Foreground="{DynamicResource TextSubtleBrush}"
-                                                           Margin="0,3,0,10" />
+                                                <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                    <TextBlock Text="Farm list tools"
+                                                               FontSize="13"
+                                                               FontWeight="SemiBold"
+                                                               VerticalAlignment="Center"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                    <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                                    Margin="7,0,0,0"
+                                                                    VerticalAlignment="Center"
+                                                                    ToolTip="Refresh the overview or change list contents." />
+                                                </StackPanel>
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="*" />
@@ -393,14 +401,17 @@
                                             CornerRadius="8"
                                             Padding="0">
                                         <StackPanel>
-                                            <TextBlock Text="Farm settings"
-                                                       FontSize="14"
-                                                       FontWeight="SemiBold"
-                                                       Foreground="{DynamicResource TextPrimaryBrush}" />
-                                            <TextBlock Text="Control how lists are sent and how failed targets are handled."
-                                                       FontSize="11"
-                                                       Foreground="{DynamicResource TextSubtleBrush}"
-                                                       Margin="0,3,0,14" />
+                                            <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                                                <TextBlock Text="Farm settings"
+                                                           FontSize="14"
+                                                           FontWeight="SemiBold"
+                                                           VerticalAlignment="Center"
+                                                           Foreground="{DynamicResource TextPrimaryBrush}" />
+                                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                                Margin="7,0,0,0"
+                                                                VerticalAlignment="Center"
+                                                                ToolTip="Control how lists are sent and how failed targets are handled." />
+                                            </StackPanel>
 
                                             <Border Background="{DynamicResource AppBackgroundBrush}"
                                                     BorderBrush="{DynamicResource BorderSubtleBrush}"
@@ -409,11 +420,17 @@
                                                     Padding="12"
                                                     Margin="0,0,0,10">
                                                 <StackPanel>
-                                                    <TextBlock Text="SENDING SCHEDULE"
-                                                               FontSize="11"
-                                                               FontWeight="SemiBold"
-                                                               Foreground="{DynamicResource TextSubtleBrush}"
-                                                               Margin="0,0,0,9" />
+                                                    <StackPanel Orientation="Horizontal" Margin="0,0,0,9">
+                                                        <TextBlock Text="SENDING SCHEDULE"
+                                                                   FontSize="11"
+                                                                   FontWeight="SemiBold"
+                                                                   VerticalAlignment="Center"
+                                                                   Foreground="{DynamicResource TextSubtleBrush}" />
+                                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                                        Margin="7,0,0,0"
+                                                                        VerticalAlignment="Center"
+                                                                        ToolTip="{Binding DispatchModeDescription}" />
+                                                    </StackPanel>
                                                     <Grid Margin="0,0,0,6">
                                                         <Grid.ColumnDefinitions>
                                                             <ColumnDefinition Width="Auto" />
@@ -438,7 +455,7 @@
                                                                          GroupName="FarmSendMode"
                                                                          HorizontalContentAlignment="Stretch"
                                                                          IsChecked="{Binding UseIndividualSchedules, Mode=TwoWay}">
-                                                                <TextBlock Text="Individual schedule" FontSize="10" FontWeight="SemiBold" Margin="3,0,0,0" />
+                                                                <TextBlock Text="Induvidual" FontSize="12" FontWeight="SemiBold" Margin="3,0,0,0" />
                                                             </RadioButton>
                                                         </Border>
                                                         <Border Grid.Column="1" CornerRadius="6" Padding="7" Margin="4,0">
@@ -459,7 +476,7 @@
                                                                          GroupName="FarmSendMode"
                                                                          HorizontalContentAlignment="Stretch"
                                                                          IsChecked="{Binding UseSharedSchedule, Mode=TwoWay}">
-                                                                <TextBlock Text="Shared schedule" FontSize="10" FontWeight="SemiBold" Margin="3,0,0,0" />
+                                                                <TextBlock Text="Shared" FontSize="12" FontWeight="SemiBold" Margin="3,0,0,0" />
                                                             </RadioButton>
                                                         </Border>
                                                         <Border Grid.Column="2" CornerRadius="6" Padding="7" Margin="4,0,0,0">
@@ -480,15 +497,10 @@
                                                                          GroupName="FarmSendMode"
                                                                          HorizontalContentAlignment="Stretch"
                                                                          IsChecked="{Binding SendAllLists, Mode=TwoWay}">
-                                                                <TextBlock Text="Send all" FontSize="10" FontWeight="SemiBold" Margin="3,0,0,0" />
+                                                                <TextBlock Text="Send all" FontSize="12" FontWeight="SemiBold" Margin="3,0,0,0" />
                                                             </RadioButton>
                                                         </Border>
                                                     </Grid>
-                                                    <TextBlock Text="{Binding DispatchModeDescription}"
-                                                               FontSize="10"
-                                                               Foreground="{DynamicResource TextSubtleBrush}"
-                                                               TextWrapping="Wrap"
-                                                               Margin="0,0,0,10" />
                                                     <Border BorderBrush="{DynamicResource BorderMutedBrush}"
                                                             BorderThickness="0,1,0,0"
                                                             Padding="0,11,0,0">
@@ -497,14 +509,14 @@
                                                                 <ColumnDefinition Width="*" />
                                                                 <ColumnDefinition Width="Auto" />
                                                             </Grid.ColumnDefinitions>
-                                                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                                            <StackPanel Grid.Column="0" Orientation="Horizontal" VerticalAlignment="Center">
                                                                 <TextBlock Text="{Binding DispatchIntervalTitle}"
+                                                                           VerticalAlignment="Center"
                                                                            Foreground="{DynamicResource TextPrimaryBrush}" />
-                                                                <TextBlock Text="{Binding DispatchIntervalDescription}"
-                                                                           FontSize="11"
-                                                                           Foreground="{DynamicResource TextSubtleBrush}"
-                                                                           TextWrapping="Wrap"
-                                                                           MaxWidth="210" />
+                                                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                                                Margin="7,0,0,0"
+                                                                                VerticalAlignment="Center"
+                                                                                ToolTip="{Binding DispatchIntervalDescription}" />
                                                             </StackPanel>
                                                             <StackPanel Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
                                                                 <TextBlock Text="Min" VerticalAlignment="Center" Margin="0,0,5,0"
@@ -548,10 +560,6 @@
                                                                             VerticalAlignment="Center"
                                                                             ToolTip="Deactivate targets whose latest result matches the selected color. Moving uses the same Edit action and requires deactivation for that color." />
                                                         </StackPanel>
-                                                        <TextBlock Text="Handle red and yellow results independently."
-                                                                   FontSize="11"
-                                                                   Foreground="{DynamicResource TextSubtleBrush}"
-                                                                   Margin="0,2,0,0" />
                                                     </StackPanel>
 
                                                     <Border Background="{DynamicResource ControlBackgroundBrush}"
