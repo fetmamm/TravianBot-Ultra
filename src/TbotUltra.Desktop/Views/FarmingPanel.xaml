@@ -404,8 +404,8 @@
                                                     </StackPanel>
                                                     <Grid Margin="0,0,0,6">
                                                         <Grid.ColumnDefinitions>
-                                                            <ColumnDefinition Width="Auto" />
-                                                            <ColumnDefinition Width="Auto" />
+                                                            <ColumnDefinition Width="*" />
+                                                            <ColumnDefinition Width="*" />
                                                             <ColumnDefinition Width="*" />
                                                         </Grid.ColumnDefinitions>
                                                         <Border Grid.Column="0" CornerRadius="6" Padding="7" Margin="0,0,4,0">
