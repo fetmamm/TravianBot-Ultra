@@ -159,6 +159,24 @@ public sealed class AutomationQueueItemLifecycleTests
     }
 
     [Fact]
+    public async Task QueueTarget_IsNotPublishedAsActiveVillageBeforeWorkerVerification()
+    {
+        var port = new InMemoryQueueItemLifecyclePort
+        {
+            SimulateVerifiedVillageDuringWorker = true,
+        };
+        var item = CreateItem();
+        item.Payload[BotOptionPayloadKeys.TargetVillageName] = "Queue target";
+
+        await new AutomationQueueItemLifecycle(port).ExecuteAsync(
+            item, new BotOptions(), "[LOOP 1]", AutomationRunMode.ContinuousLoop, default);
+
+        Assert.Equal(
+            ["scope", "running", "guards", "worker", "verified-active-village", "succeeded", "healthy", "last-scan", "finalize"],
+            port.Trace);
+    }
+
+    [Fact]
     public async Task SuccessfulItem_CompletesItsLifecycleThroughAutomationDesk()
     {
         var item = CreateItem();
@@ -223,6 +241,7 @@ public sealed class AutomationQueueItemLifecycleTests
         public Exception? WorkerException { get; init; }
         public bool FailureOutcome { get; init; }
         public bool Demolition { get; init; }
+        public bool SimulateVerifiedVillageDuringWorker { get; init; }
         public TimeSpan? DeferredDelay { get; private set; }
         public bool IsAllowedByAutomationSettings(QueueItem item) => Allowed;
         public IDisposable BeginExecutionScope(QueueItem item)
@@ -273,6 +292,10 @@ public sealed class AutomationQueueItemLifecycleTests
             CancellationToken cancellationToken)
         {
             Trace.Add("worker");
+            if (SimulateVerifiedVillageDuringWorker)
+            {
+                Trace.Add("verified-active-village");
+            }
             if (WorkerException is not null)
             {
                 return ValueTask.FromException<BotTaskExecutionResult>(WorkerException);
