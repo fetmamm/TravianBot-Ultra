@@ -21,6 +21,8 @@ public partial class MainWindow
             new(new MainWindowAutomationConstructPreflightPort(owner));
         private readonly AutomationConstructionRequirementGuard _constructionRequirementGuard =
             new(new MainWindowAutomationConstructionRequirementGuardPort(owner));
+        private readonly AutomationQueueItemSuccess _queueItemSuccess =
+            new(new MainWindowAutomationQueueItemSuccessPort(owner));
 
         public bool IsAllowedByAutomationSettings(QueueItem item) =>
             owner.IsQueueItemAllowedByAutomationSettings(item);
@@ -151,7 +153,7 @@ public partial class MainWindow
             BotOptions options,
             BotTaskExecutionResult executionResult,
             CancellationToken cancellationToken) =>
-            new(owner.HandleQueueItemSucceededAsync(item, options, executionResult, cancellationToken));
+            _queueItemSuccess.HandleAsync(item, options, executionResult, cancellationToken);
 
         public bool IsLoadBuildingsSnapshot(QueueItem item) =>
             string.Equals(
