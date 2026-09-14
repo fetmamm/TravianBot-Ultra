@@ -149,34 +149,6 @@ public partial class MainWindow
             .ToList();
     }
 
-    private static bool TryExtractTroopsBlockedReason(string? message, out string reasonKey, out string reasonText)
-    {
-        reasonKey = string.Empty;
-        reasonText = string.Empty;
-        if (string.IsNullOrWhiteSpace(message))
-        {
-            return false;
-        }
-
-        var value = message.Trim();
-        if (value.Contains("Smithy not found in this village", StringComparison.OrdinalIgnoreCase))
-        {
-            reasonKey = TroopsBlockedReasonSmithyMissing;
-            reasonText = "Smithy missing";
-            return true;
-        }
-
-        if (value.Contains("Smithy:", StringComparison.OrdinalIgnoreCase)
-            && value.Contains("All done", StringComparison.OrdinalIgnoreCase))
-        {
-            reasonKey = TroopsBlockedReasonAllDone;
-            reasonText = "All troops fully developed";
-            return true;
-        }
-
-        return false;
-    }
-
     private void SetTroopsBlockedState(string reasonKey, string reasonText)
         => SetAutomationGroupBlockedState(
             QueueGroup.Troops,

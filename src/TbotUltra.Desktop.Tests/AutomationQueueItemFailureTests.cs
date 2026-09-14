@@ -63,6 +63,53 @@ public sealed class AutomationQueueItemFailureTests
         Assert.Contains("boom", port.Logs[^1]);
     }
 
+    [Fact]
+    public async Task MissingSmithy_WhenVerificationFindsIt_RetriesWithoutBlockingTroops()
+    {
+        var port = new InMemoryPort { SmithyMissing = false };
+
+        await new AutomationQueueItemFailure(port).HandleAsync(
+            Item("upgrade_troops_at_smithy"),
+            new InvalidOperationException("Smithy not found in this village"),
+            "[LOOP 1]",
+            Stopwatch.StartNew(),
+            AutomationRunMode.ContinuousLoop);
+
+        Assert.Equal(TimeSpan.FromSeconds(10), port.DeferredDelay);
+        Assert.Equal(["verify-smithy", "defer"], port.Trace);
+    }
+
+    [Fact]
+    public async Task CompletedSmithyWork_DisablesOnlyTheItemsVillage()
+    {
+        var port = new InMemoryPort { DisableTroopsForVillage = true };
+
+        await new AutomationQueueItemFailure(port).HandleAsync(
+            Item("upgrade_troops_at_smithy"),
+            new InvalidOperationException("Smithy: All done"),
+            "[LOOP 1]",
+            Stopwatch.StartNew(),
+            AutomationRunMode.ContinuousLoop);
+
+        Assert.Equal(["succeeded", "disable-troops-village"], port.Trace);
+        Assert.DoesNotContain("block-troops-global", port.Trace);
+    }
+
+    [Fact]
+    public async Task MissingTownHall_DisablesCelebrationsForTheItemsVillage()
+    {
+        var port = new InMemoryPort();
+
+        await new AutomationQueueItemFailure(port).HandleAsync(
+            Item("run_town_hall_celebration"),
+            new InvalidOperationException("town_hall_unavailable=missing"),
+            "[LOOP 1]",
+            Stopwatch.StartNew(),
+            AutomationRunMode.ContinuousLoop);
+
+        Assert.Equal(["succeeded", "disable-town-hall-village"], port.Trace);
+    }
+
     private static QueueItem Item(string taskName) => new()
     {
         Id = Guid.NewGuid(),
@@ -76,14 +123,28 @@ public sealed class AutomationQueueItemFailureTests
         public List<string> Trace { get; } = [];
         public List<string> Logs { get; } = [];
         public TimeSpan? DeferredDelay { get; private set; }
-        public ValueTask<bool> TryHandleTroopsBlockedExecutionAsync(
-            QueueItem item,
-            Exception exception,
-            string logPrefix) => ValueTask.FromResult(false);
-        public bool TryHandleTownHallUnavailableExecution(
-            QueueItem item,
-            Exception exception,
-            string logPrefix) => false;
+        public bool? SmithyMissing { get; init; }
+        public bool DisableTroopsForVillage { get; init; }
+        public ValueTask<bool?> VerifySmithyMissingAsync(QueueItem item)
+        {
+            Trace.Add("verify-smithy");
+            return ValueTask.FromResult(SmithyMissing);
+        }
+        public bool MarkSucceeded(Guid itemId)
+        {
+            Trace.Add("succeeded");
+            return true;
+        }
+        public bool DisableTroopsGroupForVillage(QueueItem item, out string blockedVillageName)
+        {
+            Trace.Add("disable-troops-village");
+            blockedVillageName = "Alpha";
+            return DisableTroopsForVillage;
+        }
+        public void SetTroopsBlockedState(string reasonKey, string reasonText) =>
+            Trace.Add("block-troops-global");
+        public void DisableTownHallForVillage(string villageKey, string? villageName) =>
+            Trace.Add("disable-town-hall-village");
         public ValueTask ApplyConstructionInlineWaitAsync(
             TimeSpan delay,
             string? humanizeVillageKey,

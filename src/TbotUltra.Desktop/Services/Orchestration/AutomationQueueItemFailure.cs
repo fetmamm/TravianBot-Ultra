@@ -10,14 +10,11 @@ namespace TbotUltra.Desktop.Services.Orchestration;
 
 internal interface IAutomationQueueItemFailurePort
 {
-    ValueTask<bool> TryHandleTroopsBlockedExecutionAsync(
-        QueueItem item,
-        Exception exception,
-        string logPrefix);
-    bool TryHandleTownHallUnavailableExecution(
-        QueueItem item,
-        Exception exception,
-        string logPrefix);
+    ValueTask<bool?> VerifySmithyMissingAsync(QueueItem item);
+    bool MarkSucceeded(Guid itemId);
+    bool DisableTroopsGroupForVillage(QueueItem item, out string blockedVillageName);
+    void SetTroopsBlockedState(string reasonKey, string reasonText);
+    void DisableTownHallForVillage(string villageKey, string? villageName);
     ValueTask ApplyConstructionInlineWaitAsync(
         TimeSpan delay,
         string? humanizeVillageKey,
@@ -59,6 +56,8 @@ internal sealed class AutomationQueueItemFailure(
     private const string HeroDeferReasonReviving = "reviving";
     private const string HeroDeferReasonAway = "away";
     private const string HeroDeferReasonLowHp = "low_hp";
+    private const string TroopsBlockedReasonSmithyMissing = "smithy_missing";
+    private const string TroopsBlockedReasonAllDone = "all_done";
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
     internal async ValueTask<bool> HandleAsync(
@@ -68,12 +67,12 @@ internal sealed class AutomationQueueItemFailure(
         Stopwatch timer,
         AutomationRunMode mode)
     {
-        if (await port.TryHandleTroopsBlockedExecutionAsync(item, ex, logPrefix))
+        if (await TryHandleTroopsBlockedExecutionAsync(item, ex, logPrefix))
         {
             return true;
         }
 
-        if (port.TryHandleTownHallUnavailableExecution(item, ex, logPrefix))
+        if (TryHandleTownHallUnavailableExecution(item, ex, logPrefix))
         {
             return true;
         }
@@ -442,6 +441,99 @@ internal sealed class AutomationQueueItemFailure(
         return true;
     }
 
+    private async ValueTask<bool> TryHandleTroopsBlockedExecutionAsync(
+        QueueItem item,
+        Exception exception,
+        string logPrefix)
+    {
+        if (!string.Equals(item.TaskName, "upgrade_troops_at_smithy", StringComparison.OrdinalIgnoreCase)
+            || !TryExtractTroopsBlockedReason(exception.Message, out var reasonKey, out var reasonText))
+        {
+            return false;
+        }
+
+        if (string.Equals(reasonKey, TroopsBlockedReasonSmithyMissing, StringComparison.OrdinalIgnoreCase))
+        {
+            var verifiedMissing = await port.VerifySmithyMissingAsync(item);
+            if (verifiedMissing != true)
+            {
+                port.MarkDeferred(item.Id, TimeSpan.FromSeconds(10));
+                port.Log(verifiedMissing == false
+                    ? $"{logPrefix} RETRY task={item.TaskName} | Smithy exists after verification. Ignoring transient missing read."
+                    : $"{logPrefix} RETRY task={item.TaskName} | Could not verify Smithy state. Skipping permanent block.");
+                return true;
+            }
+        }
+
+        port.MarkSucceeded(item.Id);
+        if (port.DisableTroopsGroupForVillage(item, out var blockedVillageName))
+        {
+            port.Log($"{logPrefix} BLOCKED task={item.TaskName} | {reasonText} — Upgrade Troops disabled for "
+                + $"'{blockedVillageName}'. Re-select troops or re-enable the village's Troops group to resume.");
+            return true;
+        }
+
+        port.SetTroopsBlockedState(reasonKey, reasonText);
+        port.Log($"{logPrefix} BLOCKED task={item.TaskName} | {reasonText}");
+        return true;
+    }
+
+    private bool TryHandleTownHallUnavailableExecution(
+        QueueItem item,
+        Exception exception,
+        string logPrefix)
+    {
+        if (!string.Equals(item.TaskName, "run_town_hall_celebration", StringComparison.OrdinalIgnoreCase)
+            || !exception.Message.Contains("town_hall_unavailable=missing", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        port.MarkSucceeded(item.Id);
+        var villageKey = port.GetVillageKey(item);
+        var villageName = port.GetVillageName(item);
+        if (string.IsNullOrWhiteSpace(villageKey))
+        {
+            port.Log($"{logPrefix} SKIP task={item.TaskName} | Town Hall missing, but the village identity was unavailable; the task was removed without changing another village's setting.");
+            return true;
+        }
+
+        port.DisableTownHallForVillage(villageKey, villageName);
+        port.Log($"{logPrefix} DISABLED task={item.TaskName} | Town Hall is not built in '{villageName ?? villageKey}'. Town Hall celebrations were turned off for this village.");
+        return true;
+    }
+
+    private static bool TryExtractTroopsBlockedReason(
+        string? message,
+        out string reasonKey,
+        out string reasonText)
+    {
+        reasonKey = string.Empty;
+        reasonText = string.Empty;
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        var value = message.Trim();
+        if (value.Contains("Smithy not found in this village", StringComparison.OrdinalIgnoreCase))
+        {
+            reasonKey = TroopsBlockedReasonSmithyMissing;
+            reasonText = "Smithy missing";
+            return true;
+        }
+
+        if (value.Contains("Smithy:", StringComparison.OrdinalIgnoreCase)
+            && value.Contains("All done", StringComparison.OrdinalIgnoreCase))
+        {
+            reasonKey = TroopsBlockedReasonAllDone;
+            reasonText = "All troops fully developed";
+            return true;
+        }
+
+        return false;
+    }
+
     private bool TryResolveConstructActivePrerequisiteDelay(
         QueueItem item,
         DateTimeOffset now,
@@ -560,4 +652,3 @@ internal sealed class AutomationQueueItemFailure(
     private static string? NormalizeVillageName(string? value) =>
         string.IsNullOrWhiteSpace(value) ? null : value.Trim();
 }
-

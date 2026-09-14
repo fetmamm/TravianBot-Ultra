@@ -1,6 +1,8 @@
 using TbotUltra.Core.Configuration;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.Services.Orchestration;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
 
@@ -11,16 +13,44 @@ public partial class MainWindow
     {
         private readonly MainWindowAutomationQueueContext _queueContext = new(owner);
 
-        public ValueTask<bool> TryHandleTroopsBlockedExecutionAsync(
-            QueueItem item,
-            Exception exception,
-            string logPrefix) =>
-            new(owner.TryHandleTroopsBlockedExecutionAsync(item, exception, logPrefix));
-        public bool TryHandleTownHallUnavailableExecution(
-            QueueItem item,
-            Exception exception,
-            string logPrefix) =>
-            owner.TryHandleTownHallUnavailableExecution(item, exception, logPrefix);
+        public ValueTask<bool?> VerifySmithyMissingAsync(QueueItem item) =>
+            new(owner.VerifySmithyMissingAsync(item));
+        public bool MarkSucceeded(Guid itemId) => owner._botService.MarkQueueItemSucceeded(itemId);
+        public bool DisableTroopsGroupForVillage(QueueItem item, out string blockedVillageName) =>
+            owner.DisableTroopsGroupForQueueItemVillage(item, out blockedVillageName);
+        public void SetTroopsBlockedState(string reasonKey, string reasonText) =>
+            owner.SetTroopsBlockedState(reasonKey, reasonText);
+        public void DisableTownHallForVillage(string villageKey, string? villageName)
+        {
+            void Apply()
+            {
+                var village = new VillageSettingsStore.VillageKeyInfo(
+                    villageKey,
+                    villageName ?? villageKey,
+                    null,
+                    null,
+                    false);
+                owner.PersistAutomationGroupEnabledForVillage(
+                    village,
+                    enabled: false,
+                    QueueGroupCatalog.GetKey(QueueGroup.TownHallCelebration));
+                TownHallCelebrationStateStore.Clear(
+                    owner._projectRoot,
+                    owner._accountStore.ActiveAccountName(),
+                    villageKey);
+                owner.InvalidateVillageOverviewTownHallCache();
+                owner.RefreshAutomationLoopDashboardUi();
+            }
+
+            if (owner.Dispatcher.CheckAccess())
+            {
+                Apply();
+            }
+            else
+            {
+                owner.Dispatcher.Invoke(Apply);
+            }
+        }
         public ValueTask ApplyConstructionInlineWaitAsync(
             TimeSpan delay,
             string? humanizeVillageKey,

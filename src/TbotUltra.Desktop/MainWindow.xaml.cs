@@ -1599,49 +1599,6 @@ public partial class MainWindow : Window
         return $"{ex.GetType().Name}: {ex.Message}";
     }
 
-    private async Task<bool> TryHandleTroopsBlockedExecutionAsync(QueueItem queueItem, Exception ex, string logPrefix)
-    {
-        if (!string.Equals(queueItem.TaskName, "upgrade_troops_at_smithy", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (!TryExtractTroopsBlockedReason(ex.Message, out var reasonKey, out var reasonText))
-        {
-            return false;
-        }
-
-        if (string.Equals(reasonKey, TroopsBlockedReasonSmithyMissing, StringComparison.OrdinalIgnoreCase))
-        {
-            var verifiedMissing = await VerifySmithyMissingAsync(queueItem);
-            if (verifiedMissing != true)
-            {
-                _botService.MarkQueueItemDeferred(queueItem.Id, TimeSpan.FromSeconds(10));
-                AppendLog(verifiedMissing == false
-                    ? $"{logPrefix} RETRY task={queueItem.TaskName} | Smithy exists after verification. Ignoring transient missing read."
-                    : $"{logPrefix} RETRY task={queueItem.TaskName} | Could not verify Smithy state. Skipping permanent block.");
-                return true;
-            }
-        }
-
-        _botService.MarkQueueItemSucceeded(queueItem.Id);
-
-        // Both "All done" and "Smithy missing" are per-village: one village may have a smithy with nothing
-        // left to upgrade while another still has work (or no smithy at all). Disable the Upgrade Troops group
-        // for THIS village only so other villages keep running. Falls back to the global block when the task
-        // carries no village context.
-        if (DisableTroopsGroupForQueueItemVillage(queueItem, out var blockedVillageName))
-        {
-            AppendLog($"{logPrefix} BLOCKED task={queueItem.TaskName} | {reasonText} — Upgrade Troops disabled for "
-                + $"'{blockedVillageName}'. Re-select troops or re-enable the village's Troops group to resume.");
-            return true;
-        }
-
-        SetTroopsBlockedState(reasonKey, reasonText);
-        AppendLog($"{logPrefix} BLOCKED task={queueItem.TaskName} | {reasonText}");
-        return true;
-    }
-
     // Turns the Upgrade Troops group OFF for the queue item's village only (per-village EnabledGroups), so
     // other villages keep upgrading their own troops. Returns false when the item has no village context.
     private bool DisableTroopsGroupForQueueItemVillage(QueueItem item, out string blockedVillageName)
