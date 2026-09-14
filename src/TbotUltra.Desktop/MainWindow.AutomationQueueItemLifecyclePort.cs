@@ -15,6 +15,8 @@ public partial class MainWindow
     {
         private readonly AutomationMissingBuildingUpgradeRecovery _missingBuildingUpgradeRecovery =
             new(new MainWindowAutomationMissingBuildingUpgradeRecoveryPort(owner));
+        private readonly AutomationConstructLiveReconciliation _constructLiveReconciliation =
+            new(new MainWindowAutomationConstructLiveReconciliationPort(owner));
 
         public bool IsAllowedByAutomationSettings(QueueItem item) =>
             owner.IsQueueItemAllowedByAutomationSettings(item);
@@ -72,7 +74,7 @@ public partial class MainWindow
                     options,
                     cancellationToken);
             if (constructRefresh.FreshStatus is not null
-                && owner.TryHandleExistingConstructBeforeGuards(
+                && _constructLiveReconciliation.TryHandleExistingConstruct(
                     item,
                     constructRefresh.FreshStatus,
                     logPrefix,
@@ -82,7 +84,7 @@ public partial class MainWindow
             }
 
             if (constructRefresh.FreshStatus is not null
-                && owner.TryHandleOccupiedConstructSlotBeforeGuards(
+                && _constructLiveReconciliation.TryHandleOccupiedSlot(
                     item,
                     constructRefresh.FreshStatus,
                     logPrefix,
