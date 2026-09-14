@@ -40,9 +40,18 @@ internal interface IAutomationQueueItemSuccessPort
     void Log(string message);
 }
 
-internal sealed class AutomationQueueItemSuccess(IAutomationQueueItemSuccessPort port)
+internal interface IAutomationQueueItemSuccess
 {
-    internal async ValueTask<bool> HandleAsync(
+    ValueTask<bool> HandleAsync(
+        QueueItem item,
+        BotOptions options,
+        BotTaskExecutionResult executionResult,
+        CancellationToken cancellationToken);
+}
+
+internal sealed class AutomationQueueItemSuccess(IAutomationQueueItemSuccessPort port) : IAutomationQueueItemSuccess
+{
+    public async ValueTask<bool> HandleAsync(
         QueueItem item,
         BotOptions options,
         BotTaskExecutionResult executionResult,

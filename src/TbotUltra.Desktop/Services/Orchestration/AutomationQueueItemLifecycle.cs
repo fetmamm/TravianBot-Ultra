@@ -23,29 +23,11 @@ internal interface IAutomationQueueItemLifecyclePort
     void RefreshQueueUi(Guid itemId);
     void SetActiveAutomationTask(string? taskName);
     void SetActiveFunctionExecution(string? displayName);
-    ValueTask<QueueItemGuardResult> RunPreExecutionGuardsAsync(
-        QueueItem item,
-        BotOptions options,
-        string logPrefix,
-        Stopwatch timer,
-        CancellationToken cancellationToken);
     BotOptions ApplyQueueItemOptions(BotOptions options, QueueItem item);
     CancellationToken BeginDemolitionOperation(QueueItem item, CancellationToken cancellationToken);
     ValueTask<BotTaskExecutionResult> ExecuteWorkerAsync(
         BotOptions options,
         QueueItem item,
-        CancellationToken cancellationToken);
-    ValueTask<bool> TryRecoverMissingBuildingUpgradeAsync(
-        QueueItem item,
-        BotOptions options,
-        BotTaskExecutionResult executionResult,
-        string logPrefix,
-        Stopwatch timer,
-        CancellationToken cancellationToken);
-    ValueTask<bool> HandleSucceededAsync(
-        QueueItem item,
-        BotOptions options,
-        BotTaskExecutionResult executionResult,
         CancellationToken cancellationToken);
     bool IsLoadBuildingsSnapshot(QueueItem item);
     ValueTask LoadBuildingsSnapshotAsync(CancellationToken cancellationToken);
@@ -58,18 +40,20 @@ internal interface IAutomationQueueItemLifecyclePort
     void MarkNetworkUnavailable(TimeSpan retryDelay);
     ValueTask HoldAccountAutomationAsync(AccountAccessException exception);
     ValueTask HandleUnexpectedTravianLanguageAsync(UnexpectedTravianLanguageException exception);
-    ValueTask<bool> HandleTaskSpecificFailureAsync(
-        QueueItem item,
-        Exception exception,
-        string logPrefix,
-        Stopwatch timer,
-        AutomationRunMode mode);
     void CompleteDemolitionOperation(Guid itemId);
     ValueTask RestoreBuildingsSnapshotAsync(CancellationToken cancellationToken);
     void Log(string message);
 }
 
-internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecyclePort port)
+internal readonly record struct AutomationQueueItemPolicies(
+    IAutomationQueueItemPreExecution PreExecution,
+    IAutomationMissingBuildingUpgradeRecovery MissingBuildingUpgradeRecovery,
+    IAutomationQueueItemSuccess Success,
+    IAutomationQueueItemFailure Failure);
+
+internal sealed class AutomationQueueItemLifecycle(
+    IAutomationQueueItemLifecyclePort port,
+    AutomationQueueItemPolicies policies)
 {
     internal async ValueTask<bool> ExecuteAsync(
         QueueItem item,
@@ -109,7 +93,7 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
                 return true;
             }
 
-            var guard = await port.RunPreExecutionGuardsAsync(
+            var guard = await policies.PreExecution.RunAsync(
                 item,
                 options,
                 logPrefix,
@@ -126,7 +110,7 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
                 ? port.BeginDemolitionOperation(item, cancellationToken)
                 : cancellationToken;
             var executionResult = await port.ExecuteWorkerAsync(effectiveOptions, item, executionToken);
-            if (await port.TryRecoverMissingBuildingUpgradeAsync(
+            if (await policies.MissingBuildingUpgradeRecovery.TryRecoverAsync(
                     item,
                     options,
                     executionResult,
@@ -137,7 +121,7 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
                 return true;
             }
 
-            freshBuildingsRefreshDone = await port.HandleSucceededAsync(
+            freshBuildingsRefreshDone = await policies.Success.HandleAsync(
                 item,
                 options,
                 executionResult,
@@ -285,7 +269,7 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
             }
         }
 
-        return await port.HandleTaskSpecificFailureAsync(
+        return await policies.Failure.HandleAsync(
             item,
             exception,
             logPrefix,

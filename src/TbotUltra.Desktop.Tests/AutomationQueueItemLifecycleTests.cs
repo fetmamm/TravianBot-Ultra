@@ -14,7 +14,7 @@ public sealed class AutomationQueueItemLifecycleTests
     {
         var port = new InMemoryQueueItemLifecyclePort { Allowed = false };
 
-        var shouldContinue = await new AutomationQueueItemLifecycle(port).ExecuteAsync(
+        var shouldContinue = await CreateLifecycle(port).ExecuteAsync(
             CreateItem(), new BotOptions(), "[LOOP 1]", AutomationRunMode.ContinuousLoop, default);
 
         Assert.True(shouldContinue);
@@ -27,7 +27,7 @@ public sealed class AutomationQueueItemLifecycleTests
     {
         var port = new InMemoryQueueItemLifecyclePort { DisableAfterMarkRunning = true };
 
-        var shouldContinue = await new AutomationQueueItemLifecycle(port).ExecuteAsync(
+        var shouldContinue = await CreateLifecycle(port).ExecuteAsync(
             CreateItem(), new BotOptions(), "[LOOP 1]", AutomationRunMode.ContinuousLoop, default);
 
         Assert.True(shouldContinue);
@@ -42,7 +42,7 @@ public sealed class AutomationQueueItemLifecycleTests
             GuardResult = new QueueItemGuardResult(true, true),
         };
 
-        var shouldContinue = await new AutomationQueueItemLifecycle(port).ExecuteAsync(
+        var shouldContinue = await CreateLifecycle(port).ExecuteAsync(
             CreateItem(), new BotOptions(), "[LOOP 1]", AutomationRunMode.ContinuousLoop, default);
 
         Assert.True(shouldContinue);
@@ -57,7 +57,7 @@ public sealed class AutomationQueueItemLifecycleTests
             WorkerException = new OperationCanceledException(),
         };
 
-        var shouldContinue = await new AutomationQueueItemLifecycle(port).ExecuteAsync(
+        var shouldContinue = await CreateLifecycle(port).ExecuteAsync(
             CreateItem(), new BotOptions(), "[LOOP 1]", AutomationRunMode.ContinuousLoop, default);
 
         Assert.False(shouldContinue);
@@ -73,7 +73,7 @@ public sealed class AutomationQueueItemLifecycleTests
             FailureOutcome = true,
         };
 
-        var shouldContinue = await new AutomationQueueItemLifecycle(port).ExecuteAsync(
+        var shouldContinue = await CreateLifecycle(port).ExecuteAsync(
             CreateItem(), new BotOptions(), "[AUTOQ 2]", AutomationRunMode.AutoQueue, default);
 
         Assert.True(shouldContinue);
@@ -89,7 +89,7 @@ public sealed class AutomationQueueItemLifecycleTests
             WorkerException = new InvalidOperationException("Execution context was destroyed during navigation"),
         };
 
-        var shouldContinue = await new AutomationQueueItemLifecycle(port).ExecuteAsync(
+        var shouldContinue = await CreateLifecycle(port).ExecuteAsync(
             CreateItem(), new BotOptions(), "[AUTOQ 2]", AutomationRunMode.AutoQueue, default);
 
         Assert.True(shouldContinue);
@@ -106,7 +106,7 @@ public sealed class AutomationQueueItemLifecycleTests
             WorkerException = new InvalidOperationException("Target page, context or browser has been closed"),
         };
 
-        var shouldContinue = await new AutomationQueueItemLifecycle(port).ExecuteAsync(
+        var shouldContinue = await CreateLifecycle(port).ExecuteAsync(
             CreateItem(), new BotOptions(), "[LOOP 1]", AutomationRunMode.ContinuousLoop, default);
 
         Assert.True(shouldContinue);
@@ -122,7 +122,7 @@ public sealed class AutomationQueueItemLifecycleTests
             WorkerException = new InvalidOperationException("A different thread owns it"),
         };
 
-        var shouldContinue = await new AutomationQueueItemLifecycle(port).ExecuteAsync(
+        var shouldContinue = await CreateLifecycle(port).ExecuteAsync(
             CreateItem(), new BotOptions(), "[LOOP 1]", AutomationRunMode.ContinuousLoop, default);
 
         Assert.True(shouldContinue);
@@ -137,7 +137,7 @@ public sealed class AutomationQueueItemLifecycleTests
         var port = new InMemoryQueueItemLifecyclePort();
         var item = CreateItem("upgrade_building_to_level");
 
-        await new AutomationQueueItemLifecycle(port).ExecuteAsync(
+        await CreateLifecycle(port).ExecuteAsync(
             item, new BotOptions(), "[AUTOQ 2]", AutomationRunMode.AutoQueue, default);
 
         Assert.Equal(
@@ -150,7 +150,7 @@ public sealed class AutomationQueueItemLifecycleTests
     {
         var port = new InMemoryQueueItemLifecyclePort { Demolition = true };
 
-        await new AutomationQueueItemLifecycle(port).ExecuteAsync(
+        await CreateLifecycle(port).ExecuteAsync(
             CreateItem(), new BotOptions(), "[AUTOQ 2]", AutomationRunMode.AutoQueue, default);
 
         Assert.Equal(
@@ -168,7 +168,7 @@ public sealed class AutomationQueueItemLifecycleTests
         var item = CreateItem();
         item.Payload[BotOptionPayloadKeys.TargetVillageName] = "Queue target";
 
-        await new AutomationQueueItemLifecycle(port).ExecuteAsync(
+        await CreateLifecycle(port).ExecuteAsync(
             item, new BotOptions(), "[LOOP 1]", AutomationRunMode.ContinuousLoop, default);
 
         Assert.Equal(
@@ -181,7 +181,7 @@ public sealed class AutomationQueueItemLifecycleTests
     {
         var item = CreateItem();
         var lifecyclePort = new InMemoryQueueItemLifecyclePort();
-        var lifecycle = new AutomationQueueItemLifecycle(lifecyclePort);
+        var lifecycle = CreateLifecycle(lifecyclePort);
         var reads = new Queue<AutomationStateSnapshot>(
         [
             new([AutomationCandidate.FromQueueItem(item)]),
@@ -231,7 +231,15 @@ public sealed class AutomationQueueItemLifecycleTests
         NextAttemptAt = DateTimeOffset.MinValue,
     };
 
-    private sealed class InMemoryQueueItemLifecyclePort : IAutomationQueueItemLifecyclePort
+    private static AutomationQueueItemLifecycle CreateLifecycle(InMemoryQueueItemLifecyclePort port) =>
+        new(port, new AutomationQueueItemPolicies(port, port, port, port));
+
+    private sealed class InMemoryQueueItemLifecyclePort :
+        IAutomationQueueItemLifecyclePort,
+        IAutomationQueueItemPreExecution,
+        IAutomationMissingBuildingUpgradeRecovery,
+        IAutomationQueueItemSuccess,
+        IAutomationQueueItemFailure
     {
         public List<string> Trace { get; } = [];
         public List<string> Logs { get; } = [];
@@ -270,7 +278,7 @@ public sealed class AutomationQueueItemLifecycleTests
                 Trace.Add("finalize");
             }
         }
-        public ValueTask<QueueItemGuardResult> RunPreExecutionGuardsAsync(
+        public ValueTask<QueueItemGuardResult> RunAsync(
             QueueItem item,
             BotOptions options,
             string logPrefix,
@@ -302,14 +310,14 @@ public sealed class AutomationQueueItemLifecycleTests
             }
             return ValueTask.FromResult(BotTaskExecutionResult.Empty);
         }
-        public ValueTask<bool> TryRecoverMissingBuildingUpgradeAsync(
+        public ValueTask<bool> TryRecoverAsync(
             QueueItem item,
             BotOptions options,
             BotTaskExecutionResult executionResult,
             string logPrefix,
             Stopwatch timer,
             CancellationToken cancellationToken) => ValueTask.FromResult(false);
-        public ValueTask<bool> HandleSucceededAsync(
+        public ValueTask<bool> HandleAsync(
             QueueItem item,
             BotOptions options,
             BotTaskExecutionResult executionResult,
@@ -335,7 +343,7 @@ public sealed class AutomationQueueItemLifecycleTests
         public ValueTask HoldAccountAutomationAsync(AccountAccessException exception) => ValueTask.CompletedTask;
         public ValueTask HandleUnexpectedTravianLanguageAsync(
             UnexpectedTravianLanguageException exception) => ValueTask.CompletedTask;
-        public ValueTask<bool> HandleTaskSpecificFailureAsync(
+        public ValueTask<bool> HandleAsync(
             QueueItem item,
             Exception exception,
             string logPrefix,

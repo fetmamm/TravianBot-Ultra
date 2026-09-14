@@ -24,10 +24,24 @@ internal interface IAutomationConstructLiveReconciliationPort
     void Log(string message);
 }
 
-internal sealed class AutomationConstructLiveReconciliation(
-    IAutomationConstructLiveReconciliationPort port)
+internal interface IAutomationConstructLiveReconciliation
 {
-    internal bool TryHandleExistingConstruct(
+    bool TryHandleExistingConstruct(
+        QueueItem item,
+        VillageStatus freshStatus,
+        string logPrefix,
+        Stopwatch timer);
+    bool TryHandleOccupiedSlot(
+        QueueItem item,
+        VillageStatus freshStatus,
+        string logPrefix,
+        Stopwatch timer);
+}
+
+internal sealed class AutomationConstructLiveReconciliation(
+    IAutomationConstructLiveReconciliationPort port) : IAutomationConstructLiveReconciliation
+{
+    public bool TryHandleExistingConstruct(
         QueueItem item,
         VillageStatus freshStatus,
         string logPrefix,
@@ -95,7 +109,7 @@ internal sealed class AutomationConstructLiveReconciliation(
         return true;
     }
 
-    internal bool TryHandleOccupiedSlot(
+    public bool TryHandleOccupiedSlot(
         QueueItem item,
         VillageStatus freshStatus,
         string logPrefix,

@@ -13,19 +13,6 @@ public partial class MainWindow
     private sealed class MainWindowAutomationQueueItemLifecyclePort(MainWindow owner)
         : IAutomationQueueItemLifecyclePort
     {
-        private readonly AutomationMissingBuildingUpgradeRecovery _missingBuildingUpgradeRecovery =
-            new(new MainWindowAutomationMissingBuildingUpgradeRecoveryPort(owner));
-        private readonly AutomationConstructLiveReconciliation _constructLiveReconciliation =
-            new(new MainWindowAutomationConstructLiveReconciliationPort(owner));
-        private readonly AutomationConstructPreflight _constructPreflight =
-            new(new MainWindowAutomationConstructPreflightPort(owner));
-        private readonly AutomationConstructionRequirementGuard _constructionRequirementGuard =
-            new(new MainWindowAutomationConstructionRequirementGuardPort(owner));
-        private readonly AutomationQueueItemSuccess _queueItemSuccess =
-            new(new MainWindowAutomationQueueItemSuccessPort(owner));
-        private readonly AutomationQueueItemFailure _queueItemFailure =
-            new(new MainWindowAutomationQueueItemFailurePort(owner));
-
         public bool IsAllowedByAutomationSettings(QueueItem item) =>
             owner.IsQueueItemAllowedByAutomationSettings(item);
 
@@ -68,57 +55,6 @@ public partial class MainWindow
         public void SetActiveFunctionExecution(string? displayName) =>
             owner.SetActiveFunctionExecution(displayName);
 
-        public async ValueTask<QueueItemGuardResult> RunPreExecutionGuardsAsync(
-            QueueItem item,
-            BotOptions options,
-            string logPrefix,
-            Stopwatch timer,
-            CancellationToken cancellationToken)
-        {
-            if (_constructionRequirementGuard.TryHandleUpgradeWaitingForConstruct(item, logPrefix, timer))
-            {
-                return new QueueItemGuardResult(true, false);
-            }
-
-            var constructRefresh = await _constructPreflight.RefreshTargetStatusAsync(
-                item,
-                options,
-                cancellationToken);
-            if (constructRefresh.FreshStatus is not null
-                && _constructLiveReconciliation.TryHandleExistingConstruct(
-                    item,
-                    constructRefresh.FreshStatus,
-                    logPrefix,
-                    timer))
-            {
-                return new QueueItemGuardResult(true, true);
-            }
-
-            if (constructRefresh.FreshStatus is not null
-                && _constructLiveReconciliation.TryHandleOccupiedSlot(
-                    item,
-                    constructRefresh.FreshStatus,
-                    logPrefix,
-                    timer))
-            {
-                return new QueueItemGuardResult(true, true);
-            }
-
-            if (constructRefresh.CanUseCache
-                && await _constructPreflight.TryHandleQueueFullAsync(item, logPrefix, timer))
-            {
-                return new QueueItemGuardResult(true, true);
-            }
-
-            if (constructRefresh.CanUseCache
-                && await _constructionRequirementGuard.TryHandleAsync(item, logPrefix, timer))
-            {
-                return new QueueItemGuardResult(true, true);
-            }
-
-            return QueueItemGuardResult.NotHandled;
-        }
-
         public BotOptions ApplyQueueItemOptions(BotOptions options, QueueItem item) =>
             owner.ApplyHeroResourceSettingsForQueueItem(options, item);
 
@@ -136,28 +72,6 @@ public partial class MainWindow
                 item,
                 owner.AppendLog,
                 cancellationToken));
-
-        public ValueTask<bool> TryRecoverMissingBuildingUpgradeAsync(
-            QueueItem item,
-            BotOptions options,
-            BotTaskExecutionResult executionResult,
-            string logPrefix,
-            Stopwatch timer,
-            CancellationToken cancellationToken) =>
-            _missingBuildingUpgradeRecovery.TryRecoverAsync(
-                item,
-                options,
-                executionResult,
-                logPrefix,
-                timer,
-                cancellationToken);
-
-        public ValueTask<bool> HandleSucceededAsync(
-            QueueItem item,
-            BotOptions options,
-            BotTaskExecutionResult executionResult,
-            CancellationToken cancellationToken) =>
-            _queueItemSuccess.HandleAsync(item, options, executionResult, cancellationToken);
 
         public bool IsLoadBuildingsSnapshot(QueueItem item) =>
             string.Equals(
@@ -194,19 +108,6 @@ public partial class MainWindow
         public ValueTask HandleUnexpectedTravianLanguageAsync(
             UnexpectedTravianLanguageException exception) =>
             new(owner.HandleUnexpectedTravianLanguageAsync(exception));
-
-        public ValueTask<bool> HandleTaskSpecificFailureAsync(
-            QueueItem item,
-            Exception exception,
-            string logPrefix,
-            Stopwatch timer,
-            AutomationRunMode mode) =>
-            _queueItemFailure.HandleAsync(
-                item,
-                exception,
-                logPrefix,
-                timer,
-                mode);
 
         public void CompleteDemolitionOperation(Guid itemId) => owner.CompleteDemolishOperation(itemId);
 

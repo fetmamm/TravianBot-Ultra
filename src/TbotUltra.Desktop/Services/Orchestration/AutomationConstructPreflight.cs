@@ -36,13 +36,22 @@ internal interface IAutomationConstructPreflightPort
     void Log(string message);
 }
 
+internal interface IAutomationConstructPreflight
+{
+    ValueTask<ConstructPreflightObservation> RefreshTargetStatusAsync(
+        QueueItem item,
+        BotOptions options,
+        CancellationToken cancellationToken);
+    ValueTask<bool> TryHandleQueueFullAsync(QueueItem item, string logPrefix, Stopwatch timer);
+}
+
 internal sealed class AutomationConstructPreflight(
     IAutomationConstructPreflightPort port,
-    TimeProvider? timeProvider = null)
+    TimeProvider? timeProvider = null) : IAutomationConstructPreflight
 {
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
-    internal async ValueTask<ConstructPreflightObservation> RefreshTargetStatusAsync(
+    public async ValueTask<ConstructPreflightObservation> RefreshTargetStatusAsync(
         QueueItem item,
         BotOptions options,
         CancellationToken cancellationToken)
@@ -90,7 +99,7 @@ internal sealed class AutomationConstructPreflight(
         }
     }
 
-    internal async ValueTask<bool> TryHandleQueueFullAsync(
+    public async ValueTask<bool> TryHandleQueueFullAsync(
         QueueItem item,
         string logPrefix,
         Stopwatch timer)

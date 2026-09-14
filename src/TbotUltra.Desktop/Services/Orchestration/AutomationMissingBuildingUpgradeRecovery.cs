@@ -32,10 +32,21 @@ internal interface IAutomationMissingBuildingUpgradeRecoveryPort
     void Log(string message);
 }
 
-internal sealed class AutomationMissingBuildingUpgradeRecovery(
-    IAutomationMissingBuildingUpgradeRecoveryPort port)
+internal interface IAutomationMissingBuildingUpgradeRecovery
 {
-    internal async ValueTask<bool> TryRecoverAsync(
+    ValueTask<bool> TryRecoverAsync(
+        QueueItem item,
+        BotOptions options,
+        BotTaskExecutionResult executionResult,
+        string logPrefix,
+        Stopwatch timer,
+        CancellationToken cancellationToken);
+}
+
+internal sealed class AutomationMissingBuildingUpgradeRecovery(
+    IAutomationMissingBuildingUpgradeRecoveryPort port) : IAutomationMissingBuildingUpgradeRecovery
+{
+    public async ValueTask<bool> TryRecoverAsync(
         QueueItem item,
         BotOptions options,
         BotTaskExecutionResult executionResult,

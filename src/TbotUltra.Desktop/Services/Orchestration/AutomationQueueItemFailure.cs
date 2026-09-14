@@ -47,9 +47,19 @@ internal interface IAutomationQueueItemFailurePort
     void Log(string message);
 }
 
+internal interface IAutomationQueueItemFailure
+{
+    ValueTask<bool> HandleAsync(
+        QueueItem item,
+        Exception exception,
+        string logPrefix,
+        Stopwatch timer,
+        AutomationRunMode mode);
+}
+
 internal sealed class AutomationQueueItemFailure(
     IAutomationQueueItemFailurePort port,
-    TimeProvider? timeProvider = null)
+    TimeProvider? timeProvider = null) : IAutomationQueueItemFailure
 {
     private const int MaxConsecutiveRequirementDefers = 12;
     private const string HeroDeferReasonKey = "hero_defer_reason";
@@ -60,7 +70,7 @@ internal sealed class AutomationQueueItemFailure(
     private const string TroopsBlockedReasonAllDone = "all_done";
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
-    internal async ValueTask<bool> HandleAsync(
+    public async ValueTask<bool> HandleAsync(
         QueueItem item,
         Exception ex,
         string logPrefix,

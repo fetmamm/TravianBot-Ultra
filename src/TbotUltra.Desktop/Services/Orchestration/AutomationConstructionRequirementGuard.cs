@@ -32,9 +32,15 @@ internal interface IAutomationConstructionRequirementGuardPort
     void Log(string message);
 }
 
+internal interface IAutomationConstructionRequirementGuard
+{
+    bool TryHandleUpgradeWaitingForConstruct(QueueItem item, string logPrefix, Stopwatch timer);
+    ValueTask<bool> TryHandleAsync(QueueItem item, string logPrefix, Stopwatch timer);
+}
+
 internal sealed class AutomationConstructionRequirementGuard(
     IAutomationConstructionRequirementGuardPort port,
-    TimeProvider? timeProvider = null)
+    TimeProvider? timeProvider = null) : IAutomationConstructionRequirementGuard
 {
     private static readonly string[] TransientPayloadKeys =
     [
@@ -48,7 +54,7 @@ internal sealed class AutomationConstructionRequirementGuard(
 
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
 
-    internal bool TryHandleUpgradeWaitingForConstruct(
+    public bool TryHandleUpgradeWaitingForConstruct(
         QueueItem item,
         string logPrefix,
         Stopwatch timer)
@@ -77,7 +83,7 @@ internal sealed class AutomationConstructionRequirementGuard(
         return true;
     }
 
-    internal async ValueTask<bool> TryHandleAsync(
+    public async ValueTask<bool> TryHandleAsync(
         QueueItem item,
         string logPrefix,
         Stopwatch timer)

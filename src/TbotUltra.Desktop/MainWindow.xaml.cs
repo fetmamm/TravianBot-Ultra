@@ -498,8 +498,24 @@ public partial class MainWindow : Window
         _continuousVillageStatusRound = new ContinuousVillageStatusRound(
             _villageStatusRoundCoordinator,
             new MainWindowVillageStatusRoundPort(this));
+        var constructionRequirementGuard = new AutomationConstructionRequirementGuard(
+            new MainWindowAutomationConstructionRequirementGuardPort(this));
+        var constructLiveReconciliation = new AutomationConstructLiveReconciliation(
+            new MainWindowAutomationConstructLiveReconciliationPort(this));
+        var constructPreflight = new AutomationConstructPreflight(
+            new MainWindowAutomationConstructPreflightPort(this));
+        var queueItemPolicies = new AutomationQueueItemPolicies(
+            new AutomationQueueItemPreExecution(
+                constructionRequirementGuard,
+                constructLiveReconciliation,
+                constructPreflight),
+            new AutomationMissingBuildingUpgradeRecovery(
+                new MainWindowAutomationMissingBuildingUpgradeRecoveryPort(this)),
+            new AutomationQueueItemSuccess(new MainWindowAutomationQueueItemSuccessPort(this)),
+            new AutomationQueueItemFailure(new MainWindowAutomationQueueItemFailurePort(this)));
         _automationQueueItemLifecycle = new AutomationQueueItemLifecycle(
-            new MainWindowAutomationQueueItemLifecyclePort(this));
+            new MainWindowAutomationQueueItemLifecyclePort(this),
+            queueItemPolicies);
         var automationActionExecutor = new AutomationActionExecutor(
             new MainWindowAutomationActionExecutionPort(this, _automationQueueItemLifecycle));
         var automationPass = new AutomationPassPort(
