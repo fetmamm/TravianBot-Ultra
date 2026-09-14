@@ -72,6 +72,30 @@ public sealed class AutomationConstructLiveReconciliationTests
         Assert.Equal(["defer", "apply", "refresh"], port.Trace);
     }
 
+    [Fact]
+    public void OccupiedSlot_WithCompleteFullVillage_FailsPermanentlyWithoutDeferring()
+    {
+        var item = Construct(new BuildingConstructPayload(38, 22, "Academy"));
+        var buildings = Enumerable.Range(19, 22)
+            .Select(slot => slot == 38
+                ? new Building(slot, "Marketplace", 1, $"/build.php?id={slot}", 17)
+                : new Building(slot, "Warehouse", 1, $"/build.php?id={slot}", 10))
+            .ToList();
+        var port = new InMemoryPort { QueueItems = [item] };
+
+        var handled = new AutomationConstructLiveReconciliation(port).TryHandleOccupiedSlot(
+            item,
+            Status(buildings),
+            "[LOOP 1]",
+            Stopwatch.StartNew());
+
+        Assert.True(handled);
+        Assert.Equal(["permanent-failure", "forget"], port.Trace);
+        Assert.DoesNotContain("defer", port.Trace);
+        Assert.Contains(port.Logs, log => log.StartsWith("ALARM:", StringComparison.Ordinal));
+        Assert.Contains(port.Logs, log => log.Contains("moved to History", StringComparison.Ordinal));
+    }
+
     private static QueueItem Construct(BuildingConstructPayload payload) => new()
     {
         Id = Guid.NewGuid(),
@@ -121,7 +145,11 @@ public sealed class AutomationConstructLiveReconciliationTests
             return true;
         }
         public IReadOnlyList<QueueItem> GetSameVillageQueueItems(QueueItem source) => QueueItems;
-        public bool MarkPermanentlyFailed(Guid itemId) => true;
+        public bool MarkPermanentlyFailed(Guid itemId)
+        {
+            Trace.Add("permanent-failure");
+            return true;
+        }
         public void ForgetBuildingQueueCaches(QueueItem item) => Trace.Add("forget");
         public bool ApplyPendingQueueReconciliation(IReadOnlyList<QueuePayloadUpdate> updates)
         {
