@@ -19,6 +19,8 @@ public partial class MainWindow
             new(new MainWindowAutomationConstructLiveReconciliationPort(owner));
         private readonly AutomationConstructPreflight _constructPreflight =
             new(new MainWindowAutomationConstructPreflightPort(owner));
+        private readonly AutomationConstructionRequirementGuard _constructionRequirementGuard =
+            new(new MainWindowAutomationConstructionRequirementGuardPort(owner));
 
         public bool IsAllowedByAutomationSettings(QueueItem item) =>
             owner.IsQueueItemAllowedByAutomationSettings(item);
@@ -65,7 +67,7 @@ public partial class MainWindow
             Stopwatch timer,
             CancellationToken cancellationToken)
         {
-            if (owner.TryHandleUpgradeWaitingForConstruct(item, logPrefix, timer))
+            if (_constructionRequirementGuard.TryHandleUpgradeWaitingForConstruct(item, logPrefix, timer))
             {
                 return new QueueItemGuardResult(true, false);
             }
@@ -101,10 +103,7 @@ public partial class MainWindow
             }
 
             if (constructRefresh.CanUseCache
-                && await owner.TryHandleConstructRequirementPreRunGuardAsync(
-                    item,
-                    logPrefix,
-                    timer))
+                && await _constructionRequirementGuard.TryHandleAsync(item, logPrefix, timer))
             {
                 return new QueueItemGuardResult(true, true);
             }

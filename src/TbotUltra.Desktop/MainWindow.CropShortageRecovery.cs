@@ -215,4 +215,15 @@ public partial class MainWindow
 
         await EnsureCropShortageRecoveryAsync(parent, status);
     }
+
+    private static void CopyIfPresent(
+        IReadOnlyDictionary<string, string> source,
+        IDictionary<string, string> target,
+        string key)
+    {
+        if (source.TryGetValue(key, out var value) && !string.IsNullOrWhiteSpace(value))
+        {
+            target[key] = value;
+        }
+    }
 }
