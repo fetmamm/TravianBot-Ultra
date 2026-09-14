@@ -53,6 +53,32 @@ public sealed class ContinuousAutomationPassTests
     }
 
     [Fact]
+    public async Task ReadyTroopTraining_PublishesSmartSleepBlockerDiagnostic()
+    {
+        var item = new QueueItem
+        {
+            Id = Guid.NewGuid(),
+            TaskName = "build_troops",
+            Group = QueueGroup.TroopTraining,
+            Status = QueueStatus.Pending,
+            NextAttemptAt = Now,
+            IsRuntimeOnly = true,
+        };
+        var preparation = new InMemoryContinuousAutomationPassPort
+        {
+            SelectedItems = new Queue<QueueItem?>([item]),
+        };
+        var pass = new ContinuousAutomationPass(preparation, new FixedTimeProvider(Now));
+
+        var snapshot = await pass.ReadAsync(
+            new AutomationRunContext("account-1", new Uri("https://ts1.x1.example/"), 7),
+            CancellationToken.None);
+
+        Assert.Single(snapshot.Candidates);
+        Assert.Equal([item.Id], preparation.SmartSleepBlockers);
+    }
+
+    [Fact]
     public async Task NoReadyWork_WaitsUntilThePreparedWakeDeadline()
     {
         var preparation = new InMemoryContinuousAutomationPassPort
@@ -70,6 +96,46 @@ public sealed class ContinuousAutomationPassTests
             new AutomationRunContext("account-1", new Uri("https://ts1.x1.example/"), 7)));
 
         Assert.Equal(TimeSpan.FromSeconds(75), await delay.Requested.WaitAsync(TimeSpan.FromSeconds(2)));
+    }
+
+    [Fact]
+    public async Task DeferredTroopTrainingDeadline_DrivesSmartSleepWhileVillageScanOnlyDrivesOnlineWake()
+    {
+        var troopDeadline = Now.AddHours(2);
+        var villageScanDeadline = Now.AddMinutes(5);
+        var deferredTroops = new QueueItem
+        {
+            Id = Guid.NewGuid(),
+            TaskName = "build_troops",
+            Group = QueueGroup.TroopTraining,
+            Status = QueueStatus.Pending,
+            NextAttemptAt = troopDeadline,
+            IsRuntimeOnly = true,
+        };
+        var preparation = new InMemoryContinuousAutomationPassPort
+        {
+            Options = new BotOptions
+            {
+                LoopIntervalSeconds = 60,
+                ContinuousKeepAliveEnabled = true,
+            },
+            NextKeepAliveAtUtc = Now.AddMinutes(2),
+            SmartSleepRequestAccepted = true,
+            Deadlines = new ContinuousAutomationDeadlineSnapshot(
+                troopDeadline,
+                null,
+                villageScanDeadline,
+                [deferredTroops],
+                SmartSleepDeadlinePolicy.AllGroups.ToHashSet()),
+        };
+        var pass = new ContinuousAutomationPass(preparation, new FixedTimeProvider(Now));
+
+        var snapshot = await pass.ReadAsync(
+            new AutomationRunContext("account-1", new Uri("https://ts1.x1.example/"), 7),
+            CancellationToken.None);
+
+        Assert.Equal(troopDeadline, preparation.RequestedSmartSleepDeadline);
+        Assert.Equal(villageScanDeadline, snapshot.NextWakeAt);
     }
 
     [Fact]
@@ -244,6 +310,10 @@ public sealed class ContinuousAutomationPassTests
         public int RuntimeItemsCount { get; private set; }
         public int ChromiumPreparationCount { get; private set; }
         public int AccountHoldCount { get; private set; }
+        public List<Guid> SmartSleepBlockers { get; } = [];
+        public DateTimeOffset? RequestedSmartSleepDeadline { get; private set; }
+        public BotOptions Options { get; init; } = new() { LoopIntervalSeconds = 60 };
+        public bool SmartSleepRequestAccepted { get; init; }
         public List<string> Trace { get; } = [];
         public ContinuousAutomationDeadlineSnapshot Deadlines { get; init; } = new(
             Now.AddMinutes(1), null, null, [], SmartSleepDeadlinePolicy.AllGroups.ToHashSet());
@@ -253,13 +323,13 @@ public sealed class ContinuousAutomationPassTests
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         public TaskCompletionSource MembershipVerificationStarted { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
-        public BotOptions LoadOptions() => new() { LoopIntervalSeconds = 60 };
+        public BotOptions LoadOptions() => Options;
         public long BeginPass() => 1;
         public bool TryScheduleAutomaticProxyRecovery(BotOptions options) =>
             ProxyRecoveryResults.Count > 0 && ProxyRecoveryResults.Dequeue();
         public TimeSpan NetworkBackoffRemaining { get; init; }
         public DateTimeOffset VillageMembershipVerificationNotBeforeUtc => DateTimeOffset.MinValue;
-        public DateTimeOffset NextKeepAliveAtUtc => DateTimeOffset.MaxValue;
+        public DateTimeOffset NextKeepAliveAtUtc { get; init; } = DateTimeOffset.MaxValue;
         public bool PrioritizeDeadlineWorkOnWake { get; set; }
         public ValueTask EnsureChromiumInstalledAsync()
         {
@@ -308,9 +378,14 @@ public sealed class ContinuousAutomationPassTests
             return SelectedItems.Count == 0 ? null : SelectedItems.Dequeue();
         }
         public void MarkActivePass() => ActivePassCount++;
+        public void LogSmartSleepBlockedByReadyTask(QueueItem item) => SmartSleepBlockers.Add(item.Id);
         public ValueTask MaybeKeepBrowserFreshAsync(BotOptions options, CancellationToken cancellationToken) => ValueTask.CompletedTask;
         public ContinuousAutomationDeadlineSnapshot ReadDeadlines(BotOptions options) => Deadlines;
-        public bool TryRequestSmartSleep(DateTimeOffset? trustedDeadlineUtc) => false;
+        public bool TryRequestSmartSleep(DateTimeOffset? trustedDeadlineUtc)
+        {
+            RequestedSmartSleepDeadline = trustedDeadlineUtc;
+            return SmartSleepRequestAccepted;
+        }
         public bool ShouldPublishIdleHeartbeat(TimeSpan interval) => false;
         public void Log(string message) { }
         public string FormatException(Exception exception) => exception.Message;

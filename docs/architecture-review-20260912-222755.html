@@ -1,0 +1,275 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Architecture review — Tbot Ultra</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script type="module">
+    import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs";
+    mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose", flowchart: { curve: "basis" } });
+  </script>
+  <style>
+    :root { --ink:#172033; --paper:#faf9f6; --indigo:#4f46e5; --red:#dc2626; }
+    body { background-image: radial-gradient(#d6d3d1 0.7px, transparent 0.7px); background-size: 22px 22px; }
+    .paper { box-shadow: 0 18px 55px rgba(30,41,59,.08); }
+    .seam-line { border-top: 2px dashed #94a3b8; }
+    .deep { background: linear-gradient(145deg,#111827,#263247); color:white; }
+    .leak { color:#b91c1c; }
+    .mass-interface { background:#fee2e2; border:1px solid #fca5a5; }
+    .mass-implementation { background:#e2e8f0; border:1px solid #cbd5e1; }
+    .internal { opacity:.62; border:1px dashed #94a3b8; }
+    .candidate:target { outline: 3px solid #818cf8; outline-offset: 6px; }
+    code { word-break: break-word; }
+  </style>
+</head>
+<body class="text-slate-900 antialiased">
+  <main class="max-w-6xl mx-auto px-5 py-12 space-y-12">
+    <header class="paper rounded-2xl border border-stone-200 bg-white/95 p-8 flex flex-col md:flex-row md:items-end md:justify-between gap-6">
+      <div>
+        <div class="text-xs uppercase tracking-[.28em] text-indigo-600 font-semibold">Architecture review · 12 Sep 2026</div>
+        <h1 class="mt-3 text-4xl font-serif tracking-tight">Tbot Ultra</h1>
+      </div>
+      <div class="grid grid-cols-2 gap-x-6 gap-y-2 text-xs text-slate-600">
+        <span class="flex items-center gap-2"><i class="block w-7 h-4 border border-slate-500 bg-white"></i> module</span>
+        <span class="flex items-center gap-2"><i class="block w-7 border-t-2 border-dashed border-slate-400"></i> seam</span>
+        <span class="flex items-center gap-2"><i class="block w-7 border-t-2 border-red-600"></i> leakage</span>
+        <span class="flex items-center gap-2"><i class="block w-7 h-4 bg-slate-800"></i> deep module</span>
+      </div>
+    </header>
+
+    <section id="candidates" class="space-y-12">
+      <article id="automation" class="candidate paper rounded-2xl border border-stone-200 bg-white p-7">
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1 text-xs font-bold uppercase tracking-wide">Strong</span>
+          <span class="rounded-full bg-indigo-50 text-indigo-700 px-3 py-1 text-xs font-semibold">ports &amp; adapters</span>
+          <span class="text-xs text-slate-400">01</span>
+        </div>
+        <h2 class="mt-4 text-3xl font-serif">Finish the Automation Pass migration</h2>
+        <div class="mt-4 text-xs font-mono text-slate-600 grid md:grid-cols-2 gap-1">
+          <code>MainWindow.xaml.cs:483–492</code><code>MainWindow.ContinuousLoop.cs:889–1162</code>
+          <code>Services/Orchestration/AutomationDesk.cs</code><code>Services/Orchestration/AutomationContracts.cs:207–225</code>
+        </div>
+
+        <div class="mt-7 grid md:grid-cols-2 gap-6">
+          <figure class="rounded-xl border border-red-100 bg-red-50/40 p-4 min-h-[320px]">
+            <figcaption class="text-xs uppercase tracking-widest text-red-700 font-bold">Before · seam loops back</figcaption>
+            <pre class="mermaid mt-5">
+flowchart TB
+  UI[WPF caller] --> D[AutomationDesk]
+  D --> P[Delegate adapters]
+  P -. policy leaks .-> MW[MainWindow]
+  MW --> Q[Queue state]
+  MW --> S[Smart Sleep]
+  MW --> V[Village Status Round]
+  MW --> W[Worker]
+  classDef leak fill:#fee2e2,stroke:#dc2626,stroke-width:2px;
+  class MW,P leak;
+            </pre>
+          </figure>
+          <figure class="rounded-xl border border-indigo-100 bg-indigo-50/30 p-4 min-h-[320px]">
+            <figcaption class="text-xs uppercase tracking-widest text-indigo-700 font-bold">After · one deep orchestration module</figcaption>
+            <div class="mt-8 rounded-xl deep border-4 border-slate-800 p-5">
+              <div class="text-xs uppercase tracking-widest text-indigo-200">Small interface</div>
+              <div class="mt-1 text-lg">start · stop · wake · respond</div>
+              <div class="seam-line my-4"></div>
+              <div class="grid grid-cols-2 gap-2 text-xs">
+                <div class="internal rounded p-2">Automation Pass</div><div class="internal rounded p-2">deadlines</div>
+                <div class="internal rounded p-2">mailbox</div><div class="internal rounded p-2">generation safety</div>
+                <div class="internal rounded p-2">queue selection</div><div class="internal rounded p-2">Village Status Round</div>
+              </div>
+            </div>
+            <div class="mt-5 flex justify-between text-xs text-slate-500"><span>WPF adapter</span><span>Worker adapter</span></div>
+          </figure>
+        </div>
+
+        <div class="mt-6 grid md:grid-cols-3 gap-5 text-sm">
+          <div><h3 class="font-bold">Problem</h3><p class="mt-1 text-slate-600">The interface is small, but production policy and runtime state leak back into <code>MainWindow</code>.</p></div>
+          <div><h3 class="font-bold">Solution</h3><p class="mt-1 text-slate-600">Move remaining Automation Pass behavior behind the existing seam in staged vertical slices.</p></div>
+          <div><h3 class="font-bold">Wins</h3><ul class="mt-1 text-slate-600 space-y-1"><li>• locality: policy in one module</li><li>• leverage: both run modes</li><li>• tests use production interface</li></ul></div>
+        </div>
+        <div class="mt-5 rounded-lg bg-indigo-50 border border-indigo-200 px-4 py-3 text-sm text-indigo-900">Aligned with accepted ADR “Deep continuous automation orchestration”; do not introduce a second orchestration seam.</div>
+      </article>
+
+      <article id="queue-lifecycle" class="candidate paper rounded-2xl border border-stone-200 bg-white p-7">
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1 text-xs font-bold uppercase tracking-wide">Strong</span>
+          <span class="rounded-full bg-indigo-50 text-indigo-700 px-3 py-1 text-xs font-semibold">in-process</span>
+          <span class="text-xs text-slate-400">02</span>
+        </div>
+        <h2 class="mt-4 text-3xl font-serif">Relocate the queue-item lifecycle</h2>
+        <div class="mt-4 text-xs font-mono text-slate-600 grid md:grid-cols-2 gap-1">
+          <code>MainWindow.QueueExecution.cs:402–595</code><code>MainWindow.QueueExecution.cs:1073–1195</code>
+          <code>ActiveWorkingVillageSourceTests.cs</code><code>DemolitionNavigationRecoverySourceTests.cs</code>
+        </div>
+        <div class="mt-7 grid md:grid-cols-2 gap-6">
+          <figure class="rounded-xl border border-red-100 bg-red-50/40 p-4 min-h-[320px]">
+            <figcaption class="text-xs uppercase tracking-widest text-red-700 font-bold">Before · deep behavior, hidden test seam</figcaption>
+            <div class="mt-6 space-y-1">
+              <div class="h-9 border-l-4 border-red-500 bg-white px-3 flex items-center text-sm">eligibility + construction guards</div>
+              <div class="h-9 border-l-4 border-red-500 bg-white px-3 flex items-center text-sm">queue transitions + Worker action</div>
+              <div class="h-9 border-l-4 border-red-500 bg-white px-3 flex items-center text-sm">retry / defer / failure policy</div>
+              <div class="h-9 border-l-4 border-red-500 bg-white px-3 flex items-center text-sm">task-specific refresh</div>
+              <div class="h-9 border-l-4 border-red-500 bg-white px-3 flex items-center text-sm">Dispatcher + WPF projection</div>
+            </div>
+            <div class="mt-5 text-center text-xs text-red-700 font-semibold">private methods inside WPF type</div>
+          </figure>
+          <figure class="rounded-xl border border-indigo-100 bg-indigo-50/30 p-4 min-h-[320px]">
+            <figcaption class="text-xs uppercase tracking-widest text-indigo-700 font-bold">After · same behavior, usable seam</figcaption>
+            <div class="mt-8 flex gap-3 items-stretch">
+              <div class="w-1/4 rounded border border-slate-300 bg-white p-3 text-xs text-center flex items-center">Automation Pass</div>
+              <div class="text-indigo-600 flex items-center">→</div>
+              <div class="w-2/4 rounded-xl deep p-4 text-center">
+                <div class="text-xs uppercase tracking-widest text-indigo-200">Queue lifecycle module</div>
+                <div class="mt-3 text-sm">guards · transitions · execution · outcomes · retry</div>
+              </div>
+              <div class="text-indigo-600 flex items-center">→</div>
+              <div class="w-1/4 rounded border border-slate-300 bg-white p-3 text-xs text-center flex items-center">WPF adapter</div>
+            </div>
+            <div class="mt-8 seam-line pt-3 text-xs text-center text-slate-500">scenario tests cross the same seam</div>
+          </figure>
+        </div>
+        <div class="mt-6 grid md:grid-cols-3 gap-5 text-sm">
+          <div><h3 class="font-bold">Problem</h3><p class="mt-1 text-slate-600">One-action behavior is deep, but its private WPF seam forces source-text tests.</p></div>
+          <div><h3 class="font-bold">Solution</h3><p class="mt-1 text-slate-600">Keep the behavior together in a WPF-independent module used by the Automation Pass.</p></div>
+          <div><h3 class="font-bold">Wins</h3><ul class="mt-1 text-slate-600 space-y-1"><li>• locality: transitions stay atomic</li><li>• interface becomes test surface</li><li>• both modes gain leverage</li></ul></div>
+        </div>
+      </article>
+
+      <article id="farm-lists" class="candidate paper rounded-2xl border border-stone-200 bg-white p-7">
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="rounded-full bg-emerald-100 text-emerald-800 px-3 py-1 text-xs font-bold uppercase tracking-wide">Strong</span>
+          <span class="rounded-full bg-indigo-50 text-indigo-700 px-3 py-1 text-xs font-semibold">ports &amp; adapters</span>
+          <span class="text-xs text-slate-400">03</span>
+        </div>
+        <h2 class="mt-4 text-3xl font-serif">Deepen the Farm Lists desktop workflow</h2>
+        <div class="mt-4 text-xs font-mono text-slate-600 grid md:grid-cols-2 gap-1">
+          <code>MainWindow.Farming.FarmLists.cs:123–790</code><code>MainWindow.Farming.FarmLists.cs:1494–1996</code>
+          <code>Services/FarmingPanelService.cs:10–41</code><code>Services/PanelServiceClients.cs:75–100</code>
+        </div>
+        <div class="mt-7 grid md:grid-cols-2 gap-6">
+          <figure class="rounded-xl border border-red-100 bg-red-50/40 p-4 min-h-[320px]">
+            <figcaption class="text-xs uppercase tracking-widest text-red-700 font-bold">Before · forwarding chain</figcaption>
+            <pre class="mermaid mt-4">
+flowchart TB
+  MW[MainWindow workflow] --> FPS[FarmingPanelService]
+  FPS --> A[DesktopFarmingPanelClient]
+  A --> DBS[DesktopBotService]
+  DBS --> W[Worker browser actions]
+  MW -. state .-> VM[FarmListsViewModel]
+  MW -. snapshot .-> FS[dispatch + snapshot stores]
+  CL[Continuous Loop] -. Dispatcher read .-> VM
+  classDef leak fill:#fee2e2,stroke:#dc2626,stroke-width:2px;
+  class FPS,A,DBS leak;
+            </pre>
+          </figure>
+          <figure class="rounded-xl border border-indigo-100 bg-indigo-50/30 p-4 min-h-[320px]">
+            <figcaption class="text-xs uppercase tracking-widest text-indigo-700 font-bold">After · Farm Lists depth</figcaption>
+            <div class="mt-7 rounded-xl deep border-4 border-slate-800 p-5">
+              <div class="text-xs uppercase tracking-widest text-indigo-200">Farm Lists workflow module</div>
+              <div class="mt-4 grid grid-cols-2 gap-2 text-xs">
+                <div class="internal rounded p-2">live overview projection</div><div class="internal rounded p-2">Farm Target Protection</div>
+                <div class="internal rounded p-2">selection + dispatch state</div><div class="internal rounded p-2">snapshot locality</div>
+                <div class="internal rounded p-2">Analyze / Create / Add</div><div class="internal rounded p-2">automation pause / resume</div>
+              </div>
+            </div>
+            <div class="mt-5 grid grid-cols-2 gap-4 text-xs text-center"><div class="rounded border bg-white p-2">WPF dialog adapter</div><div class="rounded border bg-white p-2">Official browser adapter</div></div>
+          </figure>
+        </div>
+        <div class="mt-6 grid md:grid-cols-3 gap-5 text-sm">
+          <div><h3 class="font-bold">Problem</h3><p class="mt-1 text-slate-600">Stateful Farm Lists policy lives in <code>MainWindow</code>; three shallow modules only forward calls.</p></div>
+          <div><h3 class="font-bold">Solution</h3><p class="mt-1 text-slate-600">Concentrate live projection, snapshots, scheduling, and manual flow policy in one module.</p></div>
+          <div><h3 class="font-bold">Wins</h3><ul class="mt-1 text-slate-600 space-y-1"><li>• locality: one Farm Lists model</li><li>• leverage: manual + automated</li><li>• tests cover full workflows</li></ul></div>
+        </div>
+        <div class="mt-5 rounded-lg bg-indigo-50 border border-indigo-200 px-4 py-3 text-sm text-indigo-900">Preserves the Official Farm Lists ADR: WPF renders progress; Worker retains verified browser actions.</div>
+      </article>
+
+      <article id="smart-sleep" class="candidate paper rounded-2xl border border-stone-200 bg-white p-7">
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="rounded-full bg-amber-100 text-amber-800 px-3 py-1 text-xs font-bold uppercase tracking-wide">Worth exploring</span>
+          <span class="rounded-full bg-indigo-50 text-indigo-700 px-3 py-1 text-xs font-semibold">local-substitutable</span>
+          <span class="text-xs text-slate-400">04</span>
+        </div>
+        <h2 class="mt-4 text-3xl font-serif">Deepen Smart Sleep transitions</h2>
+        <div class="mt-4 text-xs font-mono text-slate-600 grid md:grid-cols-2 gap-1">
+          <code>MainWindow.SessionPacing.cs:220–309</code><code>MainWindow.SessionPacing.cs:360–542</code>
+          <code>Services/Orchestration/SessionPacer.cs:47–127</code><code>SessionSleepBrowserShutdownSourceTests.cs</code>
+        </div>
+        <div class="mt-7 grid md:grid-cols-2 gap-6">
+          <figure class="rounded-xl border border-red-100 bg-red-50/40 p-4 min-h-[320px]">
+            <figcaption class="text-xs uppercase tracking-widest text-red-700 font-bold">Before · timer state vs transition sequence</figcaption>
+            <div class="mt-7 flex gap-5">
+              <div class="w-1/3 rounded border bg-white p-3 text-center"><div class="text-xs uppercase tracking-wide">SessionPacer</div><div class="mt-3 h-12 mass-implementation rounded flex items-center justify-center text-xs">timer state</div></div>
+              <div class="w-2/3 rounded border-2 border-red-300 bg-red-50 p-3"><div class="text-xs uppercase tracking-wide text-red-700">MainWindow</div><div class="mt-3 grid grid-cols-2 gap-2 text-xs"><span class="bg-white p-2">snapshot</span><span class="bg-white p-2">graceful stop</span><span class="bg-white p-2">browser close</span><span class="bg-white p-2">proxy apply</span><span class="bg-white p-2">wake login</span><span class="bg-white p-2">resume modes</span></div></div>
+            </div>
+            <div class="mt-7 leak text-xs text-center font-semibold">Ordering verified by reading source text</div>
+          </figure>
+          <figure class="rounded-xl border border-indigo-100 bg-indigo-50/30 p-4 min-h-[320px]">
+            <figcaption class="text-xs uppercase tracking-widest text-indigo-700 font-bold">After · transition module</figcaption>
+            <div class="mt-7 rounded-xl deep p-5">
+              <div class="text-xs uppercase tracking-widest text-indigo-200">Session transition interface</div>
+              <div class="mt-4 flex items-center justify-between text-xs"><span>running</span><span>→</span><span>stopping</span><span>→</span><span>sleeping</span><span>→</span><span>waking</span></div>
+              <div class="seam-line my-5"></div>
+              <div class="grid grid-cols-3 gap-2 text-xs text-center"><span class="internal p-2">browser adapter</span><span class="internal p-2">loop adapter</span><span class="internal p-2">clock adapter</span></div>
+            </div>
+            <div class="mt-5 text-xs text-center text-slate-500">Ordered scenarios cross one seam</div>
+          </figure>
+        </div>
+        <div class="mt-6 grid md:grid-cols-3 gap-5 text-sm">
+          <div><h3 class="font-bold">Problem</h3><p class="mt-1 text-slate-600">The timer module is deep, but the load-bearing sleep and wake sequence remains scattered in WPF state.</p></div>
+          <div><h3 class="font-bold">Solution</h3><p class="mt-1 text-slate-600">Let the existing pacing module absorb session transitions behind substitutable side-effect adapters.</p></div>
+          <div><h3 class="font-bold">Wins</h3><ul class="mt-1 text-slate-600 space-y-1"><li>• locality: ordering in one place</li><li>• deterministic transition tests</li><li>• fewer WPF flags</li></ul></div>
+        </div>
+        <div class="mt-5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">Coordinate with AutomationDesk: LoopController must remain the sole owner of lifecycle and cancellation.</div>
+      </article>
+
+      <article id="desktop-bot" class="candidate paper rounded-2xl border border-stone-200 bg-white p-7">
+        <div class="flex flex-wrap items-center gap-3">
+          <span class="rounded-full bg-slate-200 text-slate-700 px-3 py-1 text-xs font-bold uppercase tracking-wide">Speculative</span>
+          <span class="rounded-full bg-indigo-50 text-indigo-700 px-3 py-1 text-xs font-semibold">mock</span>
+          <span class="text-xs text-slate-400">05</span>
+        </div>
+        <h2 class="mt-4 text-3xl font-serif">Retire the hypothetical desktop bot seam</h2>
+        <div class="mt-4 text-xs font-mono text-slate-600 grid md:grid-cols-2 gap-1">
+          <code>Services/IDesktopBotService.cs:7–135</code><code>Services/DesktopBotService.cs:8–98</code>
+          <code>Services/PanelServiceClients.cs:60–128</code><code>docs/adr/2026-06-25-travianclient-seams.md</code>
+        </div>
+        <div class="mt-7 grid md:grid-cols-2 gap-6">
+          <figure class="rounded-xl border border-red-100 bg-red-50/40 p-4 min-h-[320px]">
+            <figcaption class="text-xs uppercase tracking-widest text-red-700 font-bold">Before · shallow mass</figcaption>
+            <div class="mt-8 max-w-sm mx-auto">
+              <div class="mass-interface rounded-t-lg h-28 p-4 text-center"><div class="text-xs uppercase tracking-widest text-red-700">Interface</div><div class="mt-3 font-semibold">queue + session + every domain + diagnostics + shutdown</div></div>
+              <div class="mass-implementation rounded-b-lg h-28 p-4 text-center"><div class="text-xs uppercase tracking-widest text-slate-600">Implementation</div><div class="mt-3">mostly forwards to four dependencies</div></div>
+            </div>
+            <div class="mt-5 text-xs text-center text-red-700">one adapter → hypothetical seam</div>
+          </figure>
+          <figure class="rounded-xl border border-indigo-100 bg-indigo-50/30 p-4 min-h-[320px]">
+            <figcaption class="text-xs uppercase tracking-widest text-indigo-700 font-bold">After · earned seams only</figcaption>
+            <div class="mt-8 grid grid-cols-3 gap-3 items-end text-center text-xs">
+              <div><div class="mass-interface rounded-t h-5 p-1">interface</div><div class="deep rounded-b h-36 p-3 flex items-center">Automation workflow</div></div>
+              <div><div class="mass-interface rounded-t h-5 p-1">interface</div><div class="deep rounded-b h-28 p-3 flex items-center">Farm Lists workflow</div></div>
+              <div><div class="mass-interface rounded-t h-5 p-1">interface</div><div class="deep rounded-b h-24 p-3 flex items-center">Queue store</div></div>
+            </div>
+            <div class="mt-6 text-xs text-center text-slate-500">Shrink only after real workflows move</div>
+          </figure>
+        </div>
+        <div class="mt-6 grid md:grid-cols-3 gap-5 text-sm">
+          <div><h3 class="font-bold">Problem</h3><p class="mt-1 text-slate-600">A 129-line interface spans unrelated knowledge while its only adapter mostly forwards.</p></div>
+          <div><h3 class="font-bold">Solution</h3><p class="mt-1 text-slate-600">After deeper modules exist, remove pass-through surface and retain only seams with two adapters.</p></div>
+          <div><h3 class="font-bold">Wins</h3><ul class="mt-1 text-slate-600 space-y-1"><li>• smaller caller knowledge</li><li>• real seams stay explicit</li><li>• less forwarding implementation</li></ul></div>
+        </div>
+        <div class="mt-5 rounded-lg bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">Do not mechanically split TravianClient: its ADR requires domain-by-domain extraction and live smoke tests.</div>
+      </article>
+    </section>
+
+    <section id="top-recommendation" class="paper rounded-2xl bg-slate-900 text-white p-8 flex flex-col md:flex-row md:items-center md:justify-between gap-6">
+      <div>
+        <div class="text-xs uppercase tracking-[.25em] text-indigo-300 font-bold">Top recommendation</div>
+        <h2 class="mt-3 text-3xl font-serif">Finish the Automation Pass migration</h2>
+        <p class="mt-3 text-slate-300 max-w-3xl">It has the strongest recent-change signal, passes the deletion test, and completes an accepted ADR through an existing small interface.</p>
+      </div>
+      <a href="#automation" class="shrink-0 rounded-lg bg-indigo-500 hover:bg-indigo-400 px-5 py-3 font-semibold">View candidate ↑</a>
+    </section>
+  </main>
+</body>
+</html>

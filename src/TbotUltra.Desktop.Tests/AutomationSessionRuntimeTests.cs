@@ -65,6 +65,19 @@ public sealed class AutomationSessionRuntimeTests
             runtime.PlanGoldClubCheck("a", false, TimeSpan.FromMinutes(10)));
     }
 
+    [Fact]
+    public void SmartSleepBlockerDiagnostic_IsRateLimitedPerTaskAndVillage()
+    {
+        var time = new MutableTimeProvider(new DateTimeOffset(2026, 9, 14, 12, 0, 0, TimeSpan.Zero));
+        var runtime = new AutomationSessionRuntime(time);
+        const string key = "smart-sleep:blocker:TroopTraining:build_troops:xy:112|6";
+
+        Assert.True(runtime.ShouldPublishVerbose(key, TimeSpan.FromMinutes(5)));
+        Assert.False(runtime.ShouldPublishVerbose(key, TimeSpan.FromMinutes(5)));
+        time.Advance(TimeSpan.FromMinutes(5));
+        Assert.True(runtime.ShouldPublishVerbose(key, TimeSpan.FromMinutes(5)));
+    }
+
     private sealed class MutableTimeProvider(DateTimeOffset now) : TimeProvider
     {
         private DateTimeOffset _now = now;

@@ -50,6 +50,35 @@ public sealed class TroopTrainingResourceThresholdCalculatorTests
     }
 
     [Fact]
+    public void AutomaticSlaveMilitiaSelection_LowClayProducesSleepSizedDeadline()
+    {
+        Assert.True(TroopCatalog.TryResolveTrainingCost("Egyptians", "Slave Militia", out var cost));
+        var resources = Resources(wood: 900, clay: 40, iron: 900, crop: 900);
+        var selection = TroopTrainingResourceThresholdCalculator.ResolveAutomaticResourceSelection(
+            cost,
+            resources,
+            warehouseCapacity: 1000,
+            granaryCapacity: 1000);
+
+        var result = TroopTrainingResourceThresholdCalculator.Evaluate(
+            resources,
+            new Dictionary<string, double?> { ["clay"] = 100 },
+            warehouseCapacity: 1000,
+            granaryCapacity: 1000,
+            thresholdPercent: 90,
+            selection.CheckWood,
+            selection.CheckClay,
+            selection.CheckIron,
+            selection.CheckCrop,
+            fallbackCooldownSeconds: 60);
+
+        Assert.Equal("clay", selection.ResourceKey);
+        Assert.False(result.IsReady);
+        Assert.Equal(30_960, result.WaitSeconds);
+        Assert.Equal("estimated_from_status", result.WaitReason);
+    }
+
+    [Fact]
     public void Evaluate_IsReadyWhenAnySelectedResourceMeetsThreshold()
     {
         var result = Evaluate(wood: 100, clay: 500, iron: 200, checkWood: true, checkClay: true, checkIron: true);

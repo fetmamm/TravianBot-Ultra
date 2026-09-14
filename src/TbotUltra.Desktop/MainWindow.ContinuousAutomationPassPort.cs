@@ -92,6 +92,21 @@ public partial class MainWindow
 
         public QueueItem? SelectNextQueueItem() => owner._automationQueueSelection.Select();
 
+        public void LogSmartSleepBlockedByReadyTask(QueueItem item)
+        {
+            if (!owner._smartSleepSettings.Enabled)
+            {
+                return;
+            }
+
+            var villageName = NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-";
+            var villageKey = owner.GetQueueItemVillageKey(item) ?? villageName;
+            owner.AppendLoopPickVerbose(
+                $"[smart-sleep] blocked by ready task: group={item.Group}, "
+                    + $"task='{item.TaskName}', village='{villageName}'.",
+                $"smart-sleep:blocker:{item.Group}:{item.TaskName}:{villageKey}");
+        }
+
         public void MarkActivePass() => owner._automationSessionRuntime.MarkActivePass();
 
         public ValueTask MaybeKeepBrowserFreshAsync(
