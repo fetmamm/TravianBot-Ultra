@@ -17,7 +17,12 @@ internal interface IAutomationQueueItemLifecyclePort
     bool IsAllowedByAutomationSettings(QueueItem item);
     IDisposable BeginExecutionScope(QueueItem item);
     BotOptions LoadCurrentOptions();
-    void MarkRunning(QueueItem item);
+    void MarkDueConstructionForPreSleepFill(QueueItem item);
+    void RefreshConstructFasterPayloadForExecution(QueueItem item);
+    bool MarkRunning(Guid itemId);
+    void RefreshQueueUi(Guid itemId);
+    void SetActiveAutomationTask(string? taskName);
+    void SetActiveFunctionExecution(string? displayName);
     ValueTask<QueueItemGuardResult> RunPreExecutionGuardsAsync(
         QueueItem item,
         BotOptions options,
@@ -25,7 +30,7 @@ internal interface IAutomationQueueItemLifecyclePort
         Stopwatch timer,
         CancellationToken cancellationToken);
     BotOptions ApplyQueueItemOptions(BotOptions options, QueueItem item);
-    CancellationToken BeginQueueItemOperation(QueueItem item, CancellationToken cancellationToken);
+    CancellationToken BeginDemolitionOperation(QueueItem item, CancellationToken cancellationToken);
     ValueTask<BotTaskExecutionResult> ExecuteWorkerAsync(
         BotOptions options,
         QueueItem item,
@@ -59,11 +64,8 @@ internal interface IAutomationQueueItemLifecyclePort
         string logPrefix,
         Stopwatch timer,
         AutomationRunMode mode);
-    ValueTask FinalizeExecutionAsync(
-        QueueItem item,
-        AutomationRunMode mode,
-        bool freshBuildingsRefreshDone,
-        CancellationToken cancellationToken);
+    void CompleteDemolitionOperation(Guid itemId);
+    ValueTask RestoreBuildingsSnapshotAsync(CancellationToken cancellationToken);
     void Log(string message);
 }
 
@@ -87,7 +89,13 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
         using var executionScope = port.BeginExecutionScope(item);
         var timer = Stopwatch.StartNew();
         options = RefreshHeroOptions(item, options);
-        port.MarkRunning(item);
+        port.MarkDueConstructionForPreSleepFill(item);
+        port.RefreshConstructFasterPayloadForExecution(item);
+        port.MarkRunning(item.Id);
+        port.RefreshQueueUi(item.Id);
+        port.SetActiveAutomationTask(item.TaskName);
+        port.SetActiveFunctionExecution(
+            string.IsNullOrWhiteSpace(item.DisplayName) ? item.TaskName : item.DisplayName);
         var freshBuildingsRefreshDone = false;
 
         try
@@ -114,7 +122,9 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
             }
 
             var effectiveOptions = port.ApplyQueueItemOptions(options, item);
-            var executionToken = port.BeginQueueItemOperation(item, cancellationToken);
+            var executionToken = port.IsDemolition(item)
+                ? port.BeginDemolitionOperation(item, cancellationToken)
+                : cancellationToken;
             var executionResult = await port.ExecuteWorkerAsync(effectiveOptions, item, executionToken);
             if (await port.TryRecoverMissingBuildingUpgradeAsync(
                     item,
@@ -168,11 +178,27 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
         }
         finally
         {
-            await port.FinalizeExecutionAsync(
-                item,
-                mode,
-                freshBuildingsRefreshDone,
-                cancellationToken);
+            if (port.IsDemolition(item))
+            {
+                port.CompleteDemolitionOperation(item.Id);
+            }
+            port.SetActiveAutomationTask(null);
+            port.SetActiveFunctionExecution(null);
+            port.RefreshQueueUi(item.Id);
+            if (!cancellationToken.IsCancellationRequested
+                && mode == AutomationRunMode.AutoQueue
+                && IsBuildingMutationTask(item.TaskName)
+                && !freshBuildingsRefreshDone)
+            {
+                try
+                {
+                    await port.RestoreBuildingsSnapshotAsync(cancellationToken);
+                }
+                catch
+                {
+                    // The UI keeps its previous state when the last-known snapshot cannot be restored.
+                }
+            }
         }
     }
 
@@ -308,4 +334,10 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
             ? $"{logPrefix} OK {timer.Elapsed.TotalSeconds:F1}s | queue:{item.TaskName}"
             : $"{logPrefix} OK {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName}";
     }
+
+    private static bool IsBuildingMutationTask(string? taskName) =>
+        string.Equals(taskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "demolish_building_to_level", StringComparison.OrdinalIgnoreCase);
 }

@@ -53,16 +53,20 @@ public partial class MainWindow
 
         public BotOptions LoadCurrentOptions() => owner.LoadBotOptions();
 
-        public void MarkRunning(QueueItem item)
-        {
+        public void MarkDueConstructionForPreSleepFill(QueueItem item) =>
             owner.MarkDueConstructionForPreSleepFill(item);
+
+        public void RefreshConstructFasterPayloadForExecution(QueueItem item) =>
             owner.RefreshConstructFasterPayloadForExecution(item);
-            owner._botService.MarkQueueItemRunning(item.Id);
-            owner.RefreshQueueUiOnUiThread(item.Id);
-            owner.SetActiveAutomationTask(item.TaskName);
-            owner.SetActiveFunctionExecution(
-                string.IsNullOrWhiteSpace(item.DisplayName) ? item.TaskName : item.DisplayName);
-        }
+
+        public bool MarkRunning(Guid itemId) => owner._botService.MarkQueueItemRunning(itemId);
+
+        public void RefreshQueueUi(Guid itemId) => owner.RefreshQueueUiOnUiThread(itemId);
+
+        public void SetActiveAutomationTask(string? taskName) => owner.SetActiveAutomationTask(taskName);
+
+        public void SetActiveFunctionExecution(string? displayName) =>
+            owner.SetActiveFunctionExecution(displayName);
 
         public async ValueTask<QueueItemGuardResult> RunPreExecutionGuardsAsync(
             QueueItem item,
@@ -118,12 +122,10 @@ public partial class MainWindow
         public BotOptions ApplyQueueItemOptions(BotOptions options, QueueItem item) =>
             owner.ApplyHeroResourceSettingsForQueueItem(options, item);
 
-        public CancellationToken BeginQueueItemOperation(
+        public CancellationToken BeginDemolitionOperation(
             QueueItem item,
             CancellationToken cancellationToken) =>
-            IsDemolition(item)
-                ? owner.BeginDemolishOperation(item, cancellationToken)
-                : cancellationToken;
+            owner.BeginDemolishOperation(item, cancellationToken);
 
         public ValueTask<BotTaskExecutionResult> ExecuteWorkerAsync(
             BotOptions options,
@@ -206,34 +208,10 @@ public partial class MainWindow
                 timer,
                 mode);
 
-        public async ValueTask FinalizeExecutionAsync(
-            QueueItem item,
-            AutomationRunMode mode,
-            bool freshBuildingsRefreshDone,
-            CancellationToken cancellationToken)
-        {
-            if (IsDemolition(item))
-            {
-                owner.CompleteDemolishOperation(item.Id);
-            }
-            owner.SetActiveAutomationTask(null);
-            owner.SetActiveFunctionExecution(null);
-            owner.RefreshQueueUiOnUiThread(item.Id);
-            if (!cancellationToken.IsCancellationRequested
-                && mode == AutomationRunMode.AutoQueue
-                && IsBuildingMutationTask(item.TaskName)
-                && !freshBuildingsRefreshDone)
-            {
-                try
-                {
-                    await owner.LoadBuildingsSnapshotIntoUiAsync(cancellationToken);
-                }
-                catch
-                {
-                    // The UI keeps its previous state when the last-known snapshot cannot be restored.
-                }
-            }
-        }
+        public void CompleteDemolitionOperation(Guid itemId) => owner.CompleteDemolishOperation(itemId);
+
+        public ValueTask RestoreBuildingsSnapshotAsync(CancellationToken cancellationToken) =>
+            new(owner.LoadBuildingsSnapshotIntoUiAsync(cancellationToken));
 
         public void Log(string message) => owner.AppendLog(message);
 

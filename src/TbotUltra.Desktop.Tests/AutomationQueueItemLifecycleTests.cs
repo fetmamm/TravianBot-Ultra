@@ -46,7 +46,7 @@ public sealed class AutomationQueueItemLifecycleTests
             CreateItem(), new BotOptions(), "[LOOP 1]", AutomationRunMode.ContinuousLoop, default);
 
         Assert.True(shouldContinue);
-        Assert.Equal(["scope", "running", "guards", "finalize:fresh"], port.Trace);
+        Assert.Equal(["scope", "running", "guards", "finalize"], port.Trace);
     }
 
     [Fact]
@@ -132,6 +132,33 @@ public sealed class AutomationQueueItemLifecycleTests
     }
 
     [Fact]
+    public async Task AutoQueueBuildingMutation_RestoresSnapshotDuringFinalization()
+    {
+        var port = new InMemoryQueueItemLifecyclePort();
+        var item = CreateItem("upgrade_building_to_level");
+
+        await new AutomationQueueItemLifecycle(port).ExecuteAsync(
+            item, new BotOptions(), "[AUTOQ 2]", AutomationRunMode.AutoQueue, default);
+
+        Assert.Equal(
+            ["scope", "running", "guards", "worker", "succeeded", "healthy", "finalize", "restore"],
+            port.Trace);
+    }
+
+    [Fact]
+    public async Task Demolition_UsesOperationScopeAndCompletesItDuringFinalization()
+    {
+        var port = new InMemoryQueueItemLifecyclePort { Demolition = true };
+
+        await new AutomationQueueItemLifecycle(port).ExecuteAsync(
+            CreateItem(), new BotOptions(), "[AUTOQ 2]", AutomationRunMode.AutoQueue, default);
+
+        Assert.Equal(
+            ["scope", "running", "guards", "begin-demolition", "worker", "succeeded", "healthy", "complete-demolition", "finalize"],
+            port.Trace);
+    }
+
+    [Fact]
     public async Task SuccessfulItem_CompletesItsLifecycleThroughAutomationDesk()
     {
         var item = CreateItem();
@@ -177,10 +204,10 @@ public sealed class AutomationQueueItemLifecycleTests
             lifecyclePort.Trace);
     }
 
-    private static QueueItem CreateItem() => new()
+    private static QueueItem CreateItem(string taskName = "collect_tasks") => new()
     {
         Id = Guid.NewGuid(),
-        TaskName = "collect_tasks",
+        TaskName = taskName,
         Group = QueueGroup.Account,
         Status = QueueStatus.Pending,
         NextAttemptAt = DateTimeOffset.MinValue,
@@ -204,12 +231,24 @@ public sealed class AutomationQueueItemLifecycleTests
             return new NoopDisposable();
         }
         public BotOptions LoadCurrentOptions() => new();
-        public void MarkRunning(QueueItem item)
+        public void MarkDueConstructionForPreSleepFill(QueueItem item) { }
+        public void RefreshConstructFasterPayloadForExecution(QueueItem item) { }
+        public bool MarkRunning(Guid itemId)
         {
             Trace.Add("running");
             if (DisableAfterMarkRunning)
             {
                 Allowed = false;
+            }
+            return true;
+        }
+        public void RefreshQueueUi(Guid itemId) { }
+        public void SetActiveAutomationTask(string? taskName) { }
+        public void SetActiveFunctionExecution(string? displayName)
+        {
+            if (displayName is null)
+            {
+                Trace.Add("finalize");
             }
         }
         public ValueTask<QueueItemGuardResult> RunPreExecutionGuardsAsync(
@@ -223,8 +262,11 @@ public sealed class AutomationQueueItemLifecycleTests
             return ValueTask.FromResult(GuardResult);
         }
         public BotOptions ApplyQueueItemOptions(BotOptions options, QueueItem item) => options;
-        public CancellationToken BeginQueueItemOperation(QueueItem item, CancellationToken cancellationToken) =>
-            cancellationToken;
+        public CancellationToken BeginDemolitionOperation(QueueItem item, CancellationToken cancellationToken)
+        {
+            Trace.Add("begin-demolition");
+            return cancellationToken;
+        }
         public ValueTask<BotTaskExecutionResult> ExecuteWorkerAsync(
             BotOptions options,
             QueueItem item,
@@ -280,13 +322,10 @@ public sealed class AutomationQueueItemLifecycleTests
             Trace.Add("failure");
             return ValueTask.FromResult(FailureOutcome);
         }
-        public ValueTask FinalizeExecutionAsync(
-            QueueItem item,
-            AutomationRunMode mode,
-            bool freshBuildingsRefreshDone,
-            CancellationToken cancellationToken)
+        public void CompleteDemolitionOperation(Guid itemId) => Trace.Add("complete-demolition");
+        public ValueTask RestoreBuildingsSnapshotAsync(CancellationToken cancellationToken)
         {
-            Trace.Add(freshBuildingsRefreshDone ? "finalize:fresh" : "finalize");
+            Trace.Add("restore");
             return ValueTask.CompletedTask;
         }
         public void Log(string message) => Logs.Add(message);
