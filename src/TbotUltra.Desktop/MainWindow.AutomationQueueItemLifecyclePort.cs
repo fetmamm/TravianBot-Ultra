@@ -13,6 +13,9 @@ public partial class MainWindow
     private sealed class MainWindowAutomationQueueItemLifecyclePort(MainWindow owner)
         : IAutomationQueueItemLifecyclePort
     {
+        private readonly AutomationMissingBuildingUpgradeRecovery _missingBuildingUpgradeRecovery =
+            new(new MainWindowAutomationMissingBuildingUpgradeRecoveryPort(owner));
+
         public bool IsAllowedByAutomationSettings(QueueItem item) =>
             owner.IsQueueItemAllowedByAutomationSettings(item);
 
@@ -136,13 +139,13 @@ public partial class MainWindow
             string logPrefix,
             Stopwatch timer,
             CancellationToken cancellationToken) =>
-            new(owner.TryRecoverMissingBuildingUpgradeAsync(
+            _missingBuildingUpgradeRecovery.TryRecoverAsync(
                 item,
                 options,
                 executionResult,
                 logPrefix,
                 timer,
-                cancellationToken));
+                cancellationToken);
 
         public ValueTask<bool> HandleSucceededAsync(
             QueueItem item,
