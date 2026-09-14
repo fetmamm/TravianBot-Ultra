@@ -74,6 +74,23 @@ public sealed class AlarmClassificationTests
             "Upgrade analysis failed for slot 10: exhausted retries."));
     }
 
+    [Theory]
+    [InlineData("[ensure-logged-in] browser network error page detected url='chrome-error://chromewebdata/'.")]
+    [InlineData("[nav] GOTO start target='https://lobby.legends.travian.com/account' from='chrome-error://chromewebdata/' pages=1")]
+    [InlineData("[lobby-login] transient lobby attempt 1/3 failed: net::ERR_TIMED_OUT")]
+    [InlineData("[lobby-login] transient lobby attempt 2/3 failed: net::ERR_TIMED_OUT")]
+    public void IntermediateNetworkRecoveryMessages_AreNotAlarms(string message)
+    {
+        Assert.False(MainWindow.IsAlarmMessage(message));
+    }
+
+    [Fact]
+    public void ExhaustedLobbyRecovery_RemainsAlarm()
+    {
+        Assert.True(MainWindow.IsAlarmMessage(
+            "[lobby-login] transient lobby attempt 3/3 failed: net::ERR_CONNECTION_TIMED_OUT"));
+    }
+
     [Fact]
     public void CompletedVillageMembershipVerification_IsNotAlarm()
     {

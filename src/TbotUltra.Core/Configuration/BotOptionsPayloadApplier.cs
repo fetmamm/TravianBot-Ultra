@@ -114,6 +114,7 @@ public static class BotOptionsPayloadApplier
         var troopTrainingBarracksCheckClay = troopTraining.Barracks.CheckClay;
         var troopTrainingBarracksCheckIron = troopTraining.Barracks.CheckIron;
         var troopTrainingBarracksCheckCrop = troopTraining.Barracks.CheckCrop;
+        var troopTrainingBarracksAutomaticResourceSelection = troopTraining.Barracks.AutomaticResourceSelection;
         var troopTrainingStableEnabled = troopTraining.Stable.Enabled;
         var troopTrainingStableTroopType = troopTraining.Stable.TroopType;
         var troopTrainingStableMaxQueueHours = troopTraining.Stable.MaxQueueHours;
@@ -130,6 +131,7 @@ public static class BotOptionsPayloadApplier
         var troopTrainingStableCheckClay = troopTraining.Stable.CheckClay;
         var troopTrainingStableCheckIron = troopTraining.Stable.CheckIron;
         var troopTrainingStableCheckCrop = troopTraining.Stable.CheckCrop;
+        var troopTrainingStableAutomaticResourceSelection = troopTraining.Stable.AutomaticResourceSelection;
         var troopTrainingWorkshopEnabled = troopTraining.Workshop.Enabled;
         var troopTrainingWorkshopTroopType = troopTraining.Workshop.TroopType;
         var troopTrainingWorkshopMaxQueueHours = troopTraining.Workshop.MaxQueueHours;
@@ -146,6 +148,7 @@ public static class BotOptionsPayloadApplier
         var troopTrainingWorkshopCheckClay = troopTraining.Workshop.CheckClay;
         var troopTrainingWorkshopCheckIron = troopTraining.Workshop.CheckIron;
         var troopTrainingWorkshopCheckCrop = troopTraining.Workshop.CheckCrop;
+        var troopTrainingWorkshopAutomaticResourceSelection = troopTraining.Workshop.AutomaticResourceSelection;
         // This is an account-level Settings value; village task payloads must not override it.
         var troopTrainingFallbackCooldownSeconds = source.TroopTrainingFallbackCooldownSeconds;
         var breweryAutoCelebrationEnabled = troopTraining.BreweryAutoCelebrationEnabled;
@@ -259,6 +262,7 @@ public static class BotOptionsPayloadApplier
             TroopTrainingBarracksCheckClay = troopTrainingBarracksCheckClay,
             TroopTrainingBarracksCheckIron = troopTrainingBarracksCheckIron,
             TroopTrainingBarracksCheckCrop = troopTrainingBarracksCheckCrop,
+            TroopTrainingBarracksAutomaticResourceSelection = troopTrainingBarracksAutomaticResourceSelection,
             TroopTrainingStableEnabled = troopTrainingStableEnabled,
             TroopTrainingStableTroopType = troopTrainingStableTroopType,
             TroopTrainingStableMaxQueueHours = troopTrainingStableMaxQueueHours,
@@ -275,6 +279,7 @@ public static class BotOptionsPayloadApplier
             TroopTrainingStableCheckClay = troopTrainingStableCheckClay,
             TroopTrainingStableCheckIron = troopTrainingStableCheckIron,
             TroopTrainingStableCheckCrop = troopTrainingStableCheckCrop,
+            TroopTrainingStableAutomaticResourceSelection = troopTrainingStableAutomaticResourceSelection,
             TroopTrainingWorkshopEnabled = troopTrainingWorkshopEnabled,
             TroopTrainingWorkshopTroopType = troopTrainingWorkshopTroopType,
             TroopTrainingWorkshopMaxQueueHours = troopTrainingWorkshopMaxQueueHours,
@@ -291,6 +296,7 @@ public static class BotOptionsPayloadApplier
             TroopTrainingWorkshopCheckClay = troopTrainingWorkshopCheckClay,
             TroopTrainingWorkshopCheckIron = troopTrainingWorkshopCheckIron,
             TroopTrainingWorkshopCheckCrop = troopTrainingWorkshopCheckCrop,
+            TroopTrainingWorkshopAutomaticResourceSelection = troopTrainingWorkshopAutomaticResourceSelection,
             TroopTrainingFallbackCooldownSeconds = troopTrainingFallbackCooldownSeconds,
             BreweryAutoCelebrationEnabled = breweryAutoCelebrationEnabled,
             NpcTradeEnabled = npcTradeEnabled,

@@ -223,6 +223,7 @@ public static class BotOptionPayloadKeys
     public const string TroopTrainingBarracksCheckClay = "troop_training_barracks_check_clay";
     public const string TroopTrainingBarracksCheckIron = "troop_training_barracks_check_iron";
     public const string TroopTrainingBarracksCheckCrop = "troop_training_barracks_check_crop";
+    public const string TroopTrainingBarracksAutomaticResourceSelection = "troop_training_barracks_automatic_resource_selection";
     public const string TroopTrainingStableEnabled = "troop_training_stable_enabled";
     public const string TroopTrainingStableTroopType = "troop_training_stable_troop_type";
     public const string TroopTrainingStableMaxQueueHours = "troop_training_stable_max_queue_hours";
@@ -239,6 +240,7 @@ public static class BotOptionPayloadKeys
     public const string TroopTrainingStableCheckClay = "troop_training_stable_check_clay";
     public const string TroopTrainingStableCheckIron = "troop_training_stable_check_iron";
     public const string TroopTrainingStableCheckCrop = "troop_training_stable_check_crop";
+    public const string TroopTrainingStableAutomaticResourceSelection = "troop_training_stable_automatic_resource_selection";
     public const string TroopTrainingWorkshopEnabled = "troop_training_workshop_enabled";
     public const string TroopTrainingWorkshopTroopType = "troop_training_workshop_troop_type";
     public const string TroopTrainingWorkshopMaxQueueHours = "troop_training_workshop_max_queue_hours";
@@ -255,6 +257,7 @@ public static class BotOptionPayloadKeys
     public const string TroopTrainingWorkshopCheckClay = "troop_training_workshop_check_clay";
     public const string TroopTrainingWorkshopCheckIron = "troop_training_workshop_check_iron";
     public const string TroopTrainingWorkshopCheckCrop = "troop_training_workshop_check_crop";
+    public const string TroopTrainingWorkshopAutomaticResourceSelection = "troop_training_workshop_automatic_resource_selection";
     public const string TroopTrainingFallbackCooldownSeconds = "troop_training_fallback_cooldown_seconds";
     public const string BreweryAutoCelebrationEnabled = "brewery_auto_celebration_enabled";
     public const string NpcTradeEnabled = "npc_trade_enabled";

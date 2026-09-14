@@ -25,6 +25,7 @@ public sealed class TroopTrainingExecutionSettingsTests
         using var scope = TroopTrainingExecutionSettings.BeginScope(() => Settings("Phalanx"), _ => { });
         var resolved = QueueExecutionOptionsResolver.Resolve(new BotOptions(), item);
         Assert.Equal("Phalanx", resolved.TroopTrainingBarracksTroopType);
+        Assert.True(resolved.TroopTrainingBarracksAutomaticResourceSelection);
         Assert.Equal(deadline, item.NextAttemptAt);
         Assert.Equal("(1|2)", item.Payload[BotOptionPayloadKeys.TargetVillageKey]);
         TroopTrainingExecutionSettings.VerifyBeforeSubmit();
@@ -89,7 +90,10 @@ public sealed class TroopTrainingExecutionSettingsTests
     private static TroopTrainingPayload Settings(string troop)
     {
         var building = new TroopTrainingBuildingPayload(true, troop, "no_limit", "maximum", 0,
-            "resource_percent", 20, 90, 30, 120, true, true, true, false);
+            "resource_percent", 20, 90, 30, 120, true, true, true, false)
+        {
+            AutomaticResourceSelection = true,
+        };
         return new TroopTrainingPayload(building, building with { Enabled = false }, building with { Enabled = false }, 30);
     }
 }

@@ -147,6 +147,32 @@ public sealed class TroopTrainingViewModelTests
         Assert.True(vm.TryValidateMinimumTroopRanges(out _));
     }
 
+    [Fact]
+    public void AutomaticResourceSelection_DisablesManualChecksAndSatisfiesValidation()
+    {
+        var vm = new TroopTrainingViewModel();
+        vm.Initialize();
+        vm.Buildings[0].IsEnabled = true;
+        vm.Buildings[0].RunMode = "resource_percent";
+        vm.CheckWood = false;
+        vm.CheckClay = false;
+        vm.CheckIron = false;
+        vm.CheckCrop = false;
+
+        vm.AutomaticResourceSelection = true;
+
+        Assert.False(vm.IsManualResourceSelectionEnabled);
+        Assert.True(vm.TryValidateMinimumTroopRanges(out _));
+        Assert.All(
+            new[]
+            {
+                vm.BuildVillageTrainingPayload().Barracks,
+                vm.BuildVillageTrainingPayload().Stable,
+                vm.BuildVillageTrainingPayload().Workshop,
+            },
+            building => Assert.True(building.AutomaticResourceSelection));
+    }
+
     private static TroopTrainingViewModel ReadyCelebrationViewModel()
     {
         var vm = new TroopTrainingViewModel();

@@ -649,6 +649,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Build troops `% resources` checkboxes use OR semantics: at least one resource must be selected, any selected
   resource at or above the percentage threshold releases training, and deferred waits use the earliest selected
   resource ETA. This trigger never replaces the normal all-resource affordability, NPC, or hero-resource checks.
+- Build troops `Auto` resource selection overrides and disables the manual resource checkboxes. For each selected
+  troop it monitors the resource with the highest catalog unit cost; equal costs choose the resource with the lowest
+  current storage percentage. Changing the troop changes the automatic resource on the next settings snapshot.
+  An unstable training form defers for at least 60 seconds after its bounded preparation retries instead of alarming.
 - New Build troops settings default all three training buildings to `% resources` at 90%, with Wood, Clay and Iron
   selected and Crop unselected. Troop-settings sync copies all three building rules plus shared resource/fallback
   settings from one source village to selected targets, but never changes a target village's Build troops ON toggle.

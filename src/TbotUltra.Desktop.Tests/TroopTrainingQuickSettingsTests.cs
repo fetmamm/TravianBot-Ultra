@@ -49,6 +49,7 @@ public sealed class TroopTrainingQuickSettingsTests
         row.Workshop.IsEnabled = false;
         row.CheckWood = false;
         row.CheckCrop = false;
+        row.AutomaticResourceSelection = true;
         row.FallbackCooldownSeconds = 120;
 
         var result = row.BuildPayload();
@@ -74,6 +75,7 @@ public sealed class TroopTrainingQuickSettingsTests
             Assert.True(building.CheckClay);
             Assert.True(building.CheckIron);
             Assert.False(building.CheckCrop);
+            Assert.True(building.AutomaticResourceSelection);
         }
 
         Assert.Equal(120, result.FallbackCooldownSeconds);
@@ -102,6 +104,11 @@ public sealed class TroopTrainingQuickSettingsTests
 
         row.CheckIron = true;
         Assert.True(row.HasResourceSelection);
+
+        row.CheckIron = false;
+        row.AutomaticResourceSelection = true;
+        Assert.True(row.HasResourceSelection);
+        Assert.False(row.IsManualResourceSelectionEnabled);
     }
 
     [Fact]
@@ -123,6 +130,7 @@ public sealed class TroopTrainingQuickSettingsTests
         source.CheckClay = false;
         source.CheckIron = true;
         source.CheckCrop = false;
+        source.AutomaticResourceSelection = true;
         source.FallbackCooldownSeconds = 120;
 
         var different = BuildSourcePayload();
