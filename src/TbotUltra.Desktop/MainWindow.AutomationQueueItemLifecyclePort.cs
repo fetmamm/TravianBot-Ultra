@@ -23,6 +23,8 @@ public partial class MainWindow
             new(new MainWindowAutomationConstructionRequirementGuardPort(owner));
         private readonly AutomationQueueItemSuccess _queueItemSuccess =
             new(new MainWindowAutomationQueueItemSuccessPort(owner));
+        private readonly AutomationQueueItemFailure _queueItemFailure =
+            new(new MainWindowAutomationQueueItemFailurePort(owner));
 
         public bool IsAllowedByAutomationSettings(QueueItem item) =>
             owner.IsQueueItemAllowedByAutomationSettings(item);
@@ -197,12 +199,12 @@ public partial class MainWindow
             string logPrefix,
             Stopwatch timer,
             AutomationRunMode mode) =>
-            new(owner.HandleQueueItemFailureAsync(
+            _queueItemFailure.HandleAsync(
                 item,
                 exception,
                 logPrefix,
                 timer,
-                ToQueueExecutionMode(mode)));
+                mode);
 
         public async ValueTask FinalizeExecutionAsync(
             QueueItem item,
@@ -234,11 +236,6 @@ public partial class MainWindow
         }
 
         public void Log(string message) => owner.AppendLog(message);
-
-        private static QueueExecutionMode ToQueueExecutionMode(AutomationRunMode mode) =>
-            mode == AutomationRunMode.ContinuousLoop
-                ? QueueExecutionMode.ContinuousLoop
-                : QueueExecutionMode.AutoQueue;
 
         private sealed class QueueItemExecutionScope(
             IDisposable logContext,

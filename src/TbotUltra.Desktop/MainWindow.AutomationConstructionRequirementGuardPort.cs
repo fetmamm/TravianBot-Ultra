@@ -10,11 +10,10 @@ public partial class MainWindow
     private sealed class MainWindowAutomationConstructionRequirementGuardPort(MainWindow owner)
         : IAutomationConstructionRequirementGuardPort
     {
-        public AutomationConstructionRequirementContext GetContext(QueueItem item)
-        {
-            var context = owner.ResolveConstructRequirementContextForQueueItem(item);
-            return new AutomationConstructionRequirementContext(context.Status, context.SameVillageItems);
-        }
+        private readonly MainWindowAutomationQueueContext _queueContext = new(owner);
+
+        public AutomationConstructionRequirementContext GetContext(QueueItem item) =>
+            _queueContext.GetConstructionRequirementContext(item);
         public bool MarkDeferred(Guid itemId, TimeSpan delay) =>
             owner._botService.MarkQueueItemDeferred(itemId, delay);
         public bool PatchDeferred(

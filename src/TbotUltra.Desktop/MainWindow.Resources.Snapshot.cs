@@ -1267,7 +1267,7 @@ public partial class MainWindow
     }
 
     // Payload marker the failure handler writes onto a hero_manage that deferred for the full revive
-    // countdown (see HandleQueueItemFailureAsync), so this refresh can recognise and release it.
+    // countdown (see AutomationQueueItemFailure), so this refresh can recognise and release it.
     private const string HeroDeferReasonKey = "hero_defer_reason";
     private const string HeroDeferReasonReviving = "reviving";
     private const string HeroDeferReasonAway = "away";
