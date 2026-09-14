@@ -607,6 +607,14 @@ public partial class MainWindow
     // remain alarms; a crashed target is discarded by BotTaskRunner before this exception returns.
     private static bool IsTransientPageReadFailure(Exception ex)
     {
+        for (var current = ex; current is not null; current = current.InnerException)
+        {
+            if (current is TimeoutException)
+            {
+                return true;
+            }
+        }
+
         return AutomationNetworkBackoff.IsTransientConnectionFailure(ex)
             || BrowserFailureClassifier.IsTargetCrash(ex)
             || BrowserFailureClassifier.IsTransientNavigation(ex);
@@ -614,8 +622,14 @@ public partial class MainWindow
 
     private void MarkNetworkConnectionHealthy()
     {
+        var recovered = _automationNetworkBackoff.ConsecutiveFailures > 0
+            || _automationNetworkBackoff.IsUnavailable;
         _automationNetworkBackoff.MarkHealthy();
         ResetAutomaticProxyRecoveryRetry();
+        if (recovered)
+        {
+            AppendLog("[network] connection recovered; shared automation backoff cleared.");
+        }
     }
 
     private bool ShouldRunBackgroundResourceSnapshotRefresh()
@@ -697,8 +711,12 @@ public partial class MainWindow
 
             if (IsTransientPageReadFailure(ex))
             {
-                _automationNetworkBackoff.MarkUnavailable(TimeSpan.FromSeconds(30));
-                AppendLog($"[resource-refresh:verbose] background refresh skipped after transient page failure ({ex.Message})");
+                var retryDelay = _automationNetworkBackoff.NextRetryDelay();
+                _automationNetworkBackoff.MarkUnavailable(retryDelay);
+                AppendLog(
+                    $"[resource-refresh:verbose] background refresh skipped after transient page failure; "
+                    + $"shared retry in {retryDelay.TotalSeconds:F0}s ({ex.Message})");
+                return;
             }
             else
             {
@@ -709,6 +727,11 @@ public partial class MainWindow
         if (ActiveAccountHold() is not null)
         {
             return;
+        }
+
+        if (refreshedStatus is not null)
+        {
+            MarkNetworkConnectionHealthy();
         }
 
         try

@@ -62,6 +62,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Verify selector changes against live Official HTML or a captured fixture. React elements must be visible and
   actionable, and dialog actions must be scoped to the open dialog.
 - State-changing clicks must be exact. Navigation retry does not permit repeating an action.
+- A timed-out read-only navigation may be accepted only when the current URL still matches the exact
+  requested Official page and the rendered DOM exposes a known authenticated Travian shell without a
+  browser error document. The post-lobby clean-context rotation follows the same rule before discarding it.
 - Prefer trusted Playwright clicks for visible classic buttons. Synthetic dispatch is an actionability fallback
   or a tool for genuine React/hidden controls. Preserve the farm-list real-click-with-JS-fallback pattern.
 - React inputs may require native value assignment plus `input`/`change` events.
@@ -116,6 +119,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   snapshots; unavailable targets remain unselected, existing active village queue work is projected first, storage
   additions are confirmed once across all selected villages, and the final cross-village insert is atomic.
 - New settings require the complete pipeline: model, defaults, load/save, ViewModel, UI, and tests.
+- Transient background resource-read timeouts use the shared automation network backoff, retain the last
+  trusted snapshot, and stop that refresh tick. A later successful read clears the shared backoff.
 - Resource bulk-upgrade payloads must capture the four checkbox values currently visible for the selected village;
   explicitly commit their two-way WPF bindings before reading `SelectedUpgradeTypes` at the queue boundary.
 - Synthetic `desktop_runtime_manual:*` history rows are classified by their domain. Unknown manual runtime names

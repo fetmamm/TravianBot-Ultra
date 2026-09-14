@@ -36,6 +36,14 @@ public sealed class AlarmClassificationTests
         Assert.False(MainWindow.IsAlarmMessage(message));
     }
 
+    [Theory]
+    [InlineData("[resource-refresh] FAIL Timeout 20000ms exceeded.")]
+    [InlineData("Background resource refresh skipped: Timeout 20000ms exceeded.")]
+    public void SingleBackgroundResourceRefreshTimeout_IsNotAlarm(string message)
+    {
+        Assert.False(MainWindow.IsAlarmMessage(message));
+    }
+
     [Fact]
     public void ProductionBonusInspectionFallback_IsWarningNotAlarm()
     {
@@ -82,6 +90,22 @@ public sealed class AlarmClassificationTests
     public void IntermediateNetworkRecoveryMessages_AreNotAlarms(string message)
     {
         Assert.False(MainWindow.IsAlarmMessage(message));
+    }
+
+    [Theory]
+    [InlineData("[upgrade_all_resources_to_level FAILED] after 12.6s: InvalidOperationException: navigate to /dorf1.php failed after 3 attempts: net::ERR_NAME_NOT_RESOLVED")]
+    [InlineData("[queue] FAIL id=123 task='upgrade_all_resources_to_level' after 12.8s: InvalidOperationException: net::ERR_NETWORK_CHANGED")]
+    [InlineData("[LOOP 13] FAIL 12.8s | InvalidOperationException: net::ERR_CONNECTION_TIMED_OUT")]
+    public void NetworkOutageFollowOnDiagnostics_AreNotSeparateAlarms(string message)
+    {
+        Assert.False(MainWindow.IsAlarmMessage(message));
+    }
+
+    [Fact]
+    public void RecoveredNavigationTimeout_IsNotAlarm()
+    {
+        Assert.False(MainWindow.IsAlarmMessage(
+            "[nav] RELOAD timeout recovered: expected page is usable despite missing navigation event."));
     }
 
     [Fact]
