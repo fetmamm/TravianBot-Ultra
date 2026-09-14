@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop.Services.Orchestration;
 
@@ -47,8 +48,12 @@ internal interface IAutomationQueueItemLifecyclePort
     void PublishLastScan();
     bool IsDemolition(QueueItem item);
     bool WasDemolitionStopped(Guid itemId);
-    void MarkDeferred(Guid itemId);
-    ValueTask<bool> HandleFailureAsync(
+    bool MarkDeferred(Guid itemId, TimeSpan delay);
+    TimeSpan NextNetworkRetryDelay();
+    void MarkNetworkUnavailable(TimeSpan retryDelay);
+    ValueTask HoldAccountAutomationAsync(AccountAccessException exception);
+    ValueTask HandleUnexpectedTravianLanguageAsync(UnexpectedTravianLanguageException exception);
+    ValueTask<bool> HandleTaskSpecificFailureAsync(
         QueueItem item,
         Exception exception,
         string logPrefix,
@@ -89,7 +94,7 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
         {
             if (!port.IsAllowedByAutomationSettings(item))
             {
-                port.MarkDeferred(item.Id);
+                port.MarkDeferred(item.Id, TimeSpan.Zero);
                 port.Log(
                     $"{logPrefix} SKIP task={item.TaskName}, id={item.Id} "
                     + "because automation was disabled for its village before execution.");
@@ -151,7 +156,7 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
         }
         catch (OperationCanceledException)
         {
-            port.MarkDeferred(item.Id);
+            port.MarkDeferred(item.Id, TimeSpan.Zero);
             port.Log(
                 $"{logPrefix} PAUSED {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | "
                 + "queued item kept for retry");
@@ -159,7 +164,7 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
         }
         catch (Exception ex)
         {
-            return await port.HandleFailureAsync(item, ex, logPrefix, timer, mode);
+            return await HandleFailureAsync(item, ex, logPrefix, timer, mode);
         }
         finally
         {
@@ -169,6 +174,97 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
                 freshBuildingsRefreshDone,
                 cancellationToken);
         }
+    }
+
+    private async ValueTask<bool> HandleFailureAsync(
+        QueueItem item,
+        Exception exception,
+        string logPrefix,
+        Stopwatch timer,
+        AutomationRunMode mode)
+    {
+        if (exception is AccountAccessException accountAccessException)
+        {
+            port.MarkDeferred(item.Id, TimeSpan.Zero);
+            await port.HoldAccountAutomationAsync(accountAccessException);
+            port.Log(
+                $"{logPrefix} STOPPED {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | "
+                + "account requires manual review; queued item kept");
+            return false;
+        }
+
+        if (AutomationNetworkBackoff.IsTransientConnectionFailure(exception))
+        {
+            var retryDelay = port.NextNetworkRetryDelay();
+            port.MarkNetworkUnavailable(retryDelay);
+            if (port.MarkDeferred(item.Id, retryDelay))
+            {
+                port.Log(
+                    $"{logPrefix} TRANSIENT {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | "
+                    + $"slow/unavailable page; safe retry in {retryDelay.TotalSeconds:F0}s without consuming retries");
+                return true;
+            }
+        }
+
+        if (BrowserFailureClassifier.IsTargetCrash(exception))
+        {
+            var retryDelay = TimeSpan.FromSeconds(15);
+            if (port.MarkDeferred(item.Id, retryDelay))
+            {
+                port.Log(
+                    $"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | "
+                    + $"browser target crashed; fresh session retry in {retryDelay.TotalSeconds:F0}s");
+                return true;
+            }
+        }
+
+        // Official demolition replaces the current page context. If that navigation race escapes
+        // Worker confirmation, retry without consuming the functional retry budget.
+        if (port.IsDemolition(item)
+            && BrowserFailureClassifier.IsTransientNavigation(exception))
+        {
+            var retryDelay = TimeSpan.FromSeconds(15);
+            if (port.MarkDeferred(item.Id, retryDelay))
+            {
+                port.Log(
+                    $"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | "
+                    + "demolition page changed while confirming the submitted step; "
+                    + $"safe retry in {retryDelay.TotalSeconds:F0}s without consuming retries");
+                return true;
+            }
+        }
+
+        if (exception is UnexpectedTravianLanguageException languageException)
+        {
+            port.MarkDeferred(item.Id, TimeSpan.Zero);
+            port.Log(
+                $"{logPrefix} PAUSED {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | "
+                + "Travian language must be English before automation can continue.");
+            await port.HandleUnexpectedTravianLanguageAsync(languageException);
+            return false;
+        }
+
+        // A runtime item with maxRetries=0 would otherwise immediately requeue this programming error.
+        if (exception is InvalidOperationException invalidOperation
+            && invalidOperation.Message.Contains("different thread owns it", StringComparison.OrdinalIgnoreCase))
+        {
+            var retryDelay = TimeSpan.FromMinutes(30);
+            if (port.MarkDeferred(item.Id, retryDelay))
+            {
+                port.Log(
+                    $"ALARM: task '{item.TaskName}' hit a UI-thread access error "
+                    + $"({logPrefix}, {timer.Elapsed.TotalSeconds:F1}s). Deferred "
+                    + $"{retryDelay.TotalMinutes:F0} min and will retry — something is wrong, please check.");
+                return true;
+            }
+        }
+
+        return await port.HandleTaskSpecificFailureAsync(
+            item,
+            exception,
+            logPrefix,
+            timer,
+            mode);
     }
 
     private BotOptions RefreshHeroOptions(QueueItem item, BotOptions options)

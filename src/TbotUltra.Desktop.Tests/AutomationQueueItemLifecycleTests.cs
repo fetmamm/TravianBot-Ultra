@@ -81,6 +81,57 @@ public sealed class AutomationQueueItemLifecycleTests
     }
 
     [Fact]
+    public async Task DemolitionNavigationRace_DefersWithoutConsumingRetries()
+    {
+        var port = new InMemoryQueueItemLifecyclePort
+        {
+            Demolition = true,
+            WorkerException = new InvalidOperationException("Execution context was destroyed during navigation"),
+        };
+
+        var shouldContinue = await new AutomationQueueItemLifecycle(port).ExecuteAsync(
+            CreateItem(), new BotOptions(), "[AUTOQ 2]", AutomationRunMode.AutoQueue, default);
+
+        Assert.True(shouldContinue);
+        Assert.Equal(TimeSpan.FromSeconds(15), port.DeferredDelay);
+        Assert.DoesNotContain("failure", port.Trace);
+        Assert.Contains("without consuming retries", port.Logs.Single());
+    }
+
+    [Fact]
+    public async Task BrowserTargetCrash_DefersForFreshSession()
+    {
+        var port = new InMemoryQueueItemLifecyclePort
+        {
+            WorkerException = new InvalidOperationException("Target page, context or browser has been closed"),
+        };
+
+        var shouldContinue = await new AutomationQueueItemLifecycle(port).ExecuteAsync(
+            CreateItem(), new BotOptions(), "[LOOP 1]", AutomationRunMode.ContinuousLoop, default);
+
+        Assert.True(shouldContinue);
+        Assert.Equal(TimeSpan.FromSeconds(15), port.DeferredDelay);
+        Assert.DoesNotContain("failure", port.Trace);
+    }
+
+    [Fact]
+    public async Task UiThreadAccessFailure_DefersAndRaisesAlarm()
+    {
+        var port = new InMemoryQueueItemLifecyclePort
+        {
+            WorkerException = new InvalidOperationException("A different thread owns it"),
+        };
+
+        var shouldContinue = await new AutomationQueueItemLifecycle(port).ExecuteAsync(
+            CreateItem(), new BotOptions(), "[LOOP 1]", AutomationRunMode.ContinuousLoop, default);
+
+        Assert.True(shouldContinue);
+        Assert.Equal(TimeSpan.FromMinutes(30), port.DeferredDelay);
+        Assert.StartsWith("ALARM:", port.Logs.Single(), StringComparison.Ordinal);
+        Assert.DoesNotContain("failure", port.Trace);
+    }
+
+    [Fact]
     public async Task SuccessfulItem_CompletesItsLifecycleThroughAutomationDesk()
     {
         var item = CreateItem();
@@ -144,6 +195,8 @@ public sealed class AutomationQueueItemLifecycleTests
         public QueueItemGuardResult GuardResult { get; init; } = QueueItemGuardResult.NotHandled;
         public Exception? WorkerException { get; init; }
         public bool FailureOutcome { get; init; }
+        public bool Demolition { get; init; }
+        public TimeSpan? DeferredDelay { get; private set; }
         public bool IsAllowedByAutomationSettings(QueueItem item) => Allowed;
         public IDisposable BeginExecutionScope(QueueItem item)
         {
@@ -204,10 +257,20 @@ public sealed class AutomationQueueItemLifecycleTests
         public ValueTask LoadBuildingsSnapshotAsync(CancellationToken cancellationToken) => ValueTask.CompletedTask;
         public void MarkNetworkConnectionHealthy() => Trace.Add("healthy");
         public void PublishLastScan() => Trace.Add("last-scan");
-        public bool IsDemolition(QueueItem item) => false;
+        public bool IsDemolition(QueueItem item) => Demolition;
         public bool WasDemolitionStopped(Guid itemId) => false;
-        public void MarkDeferred(Guid itemId) => Trace.Add("deferred");
-        public ValueTask<bool> HandleFailureAsync(
+        public bool MarkDeferred(Guid itemId, TimeSpan delay)
+        {
+            Trace.Add("deferred");
+            DeferredDelay = delay;
+            return true;
+        }
+        public TimeSpan NextNetworkRetryDelay() => TimeSpan.FromSeconds(20);
+        public void MarkNetworkUnavailable(TimeSpan retryDelay) { }
+        public ValueTask HoldAccountAutomationAsync(AccountAccessException exception) => ValueTask.CompletedTask;
+        public ValueTask HandleUnexpectedTravianLanguageAsync(
+            UnexpectedTravianLanguageException exception) => ValueTask.CompletedTask;
+        public ValueTask<bool> HandleTaskSpecificFailureAsync(
             QueueItem item,
             Exception exception,
             string logPrefix,

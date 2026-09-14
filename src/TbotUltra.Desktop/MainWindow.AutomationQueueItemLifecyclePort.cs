@@ -172,10 +172,22 @@ public partial class MainWindow
 
         public bool WasDemolitionStopped(Guid itemId) => owner.WasDemolishOperationStopped(itemId);
 
-        public void MarkDeferred(Guid itemId) =>
-            owner._botService.MarkQueueItemDeferred(itemId, TimeSpan.Zero);
+        public bool MarkDeferred(Guid itemId, TimeSpan delay) =>
+            owner._botService.MarkQueueItemDeferred(itemId, delay);
 
-        public ValueTask<bool> HandleFailureAsync(
+        public TimeSpan NextNetworkRetryDelay() => owner._automationNetworkBackoff.NextRetryDelay();
+
+        public void MarkNetworkUnavailable(TimeSpan retryDelay) =>
+            owner._automationNetworkBackoff.MarkUnavailable(retryDelay);
+
+        public ValueTask HoldAccountAutomationAsync(AccountAccessException exception) =>
+            new(owner.HoldAccountAutomationAsync(exception));
+
+        public ValueTask HandleUnexpectedTravianLanguageAsync(
+            UnexpectedTravianLanguageException exception) =>
+            new(owner.HandleUnexpectedTravianLanguageAsync(exception));
+
+        public ValueTask<bool> HandleTaskSpecificFailureAsync(
             QueueItem item,
             Exception exception,
             string logPrefix,

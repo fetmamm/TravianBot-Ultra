@@ -1108,70 +1108,6 @@ public partial class MainWindow
         Stopwatch timer,
         QueueExecutionMode mode)
     {
-        if (ex is AccountAccessException accessException)
-        {
-            _botService.MarkQueueItemDeferred(item.Id, TimeSpan.Zero);
-            await HoldAccountAutomationAsync(accessException);
-            AppendLog(
-                $"{logPrefix} STOPPED {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
-                "account requires manual review; queued item kept");
-            return false;
-        }
-
-        if (AutomationNetworkBackoff.IsTransientConnectionFailure(ex))
-        {
-            var retryDelay = _automationNetworkBackoff.NextRetryDelay();
-            _automationNetworkBackoff.MarkUnavailable(retryDelay);
-            if (_botService.MarkQueueItemDeferred(item.Id, retryDelay))
-            {
-                AppendLog(
-                    $"{logPrefix} TRANSIENT {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
-                    $"slow/unavailable page; safe retry in {retryDelay.TotalSeconds:F0}s without consuming retries");
-                return true;
-            }
-        }
-
-        if (BrowserFailureClassifier.IsTargetCrash(ex))
-        {
-            var retryDelay = TimeSpan.FromSeconds(15);
-            if (_botService.MarkQueueItemDeferred(item.Id, retryDelay))
-            {
-                AppendLog(
-                    $"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
-                    $"browser target crashed; fresh session retry in {retryDelay.TotalSeconds:F0}s");
-                return true;
-            }
-        }
-
-        // Travian submits the Official demolition form by replacing the current page context.
-        // Normally the worker absorbs that expected transition and confirms the server timer, but
-        // keep the queue idempotent if the navigation race escapes from any later page read. The
-        // next attempt re-reads Dorf2 and the active demolition timer, so consuming a functional
-        // retry here could permanently stop a multi-level demolition after successful clicks.
-        if (IsDemolishQueueItem(item)
-            && BrowserFailureClassifier.IsTransientNavigation(ex))
-        {
-            var retryDelay = TimeSpan.FromSeconds(15);
-            if (_botService.MarkQueueItemDeferred(item.Id, retryDelay))
-            {
-                AppendLog(
-                    $"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
-                    "demolition page changed while confirming the submitted step; " +
-                    $"safe retry in {retryDelay.TotalSeconds:F0}s without consuming retries");
-                return true;
-            }
-        }
-
-        if (ex is UnexpectedTravianLanguageException languageException)
-        {
-            _botService.MarkQueueItemDeferred(item.Id, TimeSpan.Zero);
-            AppendLog(
-                $"{logPrefix} PAUSED {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | " +
-                "Travian language must be English before automation can continue.");
-            await HandleUnexpectedTravianLanguageAsync(languageException);
-            return false;
-        }
-
         if (await TryHandleTroopsBlockedExecutionAsync(item, ex, logPrefix))
         {
             return true;
@@ -1180,29 +1116,6 @@ public partial class MainWindow
         if (TryHandleTownHallUnavailableExecution(item, ex, logPrefix))
         {
             return true;
-        }
-
-        // Cross-thread UI access (a background runner touching a WPF control) fails a task instantly and,
-        // for maxRetries=0 runtime items, would re-queue it every tick — spamming the loop. Don't stop the
-        // runner: defer the offending task for 30 min so it retries later, and raise an alarm so the user
-        // sees something is wrong. NOTE: the raw "the calling thread cannot access this object..." text is
-        // deliberately kept OUT of the alarm line — IsAlarmMessage auto-acknowledges that phrase, which
-        // would hide it from the (red) alarm list.
-        if (ex is InvalidOperationException ioe
-            && ioe.Message.Contains("different thread owns it", StringComparison.OrdinalIgnoreCase))
-        {
-            var uiThreadRetryDelay = TimeSpan.FromMinutes(30);
-            if (_botService.MarkQueueItemDeferred(item.Id, uiThreadRetryDelay))
-            {
-                AppendLog(
-                    $"ALARM: task '{item.TaskName}' hit a UI-thread access error " +
-                    $"({logPrefix}, {timer.Elapsed.TotalSeconds:F1}s). Deferred " +
-                    $"{uiThreadRetryDelay.TotalMinutes:F0} min and will retry — something is wrong, please check.");
-                return true;
-            }
-
-            // Defer could not be persisted: fall through to the normal failure handling below rather than
-            // silently swallowing the error.
         }
 
         // Prefer the typed defer signal (TaskWaitException.DelaySeconds) over parsing the message;
