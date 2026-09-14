@@ -17,6 +17,8 @@ public partial class MainWindow
             new(new MainWindowAutomationMissingBuildingUpgradeRecoveryPort(owner));
         private readonly AutomationConstructLiveReconciliation _constructLiveReconciliation =
             new(new MainWindowAutomationConstructLiveReconciliationPort(owner));
+        private readonly AutomationConstructPreflight _constructPreflight =
+            new(new MainWindowAutomationConstructPreflightPort(owner));
 
         public bool IsAllowedByAutomationSettings(QueueItem item) =>
             owner.IsQueueItemAllowedByAutomationSettings(item);
@@ -68,11 +70,10 @@ public partial class MainWindow
                 return new QueueItemGuardResult(true, false);
             }
 
-            var constructRefresh =
-                await owner.TryRefreshConstructTargetVillageStatusBeforeGuardAsync(
-                    item,
-                    options,
-                    cancellationToken);
+            var constructRefresh = await _constructPreflight.RefreshTargetStatusAsync(
+                item,
+                options,
+                cancellationToken);
             if (constructRefresh.FreshStatus is not null
                 && _constructLiveReconciliation.TryHandleExistingConstruct(
                     item,
@@ -94,10 +95,7 @@ public partial class MainWindow
             }
 
             if (constructRefresh.CanUseCache
-                && await owner.TryHandleConstructQueueFullBeforeRequirementGuardAsync(
-                    item,
-                    logPrefix,
-                    timer))
+                && await _constructPreflight.TryHandleQueueFullAsync(item, logPrefix, timer))
             {
                 return new QueueItemGuardResult(true, true);
             }
