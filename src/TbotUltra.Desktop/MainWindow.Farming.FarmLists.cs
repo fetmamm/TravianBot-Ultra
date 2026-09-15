@@ -3,9 +3,7 @@ using TbotUltra.Desktop.Services.Orchestration;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.IO;
 using System.Linq;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
 using System.Threading;
@@ -125,43 +123,8 @@ public partial class MainWindow
         await ApplyFarmListOverviewToUiAsync(lists);
         await Dispatcher.InvokeAsync(() =>
             UpdateSelectedCachedTimerStatus(status => status with { FarmLists = lists }));
-        await SaveFarmListsSnapshotAsync(lists, cancellationToken);
+        await _farmListsWorkflow.SaveSnapshotAsync(lists, cancellationToken);
         return true;
-    }
-
-    private async Task SaveFarmListsSnapshotAsync(IReadOnlyList<FarmListOverview> lists, CancellationToken cancellationToken)
-    {
-        try
-        {
-            var path = AccountStoragePaths.FarmListsSnapshotPath(_projectRoot, _accountStore.ActiveAccountName());
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            var payload = new
-            {
-                capturedAtUtc = DateTimeOffset.UtcNow,
-                lists = lists.Select(item => new
-                {
-                    name = item.Name,
-                    villageName = item.VillageName,
-                    villageIndex = item.VillageIndex,
-                    activeFarmCount = item.ActiveFarmCount,
-                    totalFarmCount = item.TotalFarmCount,
-                    remainingSeconds = item.RemainingSeconds,
-                    listId = item.ListId,
-                    capacity = item.Capacity,
-                    farmCoordinates = item.FarmCoordinates,
-                }),
-            };
-            await File.WriteAllTextAsync(path, JsonSerializer.Serialize(payload), cancellationToken);
-            AppendLog($"[farm-list] saved analysis snapshot with {_analyzedFarmCoordinates.Count} unique coordinate(s).");
-        }
-        catch (OperationCanceledException)
-        {
-            throw;
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not save farm list analysis snapshot: {ex.Message}");
-        }
     }
 
     // Projects a server overview through the workflow module, then lets WPF apply the returned rows.
@@ -302,141 +265,31 @@ public partial class MainWindow
         }
     }
 
-    // Loads the snapshot the worker writes immediately after a send and applies it to the UI rows.
-    // Returns false (so the caller can fall back to a server re-analyze) when the snapshot is
-    // missing, unparseable, or too old to trust.
     private async Task<bool> TryApplyFarmListsSnapshotAsync()
     {
-        var snapshotPath = AccountStoragePaths.FarmListsSnapshotPath(_projectRoot, _accountStore.ActiveAccountName());
-        if (!File.Exists(snapshotPath))
+        var lists = await _farmListsWorkflow.LoadFreshSnapshotAsync(
+            _loopController.AcquireSessionScopeToken());
+        if (lists is null)
         {
             return false;
         }
-
-        FarmListsSnapshotDto? snapshot;
-        try
-        {
-            var json = await File.ReadAllTextAsync(snapshotPath);
-            snapshot = JsonSerializer.Deserialize<FarmListsSnapshotDto>(json, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-            });
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Farm list snapshot could not be parsed: {ex.Message}");
-            return false;
-        }
-
-        if (snapshot?.Lists is null
-            || snapshot.CapturedAtUtc is null
-            || DateTimeOffset.UtcNow - snapshot.CapturedAtUtc.Value > TimeSpan.FromMinutes(2))
-        {
-            return false;
-        }
-
-        var lists = snapshot.Lists
-            .Where(entry => entry is not null && !string.IsNullOrWhiteSpace(entry.Name))
-            .Select(entry => new FarmListOverview(
-                Name: entry!.Name!,
-                ActiveFarmCount: entry.ActiveFarmCount,
-                TotalFarmCount: entry.TotalFarmCount,
-                RemainingSeconds: entry.RemainingSeconds,
-                ListId: string.IsNullOrWhiteSpace(entry.ListId) ? null : entry.ListId,
-                Capacity: entry.Capacity,
-                FarmCoordinates: entry.FarmCoordinates ?? [],
-                VillageName: string.IsNullOrWhiteSpace(entry.VillageName) ? null : entry.VillageName,
-                VillageIndex: entry.VillageIndex))
-            .ToList();
 
         await ApplyFarmListOverviewToUiAsync(lists);
         return true;
     }
 
-    // Restores the last analyzed farm lists from the persisted snapshot at startup / after an account
-    // switch, so the farming panel is never blank when lists were already analyzed in a prior session.
-    // Unlike TryApplyFarmListsSnapshotAsync (post-send, freshness-gated) this accepts a snapshot of any
-    // age: timers are re-based on the capture time so a stale countdown never keeps ticking from an old
-    // value, and the workflow analysis timestamp stays invalid so a real re-analyze is still triggered when due.
     private async Task RestoreFarmListsFromSnapshotForActiveAccount()
     {
-        var snapshotPath = AccountStoragePaths.FarmListsSnapshotPath(_projectRoot, _accountStore.ActiveAccountName());
-        if (!File.Exists(snapshotPath))
-        {
-            return;
-        }
-
-        FarmListsSnapshotDto? snapshot;
-        try
-        {
-            var json = await File.ReadAllTextAsync(snapshotPath);
-            snapshot = JsonSerializer.Deserialize<FarmListsSnapshotDto>(json, new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true,
-            });
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not restore saved farm lists: {ex.Message}");
-            return;
-        }
-
-        if (snapshot?.Lists is null || snapshot.Lists.Count == 0)
-        {
-            return;
-        }
-
-        // Re-base each timer against the capture time so restored countdowns reflect elapsed time.
-        var elapsedSeconds = snapshot.CapturedAtUtc is { } capturedAt
-            ? Math.Max(0, (int)(DateTimeOffset.UtcNow - capturedAt).TotalSeconds)
-            : 0;
-        var lists = snapshot.Lists
-            .Where(entry => entry is not null && !string.IsNullOrWhiteSpace(entry.Name))
-            .Select(entry =>
-            {
-                var remaining = entry!.RemainingSeconds is > 0
-                    ? Math.Max(0, entry.RemainingSeconds.Value - elapsedSeconds)
-                    : entry.RemainingSeconds;
-                return new FarmListOverview(
-                    Name: entry.Name!,
-                    ActiveFarmCount: entry.ActiveFarmCount,
-                    TotalFarmCount: entry.TotalFarmCount,
-                    RemainingSeconds: remaining is > 0 ? remaining : null,
-                    ListId: string.IsNullOrWhiteSpace(entry.ListId) ? null : entry.ListId,
-                    Capacity: entry.Capacity,
-                    FarmCoordinates: entry.FarmCoordinates ?? [],
-                    VillageName: string.IsNullOrWhiteSpace(entry.VillageName) ? null : entry.VillageName,
-                    VillageIndex: entry.VillageIndex);
-            })
-            .ToList();
-        if (lists.Count == 0)
+        var lists = await _farmListsWorkflow.LoadRestoredSnapshotAsync(DateTimeOffset.UtcNow);
+        if (lists is null || lists.Count == 0)
         {
             return;
         }
 
         await ApplyFarmListOverviewToUiAsync(lists);
-        // A restore is not a fresh analyze: keep the marker unset so the continuous loop still runs one.
+        // A restore is not a fresh analyze: continuous automation must still run one live read.
         _farmListsWorkflow.InvalidateAnalysis();
         AppendLog($"[farm-list] restored {lists.Count} saved farm list(s) from the last analysis.");
-    }
-
-    private sealed class FarmListsSnapshotDto
-    {
-        public DateTimeOffset? CapturedAtUtc { get; init; }
-        public List<FarmListSnapshotEntryDto>? Lists { get; init; }
-    }
-
-    private sealed class FarmListSnapshotEntryDto
-    {
-        public string? Name { get; init; }
-        public string? VillageName { get; init; }
-        public int? VillageIndex { get; init; }
-        public int ActiveFarmCount { get; init; }
-        public int TotalFarmCount { get; init; }
-        public int? RemainingSeconds { get; init; }
-        public string? ListId { get; init; }
-        public int? Capacity { get; init; }
-        public List<string>? FarmCoordinates { get; init; }
     }
 
     private async void AnalyzeFarmListsButton_Click(object sender, RoutedEventArgs e)

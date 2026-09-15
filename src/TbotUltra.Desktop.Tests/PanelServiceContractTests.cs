@@ -216,6 +216,28 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
+    public async Task FarmListsWorkflow_OwnsSnapshotRoundTripAndTimerRebase()
+    {
+        var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());
+        var lists = new[]
+        {
+            new FarmListOverview(
+                "Raiders", 2, 3, 60, "lid-1", 100, ["1|2", "3|4"],
+                VillageName: "Capital", VillageIndex: 0),
+        };
+
+        await workflow.SaveSnapshotAsync(lists, CancellationToken.None);
+        var fresh = await workflow.LoadFreshSnapshotAsync(CancellationToken.None);
+        var restored = await workflow.LoadRestoredSnapshotAsync(DateTimeOffset.UtcNow.AddSeconds(30));
+
+        Assert.Equal("lid-1", Assert.Single(fresh!).ListId);
+        var restoredList = Assert.Single(restored!);
+        Assert.InRange(restoredList.RemainingSeconds!.Value, 29, 30);
+        Assert.Equal(["1|2", "3|4"], restoredList.FarmCoordinates);
+        Assert.Equal("Capital", restoredList.VillageName);
+    }
+
+    [Fact]
     public void FarmListsWorkflow_PersistsDestinationStateWithoutChangingTheContract()
     {
         var store = CreateConfigStore();

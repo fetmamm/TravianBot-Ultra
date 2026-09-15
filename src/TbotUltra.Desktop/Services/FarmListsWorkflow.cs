@@ -1,8 +1,11 @@
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Farming;
+using TbotUltra.Core.Accounts;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.ViewModels;
 using TbotUltra.Worker.Domain;
+using System.Text.Json;
+using System.IO;
 
 namespace TbotUltra.Desktop.Services;
 
@@ -225,6 +228,93 @@ public sealed class FarmListsWorkflow(
             mergedByKey.Count);
     }
 
+    public async Task SaveSnapshotAsync(
+        IReadOnlyList<FarmListOverview> lists,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var path = AccountStoragePaths.FarmListsSnapshotPath(projectRoot, activeAccountName());
+            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+            var payload = new FarmListsSnapshotDto
+            {
+                CapturedAtUtc = DateTimeOffset.UtcNow,
+                Lists = lists.Select(FarmListSnapshotEntryDto.FromOverview).ToList(),
+            };
+            await File.WriteAllTextAsync(path, JsonSerializer.Serialize(payload), cancellationToken);
+            var coordinateCount = lists
+                .SelectMany(item => item.FarmCoordinates ?? [])
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .Count();
+            log($"[farm-list] saved analysis snapshot with {coordinateCount} unique coordinate(s).");
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            log($"Could not save farm list analysis snapshot: {ex.Message}");
+        }
+    }
+
+    public Task<IReadOnlyList<FarmListOverview>?> LoadFreshSnapshotAsync(CancellationToken cancellationToken)
+        => LoadSnapshotAsync(DateTimeOffset.UtcNow, TimeSpan.FromMinutes(2), rebaseTimers: false, cancellationToken);
+
+    public Task<IReadOnlyList<FarmListOverview>?> LoadRestoredSnapshotAsync(
+        DateTimeOffset now,
+        CancellationToken cancellationToken = default)
+        => LoadSnapshotAsync(now, maximumAge: null, rebaseTimers: true, cancellationToken);
+
+    private async Task<IReadOnlyList<FarmListOverview>?> LoadSnapshotAsync(
+        DateTimeOffset now,
+        TimeSpan? maximumAge,
+        bool rebaseTimers,
+        CancellationToken cancellationToken)
+    {
+        var path = AccountStoragePaths.FarmListsSnapshotPath(projectRoot, activeAccountName());
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+
+        FarmListsSnapshotDto? snapshot;
+        try
+        {
+            var json = await File.ReadAllTextAsync(path, cancellationToken);
+            snapshot = JsonSerializer.Deserialize<FarmListsSnapshotDto>(json, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true,
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            log($"Farm list snapshot could not be parsed: {ex.Message}");
+            return null;
+        }
+
+        if (snapshot?.Lists is null
+            || snapshot.Lists.Count == 0
+            || (maximumAge is not null
+                && (snapshot.CapturedAtUtc is null || now - snapshot.CapturedAtUtc.Value > maximumAge.Value)))
+        {
+            return null;
+        }
+
+        var elapsedSeconds = rebaseTimers && snapshot.CapturedAtUtc is { } capturedAt
+            ? Math.Max(0, (int)(now - capturedAt).TotalSeconds)
+            : 0;
+        return snapshot.Lists
+            .Where(entry => entry is not null && !string.IsNullOrWhiteSpace(entry.Name))
+            .Select(entry => entry!.ToOverview(elapsedSeconds))
+            .ToList();
+    }
+
     internal static string BuildVillageHeader(
         string villageName,
         IReadOnlyDictionary<string, string> villageCoordinates)
@@ -294,6 +384,55 @@ public sealed class FarmListsWorkflow(
         string? ListId,
         int? Capacity,
         IReadOnlyList<string> Coordinates);
+
+    private sealed class FarmListsSnapshotDto
+    {
+        public DateTimeOffset? CapturedAtUtc { get; init; }
+        public List<FarmListSnapshotEntryDto>? Lists { get; init; }
+    }
+
+    private sealed class FarmListSnapshotEntryDto
+    {
+        public string? Name { get; init; }
+        public string? VillageName { get; init; }
+        public int? VillageIndex { get; init; }
+        public int ActiveFarmCount { get; init; }
+        public int TotalFarmCount { get; init; }
+        public int? RemainingSeconds { get; init; }
+        public string? ListId { get; init; }
+        public int? Capacity { get; init; }
+        public IReadOnlyList<string>? FarmCoordinates { get; init; }
+
+        public static FarmListSnapshotEntryDto FromOverview(FarmListOverview overview) => new()
+        {
+            Name = overview.Name,
+            VillageName = overview.VillageName,
+            VillageIndex = overview.VillageIndex,
+            ActiveFarmCount = overview.ActiveFarmCount,
+            TotalFarmCount = overview.TotalFarmCount,
+            RemainingSeconds = overview.RemainingSeconds,
+            ListId = overview.ListId,
+            Capacity = overview.Capacity,
+            FarmCoordinates = overview.FarmCoordinates,
+        };
+
+        public FarmListOverview ToOverview(int elapsedSeconds)
+        {
+            var remaining = RemainingSeconds is > 0
+                ? Math.Max(0, RemainingSeconds.Value - elapsedSeconds)
+                : RemainingSeconds;
+            return new FarmListOverview(
+                Name: Name!,
+                ActiveFarmCount: ActiveFarmCount,
+                TotalFarmCount: TotalFarmCount,
+                RemainingSeconds: remaining is > 0 ? remaining : null,
+                ListId: string.IsNullOrWhiteSpace(ListId) ? null : ListId,
+                Capacity: Capacity,
+                FarmCoordinates: FarmCoordinates ?? [],
+                VillageName: string.IsNullOrWhiteSpace(VillageName) ? null : VillageName,
+                VillageIndex: VillageIndex);
+        }
+    }
 
     public Task<bool> ReadAndPersistGoldClubStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
         => client.ReadAndPersistGoldClubStatusAsync(options, log, cancellationToken);
