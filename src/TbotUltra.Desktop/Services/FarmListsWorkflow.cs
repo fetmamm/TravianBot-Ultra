@@ -15,6 +15,7 @@ namespace TbotUltra.Desktop.Services;
 /// </summary>
 public sealed class FarmListsWorkflow(
     IFarmingPanelClient client,
+    IFarmListsAutomationAdapter automation,
     BotConfigStore configStore,
     string projectRoot,
     Func<string> activeAccountName,
@@ -159,6 +160,59 @@ public sealed class FarmListsWorkflow(
             ExcludedPlayers: excludedPlayers,
             ExcludedAlliances: excludedAlliances,
             IdentityUnavailable: identityUnavailable);
+    }
+
+    public async Task<FarmListsAutomationResume> PauseAutomationAsync(CancellationToken cancellationToken)
+    {
+        var resumeContinuous = automation.ContinuousLoopRunning || automation.StartContinuousAfterQueueStop;
+        var resumeQueue = !resumeContinuous && automation.AutoQueueRunning;
+        if (!resumeContinuous && !resumeQueue)
+        {
+            log("[farm-list] bot already paused; starting loss destination setup.");
+            return FarmListsAutomationResume.None;
+        }
+
+        automation.ClearPendingRestarts();
+        automation.RequestStopAfterCurrentAction();
+        automation.UpdateExecutionIndicator();
+        log("[farm-list] pause requested; waiting for the current bot action to finish.");
+
+        while (automation.AutoQueueRunning || automation.ContinuousLoopRunning || automation.UiBusy)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken);
+        }
+
+        await Task.Delay(100, cancellationToken);
+        log("[farm-list] automation paused; loss destination setup has priority.");
+        return new FarmListsAutomationResume(resumeContinuous, resumeQueue);
+    }
+
+    public async Task ResumeAutomationAsync(FarmListsAutomationResume resume)
+    {
+        if (resume == FarmListsAutomationResume.None)
+        {
+            return;
+        }
+
+        if (!automation.SessionAvailable)
+        {
+            log("[farm-list] automation was not resumed because the session is unavailable.");
+            return;
+        }
+
+        if (resume.ContinuousLoop && !automation.ContinuousLoopRunning)
+        {
+            log("[farm-list] resuming continuous loop after loss destination setup.");
+            automation.StartContinuousLoop();
+            return;
+        }
+
+        if (resume.AutoQueue && !automation.AutoQueueRunning)
+        {
+            log("[farm-list] resuming queue auto-run after loss destination setup.");
+            await automation.StartAutoQueueAsync();
+        }
     }
 
     public void CaptureAutomationState(IEnumerable<FarmListStatusRow> rows, DateTimeOffset? analyzedAt = null)
@@ -844,6 +898,25 @@ public sealed record FarmListsPresentationOptions(
 public sealed record FarmListsAnalysisResult(
     bool IsAvailable,
     IReadOnlyList<FarmListOverview> Lists);
+
+public interface IFarmListsAutomationAdapter
+{
+    bool ContinuousLoopRunning { get; }
+    bool StartContinuousAfterQueueStop { get; }
+    bool AutoQueueRunning { get; }
+    bool UiBusy { get; }
+    bool SessionAvailable { get; }
+    void ClearPendingRestarts();
+    void RequestStopAfterCurrentAction();
+    void UpdateExecutionIndicator();
+    void StartContinuousLoop();
+    Task StartAutoQueueAsync();
+}
+
+public sealed record FarmListsAutomationResume(bool ContinuousLoop, bool AutoQueue)
+{
+    public static FarmListsAutomationResume None { get; } = new(false, false);
+}
 
 public sealed record AddFarmsProtectionPreferences(
     bool ExcludeOwnAlliance,

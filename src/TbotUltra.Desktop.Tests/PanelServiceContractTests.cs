@@ -335,6 +335,31 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
+    public async Task FarmListsWorkflow_PausesAndResumesOriginalAutomationMode()
+    {
+        var store = CreateConfigStore();
+        store.Save(new JsonObject());
+        var automation = new RecordingFarmListsAutomationAdapter { ContinuousLoopRunning = true };
+        var workflow = new FarmListsWorkflow(
+            new RecordingFarmingClient(),
+            automation,
+            store,
+            _root,
+            () => "alice",
+            _ => { });
+
+        var resume = await workflow.PauseAutomationAsync(CancellationToken.None);
+
+        Assert.True(resume.ContinuousLoop);
+        Assert.False(automation.ContinuousLoopRunning);
+
+        await workflow.ResumeAutomationAsync(resume);
+
+        Assert.True(automation.ContinuousLoopRunning);
+        Assert.False(automation.AutoQueueRunning);
+    }
+
+    [Fact]
     public void FarmListsWorkflow_PersistsDestinationStateWithoutChangingTheContract()
     {
         var store = CreateConfigStore();
@@ -450,7 +475,30 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     private FarmListsWorkflow CreateFarmListsWorkflow(IFarmingPanelClient client, BotConfigStore store)
-        => new(client, store, _root, () => "alice", _ => { });
+        => new(client, new RecordingFarmListsAutomationAdapter(), store, _root, () => "alice", _ => { });
+
+    private sealed class RecordingFarmListsAutomationAdapter : IFarmListsAutomationAdapter
+    {
+        public bool ContinuousLoopRunning { get; set; }
+        public bool StartContinuousAfterQueueStop { get; set; }
+        public bool AutoQueueRunning { get; set; }
+        public bool UiBusy { get; set; }
+        public bool SessionAvailable { get; set; } = true;
+        public void ClearPendingRestarts() { }
+        public void RequestStopAfterCurrentAction()
+        {
+            ContinuousLoopRunning = false;
+            AutoQueueRunning = false;
+            UiBusy = false;
+        }
+        public void UpdateExecutionIndicator() { }
+        public void StartContinuousLoop() => ContinuousLoopRunning = true;
+        public Task StartAutoQueueAsync()
+        {
+            AutoQueueRunning = true;
+            return Task.CompletedTask;
+        }
+    }
 
     private static TroopTrainingPayload TrainingPayload(string troop, int fallback)
     {

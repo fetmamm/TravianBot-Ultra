@@ -529,6 +529,7 @@ public partial class MainWindow : Window
         _resourcesPanelService = new ResourcesPanelService(_botConfigStore, _villageSettingsStore);
         _farmListsWorkflow = new FarmListsWorkflow(
             new DesktopFarmingPanelClient(_botService),
+            new MainWindowFarmListsAutomationAdapter(this),
             _botConfigStore,
             _projectRoot,
             _accountStore.ActiveAccountName,

@@ -48,7 +48,7 @@ public sealed class FarmListAnalysisReuseTests
         Assert.False(snapshot.NeedsAnalysis);
     }
 
-    private static FarmListsWorkflow CreateWorkflow() => new(null!, null!, string.Empty, () => string.Empty, _ => { });
+    private static FarmListsWorkflow CreateWorkflow() => new(null!, null!, null!, string.Empty, () => string.Empty, _ => { });
 
     private static FarmListStatusRow RealRow() => new() { Name = "Raiders", IsEnabled = true };
 }

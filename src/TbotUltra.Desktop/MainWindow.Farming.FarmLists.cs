@@ -1268,8 +1268,7 @@ public partial class MainWindow
             return;
         }
 
-        var resumeContinuous = IsContinuousLoopRunning() || _startContinuousLoopAfterQueueStop;
-        var resumeQueue = !resumeContinuous && _autoQueueRunning;
+        var automationResume = FarmListsAutomationResume.None;
         var operationToken = _loopController.StartOperation("loss-farmlist-destination");
         _farmLossDestinationSelectionInProgress = true;
         BeginManualFunctionPacingPause();
@@ -1277,9 +1276,7 @@ public partial class MainWindow
         ShowBusyOverlay("Choose loss farmlist", "Pausing automation after the current action...");
         try
         {
-            await PauseAutomationForFarmLossDestinationAsync(
-                resumeContinuous || resumeQueue,
-                operationToken);
+            automationResume = await _farmListsWorkflow.PauseAutomationAsync(operationToken);
 
             BusyOverlay.Text = "Reading all existing farmlists...";
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
@@ -1333,64 +1330,7 @@ public partial class MainWindow
             EndManualFunctionPacingPause();
             DisposeOperationCts();
             _farmLossDestinationSelectionInProgress = false;
-            await ResumeAutomationAfterFarmLossDestinationAsync(resumeContinuous, resumeQueue);
-        }
-    }
-
-    private async Task PauseAutomationForFarmLossDestinationAsync(
-        bool automationWasRunning,
-        CancellationToken cancellationToken)
-    {
-        if (!automationWasRunning)
-        {
-            AppendLog("[farm-list] bot already paused; starting loss destination setup.");
-            return;
-        }
-
-        _startContinuousLoopAfterQueueStop = false;
-        _restartContinuousLoopAfterStop = false;
-        RequestAutomationStop(AutomationStopMode.AfterCurrentAction);
-        UpdateExecutionStateIndicator();
-        AppendLog("[farm-list] pause requested; waiting for the current bot action to finish.");
-
-        while (_autoQueueRunning || IsContinuousLoopRunning() || _uiBusy)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await Task.Delay(Random.Shared.Next(150, 350), cancellationToken);
-        }
-
-        // Auto-queue clears its running flag immediately before releasing its execution gate.
-        // Give that finally block one UI-sized beat so a resume cannot race the old gate lease.
-        await Task.Delay(100, cancellationToken);
-        AppendLog("[farm-list] automation paused; loss destination setup has priority.");
-    }
-
-    private async Task ResumeAutomationAfterFarmLossDestinationAsync(
-        bool resumeContinuous,
-        bool resumeQueue)
-    {
-        if (!resumeContinuous && !resumeQueue)
-        {
-            return;
-        }
-
-        if (_loopController.IsClosing || !_isLoggedIn || IsSessionSleeping || IsFreezeActive)
-        {
-            AppendLog("[farm-list] automation was not resumed because the session is unavailable.");
-            return;
-        }
-
-        if (resumeContinuous && !IsContinuousLoopRunning())
-        {
-            AppendLog("[farm-list] resuming continuous loop after loss destination setup.");
-            StartContinuousLoopRunner();
-            return;
-        }
-
-        if (resumeQueue && !_autoQueueRunning)
-        {
-            AppendLog("[farm-list] resuming queue auto-run after loss destination setup.");
-            await TriggerQueueAutoRunAsync();
+            await _farmListsWorkflow.ResumeAutomationAsync(automationResume);
         }
     }
 
