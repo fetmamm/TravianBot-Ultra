@@ -155,49 +155,6 @@ public sealed class DesktopBotService : IDesktopBotService
         return _taskRunner.SetLanguageToEnglishAsync(options, log, null, cancellationToken);
     }
 
-    public Task<bool> ReadAndPersistGoldClubStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
-    {
-        return _taskRunner.ReadAndPersistGoldClubStatusAsync(options, log, null, cancellationToken);
-    }
-
-    public Task<IReadOnlyList<FarmListOverview>> ReadFarmListsOverviewAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
-    {
-        return _taskRunner.ReadFarmListsOverviewAsync(options, log, null, cancellationToken);
-    }
-
-    public Task<int?> SendFarmListNowAsync(BotOptions options, string farmListName, Action<string> log, CancellationToken cancellationToken)
-    {
-        return _taskRunner.SendFarmListNowAsync(options, farmListName, log, null, cancellationToken);
-    }
-
-    public Task<int> SendAllFarmListsNowAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
-    {
-        return _taskRunner.SendAllFarmListsNowAsync(options, log, null, cancellationToken);
-    }
-
-    public Task<int> SendSelectedFarmListsNowAsync(BotOptions options, IReadOnlyCollection<string> selectedNames, IReadOnlyCollection<string> selectedIds, Action<string> log, CancellationToken cancellationToken)
-    {
-        return _taskRunner.SendSelectedFarmListsNowAsync(options, selectedNames, selectedIds, log, null, cancellationToken);
-    }
-
-    public Task<int> SendAllFarmListsViaStartAllButtonAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
-    {
-        return _taskRunner.SendAllFarmListsViaStartAllButtonAsync(options, log, null, cancellationToken);
-    }
-
-    public Task<FarmAddBatchResult> AddFarmsFromCoordinatesAsync(BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount, IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops, FarmTargetProtectionContext? protection, Action<string> log, IProgress<FarmAddProgress>? progress, CancellationToken cancellationToken)
-    {
-        return _taskRunner.AddFarmsFromCoordinatesAsync(options, farmListName, troopType, troopCount, requestedCount, coordinates, useDefaultTroops, log, null, progress, protection, cancellationToken);
-    }
-
-    public Task<FarmTargetIdentity> ReadFarmTargetProtectionIdentityAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
-        => _taskRunner.ReadFarmTargetProtectionIdentityAsync(options, log, null, cancellationToken);
-
-    public Task<FarmListCreateBatchResult> CreateFarmListsAsync(BotOptions options, FarmListCreateRequest request, Action<string> log, IProgress<FarmListCreateProgress>? progress, CancellationToken cancellationToken)
-    {
-        return _taskRunner.CreateFarmListsAsync(options, request, log, null, progress, cancellationToken);
-    }
-
     public Task<FarmListLossDeactivationResult> RunFarmLossMoveDebugAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.RunFarmLossMoveDebugAsync(options, log, null, cancellationToken);

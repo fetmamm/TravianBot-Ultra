@@ -52,17 +52,6 @@ public interface IDesktopBotService
     Task<string?> ReadCurrentLanguageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task EnsureExpectedLanguageAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<string?> SetLanguageToEnglishAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
-    Task<bool> ReadAndPersistGoldClubStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
-    Task<IReadOnlyList<FarmListOverview>> ReadFarmListsOverviewAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
-    Task<int?> SendFarmListNowAsync(BotOptions options, string farmListName, Action<string> log, CancellationToken cancellationToken);
-    Task<int> SendAllFarmListsNowAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
-
-    Task<int> SendSelectedFarmListsNowAsync(BotOptions options, IReadOnlyCollection<string> selectedNames, IReadOnlyCollection<string> selectedIds, Action<string> log, CancellationToken cancellationToken);
-
-    Task<int> SendAllFarmListsViaStartAllButtonAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
-    Task<FarmAddBatchResult> AddFarmsFromCoordinatesAsync(BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount, IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops, FarmTargetProtectionContext? protection, Action<string> log, IProgress<FarmAddProgress>? progress, CancellationToken cancellationToken);
-    Task<FarmTargetIdentity> ReadFarmTargetProtectionIdentityAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
-    Task<FarmListCreateBatchResult> CreateFarmListsAsync(BotOptions options, FarmListCreateRequest request, Action<string> log, IProgress<FarmListCreateProgress>? progress, CancellationToken cancellationToken);
     Task<FarmListLossDeactivationResult> RunFarmLossMoveDebugAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<CapitalProfileCheckResult> CheckCapitalFromProfileAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task SetVerifiedCapitalStateAsync(BotOptions options, CapitalProfileCheckResult capital, Action<string> log, CancellationToken cancellationToken);

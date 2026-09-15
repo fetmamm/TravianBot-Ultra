@@ -11,10 +11,10 @@ namespace TbotUltra.Desktop.Services;
 
 /// <summary>
 /// Owns the Farm Lists desktop workflow and its account-scoped settings.
-/// Browser work crosses the single <see cref="IFarmingPanelClient"/> seam.
+/// Browser work crosses the single <see cref="IFarmListsBrowserAdapter"/> seam.
 /// </summary>
 public sealed class FarmListsWorkflow(
-    IFarmingPanelClient client,
+    IFarmListsBrowserAdapter client,
     IFarmListsAutomationAdapter automation,
     BotConfigStore configStore,
     string projectRoot,
@@ -790,37 +790,30 @@ public sealed class FarmListsWorkflow(
         }
     }
 
-    public Task<bool> ReadAndPersistGoldClubStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    public Task<bool> IsGoldClubActiveAsync(BotOptions options, CancellationToken cancellationToken)
         => client.ReadAndPersistGoldClubStatusAsync(options, log, cancellationToken);
 
-    public Task<IReadOnlyList<FarmListOverview>> ReadOverviewAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    public Task<IReadOnlyList<FarmListOverview>> ReadOverviewAsync(BotOptions options, CancellationToken cancellationToken)
         => client.ReadOverviewAsync(options, log, cancellationToken);
 
-    public Task<FarmAddBatchResult> AddFarmsAsync(
-        BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount,
-        IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops, FarmTargetProtectionContext? protection, Action<string> log,
-        IProgress<FarmAddProgress>? progress, CancellationToken cancellationToken)
-        => client.AddFarmsAsync(options, farmListName, troopType, troopCount, requestedCount,
-            coordinates, useDefaultTroops, protection, log, progress, cancellationToken);
-
     public Task<FarmTargetIdentity> ReadTargetProtectionIdentityAsync(
-        BotOptions options, Action<string> log, CancellationToken cancellationToken)
+        BotOptions options, CancellationToken cancellationToken)
         => client.ReadTargetProtectionIdentityAsync(options, log, cancellationToken);
 
     public Task<FarmListCreateBatchResult> CreateListsAsync(
-        BotOptions options, FarmListCreateRequest request, Action<string> log,
+        BotOptions options, FarmListCreateRequest request,
         IProgress<FarmListCreateProgress>? progress, CancellationToken cancellationToken)
         => client.CreateListsAsync(options, request, log, progress, cancellationToken);
 
-    public Task<int?> SendOneAsync(BotOptions options, string farmListName, Action<string> log, CancellationToken cancellationToken)
+    public Task<int?> SendOneAsync(BotOptions options, string farmListName, CancellationToken cancellationToken)
         => client.SendOneAsync(options, farmListName, log, cancellationToken);
 
     public Task<int> SendSelectedAsync(
         BotOptions options, IReadOnlyCollection<string> names, IReadOnlyCollection<string> ids,
-        Action<string> log, CancellationToken cancellationToken)
+        CancellationToken cancellationToken)
         => client.SendSelectedAsync(options, names, ids, log, cancellationToken);
 
-    public Task<int> SendAllAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    public Task<int> SendAllAsync(BotOptions options, CancellationToken cancellationToken)
         => client.SendAllAsync(options, log, cancellationToken);
 
     public FarmingSettingsSaveResult SaveSettings(FarmingPanelSettings settings)

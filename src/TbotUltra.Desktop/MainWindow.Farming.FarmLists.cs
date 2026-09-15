@@ -406,7 +406,6 @@ public partial class MainWindow
                     .ToList();
                 var ownIdentity = await _farmListsWorkflow.ReadTargetProtectionIdentityAsync(
                     options,
-                    AppendLog,
                     cancellationToken);
                 return new OfficialAddFarmsLoadResult(
                     true,
@@ -737,7 +736,7 @@ public partial class MainWindow
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
             await EnsureChromiumInstalledAsync();
-            var timerSeconds = await _farmListsWorkflow.SendOneAsync(options, list.Name, AppendLog, operationToken);
+            var timerSeconds = await _farmListsWorkflow.SendOneAsync(options, list.Name, operationToken);
             list.RemainingSeconds = timerSeconds is > 0 ? timerSeconds : null;
             if (_farmListsWorkflow.RecordDispatch(list, succeeded: true, LoadBotOptions()))
             {
@@ -828,8 +827,8 @@ public partial class MainWindow
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
             await EnsureChromiumInstalledAsync();
             var sentCount = sendToggled
-                ? await _farmListsWorkflow.SendSelectedAsync(options, toggledNames, toggledIds, AppendLog, operationToken)
-                : await _farmListsWorkflow.SendAllAsync(options, AppendLog, operationToken);
+                ? await _farmListsWorkflow.SendSelectedAsync(options, toggledNames, toggledIds, operationToken)
+                : await _farmListsWorkflow.SendAllAsync(options, operationToken);
             await RefreshFarmListsFromServerAsync(options, operationToken);
             if (_farmListsWorkflow.ReconcileDispatches(_farmLists, attemptedKeys, LoadBotOptions()))
             {
@@ -1376,7 +1375,6 @@ public partial class MainWindow
         var createResult = await _farmListsWorkflow.CreateListsAsync(
             options,
             request,
-            AppendLog,
             null,
             cancellationToken);
         if (createResult.CreatedCount != 1
@@ -1391,7 +1389,7 @@ public partial class MainWindow
         if (created is null)
         {
             // The panel limits displayed rows, so verify the complete overview before reporting failure.
-            var verifiedLists = await _farmListsWorkflow.ReadOverviewAsync(options, AppendLog, cancellationToken);
+            var verifiedLists = await _farmListsWorkflow.ReadOverviewAsync(options, cancellationToken);
             var verified = verifiedLists.FirstOrDefault(item =>
                 string.Equals(item.Name, listName, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(item.VillageName, village.Name, StringComparison.OrdinalIgnoreCase));

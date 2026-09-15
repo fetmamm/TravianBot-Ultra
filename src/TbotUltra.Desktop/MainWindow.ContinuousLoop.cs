@@ -1906,7 +1906,7 @@ public partial class MainWindow
         }
         using (_dashboardActivityTracker.Begin("Checking Gold Club status"))
         {
-            var enabled = await _botService.ReadAndPersistGoldClubStatusAsync(options, AppendLog, cancellationToken);
+            var enabled = await _farmListsWorkflow.IsGoldClubActiveAsync(options, cancellationToken);
             return _automationSessionRuntime.ApplyGoldClubStatus(enabled);
         }
     }

@@ -11,18 +11,6 @@ public interface IHeroPanelClient
     Task<HeroInventoryResources> ReadInventoryAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
 }
 
-public interface IFarmingPanelClient
-{
-    Task<bool> ReadAndPersistGoldClubStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
-    Task<IReadOnlyList<FarmListOverview>> ReadOverviewAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
-    Task<FarmAddBatchResult> AddFarmsAsync(BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount, IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops, FarmTargetProtectionContext? protection, Action<string> log, IProgress<FarmAddProgress>? progress, CancellationToken cancellationToken);
-    Task<FarmTargetIdentity> ReadTargetProtectionIdentityAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
-    Task<FarmListCreateBatchResult> CreateListsAsync(BotOptions options, FarmListCreateRequest request, Action<string> log, IProgress<FarmListCreateProgress>? progress, CancellationToken cancellationToken);
-    Task<int?> SendOneAsync(BotOptions options, string farmListName, Action<string> log, CancellationToken cancellationToken);
-    Task<int> SendSelectedAsync(BotOptions options, IReadOnlyCollection<string> names, IReadOnlyCollection<string> ids, Action<string> log, CancellationToken cancellationToken);
-    Task<int> SendAllAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
-}
-
 public interface IBuildingsPanelClient
 {
     IReadOnlyList<QueueItem> GetQueueItems();
@@ -70,33 +58,6 @@ internal sealed class DesktopHeroPanelClient(IDesktopBotService botService) : IH
 
     public Task<HeroInventoryResources> ReadInventoryAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
         => botService.RefreshHeroInventoryAsync(options, log, cancellationToken);
-}
-
-internal sealed class DesktopFarmingPanelClient(IDesktopBotService botService) : IFarmingPanelClient
-{
-    public Task<bool> ReadAndPersistGoldClubStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
-        => botService.ReadAndPersistGoldClubStatusAsync(options, log, cancellationToken);
-
-    public Task<IReadOnlyList<FarmListOverview>> ReadOverviewAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
-        => botService.ReadFarmListsOverviewAsync(options, log, cancellationToken);
-
-    public Task<FarmAddBatchResult> AddFarmsAsync(BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount, IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops, FarmTargetProtectionContext? protection, Action<string> log, IProgress<FarmAddProgress>? progress, CancellationToken cancellationToken)
-        => botService.AddFarmsFromCoordinatesAsync(options, farmListName, troopType, troopCount, requestedCount, coordinates, useDefaultTroops, protection, log, progress, cancellationToken);
-
-    public Task<FarmTargetIdentity> ReadTargetProtectionIdentityAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
-        => botService.ReadFarmTargetProtectionIdentityAsync(options, log, cancellationToken);
-
-    public Task<FarmListCreateBatchResult> CreateListsAsync(BotOptions options, FarmListCreateRequest request, Action<string> log, IProgress<FarmListCreateProgress>? progress, CancellationToken cancellationToken)
-        => botService.CreateFarmListsAsync(options, request, log, progress, cancellationToken);
-
-    public Task<int?> SendOneAsync(BotOptions options, string farmListName, Action<string> log, CancellationToken cancellationToken)
-        => botService.SendFarmListNowAsync(options, farmListName, log, cancellationToken);
-
-    public Task<int> SendSelectedAsync(BotOptions options, IReadOnlyCollection<string> names, IReadOnlyCollection<string> ids, Action<string> log, CancellationToken cancellationToken)
-        => botService.SendSelectedFarmListsNowAsync(options, names, ids, log, cancellationToken);
-
-    public Task<int> SendAllAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
-        => botService.SendAllFarmListsViaStartAllButtonAsync(options, log, cancellationToken);
 }
 
 internal sealed class DesktopBuildingsPanelClient(IDesktopBotService botService) : IBuildingsPanelClient

@@ -153,27 +153,23 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
-    public async Task FarmListsWorkflow_ForwardsEveryManualOperationAndCancellationToken()
+    public async Task FarmListsWorkflow_ExposesBrowserActionsWithoutCallerLoggingDependency()
     {
         var client = new RecordingFarmingClient();
         var service = CreateFarmListsWorkflow(client, CreateConfigStore());
         var options = new BotOptions();
         var request = new FarmListCreateRequest(["A"], "Capital", "did:1", "Phalanx", 3);
-        var coordinates = new[] { new FarmCoordinate(1, -2) };
         using var cancellation = new CancellationTokenSource();
-        Action<string> log = _ => { };
 
-        Assert.True(await service.ReadAndPersistGoldClubStatusAsync(options, log, cancellation.Token));
-        Assert.Same(client.Overview, await service.ReadOverviewAsync(options, log, cancellation.Token));
-        Assert.Equal(client.AddResult, await service.AddFarmsAsync(options, "A", "Phalanx", 3, 5, coordinates, true, null, log, null, cancellation.Token));
-        Assert.Equal(client.Identity, await service.ReadTargetProtectionIdentityAsync(options, log, cancellation.Token));
-        Assert.Equal(client.CreateResult, await service.CreateListsAsync(options, request, log, null, cancellation.Token));
-        Assert.Equal(2, await service.SendOneAsync(options, "A", log, cancellation.Token));
-        Assert.Equal(3, await service.SendSelectedAsync(options, ["A"], ["11"], log, cancellation.Token));
-        Assert.Equal(4, await service.SendAllAsync(options, log, cancellation.Token));
+        Assert.True(await service.IsGoldClubActiveAsync(options, cancellation.Token));
+        Assert.Same(client.Overview, await service.ReadOverviewAsync(options, cancellation.Token));
+        Assert.Equal(client.Identity, await service.ReadTargetProtectionIdentityAsync(options, cancellation.Token));
+        Assert.Equal(client.CreateResult, await service.CreateListsAsync(options, request, null, cancellation.Token));
+        Assert.Equal(2, await service.SendOneAsync(options, "A", cancellation.Token));
+        Assert.Equal(3, await service.SendSelectedAsync(options, ["A"], ["11"], cancellation.Token));
+        Assert.Equal(4, await service.SendAllAsync(options, cancellation.Token));
 
-        Assert.Equal(["gold", "overview", "add", "identity", "create", "one", "selected", "all"], client.Calls);
-        Assert.Same(coordinates, client.Coordinates);
+        Assert.Equal(["gold", "overview", "identity", "create", "one", "selected", "all"], client.Calls);
         Assert.Same(request, client.CreateRequest);
         Assert.Equal("A", client.SendOneName);
         Assert.Equal(["A"], client.SelectedNames);
@@ -474,7 +470,7 @@ public sealed class PanelServiceContractTests : IDisposable
         return new BotConfigStore(Path.Combine(_root, "bot.json"), _root, () => "alice");
     }
 
-    private FarmListsWorkflow CreateFarmListsWorkflow(IFarmingPanelClient client, BotConfigStore store)
+    private FarmListsWorkflow CreateFarmListsWorkflow(IFarmListsBrowserAdapter client, BotConfigStore store)
         => new(client, new RecordingFarmListsAutomationAdapter(), store, _root, () => "alice", _ => { });
 
     private sealed class RecordingFarmListsAutomationAdapter : IFarmListsAutomationAdapter
@@ -586,7 +582,7 @@ public sealed class PanelServiceContractTests : IDisposable
         private Task<T> Record<T>(string call, BotOptions options, CancellationToken token, T result) { Calls.Add(call); Options.Add(options); CancellationTokens.Add(token); return Task.FromResult(result); }
     }
 
-    private sealed class RecordingFarmingClient : IFarmingPanelClient
+    private sealed class RecordingFarmingClient : IFarmListsBrowserAdapter
     {
         public IReadOnlyList<FarmListOverview> Overview { get; } = [new("A", 1, 2, 30)];
         public FarmAddBatchResult AddResult { get; } = new("A", 5, 5, 3, 1, 1);
