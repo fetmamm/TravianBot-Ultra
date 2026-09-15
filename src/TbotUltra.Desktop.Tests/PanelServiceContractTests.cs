@@ -294,6 +294,47 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
+    public async Task FarmListsWorkflow_OrchestratesCreateAndMultiListAdd()
+    {
+        var store = CreateConfigStore();
+        store.Save(new JsonObject());
+        var client = new RecordingFarmingClient();
+        var workflow = CreateFarmListsWorkflow(client, store);
+        var options = new BotOptions();
+        var createRequest = new FarmListCreateRequest(["A"], "Capital", "did:1", "Phalanx", 3);
+
+        var created = await workflow.CreateAfterAnalysisAsync(
+            options,
+            createRequest,
+            new Progress<FarmListCreateProgress>(),
+            CancellationToken.None);
+
+        Assert.Equal(client.CreateResult, created);
+        Assert.Equal(["gold", "overview", "create"], client.Calls);
+
+        client.Calls.Clear();
+        var protection = new FarmTargetProtectionContext("Owner", null, false, [], []);
+        var added = await workflow.RunAddPlansAsync(
+            options,
+            [
+                new OfficialFarmAddPlan(Guid.NewGuid(), "Source", "A", 5, [new FarmCoordinate(1, 2)]),
+                new OfficialFarmAddPlan(Guid.NewGuid(), "Source", "B", 5, [new FarmCoordinate(3, 4)]),
+            ],
+            true,
+            "Phalanx",
+            3,
+            protection,
+            new Progress<FarmAddProgress>(),
+            CancellationToken.None);
+
+        Assert.Equal(["add", "add"], client.Calls);
+        Assert.Equal(10, added.Requested);
+        Assert.Equal(6, added.Added);
+        Assert.Equal(2, added.Duplicates);
+        Assert.Equal(2, added.Failed);
+    }
+
+    [Fact]
     public void FarmListsWorkflow_PersistsDestinationStateWithoutChangingTheContract()
     {
         var store = CreateConfigStore();

@@ -105,9 +105,9 @@ public partial class MainWindow
 
     private async Task<bool> RefreshFarmListsFromServerAsync(BotOptions options, CancellationToken cancellationToken)
     {
-        var goldClubEnabled = await _farmListsWorkflow.ReadAndPersistGoldClubStatusAsync(options, AppendLog, cancellationToken);
-        UpdateGoldClubInfo(goldClubEnabled);
-        if (!goldClubEnabled)
+        var analysis = await _farmListsWorkflow.AnalyzeAsync(options, cancellationToken);
+        UpdateGoldClubInfo(analysis.IsAvailable);
+        if (!analysis.IsAvailable)
         {
             await Dispatcher.InvokeAsync(() =>
             {
@@ -119,11 +119,10 @@ public partial class MainWindow
             return false;
         }
 
-        var lists = await _farmListsWorkflow.ReadOverviewAsync(options, AppendLog, cancellationToken) ?? [];
+        var lists = analysis.Lists;
         await ApplyFarmListOverviewToUiAsync(lists);
         await Dispatcher.InvokeAsync(() =>
             UpdateSelectedCachedTimerStatus(status => status with { FarmLists = lists }));
-        await _farmListsWorkflow.SaveSnapshotAsync(lists, cancellationToken);
         return true;
     }
 
@@ -419,7 +418,7 @@ public partial class MainWindow
                     ownIdentity);
             }
 
-            async Task<OfficialFarmAddRunResult> RunOfficialPlansAsync(
+            Task<OfficialFarmAddRunResult> RunOfficialPlansAsync(
                 IReadOnlyList<OfficialFarmAddPlan> plans,
                 bool useDefaultTroops,
                 string troopType,
@@ -427,92 +426,15 @@ public partial class MainWindow
                 FarmTargetProtectionContext protection,
                 IProgress<FarmAddProgress> progress,
                 CancellationToken cancellationToken)
-            {
-                var requested = plans.Sum(plan => plan.DesiredCount);
-                var processed = 0;
-                var added = 0;
-                var duplicates = 0;
-                var failed = 0;
-                var notFound = 0;
-                var occupiedSkipped = 0;
-                var excludedPlayers = 0;
-                var excludedAlliances = 0;
-                var identityUnavailable = 0;
-                var invalidCoordinates = new List<FarmCoordinate>();
-
-                foreach (var plan in plans)
-                {
-                    cancellationToken.ThrowIfCancellationRequested();
-                    var processedBeforeList = processed;
-                    var addedBeforeList = added;
-                    var notFoundBeforeList = notFound;
-                    var occupiedBeforeList = occupiedSkipped;
-                    var excludedPlayersBeforeList = excludedPlayers;
-                    var excludedAlliancesBeforeList = excludedAlliances;
-                    var identityUnavailableBeforeList = identityUnavailable;
-                    var aggregateProgress = new Progress<FarmAddProgress>(value =>
-                    {
-                        progress.Report(new FarmAddProgress(
-                            value.FarmListName,
-                            processedBeforeList + value.ProcessedCount,
-                            requested,
-                            addedBeforeList + value.AddedCount,
-                            notFoundBeforeList + value.NotFoundCount,
-                            value.InvalidCoordinate,
-                            occupiedBeforeList + value.OccupiedOasisSkippedCount,
-                            excludedPlayersBeforeList + value.ExcludedPlayerCount,
-                            excludedAlliancesBeforeList + value.ExcludedAllianceCount,
-                            identityUnavailableBeforeList + value.IdentityUnavailableCount));
-                    });
-
-                    AppendLog(
-                        $"Add farms from Travco: target='{plan.TargetName}', requested={plan.DesiredCount}, " +
-                        $"candidates={plan.Coordinates.Count}, " +
-                        $"troops={(useDefaultTroops ? "default" : $"{troopCount} {troopType}")}.");
-                    var result = await _farmListsWorkflow.AddFarmsAsync(
-                        options,
-                        plan.TargetName,
-                        troopType,
-                        troopCount,
-                        plan.DesiredCount,
-                        plan.Coordinates,
-                        useDefaultTroops,
-                        protection,
-                        AppendLog,
-                        aggregateProgress,
-                        cancellationToken);
-                    processed += result.AttemptedCount;
-                    added += result.AddedCount;
-                    duplicates += result.AlreadyInListCount;
-                    failed += result.FailedCount;
-                    notFound += result.NotFoundCount;
-                    occupiedSkipped += result.OccupiedOasisSkippedCount;
-                    excludedPlayers += result.ExcludedPlayerCount;
-                    excludedAlliances += result.ExcludedAllianceCount;
-                    identityUnavailable += result.IdentityUnavailableCount;
-                    invalidCoordinates.AddRange(result.InvalidCoordinates ?? []);
-                    AppendLog(
-                        $"Finished '{plan.TargetName}': added={result.AddedCount}, " +
-                        $"duplicates={result.AlreadyInListCount}, invalid={result.NotFoundCount}, " +
-                        $"occupiedSkipped={result.OccupiedOasisSkippedCount}, " +
-                        $"excludedPlayers={result.ExcludedPlayerCount}, excludedAlliances={result.ExcludedAllianceCount}, " +
-                        $"identityUnavailable={result.IdentityUnavailableCount}, failed={result.FailedCount}.");
-                }
-
-                return new OfficialFarmAddRunResult(
-                    requested,
-                    added,
-                    duplicates,
-                    failed,
-                    invalidCoordinates
-                        .Distinct()
-                        .ToList(),
-                    OccupiedSkipped: occupiedSkipped,
-                    ExcludedPlayers: excludedPlayers,
-                    ExcludedAlliances: excludedAlliances,
-                    IdentityUnavailable: identityUnavailable);
-            }
-
+                => _farmListsWorkflow.RunAddPlansAsync(
+                    options,
+                    plans,
+                    useDefaultTroops,
+                    troopType,
+                    troopCount,
+                    protection,
+                    progress,
+                    cancellationToken);
             var villageOptions = GetFarmListCreationVillages()
                 .Select(village => new OfficialAddFarmsWindow.AddFarmsVillageOption(
                     village.Name,
@@ -660,24 +582,9 @@ public partial class MainWindow
                 CancellationToken cancellationToken)
             {
                 await EnsureChromiumInstalledAsync();
-                progress.Report(new FarmListCreateProgress(
-                    "Analyzing farmlists",
-                    0,
-                    request.Names.Count));
-                AppendLog("[farm-list-create] analyzing current farmlist page before creation.");
-                var available = await RefreshFarmListsFromServerAsync(options, cancellationToken);
-                if (!available)
-                {
-                    throw new InvalidOperationException("Gold Club is not active.");
-                }
-
-                AppendLog(
-                    $"[farm-list-create] requested={request.Names.Count}, village='{request.VillageName}', " +
-                    $"default={request.TroopCount} {request.TroopType}.");
-                return await _farmListsWorkflow.CreateListsAsync(
+                return await _farmListsWorkflow.CreateAfterAnalysisAsync(
                     options,
                     request,
-                    AppendLog,
                     progress,
                     cancellationToken);
             }

@@ -36,6 +36,131 @@ public sealed class FarmListsWorkflow(
         }
     }
 
+    public async Task<FarmListsAnalysisResult> AnalyzeAsync(
+        BotOptions options,
+        CancellationToken cancellationToken)
+    {
+        var goldClubEnabled = await client.ReadAndPersistGoldClubStatusAsync(options, log, cancellationToken);
+        if (!goldClubEnabled)
+        {
+            return new FarmListsAnalysisResult(false, []);
+        }
+
+        var lists = await client.ReadOverviewAsync(options, log, cancellationToken) ?? [];
+        await SaveSnapshotAsync(lists, cancellationToken);
+        return new FarmListsAnalysisResult(true, lists);
+    }
+
+    public async Task<FarmListCreateBatchResult> CreateAfterAnalysisAsync(
+        BotOptions options,
+        FarmListCreateRequest request,
+        IProgress<FarmListCreateProgress> progress,
+        CancellationToken cancellationToken)
+    {
+        progress.Report(new FarmListCreateProgress("Analyzing farmlists", 0, request.Names.Count));
+        log("[farm-list-create] analyzing current farmlist page before creation.");
+        var analysis = await AnalyzeAsync(options, cancellationToken);
+        if (!analysis.IsAvailable)
+        {
+            throw new InvalidOperationException("Gold Club is not active.");
+        }
+
+        log($"[farm-list-create] requested={request.Names.Count}, village='{request.VillageName}', "
+            + $"default={request.TroopCount} {request.TroopType}.");
+        return await client.CreateListsAsync(options, request, log, progress, cancellationToken);
+    }
+
+    public async Task<OfficialFarmAddRunResult> RunAddPlansAsync(
+        BotOptions options,
+        IReadOnlyList<OfficialFarmAddPlan> plans,
+        bool useDefaultTroops,
+        string troopType,
+        int troopCount,
+        FarmTargetProtectionContext protection,
+        IProgress<FarmAddProgress> progress,
+        CancellationToken cancellationToken)
+    {
+        var requested = plans.Sum(plan => plan.DesiredCount);
+        var processed = 0;
+        var added = 0;
+        var duplicates = 0;
+        var failed = 0;
+        var notFound = 0;
+        var occupiedSkipped = 0;
+        var excludedPlayers = 0;
+        var excludedAlliances = 0;
+        var identityUnavailable = 0;
+        var invalidCoordinates = new List<FarmCoordinate>();
+
+        foreach (var plan in plans)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var processedBeforeList = processed;
+            var addedBeforeList = added;
+            var notFoundBeforeList = notFound;
+            var occupiedBeforeList = occupiedSkipped;
+            var excludedPlayersBeforeList = excludedPlayers;
+            var excludedAlliancesBeforeList = excludedAlliances;
+            var identityUnavailableBeforeList = identityUnavailable;
+            var aggregateProgress = new Progress<FarmAddProgress>(value =>
+            {
+                progress.Report(new FarmAddProgress(
+                    value.FarmListName,
+                    processedBeforeList + value.ProcessedCount,
+                    requested,
+                    addedBeforeList + value.AddedCount,
+                    notFoundBeforeList + value.NotFoundCount,
+                    value.InvalidCoordinate,
+                    occupiedBeforeList + value.OccupiedOasisSkippedCount,
+                    excludedPlayersBeforeList + value.ExcludedPlayerCount,
+                    excludedAlliancesBeforeList + value.ExcludedAllianceCount,
+                    identityUnavailableBeforeList + value.IdentityUnavailableCount));
+            });
+
+            log($"Add farms from Travco: target='{plan.TargetName}', requested={plan.DesiredCount}, "
+                + $"candidates={plan.Coordinates.Count}, "
+                + $"troops={(useDefaultTroops ? "default" : $"{troopCount} {troopType}")}.");
+            var result = await client.AddFarmsAsync(
+                options,
+                plan.TargetName,
+                troopType,
+                troopCount,
+                plan.DesiredCount,
+                plan.Coordinates,
+                useDefaultTroops,
+                protection,
+                log,
+                aggregateProgress,
+                cancellationToken);
+            processed += result.AttemptedCount;
+            added += result.AddedCount;
+            duplicates += result.AlreadyInListCount;
+            failed += result.FailedCount;
+            notFound += result.NotFoundCount;
+            occupiedSkipped += result.OccupiedOasisSkippedCount;
+            excludedPlayers += result.ExcludedPlayerCount;
+            excludedAlliances += result.ExcludedAllianceCount;
+            identityUnavailable += result.IdentityUnavailableCount;
+            invalidCoordinates.AddRange(result.InvalidCoordinates ?? []);
+            log($"Finished '{plan.TargetName}': added={result.AddedCount}, "
+                + $"duplicates={result.AlreadyInListCount}, invalid={result.NotFoundCount}, "
+                + $"occupiedSkipped={result.OccupiedOasisSkippedCount}, "
+                + $"excludedPlayers={result.ExcludedPlayerCount}, excludedAlliances={result.ExcludedAllianceCount}, "
+                + $"identityUnavailable={result.IdentityUnavailableCount}, failed={result.FailedCount}.");
+        }
+
+        return new OfficialFarmAddRunResult(
+            requested,
+            added,
+            duplicates,
+            failed,
+            invalidCoordinates.Distinct().ToList(),
+            OccupiedSkipped: occupiedSkipped,
+            ExcludedPlayers: excludedPlayers,
+            ExcludedAlliances: excludedAlliances,
+            IdentityUnavailable: identityUnavailable);
+    }
+
     public void CaptureAutomationState(IEnumerable<FarmListStatusRow> rows, DateTimeOffset? analyzedAt = null)
     {
         var realRows = rows.Where(FarmListsViewModel.IsRealRow).ToList();
@@ -715,6 +840,10 @@ public sealed record FarmListsPresentationOptions(
     bool ShowLastSentTimer,
     bool LastSentLimitEnabled,
     int LastSentLimitHours);
+
+public sealed record FarmListsAnalysisResult(
+    bool IsAvailable,
+    IReadOnlyList<FarmListOverview> Lists);
 
 public sealed record AddFarmsProtectionPreferences(
     bool ExcludeOwnAlliance,
