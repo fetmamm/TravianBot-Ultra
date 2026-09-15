@@ -30,10 +30,6 @@ public sealed record OfficialFarmAddRunResult(
     int ExcludedPlayers = 0,
     int ExcludedAlliances = 0,
     int IdentityUnavailable = 0);
-public sealed record AddFarmsProtectionPreferences(
-    bool ExcludeOwnAlliance,
-    string ExcludedPlayers,
-    string ExcludedAlliances);
 public sealed record OfficialAddFarmsLoadResult(
     bool Ok,
     string? Message,
@@ -125,7 +121,7 @@ public partial class OfficialAddFarmsWindow : Window
         IProgress<FarmAddProgress>,
         CancellationToken,
         Task<OfficialFarmAddRunResult>> _runner;
-    private readonly Action<AddFarmsProtectionPreferences> _saveProtectionPreferences;
+    private readonly Func<FarmTargetIdentity, AddFarmsProtectionPreferences, FarmTargetProtectionPreparation> _prepareTargetProtection;
     private readonly AddFarmsProtectionPreferences _protectionPreferences;
     private readonly CancellationTokenSource _runCts;
     private readonly IReadOnlyList<AddFarmsVillageOption> _villages;
@@ -166,7 +162,7 @@ public partial class OfficialAddFarmsWindow : Window
             Task<OfficialFarmAddRunResult>> runner,
         CancellationToken externalToken,
         AddFarmsProtectionPreferences protectionPreferences,
-        Action<AddFarmsProtectionPreferences> saveProtectionPreferences,
+        Func<FarmTargetIdentity, AddFarmsProtectionPreferences, FarmTargetProtectionPreparation> prepareTargetProtection,
         IReadOnlyList<AddFarmsVillageOption>? villages = null,
         string? selectedVillageName = null)
     {
@@ -175,7 +171,7 @@ public partial class OfficialAddFarmsWindow : Window
         _loader = loader;
         _runner = runner;
         _protectionPreferences = protectionPreferences;
-        _saveProtectionPreferences = saveProtectionPreferences;
+        _prepareTargetProtection = prepareTargetProtection;
         _runCts = CancellationTokenSource.CreateLinkedTokenSource(externalToken);
         _villages = villages ?? [];
         _selectedVillageName = selectedVillageName;
@@ -392,28 +388,20 @@ public partial class OfficialAddFarmsWindow : Window
 
     private async Task AddButtonClickAsync(object sender, RoutedEventArgs e)
     {
-        if (!_ownIdentity.IsResolved || string.IsNullOrWhiteSpace(_ownIdentity.PlayerName))
+        var protection = _prepareTargetProtection(_ownIdentity, new AddFarmsProtectionPreferences(
+            ExcludeOwnAllianceCheckBox.IsChecked == true && !string.IsNullOrWhiteSpace(_ownIdentity.Alliance),
+            ExcludedPlayersTextBox.Text,
+            ExcludedAlliancesTextBox.Text));
+        if (!protection.IsAvailable)
         {
             AppDialog.Show(
                 this,
-                "Your player identity could not be read from Travian. Close this dialog and try again.",
+                protection.FailureMessage ?? "Target protection is unavailable.",
                 "Target protection unavailable",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return;
         }
-
-        var preferences = new AddFarmsProtectionPreferences(
-            ExcludeOwnAllianceCheckBox.IsChecked == true && !string.IsNullOrWhiteSpace(_ownIdentity.Alliance),
-            ExcludedPlayersTextBox.Text,
-            ExcludedAlliancesTextBox.Text);
-        _saveProtectionPreferences(preferences);
-        var protection = new FarmTargetProtectionContext(
-            _ownIdentity.PlayerName,
-            _ownIdentity.Alliance,
-            preferences.ExcludeOwnAlliance,
-            ParseProtectionList(preferences.ExcludedPlayers),
-            ParseProtectionList(preferences.ExcludedAlliances));
 
         var plans = BuildPlans();
         var useDefaultTroops = !IsCustomTroops();
@@ -447,7 +435,7 @@ public partial class OfficialAddFarmsWindow : Window
 
         try
         {
-            var result = await _runner(plans, useDefaultTroops, troopType, troopCount, protection, progress, _runCts.Token);
+            var result = await _runner(plans, useDefaultTroops, troopType, troopCount, protection.Context!, progress, _runCts.Token);
             RunDuration = _runStopwatch.Elapsed;
             var source = (SourceOption)SourceListComboBox.SelectedItem;
             RunResult = result with
@@ -546,13 +534,6 @@ public partial class OfficialAddFarmsWindow : Window
             ExcludeOwnAllianceCheckBox.IsChecked = _protectionPreferences.ExcludeOwnAlliance;
         }
     }
-
-    internal static IReadOnlyList<string> ParseProtectionList(string? value)
-        => (value ?? string.Empty)
-            .Split([';', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(item => item.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
 
     private void AddingCancelButton_Click(object sender, RoutedEventArgs e) => _runCts.Cancel();
 

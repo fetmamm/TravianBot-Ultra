@@ -265,6 +265,35 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
+    public void FarmListsWorkflow_PreparesAndPersistsTargetProtection()
+    {
+        var store = CreateConfigStore();
+        store.Save(new JsonObject());
+        var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), store);
+        var unavailable = workflow.PrepareTargetProtection(
+            new FarmTargetIdentity(false, null, null),
+            new AddFarmsProtectionPreferences(true, "Enemy", "Rivals"));
+
+        Assert.False(unavailable.IsAvailable);
+
+        var prepared = workflow.PrepareTargetProtection(
+            new FarmTargetIdentity(true, "Owner", "Friends"),
+            new AddFarmsProtectionPreferences(true, " Enemy ; enemy\nBandit ", "Rivals"));
+
+        Assert.True(prepared.IsAvailable);
+        Assert.Equal(
+            FarmTargetProtectionDecision.ExcludedPlayer,
+            prepared.Context!.Evaluate(false, new FarmTargetIdentity(true, "Bandit", null)));
+        Assert.Equal(
+            FarmTargetProtectionDecision.ExcludedAlliance,
+            prepared.Context.Evaluate(false, new FarmTargetIdentity(true, "Someone", "Friends")));
+        var loaded = workflow.LoadTargetProtectionPreferences();
+        Assert.True(loaded.ExcludeOwnAlliance);
+        Assert.Equal(" Enemy ; enemy\nBandit ", loaded.ExcludedPlayers);
+        Assert.Equal("Rivals", loaded.ExcludedAlliances);
+    }
+
+    [Fact]
     public void FarmListsWorkflow_PersistsDestinationStateWithoutChangingTheContract()
     {
         var store = CreateConfigStore();

@@ -525,8 +525,8 @@ public partial class MainWindow
                 LoadOfficialAsync,
                 RunOfficialPlansAsync,
                 operationToken,
-                LoadAddFarmsProtectionPreferences(),
-                SaveAddFarmsProtectionPreferences,
+                _farmListsWorkflow.LoadTargetProtectionPreferences(),
+                _farmListsWorkflow.PrepareTargetProtection,
                 villageOptions,
                 GetSelectedVillageName())
             {
@@ -1654,42 +1654,6 @@ public partial class MainWindow
         catch (Exception ex)
         {
             AppendLog($"Could not save add-farms troop count: {ex.Message}");
-        }
-    }
-
-    private AddFarmsProtectionPreferences LoadAddFarmsProtectionPreferences()
-    {
-        try
-        {
-            var config = _botConfigStore.Load();
-            var excludeOwnAlliance = !config.TryGetPropertyValue(BotOptionPayloadKeys.AddFarmsExcludeOwnAlliance, out var ownNode)
-                || ownNode is null
-                || ownNode.GetValue<bool>();
-            var excludedPlayers = config[BotOptionPayloadKeys.AddFarmsExcludedPlayers]?.GetValue<string>() ?? string.Empty;
-            var excludedAlliances = config[BotOptionPayloadKeys.AddFarmsExcludedAlliances]?.GetValue<string>() ?? string.Empty;
-            return new AddFarmsProtectionPreferences(excludeOwnAlliance, excludedPlayers, excludedAlliances);
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"[farm-list] Could not load Add farms protection settings: {ex.Message}");
-            return new AddFarmsProtectionPreferences(true, string.Empty, string.Empty);
-        }
-    }
-
-    private void SaveAddFarmsProtectionPreferences(AddFarmsProtectionPreferences preferences)
-    {
-        try
-        {
-            var config = _botConfigStore.Load();
-            config[BotOptionPayloadKeys.AddFarmsExcludeOwnAlliance] = JsonValue.Create(preferences.ExcludeOwnAlliance);
-            config[BotOptionPayloadKeys.AddFarmsExcludedPlayers] = JsonValue.Create(preferences.ExcludedPlayers);
-            config[BotOptionPayloadKeys.AddFarmsExcludedAlliances] = JsonValue.Create(preferences.ExcludedAlliances);
-            _botConfigStore.Save(config);
-            AppendLog("[farm-list] Saved Add farms target-protection settings.");
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"[farm-list] Could not save Add farms protection settings: {ex.Message}");
         }
     }
 

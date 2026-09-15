@@ -194,7 +194,7 @@ public sealed class OfficialFarmSelectionTests
     [Fact]
     public void ParseProtectionList_AcceptsSemicolonsAndNewLines()
     {
-        var result = OfficialAddFarmsWindow.ParseProtectionList(" Alpha ; Beta\r\nalpha\n Gamma ");
+        var result = FarmListsWorkflow.ParseProtectionList(" Alpha ; Beta\r\nalpha\n Gamma ");
 
         Assert.Equal(["Alpha", "Beta", "Gamma"], result);
     }

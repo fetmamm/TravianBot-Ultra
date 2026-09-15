@@ -368,6 +368,71 @@ public sealed class FarmListsWorkflow(
     public static string DispatchKey(FarmListStatusRow row)
         => FarmListDispatchStateStore.CreateKey(row.ListId, row.Name);
 
+    public AddFarmsProtectionPreferences LoadTargetProtectionPreferences()
+    {
+        try
+        {
+            var config = configStore.Load();
+            var excludeOwnAlliance = !config.TryGetPropertyValue(BotOptionPayloadKeys.AddFarmsExcludeOwnAlliance, out var ownNode)
+                || ownNode is null
+                || ownNode.GetValue<bool>();
+            return new AddFarmsProtectionPreferences(
+                excludeOwnAlliance,
+                config[BotOptionPayloadKeys.AddFarmsExcludedPlayers]?.GetValue<string>() ?? string.Empty,
+                config[BotOptionPayloadKeys.AddFarmsExcludedAlliances]?.GetValue<string>() ?? string.Empty);
+        }
+        catch (Exception ex)
+        {
+            log($"[farm-list] Could not load Add farms protection settings: {ex.Message}");
+            return new AddFarmsProtectionPreferences(true, string.Empty, string.Empty);
+        }
+    }
+
+    public FarmTargetProtectionPreparation PrepareTargetProtection(
+        FarmTargetIdentity identity,
+        AddFarmsProtectionPreferences requested)
+    {
+        if (!identity.IsResolved || string.IsNullOrWhiteSpace(identity.PlayerName))
+        {
+            return FarmTargetProtectionPreparation.Unavailable(
+                "Your player identity could not be read from Travian. Close this dialog and try again.");
+        }
+
+        var preferences = requested with
+        {
+            ExcludeOwnAlliance = requested.ExcludeOwnAlliance && !string.IsNullOrWhiteSpace(identity.Alliance),
+        };
+        try
+        {
+            var config = configStore.Load();
+            config[BotOptionPayloadKeys.AddFarmsExcludeOwnAlliance] = preferences.ExcludeOwnAlliance;
+            config[BotOptionPayloadKeys.AddFarmsExcludedPlayers] = preferences.ExcludedPlayers;
+            config[BotOptionPayloadKeys.AddFarmsExcludedAlliances] = preferences.ExcludedAlliances;
+            configStore.Save(config);
+            log("[farm-list] Saved Add farms target-protection settings.");
+        }
+        catch (Exception ex)
+        {
+            log($"[farm-list] Could not save Add farms protection settings: {ex.Message}");
+        }
+
+        return new FarmTargetProtectionPreparation(
+            new FarmTargetProtectionContext(
+                identity.PlayerName,
+                identity.Alliance,
+                preferences.ExcludeOwnAlliance,
+                ParseProtectionList(preferences.ExcludedPlayers),
+                ParseProtectionList(preferences.ExcludedAlliances)),
+            null);
+    }
+
+    internal static IReadOnlyList<string> ParseProtectionList(string? value)
+        => (value ?? string.Empty)
+            .Split([';', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(item => item.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
     private async Task<IReadOnlyList<FarmListOverview>?> LoadSnapshotAsync(
         DateTimeOffset now,
         TimeSpan? maximumAge,
@@ -650,6 +715,20 @@ public sealed record FarmListsPresentationOptions(
     bool ShowLastSentTimer,
     bool LastSentLimitEnabled,
     int LastSentLimitHours);
+
+public sealed record AddFarmsProtectionPreferences(
+    bool ExcludeOwnAlliance,
+    string ExcludedPlayers,
+    string ExcludedAlliances);
+
+public sealed record FarmTargetProtectionPreparation(
+    FarmTargetProtectionContext? Context,
+    string? FailureMessage)
+{
+    public bool IsAvailable => Context is not null;
+
+    public static FarmTargetProtectionPreparation Unavailable(string message) => new(null, message);
+}
 
 public sealed record FarmListsProjection(
     IReadOnlyList<FarmListStatusRow> Rows,
