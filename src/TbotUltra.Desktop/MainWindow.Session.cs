@@ -1069,7 +1069,7 @@ public partial class MainWindow
         EnsureFarmListPlaceholderRow();
         _analyzedFarmCoordinates.Clear();
         _farmListCapacitiesByName.Clear();
-        _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
+        _farmListsWorkflow.ResetProjection();
         _farmingFeaturesAvailable = true;
         if (FarmingStatusTextBlock is not null)
         {

@@ -1061,9 +1061,9 @@ public partial class MainWindow
         else if (option.IsEnabled
             && string.Equals(option.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Farming), StringComparison.OrdinalIgnoreCase))
         {
-            if (!CanReuseRecentFarmListAnalysis(_lastFarmListsAnalysisAt, DateTimeOffset.UtcNow))
+            if (!_farmListsWorkflow.CanReuseRecentAnalysis(DateTimeOffset.UtcNow))
             {
-                _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
+                _farmListsWorkflow.InvalidateAnalysis();
             }
             else
             {

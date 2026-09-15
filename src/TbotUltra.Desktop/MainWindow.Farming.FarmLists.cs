@@ -29,7 +29,6 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private static readonly TimeSpan RecentFarmListAnalysisWindow = TimeSpan.FromMinutes(5);
     private readonly HashSet<string> _analyzedFarmCoordinates = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, int?> _farmListCapacitiesByName = new(StringComparer.OrdinalIgnoreCase);
     private bool _showFarmListLastSentTimer = FarmingDefaults.ShowLastSentTimer;
@@ -47,10 +46,6 @@ public partial class MainWindow
 
     private bool HasFarmListWithFarms()
         => _farmLists.Any(row => IsRealFarmListRow(row) && !row.IsEmpty);
-
-    internal static bool CanReuseRecentFarmListAnalysis(DateTimeOffset lastAnalysisAt, DateTimeOffset now)
-        => lastAnalysisAt != DateTimeOffset.MinValue
-            && lastAnalysisAt >= now - RecentFarmListAnalysisWindow;
 
     internal static string BuildFarmListVillageHeader(
         string villageName,
@@ -361,7 +356,7 @@ public partial class MainWindow
             }
 
             SetFarmingFeatureAvailability(true);
-            _lastFarmListsAnalysisAt = DateTimeOffset.UtcNow;
+            _farmListsWorkflow.CaptureAutomationState(_farmLists, DateTimeOffset.UtcNow);
             if (_farmLists.Any(IsRealFarmListRow))
             {
                 if (string.Equals(_farmingBlockedReasonKey, FarmingBlockedReasonNoFarmLists, StringComparison.OrdinalIgnoreCase))
@@ -522,7 +517,7 @@ public partial class MainWindow
     // switch, so the farming panel is never blank when lists were already analyzed in a prior session.
     // Unlike TryApplyFarmListsSnapshotAsync (post-send, freshness-gated) this accepts a snapshot of any
     // age: timers are re-based on the capture time so a stale countdown never keeps ticking from an old
-    // value, and _lastFarmListsAnalysisAt stays MinValue so a real re-analyze is still triggered when due.
+    // value, and the workflow analysis timestamp stays invalid so a real re-analyze is still triggered when due.
     private async Task RestoreFarmListsFromSnapshotForActiveAccount()
     {
         var snapshotPath = AccountStoragePaths.FarmListsSnapshotPath(_projectRoot, _accountStore.ActiveAccountName());
@@ -581,7 +576,7 @@ public partial class MainWindow
 
         await ApplyFarmListOverviewToUiAsync(lists);
         // A restore is not a fresh analyze: keep the marker unset so the continuous loop still runs one.
-        await Dispatcher.InvokeAsync(() => _lastFarmListsAnalysisAt = DateTimeOffset.MinValue);
+        _farmListsWorkflow.InvalidateAnalysis();
         AppendLog($"[farm-list] restored {lists.Count} saved farm list(s) from the last analysis.");
     }
 
@@ -1327,6 +1322,7 @@ public partial class MainWindow
 
         if (string.Equals(e.PropertyName, nameof(FarmListStatusRow.IsEnabled), StringComparison.Ordinal))
         {
+            _farmListsWorkflow.CaptureAutomationState(_farmLists);
             PersistContinuousFarmListSelectionToConfig();
             RefreshQueuedContinuousFarmListSelections();
         }

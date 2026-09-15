@@ -1,5 +1,6 @@
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.ViewModels;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop.Services;
@@ -10,6 +11,63 @@ namespace TbotUltra.Desktop.Services;
 /// </summary>
 public sealed class FarmListsWorkflow(IFarmingPanelClient client, BotConfigStore configStore)
 {
+    private static readonly TimeSpan RecentAnalysisWindow = TimeSpan.FromMinutes(5);
+    private readonly object _stateLock = new();
+    private FarmListsAutomationSnapshot _automationSnapshot = FarmListsAutomationSnapshot.Empty;
+
+    public FarmListsAutomationSnapshot AutomationSnapshot
+    {
+        get
+        {
+            lock (_stateLock)
+            {
+                return _automationSnapshot;
+            }
+        }
+    }
+
+    public void CaptureAutomationState(IEnumerable<FarmListStatusRow> rows, DateTimeOffset? analyzedAt = null)
+    {
+        var realRows = rows.Where(FarmListsViewModel.IsRealRow).ToList();
+        lock (_stateLock)
+        {
+            _automationSnapshot = new FarmListsAutomationSnapshot(
+                realRows.Count,
+                realRows
+                    .Where(row => row.IsEnabled && !string.IsNullOrWhiteSpace(row.Name))
+                    .Select(row => row.Name)
+                    .ToList(),
+                realRows
+                    .Where(row => !string.IsNullOrWhiteSpace(row.Name))
+                    .Select(row => row.Name)
+                    .ToList(),
+                analyzedAt ?? _automationSnapshot.LastAnalysisAt);
+        }
+    }
+
+    public bool CanReuseRecentAnalysis(DateTimeOffset now)
+    {
+        var lastAnalysisAt = AutomationSnapshot.LastAnalysisAt;
+        return lastAnalysisAt != DateTimeOffset.MinValue
+            && lastAnalysisAt >= now - RecentAnalysisWindow;
+    }
+
+    public void InvalidateAnalysis()
+    {
+        lock (_stateLock)
+        {
+            _automationSnapshot = _automationSnapshot with { LastAnalysisAt = DateTimeOffset.MinValue };
+        }
+    }
+
+    public void ResetProjection()
+    {
+        lock (_stateLock)
+        {
+            _automationSnapshot = FarmListsAutomationSnapshot.Empty;
+        }
+    }
+
     public Task<bool> ReadAndPersistGoldClubStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
         => client.ReadAndPersistGoldClubStatusAsync(options, log, cancellationToken);
 
@@ -108,6 +166,24 @@ public sealed class FarmListsWorkflow(IFarmingPanelClient client, BotConfigStore
             ? destination?.Name ?? string.Empty
             : priorBaseName;
     }
+}
+
+public sealed record FarmListsAutomationSnapshot(
+    int TotalCount,
+    IReadOnlyList<string> SelectedNames,
+    IReadOnlyList<string> AvailableNames,
+    DateTimeOffset LastAnalysisAt)
+{
+    public static FarmListsAutomationSnapshot Empty { get; } = new(
+        0,
+        Array.Empty<string>(),
+        Array.Empty<string>(),
+        DateTimeOffset.MinValue);
+
+    public bool NeedsAnalysis => TotalCount <= 0
+        || SelectedNames.Count <= 0
+        || SelectedNames.Any(name => !AvailableNames.Contains(name, StringComparer.OrdinalIgnoreCase))
+        || LastAnalysisAt == DateTimeOffset.MinValue;
 }
 
 public sealed record FarmingPanelSettings(

@@ -347,7 +347,6 @@ public partial class MainWindow : Window
     private bool _suppressFarmListUiRefresh;
     private bool _suppressFarmingSettingsConfigWrite;
     private bool _farmingOperationBusy;
-    private DateTimeOffset _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
     private VillageStatus? _lastBuildingStatus;
     private VillageStatus? _lastResourceStatusForUi;
     private readonly object _pendingLogSync = new();
