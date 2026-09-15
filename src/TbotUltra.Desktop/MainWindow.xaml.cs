@@ -38,7 +38,6 @@ public partial class MainWindow : Window
     private const string DashboardVisibleGroupsConfigKey = "dashboard_visible_groups";
     private const int ResourceFieldMaxLevel = 40;
     private const int NonCapitalResourceMaxLevel = 10;
-    private const int MaxFarmListsShown = 120;
     private const int MaxLogLinesPerFlush = 24;
     private static readonly TimeSpan LogUiFlushBudget = TimeSpan.FromMilliseconds(12);
     private const int MaxSessionLogFiles = 5;
@@ -528,7 +527,12 @@ public partial class MainWindow : Window
         _automationDesk.Updated += AutomationDesk_Updated;
         _heroPanelService = new HeroPanelService(new DesktopHeroPanelClient(_botService), _botConfigStore);
         _resourcesPanelService = new ResourcesPanelService(_botConfigStore, _villageSettingsStore);
-        _farmListsWorkflow = new FarmListsWorkflow(new DesktopFarmingPanelClient(_botService), _botConfigStore);
+        _farmListsWorkflow = new FarmListsWorkflow(
+            new DesktopFarmingPanelClient(_botService),
+            _botConfigStore,
+            _projectRoot,
+            _accountStore.ActiveAccountName,
+            AppendLog);
         _buildingsPanelService = new BuildingsPanelService(new DesktopBuildingsPanelClient(_botService));
         _troopTrainingPanelService = new TroopTrainingPanelService(new DesktopTroopTrainingPanelClient(_botService), _botConfigStore, _projectRoot);
         _queuePanelService = new QueuePanelService(new DesktopQueuePanelClient(_botService));

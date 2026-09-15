@@ -1,4 +1,5 @@
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Farming;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.ViewModels;
 using TbotUltra.Worker.Domain;
@@ -9,8 +10,14 @@ namespace TbotUltra.Desktop.Services;
 /// Owns the Farm Lists desktop workflow and its account-scoped settings.
 /// Browser work crosses the single <see cref="IFarmingPanelClient"/> seam.
 /// </summary>
-public sealed class FarmListsWorkflow(IFarmingPanelClient client, BotConfigStore configStore)
+public sealed class FarmListsWorkflow(
+    IFarmingPanelClient client,
+    BotConfigStore configStore,
+    string projectRoot,
+    Func<string> activeAccountName,
+    Action<string> log)
 {
+    public const int MaximumVisibleLists = 120;
     private static readonly TimeSpan RecentAnalysisWindow = TimeSpan.FromMinutes(5);
     private readonly object _stateLock = new();
     private FarmListsAutomationSnapshot _automationSnapshot = FarmListsAutomationSnapshot.Empty;
@@ -67,6 +74,226 @@ public sealed class FarmListsWorkflow(IFarmingPanelClient client, BotConfigStore
             _automationSnapshot = FarmListsAutomationSnapshot.Empty;
         }
     }
+
+    public FarmListsProjection ProjectOverview(
+        IReadOnlyList<FarmListOverview> lists,
+        BotOptions options,
+        IReadOnlyDictionary<string, string> villageCoordinates,
+        FarmListsPresentationOptions presentation)
+    {
+        var defaultMin = FarmingDefaults.NormalizeDispatchDelayMinMinutes(
+            options.ContinuousFarmDispatchDelayMinMinutes);
+        var defaultMax = Math.Max(
+            defaultMin,
+            FarmingDefaults.NormalizeDispatchDelayMaxMinutes(options.ContinuousFarmDispatchDelayMaxMinutes));
+        var selectedNames = options.ContinuousFarmListNames
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var selectedIds = options.ContinuousFarmListIds
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var dispatchStates = LoadDispatchStates();
+        var mergedByKey = new Dictionary<string, MergedFarmList>(StringComparer.OrdinalIgnoreCase);
+        var orderedKeys = new List<string>();
+        var analyzedCoordinates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var incompleteReads = new List<string>();
+
+        foreach (var list in lists)
+        {
+            if (list is null)
+            {
+                continue;
+            }
+
+            var name = string.IsNullOrWhiteSpace(list.Name) ? "Farm list" : list.Name.Trim();
+            var listId = string.IsNullOrWhiteSpace(list.ListId) ? null : list.ListId.Trim();
+            var villageName = string.IsNullOrWhiteSpace(list.VillageName) ? null : list.VillageName.Trim();
+            var mergeKey = listId ?? name;
+            var coordinates = (list.FarmCoordinates ?? [])
+                .Where(value => !string.IsNullOrWhiteSpace(value))
+                .Select(value => value.Trim())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            analyzedCoordinates.UnionWith(coordinates);
+
+            var total = Math.Max(0, list.TotalFarmCount);
+            if (total > 0 && coordinates.Count < total)
+            {
+                incompleteReads.Add($"'{name}' {coordinates.Count}/{total}");
+            }
+
+            if (!mergedByKey.TryGetValue(mergeKey, out var existing))
+            {
+                orderedKeys.Add(mergeKey);
+                mergedByKey[mergeKey] = new MergedFarmList(
+                    name,
+                    villageName,
+                    list.VillageIndex is >= 0 ? list.VillageIndex : null,
+                    Math.Max(0, list.ActiveFarmCount),
+                    total,
+                    list.RemainingSeconds is > 0 ? list.RemainingSeconds : null,
+                    listId,
+                    list.Capacity,
+                    coordinates);
+                continue;
+            }
+
+            mergedByKey[mergeKey] = existing with
+            {
+                VillageName = existing.VillageName ?? villageName,
+                VillageIndex = existing.VillageIndex ?? (list.VillageIndex is >= 0 ? list.VillageIndex : null),
+                Active = Math.Max(existing.Active, Math.Max(0, list.ActiveFarmCount)),
+                Total = Math.Max(existing.Total, total),
+                RemainingSeconds = existing.RemainingSeconds is > 0
+                    ? existing.RemainingSeconds
+                    : list.RemainingSeconds is > 0 ? list.RemainingSeconds : null,
+                ListId = string.IsNullOrWhiteSpace(existing.ListId) ? listId : existing.ListId,
+                Capacity = existing.Capacity ?? list.Capacity,
+                Coordinates = existing.Coordinates.Concat(coordinates).Distinct(StringComparer.OrdinalIgnoreCase).ToList(),
+            };
+        }
+
+        var initializedIntervals = InitializeDispatchIntervals(
+            orderedKeys.Select(key => mergedByKey[key]),
+            dispatchStates,
+            defaultMin,
+            defaultMax);
+        if (initializedIntervals > 0)
+        {
+            SaveDispatchStates(dispatchStates);
+            log($"[farm-list] initialized {initializedIntervals} list interval(s) from the shared default {defaultMin}-{defaultMax} minutes.");
+        }
+
+        var hasSelection = selectedNames.Count > 0 || selectedIds.Count > 0;
+        var rows = orderedKeys
+            .Take(MaximumVisibleLists)
+            .Select(key =>
+            {
+                var value = mergedByKey[key];
+                dispatchStates.TryGetValue(FarmListDispatchStateStore.CreateKey(value.ListId, value.Name), out var state);
+                var villageName = value.VillageName ?? string.Empty;
+                return new FarmListStatusRow
+                {
+                    Name = value.Name,
+                    VillageName = villageName,
+                    VillageOrdinal = value.VillageIndex ?? -1,
+                    VillageHeaderText = BuildVillageHeader(villageName, villageCoordinates),
+                    ListId = value.ListId,
+                    ActiveFarmCount = value.Active,
+                    TotalFarmCount = value.Total,
+                    Capacity = value.Capacity,
+                    IsEnabled = !hasSelection
+                        || (value.ListId is not null && selectedIds.Contains(value.ListId))
+                        || selectedNames.Contains(value.Name),
+                    RemainingSeconds = value.RemainingSeconds,
+                    LastSentAtUtc = state?.LastSentAtUtc,
+                    NextSendAtUtc = state?.NextSendAtUtc,
+                    IntervalMinMinutesText = state?.IntervalMinMinutes?.ToString() ?? defaultMin.ToString(),
+                    IntervalMaxMinutesText = state?.IntervalMaxMinutes?.ToString() ?? defaultMax.ToString(),
+                    LastSendFailed = state?.Failed == true,
+                    ShowLastSentTimer = presentation.ShowLastSentTimer,
+                    LastSentLimitEnabled = presentation.LastSentLimitEnabled,
+                    LastSentLimitHours = presentation.LastSentLimitHours,
+                };
+            })
+            .ToList();
+
+        if (mergedByKey.Count > MaximumVisibleLists)
+        {
+            log($"Farm list UI limited to {MaximumVisibleLists} rows (detected {mergedByKey.Count}).");
+        }
+
+        if (incompleteReads.Count > 0)
+        {
+            log($"[farm-list] WARNING: {incompleteReads.Count} farm list(s) not fully read "
+                + $"({string.Join(", ", incompleteReads)}). Duplicate protection may miss those farms — re-run Analyze.");
+        }
+
+        var capacitiesByName = new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var row in rows)
+        {
+            capacitiesByName[row.Name] = row.Capacity;
+        }
+
+        return new FarmListsProjection(
+            rows,
+            analyzedCoordinates,
+            incompleteReads,
+            capacitiesByName,
+            mergedByKey.Count);
+    }
+
+    internal static string BuildVillageHeader(
+        string villageName,
+        IReadOnlyDictionary<string, string> villageCoordinates)
+        => !string.IsNullOrWhiteSpace(villageName)
+            && villageCoordinates.TryGetValue(villageName, out var coordinates)
+                ? $"{villageName} {coordinates}"
+                : villageName;
+
+    private Dictionary<string, FarmListDispatchState> LoadDispatchStates()
+    {
+        try
+        {
+            return FarmListDispatchStateStore.Load(projectRoot, activeAccountName())
+                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+        }
+        catch (Exception ex)
+        {
+            log($"Could not load farm list dispatch status: {ex.Message}");
+            return new Dictionary<string, FarmListDispatchState>(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
+    private int InitializeDispatchIntervals(
+        IEnumerable<MergedFarmList> lists,
+        IDictionary<string, FarmListDispatchState> states,
+        int defaultMin,
+        int defaultMax)
+    {
+        var initializedCount = 0;
+        foreach (var list in lists)
+        {
+            var key = FarmListDispatchStateStore.CreateKey(list.ListId, list.Name);
+            states.TryGetValue(key, out var previous);
+            var initialized = FarmListDispatchStateStore.WithDefaultInterval(
+                previous ?? new FarmListDispatchState(null, Failed: false),
+                defaultMin,
+                defaultMax);
+            states[key] = initialized;
+            if (previous is null || initialized != previous)
+            {
+                initializedCount++;
+            }
+        }
+
+        return initializedCount;
+    }
+
+    private void SaveDispatchStates(IReadOnlyDictionary<string, FarmListDispatchState> states)
+    {
+        try
+        {
+            FarmListDispatchStateStore.Save(projectRoot, activeAccountName(), states);
+        }
+        catch (Exception ex)
+        {
+            log($"Could not save default farm list intervals: {ex.Message}");
+        }
+    }
+
+    private sealed record MergedFarmList(
+        string Name,
+        string? VillageName,
+        int? VillageIndex,
+        int Active,
+        int Total,
+        int? RemainingSeconds,
+        string? ListId,
+        int? Capacity,
+        IReadOnlyList<string> Coordinates);
 
     public Task<bool> ReadAndPersistGoldClubStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
         => client.ReadAndPersistGoldClubStatusAsync(options, log, cancellationToken);
@@ -167,6 +394,18 @@ public sealed class FarmListsWorkflow(IFarmingPanelClient client, BotConfigStore
             : priorBaseName;
     }
 }
+
+public sealed record FarmListsPresentationOptions(
+    bool ShowLastSentTimer,
+    bool LastSentLimitEnabled,
+    int LastSentLimitHours);
+
+public sealed record FarmListsProjection(
+    IReadOnlyList<FarmListStatusRow> Rows,
+    IReadOnlySet<string> AnalyzedCoordinates,
+    IReadOnlyList<string> IncompleteReads,
+    IReadOnlyDictionary<string, int?> CapacitiesByName,
+    int DetectedCount);
 
 public sealed record FarmListsAutomationSnapshot(
     int TotalCount,

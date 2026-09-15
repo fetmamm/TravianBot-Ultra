@@ -156,7 +156,7 @@ public sealed class PanelServiceContractTests : IDisposable
     public async Task FarmListsWorkflow_ForwardsEveryManualOperationAndCancellationToken()
     {
         var client = new RecordingFarmingClient();
-        var service = new FarmListsWorkflow(client, CreateConfigStore());
+        var service = CreateFarmListsWorkflow(client, CreateConfigStore());
         var options = new BotOptions();
         var request = new FarmListCreateRequest(["A"], "Capital", "did:1", "Phalanx", 3);
         var coordinates = new[] { new FarmCoordinate(1, -2) };
@@ -182,6 +182,40 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
+    public void FarmListsWorkflow_ProjectsMergedOverviewAndPersistedSelection()
+    {
+        var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());
+        var options = new BotOptions
+        {
+            ContinuousFarmListIds = ["lid-1"],
+            ContinuousFarmDispatchDelayMinMinutes = 12,
+            ContinuousFarmDispatchDelayMaxMinutes = 18,
+        };
+        var lists = new[]
+        {
+            new FarmListOverview(" Raiders ", 2, 3, 30, "lid-1", 100, ["1|2"], VillageName: "Capital", VillageIndex: 0),
+            new FarmListOverview("Raiders", 3, 3, null, "lid-1", 100, ["1|2", "3|4"], VillageName: "Capital", VillageIndex: 0),
+            new FarmListOverview("Disabled", 1, 1, null, "lid-2", 50, ["5|6"], VillageName: "Second", VillageIndex: 1),
+        };
+
+        var projection = workflow.ProjectOverview(
+            lists,
+            options,
+            new Dictionary<string, string> { ["Capital"] = "(10|20)" },
+            new FarmListsPresentationOptions(true, true, 4));
+
+        Assert.Equal(2, projection.Rows.Count);
+        var raiders = Assert.Single(projection.Rows, row => row.ListId == "lid-1");
+        Assert.Equal("Capital (10|20)", raiders.VillageHeaderText);
+        Assert.Equal(3, raiders.ActiveFarmCount);
+        Assert.True(raiders.IsEnabled);
+        Assert.Equal("12", raiders.IntervalMinMinutesText);
+        Assert.False(Assert.Single(projection.Rows, row => row.ListId == "lid-2").IsEnabled);
+        Assert.Equal(["1|2", "3|4", "5|6"], projection.AnalyzedCoordinates.Order());
+        Assert.Contains("'Raiders' 1/3", projection.IncompleteReads);
+    }
+
+    [Fact]
     public void FarmListsWorkflow_PersistsDestinationStateWithoutChangingTheContract()
     {
         var store = CreateConfigStore();
@@ -191,7 +225,7 @@ public sealed class PanelServiceContractTests : IDisposable
             [BotOptionPayloadKeys.ContinuousFarmLossDestinationBaseName] = "Old base",
             ["unrelated"] = "keep",
         });
-        var service = new FarmListsWorkflow(new RecordingFarmingClient(), store);
+        var service = CreateFarmListsWorkflow(new RecordingFarmingClient(), store);
 
         var result = service.SaveSettings(new FarmingPanelSettings(
             SendMode: FarmingDefaults.SendModeSharedSchedule,
@@ -295,6 +329,9 @@ public sealed class PanelServiceContractTests : IDisposable
         Directory.CreateDirectory(_root);
         return new BotConfigStore(Path.Combine(_root, "bot.json"), _root, () => "alice");
     }
+
+    private FarmListsWorkflow CreateFarmListsWorkflow(IFarmingPanelClient client, BotConfigStore store)
+        => new(client, store, _root, () => "alice", _ => { });
 
     private static TroopTrainingPayload TrainingPayload(string troop, int fallback)
     {

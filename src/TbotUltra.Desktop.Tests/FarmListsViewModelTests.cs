@@ -1,6 +1,7 @@
 using System.Linq;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.ViewModels;
 using Xunit;
 
@@ -167,7 +168,7 @@ public sealed class FarmListsViewModelTests
     [Fact]
     public void BuildFarmListVillageHeader_UsesKnownCoordinatesImmediately()
     {
-        var header = MainWindow.BuildFarmListVillageHeader(
+        var header = FarmListsWorkflow.BuildVillageHeader(
             "Swollster",
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {

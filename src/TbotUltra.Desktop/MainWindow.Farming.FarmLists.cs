@@ -47,16 +47,6 @@ public partial class MainWindow
     private bool HasFarmListWithFarms()
         => _farmLists.Any(row => IsRealFarmListRow(row) && !row.IsEmpty);
 
-    internal static string BuildFarmListVillageHeader(
-        string villageName,
-        IReadOnlyDictionary<string, string> villageCoordsByName)
-    {
-        return !string.IsNullOrWhiteSpace(villageName)
-            && villageCoordsByName.TryGetValue(villageName, out var coords)
-            ? $"{villageName} {coords}"
-            : villageName;
-    }
-
     private void EnsureFarmListPlaceholderRow()
         => _farmListsViewModel.EnsurePlaceholderRow();
 
@@ -174,124 +164,20 @@ public partial class MainWindow
         }
     }
 
-    // Merges a freshly read farm-list overview into the UI rows: dedupes by name, keeps timers/lids,
-    // and re-applies the persisted selection (by lid, falling back to name). Shared by the full
-    // server re-analyze and the instant post-send snapshot load so both produce identical rows.
+    // Projects a server overview through the workflow module, then lets WPF apply the returned rows.
     private async Task ApplyFarmListOverviewToUiAsync(IReadOnlyList<FarmListOverview> lists)
     {
-        var options = LoadBotOptions();
-        var defaultIntervalMinMinutes = FarmingDefaults.NormalizeDispatchDelayMinMinutes(
-            options.ContinuousFarmDispatchDelayMinMinutes);
-        var defaultIntervalMaxMinutes = Math.Max(
-            defaultIntervalMinMinutes,
-            FarmingDefaults.NormalizeDispatchDelayMaxMinutes(options.ContinuousFarmDispatchDelayMaxMinutes));
-        var selectedFarmLists = LoadConfiguredContinuousFarmListNames();
-        var selectedFarmListIds = LoadConfiguredContinuousFarmListIds();
-        Dictionary<string, FarmListDispatchState> dispatchStates;
-        try
-        {
-            dispatchStates = FarmListDispatchStateStore.Load(_projectRoot, _accountStore.ActiveAccountName())
-                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not load farm list dispatch status: {ex.Message}");
-            dispatchStates = new Dictionary<string, FarmListDispatchState>(StringComparer.OrdinalIgnoreCase);
-        }
-        // Keyed by the stable lid (falling back to name for layouts without one) so two same-named lists
-        // in different villages stay separate — a name-only key would merge them into one row/group.
-        var mergedByKey = new Dictionary<string, (string Name, string? VillageName, int? VillageIndex, int Active, int Total, int? RemainingSeconds, string? ListId, int? Capacity, IReadOnlyList<string> Coordinates)>(StringComparer.OrdinalIgnoreCase);
-        var orderedKeys = new List<string>();
-        var analyzedCoordinates = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var incompleteReads = new List<string>();
-        foreach (var list in lists)
-        {
-            if (list is null)
-            {
-                continue;
-            }
-
-            var normalizedName = string.IsNullOrWhiteSpace(list.Name) ? "Farm list" : list.Name.Trim();
-            var incomingListId = string.IsNullOrWhiteSpace(list.ListId) ? null : list.ListId.Trim();
-            var incomingVillageName = string.IsNullOrWhiteSpace(list.VillageName) ? null : list.VillageName.Trim();
-            var mergeKey = incomingListId ?? normalizedName;
-            var incomingCoordinates = (list.FarmCoordinates ?? [])
-                .Where(value => !string.IsNullOrWhiteSpace(value))
-                .Select(value => value.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            analyzedCoordinates.UnionWith(incomingCoordinates);
-
-            // Tier 1 detection: a fully-read list yields one coordinate per farm. Fewer means the read
-            // missed targets (incomplete expansion or an unexpected DOM), so the dedup check can miss them.
-            var listTotal = Math.Max(0, list.TotalFarmCount);
-            if (listTotal > 0 && incomingCoordinates.Count < listTotal)
-            {
-                incompleteReads.Add($"'{normalizedName}' {incomingCoordinates.Count}/{listTotal}");
-            }
-            if (!mergedByKey.TryGetValue(mergeKey, out var existing))
-            {
-                orderedKeys.Add(mergeKey);
-                mergedByKey[mergeKey] = (
-                    Name: normalizedName,
-                    VillageName: incomingVillageName,
-                    VillageIndex: list.VillageIndex is >= 0 ? list.VillageIndex : null,
-                    Active: Math.Max(0, list.ActiveFarmCount),
-                    Total: Math.Max(0, list.TotalFarmCount),
-                    RemainingSeconds: list.RemainingSeconds is > 0 ? list.RemainingSeconds : null,
-                    ListId: incomingListId,
-                    Capacity: list.Capacity,
-                    Coordinates: incomingCoordinates);
-                continue;
-            }
-
-            var incomingRemaining = list.RemainingSeconds is > 0 ? list.RemainingSeconds : null;
-            mergedByKey[mergeKey] = (
-                Name: existing.Name,
-                VillageName: existing.VillageName ?? incomingVillageName,
-                VillageIndex: existing.VillageIndex ?? (list.VillageIndex is >= 0 ? list.VillageIndex : null),
-                Active: Math.Max(existing.Active, Math.Max(0, list.ActiveFarmCount)),
-                Total: Math.Max(existing.Total, Math.Max(0, list.TotalFarmCount)),
-                RemainingSeconds: existing.RemainingSeconds is > 0
-                    ? existing.RemainingSeconds
-                    : incomingRemaining,
-                ListId: string.IsNullOrWhiteSpace(existing.ListId) ? incomingListId : existing.ListId,
-                Capacity: existing.Capacity ?? list.Capacity,
-                Coordinates: existing.Coordinates.Concat(incomingCoordinates).Distinct(StringComparer.OrdinalIgnoreCase).ToList());
-        }
-
-        var initializedIntervals = 0;
-        foreach (var key in orderedKeys)
-        {
-            var value = mergedByKey[key];
-            var stateKey = FarmListDispatchStateStore.CreateKey(value.ListId, value.Name);
-            var previous = dispatchStates.GetValueOrDefault(stateKey);
-            var initialized = FarmListDispatchStateStore.WithDefaultInterval(
-                previous ?? new FarmListDispatchState(null, Failed: false),
-                defaultIntervalMinMinutes,
-                defaultIntervalMaxMinutes);
-            dispatchStates[stateKey] = initialized;
-            if (previous is null || initialized != previous)
-            {
-                initializedIntervals++;
-            }
-        }
-
-        if (initializedIntervals > 0)
-        {
-            try
-            {
-                FarmListDispatchStateStore.Save(
-                    _projectRoot,
-                    _accountStore.ActiveAccountName(),
-                    dispatchStates);
-                AppendLog($"[farm-list] initialized {initializedIntervals} list interval(s) from the shared default {defaultIntervalMinMinutes}-{defaultIntervalMaxMinutes} minutes.");
-            }
-            catch (Exception ex)
-            {
-                AppendLog($"Could not save default farm list intervals: {ex.Message}");
-            }
-        }
+        var villageCoordinates = Dispatcher.CheckAccess()
+            ? BuildUniqueVillageCoordsByName()
+            : await Dispatcher.InvokeAsync(BuildUniqueVillageCoordsByName);
+        var projection = _farmListsWorkflow.ProjectOverview(
+            lists,
+            LoadBotOptions(),
+            villageCoordinates,
+            new FarmListsPresentationOptions(
+                _showFarmListLastSentTimer,
+                _farmListLastSentLimitEnabled,
+                _farmListLastSentLimitHours));
 
         await Dispatcher.InvokeAsync(() =>
         {
@@ -299,53 +185,18 @@ public partial class MainWindow
             try
             {
                 _farmLists.Clear();
-                _analyzedFarmCoordinates.Clear();
-                _analyzedFarmCoordinates.UnionWith(analyzedCoordinates);
-                _farmListIncompleteReads = incompleteReads;
-                _farmListCapacitiesByName.Clear();
-                // Coordinates are not on the farm page per village, so resolve them from the known village
-                // list by name — only when the name is unique (a duplicated name is ambiguous, so no coords).
-                var villageCoordsByName = BuildUniqueVillageCoordsByName();
-                var displayedRows = 0;
-                foreach (var key in orderedKeys)
+                foreach (var row in projection.Rows)
                 {
-                    if (displayedRows >= MaxFarmListsShown)
-                    {
-                        break;
-                    }
+                    _farmLists.Add(row);
+                }
 
-                    var value = mergedByKey[key];
-                    dispatchStates.TryGetValue(FarmListDispatchStateStore.CreateKey(value.ListId, value.Name), out var dispatchState);
-                    var hasSelection = selectedFarmLists.Count > 0 || selectedFarmListIds.Count > 0;
-                    var isSelected = !hasSelection
-                        || (value.ListId is not null && selectedFarmListIds.Contains(value.ListId))
-                        || selectedFarmLists.Contains(value.Name);
-                    var villageName = value.VillageName ?? string.Empty;
-                    var headerText = BuildFarmListVillageHeader(villageName, villageCoordsByName);
-
-                    _farmLists.Add(new FarmListStatusRow
-                    {
-                        Name = value.Name,
-                        VillageName = villageName,
-                        VillageOrdinal = value.VillageIndex ?? -1,
-                        VillageHeaderText = headerText,
-                        ListId = value.ListId,
-                        ActiveFarmCount = value.Active,
-                        TotalFarmCount = value.Total,
-                        Capacity = value.Capacity,
-                        IsEnabled = isSelected,
-                        RemainingSeconds = value.RemainingSeconds,
-                        LastSentAtUtc = dispatchState?.LastSentAtUtc,
-                        NextSendAtUtc = dispatchState?.NextSendAtUtc,
-                        IntervalMinMinutesText = dispatchState?.IntervalMinMinutes?.ToString() ?? defaultIntervalMinMinutes.ToString(),
-                        IntervalMaxMinutesText = dispatchState?.IntervalMaxMinutes?.ToString() ?? defaultIntervalMaxMinutes.ToString(),
-                        LastSendFailed = dispatchState?.Failed == true,
-                        ShowLastSentTimer = _showFarmListLastSentTimer,
-                        LastSentLimitEnabled = _farmListLastSentLimitEnabled,
-                        LastSentLimitHours = _farmListLastSentLimitHours,
-                    });
-                    _farmListCapacitiesByName[value.Name] = value.Capacity;
-                    displayedRows++;
+                _analyzedFarmCoordinates.Clear();
+                _analyzedFarmCoordinates.UnionWith(projection.AnalyzedCoordinates);
+                _farmListIncompleteReads = projection.IncompleteReads;
+                _farmListCapacitiesByName.Clear();
+                foreach (var capacity in projection.CapacitiesByName)
+                {
+                    _farmListCapacitiesByName[capacity.Key] = capacity.Value;
                 }
 
                 EnsureFarmListPlaceholderRow();
@@ -383,17 +234,6 @@ public partial class MainWindow
             SyncFarmListSelectionHandlers();
             RefreshFarmListsItemsControl();
         });
-
-        if (mergedByKey.Count > MaxFarmListsShown)
-        {
-            AppendLog($"Farm list UI limited to {MaxFarmListsShown} rows (detected {mergedByKey.Count}).");
-        }
-
-        if (incompleteReads.Count > 0)
-        {
-            AppendLog($"[farm-list] WARNING: {incompleteReads.Count} farm list(s) not fully read "
-                + $"({string.Join(", ", incompleteReads)}). Duplicate protection may miss those farms — re-run Analyze.");
-        }
     }
 
     // After the auto-loop send_farmlists task actually dispatches a list it defers with a
@@ -1097,7 +937,7 @@ public partial class MainWindow
         var villageCoordsByName = BuildUniqueVillageCoordsByName();
         foreach (var row in _farmLists.Where(IsRealFarmListRow))
         {
-            row.VillageHeaderText = BuildFarmListVillageHeader(row.VillageName, villageCoordsByName);
+            row.VillageHeaderText = FarmListsWorkflow.BuildVillageHeader(row.VillageName, villageCoordsByName);
         }
 
         CollectionViewSource.GetDefaultView(_farmLists).Refresh();
@@ -1378,38 +1218,6 @@ public partial class MainWindow
         if (updatedCount > 0)
         {
             AppendLog($"[farm-list] applied the updated toggle selection to {updatedCount} queued automatic farm-list send(s).");
-        }
-    }
-
-    private IReadOnlySet<string> LoadConfiguredContinuousFarmListNames()
-    {
-        try
-        {
-            var options = LoadBotOptions();
-            return options.ContinuousFarmListNames
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Select(name => name.Trim())
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        }
-        catch
-        {
-            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        }
-    }
-
-    private IReadOnlySet<string> LoadConfiguredContinuousFarmListIds()
-    {
-        try
-        {
-            var options = LoadBotOptions();
-            return options.ContinuousFarmListIds
-                .Where(id => !string.IsNullOrWhiteSpace(id))
-                .Select(id => id.Trim())
-                .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        }
-        catch
-        {
-            return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
     }
 

@@ -18,7 +18,7 @@ public sealed class ContinuousLoopSchedulingSourceTests
             "private void RefreshQueuedContinuousFarmListSelections()",
             StringComparison.Ordinal);
         var methodEnd = source.IndexOf(
-            "    private IReadOnlySet<string> LoadConfiguredContinuousFarmListNames()",
+            "    private void ApplyFarmingSettingsToUi(BotOptions options)",
             methodStart,
             StringComparison.Ordinal);
 
