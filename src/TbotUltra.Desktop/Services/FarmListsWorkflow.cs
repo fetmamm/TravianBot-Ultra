@@ -4,8 +4,11 @@ using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop.Services;
 
-/// <summary>Owns account-scoped Farming panel settings persistence.</summary>
-public sealed class FarmingPanelService(IFarmingPanelClient client, BotConfigStore configStore)
+/// <summary>
+/// Owns the Farm Lists desktop workflow and its account-scoped settings.
+/// Browser work crosses the single <see cref="IFarmingPanelClient"/> seam.
+/// </summary>
+public sealed class FarmListsWorkflow(IFarmingPanelClient client, BotConfigStore configStore)
 {
     public Task<bool> ReadAndPersistGoldClubStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
         => client.ReadAndPersistGoldClubStatusAsync(options, log, cancellationToken);

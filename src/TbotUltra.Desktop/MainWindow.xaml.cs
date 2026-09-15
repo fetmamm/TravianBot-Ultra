@@ -117,7 +117,7 @@ public partial class MainWindow : Window
     private readonly IDesktopBotService _botService;
     private readonly HeroPanelService _heroPanelService;
     private readonly ResourcesPanelService _resourcesPanelService;
-    private readonly FarmingPanelService _farmingPanelService;
+    private readonly FarmListsWorkflow _farmListsWorkflow;
     private readonly BuildingsPanelService _buildingsPanelService;
     private readonly TroopTrainingPanelService _troopTrainingPanelService;
     private readonly QueuePanelService _queuePanelService;
@@ -529,7 +529,7 @@ public partial class MainWindow : Window
         _automationDesk.Updated += AutomationDesk_Updated;
         _heroPanelService = new HeroPanelService(new DesktopHeroPanelClient(_botService), _botConfigStore);
         _resourcesPanelService = new ResourcesPanelService(_botConfigStore, _villageSettingsStore);
-        _farmingPanelService = new FarmingPanelService(new DesktopFarmingPanelClient(_botService), _botConfigStore);
+        _farmListsWorkflow = new FarmListsWorkflow(new DesktopFarmingPanelClient(_botService), _botConfigStore);
         _buildingsPanelService = new BuildingsPanelService(new DesktopBuildingsPanelClient(_botService));
         _troopTrainingPanelService = new TroopTrainingPanelService(new DesktopTroopTrainingPanelClient(_botService), _botConfigStore, _projectRoot);
         _queuePanelService = new QueuePanelService(new DesktopQueuePanelClient(_botService));

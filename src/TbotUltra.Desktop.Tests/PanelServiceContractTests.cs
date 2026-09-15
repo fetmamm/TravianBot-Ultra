@@ -153,10 +153,10 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
-    public async Task FarmingPanelService_ForwardsEveryManualOperationAndCancellationToken()
+    public async Task FarmListsWorkflow_ForwardsEveryManualOperationAndCancellationToken()
     {
         var client = new RecordingFarmingClient();
-        var service = new FarmingPanelService(client, CreateConfigStore());
+        var service = new FarmListsWorkflow(client, CreateConfigStore());
         var options = new BotOptions();
         var request = new FarmListCreateRequest(["A"], "Capital", "did:1", "Phalanx", 3);
         var coordinates = new[] { new FarmCoordinate(1, -2) };
@@ -182,7 +182,7 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
-    public void FarmingPanelService_PersistsDestinationStateWithoutChangingTheContract()
+    public void FarmListsWorkflow_PersistsDestinationStateWithoutChangingTheContract()
     {
         var store = CreateConfigStore();
         store.Save(new JsonObject
@@ -191,7 +191,7 @@ public sealed class PanelServiceContractTests : IDisposable
             [BotOptionPayloadKeys.ContinuousFarmLossDestinationBaseName] = "Old base",
             ["unrelated"] = "keep",
         });
-        var service = new FarmingPanelService(new RecordingFarmingClient(), store);
+        var service = new FarmListsWorkflow(new RecordingFarmingClient(), store);
 
         var result = service.SaveSettings(new FarmingPanelSettings(
             SendMode: FarmingDefaults.SendModeSharedSchedule,

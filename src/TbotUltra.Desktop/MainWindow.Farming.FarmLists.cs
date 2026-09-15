@@ -122,7 +122,7 @@ public partial class MainWindow
 
     private async Task<bool> RefreshFarmListsFromServerAsync(BotOptions options, CancellationToken cancellationToken)
     {
-        var goldClubEnabled = await _farmingPanelService.ReadAndPersistGoldClubStatusAsync(options, AppendLog, cancellationToken);
+        var goldClubEnabled = await _farmListsWorkflow.ReadAndPersistGoldClubStatusAsync(options, AppendLog, cancellationToken);
         UpdateGoldClubInfo(goldClubEnabled);
         if (!goldClubEnabled)
         {
@@ -136,7 +136,7 @@ public partial class MainWindow
             return false;
         }
 
-        var lists = await _farmingPanelService.ReadOverviewAsync(options, AppendLog, cancellationToken) ?? [];
+        var lists = await _farmListsWorkflow.ReadOverviewAsync(options, AppendLog, cancellationToken) ?? [];
         await ApplyFarmListOverviewToUiAsync(lists);
         await Dispatcher.InvokeAsync(() =>
             UpdateSelectedCachedTimerStatus(status => status with { FarmLists = lists }));
@@ -714,7 +714,7 @@ public partial class MainWindow
                         Capacity = _farmListCapacitiesByName.GetValueOrDefault(item.Name),
                     })
                     .ToList();
-                var ownIdentity = await _farmingPanelService.ReadTargetProtectionIdentityAsync(
+                var ownIdentity = await _farmListsWorkflow.ReadTargetProtectionIdentityAsync(
                     options,
                     AppendLog,
                     cancellationToken);
@@ -778,7 +778,7 @@ public partial class MainWindow
                         $"Add farms from Travco: target='{plan.TargetName}', requested={plan.DesiredCount}, " +
                         $"candidates={plan.Coordinates.Count}, " +
                         $"troops={(useDefaultTroops ? "default" : $"{troopCount} {troopType}")}.");
-                    var result = await _farmingPanelService.AddFarmsAsync(
+                    var result = await _farmListsWorkflow.AddFarmsAsync(
                         options,
                         plan.TargetName,
                         troopType,
@@ -983,7 +983,7 @@ public partial class MainWindow
                 AppendLog(
                     $"[farm-list-create] requested={request.Names.Count}, village='{request.VillageName}', " +
                     $"default={request.TroopCount} {request.TroopType}.");
-                return await _farmingPanelService.CreateListsAsync(
+                return await _farmListsWorkflow.CreateListsAsync(
                     options,
                     request,
                     AppendLog,
@@ -1139,7 +1139,7 @@ public partial class MainWindow
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
             await EnsureChromiumInstalledAsync();
-            var timerSeconds = await _farmingPanelService.SendOneAsync(options, list.Name, AppendLog, operationToken);
+            var timerSeconds = await _farmListsWorkflow.SendOneAsync(options, list.Name, AppendLog, operationToken);
             list.RemainingSeconds = timerSeconds is > 0 ? timerSeconds : null;
             RecordFarmListDispatch(list, succeeded: true);
             UpdateFarmingUiState();
@@ -1227,8 +1227,8 @@ public partial class MainWindow
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
             await EnsureChromiumInstalledAsync();
             var sentCount = sendToggled
-                ? await _farmingPanelService.SendSelectedAsync(options, toggledNames, toggledIds, AppendLog, operationToken)
-                : await _farmingPanelService.SendAllAsync(options, AppendLog, operationToken);
+                ? await _farmListsWorkflow.SendSelectedAsync(options, toggledNames, toggledIds, AppendLog, operationToken)
+                : await _farmListsWorkflow.SendAllAsync(options, AppendLog, operationToken);
             await RefreshFarmListsFromServerAsync(options, operationToken);
             ReconcileFarmListDispatches(attemptedKeys);
             CompleteOperation(operationId, operationSw, $"Sent {(sendToggled ? "toggled" : "all")} farmlists ({sentCount} list(s)).");
@@ -1466,7 +1466,7 @@ public partial class MainWindow
                 delayMinMinutes,
                 FarmingDefaults.NormalizeDispatchDelayMaxMinutes(
                     int.TryParse(_farmListsViewModel.DispatchDelayMaxMinutes, out var parsedMax) ? parsedMax : 0));
-            var saved = _farmingPanelService.SaveSettings(new FarmingPanelSettings(
+            var saved = _farmListsWorkflow.SaveSettings(new FarmingPanelSettings(
                 _farmListsViewModel.SendMode,
                 delayMinMinutes,
                 delayMaxMinutes,
@@ -1956,7 +1956,7 @@ public partial class MainWindow
         BusyOverlay.ShowCancel = true;
         ShowBusyOverlay("Creating loss farmlist", $"Creating '{listName}'...");
         await EnsureChromiumInstalledAsync();
-        var createResult = await _farmingPanelService.CreateListsAsync(
+        var createResult = await _farmListsWorkflow.CreateListsAsync(
             options,
             request,
             AppendLog,
@@ -1974,7 +1974,7 @@ public partial class MainWindow
         if (created is null)
         {
             // The panel limits displayed rows, so verify the complete overview before reporting failure.
-            var verifiedLists = await _farmingPanelService.ReadOverviewAsync(options, AppendLog, cancellationToken);
+            var verifiedLists = await _farmListsWorkflow.ReadOverviewAsync(options, AppendLog, cancellationToken);
             var verified = verifiedLists.FirstOrDefault(item =>
                 string.Equals(item.Name, listName, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(item.VillageName, village.Name, StringComparison.OrdinalIgnoreCase));
@@ -1993,7 +1993,7 @@ public partial class MainWindow
         }
 
         var isRed = lossColor == FarmListLossColors.Red;
-        _farmingPanelService.SaveDestinationBaseName(isRed, listName);
+        _farmListsWorkflow.SaveDestinationBaseName(isRed, listName);
         SetSelectedLossDestination(isRed, created);
         AppendLog($"[farm-list] created and selected '{created.Name}' as the {lossColor.ToString().ToLowerInvariant()} loss destination.");
     }
