@@ -930,9 +930,7 @@ public partial class MainWindow
 
         if (string.Equals(e.PropertyName, nameof(FarmListStatusRow.IsEnabled), StringComparison.Ordinal))
         {
-            _farmListsWorkflow.CaptureAutomationState(_farmLists);
-            PersistContinuousFarmListSelectionToConfig();
-            RefreshQueuedContinuousFarmListSelections();
+            _farmListsWorkflow.SaveSelection(_farmLists);
         }
         else if (string.Equals(e.PropertyName, nameof(FarmListStatusRow.IntervalMinMinutesText), StringComparison.Ordinal) ||
                  string.Equals(e.PropertyName, nameof(FarmListStatusRow.IntervalMaxMinutesText), StringComparison.Ordinal))
@@ -959,41 +957,6 @@ public partial class MainWindow
 
         UpdateAutomationLoopRunningIndicators();
         UpdateFarmingUiState();
-    }
-
-    private void RefreshQueuedContinuousFarmListSelections()
-    {
-        var enabledRows = _farmLists.Where(item => IsRealFarmListRow(item) && item.IsEnabled).ToList();
-        var selection = new FarmingPayload(
-            enabledRows.Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList(),
-            enabledRows.Select(item => item.ListId).Where(id => !string.IsNullOrWhiteSpace(id)).Select(id => id!.Trim()).ToList());
-        var updatedCount = 0;
-
-        foreach (var item in _botService.GetQueueItemsForDisplay())
-        {
-            if (!string.Equals(item.TaskName, "send_farmlists", StringComparison.OrdinalIgnoreCase)
-                || item.Status != QueueStatus.Pending
-                || string.IsNullOrWhiteSpace(GetQueueItemVillageKey(item)))
-            {
-                continue;
-            }
-
-            var updatedPayload = selection.ApplySelectionTo(item.Payload);
-            if (ContinuousLoopSelector.PayloadEquals(item.Payload, updatedPayload))
-            {
-                continue;
-            }
-
-            if (_botService.UpdateDeferredQueueItem(item.Id, updatedPayload))
-            {
-                updatedCount++;
-            }
-        }
-
-        if (updatedCount > 0)
-        {
-            AppendLog($"[farm-list] applied the updated toggle selection to {updatedCount} queued automatic farm-list send(s).");
-        }
     }
 
     private void ApplyFarmingSettingsToUi(BotOptions options)
@@ -1517,31 +1480,4 @@ public partial class MainWindow
         }
     }
 
-    private void PersistContinuousFarmListSelectionToConfig()
-    {
-        try
-        {
-            var enabledRows = _farmLists.Where(item => IsRealFarmListRow(item) && item.IsEnabled).ToList();
-            var selectedNames = enabledRows
-                .Select(item => item.Name)
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            // Persist the stable lids too so the selection survives a village/list rename.
-            var selectedIds = enabledRows
-                .Select(item => item.ListId)
-                .Where(id => !string.IsNullOrWhiteSpace(id))
-                .Select(id => id!.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            var config = _botConfigStore.Load();
-            config[BotOptionPayloadKeys.ContinuousFarmListNames] = new JsonArray(selectedNames.Select(name => JsonValue.Create(name)!).ToArray());
-            config[BotOptionPayloadKeys.ContinuousFarmListIds] = new JsonArray(selectedIds.Select(id => JsonValue.Create(id)!).ToArray());
-            _botConfigStore.Save(config);
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not save selected farmlists: {ex.Message}");
-        }
-    }
 }

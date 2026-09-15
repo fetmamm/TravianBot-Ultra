@@ -356,6 +356,41 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
+    public void FarmListsWorkflow_PersistsSelectionAndRefreshesPendingPayload()
+    {
+        var store = CreateConfigStore();
+        store.Save(new JsonObject());
+        var queueItem = new QueueItem
+        {
+            TaskName = "send_farmlists",
+            Group = QueueGroup.Farming,
+            Status = QueueStatus.Pending,
+            Payload = new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.TargetVillageKey] = "xy:1|2",
+                [BotOptionPayloadKeys.ContinuousFarmListNames] = "Old",
+            },
+        };
+        var deadline = queueItem.NextAttemptAt;
+        var automation = new RecordingFarmListsAutomationAdapter { QueueItems = [queueItem] };
+        var workflow = new FarmListsWorkflow(
+            new RecordingFarmingClient(), automation, store, _root, () => "alice", _ => { });
+
+        workflow.SaveSelection(
+        [
+            new FarmListStatusRow { Name = "Raiders", ListId = "lid-1", IsEnabled = true },
+            new FarmListStatusRow { Name = "Disabled", ListId = "lid-2", IsEnabled = false },
+        ]);
+
+        var config = store.Load();
+        Assert.Equal("Raiders", config[BotOptionPayloadKeys.ContinuousFarmListNames]![0]!.GetValue<string>());
+        Assert.Equal("lid-1", config[BotOptionPayloadKeys.ContinuousFarmListIds]![0]!.GetValue<string>());
+        Assert.Equal("Raiders", automation.UpdatedPayload![BotOptionPayloadKeys.ContinuousFarmListNames]);
+        Assert.Equal("lid-1", automation.UpdatedPayload[BotOptionPayloadKeys.ContinuousFarmListIds]);
+        Assert.Equal(deadline, queueItem.NextAttemptAt);
+    }
+
+    [Fact]
     public void FarmListsWorkflow_PersistsDestinationStateWithoutChangingTheContract()
     {
         var store = CreateConfigStore();
@@ -480,6 +515,8 @@ public sealed class PanelServiceContractTests : IDisposable
         public bool AutoQueueRunning { get; set; }
         public bool UiBusy { get; set; }
         public bool SessionAvailable { get; set; } = true;
+        public IReadOnlyList<QueueItem> QueueItems { get; set; } = [];
+        public Dictionary<string, string>? UpdatedPayload { get; private set; }
         public void ClearPendingRestarts() { }
         public void RequestStopAfterCurrentAction()
         {
@@ -493,6 +530,11 @@ public sealed class PanelServiceContractTests : IDisposable
         {
             AutoQueueRunning = true;
             return Task.CompletedTask;
+        }
+        public bool UpdateDeferredQueueItem(Guid id, Dictionary<string, string> payload)
+        {
+            UpdatedPayload = payload;
+            return true;
         }
     }
 

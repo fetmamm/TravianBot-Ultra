@@ -15,6 +15,7 @@ public partial class MainWindow
             && owner._isLoggedIn
             && !owner.IsSessionSleeping
             && !owner.IsFreezeActive;
+        public IReadOnlyList<TbotUltra.Worker.Domain.QueueItem> QueueItems => owner._botService.GetQueueItemsForDisplay();
 
         public void ClearPendingRestarts()
         {
@@ -30,5 +31,8 @@ public partial class MainWindow
         public void StartContinuousLoop() => owner.StartContinuousLoopRunner();
 
         public Task StartAutoQueueAsync() => owner.TriggerQueueAutoRunAsync();
+
+        public bool UpdateDeferredQueueItem(Guid id, Dictionary<string, string> payload)
+            => owner._botService.UpdateDeferredQueueItem(id, payload);
     }
 }

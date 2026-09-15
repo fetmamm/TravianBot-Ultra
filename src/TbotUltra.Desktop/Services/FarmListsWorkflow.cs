@@ -1,10 +1,13 @@
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Farming;
 using TbotUltra.Core.Accounts;
+using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.ViewModels;
+using TbotUltra.Desktop.Services.Orchestration;
 using TbotUltra.Worker.Domain;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.IO;
 
 namespace TbotUltra.Desktop.Services;
@@ -231,6 +234,65 @@ public sealed class FarmListsWorkflow(
                     .Select(row => row.Name)
                     .ToList(),
                 analyzedAt ?? _automationSnapshot.LastAnalysisAt);
+        }
+    }
+
+    public void SaveSelection(IEnumerable<FarmListStatusRow> rows)
+    {
+        var enabledRows = rows
+            .Where(FarmListsViewModel.IsRealRow)
+            .Where(row => row.IsEnabled)
+            .ToList();
+        var selectedNames = enabledRows
+            .Select(row => row.Name)
+            .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        var selectedIds = enabledRows
+            .Select(row => row.ListId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Select(id => id!.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+
+        CaptureAutomationState(rows);
+        try
+        {
+            var config = configStore.Load();
+            config[BotOptionPayloadKeys.ContinuousFarmListNames] = new JsonArray(
+                selectedNames.Select(name => JsonValue.Create(name)!).ToArray());
+            config[BotOptionPayloadKeys.ContinuousFarmListIds] = new JsonArray(
+                selectedIds.Select(id => JsonValue.Create(id)!).ToArray());
+            configStore.Save(config);
+        }
+        catch (Exception ex)
+        {
+            log($"Could not save selected farmlists: {ex.Message}");
+        }
+
+        var selection = new FarmingPayload(selectedNames, selectedIds);
+        var updatedCount = 0;
+        foreach (var item in automation.QueueItems)
+        {
+            if (!string.Equals(item.TaskName, "send_farmlists", StringComparison.OrdinalIgnoreCase)
+                || item.Status != QueueStatus.Pending
+                || !item.Payload.TryGetValue(BotOptionPayloadKeys.TargetVillageKey, out var villageKey)
+                || string.IsNullOrWhiteSpace(villageKey))
+            {
+                continue;
+            }
+
+            var updatedPayload = selection.ApplySelectionTo(item.Payload);
+            if (!ContinuousLoopSelector.PayloadEquals(item.Payload, updatedPayload)
+                && automation.UpdateDeferredQueueItem(item.Id, updatedPayload))
+            {
+                updatedCount++;
+            }
+        }
+
+        if (updatedCount > 0)
+        {
+            log($"[farm-list] applied the updated toggle selection to {updatedCount} queued automatic farm-list send(s).");
         }
     }
 
@@ -899,11 +961,13 @@ public interface IFarmListsAutomationAdapter
     bool AutoQueueRunning { get; }
     bool UiBusy { get; }
     bool SessionAvailable { get; }
+    IReadOnlyList<QueueItem> QueueItems { get; }
     void ClearPendingRestarts();
     void RequestStopAfterCurrentAction();
     void UpdateExecutionIndicator();
     void StartContinuousLoop();
     Task StartAutoQueueAsync();
+    bool UpdateDeferredQueueItem(Guid id, Dictionary<string, string> payload);
 }
 
 public sealed record FarmListsAutomationResume(bool ContinuousLoop, bool AutoQueue)
