@@ -1148,13 +1148,14 @@ public partial class MainWindow
             return;
         }
 
-        if (!_isLoggedIn)
+        var loginValidation = _farmListsWorkflow.ValidateLossDestinationSetup(_isLoggedIn);
+        if (!loginValidation.CanStart)
         {
             SetMoveLosses(isRed, false);
             AppendLog("[farm-list] loss destination setup blocked because the user is logged out.");
             AppDialog.Show(
                 this,
-                "You must log in first.",
+                loginValidation.FailureMessage ?? "You must log in first.",
                 "Login required",
                 MessageBoxButton.OK,
                 MessageBoxImage.Information);

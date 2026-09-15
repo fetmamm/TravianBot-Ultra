@@ -302,6 +302,11 @@ public sealed class PanelServiceContractTests : IDisposable
         Assert.True(loaded.ExcludeOwnAlliance);
         Assert.Equal(" Enemy ; enemy\nBandit ", loaded.ExcludedPlayers);
         Assert.Equal("Rivals", loaded.ExcludedAlliances);
+
+        var loggedOut = workflow.ValidateLossDestinationSetup(isLoggedIn: false);
+        Assert.False(loggedOut.CanStart);
+        Assert.Equal("You must log in first.", loggedOut.FailureMessage);
+        Assert.True(workflow.ValidateLossDestinationSetup(isLoggedIn: true).CanStart);
     }
 
     [Fact]

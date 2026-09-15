@@ -740,6 +740,11 @@ public sealed class FarmListsWorkflow(
             null);
     }
 
+    public FarmLossDestinationSetupValidation ValidateLossDestinationSetup(bool isLoggedIn)
+        => isLoggedIn
+            ? new FarmLossDestinationSetupValidation(true, null)
+            : new FarmLossDestinationSetupValidation(false, "You must log in first.");
+
     internal static IReadOnlyList<string> ParseProtectionList(string? value)
         => (value ?? string.Empty)
             .Split([';', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -1061,6 +1066,8 @@ public sealed record FarmTargetProtectionPreparation(
 
     public static FarmTargetProtectionPreparation Unavailable(string message) => new(null, message);
 }
+
+public sealed record FarmLossDestinationSetupValidation(bool CanStart, string? FailureMessage);
 
 public sealed record FarmListsProjection(
     IReadOnlyList<FarmListStatusRow> Rows,
