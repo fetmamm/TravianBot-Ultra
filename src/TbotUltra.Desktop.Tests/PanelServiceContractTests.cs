@@ -238,6 +238,33 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
+    public void FarmListsWorkflow_OwnsDispatchTransitions()
+    {
+        var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());
+        var options = new BotOptions
+        {
+            ContinuousFarmDispatchDelayMinMinutes = 10,
+            ContinuousFarmDispatchDelayMaxMinutes = 10,
+        };
+        var row = new FarmListStatusRow { Name = "Raiders", ListId = "lid-1", RemainingSeconds = 45 };
+
+        Assert.True(workflow.RecordDispatch(row, succeeded: true, options));
+        Assert.NotNull(row.LastSentAtUtc);
+        Assert.Equal(row.LastSentAtUtc!.Value.AddMinutes(10), row.NextSendAtUtc);
+        Assert.False(row.LastSendFailed);
+
+        Assert.True(workflow.PersistDispatchInterval(row, 20, 20, options));
+        Assert.Equal(row.LastSentAtUtc.Value.AddMinutes(20), row.NextSendAtUtc);
+
+        row.RemainingSeconds = 90;
+        Assert.True(workflow.ReconcileDispatches(
+            [row],
+            [FarmListsWorkflow.DispatchKey(row)],
+            options));
+        Assert.False(row.LastSendFailed);
+    }
+
+    [Fact]
     public void FarmListsWorkflow_PersistsDestinationStateWithoutChangingTheContract()
     {
         var store = CreateConfigStore();

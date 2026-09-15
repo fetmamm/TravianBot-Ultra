@@ -267,6 +267,107 @@ public sealed class FarmListsWorkflow(
         CancellationToken cancellationToken = default)
         => LoadSnapshotAsync(now, maximumAge: null, rebaseTimers: true, cancellationToken);
 
+    public bool RecordDispatch(FarmListStatusRow row, bool succeeded, BotOptions options)
+    {
+        try
+        {
+            var state = FarmListDispatchStateStore.Update(
+                projectRoot,
+                activeAccountName(),
+                DispatchKey(row),
+                previous =>
+                {
+                    previous = FarmListDispatchStateStore.WithDefaultInterval(
+                        previous ?? new FarmListDispatchState(null, Failed: false),
+                        FarmingDefaults.NormalizeDispatchDelayMinMinutes(options.ContinuousFarmDispatchDelayMinMinutes),
+                        FarmingDefaults.NormalizeDispatchDelayMaxMinutes(options.ContinuousFarmDispatchDelayMaxMinutes));
+                    if (!succeeded)
+                    {
+                        return previous with { Failed = true };
+                    }
+
+                    var sentAtUtc = DateTimeOffset.UtcNow;
+                    return previous with
+                    {
+                        LastSentAtUtc = sentAtUtc,
+                        Failed = false,
+                        NextSendAtUtc = sentAtUtc.AddSeconds(CalculateDispatchDelaySeconds(previous, options)),
+                    };
+                });
+            row.LastSentAtUtc = state.LastSentAtUtc;
+            row.NextSendAtUtc = state.NextSendAtUtc;
+            row.LastSendFailed = state.Failed;
+            return succeeded;
+        }
+        catch (Exception ex)
+        {
+            log($"Could not save farm list dispatch status: {ex.Message}");
+            return false;
+        }
+    }
+
+    public bool PersistDispatchInterval(
+        FarmListStatusRow row,
+        int minMinutes,
+        int maxMinutes,
+        BotOptions options)
+    {
+        try
+        {
+            var state = FarmListDispatchStateStore.Update(
+                projectRoot,
+                activeAccountName(),
+                DispatchKey(row),
+                previous =>
+                {
+                    previous ??= new FarmListDispatchState(null, Failed: false);
+                    var updated = previous with
+                    {
+                        IntervalMinMinutes = minMinutes,
+                        IntervalMaxMinutes = maxMinutes,
+                    };
+                    return updated with
+                    {
+                        NextSendAtUtc = updated.LastSentAtUtc?.AddSeconds(
+                            CalculateDispatchDelaySeconds(updated, options)),
+                    };
+                });
+            row.NextSendAtUtc = state.NextSendAtUtc;
+            log($"[farm-list] '{row.Name}' dispatch interval set to {minMinutes}-{maxMinutes} minutes.");
+            return true;
+        }
+        catch (Exception ex)
+        {
+            log($"Could not save farm list dispatch interval: {ex.Message}");
+            return false;
+        }
+    }
+
+    public bool ReconcileDispatches(
+        IEnumerable<FarmListStatusRow> rows,
+        IReadOnlyCollection<string> attemptedKeys,
+        BotOptions options)
+    {
+        var successfulDispatch = false;
+        foreach (var row in rows.Where(FarmListsViewModel.IsRealRow))
+        {
+            if (!attemptedKeys.Contains(DispatchKey(row)))
+            {
+                continue;
+            }
+
+            var succeeded = FarmListDispatchStateStore.IsSuccessfulDispatch(
+                sendActionCompleted: true,
+                row.RemainingSeconds);
+            successfulDispatch |= RecordDispatch(row, succeeded, options);
+        }
+
+        return successfulDispatch;
+    }
+
+    public static string DispatchKey(FarmListStatusRow row)
+        => FarmListDispatchStateStore.CreateKey(row.ListId, row.Name);
+
     private async Task<IReadOnlyList<FarmListOverview>?> LoadSnapshotAsync(
         DateTimeOffset now,
         TimeSpan? maximumAge,
@@ -335,6 +436,17 @@ public sealed class FarmListsWorkflow(
             log($"Could not load farm list dispatch status: {ex.Message}");
             return new Dictionary<string, FarmListDispatchState>(StringComparer.OrdinalIgnoreCase);
         }
+    }
+
+    private static int CalculateDispatchDelaySeconds(FarmListDispatchState state, BotOptions options)
+    {
+        var initialized = FarmListDispatchStateStore.WithDefaultInterval(
+            state,
+            FarmingDefaults.NormalizeDispatchDelayMinMinutes(options.ContinuousFarmDispatchDelayMinMinutes),
+            FarmingDefaults.NormalizeDispatchDelayMaxMinutes(options.ContinuousFarmDispatchDelayMaxMinutes));
+        var minMinutes = initialized.IntervalMinMinutes!.Value;
+        var maxMinutes = initialized.IntervalMaxMinutes!.Value;
+        return FarmingDefaults.CalculateDispatchDelaySeconds(minMinutes, Math.Max(minMinutes, maxMinutes));
     }
 
     private int InitializeDispatchIntervals(

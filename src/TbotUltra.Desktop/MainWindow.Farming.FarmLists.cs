@@ -238,7 +238,7 @@ public partial class MainWindow
                         row.IsEnabled,
                         row.IsReady,
                         row.IsEmpty))
-                .Select(FarmListDispatchKey)
+                .Select(FarmListsWorkflow.DispatchKey)
                 .ToList()
             : [];
 
@@ -251,7 +251,10 @@ public partial class MainWindow
             {
                 if (sendAllLists)
                 {
-                    ReconcileFarmListDispatches(attemptedKeys);
+                    if (_farmListsWorkflow.ReconcileDispatches(_farmLists, attemptedKeys, LoadBotOptions()))
+                    {
+                        WakeContinuousFarmScheduling();
+                    }
                 }
                 return;
             }
@@ -829,7 +832,10 @@ public partial class MainWindow
             await EnsureChromiumInstalledAsync();
             var timerSeconds = await _farmListsWorkflow.SendOneAsync(options, list.Name, AppendLog, operationToken);
             list.RemainingSeconds = timerSeconds is > 0 ? timerSeconds : null;
-            RecordFarmListDispatch(list, succeeded: true);
+            if (_farmListsWorkflow.RecordDispatch(list, succeeded: true, LoadBotOptions()))
+            {
+                WakeContinuousFarmScheduling();
+            }
             UpdateFarmingUiState();
             CompleteOperation(operationId, operationSw, $"Sent '{list.Name}'.");
         }
@@ -839,7 +845,7 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            RecordFarmListDispatch(list, succeeded: false);
+            _farmListsWorkflow.RecordDispatch(list, succeeded: false, LoadBotOptions());
             FailOperation(operationId, operationSw, ex);
         }
         finally
@@ -901,7 +907,7 @@ public partial class MainWindow
 
         var attemptedKeys = _farmLists
             .Where(row => IsRealFarmListRow(row) && !row.IsEmpty && row.IsReady && (!sendToggled || row.IsEnabled))
-            .Select(FarmListDispatchKey)
+            .Select(FarmListsWorkflow.DispatchKey)
             .ToList();
 
         var operationId = BeginOperation("Farm Send All Now");
@@ -918,7 +924,10 @@ public partial class MainWindow
                 ? await _farmListsWorkflow.SendSelectedAsync(options, toggledNames, toggledIds, AppendLog, operationToken)
                 : await _farmListsWorkflow.SendAllAsync(options, AppendLog, operationToken);
             await RefreshFarmListsFromServerAsync(options, operationToken);
-            ReconcileFarmListDispatches(attemptedKeys);
+            if (_farmListsWorkflow.ReconcileDispatches(_farmLists, attemptedKeys, LoadBotOptions()))
+            {
+                WakeContinuousFarmScheduling();
+            }
             CompleteOperation(operationId, operationSw, $"Sent {(sendToggled ? "toggled" : "all")} farmlists ({sentCount} list(s)).");
         }
         catch (OperationCanceledException)
@@ -927,9 +936,9 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            foreach (var row in _farmLists.Where(row => attemptedKeys.Contains(FarmListDispatchKey(row))))
+            foreach (var row in _farmLists.Where(row => attemptedKeys.Contains(FarmListsWorkflow.DispatchKey(row))))
             {
-                RecordFarmListDispatch(row, succeeded: false);
+                _farmListsWorkflow.RecordDispatch(row, succeeded: false, LoadBotOptions());
             }
             FailOperation(operationId, operationSw, ex);
         }
@@ -1028,7 +1037,14 @@ public partial class MainWindow
                 return;
             }
 
-            PersistFarmListDispatchInterval(row, minMinutes!.Value, maxMinutes!.Value);
+            if (_farmListsWorkflow.PersistDispatchInterval(
+                    row,
+                    minMinutes!.Value,
+                    maxMinutes!.Value,
+                    LoadBotOptions()))
+            {
+                WakeContinuousFarmScheduling();
+            }
         }
         else
         {
@@ -1158,96 +1174,6 @@ public partial class MainWindow
             : "Next send: --");
     }
 
-    private static string FarmListDispatchKey(FarmListStatusRow row)
-        => FarmListDispatchStateStore.CreateKey(row.ListId, row.Name);
-
-    private void RecordFarmListDispatch(FarmListStatusRow row, bool succeeded)
-    {
-        try
-        {
-            var key = FarmListDispatchKey(row);
-            var options = LoadBotOptions();
-            var state = FarmListDispatchStateStore.Update(
-                _projectRoot,
-                _accountStore.ActiveAccountName(),
-                key,
-                previous =>
-                {
-                    previous = FarmListDispatchStateStore.WithDefaultInterval(
-                        previous ?? new FarmListDispatchState(null, Failed: false),
-                        FarmingDefaults.NormalizeDispatchDelayMinMinutes(options.ContinuousFarmDispatchDelayMinMinutes),
-                        FarmingDefaults.NormalizeDispatchDelayMaxMinutes(options.ContinuousFarmDispatchDelayMaxMinutes));
-                    if (!succeeded)
-                    {
-                        return previous with { Failed = true };
-                    }
-
-                    var sentAtUtc = DateTimeOffset.UtcNow;
-                    return previous with
-                    {
-                        LastSentAtUtc = sentAtUtc,
-                        Failed = false,
-                        NextSendAtUtc = sentAtUtc.AddSeconds(CalculateFarmListDispatchDelaySeconds(previous, options)),
-                    };
-                });
-            row.LastSentAtUtc = state.LastSentAtUtc;
-            row.NextSendAtUtc = state.NextSendAtUtc;
-            row.LastSendFailed = state.Failed;
-            if (succeeded)
-            {
-                WakeContinuousFarmScheduling();
-            }
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not save farm list dispatch status: {ex.Message}");
-        }
-    }
-
-    private void PersistFarmListDispatchInterval(FarmListStatusRow row, int minMinutes, int maxMinutes)
-    {
-        try
-        {
-            var options = LoadBotOptions();
-            var state = FarmListDispatchStateStore.Update(
-                _projectRoot,
-                _accountStore.ActiveAccountName(),
-                FarmListDispatchKey(row),
-                previous =>
-                {
-                    previous ??= new FarmListDispatchState(null, Failed: false);
-                    var updated = previous with
-                    {
-                        IntervalMinMinutes = minMinutes,
-                        IntervalMaxMinutes = maxMinutes,
-                    };
-                    return updated with
-                    {
-                        NextSendAtUtc = updated.LastSentAtUtc?.AddSeconds(
-                            CalculateFarmListDispatchDelaySeconds(updated, options)),
-                    };
-                });
-            row.NextSendAtUtc = state.NextSendAtUtc;
-            AppendLog($"[farm-list] '{row.Name}' dispatch interval set to {minMinutes}-{maxMinutes} minutes.");
-            WakeContinuousFarmScheduling();
-        }
-        catch (Exception ex)
-        {
-            AppendLog($"Could not save farm list dispatch interval: {ex.Message}");
-        }
-    }
-
-    private static int CalculateFarmListDispatchDelaySeconds(FarmListDispatchState state, BotOptions options)
-    {
-        var initialized = FarmListDispatchStateStore.WithDefaultInterval(
-            state,
-            FarmingDefaults.NormalizeDispatchDelayMinMinutes(options.ContinuousFarmDispatchDelayMinMinutes),
-            FarmingDefaults.NormalizeDispatchDelayMaxMinutes(options.ContinuousFarmDispatchDelayMaxMinutes));
-        var minMinutes = initialized.IntervalMinMinutes!.Value;
-        var maxMinutes = initialized.IntervalMaxMinutes!.Value;
-        return FarmingDefaults.CalculateDispatchDelaySeconds(minMinutes, Math.Max(minMinutes, maxMinutes));
-    }
-
     private void WakeContinuousFarmScheduling()
     {
         var updated = false;
@@ -1264,19 +1190,6 @@ public partial class MainWindow
         if (updated)
         {
             _automationDesk.Wake(AutomationWakeReason.QueueChanged);
-        }
-    }
-
-    private void ReconcileFarmListDispatches(IReadOnlyCollection<string> attemptedKeys)
-    {
-        foreach (var row in _farmLists.Where(IsRealFarmListRow))
-        {
-            if (attemptedKeys.Contains(FarmListDispatchKey(row)))
-            {
-                RecordFarmListDispatch(row, FarmListDispatchStateStore.IsSuccessfulDispatch(
-                    sendActionCompleted: true,
-                    row.RemainingSeconds));
-            }
         }
     }
 
