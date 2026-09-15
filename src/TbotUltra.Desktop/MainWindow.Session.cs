@@ -1067,8 +1067,6 @@ public partial class MainWindow
         }
         _farmLists.Clear();
         EnsureFarmListPlaceholderRow();
-        _analyzedFarmCoordinates.Clear();
-        _farmListCapacitiesByName.Clear();
         _farmListsWorkflow.ResetProjection();
         _farmingFeaturesAvailable = true;
         if (FarmingStatusTextBlock is not null)

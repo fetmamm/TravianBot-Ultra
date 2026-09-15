@@ -209,6 +209,14 @@ public sealed class PanelServiceContractTests : IDisposable
         Assert.False(Assert.Single(projection.Rows, row => row.ListId == "lid-2").IsEnabled);
         Assert.Equal(["1|2", "3|4", "5|6"], projection.AnalyzedCoordinates.Order());
         Assert.Contains("'Raiders' 1/3", projection.IncompleteReads);
+
+        var loadResult = workflow.BuildAddFarmsLoadResult(
+            [new TravcoListStore.TravcoSavedList { Name = "Source" }],
+            new FarmTargetIdentity(true, "Owner", null));
+        Assert.True(loadResult.Ok);
+        Assert.Equal(2, loadResult.TargetLists.Count);
+        Assert.Contains("3|4", loadResult.ExistingCoordinates);
+        Assert.Contains("'Raiders' 1/3", loadResult.IncompleteFarmLists!);
     }
 
     [Fact]

@@ -27,17 +27,10 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private readonly HashSet<string> _analyzedFarmCoordinates = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, int?> _farmListCapacitiesByName = new(StringComparer.OrdinalIgnoreCase);
     private bool _showFarmListLastSentTimer = FarmingDefaults.ShowLastSentTimer;
     private bool _farmListLastSentLimitEnabled = FarmingDefaults.LastSentLimitEnabled;
     private int _farmListLastSentLimitHours = FarmingDefaults.DefaultLastSentLimitHours;
     private bool _farmLossDestinationSelectionInProgress;
-
-    // Farm lists whose last analysis read fewer target coordinates than the list claims to hold (e.g. an
-    // expansion that did not finish). Their farms can be missed by the "don't add duplicates" check, so the
-    // Add-farms dialog warns when this is non-empty. Format: "'Name' read/total".
-    private IReadOnlyList<string> _farmListIncompleteReads = [];
 
     private static bool IsRealFarmListRow(FarmListStatusRow row)
         => FarmListsViewModel.IsRealRow(row);
@@ -150,15 +143,6 @@ public partial class MainWindow
                 foreach (var row in projection.Rows)
                 {
                     _farmLists.Add(row);
-                }
-
-                _analyzedFarmCoordinates.Clear();
-                _analyzedFarmCoordinates.UnionWith(projection.AnalyzedCoordinates);
-                _farmListIncompleteReads = projection.IncompleteReads;
-                _farmListCapacitiesByName.Clear();
-                foreach (var capacity in projection.CapacitiesByName)
-                {
-                    _farmListCapacitiesByName[capacity.Key] = capacity.Value;
                 }
 
                 EnsureFarmListPlaceholderRow();
@@ -384,37 +368,10 @@ public partial class MainWindow
                 var sourceLists = _travcoListStore.LoadAll()
                     .Where(list => list.Rows.Any(row => row.Selected))
                     .ToList();
-                if (sourceLists.Count == 0)
-                {
-                    return new OfficialAddFarmsLoadResult(
-                        false,
-                        "No saved Travco lists with selected farms were found.",
-                        [],
-                        [],
-                        new HashSet<string>());
-                }
-
-                var targetLists = _farmLists
-                    .Where(IsRealFarmListRow)
-                    .Select(item => new FarmListSelectionOption
-                    {
-                        Name = item.Name,
-                        ActiveFarmCount = item.ActiveFarmCount,
-                        TotalFarmCount = item.TotalFarmCount,
-                        Capacity = _farmListCapacitiesByName.GetValueOrDefault(item.Name),
-                    })
-                    .ToList();
                 var ownIdentity = await _farmListsWorkflow.ReadTargetProtectionIdentityAsync(
                     options,
                     cancellationToken);
-                return new OfficialAddFarmsLoadResult(
-                    true,
-                    null,
-                    sourceLists,
-                    targetLists,
-                    new HashSet<string>(_analyzedFarmCoordinates, StringComparer.OrdinalIgnoreCase),
-                    _farmListIncompleteReads,
-                    ownIdentity);
+                return _farmListsWorkflow.BuildAddFarmsLoadResult(sourceLists, ownIdentity);
             }
 
             Task<OfficialFarmAddRunResult> RunOfficialPlansAsync(

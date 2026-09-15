@@ -28,6 +28,7 @@ public sealed class FarmListsWorkflow(
     private static readonly TimeSpan RecentAnalysisWindow = TimeSpan.FromMinutes(5);
     private readonly object _stateLock = new();
     private FarmListsAutomationSnapshot _automationSnapshot = FarmListsAutomationSnapshot.Empty;
+    private FarmListsProjection _currentProjection = FarmListsProjection.Empty;
 
     public FarmListsAutomationSnapshot AutomationSnapshot
     {
@@ -316,6 +317,7 @@ public sealed class FarmListsWorkflow(
         lock (_stateLock)
         {
             _automationSnapshot = FarmListsAutomationSnapshot.Empty;
+            _currentProjection = FarmListsProjection.Empty;
         }
     }
 
@@ -461,12 +463,57 @@ public sealed class FarmListsWorkflow(
             capacitiesByName[row.Name] = row.Capacity;
         }
 
-        return new FarmListsProjection(
+        var projection = new FarmListsProjection(
             rows,
             analyzedCoordinates,
             incompleteReads,
             capacitiesByName,
             mergedByKey.Count);
+        lock (_stateLock)
+        {
+            _currentProjection = projection;
+        }
+
+        return projection;
+    }
+
+    public OfficialAddFarmsLoadResult BuildAddFarmsLoadResult(
+        IReadOnlyList<TravcoListStore.TravcoSavedList> sourceLists,
+        FarmTargetIdentity ownIdentity)
+    {
+        if (sourceLists.Count == 0)
+        {
+            return new OfficialAddFarmsLoadResult(
+                false,
+                "No saved Travco lists with selected farms were found.",
+                [],
+                [],
+                new HashSet<string>());
+        }
+
+        FarmListsProjection projection;
+        lock (_stateLock)
+        {
+            projection = _currentProjection;
+        }
+
+        var targets = projection.Rows
+            .Select(row => new FarmListSelectionOption
+            {
+                Name = row.Name,
+                ActiveFarmCount = row.ActiveFarmCount,
+                TotalFarmCount = row.TotalFarmCount,
+                Capacity = row.Capacity,
+            })
+            .ToList();
+        return new OfficialAddFarmsLoadResult(
+            true,
+            null,
+            sourceLists,
+            targets,
+            new HashSet<string>(projection.AnalyzedCoordinates, StringComparer.OrdinalIgnoreCase),
+            projection.IncompleteReads,
+            ownIdentity);
     }
 
     public async Task SaveSnapshotAsync(
@@ -994,7 +1041,15 @@ public sealed record FarmListsProjection(
     IReadOnlySet<string> AnalyzedCoordinates,
     IReadOnlyList<string> IncompleteReads,
     IReadOnlyDictionary<string, int?> CapacitiesByName,
-    int DetectedCount);
+    int DetectedCount)
+{
+    public static FarmListsProjection Empty { get; } = new(
+        [],
+        new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+        [],
+        new Dictionary<string, int?>(StringComparer.OrdinalIgnoreCase),
+        0);
+}
 
 public sealed record FarmListsAutomationSnapshot(
     int TotalCount,
