@@ -213,17 +213,7 @@ public partial class MainWindow
             FarmingDefaults.NormalizeSendMode(LoadBotOptions().ContinuousFarmSendMode),
             FarmingDefaults.SendModeAllAtOnce,
             StringComparison.Ordinal);
-        var attemptedKeys = sendAllLists
-            ? _farmLists
-                .Where(row => IsRealFarmListRow(row) &&
-                    FarmListDispatchStateStore.ShouldTrackDispatch(
-                        true,
-                        row.IsEnabled,
-                        row.IsReady,
-                        row.IsEmpty))
-                .Select(FarmListsWorkflow.DispatchKey)
-                .ToList()
-            : [];
+        var attemptedKeys = _farmListsWorkflow.GetAutoDispatchKeys(_farmLists, sendAllLists);
 
         try
         {
@@ -768,10 +758,7 @@ public partial class MainWindow
             }
         }
 
-        var attemptedKeys = _farmLists
-            .Where(row => IsRealFarmListRow(row) && !row.IsEmpty && row.IsReady && (!sendToggled || row.IsEnabled))
-            .Select(FarmListsWorkflow.DispatchKey)
-            .ToList();
+        var attemptedKeys = _farmListsWorkflow.GetReadyDispatchKeys(_farmLists, sendToggled);
 
         var operationId = BeginOperation("Farm Send All Now");
         var operationSw = Stopwatch.StartNew();

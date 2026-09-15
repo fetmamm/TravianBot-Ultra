@@ -653,6 +653,32 @@ public sealed class FarmListsWorkflow(
         return successfulDispatch;
     }
 
+    public IReadOnlyList<string> GetAutoDispatchKeys(
+        IEnumerable<FarmListStatusRow> rows,
+        bool sendAllLists)
+        => sendAllLists
+            ? rows
+                .Where(row => FarmListsViewModel.IsRealRow(row)
+                    && FarmListDispatchStateStore.ShouldTrackDispatch(
+                        true,
+                        row.IsEnabled,
+                        row.IsReady,
+                        row.IsEmpty))
+                .Select(DispatchKey)
+                .ToList()
+            : [];
+
+    public IReadOnlyList<string> GetReadyDispatchKeys(
+        IEnumerable<FarmListStatusRow> rows,
+        bool enabledOnly)
+        => rows
+            .Where(row => FarmListsViewModel.IsRealRow(row)
+                && !row.IsEmpty
+                && row.IsReady
+                && (!enabledOnly || row.IsEnabled))
+            .Select(DispatchKey)
+            .ToList();
+
     public static string DispatchKey(FarmListStatusRow row)
         => FarmListDispatchStateStore.CreateKey(row.ListId, row.Name);
 

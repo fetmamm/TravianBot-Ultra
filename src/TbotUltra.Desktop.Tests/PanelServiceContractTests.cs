@@ -266,6 +266,13 @@ public sealed class PanelServiceContractTests : IDisposable
             [FarmListsWorkflow.DispatchKey(row)],
             options));
         Assert.False(row.LastSendFailed);
+
+        row.ActiveFarmCount = 1;
+        row.TotalFarmCount = 1;
+        row.RemainingSeconds = null;
+        row.IsEnabled = true;
+        Assert.Equal(["lid:lid-1"], workflow.GetReadyDispatchKeys([row], enabledOnly: true));
+        Assert.Equal(["lid:lid-1"], workflow.GetAutoDispatchKeys([row], sendAllLists: true));
     }
 
     [Fact]
