@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Models;
@@ -153,24 +154,30 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
-    public async Task FarmListsWorkflow_ExposesBrowserActionsWithoutCallerLoggingDependency()
+    public async Task FarmListsWorkflow_OrchestratesAnalysisAndDispatchIntents()
     {
         var client = new RecordingFarmingClient();
         var service = CreateFarmListsWorkflow(client, CreateConfigStore());
         var options = new BotOptions();
-        var request = new FarmListCreateRequest(["A"], "Capital", "did:1", "Phalanx", 3);
         using var cancellation = new CancellationTokenSource();
 
-        Assert.True(await service.IsGoldClubActiveAsync(options, cancellation.Token));
-        Assert.Same(client.Overview, await service.ReadOverviewAsync(options, cancellation.Token));
-        Assert.Equal(client.Identity, await service.ReadTargetProtectionIdentityAsync(options, cancellation.Token));
-        Assert.Equal(client.CreateResult, await service.CreateListsAsync(options, request, null, cancellation.Token));
-        Assert.Equal(2, await service.SendOneAsync(options, "A", cancellation.Token));
-        Assert.Equal(3, await service.SendSelectedAsync(options, ["A"], ["11"], cancellation.Token));
-        Assert.Equal(4, await service.SendAllAsync(options, cancellation.Token));
+        var analysis = await service.AnalyzeAsync(options, cancellation.Token);
+        Assert.True(analysis.IsAvailable);
+        Assert.Same(client.Overview, analysis.Lists);
+        var row = new FarmListStatusRow
+        {
+            Name = "A",
+            ListId = "11",
+            ActiveFarmCount = 1,
+            TotalFarmCount = 1,
+            IsEnabled = true,
+        };
+        Assert.True(await service.DispatchOneAsync(options, row, cancellation.Token));
+        Assert.Equal(2, row.RemainingSeconds);
+        Assert.Equal(3, (await service.DispatchManyAsync(options, [row], true, cancellation.Token)).SentCount);
+        Assert.Equal(4, (await service.DispatchManyAsync(options, [row], false, cancellation.Token)).SentCount);
 
-        Assert.Equal(["gold", "overview", "identity", "create", "one", "selected", "all"], client.Calls);
-        Assert.Same(request, client.CreateRequest);
+        Assert.Equal(["gold", "overview", "one", "selected", "all"], client.Calls);
         Assert.Equal("A", client.SendOneName);
         Assert.Equal(["A"], client.SelectedNames);
         Assert.Equal(["11"], client.SelectedIds);
@@ -178,7 +185,7 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
-    public void FarmListsWorkflow_ProjectsMergedOverviewAndPersistedSelection()
+    public async Task FarmListsWorkflow_ProjectsMergedOverviewAndPreparesAddFlow()
     {
         var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());
         var options = new BotOptions
@@ -210,13 +217,54 @@ public sealed class PanelServiceContractTests : IDisposable
         Assert.Equal(["1|2", "3|4", "5|6"], projection.AnalyzedCoordinates.Order());
         Assert.Contains("'Raiders' 1/3", projection.IncompleteReads);
 
-        var loadResult = workflow.BuildAddFarmsLoadResult(
-            [new TravcoListStore.TravcoSavedList { Name = "Source" }],
-            new FarmTargetIdentity(true, "Owner", null));
+        var loadResult = await workflow.PrepareAddFarmsAsync(
+            options,
+            [new TravcoListStore.TravcoSavedList
+            {
+                Name = "Source",
+                Rows = [new TravcoListStore.TravcoSavedRow { Selected = true }],
+            }],
+            CancellationToken.None);
         Assert.True(loadResult.Ok);
         Assert.Equal(2, loadResult.TargetLists.Count);
         Assert.Contains("3|4", loadResult.ExistingCoordinates);
         Assert.Contains("'Raiders' 1/3", loadResult.IncompleteFarmLists!);
+    }
+
+    [Fact]
+    public void FarmListsWorkflow_BuildsCapacityAndDuplicateSafeAddPlans()
+    {
+        var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());
+        var sourceId = Guid.NewGuid();
+        var rows = new[]
+        {
+            new TravcoListStore.TravcoSavedRow { Coordinates = "1|2", Distance = 1 },
+            new TravcoListStore.TravcoSavedRow { Coordinates = "3|4", Distance = 2 },
+        };
+
+        var plans = workflow.BuildAddPlans(new OfficialFarmAddPlanRequest(
+            sourceId,
+            "Source",
+            rows,
+            [new OfficialFarmAddTarget("A", 99, true), new OfficialFarmAddTarget("B", 99, true)],
+            new HashSet<string>(),
+            "distance_asc",
+            "all",
+            0,
+            null,
+            null,
+            null,
+            true,
+            false,
+            false,
+            false,
+            1,
+            true));
+
+        Assert.Equal(2, plans.Count);
+        Assert.Equal(new FarmCoordinate(1, 2), plans[0].Coordinates[0]);
+        Assert.Equal(2, plans[0].Coordinates.Count);
+        Assert.Equal(new FarmCoordinate(3, 4), Assert.Single(plans[1].Coordinates));
     }
 
     [Fact]
@@ -239,6 +287,19 @@ public sealed class PanelServiceContractTests : IDisposable
         Assert.InRange(restoredList.RemainingSeconds!.Value, 29, 30);
         Assert.Equal(["1|2", "3|4"], restoredList.FarmCoordinates);
         Assert.Equal("Capital", restoredList.VillageName);
+    }
+
+    [Fact]
+    public async Task FarmListsWorkflow_QuarantinesCorruptSnapshots()
+    {
+        var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());
+        var path = AccountStoragePaths.FarmListsSnapshotPath(_root, "alice");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await File.WriteAllTextAsync(path, "{broken");
+
+        Assert.Null(await workflow.LoadRestoredSnapshotAsync(DateTimeOffset.UtcNow));
+        Assert.False(File.Exists(path));
+        Assert.Single(Directory.GetFiles(Path.GetDirectoryName(path)!, $"{Path.GetFileName(path)}.corrupt-*"));
     }
 
     [Fact]
@@ -351,6 +412,41 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
+    public async Task FarmListsWorkflow_OwnsLossDestinationCreationAndVerification()
+    {
+        var store = CreateConfigStore();
+        store.Save(new JsonObject());
+        var client = new RecordingFarmingClient
+        {
+            Overview = [new FarmListOverview(
+                "Red losses", 0, 0, null, "list-7", 100, [], VillageName: "Capital")],
+            CreateResult = new FarmListCreateBatchResult(1, 1, ["Red losses"]),
+        };
+        var workflow = CreateFarmListsWorkflow(client, store);
+
+        var result = await workflow.CreateLossDestinationAsync(
+            new BotOptions { TargetVillageName = "Capital" },
+            [new VillageSelectionItem
+            {
+                Name = "Capital",
+                Url = "https://example.invalid/dorf1.php?newdid=7",
+                IsCapital = true,
+                Tribe = "Gauls",
+            }],
+            "Gauls",
+            FarmListLossColors.Red,
+            "Red losses",
+            CancellationToken.None);
+
+        Assert.Equal("list-7", result.Destination.ListId);
+        Assert.Equal("7", client.CreateRequest!.VillageId);
+        Assert.Equal(["create", "gold", "overview"], client.Calls);
+        Assert.Equal(
+            "Red losses",
+            store.Load()[BotOptionPayloadKeys.ContinuousFarmRedLossDestinationBaseName]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task FarmListsWorkflow_PausesAndResumesOriginalAutomationMode()
     {
         var store = CreateConfigStore();
@@ -434,7 +530,6 @@ public sealed class PanelServiceContractTests : IDisposable
             MoveYellowLosses: true,
             SelectedRedDestination: new FarmLossDestinationOption("red-id", "Red farms", "Capital", 3, 12),
             SelectedYellowDestination: new FarmLossDestinationOption("yellow-id", "Yellow farms", "Capital", 4, 12)));
-        service.SaveDestinationBaseName(true, "Pinned red base");
         var persisted = store.Load();
 
         Assert.Equal(FarmingDefaults.SendModeSharedSchedule, result.SendMode);
@@ -443,7 +538,7 @@ public sealed class PanelServiceContractTests : IDisposable
         Assert.True(result.MoveYellowLossesEnabled);
         Assert.Equal("red-id", persisted[BotOptionPayloadKeys.ContinuousFarmRedLossDestinationListId]!.GetValue<string>());
         Assert.Equal("Red farms", persisted[BotOptionPayloadKeys.ContinuousFarmRedLossDestinationListName]!.GetValue<string>());
-        Assert.Equal("Pinned red base", persisted[BotOptionPayloadKeys.ContinuousFarmRedLossDestinationBaseName]!.GetValue<string>());
+        Assert.Equal("Red farms", persisted[BotOptionPayloadKeys.ContinuousFarmRedLossDestinationBaseName]!.GetValue<string>());
         Assert.Equal("yellow-id", persisted[BotOptionPayloadKeys.ContinuousFarmYellowLossDestinationListId]!.GetValue<string>());
         Assert.Equal(4, persisted[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinMinutes]!.GetValue<int>());
         Assert.Equal(9, persisted[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMaxMinutes]!.GetValue<int>());
@@ -646,10 +741,10 @@ public sealed class PanelServiceContractTests : IDisposable
 
     private sealed class RecordingFarmingClient : IFarmListsBrowserAdapter
     {
-        public IReadOnlyList<FarmListOverview> Overview { get; } = [new("A", 1, 2, 30)];
+        public IReadOnlyList<FarmListOverview> Overview { get; set; } = [new("A", 1, 2, 30)];
         public FarmAddBatchResult AddResult { get; } = new("A", 5, 5, 3, 1, 1);
         public FarmTargetIdentity Identity { get; } = new(true, "Owner", "Alliance");
-        public FarmListCreateBatchResult CreateResult { get; } = new(1, 1, ["A"]);
+        public FarmListCreateBatchResult CreateResult { get; set; } = new(1, 1, ["A"]);
         public List<string> Calls { get; } = [];
         public List<CancellationToken> CancellationTokens { get; } = [];
         public IReadOnlyList<FarmCoordinate>? Coordinates { get; private set; }

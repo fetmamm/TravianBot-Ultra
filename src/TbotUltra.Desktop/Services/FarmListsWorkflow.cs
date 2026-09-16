@@ -2,6 +2,7 @@ using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Farming;
 using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Tasks;
+using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.ViewModels;
 using TbotUltra.Desktop.Services.Orchestration;
@@ -9,8 +10,51 @@ using TbotUltra.Worker.Domain;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace TbotUltra.Desktop.Services;
+
+internal interface IFarmListsWorkflow
+{
+    FarmListsAutomationSnapshot AutomationSnapshot { get; }
+    Task<FarmListsAnalysisResult> AnalyzeAsync(BotOptions options, CancellationToken cancellationToken);
+    Task<FarmListCreateBatchResult> CreateAfterAnalysisAsync(BotOptions options, FarmListCreateRequest request,
+        IProgress<FarmListCreateProgress> progress, CancellationToken cancellationToken);
+    Task<FarmLossDestinationCreationResult> CreateLossDestinationAsync(BotOptions options,
+        IReadOnlyList<VillageSelectionItem> villages, string fallbackTribe, FarmListLossColors lossColor,
+        string listName, CancellationToken cancellationToken);
+    Task<OfficialFarmAddRunResult> RunAddPlansAsync(BotOptions options, IReadOnlyList<OfficialFarmAddPlan> plans,
+        bool useDefaultTroops, string troopType, int troopCount, FarmTargetProtectionContext protection,
+        IProgress<FarmAddProgress> progress, CancellationToken cancellationToken);
+    Task<FarmListsAutomationResume> PauseAutomationAsync(CancellationToken cancellationToken);
+    Task ResumeAutomationAsync(FarmListsAutomationResume resume);
+    void CaptureAutomationState(IEnumerable<FarmListStatusRow> rows, DateTimeOffset? analyzedAt = null);
+    void SaveSelection(IEnumerable<FarmListStatusRow> rows);
+    bool CanReuseRecentAnalysis(DateTimeOffset now);
+    void InvalidateAnalysis();
+    void ResetProjection();
+    FarmListsProjection ProjectOverview(IReadOnlyList<FarmListOverview> lists, BotOptions options,
+        IReadOnlyDictionary<string, string> villageCoordinates, FarmListsPresentationOptions presentation);
+    Task<OfficialAddFarmsLoadResult> PrepareAddFarmsAsync(BotOptions options,
+        IReadOnlyList<TravcoListStore.TravcoSavedList> availableSourceLists, CancellationToken cancellationToken);
+    IReadOnlyList<OfficialFarmAddPlan> BuildAddPlans(OfficialFarmAddPlanRequest request);
+    Task<IReadOnlyList<FarmListOverview>?> LoadFreshSnapshotAsync(CancellationToken cancellationToken);
+    Task<IReadOnlyList<FarmListOverview>?> LoadRestoredSnapshotAsync(DateTimeOffset now,
+        CancellationToken cancellationToken = default);
+    bool PersistDispatchInterval(FarmListStatusRow row, int minMinutes, int maxMinutes, BotOptions options);
+    bool ReconcileDispatches(IEnumerable<FarmListStatusRow> rows, IReadOnlyCollection<string> attemptedKeys,
+        BotOptions options);
+    IReadOnlyList<string> GetAutoDispatchKeys(IEnumerable<FarmListStatusRow> rows, bool sendAllLists);
+    AddFarmsProtectionPreferences LoadTargetProtectionPreferences();
+    FarmTargetProtectionPreparation PrepareTargetProtection(FarmTargetIdentity identity,
+        AddFarmsProtectionPreferences requested);
+    FarmLossDestinationSetupValidation ValidateLossDestinationSetup(bool isLoggedIn);
+    Task<bool> IsGoldClubActiveAsync(BotOptions options, CancellationToken cancellationToken);
+    Task<bool> DispatchOneAsync(BotOptions options, FarmListStatusRow row, CancellationToken cancellationToken);
+    Task<FarmListBatchDispatchResult> DispatchManyAsync(BotOptions options,
+        IReadOnlyList<FarmListStatusRow> rows, bool enabledOnly, CancellationToken cancellationToken);
+    FarmingSettingsSaveResult SaveSettings(FarmingPanelSettings settings);
+}
 
 /// <summary>
 /// Owns the Farm Lists desktop workflow and its account-scoped settings.
@@ -22,7 +66,7 @@ public sealed class FarmListsWorkflow(
     BotConfigStore configStore,
     string projectRoot,
     Func<string> activeAccountName,
-    Action<string> log)
+    Action<string> log) : IFarmListsWorkflow
 {
     public const int MaximumVisibleLists = 120;
     private static readonly TimeSpan RecentAnalysisWindow = TimeSpan.FromMinutes(5);
@@ -73,6 +117,68 @@ public sealed class FarmListsWorkflow(
         log($"[farm-list-create] requested={request.Names.Count}, village='{request.VillageName}', "
             + $"default={request.TroopCount} {request.TroopType}.");
         return await client.CreateListsAsync(options, request, log, progress, cancellationToken);
+    }
+
+    public async Task<FarmLossDestinationCreationResult> CreateLossDestinationAsync(
+        BotOptions options,
+        IReadOnlyList<VillageSelectionItem> villages,
+        string fallbackTribe,
+        FarmListLossColors lossColor,
+        string listName,
+        CancellationToken cancellationToken)
+    {
+        var village = villages.FirstOrDefault(item =>
+                !string.IsNullOrWhiteSpace(options.TargetVillageUrl)
+                && string.Equals(item.Url, options.TargetVillageUrl, StringComparison.OrdinalIgnoreCase))
+            ?? villages.FirstOrDefault(item =>
+                !string.IsNullOrWhiteSpace(options.TargetVillageName)
+                && string.Equals(item.Name, options.TargetVillageName, StringComparison.OrdinalIgnoreCase))
+            ?? villages.FirstOrDefault(item => item.IsCapital)
+            ?? villages.FirstOrDefault();
+        if (village is null)
+        {
+            throw new InvalidOperationException("Load at least one village before creating a loss farmlist.");
+        }
+
+        var tribe = TroopCatalog.IsKnownTribe(village.Tribe) ? village.Tribe : fallbackTribe;
+        var troopType = TroopCatalog.ResolveTroopTypesForTribe(tribe).FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(troopType))
+        {
+            throw new InvalidOperationException("Could not resolve a default troop type for the selected village.");
+        }
+
+        var villageIdMatch = Regex.Match(village.Url ?? string.Empty, @"[?&]newdid=(\d+)", RegexOptions.IgnoreCase);
+        var request = new FarmListCreateRequest(
+            [listName],
+            village.Name,
+            villageIdMatch.Success ? villageIdMatch.Groups[1].Value : null,
+            troopType,
+            1,
+            OnlyCreateReportsWithLosses: options.FarmListOnlyCreateReportsWithLosses);
+        var createResult = await client.CreateListsAsync(options, request, log, progress: null, cancellationToken);
+        if (createResult.CreatedCount != 1
+            || !createResult.CreatedNames.Contains(listName, StringComparer.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"Travian did not confirm creation of farmlist '{listName}'.");
+        }
+
+        var analysis = await AnalyzeAsync(options, cancellationToken);
+        var verified = analysis.Lists.FirstOrDefault(item =>
+            string.Equals(item.Name, listName, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(item.VillageName, village.Name, StringComparison.OrdinalIgnoreCase));
+        if (verified is null || string.IsNullOrWhiteSpace(verified.ListId))
+        {
+            throw new InvalidOperationException($"Created farmlist '{listName}' could not be verified after refresh.");
+        }
+
+        var destination = new FarmLossDestinationOption(
+            verified.ListId.Trim(),
+            verified.Name.Trim(),
+            verified.VillageName?.Trim() ?? village.Name,
+            Math.Max(0, verified.TotalFarmCount),
+            verified.Capacity is > 0 ? verified.Capacity.Value : 100);
+        SaveDestinationBaseName(lossColor, listName);
+        return new FarmLossDestinationCreationResult(destination, analysis);
     }
 
     public async Task<OfficialFarmAddRunResult> RunAddPlansAsync(
@@ -164,6 +270,76 @@ public sealed class FarmListsWorkflow(
             ExcludedPlayers: excludedPlayers,
             ExcludedAlliances: excludedAlliances,
             IdentityUnavailable: identityUnavailable);
+    }
+
+    public async Task<bool> DispatchOneAsync(
+        BotOptions options,
+        FarmListStatusRow row,
+        CancellationToken cancellationToken)
+    {
+        try
+        {
+            var timerSeconds = await client.SendOneAsync(options, row.Name, log, cancellationToken);
+            row.RemainingSeconds = timerSeconds is > 0 ? timerSeconds : null;
+            return RecordDispatch(row, succeeded: true, options);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            RecordDispatch(row, succeeded: false, options);
+            throw;
+        }
+    }
+
+    public async Task<FarmListBatchDispatchResult> DispatchManyAsync(
+        BotOptions options,
+        IReadOnlyList<FarmListStatusRow> rows,
+        bool enabledOnly,
+        CancellationToken cancellationToken)
+    {
+        var attemptedKeys = GetReadyDispatchKeys(rows, enabledOnly);
+        try
+        {
+            int sentCount;
+            if (enabledOnly)
+            {
+                var enabledRows = rows.Where(row => FarmListsViewModel.IsRealRow(row) && row.IsEnabled).ToList();
+                var names = enabledRows
+                    .Select(row => row.Name)
+                    .Where(name => !string.IsNullOrWhiteSpace(name))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                var ids = enabledRows
+                    .Select(row => row.ListId)
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Select(id => id!.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                sentCount = await client.SendSelectedAsync(options, names, ids, log, cancellationToken);
+            }
+            else
+            {
+                sentCount = await client.SendAllAsync(options, log, cancellationToken);
+            }
+
+            return new FarmListBatchDispatchResult(sentCount, attemptedKeys);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch
+        {
+            foreach (var row in rows.Where(row => attemptedKeys.Contains(DispatchKey(row))))
+            {
+                RecordDispatch(row, succeeded: false, options);
+            }
+
+            throw;
+        }
     }
 
     public async Task<FarmListsAutomationResume> PauseAutomationAsync(CancellationToken cancellationToken)
@@ -477,10 +653,14 @@ public sealed class FarmListsWorkflow(
         return projection;
     }
 
-    public OfficialAddFarmsLoadResult BuildAddFarmsLoadResult(
-        IReadOnlyList<TravcoListStore.TravcoSavedList> sourceLists,
-        FarmTargetIdentity ownIdentity)
+    public async Task<OfficialAddFarmsLoadResult> PrepareAddFarmsAsync(
+        BotOptions options,
+        IReadOnlyList<TravcoListStore.TravcoSavedList> availableSourceLists,
+        CancellationToken cancellationToken)
     {
+        var sourceLists = availableSourceLists
+            .Where(list => list.Rows.Any(row => row.Selected))
+            .ToList();
         if (sourceLists.Count == 0)
         {
             return new OfficialAddFarmsLoadResult(
@@ -490,6 +670,8 @@ public sealed class FarmListsWorkflow(
                 [],
                 new HashSet<string>());
         }
+
+        var ownIdentity = await client.ReadTargetProtectionIdentityAsync(options, log, cancellationToken);
 
         FarmListsProjection projection;
         lock (_stateLock)
@@ -516,7 +698,62 @@ public sealed class FarmListsWorkflow(
             ownIdentity);
     }
 
-    public async Task SaveSnapshotAsync(
+    public IReadOnlyList<OfficialFarmAddPlan> BuildAddPlans(OfficialFarmAddPlanRequest request)
+    {
+        var workingExisting = new HashSet<string>(request.ExistingCoordinates, StringComparer.OrdinalIgnoreCase);
+        var plans = new List<OfficialFarmAddPlan>();
+        foreach (var target in request.Targets.Where(target => target.Selected))
+        {
+            const int officialFarmListCapacity = 100;
+            var availableSlots = Math.Max(0, officialFarmListCapacity - target.FarmCount);
+            var amount = request.FillAvailable
+                ? availableSlots
+                : Math.Min(availableSlots, request.RequestedAmount);
+            if (amount <= 0)
+            {
+                continue;
+            }
+
+            var coordinates = OfficialFarmSelection.Filter(
+                request.SourceRows,
+                workingExisting,
+                request.SourceRows.Count,
+                request.Order,
+                request.PopulationMode,
+                request.PopulationLimit,
+                request.MaximumDistance,
+                request.SkipDuplicates,
+                request.ReferenceVillage,
+                request.OasisTypes,
+                request.IncludeOccupied,
+                request.SkipLowPopulationVillages,
+                requireUnoccupiedOasis: request.IsOasisList && !request.IncludeOccupied);
+            if (coordinates.Count == 0)
+            {
+                continue;
+            }
+
+            plans.Add(new OfficialFarmAddPlan(
+                request.SourceListId,
+                request.SourceListName,
+                target.Name,
+                amount,
+                coordinates));
+            if (!request.SkipDuplicates)
+            {
+                continue;
+            }
+
+            foreach (var coordinate in coordinates.Take(amount))
+            {
+                workingExisting.Add($"{coordinate.X}|{coordinate.Y}");
+            }
+        }
+
+        return plans;
+    }
+
+    public Task SaveSnapshotAsync(
         IReadOnlyList<FarmListOverview> lists,
         CancellationToken cancellationToken)
     {
@@ -529,7 +766,8 @@ public sealed class FarmListsWorkflow(
                 CapturedAtUtc = DateTimeOffset.UtcNow,
                 Lists = lists.Select(FarmListSnapshotEntryDto.FromOverview).ToList(),
             };
-            await File.WriteAllTextAsync(path, JsonSerializer.Serialize(payload), cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            AtomicFile.WriteAllText(path, JsonSerializer.Serialize(payload));
             var coordinateCount = lists
                 .SelectMany(item => item.FarmCoordinates ?? [])
                 .Where(value => !string.IsNullOrWhiteSpace(value))
@@ -545,6 +783,8 @@ public sealed class FarmListsWorkflow(
         {
             log($"Could not save farm list analysis snapshot: {ex.Message}");
         }
+
+        return Task.CompletedTask;
     }
 
     public Task<IReadOnlyList<FarmListOverview>?> LoadFreshSnapshotAsync(CancellationToken cancellationToken)
@@ -779,7 +1019,7 @@ public sealed class FarmListsWorkflow(
         }
         catch (Exception ex)
         {
-            log($"Farm list snapshot could not be parsed: {ex.Message}");
+            QuarantineCorruptSnapshot(path, ex);
             return null;
         }
 
@@ -798,6 +1038,21 @@ public sealed class FarmListsWorkflow(
             .Where(entry => entry is not null && !string.IsNullOrWhiteSpace(entry.Name))
             .Select(entry => entry!.ToOverview(elapsedSeconds))
             .ToList();
+    }
+
+    private void QuarantineCorruptSnapshot(string path, Exception parseException)
+    {
+        try
+        {
+            var quarantinePath = $"{path}.corrupt-{DateTimeOffset.UtcNow:yyyyMMddHHmmssfff}";
+            File.Move(path, quarantinePath, overwrite: false);
+            log($"Farm list snapshot was corrupt and moved to '{Path.GetFileName(quarantinePath)}': {parseException.Message}");
+        }
+        catch (Exception quarantineException)
+        {
+            log($"Farm list snapshot could not be parsed or quarantined: {parseException.Message} "
+                + $"Quarantine failed: {quarantineException.Message}");
+        }
     }
 
     internal static string BuildVillageHeader(
@@ -933,29 +1188,6 @@ public sealed class FarmListsWorkflow(
     public Task<bool> IsGoldClubActiveAsync(BotOptions options, CancellationToken cancellationToken)
         => client.ReadAndPersistGoldClubStatusAsync(options, log, cancellationToken);
 
-    public Task<IReadOnlyList<FarmListOverview>> ReadOverviewAsync(BotOptions options, CancellationToken cancellationToken)
-        => client.ReadOverviewAsync(options, log, cancellationToken);
-
-    public Task<FarmTargetIdentity> ReadTargetProtectionIdentityAsync(
-        BotOptions options, CancellationToken cancellationToken)
-        => client.ReadTargetProtectionIdentityAsync(options, log, cancellationToken);
-
-    public Task<FarmListCreateBatchResult> CreateListsAsync(
-        BotOptions options, FarmListCreateRequest request,
-        IProgress<FarmListCreateProgress>? progress, CancellationToken cancellationToken)
-        => client.CreateListsAsync(options, request, log, progress, cancellationToken);
-
-    public Task<int?> SendOneAsync(BotOptions options, string farmListName, CancellationToken cancellationToken)
-        => client.SendOneAsync(options, farmListName, log, cancellationToken);
-
-    public Task<int> SendSelectedAsync(
-        BotOptions options, IReadOnlyCollection<string> names, IReadOnlyCollection<string> ids,
-        CancellationToken cancellationToken)
-        => client.SendSelectedAsync(options, names, ids, log, cancellationToken);
-
-    public Task<int> SendAllAsync(BotOptions options, CancellationToken cancellationToken)
-        => client.SendAllAsync(options, log, cancellationToken);
-
     public FarmingSettingsSaveResult SaveSettings(FarmingPanelSettings settings)
     {
         var config = configStore.Load();
@@ -993,10 +1225,10 @@ public sealed class FarmListsWorkflow(
             yellowDestination?.Name);
     }
 
-    public void SaveDestinationBaseName(bool isRed, string name)
+    private void SaveDestinationBaseName(FarmListLossColors lossColor, string name)
     {
         var config = configStore.Load();
-        config[isRed
+        config[lossColor == FarmListLossColors.Red
             ? BotOptionPayloadKeys.ContinuousFarmRedLossDestinationBaseName
             : BotOptionPayloadKeys.ContinuousFarmYellowLossDestinationBaseName] = name;
         configStore.Save(config);
@@ -1031,6 +1263,56 @@ public sealed record FarmListsPresentationOptions(
 public sealed record FarmListsAnalysisResult(
     bool IsAvailable,
     IReadOnlyList<FarmListOverview> Lists);
+
+public sealed record OfficialFarmAddPlan(
+    Guid SourceListId,
+    string SourceListName,
+    string TargetName,
+    int DesiredCount,
+    IReadOnlyList<FarmCoordinate> Coordinates);
+
+public sealed record OfficialFarmAddRunResult(
+    int Requested,
+    int Added,
+    int Duplicates,
+    int Failed,
+    IReadOnlyList<FarmCoordinate> InvalidCoordinates,
+    Guid SourceListId = default,
+    string SourceListName = "",
+    int OccupiedSkipped = 0,
+    int ExcludedPlayers = 0,
+    int ExcludedAlliances = 0,
+    int IdentityUnavailable = 0);
+
+public sealed record OfficialAddFarmsLoadResult(
+    bool Ok,
+    string? Message,
+    IReadOnlyList<TravcoListStore.TravcoSavedList> SourceLists,
+    IReadOnlyList<FarmListSelectionOption> TargetLists,
+    IReadOnlySet<string> ExistingCoordinates,
+    IReadOnlyList<string>? IncompleteFarmLists = null,
+    FarmTargetIdentity? OwnIdentity = null);
+
+public sealed record OfficialFarmAddTarget(string Name, int FarmCount, bool Selected);
+
+public sealed record OfficialFarmAddPlanRequest(
+    Guid SourceListId,
+    string SourceListName,
+    IReadOnlyList<TravcoListStore.TravcoSavedRow> SourceRows,
+    IReadOnlyList<OfficialFarmAddTarget> Targets,
+    IReadOnlySet<string> ExistingCoordinates,
+    string Order,
+    string PopulationMode,
+    long PopulationLimit,
+    double? MaximumDistance,
+    (int X, int Y)? ReferenceVillage,
+    IReadOnlySet<string>? OasisTypes,
+    bool IncludeOccupied,
+    bool SkipLowPopulationVillages,
+    bool IsOasisList,
+    bool FillAvailable,
+    int RequestedAmount,
+    bool SkipDuplicates);
 
 public interface IFarmListsAutomationAdapter
 {
@@ -1068,6 +1350,14 @@ public sealed record FarmTargetProtectionPreparation(
 }
 
 public sealed record FarmLossDestinationSetupValidation(bool CanStart, string? FailureMessage);
+
+public sealed record FarmLossDestinationCreationResult(
+    FarmLossDestinationOption Destination,
+    FarmListsAnalysisResult Analysis);
+
+public sealed record FarmListBatchDispatchResult(
+    int SentCount,
+    IReadOnlyList<string> AttemptedKeys);
 
 public sealed record FarmListsProjection(
     IReadOnlyList<FarmListStatusRow> Rows,

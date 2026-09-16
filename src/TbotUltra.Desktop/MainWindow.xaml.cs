@@ -116,7 +116,8 @@ public partial class MainWindow : Window
     private readonly IDesktopBotService _botService;
     private readonly HeroPanelService _heroPanelService;
     private readonly ResourcesPanelService _resourcesPanelService;
-    private readonly FarmListsWorkflow _farmListsWorkflow;
+    private readonly IFarmListsWorkflow _farmListsWorkflow;
+    private readonly FarmListsDialogAdapter _farmListsDialogs;
     private readonly BuildingsPanelService _buildingsPanelService;
     private readonly TroopTrainingPanelService _troopTrainingPanelService;
     private readonly QueuePanelService _queuePanelService;
@@ -534,6 +535,7 @@ public partial class MainWindow : Window
             _projectRoot,
             _accountStore.ActiveAccountName,
             AppendLog);
+        _farmListsDialogs = new FarmListsDialogAdapter(this);
         _buildingsPanelService = new BuildingsPanelService(new DesktopBuildingsPanelClient(_botService));
         _troopTrainingPanelService = new TroopTrainingPanelService(new DesktopTroopTrainingPanelClient(_botService), _botConfigStore, _projectRoot);
         _queuePanelService = new QueuePanelService(new DesktopQueuePanelClient(_botService));

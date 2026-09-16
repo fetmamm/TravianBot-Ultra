@@ -5,7 +5,6 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Linq;
 using System.Text.Json.Nodes;
-using System.Text.RegularExpressions;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -355,13 +354,10 @@ public partial class MainWindow
                         new HashSet<string>());
                 }
 
-                var sourceLists = _travcoListStore.LoadAll()
-                    .Where(list => list.Rows.Any(row => row.Selected))
-                    .ToList();
-                var ownIdentity = await _farmListsWorkflow.ReadTargetProtectionIdentityAsync(
+                return await _farmListsWorkflow.PrepareAddFarmsAsync(
                     options,
+                    _travcoListStore.LoadAll(),
                     cancellationToken);
-                return _farmListsWorkflow.BuildAddFarmsLoadResult(sourceLists, ownIdentity);
             }
 
             Task<OfficialFarmAddRunResult> RunOfficialPlansAsync(
@@ -387,26 +383,24 @@ public partial class MainWindow
                     village.CoordX,
                     village.CoordY))
                 .ToList();
-            var officialDialog = new OfficialAddFarmsWindow(
+            var dialogResult = _farmListsDialogs.ShowAddFarms(new OfficialAddFarmsDialogRequest(
                 ResolveCurrentTribeForFarming(),
                 LoadAddFarmsTroopCount(),
                 LoadOfficialAsync,
                 RunOfficialPlansAsync,
+                _farmListsWorkflow.BuildAddPlans,
                 operationToken,
                 _farmListsWorkflow.LoadTargetProtectionPreferences(),
                 _farmListsWorkflow.PrepareTargetProtection,
                 villageOptions,
-                GetSelectedVillageName())
+                GetSelectedVillageName()));
+            if (!dialogResult.Accepted || dialogResult.RunResult is null)
             {
-                Owner = this,
-            };
-            if (officialDialog.ShowDialog() != true || officialDialog.RunResult is null)
-            {
-                if (!string.IsNullOrWhiteSpace(officialDialog.LoadFailureMessage))
+                if (!string.IsNullOrWhiteSpace(dialogResult.LoadFailureMessage))
                 {
                     AppDialog.Show(
                         this,
-                        officialDialog.LoadFailureMessage,
+                        dialogResult.LoadFailureMessage,
                         "Add farms",
                         MessageBoxButton.OK,
                         MessageBoxImage.Information);
@@ -415,22 +409,22 @@ public partial class MainWindow
                 CompleteOperation(
                     operationId,
                     operationSw,
-                    string.IsNullOrWhiteSpace(officialDialog.LoadFailureMessage)
+                    string.IsNullOrWhiteSpace(dialogResult.LoadFailureMessage)
                         ? "Add farms canceled."
-                        : officialDialog.LoadFailureMessage);
+                        : dialogResult.LoadFailureMessage);
                 return;
             }
 
             BusyOverlay.ShowCancel = false;
             ShowBusyOverlay("Adding farms", "Finalizing farm list updates...");
             await RefreshFarmListsFromServerAsync(options, operationToken);
-            var runResult = officialDialog.RunResult;
+            var runResult = dialogResult.RunResult;
             HideBusyOverlay();
 
             // Single modern completion popup: the run summary as stat tiles, and — only when dead villages
             // were found — the "remove them from the Travco list?" question baked into the same dialog
             // (Keep / Remove them) so the user never sees two separate popups.
-            var elapsed = officialDialog.RunDuration;
+            var elapsed = dialogResult.RunDuration;
             var completeWindow = new AddFarmsCompleteWindow(
                 this,
                 runResult.Added,
@@ -535,17 +529,14 @@ public partial class MainWindow
                     cancellationToken);
             }
 
-            var dialog = new CreateFarmListsWindow(
+            var createResult = _farmListsDialogs.ShowCreateFarmLists(new CreateFarmListsDialogRequest(
                 ResolveCurrentTribeForFarming(),
                 villages,
                 options.FarmListOnlyCreateReportsWithLosses,
                 SaveFarmListOnlyCreateReportsWithLosses,
                 RunAsync,
-                operationToken)
-            {
-                Owner = this,
-            };
-            if (dialog.ShowDialog() != true || dialog.RunResult is null)
+                operationToken));
+            if (createResult is null)
             {
                 CompleteOperation(operationId, operationSw, "Create farmlists canceled.");
                 return;
@@ -553,7 +544,7 @@ public partial class MainWindow
 
             await RefreshFarmListsFromServerAsync(options, operationToken);
 
-            var createdCount = dialog.RunResult.CreatedCount;
+            var createdCount = createResult.CreatedCount;
             AppDialog.ShowCustom(
                 this,
                 $"{createdCount} farmlist{(createdCount == 1 ? " was" : "s were")} created.",
@@ -567,7 +558,7 @@ public partial class MainWindow
             CompleteOperation(
                 operationId,
                 operationSw,
-                $"Created {dialog.RunResult.CreatedCount}/{dialog.RunResult.RequestedCount} farmlists.");
+                $"Created {createResult.CreatedCount}/{createResult.RequestedCount} farmlists.");
         }
         catch (OperationCanceledException)
         {
@@ -683,9 +674,7 @@ public partial class MainWindow
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
             await EnsureChromiumInstalledAsync();
-            var timerSeconds = await _farmListsWorkflow.SendOneAsync(options, list.Name, operationToken);
-            list.RemainingSeconds = timerSeconds is > 0 ? timerSeconds : null;
-            if (_farmListsWorkflow.RecordDispatch(list, succeeded: true, LoadBotOptions()))
+            if (await _farmListsWorkflow.DispatchOneAsync(options, list, operationToken))
             {
                 WakeContinuousFarmScheduling();
             }
@@ -698,7 +687,6 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            _farmListsWorkflow.RecordDispatch(list, succeeded: false, LoadBotOptions());
             FailOperation(operationId, operationSw, ex);
         }
         finally
@@ -734,31 +722,12 @@ public partial class MainWindow
         }
 
         var sendToggled = chooser.Choice == SendAllFarmListsWindow.SendAllChoice.Toggled;
-        List<string> toggledNames = [];
-        List<string> toggledIds = [];
-        if (sendToggled)
+        if (sendToggled && !_farmLists.Any(row => IsRealFarmListRow(row) && row.IsEnabled))
         {
-            var enabledRows = _farmLists.Where(row => IsRealFarmListRow(row) && row.IsEnabled).ToList();
-            toggledNames = enabledRows
-                .Select(row => row.Name)
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            toggledIds = enabledRows
-                .Select(row => row.ListId)
-                .Where(id => !string.IsNullOrWhiteSpace(id))
-                .Select(id => id!.Trim())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            if (toggledNames.Count == 0 && toggledIds.Count == 0)
-            {
-                AppendLog("[farm-list] Send all toggled: no farm lists are toggled on.");
-                AppDialog.Show(this, "No farm lists are toggled on.", "Send farmlists", MessageBoxButton.OK, MessageBoxImage.Information);
-                return;
-            }
+            AppendLog("[farm-list] Send all toggled: no farm lists are toggled on.");
+            AppDialog.Show(this, "No farm lists are toggled on.", "Send farmlists", MessageBoxButton.OK, MessageBoxImage.Information);
+            return;
         }
-
-        var attemptedKeys = _farmListsWorkflow.GetReadyDispatchKeys(_farmLists, sendToggled);
 
         var operationId = BeginOperation("Farm Send All Now");
         var operationSw = Stopwatch.StartNew();
@@ -770,15 +739,17 @@ public partial class MainWindow
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
             await EnsureChromiumInstalledAsync();
-            var sentCount = sendToggled
-                ? await _farmListsWorkflow.SendSelectedAsync(options, toggledNames, toggledIds, operationToken)
-                : await _farmListsWorkflow.SendAllAsync(options, operationToken);
+            var dispatch = await _farmListsWorkflow.DispatchManyAsync(
+                options,
+                _farmLists.ToList(),
+                sendToggled,
+                operationToken);
             await RefreshFarmListsFromServerAsync(options, operationToken);
-            if (_farmListsWorkflow.ReconcileDispatches(_farmLists, attemptedKeys, LoadBotOptions()))
+            if (_farmListsWorkflow.ReconcileDispatches(_farmLists, dispatch.AttemptedKeys, LoadBotOptions()))
             {
                 WakeContinuousFarmScheduling();
             }
-            CompleteOperation(operationId, operationSw, $"Sent {(sendToggled ? "toggled" : "all")} farmlists ({sentCount} list(s)).");
+            CompleteOperation(operationId, operationSw, $"Sent {(sendToggled ? "toggled" : "all")} farmlists ({dispatch.SentCount} list(s)).");
         }
         catch (OperationCanceledException)
         {
@@ -786,10 +757,6 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            foreach (var row in _farmLists.Where(row => attemptedKeys.Contains(FarmListsWorkflow.DispatchKey(row))))
-            {
-                _farmListsWorkflow.RecordDispatch(row, succeeded: false, LoadBotOptions());
-            }
             FailOperation(operationId, operationSw, ex);
         }
         finally
@@ -1247,78 +1214,21 @@ public partial class MainWindow
         string listName,
         CancellationToken cancellationToken)
     {
-        var villages = GetFarmListCreationVillages();
-        var village = villages.FirstOrDefault(item =>
-                !string.IsNullOrWhiteSpace(options.TargetVillageUrl)
-                && string.Equals(item.Url, options.TargetVillageUrl, StringComparison.OrdinalIgnoreCase))
-            ?? villages.FirstOrDefault(item =>
-                !string.IsNullOrWhiteSpace(options.TargetVillageName)
-                && string.Equals(item.Name, options.TargetVillageName, StringComparison.OrdinalIgnoreCase))
-            ?? villages.FirstOrDefault(item => item.IsCapital)
-            ?? villages.FirstOrDefault();
-        if (village is null)
-        {
-            throw new InvalidOperationException("Load at least one village before creating a loss farmlist.");
-        }
-
-        var tribe = TroopCatalog.IsKnownTribe(village.Tribe) ? village.Tribe : ResolveCurrentTribeForFarming();
-        var troopType = TroopCatalog.ResolveTroopTypesForTribe(tribe).FirstOrDefault();
-        if (string.IsNullOrWhiteSpace(troopType))
-        {
-            throw new InvalidOperationException("Could not resolve a default troop type for the selected village.");
-        }
-
-        var villageIdMatch = Regex.Match(village.Url ?? string.Empty, @"[?&]newdid=(\d+)", RegexOptions.IgnoreCase);
-        var request = new FarmListCreateRequest(
-            [listName],
-            village.Name,
-            villageIdMatch.Success ? villageIdMatch.Groups[1].Value : null,
-            troopType,
-            1,
-            OnlyCreateReportsWithLosses: options.FarmListOnlyCreateReportsWithLosses);
-
         BusyOverlay.ShowCancel = true;
         ShowBusyOverlay("Creating loss farmlist", $"Creating '{listName}'...");
         await EnsureChromiumInstalledAsync();
-        var createResult = await _farmListsWorkflow.CreateListsAsync(
+        var result = await _farmListsWorkflow.CreateLossDestinationAsync(
             options,
-            request,
-            null,
+            GetFarmListCreationVillages(),
+            ResolveCurrentTribeForFarming(),
+            lossColor,
+            listName,
             cancellationToken);
-        if (createResult.CreatedCount != 1
-            || !createResult.CreatedNames.Contains(listName, StringComparer.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException($"Travian did not confirm creation of farmlist '{listName}'.");
-        }
-
-        await RefreshFarmListsFromServerAsync(options, cancellationToken);
-        var created = _farmListsViewModel.LossDestinations
-            .FirstOrDefault(item => string.Equals(item.Name, listName, StringComparison.OrdinalIgnoreCase));
-        if (created is null)
-        {
-            // The panel limits displayed rows, so verify the complete overview before reporting failure.
-            var verifiedLists = await _farmListsWorkflow.ReadOverviewAsync(options, cancellationToken);
-            var verified = verifiedLists.FirstOrDefault(item =>
-                string.Equals(item.Name, listName, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(item.VillageName, village.Name, StringComparison.OrdinalIgnoreCase));
-            if (verified is null || string.IsNullOrWhiteSpace(verified.ListId))
-            {
-                throw new InvalidOperationException($"Created farmlist '{listName}' could not be verified after refresh.");
-            }
-
-            created = new FarmLossDestinationOption(
-                verified.ListId.Trim(),
-                verified.Name.Trim(),
-                verified.VillageName?.Trim() ?? village.Name,
-                Math.Max(0, verified.TotalFarmCount),
-                verified.Capacity is > 0 ? verified.Capacity.Value : 100);
-            _farmListsViewModel.LossDestinations.Add(created);
-        }
-
+        UpdateGoldClubInfo(result.Analysis.IsAvailable);
+        await ApplyFarmListOverviewToUiAsync(result.Analysis.Lists);
         var isRed = lossColor == FarmListLossColors.Red;
-        _farmListsWorkflow.SaveDestinationBaseName(isRed, listName);
-        SetSelectedLossDestination(isRed, created);
-        AppendLog($"[farm-list] created and selected '{created.Name}' as the {lossColor.ToString().ToLowerInvariant()} loss destination.");
+        SetSelectedLossDestination(isRed, result.Destination);
+        AppendLog($"[farm-list] created and selected '{result.Destination.Name}' as the {lossColor.ToString().ToLowerInvariant()} loss destination.");
     }
 
     private void SetMoveLosses(bool isRed, bool value)
