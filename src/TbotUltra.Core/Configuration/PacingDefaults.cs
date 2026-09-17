@@ -84,11 +84,11 @@ public static class PacingDefaults
     // Capped at MaxDelayMinutes. No-Plus case (only one slot; next build starts only once the
     // current finishes): a random value in the [NoPlusMin, NoPlusMax] minute range instead.
     public const bool ConstructionHumanizeDelayEnabled = true;
-    public const double ConstructionHumanizeQueuePercentMin = 5.0;
-    public const double ConstructionHumanizeQueuePercentMax = 20.0;
-    public const double ConstructionHumanizeMaxDelayMinutes = 25.0;
+    public const double ConstructionHumanizeQueuePercentMin = 10.0;
+    public const double ConstructionHumanizeQueuePercentMax = 40.0;
+    public const double ConstructionHumanizeMaxDelayMinutes = 30.0;
     public const double ConstructionHumanizeNoPlusMinMinutes = 0.5;
-    public const double ConstructionHumanizeNoPlusMaxMinutes = 3.0;
+    public const double ConstructionHumanizeNoPlusMaxMinutes = 4.0;
     public const int ConstructionLoginFillWindowMinutes = 15;
 
     public static int NormalizeShortVillageDeferSeconds(int value)

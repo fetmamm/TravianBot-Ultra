@@ -857,6 +857,12 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.True(options.ActionPacingIdleBrowsePageStatisticsAttackers);
         Assert.Equal(0.3, options.CollectStepDelayMinSeconds);
         Assert.Equal(0.8, options.CollectStepDelayMaxSeconds);
+        Assert.True(options.ConstructionHumanizeDelayEnabled);
+        Assert.Equal(10.0, options.ConstructionHumanizeQueuePercentMin);
+        Assert.Equal(40.0, options.ConstructionHumanizeQueuePercentMax);
+        Assert.Equal(30.0, options.ConstructionHumanizeMaxDelayMinutes);
+        Assert.Equal(0.5, options.ConstructionHumanizeNoPlusMinMinutes);
+        Assert.Equal(4.0, options.ConstructionHumanizeNoPlusMaxMinutes);
         Assert.Equal(90, options.TroopTrainingBarracksMinimumResourcesPercent);
         Assert.Equal(90, options.TroopTrainingStableMinimumResourcesPercent);
         Assert.Equal(90, options.TroopTrainingWorkshopMinimumResourcesPercent);
