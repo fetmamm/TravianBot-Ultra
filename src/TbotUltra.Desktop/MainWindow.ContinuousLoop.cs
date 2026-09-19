@@ -1890,6 +1890,7 @@ public partial class MainWindow
     {
         return ex.GetType().Name.Contains("TimeoutException", StringComparison.OrdinalIgnoreCase)
             || ex.Message.Contains("Timeout", StringComparison.OrdinalIgnoreCase)
+            || IsExpectedWakeLoginRetry(ex)
             || IsTransientPageReadFailure(ex);
     }
 

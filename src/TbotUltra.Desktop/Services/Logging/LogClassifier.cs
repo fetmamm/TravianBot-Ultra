@@ -250,8 +250,8 @@ public static class LogClassifier
             return false;
         }
 
-        return message.Contains("TransientNavigationException", StringComparison.OrdinalIgnoreCase)
-            && message.Contains("timed out after safe retries", StringComparison.OrdinalIgnoreCase);
+        return message.Contains("timed out after safe retries", StringComparison.OrdinalIgnoreCase)
+            && !message.Contains("ALARM:", StringComparison.OrdinalIgnoreCase);
     }
 
     public static bool IsNetworkOutageDiagnostic(string message)

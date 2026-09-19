@@ -27,7 +27,9 @@ public partial class MainWindow
         => await GuardUiAsync(() => ExecuteLoginFlowAsync());
 
     // Login function as the button is clicked
-    private async Task ExecuteLoginFlowAsync(bool forceNewAccountAnalysis = false)
+    private async Task ExecuteLoginFlowAsync(
+        bool forceNewAccountAnalysis = false,
+        bool retryFailureIsStatus = false)
     {
         AppendLog("[login] ***** Login started. *****");
         if (BlockIfActiveAccountOnHold("Login"))
@@ -337,7 +339,21 @@ public partial class MainWindow
             BrowserInfoTextBlock.Text = "Browser: error";
             StatusTextBlock.Text = TryGetFriendlyLoginError(ex) ?? "Login failed.";
             _browserSessionLikelyOpen = false;
-            FailOperation(operationId, operationSw, ex);
+            if (retryFailureIsStatus && IsExpectedWakeLoginRetry(ex))
+            {
+                SetManualExecutionOutcome(operationId, ManualExecutionOutcome.Canceled);
+                _operationNamesById.Remove(operationId);
+                if (string.Equals(_pendingManualOperationId, operationId, StringComparison.OrdinalIgnoreCase))
+                {
+                    _pendingManualOperationId = null;
+                }
+
+                AppendLog($"[{operationId}] RETRY {operationSw.Elapsed.TotalSeconds:F1}s | Login unavailable; background wake retry remains active.");
+            }
+            else
+            {
+                FailOperation(operationId, operationSw, ex);
+            }
         }
         finally
         {
@@ -363,6 +379,22 @@ public partial class MainWindow
                 }
             });
         }
+    }
+
+    internal static bool IsExpectedWakeLoginRetry(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is TransientNavigationException
+                || current.Message.Contains(
+                    "Login through the Travian lobby did not reach the configured game world",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // Full-window modal overlay shown while a login/logout runs (incl. account-switch auto-login). It

@@ -20,6 +20,15 @@ public sealed class ConstructBuildingNavigationSourceTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void ConstructFlow_recovers_the_exact_slot_after_hero_transfer_reload_race()
+    {
+        var source = ReadSource("TravianClient.Buildings.ConstructFlow.cs");
+
+        Assert.Contains("retryExactPageOnceWhenChoiceMissing: true", source, StringComparison.Ordinal);
+        Assert.Contains("reopening exact slot once", source, StringComparison.Ordinal);
+    }
+
     private static string ReadSource(string fileName)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

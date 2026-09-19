@@ -434,7 +434,7 @@ public partial class MainWindow
 
         for (var attempt = 1; ; attempt++)
         {
-            await ExecuteLoginFlowAsync();
+            await ExecuteLoginFlowAsync(retryFailureIsStatus: true);
             if (_isLoggedIn)
             {
                 if (attempt > 1)

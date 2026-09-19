@@ -278,7 +278,8 @@ public sealed partial class TravianClient : IBuildingClient
                                 gid,
                                 url,
                                 "construct after hero transfer",
-                                cancellationToken);
+                                cancellationToken,
+                                retryExactPageOnceWhenChoiceMissing: true);
                             pageAnalysis = await ReadConstructionPageAnalysisAsync(
                                 slotId,
                                 "construct after hero transfer",
@@ -832,52 +833,64 @@ public sealed partial class TravianClient : IBuildingClient
         int gid,
         string constructUrl,
         string operationLabel,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        bool retryExactPageOnceWhenChoiceMissing = false)
     {
         var restoredExpectedSlot = false;
         const int attempts = 3;
-        for (var attempt = 1; attempt <= attempts; attempt++)
+        var verificationRounds = retryExactPageOnceWhenChoiceMissing ? 2 : 1;
+        for (var round = 1; round <= verificationRounds; round++)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            var ready = false;
-            try
+            for (var attempt = 1; attempt <= attempts; attempt++)
             {
-                ready = await _page.EvaluateAsync<bool>(
-                    """
-                    ({ slotId, gid }) => {
-                      const match = window.location.href.match(/[?&]id=(\d+)/);
-                      const currentSlot = match ? Number(match[1]) : null;
-                      if (currentSlot !== slotId) return false;
-                      return !!document.querySelector(
-                        `#contract_building${gid}, #building${gid}, [data-gid="${gid}"], #contract_building, [id^="contract_building"]`
-                      );
-                    }
-                    """,
-                    new { slotId, gid });
-            }
-            catch (Exception ex) when (IsTransientExecutionContextException(ex))
-            {
-                Notify($"{operationLabel} construct-page verification hit transient navigation: {ex.Message}");
+                cancellationToken.ThrowIfCancellationRequested();
+                var ready = false;
+                try
+                {
+                    ready = await _page.EvaluateAsync<bool>(
+                        """
+                        ({ slotId, gid }) => {
+                          const match = window.location.href.match(/[?&]id=(\d+)/);
+                          const currentSlot = match ? Number(match[1]) : null;
+                          if (currentSlot !== slotId) return false;
+                          return !!document.querySelector(
+                            `#contract_building${gid}, #building${gid}, [data-gid="${gid}"], #contract_building, [id^="contract_building"]`
+                          );
+                        }
+                        """,
+                        new { slotId, gid });
+                }
+                catch (Exception ex) when (IsTransientExecutionContextException(ex))
+                {
+                    Notify($"{operationLabel} construct-page verification hit transient navigation: {ex.Message}");
+                }
+
+                if (ready)
+                {
+                    return;
+                }
+
+                if (!TravianUrls.IsBuildPageForSlot(_page.Url, slotId) && !restoredExpectedSlot)
+                {
+                    restoredExpectedSlot = true;
+                    Notify($"{operationLabel} left construct slot {slotId}; restoring the expected page once.");
+                    await GotoAsync(constructUrl, cancellationToken);
+                    await EnsureLoggedInAsync(cancellationToken: cancellationToken);
+                    continue;
+                }
+
+                if (attempt < attempts)
+                {
+                    Notify($"{operationLabel} construct choices for slot {slotId}/gid {gid} are not rendered yet; waiting for DOM settle ({attempt}/{attempts - 1}).");
+                    await Task.Delay(250 * attempt, cancellationToken);
+                }
             }
 
-            if (ready)
+            if (round < verificationRounds)
             {
-                return;
-            }
-
-            if (!TravianUrls.IsBuildPageForSlot(_page.Url, slotId) && !restoredExpectedSlot)
-            {
-                restoredExpectedSlot = true;
-                Notify($"{operationLabel} left construct slot {slotId}; restoring the expected page once.");
+                Notify($"{operationLabel} construct choices are still missing after the transfer reload; reopening exact slot once.");
                 await GotoAsync(constructUrl, cancellationToken);
                 await EnsureLoggedInAsync(cancellationToken: cancellationToken);
-                continue;
-            }
-
-            if (attempt < attempts)
-            {
-                Notify($"{operationLabel} construct choices for slot {slotId}/gid {gid} are not rendered yet; waiting for DOM settle ({attempt}/{attempts - 1}).");
-                await Task.Delay(250 * attempt, cancellationToken);
             }
         }
 

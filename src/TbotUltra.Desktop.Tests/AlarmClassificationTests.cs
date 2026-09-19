@@ -122,6 +122,29 @@ public sealed class AlarmClassificationTests
             "[village-membership] profile verification complete: villages=8 removedConfirmed=true."));
     }
 
+    [Theory]
+    [InlineData("[village-membership] live sidebar differs from the verified UI list (2/2); blocking automation until profile verification completes.")]
+    [InlineData("[village-membership] profile verification returned 2 village(s).")]
+    public void SuccessfulVillageMembershipVerificationProgress_IsNotAlarm(string message)
+    {
+        Assert.False(MainWindow.IsAlarmMessage(message));
+    }
+
+    [Fact]
+    public void RetryingWakeLogin_IsNotAlarm()
+    {
+        Assert.False(MainWindow.IsAlarmMessage(
+            "[pacing] wake login failed (attempt 4) — retrying in 10 min."));
+    }
+
+    [Theory]
+    [InlineData("[upgrade_all_resources_to_level FAILED] after 179.7s: InvalidOperationException: Upgrade analysis failed for slot 8: Navigation to 'https://example.test/build.php?id=8' timed out after safe retries.")]
+    [InlineData("Could not capture diagnostics for 'upgrade-slot-8-exception': Timeout 20000ms exceeded.")]
+    public void DeferredSafeNavigationDiagnostics_AreNotAlarms(string message)
+    {
+        Assert.False(MainWindow.IsAlarmMessage(message));
+    }
+
     [Fact]
     public void EmptyVillageMembershipVerification_RemainsAlarm()
     {
