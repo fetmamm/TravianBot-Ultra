@@ -727,7 +727,8 @@ public sealed class FarmListsWorkflow(
                 request.OasisTypes,
                 request.IncludeOccupied,
                 request.SkipLowPopulationVillages,
-                requireUnoccupiedOasis: request.IsOasisList && !request.IncludeOccupied);
+                requireUnoccupiedOasis: request.IsOasisList && !request.IncludeOccupied,
+                minimumDistance: request.MinimumDistance);
             if (coordinates.Count == 0)
             {
                 continue;
@@ -1304,6 +1305,7 @@ public sealed record OfficialFarmAddPlanRequest(
     string Order,
     string PopulationMode,
     long PopulationLimit,
+    double? MinimumDistance,
     double? MaximumDistance,
     (int X, int Y)? ReferenceVillage,
     IReadOnlySet<string>? OasisTypes,

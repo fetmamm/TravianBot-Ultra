@@ -254,6 +254,7 @@ public sealed class PanelServiceContractTests : IDisposable
             null,
             null,
             null,
+            null,
             true,
             false,
             false,

@@ -29,7 +29,8 @@ public static class OfficialFarmSelection
         IReadOnlySet<string>? oasisTypes = null,
         bool includeOccupied = true,
         bool skipLowPopulationVillages = false,
-        bool requireUnoccupiedOasis = false)
+        bool requireUnoccupiedOasis = false,
+        double? minimumDistance = null)
     {
         if (amount <= 0)
         {
@@ -74,6 +75,11 @@ public static class OfficialFarmSelection
             // Only drop villages with a KNOWN population at or below the threshold; rows with unknown
             // population are kept so we never silently discard targets we could not read.
             filtered = filtered.Where(row => !(row.Pop.HasValue && row.Pop.Value <= LowPopulationThreshold));
+        }
+
+        if (minimumDistance.HasValue)
+        {
+            filtered = filtered.Where(row => row.Distance.HasValue && row.Distance.Value >= minimumDistance.Value);
         }
 
         if (maximumDistance.HasValue)

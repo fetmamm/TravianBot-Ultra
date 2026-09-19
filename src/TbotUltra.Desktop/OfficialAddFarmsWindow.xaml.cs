@@ -530,6 +530,18 @@ public partial class OfficialAddFarmsWindow : Window
         var sourceCount = (SourceListComboBox.SelectedItem as SourceOption)?.SelectedCount ?? 0;
         var populationMode = (PopulationFilterComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
         PopulationTextBox.IsEnabled = populationMode is "under" or "over";
+        var distanceMode = (DistanceFilterModeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString()
+            ?? OfficialFarmDistanceFilter.All;
+        DistanceFirstTextBox.IsEnabled = !string.Equals(
+            distanceMode,
+            OfficialFarmDistanceFilter.All,
+            StringComparison.OrdinalIgnoreCase);
+        var showDistanceUpperBound = string.Equals(
+            distanceMode,
+            OfficialFarmDistanceFilter.Between,
+            StringComparison.OrdinalIgnoreCase);
+        DistanceRangeSeparatorTextBlock.Visibility = showDistanceUpperBound ? Visibility.Visible : Visibility.Collapsed;
+        DistanceSecondTextBox.Visibility = showDistanceUpperBound ? Visibility.Visible : Visibility.Collapsed;
         var plans = BuildPlans();
         var requested = plans.Sum(plan => plan.DesiredCount);
         AmountComboBox.IsEnabled = AmountModeRadioButton.IsChecked == true;
@@ -557,7 +569,12 @@ public partial class OfficialAddFarmsWindow : Window
             return [];
         }
 
-        if (!TryReadFilters(out var order, out var populationMode, out var populationLimit, out var maximumDistance))
+        if (!TryReadFilters(
+                out var order,
+                out var populationMode,
+                out var populationLimit,
+                out var minimumDistance,
+                out var maximumDistance))
         {
             return [];
         }
@@ -592,6 +609,7 @@ public partial class OfficialAddFarmsWindow : Window
             order,
             populationMode,
             populationLimit,
+            minimumDistance,
             maximumDistance,
             referenceVillage,
             oasisTypes,
@@ -607,11 +625,13 @@ public partial class OfficialAddFarmsWindow : Window
         out string order,
         out string populationMode,
         out long populationLimit,
+        out double? minimumDistance,
         out double? maximumDistance)
     {
         order = (OrderComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "distance_asc";
         populationMode = (PopulationFilterComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
         populationLimit = 0;
+        minimumDistance = null;
         maximumDistance = null;
         if (!string.Equals(populationMode, "all", StringComparison.OrdinalIgnoreCase)
             && (!long.TryParse(PopulationTextBox.Text, out populationLimit) || populationLimit < 0))
@@ -619,18 +639,13 @@ public partial class OfficialAddFarmsWindow : Window
             return false;
         }
 
-        if (DistanceFilterCheckBox.IsChecked == true)
-        {
-            if (!double.TryParse(DistanceTextBox.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var distance)
-                || distance < 0)
-            {
-                return false;
-            }
-
-            maximumDistance = distance;
-        }
-
-        return true;
+        var distanceMode = (DistanceFilterModeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+        return OfficialFarmDistanceFilter.TryResolve(
+            distanceMode,
+            DistanceFirstTextBox.Text,
+            DistanceSecondTextBox.Text,
+            out minimumDistance,
+            out maximumDistance);
     }
 
     private bool IsCustomTroops() =>
