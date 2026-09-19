@@ -63,6 +63,7 @@ public sealed class EnvAccountStore
                 return new AccountEntry
                 {
                     Name = name,
+                    DisplayName = values.GetValueOrDefault($"{prefix}DISPLAY_NAME", string.Empty),
                     Username = values.GetValueOrDefault($"{prefix}USERNAME", string.Empty),
                     Password = values.GetValueOrDefault($"{prefix}PASSWORD", string.Empty),
                     ManualLogin = ParseBool(values.GetValueOrDefault($"{prefix}MANUAL_LOGIN", string.Empty)),
@@ -119,6 +120,7 @@ public sealed class EnvAccountStore
             }
 
             var prefix = $"TBOT_{normalized.ToUpperInvariant()}_";
+            values[$"{prefix}DISPLAY_NAME"] = account.DisplayName.Trim();
             values[$"{prefix}USERNAME"] = account.Username.Trim();
             values[$"{prefix}PASSWORD"] = account.Password;
             values[$"{prefix}MANUAL_LOGIN"] = account.ManualLogin ? "true" : "false";
@@ -130,6 +132,28 @@ public sealed class EnvAccountStore
             values[$"{prefix}NEVER_USE_OWN_IP"] = account.NeverUseOwnIp ? "true" : "false";
 
             WriteValues(values);
+        }
+    }
+
+    public void CreateAccount(AccountEntry account, bool setActive)
+    {
+        if (string.IsNullOrWhiteSpace(account.Name))
+        {
+            throw new InvalidOperationException("Account name cannot be empty.");
+        }
+
+        lock (_fileState.Sync)
+        {
+            var baseName = NormalizeName(account.Name);
+            var names = ParseAccountNames(ReadValues());
+            var uniqueName = baseName;
+            for (var suffix = 2; names.Contains(uniqueName, StringComparer.OrdinalIgnoreCase); suffix++)
+            {
+                uniqueName = $"{baseName}_{suffix}";
+            }
+
+            account.Name = uniqueName;
+            SaveAccount(account, setActive);
         }
     }
 
@@ -196,6 +220,7 @@ public sealed class EnvAccountStore
             if (names.RemoveAll(name => string.Equals(name, normalized, StringComparison.OrdinalIgnoreCase)) != 0)
             {
                 var prefix = $"TBOT_{normalized.ToUpperInvariant()}_";
+                values.Remove($"{prefix}DISPLAY_NAME");
                 values.Remove($"{prefix}USERNAME");
                 values.Remove($"{prefix}PASSWORD");
                 values.Remove($"{prefix}MANUAL_LOGIN");
@@ -285,6 +310,7 @@ public sealed class EnvAccountStore
         foreach (var name in names)
         {
             var prefix = $"TBOT_{name.ToUpperInvariant()}_";
+            lines.Add($"{prefix}DISPLAY_NAME={EnvFileParser.FormatValue(values.GetValueOrDefault($"{prefix}DISPLAY_NAME", string.Empty))}");
             lines.Add($"{prefix}USERNAME={EnvFileParser.FormatValue(values.GetValueOrDefault($"{prefix}USERNAME", string.Empty))}");
             lines.Add($"{prefix}PASSWORD={EnvFileParser.FormatValue(values.GetValueOrDefault($"{prefix}PASSWORD", string.Empty))}");
             var manualLogin = ParseBool(values.GetValueOrDefault($"{prefix}MANUAL_LOGIN", string.Empty));

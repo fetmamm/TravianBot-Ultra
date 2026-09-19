@@ -17,7 +17,7 @@ public partial class AccountSwitchConfirmationView : UserControl
     {
         var title = account is null
             ? fallbackTitle
-            : string.IsNullOrWhiteSpace(account.Username) ? account.Name : account.Username.Trim();
+            : account.AccountDisplayName;
         var accountName = account is null || string.IsNullOrWhiteSpace(account.Name)
             ? "Saved account"
             : account.Name.Trim();

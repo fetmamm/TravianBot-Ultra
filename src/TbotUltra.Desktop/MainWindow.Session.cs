@@ -644,6 +644,7 @@ public partial class MainWindow
     private static AccountEntry CloneAccount(AccountEntry source) => new()
     {
         Name = source.Name,
+        DisplayName = source.DisplayName,
         Username = source.Username,
         Password = source.Password,
         ManualLogin = source.ManualLogin,
@@ -814,7 +815,7 @@ public partial class MainWindow
             IsSessionSleeping);
         if (requiresConfirmation && !ConfirmAccountSwitch(FindAccount(current), selected))
         {
-            AppendLog($"Account switch to '{selected.Name}' cancelled by user.");
+            AppendLog($"Account switch to '{selected.AccountDisplayName}' cancelled by user.");
             RefreshAccountPicker();
             return;
         }
@@ -834,12 +835,12 @@ public partial class MainWindow
             if (previousLoggedIn)
             {
                 // Mirror the Login button: open a fresh browser/session and log into the new account.
-                AppendLog($"Logging into '{selected.Name}'.");
+                AppendLog($"Logging into '{selected.AccountDisplayName}'.");
                 await ExecuteLoginFlowAsync();
             }
             else
             {
-                StatusTextBlock.Text = $"Active account: {selected.Name}. Press Login to start a new session.";
+                StatusTextBlock.Text = $"Active account: {selected.AccountDisplayName}. Press Login to start a new session.";
             }
         }
         catch (Exception ex)

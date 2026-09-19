@@ -121,6 +121,39 @@ public sealed class AccountEditorStateTests
     }
 
     [Fact]
+    public void BuildAccountEntry_PreservesOptionalDisplayNameForAccountPresentation()
+    {
+        var result = AccountEditorState.BuildAccountEntry(Input(displayName: " Slangen X5 "));
+
+        Assert.Equal("Slangen X5", result.DisplayName);
+        Assert.Equal("Slangen X5", result.AccountDisplayName);
+        Assert.Equal("Slangen X5", result.PickerName);
+    }
+
+    [Fact]
+    public void BuildAccountEntry_DisplayNameDoesNotChangeAuthenticationIdentityKey()
+    {
+        var unnamed = AccountEditorState.BuildAccountEntry(Input());
+        var named = AccountEditorState.BuildAccountEntry(Input(displayName: "Slangen X5"));
+
+        Assert.Equal(unnamed.Name, named.Name);
+    }
+
+    [Fact]
+    public void AccountPresentation_WithoutDisplayNameFallsBackToExistingEmailAndServerText()
+    {
+        var account = new AccountEntry
+        {
+            Name = "saved-key",
+            Username = "player@example.com",
+            ServerName = "Europe 5x",
+        };
+
+        Assert.Equal("player@example.com", account.AccountDisplayName);
+        Assert.Equal("player@example.com | 5x", account.PickerName);
+    }
+
+    [Fact]
     public void BuildAccountEntry_ManualLoginAllowsEmptyPassword()
     {
         var result = AccountEditorState.BuildAccountEntry(Input(manualLogin: true, password: string.Empty));
@@ -176,7 +209,8 @@ public sealed class AccountEditorStateTests
         string proxyHost = "",
         string proxyPort = "",
         bool manualLogin = false,
-        string password = "password")
+        string password = "password",
+        string displayName = "")
         => new(
             "user",
             password,
@@ -189,7 +223,8 @@ public sealed class AccountEditorStateTests
             proxyHost,
             proxyPort,
             EditingExistingAccount: false,
-            ExistingAccountName: string.Empty);
+            ExistingAccountName: string.Empty,
+            DisplayName: displayName);
 
     private static ProxyLibraryEntry Entry(string name, string host, string? assigned, long? latencyMs = null)
         => new()

@@ -11,7 +11,8 @@ internal sealed record AccountEditorSnapshot(
     string ServerUrl,
     bool ProxyEnabled,
     string ProxyServer,
-    bool NeverUseOwnIp);
+    bool NeverUseOwnIp,
+    string DisplayName = "");
 
 // Availability drives the row color in the saved-proxy picker so the user can see at a glance which
 // proxies are free to pick: LockedToOther = red, UsedByOthers = yellow, Ok = the normal text color.
@@ -54,7 +55,8 @@ internal sealed record AccountEditorInput(
     string ExistingAccountName,
     string ProxyUsername = "",
     string ProxyPassword = "",
-    string ProxyId = "");
+    string ProxyId = "",
+    string DisplayName = "");
 
 /// <summary>
 /// Stateless account-editor state comparisons and saved-proxy presentation ordering.
@@ -110,6 +112,7 @@ internal static class AccountEditorState
             Name = input.EditingExistingAccount
                 ? input.ExistingAccountName
                 : AccountKeyNormalizer.MakeCollisionResistantKey(username, input.ServerUrl),
+            DisplayName = input.DisplayName.Trim(),
             Username = username,
             Password = password,
             ManualLogin = input.ManualLogin,
@@ -164,7 +167,8 @@ internal static class AccountEditorState
             || !string.Equals(current.ServerUrl, baseline.ServerUrl, StringComparison.OrdinalIgnoreCase)
             || current.ProxyEnabled != baseline.ProxyEnabled
             || !string.Equals(current.ProxyServer, baseline.ProxyServer, StringComparison.Ordinal)
-            || current.NeverUseOwnIp != baseline.NeverUseOwnIp;
+            || current.NeverUseOwnIp != baseline.NeverUseOwnIp
+            || !string.Equals(current.DisplayName, baseline.DisplayName, StringComparison.Ordinal);
     }
 
     internal static List<SavedProxyOption> BuildSavedProxyOptions(
@@ -211,7 +215,7 @@ internal static class AccountEditorState
         if (!string.IsNullOrWhiteSpace(entry.AssignedAccount)
             && accountsByKey.TryGetValue(entry.AssignedAccount, out var account))
         {
-            accountName = string.IsNullOrWhiteSpace(account.Username) ? "Unknown account" : account.Username.Trim();
+            accountName = string.IsNullOrWhiteSpace(account.AccountDisplayName) ? "Unknown account" : account.AccountDisplayName;
             serverName = account.ServerDisplayName;
         }
         else if (!string.IsNullOrWhiteSpace(entry.AssignedAccount))

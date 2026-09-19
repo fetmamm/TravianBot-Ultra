@@ -8,6 +8,7 @@ public sealed class AccountEntry
     private const string ManageAccountsOptionName = "__manage_accounts__";
 
     public string Name { get; set; } = string.Empty;
+    public string DisplayName { get; set; } = string.Empty;
     public string Username { get; set; } = string.Empty;
     public string Password { get; set; } = string.Empty;
     public bool ManualLogin { get; set; }
@@ -21,12 +22,17 @@ public sealed class AccountEntry
     public string ServerDisplayName => string.IsNullOrWhiteSpace(ServerName)
         ? (string.IsNullOrWhiteSpace(ServerUrl) ? "-" : ServerUrl)
         : ServerName.Trim();
+    public string AccountDisplayName => string.IsNullOrWhiteSpace(DisplayName)
+        ? (string.IsNullOrWhiteSpace(Username) ? Name : Username.Trim())
+        : DisplayName.Trim();
     public string ServerSpeedLabel => ExtractServerSpeedLabel(ServerName);
 
     public string PickerName =>
         string.Equals(Name, ManageAccountsOptionName, StringComparison.OrdinalIgnoreCase)
             ? "Manage accounts..."
-            : $"{(string.IsNullOrWhiteSpace(Username) ? Name : Username)} | {ServerSpeedLabel}";
+            : string.IsNullOrWhiteSpace(DisplayName)
+                ? $"{AccountDisplayName} | {ServerSpeedLabel}"
+                : AccountDisplayName;
 
     private static string ExtractServerSpeedLabel(string? serverName)
     {

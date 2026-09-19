@@ -147,6 +147,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   shared browser. Every normal main context also installs CMP UI suppression at document start, before its visible
   page is created; manual lobby authentication can otherwise prime an in-page consent overlay that is recreated
   during later read-only status passes. Bonus videos remain isolated in their separate browser context.
+- An account's optional display name is local presentation only; authentication continues to use the lobby email.
+  The internal account key is immutable after creation. New accounts allocate a unique key atomically, including
+  when the same email has multiple pending `Choose in lobby` worlds, and resolving a lobby world never renames it.
 - Lobby `Play now` uses a trusted click and waits for the configured game origin. If a lobby-owned request fails
   with a verified Chromium proxy error before that origin commits, end the wait early and retry exactly once only
   while the same fresh world card remains visible and actionable in the lobby. Reapply SSO consent suppression to
