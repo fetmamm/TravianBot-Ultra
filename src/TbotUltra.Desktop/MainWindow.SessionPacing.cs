@@ -631,16 +631,31 @@ public partial class MainWindow
 
         picker.SelectionChanged += (_, _) => UpdateDescription();
         UpdateDescription();
+        IReadOnlyList<(string Label, MessageBoxResult Result)> buttons = extendingSleep
+            ? [("Cancel", MessageBoxResult.Cancel), ("Extend sleep", MessageBoxResult.Yes)]
+            :
+            [
+                ("Cancel", MessageBoxResult.Cancel),
+                ("Sleep now", MessageBoxResult.No),
+                ("Extend session", MessageBoxResult.Yes),
+            ];
         var result = AppDialog.ShowCustomContent(
             this,
             content,
             extendingSleep ? "Extend sleep" : "Extend active session",
-            [("Cancel", MessageBoxResult.Cancel), (extendingSleep ? "Extend sleep" : "Extend session", MessageBoxResult.Yes)],
+            buttons,
             MessageBoxImage.Information,
             MessageBoxResult.Yes,
             MessageBoxResult.Cancel,
+            accentResult: extendingSleep ? null : MessageBoxResult.No,
             successResult: MessageBoxResult.Yes,
             hideIcon: true);
+        if (result == MessageBoxResult.No)
+        {
+            RequestManualSessionSleep();
+            return;
+        }
+
         if (result != MessageBoxResult.Yes)
         {
             return;
