@@ -666,6 +666,7 @@ public partial class MainWindow
                 ConstructionDeferReason.Resources => "Res",
                 ConstructionDeferReason.Requirements => "Req",
                 ConstructionDeferReason.StorageCapacity => ResolveStorageCapacityCardMessage(deferred),
+                ConstructionDeferReason.QueueFull => "Waiting",
                 ConstructionDeferReason.Humanize => "Waiting",
                 _ => "Retry",
             };

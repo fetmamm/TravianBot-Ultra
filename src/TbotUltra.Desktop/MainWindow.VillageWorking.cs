@@ -788,12 +788,11 @@ public partial class MainWindow
             return;
         }
 
-        // Reconcile persisted queue-full deferrals from the live response before a partial-read merge can
-        // preserve older construction state. This lets a newly free Plus/normal slot wake the next task.
-        if (triggerDeferredWaitRefresh)
-        {
-            TriggerDeferredConstructionWaitRefresh(status, "village_status");
-        }
+        var liveStatus = status;
+        var isFullRead = status.Buildings is { Count: > 0 } || status.ResourceFields is { Count: > 0 };
+        var confirmedEmptyConstructionQueue = isFullRead
+            && ConstructionQueueState.ResolveSnapshot(status).Knowledge == ConstructionQueueKnowledge.ConfirmedEmpty;
+
         // Same live recompute for deferred build_troops resource-% waits. Doing it here (like construction)
         // means a troop task waiting in a NON-selected village is also re-estimated against live resources on
         // every read — not only the selected village. RefreshDeferredTroopTrainingWaitsAsync fills the storage
@@ -806,10 +805,6 @@ public partial class MainWindow
         // A "full" read brings buildings (or resource fields); a lightweight resource refresh does not.
         // Persist only on full reads so the durable structure is saved without thrashing the file every
         // 20s; lighter refreshes still update memory.
-        var isFullRead = status.Buildings is { Count: > 0 } || status.ResourceFields is { Count: > 0 };
-        var confirmedEmptyConstructionQueue = isFullRead
-            && ConstructionQueueState.ResolveSnapshot(status).Knowledge == ConstructionQueueKnowledge.ConfirmedEmpty;
-
         var statusKey = VillageStatusCache.TryResolveCoordinateKey(name, status);
         if (statusKey is null && IsVillageNameAmbiguous(name))
         {
@@ -881,6 +876,13 @@ public partial class MainWindow
                 name,
                 statusKey,
                 releaseResourceHeadForConfirmedEmptyQueue: true);
+        }
+
+        // Prepare the immediate-fill override before the async refresh reads deferred rows. Otherwise the
+        // refresh can capture the old queue-full deadline and restore it after the empty-queue path released it.
+        if (triggerDeferredWaitRefresh)
+        {
+            TriggerDeferredConstructionWaitRefresh(liveStatus, "village_status");
         }
 
         if (isFullRead)
