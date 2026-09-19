@@ -280,8 +280,19 @@ public partial class MainWindow
                     GetSelectedVillageName(),
                     GetSelectedVillageUrl(),
                     cancellationToken: operationToken);
-                await ApplyCurrentVillageToUiAsync(options, operationToken);
-                AppendLog("[post-login] Refreshed current village UI after post-login analysis.");
+                if (PostLoginRefreshDecisions.ShouldReadCurrentVillageStatus(
+                        officialServer,
+                        newAccountAnalysisPending,
+                        newVillagesAnalyzed,
+                        newVillageAnalysisNavigated))
+                {
+                    await ApplyCurrentVillageToUiAsync(options, operationToken);
+                    AppendLog("[post-login] Refreshed current village UI after post-login analysis.");
+                }
+                else
+                {
+                    AppendLog("[post-login] Reused the complete first-login village snapshot after returning to resource fields.");
+                }
             }
 
             _browserSessionLikelyOpen = true;

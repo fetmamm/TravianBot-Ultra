@@ -650,6 +650,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   bounded backoff; repeated identical sidebar evidence must not spam profile navigation.
 - New-account analysis is account+server scoped. A pending first-login analysis forces hero inventory, hero
   attributes, and new-village startup until all three succeed; legacy account snapshots are already initialized.
+  When its post-login snapshot already contains complete village status and startup did not navigate between villages,
+  return to Dorf1 without re-reading Dorf1/Dorf2; retain the full refresh after incomplete analysis or a village switch.
 - Browser activity statistics are account-scoped: lifetime counters persist; session counters do not.
 - Build troops `% resources` checkboxes use OR semantics: at least one resource must be selected, any selected
   resource at or above the percentage threshold releases training, and deferred waits use the earliest selected
