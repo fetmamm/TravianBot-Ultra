@@ -167,6 +167,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Hero attribute automation uses account-scoped absolute maximums (0-100) keyed by attribute; missing or invalid
   values default to 100. Read the four live Official attribute inputs before every plus click, never cross a maximum,
   and do not requeue point spending when the latest complete snapshot shows every configured maximum is reached.
+- Hero adventure automation treats `.noRallyPointInHomeVillage` plus the page's matching Official `viewData`
+  home-village identity as authoritative missing-Rally-Point evidence. Queue one deduplicated slot 39/gid 16
+  construction for that exact village, gate it with the village's Hero group, and retry the adventure after completion.
 - Demolition is a village-scoped queue group: start one Official `table#demolish` step, persist the server timer plus its random delay as `NextAttemptAt`, and never poll or sleep through it in the browser. Submit the Official form with a trusted click, tolerate only its expected navigation-context replacement, wait for the returned Main Building page, and require its active timer as confirmation; never revisit the same Main Building merely to submit. It has no per-village group toggle; an explicitly queued demolition is always group-enabled, while the village's master Auto toggle still controls automation.
 - Persist village identity by coordinates/key, not display name. Names may collide or change; queue items retain
   their target village identity.

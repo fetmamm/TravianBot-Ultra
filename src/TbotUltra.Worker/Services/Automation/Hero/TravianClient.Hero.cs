@@ -559,6 +559,10 @@ public sealed partial class TravianClient : IHeroClient
         }
         else if (adventureCount > 0 && canSendByHp && inVillage)
         {
+            // Check the exact Official missing-Rally-Point state before consuming either optional
+            // adventure video. The later dispatch reuses this already-open adventures page.
+            await EnsureHeroAdventureDispatchPageAsync(cancellationToken);
+
             // Optionally raise the next adventure's danger to hard (bonus video) before dispatching.
             // Self-skips if already active and never throws, so dispatch proceeds regardless.
             if (_config.IncreaseAdventuresToHard)

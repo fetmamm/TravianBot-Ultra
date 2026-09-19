@@ -8,7 +8,7 @@ namespace TbotUltra.Worker.Services;
 /// MaxRetries. The worker re-schedules the item with <see cref="DelaySeconds"/> using
 /// <see cref="Queue.IQueueStore.MarkDeferred"/>.
 /// </summary>
-public sealed class TaskWaitException : Exception
+public class TaskWaitException : Exception
 {
     public int DelaySeconds { get; }
 
@@ -45,8 +45,31 @@ public static class TaskWaitReasons
     /// <summary>hero_manage deferred because the hero's HP is below the adventure threshold.</summary>
     public const string HeroHpTooLow = "hero_hp_too_low";
 
+    /// <summary>hero_manage deferred while Rally Point level 1 is restored in the Hero home village.</summary>
+    public const string HeroMissingRallyPoint = "hero_missing_rally_point";
+
     /// <summary>Construction is blocked until cropland production is recovered.</summary>
     public const string CropShortage = "crop_shortage";
+}
+
+public sealed record HeroRallyPointRepairRequest(
+    int VillageId,
+    string VillageName,
+    int? CoordX,
+    int? CoordY);
+
+public sealed class HeroMissingRallyPointTaskWaitException : TaskWaitException
+{
+    public HeroRallyPointRepairRequest RepairRequest { get; }
+
+    public HeroMissingRallyPointTaskWaitException(HeroRallyPointRepairRequest repairRequest)
+        : base(
+            60,
+            $"Hero home village '{repairRequest.VillageName}' needs Rally Point level 1 before an adventure can start.",
+            TaskWaitReasons.HeroMissingRallyPoint)
+    {
+        RepairRequest = repairRequest;
+    }
 }
 
 /// <summary>

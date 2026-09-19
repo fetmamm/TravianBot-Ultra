@@ -46,6 +46,25 @@ public sealed class AutomationQueueItemFailureTests
     }
 
     [Fact]
+    public async Task HeroMissingRallyPoint_QueuesRepairAndDefersHero()
+    {
+        var port = new InMemoryPort();
+        var item = Item("hero_manage");
+        var request = new HeroRallyPointRepairRequest(24443, "WHY", 164, 110);
+
+        await new AutomationQueueItemFailure(port).HandleAsync(
+            item,
+            new HeroMissingRallyPointTaskWaitException(request),
+            "[LOOP 1]",
+            Stopwatch.StartNew(),
+            AutomationRunMode.ContinuousLoop);
+
+        Assert.Equal(TimeSpan.FromSeconds(60), port.DeferredDelay);
+        Assert.Same(request, port.HeroRallyPointRepairRequest);
+        Assert.Contains("queue-hero-rally-point", port.Trace);
+    }
+
+    [Fact]
     public async Task UnclassifiedFailure_ConsumesRetryAndRaisesTerminalAlarmWhenNeeded()
     {
         var port = new InMemoryPort();
@@ -142,6 +161,7 @@ public sealed class AutomationQueueItemFailureTests
         public TimeSpan? DeferredDelay { get; private set; }
         public bool? SmithyMissing { get; init; }
         public bool DisableTroopsForVillage { get; init; }
+        public HeroRallyPointRepairRequest? HeroRallyPointRepairRequest { get; private set; }
         public ValueTask<bool?> VerifySmithyMissingAsync(QueueItem item)
         {
             Trace.Add("verify-smithy");
@@ -167,6 +187,12 @@ public sealed class AutomationQueueItemFailureTests
             string? humanizeVillageKey,
             TimeSpan? humanizeWait) => ValueTask.CompletedTask;
         public ValueTask ApplyHeroLowHpCooldownAsync(TimeSpan delay) => ValueTask.CompletedTask;
+        public Guid EnsureHeroRallyPointRepairQueued(QueueItem item, HeroRallyPointRepairRequest request)
+        {
+            HeroRallyPointRepairRequest = request;
+            Trace.Add("queue-hero-rally-point");
+            return Guid.NewGuid();
+        }
         public void ApplyBreweryCelebrationDeferSignal(string? message, TimeSpan delay) { }
         public void ApplyTownHallCelebrationDeferSignal(QueueItem item, string? message, TimeSpan delay) { }
         public bool MarkDeferred(Guid itemId, TimeSpan delay)

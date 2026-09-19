@@ -59,6 +59,10 @@ public partial class MainWindow
                 owner.ApplyConstructionInlineWait(delay, humanizeVillageKey, humanizeWait)).Task);
         public ValueTask ApplyHeroLowHpCooldownAsync(TimeSpan delay) =>
             new(owner.ApplyHeroLowHpCooldownUiAsync(delay));
+        public Guid EnsureHeroRallyPointRepairQueued(
+            QueueItem item,
+            HeroRallyPointRepairRequest request) =>
+            owner.EnsureHeroRallyPointRepairQueued(item, request);
         public void ApplyBreweryCelebrationDeferSignal(string? message, TimeSpan delay) =>
             owner.ApplyBreweryCelebrationDeferSignal(message, delay);
         public void ApplyTownHallCelebrationDeferSignal(

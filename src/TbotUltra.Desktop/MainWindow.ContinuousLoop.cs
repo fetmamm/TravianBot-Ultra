@@ -1246,6 +1246,16 @@ public partial class MainWindow
         {
             return true;
         }
+
+        if (item.Payload.TryGetValue(BotOptionPayloadKeys.AutoAddedBy, out var autoAddedBy)
+            && string.Equals(
+                autoAddedBy,
+                BotOptionPayloadKeys.AutoAddedByHeroRallyPointRepair,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return IsGroupEnabledForVillage(GetQueueItemVillageKey(item), QueueGroup.Hero);
+        }
+
         return IsGroupEnabledForVillage(GetQueueItemVillageKey(item), item.Group);
     }
 

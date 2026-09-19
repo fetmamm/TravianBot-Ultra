@@ -20,6 +20,7 @@ internal interface IAutomationQueueItemFailurePort
         string? humanizeVillageKey,
         TimeSpan? humanizeWait);
     ValueTask ApplyHeroLowHpCooldownAsync(TimeSpan delay);
+    Guid EnsureHeroRallyPointRepairQueued(QueueItem item, HeroRallyPointRepairRequest request);
     void ApplyBreweryCelebrationDeferSignal(string? message, TimeSpan delay);
     void ApplyTownHallCelebrationDeferSignal(QueueItem item, string? message, TimeSpan delay);
     bool MarkDeferred(Guid itemId, TimeSpan delay);
@@ -174,6 +175,25 @@ internal sealed class AutomationQueueItemFailure(
             var deferred = port.MarkDeferred(item.Id, queueWaitDelay);
             if (deferred)
             {
+                if (string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase)
+                    && ex is HeroMissingRallyPointTaskWaitException rallyPointWait)
+                {
+                    try
+                    {
+                        var repairId = port.EnsureHeroRallyPointRepairQueued(item, rallyPointWait.RepairRequest);
+                        port.Log(
+                            $"[hero] Rally Point level 1 repair ready for home village "
+                            + $"'{rallyPointWait.RepairRequest.VillageName}' (queue id={repairId}); "
+                            + "hero adventure remains deferred until construction completes.");
+                    }
+                    catch (Exception repairException)
+                    {
+                        port.Log(
+                            $"[hero] could not queue Rally Point repair for home village "
+                            + $"'{rallyPointWait.RepairRequest.VillageName}': {repairException.Message}");
+                    }
+                }
+
                 var constructionSuffix = IsConstructionQueueTask(item.TaskName)
                     ? FormatQueueDeferredConstructionSuffix(mode)
                     : string.Empty;

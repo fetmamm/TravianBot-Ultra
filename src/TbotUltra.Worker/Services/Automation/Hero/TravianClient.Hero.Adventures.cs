@@ -10,29 +10,7 @@ public sealed partial class TravianClient
 {
     private async Task<(bool Sent, int DurationSeconds, int ReturnSeconds)> TrySendHeroToAdventureAsync(string pickOrder, CancellationToken cancellationToken)
     {
-        await OpenHeroAdventuresPageAsync(cancellationToken);
-
-        // The adventures list on official Travian (T4.6) is React-rendered and is often not in the
-        // DOM yet right after navigation. Wait for the adventure rows (Explore buttons) — or the
-        // hero-away state — to render before picking; otherwise the pick finds nothing and the
-        // dispatch falsely reports "adventure_not_clickable".
-        try
-        {
-            await _page.WaitForFunctionAsync(
-                """
-                () => !!document.querySelector('table.adventureList tbody tr, #adventureListForm tbody tr')
-                   || /on its way to an adventure/i.test(document.body?.innerText || '')
-                   || !!document.querySelector('.heroState, [class*="statusRunning"], [class*="heroRunning"]')
-                """,
-                null,
-                new PageWaitForFunctionOptions { Timeout = 6000 });
-        }
-        catch (TimeoutException)
-        {
-        }
-        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
-        {
-        }
+        await EnsureHeroAdventureDispatchPageAsync(cancellationToken);
 
         // Step 1: pick a row (top or shortest), open the adventure detail page, and report its duration.
         await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
@@ -155,6 +133,51 @@ public sealed partial class TravianClient
         await EnsureFreshDorf1ForHeroAsync(forceReload: false, cancellationToken);
 
         return (dispatched, duration, returnSeconds);
+    }
+
+    private async Task EnsureHeroAdventureDispatchPageAsync(CancellationToken cancellationToken)
+    {
+        await OpenHeroAdventuresPageAsync(cancellationToken);
+
+        // The adventures list on official Travian (T4.6) is React-rendered and is often not in the
+        // DOM yet right after navigation. Wait for the adventure rows (Explore buttons) — or the
+        // hero-away state — to render before picking; otherwise the pick finds nothing and the
+        // dispatch falsely reports "adventure_not_clickable".
+        try
+        {
+            await _page.WaitForFunctionAsync(
+                """
+                () => !!document.querySelector('table.adventureList tbody tr, #adventureListForm tbody tr')
+                   || !!document.querySelector('.noRallyPointInHomeVillage')
+                   || /on its way to an adventure/i.test(document.body?.innerText || '')
+                   || !!document.querySelector('.heroState, [class*="statusRunning"], [class*="heroRunning"]')
+                """,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 6000 });
+        }
+        catch (TimeoutException)
+        {
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+        }
+
+        try
+        {
+            var pageHtml = await _page.ContentAsync();
+            var repairRequest = HeroAdventurePageParser.ParseMissingRallyPoint(pageHtml);
+            if (repairRequest is not null)
+            {
+                Notify(
+                    $"[hero] Rally Point missing in home village '{repairRequest.VillageName}' "
+                    + $"(did={repairRequest.VillageId}); requesting a level 1 repair before retrying the adventure.");
+                throw new HeroMissingRallyPointTaskWaitException(repairRequest);
+            }
+        }
+        catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+        {
+            Notify($"[hero:verbose] could not inspect the adventure page for a missing Rally Point: {ex.Message}");
+        }
     }
 
     private async Task<string> IncreaseAdventuresToHardForSelectedAdventureAsync(string pickOrder, CancellationToken cancellationToken)

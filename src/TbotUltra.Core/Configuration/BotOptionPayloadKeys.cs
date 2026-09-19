@@ -374,6 +374,7 @@ public static class BotOptionPayloadKeys
     public const string CropShortageCompletedSteps = "crop_shortage_completed_steps";
     public const string AutoAddedByCropShortageRecovery = "crop_shortage_recovery";
     public const string AutoAddedByMainBuildingRebuild = "main_building_rebuild";
+    public const string AutoAddedByHeroRallyPointRepair = "hero_rally_point_repair";
     public const string ConstructionHumanizeStateVersion = "construction_humanize_state_version";
     public const string ConstructionHumanizeQueuePercentMin = "construction_humanize_queue_percent_min";
     public const string ConstructionHumanizeQueuePercentMax = "construction_humanize_queue_percent_max";
