@@ -798,8 +798,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - One `activate_production_bonus` run is a contiguous four-resource batch: after its initial cooldown gate,
   attempt every resource found activatable before returning control to other automation. A failure or newly
   created internal video cooldown for one resource must not stop the remaining resources in that same batch.
-- Diagnostics use shared busy/cancel behavior, sanitize settings/logs/paths/URLs/auth/proxy data, and never present
-  partial output as a successful archive. Screenshots may contain visible game data.
+- Diagnostics use shared busy/cancel behavior and sanitize settings/logs/paths/URLs/auth/proxy data. An unreadable
+  optional source file must be skipped and listed in the manifest instead of aborting the archive; archive creation
+  failures are never presented as success. Screenshots may contain visible game data.
 - The Dashboard active-village border represents verified live browser state only. Queue selection/Running state
   must never pre-mark a task's target village; update it only after a successful browser village verification.
 - Incoming Attack monitoring may navigate to Rally Point only while Continuous Loop or Auto Queue is running; being
