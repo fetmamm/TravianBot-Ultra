@@ -384,7 +384,7 @@
                                                         <ItemsControl ItemsSource="{Binding SettingsVm.Pacing.SmartSleepDeadlineGroups}" Margin="0,6,0,0">
                                                             <ItemsControl.ItemsPanel>
                                                                 <ItemsPanelTemplate>
-                                                                    <UniformGrid Columns="2" />
+                                                                    <local:VerticalFirstUniformGrid Columns="2" />
                                                                 </ItemsPanelTemplate>
                                                             </ItemsControl.ItemsPanel>
                                                             <ItemsControl.ItemTemplate>

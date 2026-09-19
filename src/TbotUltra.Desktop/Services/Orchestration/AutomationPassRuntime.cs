@@ -12,7 +12,7 @@ internal sealed class AutomationPassRuntime
     private int _immediateWorkRequested;
     private int _prioritizeDeadlineWorkOnWake;
     private IReadOnlySet<QueueGroup> _smartSleepDeadlineGroups =
-        SmartSleepDeadlinePolicy.AllGroups.ToHashSet();
+        SmartSleepDeadlinePolicy.DefaultGroups.ToHashSet();
 
     internal long BeginContinuousPass()
     {

@@ -6,15 +6,30 @@ namespace TbotUltra.Desktop.Services.Orchestration;
 
 internal static class SmartSleepDeadlinePolicy
 {
-    internal static IReadOnlyList<QueueGroup> AllGroups { get; } = QueueGroupCatalog.AllGroups
-        .OrderBy(group => (int)group)
-        .ToList();
+    internal static IReadOnlyList<QueueGroup> AllGroups { get; } =
+    [
+        QueueGroup.Construction,
+        QueueGroup.Hero,
+        QueueGroup.Farming,
+        QueueGroup.TroopTraining,
+        QueueGroup.Troops,
+        QueueGroup.Demolish,
+        QueueGroup.BreweryCelebration,
+        QueueGroup.NpcTrade,
+        QueueGroup.ResourceTransfer,
+        QueueGroup.Reinforcements,
+        QueueGroup.TownHallCelebration,
+        QueueGroup.Account,
+    ];
+
+    internal static IReadOnlySet<QueueGroup> DefaultGroups { get; } =
+        new HashSet<QueueGroup> { QueueGroup.Construction, QueueGroup.Hero };
 
     internal static HashSet<QueueGroup> ReadGroups(JsonNode? node)
     {
         if (node is not JsonArray array)
         {
-            return AllGroups.ToHashSet();
+            return DefaultGroups.ToHashSet();
         }
 
         var groups = new HashSet<QueueGroup>();
@@ -24,7 +39,7 @@ internal static class SmartSleepDeadlinePolicy
                 || !value.TryGetValue<string>(out var key)
                 || !QueueGroupCatalog.TryParse(key, out var group))
             {
-                return AllGroups.ToHashSet();
+                return DefaultGroups.ToHashSet();
             }
 
             groups.Add(group);

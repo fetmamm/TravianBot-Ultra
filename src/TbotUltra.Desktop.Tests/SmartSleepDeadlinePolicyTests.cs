@@ -8,12 +8,13 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class SmartSleepDeadlinePolicyTests
 {
     [Fact]
-    public void MissingConfiguration_DefaultsToEveryQueueGroup()
+    public void MissingConfiguration_DefaultsToConstructionAndHero()
     {
         var groups = SmartSleepDeadlinePolicy.ReadGroups(null);
 
-        Assert.Equal(Enum.GetValues<QueueGroup>().Length, groups.Count);
-        Assert.All(Enum.GetValues<QueueGroup>(), group => Assert.Contains(group, groups));
+        Assert.Equal(2, groups.Count);
+        Assert.Contains(QueueGroup.Construction, groups);
+        Assert.Contains(QueueGroup.Hero, groups);
     }
 
     [Fact]
