@@ -45,7 +45,8 @@ internal sealed class GoldClubStatusOperation(IGoldClubStatusClient client, Acco
             AutomationLoopEnabledGroups: latest?.AutomationLoopEnabledGroups ?? existing?.AutomationLoopEnabledGroups,
             AutomationLoopVisibleGroups: latest?.AutomationLoopVisibleGroups ?? existing?.AutomationLoopVisibleGroups,
             WorldUid: latest?.WorldUid ?? existing?.WorldUid,
-            Villages: latest?.Villages ?? existing?.Villages))!;
+            Villages: latest?.Villages ?? existing?.Villages,
+            NewAccountAnalysisCompleted: latest?.NewAccountAnalysisCompleted ?? existing?.NewAccountAnalysisCompleted))!;
         log($"Gold Club activated and saved for '{completed.AccountName}'.");
         return true;
     }

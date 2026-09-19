@@ -131,20 +131,12 @@ public partial class MainWindow
 
             var serverUrl = GetActiveAccountServerUrl();
             _accountAnalysisStore.TryLoad(accountName, out var existing, serverUrl);
-            var snapshot = new AccountAnalysisSnapshot(
-                SchemaVersion: AccountAnalysisConstants.CurrentSchemaVersion,
-                AnalyzedAtUtc: DateTimeOffset.UtcNow,
-                AccountName: string.IsNullOrWhiteSpace(existing?.AccountName) ? accountName : existing.AccountName,
-                ServerUrl: string.IsNullOrWhiteSpace(existing?.ServerUrl) ? serverUrl ?? string.Empty : existing.ServerUrl,
-                Tribe: ResolveTribeForSnapshotWrite(existing?.Tribe),
-                GoldClubEnabled: existing?.GoldClubEnabled ?? false,
-                BuildingCatalog: existing?.BuildingCatalog ?? [],
-                AutoCelebrationEnabled: existing?.AutoCelebrationEnabled,
-                AutomationLoopEnabledGroups: enabledGroupNames.ToList(),
-                AutomationLoopVisibleGroups: visibleGroupNames.ToList(),
-                WorldUid: existing?.WorldUid,
-                Villages: existing?.Villages);
-            _accountAnalysisStore.Save(snapshot);
+            _accountAnalysisStore.SaveAutomationLoopPreferences(
+                accountName,
+                serverUrl ?? string.Empty,
+                ResolveTribeForSnapshotWrite(existing?.Tribe),
+                enabledGroupNames,
+                visibleGroupNames);
         }
         catch (Exception ex)
         {

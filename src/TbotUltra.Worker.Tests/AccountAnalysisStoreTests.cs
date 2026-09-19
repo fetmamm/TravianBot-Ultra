@@ -213,6 +213,28 @@ public sealed class AccountAnalysisStoreTests : IDisposable
     }
 
     [Fact]
+    public void SavingUnrelatedPreferences_PreservesCompletedNewAccountAnalysis()
+    {
+        const string accountName = "new-account";
+        const string serverUrl = "https://ts50.x5.arabics.travian.com";
+        _store.SaveNewAccountAnalysisStatus(accountName, serverUrl, completed: true);
+
+        _store.SaveAutomationLoopPreferences(
+            accountName,
+            serverUrl,
+            "Romans",
+            ["hero", "farming"],
+            ["hero"]);
+        _store.SaveAutoCelebrationPreference(accountName, serverUrl, "Romans", enabled: true);
+
+        Assert.True(_store.TryLoad(accountName, out var loaded, serverUrl));
+        Assert.True(loaded!.NewAccountAnalysisCompleted);
+        Assert.Equal(["hero", "farming"], loaded.AutomationLoopEnabledGroups);
+        Assert.Equal(["hero"], loaded.AutomationLoopVisibleGroups);
+        Assert.True(loaded.AutoCelebrationEnabled);
+    }
+
+    [Fact]
     public void ConcurrentFieldUpdates_DoNotLoseWorldUidOrAnalysisFields()
     {
         const string accountName = "race-account";

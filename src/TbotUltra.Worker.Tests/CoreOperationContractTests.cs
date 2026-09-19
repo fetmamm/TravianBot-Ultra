@@ -45,6 +45,7 @@ public sealed class CoreOperationContractTests : IDisposable
     {
         var client = new RecordingGoldClubClient();
         var store = new AccountAnalysisStore(_root);
+        store.SaveNewAccountAnalysisStatus("alice", "https://example.com", completed: true);
         var operation = new GoldClubStatusOperation(client, store);
         var account = new AccountOptions { Name = "alice", Username = "user", Password = "secret" };
         using var cancellation = new CancellationTokenSource();
@@ -57,6 +58,7 @@ public sealed class CoreOperationContractTests : IDisposable
         Assert.True(store.TryLoad("alice", out var persisted, "https://example.com"));
         Assert.True(persisted!.GoldClubEnabled);
         Assert.Equal("Gauls", persisted.Tribe);
+        Assert.True(persisted.NewAccountAnalysisCompleted);
     }
 
     public void Dispose()
