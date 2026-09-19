@@ -269,6 +269,41 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
+    public void FarmListsWorkflow_ExcludesNatarsFromAddPlansWhenRequested()
+    {
+        var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());
+        var rows = new[]
+        {
+            new TravcoListStore.TravcoSavedRow { Coordinates = "1|2", Account = "Natars", Distance = 1 },
+            new TravcoListStore.TravcoSavedRow { Coordinates = "3|4", Account = "Player", Distance = 2 },
+        };
+
+        var plans = workflow.BuildAddPlans(new OfficialFarmAddPlanRequest(
+            Guid.NewGuid(),
+            "Source",
+            rows,
+            [new OfficialFarmAddTarget("A", 0, true)],
+            new HashSet<string>(),
+            "distance_asc",
+            "all",
+            0,
+            null,
+            null,
+            null,
+            null,
+            true,
+            false,
+            false,
+            false,
+            100,
+            true,
+            ExcludeNatars: true));
+
+        var plan = Assert.Single(plans);
+        Assert.Equal(new FarmCoordinate(3, 4), Assert.Single(plan.Coordinates));
+    }
+
+    [Fact]
     public async Task FarmListsWorkflow_OwnsSnapshotRoundTripAndTimerRebase()
     {
         var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());

@@ -241,6 +241,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
                             <TextBlock Text="Amount per list" VerticalAlignment="Center" />
@@ -301,6 +302,10 @@
                             <CheckBox x:Name="SkipLowPopVillagesCheckBox" Grid.Row="5" Grid.ColumnSpan="2"
                                       Margin="0,8,0,0"
                                       Content="Don't add villages with 8 population or less"
+                                      IsChecked="False" Checked="InputChanged" Unchecked="InputChanged" />
+                            <CheckBox x:Name="ExcludeNatarsCheckBox" Grid.Row="6" Grid.ColumnSpan="2"
+                                      Margin="0,8,0,0"
+                                      Content="Exclude Natars"
                                       IsChecked="False" Checked="InputChanged" Unchecked="InputChanged" />
                         </Grid>
                         </StackPanel>

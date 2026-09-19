@@ -249,6 +249,40 @@ public sealed class OfficialFarmSelectionTests
     }
 
     [Fact]
+    public void Filter_ExcludesNatarVillagesOnlyWhenRequested()
+    {
+        var rows = new[]
+        {
+            Row("1|1", pop: 100, distance: 1, account: "Natars"),
+            Row("2|2", pop: 100, distance: 2, account: "Player"),
+        };
+
+        var defaultResult = OfficialFarmSelection.Filter(
+            rows,
+            new HashSet<string>(),
+            amount: 10,
+            order: "distance_asc",
+            populationMode: "all",
+            populationLimit: 0,
+            maximumDistance: null,
+            skipDuplicates: true);
+        var excludedResult = OfficialFarmSelection.Filter(
+            rows,
+            new HashSet<string>(),
+            amount: 10,
+            order: "distance_asc",
+            populationMode: "all",
+            populationLimit: 0,
+            maximumDistance: null,
+            skipDuplicates: true,
+            excludeNatars: true);
+
+        Assert.Equal([(1, 1), (2, 2)], defaultResult.Select(item => (item.X, item.Y)).ToArray());
+        var coordinate = Assert.Single(excludedResult);
+        Assert.Equal((2, 2), (coordinate.X, coordinate.Y));
+    }
+
+    [Fact]
     public void ParseProtectionList_AcceptsSemicolonsAndNewLines()
     {
         var result = FarmListsWorkflow.ParseProtectionList(" Alpha ; Beta\r\nalpha\n Gamma ");
@@ -256,10 +290,15 @@ public sealed class OfficialFarmSelectionTests
         Assert.Equal(["Alpha", "Beta", "Gamma"], result);
     }
 
-    private static TravcoListStore.TravcoSavedRow Row(string coordinates, long pop, double distance) =>
+    private static TravcoListStore.TravcoSavedRow Row(
+        string coordinates,
+        long pop,
+        double distance,
+        string account = "") =>
         new()
         {
             Coordinates = coordinates,
+            Account = account,
             Pop = pop,
             Distance = distance,
             Selected = true,

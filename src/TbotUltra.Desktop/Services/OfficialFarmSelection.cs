@@ -16,6 +16,7 @@ public static class OfficialFarmSelection
     // includeOccupied: when false, rows flagged IsOccupied are dropped unless requireUnoccupiedOasis
     //   is true. In that mode stale saved occupancy is ignored and the Add-target form live-checks owner.
     // requireUnoccupiedOasis: marks returned coordinates for a live Add-target owner check before Save.
+    // excludeNatars: drops villages whose saved account is the Natar system player.
     public static IReadOnlyList<FarmCoordinate> Filter(
         IEnumerable<TravcoListStore.TravcoSavedRow> sourceRows,
         IReadOnlySet<string> existingCoordinates,
@@ -30,7 +31,8 @@ public static class OfficialFarmSelection
         bool includeOccupied = true,
         bool skipLowPopulationVillages = false,
         bool requireUnoccupiedOasis = false,
-        double? minimumDistance = null)
+        double? minimumDistance = null,
+        bool excludeNatars = false)
     {
         if (amount <= 0)
         {
@@ -53,6 +55,11 @@ public static class OfficialFarmSelection
             }
 
             if (!includeOccupied && !requireUnoccupiedOasis && row.IsOccupied == true)
+            {
+                continue;
+            }
+
+            if (excludeNatars && IsNatarAccount(row.Account))
             {
                 continue;
             }
@@ -113,6 +120,13 @@ public static class OfficialFarmSelection
         }
 
         return result;
+    }
+
+    private static bool IsNatarAccount(string? account)
+    {
+        var normalized = account?.Trim();
+        return string.Equals(normalized, "Natar", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "Natars", StringComparison.OrdinalIgnoreCase);
     }
 
 }

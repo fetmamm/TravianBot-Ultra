@@ -618,7 +618,8 @@ public partial class OfficialAddFarmsWindow : Window
             source.IsOasisList,
             FillModeRadioButton.IsChecked == true,
             AmountComboBox.SelectedItem is int selectedAmount ? selectedAmount : 0,
-            SkipDuplicatesCheckBox.IsChecked == true));
+            SkipDuplicatesCheckBox.IsChecked == true,
+            ExcludeNatarsCheckBox.IsChecked == true));
     }
 
     private bool TryReadFilters(

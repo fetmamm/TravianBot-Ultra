@@ -728,7 +728,8 @@ public sealed class FarmListsWorkflow(
                 request.IncludeOccupied,
                 request.SkipLowPopulationVillages,
                 requireUnoccupiedOasis: request.IsOasisList && !request.IncludeOccupied,
-                minimumDistance: request.MinimumDistance);
+                minimumDistance: request.MinimumDistance,
+                excludeNatars: request.ExcludeNatars);
             if (coordinates.Count == 0)
             {
                 continue;
@@ -1314,7 +1315,8 @@ public sealed record OfficialFarmAddPlanRequest(
     bool IsOasisList,
     bool FillAvailable,
     int RequestedAmount,
-    bool SkipDuplicates);
+    bool SkipDuplicates,
+    bool ExcludeNatars = false);
 
 public interface IFarmListsAutomationAdapter
 {
