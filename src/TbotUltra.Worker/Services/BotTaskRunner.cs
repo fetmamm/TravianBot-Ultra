@@ -353,10 +353,10 @@ public sealed partial class BotTaskRunner
         string? waitReasonCode,
         Action<string> log)
     {
-        var count = CountVerifiedActivities(taskName, taskResults, handlerCompleted, waitReasonCode);
-        for (var index = 0; index < count; index++)
+        var activityNames = ResolveVerifiedActivityNames(taskName, taskResults, handlerCompleted, waitReasonCode);
+        foreach (var activityName in activityNames)
         {
-            var activity = new BotTaskActivity(accountName, taskName, DateTimeOffset.UtcNow);
+            var activity = new BotTaskActivity(accountName, activityName, DateTimeOffset.UtcNow);
             var subscribers = TaskActivityRecorded;
             if (subscribers is null)
             {
@@ -371,7 +371,7 @@ public sealed partial class BotTaskRunner
                 }
                 catch (Exception ex)
                 {
-                    log($"[task-activity:verbose] could not persist confirmed activity for '{taskName}': {ex.Message}");
+                    log($"[task-activity:verbose] could not persist confirmed activity for '{activityName}': {ex.Message}");
                 }
             }
         }
@@ -382,23 +382,57 @@ public sealed partial class BotTaskRunner
         IReadOnlyList<BotTaskResult> taskResults,
         bool handlerCompleted,
         string? waitReasonCode)
+        => ResolveVerifiedActivityNames(taskName, taskResults, handlerCompleted, waitReasonCode).Count;
+
+    internal static IReadOnlyList<string> ResolveVerifiedActivityNames(
+        string taskName,
+        IReadOnlyList<BotTaskResult> taskResults,
+        bool handlerCompleted,
+        string? waitReasonCode)
     {
         if (IsConstructionTaskResult(taskName))
         {
-            return taskResults.Count(result =>
-                result.ConstructionOutcome is ConstructionTaskOutcome.QueuedOrInProgress
-                    or ConstructionTaskOutcome.ConfirmedComplete);
+            var verifiedActivities = new List<string>();
+            foreach (var result in taskResults)
+            {
+                var message = result.Message ?? string.Empty;
+                var hasReportedCount = TryExtractResultInt(message, "Upgrades performed: ", out var upgrades)
+                    || TryExtractResultInt(message, "Upgrades made: ", out upgrades)
+                    || TryExtractResultInt(message, "reached after ", out upgrades);
+                var count = hasReportedCount
+                    ? Math.Max(0, upgrades)
+                    : result.ConstructionOutcome is ConstructionTaskOutcome.QueuedOrInProgress
+                        or ConstructionTaskOutcome.ConfirmedComplete
+                            ? 1
+                            : 0;
+                for (var index = 0; index < count; index++)
+                {
+                    verifiedActivities.Add(taskName);
+                }
+            }
+
+            return verifiedActivities;
         }
 
+        var activities = new List<string>();
         if (handlerCompleted)
         {
-            return 1;
+            activities.Add(taskName);
+        }
+        else if (string.Equals(waitReasonCode, TaskWaitReasons.WorkQueued, StringComparison.Ordinal))
+        {
+            activities.Add(taskName);
         }
 
-        return string.Equals(waitReasonCode, TaskWaitReasons.WorkQueued, StringComparison.Ordinal)
-            ? 1
-            : 0;
+        activities.AddRange(taskResults
+            .Where(result => string.Equals(result.TaskName, "hero_adventure", StringComparison.OrdinalIgnoreCase)
+                && IsHeroAdventureDispatched(result.Message))
+            .Select(result => result.TaskName));
+        return activities;
     }
+
+    internal static bool IsHeroAdventureDispatched(string? result) =>
+        result?.Contains("adventure_sent(", StringComparison.OrdinalIgnoreCase) == true;
 
     public async Task ShutdownAsync(Action<string>? log = null)
     {

@@ -126,9 +126,11 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Synthetic `desktop_runtime_manual:*` history rows are classified by their domain. Unknown manual runtime names
   default to Account, never Construction; only explicit resource/building operations may use Construction.
 - Daily details task counts come from the account-scoped task-activity journal, never queue-row status or timestamps.
-  Record completed task handlers, successful manual operations, and typed `work_queued` actions; construction counts
-  require `QueuedOrInProgress` or `ConfirmedComplete` evidence, while waits, failures, cancellations, and
-  already-satisfied observations never count as work performed. Do not fabricate activity before the journal exists.
+  Record completed task handlers, successful manual operations, and typed `work_queued` actions. Construction results
+  with an explicit completed-upgrade count contribute exactly N activities even if the task then defers; otherwise require
+  `QueuedOrInProgress` or `ConfirmedComplete` evidence. Confirmed nested actions such as `hero_adventure` get their own
+  activity name, while waits, failures, cancellations, and already-satisfied observations never count as work performed.
+  Do not fabricate activity before the journal exists.
 - Account `Manual login` is account-scoped and permits an empty password. It opens the Official lobby
   without submitting credentials, blocks the desktop behind a `Login done`/`Cancel` confirmation, verifies
   the live lobby before continuing, and temporarily permits browser popups, user-opened tabs, and authentication
