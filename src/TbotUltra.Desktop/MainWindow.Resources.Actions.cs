@@ -269,7 +269,7 @@ public partial class MainWindow
         return Task.CompletedTask;
     }
 
-    private string SavePageHtmlDirectory => Path.Combine(_projectRoot, "temp_build_out", "DOM");
+    private string SavePageHtmlDirectory => Path.Combine(_projectRoot, "docs", "DOM");
 
     private void SavePageHtmlButton_Click(object sender, RoutedEventArgs e)
     {
