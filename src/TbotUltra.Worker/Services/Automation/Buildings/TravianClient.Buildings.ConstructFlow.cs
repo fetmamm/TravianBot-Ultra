@@ -194,6 +194,15 @@ public sealed partial class TravianClient : IBuildingClient
                 cancellationToken,
                 constructGid: gid);
             var durationSeconds = pageAnalysis.DurationSeconds;
+            var durationAnomaly = DetectMainBuildingDurationAnomaly(
+                gid,
+                targetLevel: 1,
+                durationSeconds,
+                $"constructing {buildingName}");
+            if (durationAnomaly is not null)
+            {
+                return WithEffectiveSlot(durationAnomaly);
+            }
             // Read the population the new building grants before clicking (page changes after).
             var populationDelta = pageAnalysis.PopulationDelta;
             if (await CurrentPageHasCropShortageBlockAsync(cancellationToken))

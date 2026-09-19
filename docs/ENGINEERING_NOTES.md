@@ -884,6 +884,11 @@ Published artifacts belong under `artifacts/`, never beside source files.
   construction-slot waits remain non-alarm status.
   Official empty slots still contain a clickable `a.emptyBuildingSlot`; that link is explicit empty evidence, not
   occupancy. Treat `emptyBuildingSlot`, `g0`, and `data-gid=0` as empty before applying generic link evidence.
+- Main Building auto-rebuild is authorized only by a complete 22-slot Dorf2 overview that confirms gid 15 is absent;
+  partial/unknown reads never enqueue it. Normal Dorf2 reads perform this check without dedicated navigation. Before
+  any resource-field or building start, a duration above the healthy level-1 Main Building catalog baseline by at
+  least 50% (and five seconds) may request one Dorf2 verification; it must not itself prove absence or block rebuilding
+  gid 15. The resulting composite construct owns the configured final target level and is deduplicated per village.
 - An automation run captures Worker's actual `BrowserGeneration`; never mirror or synthesize that generation in
   Desktop. Runtime-item reconciliation identifies village scope with `BotOptionPayloadKeys.TargetVillageKey` and
   must preserve an existing pending item's authoritative `NextAttemptAt` when refreshing payload or priority.

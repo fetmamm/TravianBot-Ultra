@@ -125,6 +125,15 @@ public sealed partial class TravianClient : IBuildingClient
                 return $"Slot {slotId}: pre-click safety could not resolve gid for '{buildingName}'. "
                        + "Re-reading live levels before retry. queue_wait_seconds=1";
             }
+            var durationAnomaly = DetectMainBuildingDurationAnomaly(
+                gid,
+                nextLevel,
+                durationSeconds,
+                $"upgrading {buildingName}");
+            if (durationAnomaly is not null)
+            {
+                return durationAnomaly;
+            }
             var clickSafety = await VerifyUpgradePreClickSafetyAsync(
                 slotId,
                 gid.Value,
@@ -1031,6 +1040,15 @@ public sealed partial class TravianClient : IBuildingClient
             {
                 return $"Slot {slotId}: pre-click safety could not resolve gid for '{buildingName}'. "
                        + $"Upgrades performed: {upgrades}. queue_wait_seconds=1";
+            }
+            var durationAnomaly = DetectMainBuildingDurationAnomaly(
+                gid,
+                nextLevel,
+                durationSeconds,
+                $"upgrading {buildingName}");
+            if (durationAnomaly is not null)
+            {
+                return durationAnomaly;
             }
             var clickSafety = await VerifyUpgradePreClickSafetyAsync(
                 slotId,

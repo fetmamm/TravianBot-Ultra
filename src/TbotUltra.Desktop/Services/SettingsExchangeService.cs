@@ -373,6 +373,8 @@ internal sealed class SettingsExchangeService
             BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMinMinutes, BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMaxMinutes,
         }) Add(Double(key, "Pacing", 0, 3600));
 
+        Add(Bool(BotOptionPayloadKeys.ConstructionMainBuildingRebuildEnabled, "Construction"));
+        Add(Int(BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel, "Construction", ConstructionDefaults.MainBuildingRebuildTargetLevelMin, ConstructionDefaults.MainBuildingRebuildTargetLevelMax));
         Add(Bool(BotOptionPayloadKeys.ConstructionCropShortageRecoveryEnabled, "Construction"));
         Add(Bool(BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled, "Construction"));
         Add(Int(BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead, "Construction", ConstructionDefaults.StorageUpgradeLevelsAheadMin, ConstructionDefaults.StorageUpgradeLevelsAheadMax));

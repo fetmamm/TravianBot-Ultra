@@ -262,6 +262,12 @@ public partial class SettingsWindow : Window
             _config[BotOptionPayloadKeys.DailyGoldSpendingLimit]?.GetValue<int>() ?? DefaultDailyGoldSpendingLimit).ToString(CultureInfo.InvariantCulture);
         LoadDailyServerResetToUi();
         LoadPacingConfigToUi();
+        SettingsVm.Construction.MainBuildingRebuildEnabled = ReadBool(
+            BotOptionPayloadKeys.ConstructionMainBuildingRebuildEnabled,
+            ConstructionDefaults.MainBuildingRebuildEnabled);
+        SettingsVm.Construction.MainBuildingRebuildTargetLevel = ConstructionDefaults.NormalizeMainBuildingRebuildTargetLevel(
+            _config[BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel]?.GetValue<int>()
+            ?? ConstructionDefaults.MainBuildingRebuildTargetLevel);
         SettingsVm.Construction.StorageUpgradeLevelsAhead = ConstructionDefaults.NormalizeStorageUpgradeLevelsAhead(
             _config[BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead]?.GetValue<int>()
             ?? ConstructionDefaults.StorageUpgradeLevelsAhead);
@@ -407,6 +413,9 @@ public partial class SettingsWindow : Window
 
     private void InitializeConstructionChoices()
     {
+        MainBuildingRebuildTargetLevelComboBox.ItemsSource = Enumerable.Range(
+            ConstructionDefaults.MainBuildingRebuildTargetLevelMin,
+            ConstructionDefaults.MainBuildingRebuildTargetLevelMax - ConstructionDefaults.MainBuildingRebuildTargetLevelMin + 1);
         StorageUpgradeLevelsAheadComboBox.ItemsSource = Enumerable.Range(
             ConstructionDefaults.StorageUpgradeLevelsAheadMin,
             ConstructionDefaults.StorageUpgradeLevelsAheadMax - ConstructionDefaults.StorageUpgradeLevelsAheadMin + 1);
@@ -785,6 +794,10 @@ public partial class SettingsWindow : Window
             SettingsVm.TroopTrainingFallbackCooldownSeconds;
         SaveDailyServerResetFromUi(draft);
         SavePacingConfigFromUi(draft);
+        draft[BotOptionPayloadKeys.ConstructionMainBuildingRebuildEnabled] =
+            SettingsVm.Construction.MainBuildingRebuildEnabled;
+        draft[BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel] =
+            SettingsVm.Construction.MainBuildingRebuildTargetLevel;
         draft[BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead] =
             SettingsVm.Construction.StorageUpgradeLevelsAhead;
         draft[BotOptionPayloadKeys.ConstructionCropShortageRecoveryEnabled] =
@@ -1375,6 +1388,9 @@ public partial class SettingsWindow : Window
 
     private void SynchronizeConstructionControls()
     {
+        MainBuildingRebuildTargetLevelComboBox.SetCurrentValue(
+            Selector.SelectedItemProperty,
+            SettingsVm.Construction.MainBuildingRebuildTargetLevel);
         StorageUpgradeLevelsAheadComboBox.SetCurrentValue(
             Selector.SelectedItemProperty,
             SettingsVm.Construction.StorageUpgradeLevelsAhead);

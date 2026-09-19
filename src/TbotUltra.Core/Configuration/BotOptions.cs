@@ -553,6 +553,12 @@ public sealed record BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled)]
     public bool ConstructionHumanizeDelayEnabled { get; init; } = PacingDefaults.ConstructionHumanizeDelayEnabled;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionMainBuildingRebuildEnabled)]
+    public bool ConstructionMainBuildingRebuildEnabled { get; init; } = ConstructionDefaults.MainBuildingRebuildEnabled;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel)]
+    public int ConstructionMainBuildingRebuildTargetLevel { get; init; } = ConstructionDefaults.MainBuildingRebuildTargetLevel;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead)]
     public int ConstructionStorageUpgradeLevelsAhead { get; init; } = ConstructionDefaults.StorageUpgradeLevelsAhead;
 

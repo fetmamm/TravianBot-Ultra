@@ -155,6 +155,8 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.ActionPacingIdleBrowsePageReports,
         BotOptionPayloadKeys.ActionPacingIdleBrowsePageMessages,
         BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled,
+        BotOptionPayloadKeys.ConstructionMainBuildingRebuildEnabled,
+        BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel,
         BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead,
         BotOptionPayloadKeys.ConstructionCropShortageRecoveryEnabled,
         BotOptionPayloadKeys.ConstructionHumanizeStateVersion,

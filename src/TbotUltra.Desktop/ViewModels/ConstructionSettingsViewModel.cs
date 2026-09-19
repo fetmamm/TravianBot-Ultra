@@ -7,6 +7,8 @@ namespace TbotUltra.Desktop.ViewModels;
 /// <summary>Owns editable Construction settings while SettingsWindow keeps validation and persistence.</summary>
 public sealed class ConstructionSettingsViewModel : BaseViewModel
 {
+    private bool _mainBuildingRebuildEnabled = ConstructionDefaults.MainBuildingRebuildEnabled;
+    private int _mainBuildingRebuildTargetLevel = ConstructionDefaults.MainBuildingRebuildTargetLevel;
     private int _storageUpgradeLevelsAhead = ConstructionDefaults.StorageUpgradeLevelsAhead;
     private bool _cropShortageRecoveryEnabled = ConstructionDefaults.CropShortageRecoveryEnabled;
     private bool _humanizeDelayEnabled = PacingDefaults.ConstructionHumanizeDelayEnabled;
@@ -17,6 +19,14 @@ public sealed class ConstructionSettingsViewModel : BaseViewModel
     private string _noPlusDelayMaxMinutes = Format(PacingDefaults.ConstructionHumanizeNoPlusMaxMinutes);
     private string _demolishDelayMinMinutes = DemolishDefaults.DefaultDelayMinMinutes.ToString(CultureInfo.InvariantCulture);
     private string _demolishDelayMaxMinutes = DemolishDefaults.DefaultDelayMaxMinutes.ToString(CultureInfo.InvariantCulture);
+
+    public bool MainBuildingRebuildEnabled { get => _mainBuildingRebuildEnabled; set => SetProperty(ref _mainBuildingRebuildEnabled, value); }
+
+    public int MainBuildingRebuildTargetLevel
+    {
+        get => _mainBuildingRebuildTargetLevel;
+        set => SetProperty(ref _mainBuildingRebuildTargetLevel, ConstructionDefaults.NormalizeMainBuildingRebuildTargetLevel(value));
+    }
 
     public int StorageUpgradeLevelsAhead
     {

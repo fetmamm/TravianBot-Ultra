@@ -94,6 +94,8 @@ public partial class MainWindow
         public ValueTask RefreshConstructionStatusAfterDeferAsync() =>
             new(owner.RefreshConstructionStatusAfterDeferAsync(
                 owner._loopController.AcquireSessionScopeToken()));
+        public ValueTask VerifyMainBuildingAfterDurationAnomalyAsync(QueueItem item) =>
+            new(owner.VerifyMainBuildingAfterDurationAnomalyAsync(item));
         public ValueTask HandleCropShortageDeferAsync(QueueItem item) =>
             new(owner.HandleCropShortageDeferAsync(item));
         public ValueTask RefreshTroopTrainingAfterBuildAsync(QueueItem item) =>

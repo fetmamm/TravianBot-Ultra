@@ -213,6 +213,27 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
+    public void FromConfiguration_MainBuildingRebuildDefaultsAndClamps()
+    {
+        var defaults = new ConfigurationBuilder().AddInMemoryCollection().Build();
+        var configured = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [BotOptionPayloadKeys.ConstructionMainBuildingRebuildEnabled] = "false",
+                [BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel] = "99",
+            })
+            .Build();
+
+        var defaultOptions = BotOptionsFactory.FromConfiguration(defaults);
+        var configuredOptions = BotOptionsFactory.FromConfiguration(configured);
+
+        Assert.True(defaultOptions.ConstructionMainBuildingRebuildEnabled);
+        Assert.Equal(1, defaultOptions.ConstructionMainBuildingRebuildTargetLevel);
+        Assert.False(configuredOptions.ConstructionMainBuildingRebuildEnabled);
+        Assert.Equal(20, configuredOptions.ConstructionMainBuildingRebuildTargetLevel);
+    }
+
+    [Fact]
     public void Apply_PreservesStorageUpgradeLevelsAhead()
     {
         var source = new BotOptions { ConstructionStorageUpgradeLevelsAhead = 4 };

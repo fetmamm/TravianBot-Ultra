@@ -110,6 +110,23 @@ public sealed class AutomationQueueItemFailureTests
         Assert.Equal(["succeeded", "disable-town-hall-village"], port.Trace);
     }
 
+    [Fact]
+    public async Task DurationAnomaly_RequestsDorf2Verification()
+    {
+        var port = new InMemoryPort();
+
+        await new AutomationQueueItemFailure(port).HandleAsync(
+            Item("upgrade_resource_to_level"),
+            new TaskWaitException(
+                1,
+                "main_building_duration_anomaly=true queue_wait_seconds=1"),
+            "[LOOP 1]",
+            Stopwatch.StartNew(),
+            AutomationRunMode.ContinuousLoop);
+
+        Assert.Contains("verify-main-building", port.Trace);
+    }
+
     private static QueueItem Item(string taskName) => new()
     {
         Id = Guid.NewGuid(),
@@ -191,6 +208,11 @@ public sealed class AutomationQueueItemFailureTests
             return ValueTask.CompletedTask;
         }
         public ValueTask RefreshConstructionStatusAfterDeferAsync() => ValueTask.CompletedTask;
+        public ValueTask VerifyMainBuildingAfterDurationAnomalyAsync(QueueItem item)
+        {
+            Trace.Add("verify-main-building");
+            return ValueTask.CompletedTask;
+        }
         public ValueTask HandleCropShortageDeferAsync(QueueItem item) => ValueTask.CompletedTask;
         public ValueTask RefreshTroopTrainingAfterBuildAsync(QueueItem item) => ValueTask.CompletedTask;
         public bool UpdateDeferredPayload(Guid itemId, Dictionary<string, string> payload)

@@ -261,6 +261,13 @@ public static class BotOptionsFactory
             ActionPacingIdleBrowsePageReports = configuration.GetValue(BotOptionPayloadKeys.ActionPacingIdleBrowsePageReports, PacingDefaults.ActionPacingIdleBrowsePageReports),
             ActionPacingIdleBrowsePageMessages = configuration.GetValue(BotOptionPayloadKeys.ActionPacingIdleBrowsePageMessages, PacingDefaults.ActionPacingIdleBrowsePageMessages),
             ConstructionHumanizeDelayEnabled = configuration.GetValue(BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled, PacingDefaults.ConstructionHumanizeDelayEnabled),
+            ConstructionMainBuildingRebuildEnabled = configuration.GetValue(
+                BotOptionPayloadKeys.ConstructionMainBuildingRebuildEnabled,
+                ConstructionDefaults.MainBuildingRebuildEnabled),
+            ConstructionMainBuildingRebuildTargetLevel = ConstructionDefaults.NormalizeMainBuildingRebuildTargetLevel(
+                configuration.GetValue(
+                    BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel,
+                    ConstructionDefaults.MainBuildingRebuildTargetLevel)),
             ConstructionStorageUpgradeLevelsAhead = ConstructionDefaults.NormalizeStorageUpgradeLevelsAhead(
                 configuration.GetValue(BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead, ConstructionDefaults.StorageUpgradeLevelsAhead)),
             ConstructionCropShortageRecoveryEnabled = configuration.GetValue(

@@ -38,6 +38,7 @@ internal interface IAutomationQueueItemFailurePort
         Dictionary<string, string> payload);
     ValueTask RefreshFarmListsAfterAutoSendAsync(QueueItem item, string message);
     ValueTask RefreshConstructionStatusAfterDeferAsync();
+    ValueTask VerifyMainBuildingAfterDurationAnomalyAsync(QueueItem item);
     ValueTask HandleCropShortageDeferAsync(QueueItem item);
     ValueTask RefreshTroopTrainingAfterBuildAsync(QueueItem item);
     bool UpdateDeferredPayload(Guid itemId, Dictionary<string, string> payload);
@@ -103,6 +104,8 @@ internal sealed class AutomationQueueItemFailure(
 
         if (hasQueueWait)
         {
+            var mainBuildingDurationAnomaly = (IsConstructionQueueTask(item.TaskName) || IsResourceUpgradeTask(item.TaskName))
+                && ex.Message.Contains("main_building_duration_anomaly=true", StringComparison.OrdinalIgnoreCase);
             if (IsConstructionQueueTask(item.TaskName)
                 && ConstructionQueueState.IsConstructionRequirementDeferMessage(ex.Message)
                 && TryResolveConstructActivePrerequisiteDelay(
@@ -367,6 +370,17 @@ internal sealed class AutomationQueueItemFailure(
 
                 await port.RefreshFarmListsAfterAutoSendAsync(item, ex.Message);
                 port.Log($"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | next try in {queueWaitDelay.TotalSeconds:F0}s{constructionSuffix}");
+                if (mainBuildingDurationAnomaly)
+                {
+                    try
+                    {
+                        await port.VerifyMainBuildingAfterDurationAnomalyAsync(item);
+                    }
+                    catch (Exception verificationEx)
+                    {
+                        port.Log($"Main Building Dorf2 verification failed: {verificationEx.Message}");
+                    }
+                }
                 if (string.Equals(item.TaskName, "anti_starve_hero_crop", StringComparison.OrdinalIgnoreCase)
                     && ex.Message.Contains("anti_starve_alarm=true", StringComparison.OrdinalIgnoreCase))
                 {
@@ -379,7 +393,8 @@ internal sealed class AutomationQueueItemFailure(
                 // Travian queue can stay empty even though the worker just observed a full queue. Re-read the
                 // current village's construction status (the browser is already on it) before repainting.
                 if ((IsBuildingMutationTask(item.TaskName) || IsResourceUpgradeTask(item.TaskName))
-                    && !isHumanizeDefer)
+                    && !isHumanizeDefer
+                    && !mainBuildingDurationAnomaly)
                 {
                     try
                     {

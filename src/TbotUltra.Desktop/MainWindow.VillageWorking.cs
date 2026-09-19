@@ -862,6 +862,15 @@ public partial class MainWindow
         }
 
         StoreVillageStatusCacheEntry(name, status);
+        if (isFullRead && BuildingUpgradeSlotRebindPlanner.HasCompleteBuildingOverview(liveStatus))
+        {
+            TryQueueMainBuildingRebuild(
+                liveStatus,
+                existing,
+                name,
+                statusKey,
+                readOnlyObservation);
+        }
         ObserveIncomingAttackSignals(status);
         ObserveHeroCropAntiStarveStatus(status, name);
         InvalidateVillageOverview();

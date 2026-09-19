@@ -247,11 +247,7 @@ internal static class BuildingUpgradeSlotRebindPlanner
             reservedSlots.UnionWith(ParseOrdinarySlotIds(excludedSlotsRaw));
         }
 
-        var confirmedEmptySlotIds = status.Buildings
-            .Where(IsConfirmedEmptyOrdinarySlot)
-            .Select(building => building.SlotId!.Value)
-            .OrderBy(slot => slot)
-            .ToList();
+        var confirmedEmptySlotIds = GetConfirmedEmptyOrdinarySlotIds(status);
         var reboundSlotId = confirmedEmptySlotIds
             .Where(slot => !reservedSlots.Contains(slot))
             .Cast<int?>()
@@ -344,6 +340,13 @@ internal static class BuildingUpgradeSlotRebindPlanner
             && (building.Level ?? 0) == 0
             && (building.Gid ?? 0) == 0
             && string.Equals(building.Name, "Empty", StringComparison.OrdinalIgnoreCase);
+
+    public static IReadOnlyList<int> GetConfirmedEmptyOrdinarySlotIds(VillageStatus status)
+        => status.Buildings
+            .Where(IsConfirmedEmptyOrdinarySlot)
+            .Select(building => building.SlotId!.Value)
+            .OrderBy(slot => slot)
+            .ToList();
 
     private static IEnumerable<int> ParseOrdinarySlotIds(string? value)
         => string.IsNullOrWhiteSpace(value)

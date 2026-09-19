@@ -364,6 +364,8 @@ public static class BotOptionPayloadKeys
     public const string ActionPacingIdleBrowsePageMessages = "action_pacing_idle_browse_page_messages";
 
     public const string ConstructionHumanizeDelayEnabled = "construction_humanize_delay_enabled";
+    public const string ConstructionMainBuildingRebuildEnabled = "construction_main_building_rebuild_enabled";
+    public const string ConstructionMainBuildingRebuildTargetLevel = "construction_main_building_rebuild_target_level";
     public const string ConstructionStorageUpgradeLevelsAhead = "construction_storage_upgrade_levels_ahead";
     public const string ConstructionCropShortageRecoveryEnabled = "construction_crop_shortage_recovery_enabled";
     public const string UpgradeDeferReasonCropShortage = "crop_shortage";
@@ -371,6 +373,7 @@ public static class BotOptionPayloadKeys
     public const string CropShortageOriginalPriority = "crop_shortage_original_priority";
     public const string CropShortageCompletedSteps = "crop_shortage_completed_steps";
     public const string AutoAddedByCropShortageRecovery = "crop_shortage_recovery";
+    public const string AutoAddedByMainBuildingRebuild = "main_building_rebuild";
     public const string ConstructionHumanizeStateVersion = "construction_humanize_state_version";
     public const string ConstructionHumanizeQueuePercentMin = "construction_humanize_queue_percent_min";
     public const string ConstructionHumanizeQueuePercentMax = "construction_humanize_queue_percent_max";
