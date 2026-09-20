@@ -581,6 +581,47 @@ public static class ConstructionQueueState
             : null;
     }
 
+    public static TimeSpan? ResolveSmartSleepQueueClearDelay(
+        VillageStatus? status,
+        bool? travianPlusActive,
+        QueueItem item,
+        DateTimeOffset? now = null)
+    {
+        if (status?.ActiveConstructionsFromOverview != true || travianPlusActive != true)
+        {
+            return null;
+        }
+
+        var capturedAt = now ?? DateTimeOffset.UtcNow;
+        var active = ResolveCurrentActiveConstructions(status, capturedAt);
+        if (string.Equals(status.Tribe, "Romans", StringComparison.OrdinalIgnoreCase))
+        {
+            var isResourceTask = IsResourceConstructionTask(item.TaskName);
+            active = active
+                .Where(construction => isResourceTask
+                    ? construction.Kind == ConstructionKind.Resource
+                    : construction.Kind != ConstructionKind.Resource)
+                .ToList();
+        }
+
+        if (active.Count < 2)
+        {
+            return null;
+        }
+
+        var remainingSeconds = active
+            .Select(construction => construction.Finish?.RemainingSecondsAt(capturedAt)
+                ?? construction.TimeLeftSeconds)
+            .ToList();
+        if (remainingSeconds.Any(seconds => seconds is null or <= 0))
+        {
+            return null;
+        }
+
+        return TimeSpan.FromSeconds(
+            remainingSeconds.Max()!.Value + ResolveQueueHumanizeExtraSeconds(item));
+    }
+
     public static int ResolveQueueHumanizeExtraSeconds(QueueItem item)
     {
         return item.Payload.TryGetValue(BotOptionPayloadKeys.QueueHumanizeExtraSeconds, out var raw)

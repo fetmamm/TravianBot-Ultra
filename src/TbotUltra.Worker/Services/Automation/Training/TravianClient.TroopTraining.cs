@@ -27,7 +27,9 @@ public sealed partial class TravianClient : ITrainingClient
         bool CheckWood,
         bool CheckClay,
         bool CheckIron,
-        bool CheckCrop);
+        bool CheckCrop,
+        bool AutomaticResourceSelection,
+        TroopTrainingCost? TrainingCost);
 
     private sealed record TroopTrainingCandidate(
         TroopTrainingRequest Request,
@@ -161,7 +163,7 @@ public sealed partial class TravianClient : ITrainingClient
 
         var requests = BuildTroopTrainingRequests(_config, status.Tribe);
         Notify($"[troops:verbose]loaded {requests.Count} building request(s) from config.");
-        Notify($"[troops:verbose]requests={string.Join(" | ", requests.Select(item => $"{item.BuildingName}:enabled={item.IsEnabled}:troop='{item.TroopType}':limit='{item.MaxQueueMode}':mode='{item.AmountMode}':keep={item.KeepResourcesPercent}%:runMode='{item.RunMode}':timed={item.TimedMinMinutes}-{item.TimedMaxMinutes}m:minRes={item.MinimumResourcesPercent}%:check=[w={item.CheckWood},c={item.CheckClay},i={item.CheckIron},crop={item.CheckCrop}]"))}.");
+        Notify($"[troops:verbose]requests={string.Join(" | ", requests.Select(item => $"{item.BuildingName}:enabled={item.IsEnabled}:troop='{item.TroopType}':limit='{item.MaxQueueMode}':mode='{item.AmountMode}':keep={item.KeepResourcesPercent}%:runMode='{item.RunMode}':timed={item.TimedMinMinutes}-{item.TimedMaxMinutes}m:minRes={item.MinimumResourcesPercent}%:auto={item.AutomaticResourceSelection}:check=[w={item.CheckWood},c={item.CheckClay},i={item.CheckIron},crop={item.CheckCrop}]"))}.");
         var enabledRequests = requests
             .Where(item => item.IsEnabled && !string.IsNullOrWhiteSpace(item.TroopType))
             .ToList();
@@ -365,13 +367,16 @@ public sealed partial class TravianClient : ITrainingClient
 
     private static IReadOnlyList<TroopTrainingRequest> BuildTroopTrainingRequests(BotOptions options, string? tribe)
     {
+        var barracksTroop = ResolveConfiguredTroopType(options.TroopTrainingBarracksTroopType, tribe, TroopTrainingBuildingType.Barracks);
+        var stableTroop = ResolveConfiguredTroopType(options.TroopTrainingStableTroopType, tribe, TroopTrainingBuildingType.Stable);
+        var workshopTroop = ResolveConfiguredTroopType(options.TroopTrainingWorkshopTroopType, tribe, TroopTrainingBuildingType.Workshop);
         return
         [
             new TroopTrainingRequest(
                 TroopTrainingBuildingType.Barracks,
                 "Barracks",
                 options.TroopTrainingBarracksEnabled,
-                ResolveConfiguredTroopType(options.TroopTrainingBarracksTroopType, tribe, TroopTrainingBuildingType.Barracks),
+                barracksTroop,
                 options.TroopTrainingBarracksMaxQueueHours,
                 options.TroopTrainingBarracksAmountMode,
                 options.TroopTrainingBarracksKeepResourcesPercent,
@@ -386,12 +391,14 @@ public sealed partial class TravianClient : ITrainingClient
                 options.TroopTrainingBarracksCheckWood,
                 options.TroopTrainingBarracksCheckClay,
                 options.TroopTrainingBarracksCheckIron,
-                options.TroopTrainingBarracksCheckCrop),
+                options.TroopTrainingBarracksCheckCrop,
+                options.TroopTrainingBarracksAutomaticResourceSelection,
+                ResolveTrainingCost(tribe, barracksTroop)),
             new TroopTrainingRequest(
                 TroopTrainingBuildingType.Stable,
                 "Stable",
                 options.TroopTrainingStableEnabled,
-                ResolveConfiguredTroopType(options.TroopTrainingStableTroopType, tribe, TroopTrainingBuildingType.Stable),
+                stableTroop,
                 options.TroopTrainingStableMaxQueueHours,
                 options.TroopTrainingStableAmountMode,
                 options.TroopTrainingStableKeepResourcesPercent,
@@ -406,12 +413,14 @@ public sealed partial class TravianClient : ITrainingClient
                 options.TroopTrainingStableCheckWood,
                 options.TroopTrainingStableCheckClay,
                 options.TroopTrainingStableCheckIron,
-                options.TroopTrainingStableCheckCrop),
+                options.TroopTrainingStableCheckCrop,
+                options.TroopTrainingStableAutomaticResourceSelection,
+                ResolveTrainingCost(tribe, stableTroop)),
             new TroopTrainingRequest(
                 TroopTrainingBuildingType.Workshop,
                 "Workshop",
                 options.TroopTrainingWorkshopEnabled,
-                ResolveConfiguredTroopType(options.TroopTrainingWorkshopTroopType, tribe, TroopTrainingBuildingType.Workshop),
+                workshopTroop,
                 options.TroopTrainingWorkshopMaxQueueHours,
                 options.TroopTrainingWorkshopAmountMode,
                 options.TroopTrainingWorkshopKeepResourcesPercent,
@@ -426,9 +435,14 @@ public sealed partial class TravianClient : ITrainingClient
                 options.TroopTrainingWorkshopCheckWood,
                 options.TroopTrainingWorkshopCheckClay,
                 options.TroopTrainingWorkshopCheckIron,
-                options.TroopTrainingWorkshopCheckCrop),
+                options.TroopTrainingWorkshopCheckCrop,
+                options.TroopTrainingWorkshopAutomaticResourceSelection,
+                ResolveTrainingCost(tribe, workshopTroop)),
         ];
     }
+
+    private static TroopTrainingCost? ResolveTrainingCost(string? tribe, string? troopType)
+        => TroopCatalog.TryResolveTrainingCost(tribe, troopType, out var cost) ? cost : null;
 
     private bool CouldAttemptNpcTradeBeforeMinimumGate(
         TroopTrainingRequest request,
@@ -722,7 +736,11 @@ public sealed partial class TravianClient : ITrainingClient
         Notify($"[troops:verbose]submit result submitted={submitted}.");
         if (!submitted)
         {
-            return new TroopTrainingAttemptOutcome(false, $"Skip {candidate.Request.BuildingName}: could not submit training for '{candidate.Request.TroopType}'.");
+            var retrySeconds = Math.Max(60, fallbackCooldownSeconds);
+            return new TroopTrainingAttemptOutcome(
+                false,
+                $"Build troops: {candidate.Request.BuildingName} form did not remain stable for '{candidate.Request.TroopType}'. queue_wait_seconds={retrySeconds}",
+                retrySeconds);
         }
 
         await Task.Delay(300, cancellationToken);
@@ -879,16 +897,17 @@ public sealed partial class TravianClient : ITrainingClient
         int fallbackCooldownSeconds,
         string label)
     {
+        var selection = ResolveTroopTrainingResourceSelection(request, currentResources, capacities);
         var evaluation = TroopTrainingResourceThresholdCalculator.Evaluate(
             currentResources,
             productionByHour,
             capacities.WarehouseCapacity,
             capacities.GranaryCapacity,
             request.MinimumResourcesPercent,
-            request.CheckWood,
-            request.CheckClay,
-            request.CheckIron,
-            request.CheckCrop,
+            selection.CheckWood,
+            selection.CheckClay,
+            selection.CheckIron,
+            selection.CheckCrop,
             fallbackCooldownSeconds);
         return BuildTroopTrainingWaitOutcome(
             buildingName,
@@ -1043,17 +1062,40 @@ public sealed partial class TravianClient : ITrainingClient
         ResourceCapacitySnapshot capacities,
         TroopTrainingRequest request)
     {
+        var selection = ResolveTroopTrainingResourceSelection(request, resources, capacities);
         return TroopTrainingResourceThresholdCalculator.Evaluate(
             resources,
             new Dictionary<string, double?>(),
             capacities.WarehouseCapacity,
             capacities.GranaryCapacity,
             request.MinimumResourcesPercent,
+            selection.CheckWood,
+            selection.CheckClay,
+            selection.CheckIron,
+            selection.CheckCrop,
+            fallbackCooldownSeconds: 1).IsReady;
+    }
+
+    private static TroopTrainingResourceSelection ResolveTroopTrainingResourceSelection(
+        TroopTrainingRequest request,
+        IReadOnlyDictionary<string, long> resources,
+        ResourceCapacitySnapshot capacities)
+    {
+        if (request.AutomaticResourceSelection && request.TrainingCost is not null)
+        {
+            return TroopTrainingResourceThresholdCalculator.ResolveAutomaticResourceSelection(
+                request.TrainingCost,
+                resources,
+                capacities.WarehouseCapacity,
+                capacities.GranaryCapacity);
+        }
+
+        return new TroopTrainingResourceSelection(
+            "manual",
             request.CheckWood,
             request.CheckClay,
             request.CheckIron,
-            request.CheckCrop,
-            fallbackCooldownSeconds: 1).IsReady;
+            request.CheckCrop);
     }
 
     private static Building? ResolveTroopTrainingBuilding(IReadOnlyList<Building> buildings, TroopTrainingBuildingType buildingType)

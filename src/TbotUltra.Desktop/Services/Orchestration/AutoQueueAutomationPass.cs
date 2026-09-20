@@ -12,6 +12,9 @@ internal interface IAutoQueueAutomationPassPort
     ValueTask HonorPendingVillageSwitchAsync(BotOptions options, CancellationToken cancellationToken);
     QueueItem? SelectNextQueueItem();
     IReadOnlyList<QueueItem> GetQueueItems();
+    IReadOnlyDictionary<Guid, DateTimeOffset> GetSmartSleepQueueDeadlineOverrides(
+        IReadOnlyList<QueueItem> items,
+        DateTimeOffset now);
     bool IsAllowedByAutomationSettings(QueueItem item);
     bool TryRequestSmartSleep(DateTimeOffset? trustedDeadlineUtc);
     void Log(string message);
@@ -67,7 +70,8 @@ internal sealed class AutoQueueAutomationPass(
             now,
             eligibleItems,
             port.SmartSleepDeadlineGroups,
-            nextConstructionAvailabilityUtc: null);
+            nextConstructionAvailabilityUtc: null,
+            queueDeadlineOverrides: port.GetSmartSleepQueueDeadlineOverrides(eligibleItems, now));
         _ = port.TryRequestSmartSleep(smartSleepDelay is { } delay ? now.Add(delay) : null);
         return new AutomationStateSnapshot([AutomationCandidate.FromQueueItem(nextDeferredItem)]);
     }

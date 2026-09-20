@@ -75,4 +75,21 @@ public sealed class TroopTrainingMaximumSubmitSourceTests
             source,
             StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void ExhaustedFormPreparation_DefersForAtLeastSixtySeconds()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            ProjectRootLocator.FindProjectRoot(),
+            "src",
+            "TbotUltra.Worker",
+            "Services",
+            "Automation",
+            "Training",
+            "TravianClient.TroopTraining.cs"));
+
+        Assert.Contains("var retrySeconds = Math.Max(60, fallbackCooldownSeconds);", source, StringComparison.Ordinal);
+        Assert.Contains("form did not remain stable", source, StringComparison.Ordinal);
+        Assert.Contains("queue_wait_seconds={retrySeconds}", source, StringComparison.Ordinal);
+    }
 }

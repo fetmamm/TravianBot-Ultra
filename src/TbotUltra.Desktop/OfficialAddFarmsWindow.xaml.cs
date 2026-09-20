@@ -12,37 +12,6 @@ using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
 
-public sealed record OfficialFarmAddPlan(
-    Guid SourceListId,
-    string SourceListName,
-    string TargetName,
-    int DesiredCount,
-    IReadOnlyList<FarmCoordinate> Coordinates);
-public sealed record OfficialFarmAddRunResult(
-    int Requested,
-    int Added,
-    int Duplicates,
-    int Failed,
-    IReadOnlyList<FarmCoordinate> InvalidCoordinates,
-    Guid SourceListId = default,
-    string SourceListName = "",
-    int OccupiedSkipped = 0,
-    int ExcludedPlayers = 0,
-    int ExcludedAlliances = 0,
-    int IdentityUnavailable = 0);
-public sealed record AddFarmsProtectionPreferences(
-    bool ExcludeOwnAlliance,
-    string ExcludedPlayers,
-    string ExcludedAlliances);
-public sealed record OfficialAddFarmsLoadResult(
-    bool Ok,
-    string? Message,
-    IReadOnlyList<TravcoListStore.TravcoSavedList> SourceLists,
-    IReadOnlyList<FarmListSelectionOption> TargetLists,
-    IReadOnlySet<string> ExistingCoordinates,
-    IReadOnlyList<string>? IncompleteFarmLists = null,
-    FarmTargetIdentity? OwnIdentity = null);
-
 public partial class OfficialAddFarmsWindow : Window
 {
     private const int OfficialFarmListCapacity = 100;
@@ -125,7 +94,8 @@ public partial class OfficialAddFarmsWindow : Window
         IProgress<FarmAddProgress>,
         CancellationToken,
         Task<OfficialFarmAddRunResult>> _runner;
-    private readonly Action<AddFarmsProtectionPreferences> _saveProtectionPreferences;
+    private readonly Func<OfficialFarmAddPlanRequest, IReadOnlyList<OfficialFarmAddPlan>> _planBuilder;
+    private readonly Func<FarmTargetIdentity, AddFarmsProtectionPreferences, FarmTargetProtectionPreparation> _prepareTargetProtection;
     private readonly AddFarmsProtectionPreferences _protectionPreferences;
     private readonly CancellationTokenSource _runCts;
     private readonly IReadOnlyList<AddFarmsVillageOption> _villages;
@@ -164,9 +134,10 @@ public partial class OfficialAddFarmsWindow : Window
             IProgress<FarmAddProgress>,
             CancellationToken,
             Task<OfficialFarmAddRunResult>> runner,
+        Func<OfficialFarmAddPlanRequest, IReadOnlyList<OfficialFarmAddPlan>> planBuilder,
         CancellationToken externalToken,
         AddFarmsProtectionPreferences protectionPreferences,
-        Action<AddFarmsProtectionPreferences> saveProtectionPreferences,
+        Func<FarmTargetIdentity, AddFarmsProtectionPreferences, FarmTargetProtectionPreparation> prepareTargetProtection,
         IReadOnlyList<AddFarmsVillageOption>? villages = null,
         string? selectedVillageName = null)
     {
@@ -174,8 +145,9 @@ public partial class OfficialAddFarmsWindow : Window
         ThemeChrome.EnableEarlyDarkTitleBar(this);
         _loader = loader;
         _runner = runner;
+        _planBuilder = planBuilder;
         _protectionPreferences = protectionPreferences;
-        _saveProtectionPreferences = saveProtectionPreferences;
+        _prepareTargetProtection = prepareTargetProtection;
         _runCts = CancellationTokenSource.CreateLinkedTokenSource(externalToken);
         _villages = villages ?? [];
         _selectedVillageName = selectedVillageName;
@@ -392,28 +364,20 @@ public partial class OfficialAddFarmsWindow : Window
 
     private async Task AddButtonClickAsync(object sender, RoutedEventArgs e)
     {
-        if (!_ownIdentity.IsResolved || string.IsNullOrWhiteSpace(_ownIdentity.PlayerName))
+        var protection = _prepareTargetProtection(_ownIdentity, new AddFarmsProtectionPreferences(
+            ExcludeOwnAllianceCheckBox.IsChecked == true && !string.IsNullOrWhiteSpace(_ownIdentity.Alliance),
+            ExcludedPlayersTextBox.Text,
+            ExcludedAlliancesTextBox.Text));
+        if (!protection.IsAvailable)
         {
             AppDialog.Show(
                 this,
-                "Your player identity could not be read from Travian. Close this dialog and try again.",
+                protection.FailureMessage ?? "Target protection is unavailable.",
                 "Target protection unavailable",
                 MessageBoxButton.OK,
                 MessageBoxImage.Warning);
             return;
         }
-
-        var preferences = new AddFarmsProtectionPreferences(
-            ExcludeOwnAllianceCheckBox.IsChecked == true && !string.IsNullOrWhiteSpace(_ownIdentity.Alliance),
-            ExcludedPlayersTextBox.Text,
-            ExcludedAlliancesTextBox.Text);
-        _saveProtectionPreferences(preferences);
-        var protection = new FarmTargetProtectionContext(
-            _ownIdentity.PlayerName,
-            _ownIdentity.Alliance,
-            preferences.ExcludeOwnAlliance,
-            ParseProtectionList(preferences.ExcludedPlayers),
-            ParseProtectionList(preferences.ExcludedAlliances));
 
         var plans = BuildPlans();
         var useDefaultTroops = !IsCustomTroops();
@@ -447,7 +411,7 @@ public partial class OfficialAddFarmsWindow : Window
 
         try
         {
-            var result = await _runner(plans, useDefaultTroops, troopType, troopCount, protection, progress, _runCts.Token);
+            var result = await _runner(plans, useDefaultTroops, troopType, troopCount, protection.Context!, progress, _runCts.Token);
             RunDuration = _runStopwatch.Elapsed;
             var source = (SourceOption)SourceListComboBox.SelectedItem;
             RunResult = result with
@@ -547,13 +511,6 @@ public partial class OfficialAddFarmsWindow : Window
         }
     }
 
-    internal static IReadOnlyList<string> ParseProtectionList(string? value)
-        => (value ?? string.Empty)
-            .Split([';', '\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Where(item => item.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
-
     private void AddingCancelButton_Click(object sender, RoutedEventArgs e) => _runCts.Cancel();
 
     private void CancelButton_Click(object sender, RoutedEventArgs e)
@@ -573,6 +530,18 @@ public partial class OfficialAddFarmsWindow : Window
         var sourceCount = (SourceListComboBox.SelectedItem as SourceOption)?.SelectedCount ?? 0;
         var populationMode = (PopulationFilterComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
         PopulationTextBox.IsEnabled = populationMode is "under" or "over";
+        var distanceMode = (DistanceFilterModeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString()
+            ?? OfficialFarmDistanceFilter.All;
+        DistanceFirstTextBox.IsEnabled = !string.Equals(
+            distanceMode,
+            OfficialFarmDistanceFilter.All,
+            StringComparison.OrdinalIgnoreCase);
+        var showDistanceUpperBound = string.Equals(
+            distanceMode,
+            OfficialFarmDistanceFilter.Between,
+            StringComparison.OrdinalIgnoreCase);
+        DistanceRangeSeparatorTextBlock.Visibility = showDistanceUpperBound ? Visibility.Visible : Visibility.Collapsed;
+        DistanceSecondTextBox.Visibility = showDistanceUpperBound ? Visibility.Visible : Visibility.Collapsed;
         var plans = BuildPlans();
         var requested = plans.Sum(plan => plan.DesiredCount);
         AmountComboBox.IsEnabled = AmountModeRadioButton.IsChecked == true;
@@ -592,7 +561,7 @@ public partial class OfficialAddFarmsWindow : Window
                                       && count > 0));
     }
 
-    private List<OfficialFarmAddPlan> BuildPlans()
+    private IReadOnlyList<OfficialFarmAddPlan> BuildPlans()
     {
         if (SourceListComboBox?.SelectedItem is not SourceOption source
             || TargetListsListBox?.ItemsSource is not IEnumerable<TargetOption> targetOptions)
@@ -600,7 +569,12 @@ public partial class OfficialAddFarmsWindow : Window
             return [];
         }
 
-        if (!TryReadFilters(out var order, out var populationMode, out var populationLimit, out var maximumDistance))
+        if (!TryReadFilters(
+                out var order,
+                out var populationMode,
+                out var populationLimit,
+                out var minimumDistance,
+                out var maximumDistance))
         {
             return [];
         }
@@ -623,60 +597,42 @@ public partial class OfficialAddFarmsWindow : Window
             includeOccupied = IncludeOccupiedCheckBox?.IsChecked == true;
         }
 
-        var workingExisting = new HashSet<string>(_existingCoordinates, StringComparer.OrdinalIgnoreCase);
-        var plans = new List<OfficialFarmAddPlan>();
-        foreach (var target in targetOptions.Where(option => option.IsChecked))
-        {
-            var availableSlots = Math.Max(0, OfficialFarmListCapacity - target.FarmCount);
-            var amount = FillModeRadioButton.IsChecked == true
-                ? availableSlots
-                : Math.Min(availableSlots, AmountComboBox.SelectedItem is int selectedAmount ? selectedAmount : 0);
-            if (amount <= 0)
-            {
-                continue;
-            }
-
-            var coordinates = OfficialFarmSelection.Filter(
-                source.Rows,
-                workingExisting,
-                source.Rows.Count,
-                order,
-                populationMode,
-                populationLimit,
-                maximumDistance,
-                SkipDuplicatesCheckBox.IsChecked == true,
-                referenceVillage,
-                oasisTypes,
-                includeOccupied,
-                SkipLowPopVillagesCheckBox.IsChecked == true,
-                requireUnoccupiedOasis: source.IsOasisList && !includeOccupied);
-            if (coordinates.Count == 0)
-            {
-                continue;
-            }
-
-            plans.Add(new OfficialFarmAddPlan(source.Id, source.Name, target.Name, amount, coordinates));
-            if (SkipDuplicatesCheckBox.IsChecked == true)
-            {
-                foreach (var coordinate in coordinates.Take(amount))
-                {
-                    workingExisting.Add($"{coordinate.X}|{coordinate.Y}");
-                }
-            }
-        }
-
-        return plans;
+        return _planBuilder(new OfficialFarmAddPlanRequest(
+            source.Id,
+            source.Name,
+            source.Rows,
+            targetOptions.Select(target => new OfficialFarmAddTarget(
+                target.Name,
+                target.FarmCount,
+                target.IsChecked)).ToList(),
+            _existingCoordinates,
+            order,
+            populationMode,
+            populationLimit,
+            minimumDistance,
+            maximumDistance,
+            referenceVillage,
+            oasisTypes,
+            includeOccupied,
+            SkipLowPopVillagesCheckBox.IsChecked == true,
+            source.IsOasisList,
+            FillModeRadioButton.IsChecked == true,
+            AmountComboBox.SelectedItem is int selectedAmount ? selectedAmount : 0,
+            SkipDuplicatesCheckBox.IsChecked == true,
+            ExcludeNatarsCheckBox.IsChecked == true));
     }
 
     private bool TryReadFilters(
         out string order,
         out string populationMode,
         out long populationLimit,
+        out double? minimumDistance,
         out double? maximumDistance)
     {
         order = (OrderComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "distance_asc";
         populationMode = (PopulationFilterComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
         populationLimit = 0;
+        minimumDistance = null;
         maximumDistance = null;
         if (!string.Equals(populationMode, "all", StringComparison.OrdinalIgnoreCase)
             && (!long.TryParse(PopulationTextBox.Text, out populationLimit) || populationLimit < 0))
@@ -684,18 +640,13 @@ public partial class OfficialAddFarmsWindow : Window
             return false;
         }
 
-        if (DistanceFilterCheckBox.IsChecked == true)
-        {
-            if (!double.TryParse(DistanceTextBox.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var distance)
-                || distance < 0)
-            {
-                return false;
-            }
-
-            maximumDistance = distance;
-        }
-
-        return true;
+        var distanceMode = (DistanceFilterModeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString();
+        return OfficialFarmDistanceFilter.TryResolve(
+            distanceMode,
+            DistanceFirstTextBox.Text,
+            DistanceSecondTextBox.Text,
+            out minimumDistance,
+            out maximumDistance);
     }
 
     private bool IsCustomTroops() =>

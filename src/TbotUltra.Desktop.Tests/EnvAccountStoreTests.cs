@@ -1,5 +1,7 @@
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Core.Accounts;
+using TbotUltra.Core.Configuration;
 using Xunit;
 
 namespace TbotUltra.Desktop.Tests;
@@ -245,6 +247,70 @@ public sealed class EnvAccountStoreTests : IDisposable
 
         Assert.Throws<InvalidOperationException>(() => store.SaveAccount(collision, setActive: false));
         Assert.Equal("john.doe", store.ListAccounts().Single().Username);
+    }
+
+    [Fact]
+    public void CreateAccount_AllowsSameLobbyEmailAfterFirstAccountResolvedItsWorld()
+    {
+        const string email = "player@example.com";
+        var store = new EnvAccountStore(_envPath);
+        var lobbyKey = AccountKeyNormalizer.MakeCollisionResistantKey(
+            email,
+            LobbyWorldSelectionDefaults.ServerUrl);
+        store.SaveAccount(new AccountEntry
+        {
+            Name = lobbyKey,
+            Username = email,
+            Password = "pw",
+            ServerName = "World 1",
+            ServerUrl = "https://ts1.x1.europe.travian.com",
+        }, setActive: true);
+        var second = new AccountEntry
+        {
+            Name = lobbyKey,
+            DisplayName = "Second world",
+            Username = email,
+            Password = "pw",
+            ServerName = LobbyWorldSelectionDefaults.ServerName,
+            ServerUrl = LobbyWorldSelectionDefaults.ServerUrl,
+        };
+
+        store.CreateAccount(second, setActive: false);
+
+        var accounts = store.ListAccounts();
+        Assert.Equal(2, accounts.Count);
+        Assert.NotEqual(lobbyKey, second.Name);
+        Assert.Equal("Second world", accounts.Single(account => account.Name == second.Name).DisplayName);
+    }
+
+    [Fact]
+    public void CreateAccount_IdenticalPendingLobbyAccountsReceiveDistinctStableKeys()
+    {
+        var store = new EnvAccountStore(_envPath);
+        var first = Account("same-key");
+        var second = Account("same-key");
+
+        store.CreateAccount(first, setActive: true);
+        store.CreateAccount(second, setActive: false);
+
+        Assert.NotEqual(first.Name, second.Name);
+        Assert.Equal(2, store.ListAccounts().Select(account => account.Name).Distinct().Count());
+    }
+
+    [Fact]
+    public void CreateAccount_ConcurrentStoresAllocateDistinctKeys()
+    {
+        var firstStore = new EnvAccountStore(_envPath);
+        var secondStore = new EnvAccountStore(_envPath);
+        var first = Account("same-key");
+        var second = Account("same-key");
+
+        Parallel.Invoke(
+            () => firstStore.CreateAccount(first, setActive: true),
+            () => secondStore.CreateAccount(second, setActive: false));
+
+        Assert.NotEqual(first.Name, second.Name);
+        Assert.Equal(2, new EnvAccountStore(_envPath).ListAccounts().Count);
     }
 
     public void Dispose()

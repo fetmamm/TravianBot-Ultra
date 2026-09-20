@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop.Services.Orchestration;
 
@@ -16,30 +17,17 @@ internal interface IAutomationQueueItemLifecyclePort
     bool IsAllowedByAutomationSettings(QueueItem item);
     IDisposable BeginExecutionScope(QueueItem item);
     BotOptions LoadCurrentOptions();
-    void MarkRunning(QueueItem item);
-    ValueTask<QueueItemGuardResult> RunPreExecutionGuardsAsync(
-        QueueItem item,
-        BotOptions options,
-        string logPrefix,
-        Stopwatch timer,
-        CancellationToken cancellationToken);
+    void MarkDueConstructionForPreSleepFill(QueueItem item);
+    void RefreshConstructFasterPayloadForExecution(QueueItem item);
+    bool MarkRunning(Guid itemId);
+    void RefreshQueueUi(Guid itemId);
+    void SetActiveAutomationTask(string? taskName);
+    void SetActiveFunctionExecution(string? displayName);
     BotOptions ApplyQueueItemOptions(BotOptions options, QueueItem item);
-    CancellationToken BeginQueueItemOperation(QueueItem item, CancellationToken cancellationToken);
+    CancellationToken BeginDemolitionOperation(QueueItem item, CancellationToken cancellationToken);
     ValueTask<BotTaskExecutionResult> ExecuteWorkerAsync(
         BotOptions options,
         QueueItem item,
-        CancellationToken cancellationToken);
-    ValueTask<bool> TryRecoverMissingBuildingUpgradeAsync(
-        QueueItem item,
-        BotOptions options,
-        BotTaskExecutionResult executionResult,
-        string logPrefix,
-        Stopwatch timer,
-        CancellationToken cancellationToken);
-    ValueTask<bool> HandleSucceededAsync(
-        QueueItem item,
-        BotOptions options,
-        BotTaskExecutionResult executionResult,
         CancellationToken cancellationToken);
     bool IsLoadBuildingsSnapshot(QueueItem item);
     ValueTask LoadBuildingsSnapshotAsync(CancellationToken cancellationToken);
@@ -47,22 +35,25 @@ internal interface IAutomationQueueItemLifecyclePort
     void PublishLastScan();
     bool IsDemolition(QueueItem item);
     bool WasDemolitionStopped(Guid itemId);
-    void MarkDeferred(Guid itemId);
-    ValueTask<bool> HandleFailureAsync(
-        QueueItem item,
-        Exception exception,
-        string logPrefix,
-        Stopwatch timer,
-        AutomationRunMode mode);
-    ValueTask FinalizeExecutionAsync(
-        QueueItem item,
-        AutomationRunMode mode,
-        bool freshBuildingsRefreshDone,
-        CancellationToken cancellationToken);
+    bool MarkDeferred(Guid itemId, TimeSpan delay);
+    TimeSpan NextNetworkRetryDelay();
+    void MarkNetworkUnavailable(TimeSpan retryDelay);
+    ValueTask HoldAccountAutomationAsync(AccountAccessException exception);
+    ValueTask HandleUnexpectedTravianLanguageAsync(UnexpectedTravianLanguageException exception);
+    void CompleteDemolitionOperation(Guid itemId);
+    ValueTask RestoreBuildingsSnapshotAsync(CancellationToken cancellationToken);
     void Log(string message);
 }
 
-internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecyclePort port)
+internal readonly record struct AutomationQueueItemPolicies(
+    IAutomationQueueItemPreExecution PreExecution,
+    IAutomationMissingBuildingUpgradeRecovery MissingBuildingUpgradeRecovery,
+    IAutomationQueueItemSuccess Success,
+    IAutomationQueueItemFailure Failure);
+
+internal sealed class AutomationQueueItemLifecycle(
+    IAutomationQueueItemLifecyclePort port,
+    AutomationQueueItemPolicies policies)
 {
     internal async ValueTask<bool> ExecuteAsync(
         QueueItem item,
@@ -82,21 +73,27 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
         using var executionScope = port.BeginExecutionScope(item);
         var timer = Stopwatch.StartNew();
         options = RefreshHeroOptions(item, options);
-        port.MarkRunning(item);
+        port.MarkDueConstructionForPreSleepFill(item);
+        port.RefreshConstructFasterPayloadForExecution(item);
+        port.MarkRunning(item.Id);
+        port.RefreshQueueUi(item.Id);
+        port.SetActiveAutomationTask(item.TaskName);
+        port.SetActiveFunctionExecution(
+            string.IsNullOrWhiteSpace(item.DisplayName) ? item.TaskName : item.DisplayName);
         var freshBuildingsRefreshDone = false;
 
         try
         {
             if (!port.IsAllowedByAutomationSettings(item))
             {
-                port.MarkDeferred(item.Id);
+                port.MarkDeferred(item.Id, TimeSpan.Zero);
                 port.Log(
                     $"{logPrefix} SKIP task={item.TaskName}, id={item.Id} "
                     + "because automation was disabled for its village before execution.");
                 return true;
             }
 
-            var guard = await port.RunPreExecutionGuardsAsync(
+            var guard = await policies.PreExecution.RunAsync(
                 item,
                 options,
                 logPrefix,
@@ -109,9 +106,11 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
             }
 
             var effectiveOptions = port.ApplyQueueItemOptions(options, item);
-            var executionToken = port.BeginQueueItemOperation(item, cancellationToken);
+            var executionToken = port.IsDemolition(item)
+                ? port.BeginDemolitionOperation(item, cancellationToken)
+                : cancellationToken;
             var executionResult = await port.ExecuteWorkerAsync(effectiveOptions, item, executionToken);
-            if (await port.TryRecoverMissingBuildingUpgradeAsync(
+            if (await policies.MissingBuildingUpgradeRecovery.TryRecoverAsync(
                     item,
                     options,
                     executionResult,
@@ -122,7 +121,7 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
                 return true;
             }
 
-            freshBuildingsRefreshDone = await port.HandleSucceededAsync(
+            freshBuildingsRefreshDone = await policies.Success.HandleAsync(
                 item,
                 options,
                 executionResult,
@@ -151,7 +150,7 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
         }
         catch (OperationCanceledException)
         {
-            port.MarkDeferred(item.Id);
+            port.MarkDeferred(item.Id, TimeSpan.Zero);
             port.Log(
                 $"{logPrefix} PAUSED {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | "
                 + "queued item kept for retry");
@@ -159,16 +158,123 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
         }
         catch (Exception ex)
         {
-            return await port.HandleFailureAsync(item, ex, logPrefix, timer, mode);
+            return await HandleFailureAsync(item, ex, logPrefix, timer, mode);
         }
         finally
         {
-            await port.FinalizeExecutionAsync(
-                item,
-                mode,
-                freshBuildingsRefreshDone,
-                cancellationToken);
+            if (port.IsDemolition(item))
+            {
+                port.CompleteDemolitionOperation(item.Id);
+            }
+            port.SetActiveAutomationTask(null);
+            port.SetActiveFunctionExecution(null);
+            port.RefreshQueueUi(item.Id);
+            if (!cancellationToken.IsCancellationRequested
+                && mode == AutomationRunMode.AutoQueue
+                && IsBuildingMutationTask(item.TaskName)
+                && !freshBuildingsRefreshDone)
+            {
+                try
+                {
+                    await port.RestoreBuildingsSnapshotAsync(cancellationToken);
+                }
+                catch
+                {
+                    // The UI keeps its previous state when the last-known snapshot cannot be restored.
+                }
+            }
         }
+    }
+
+    private async ValueTask<bool> HandleFailureAsync(
+        QueueItem item,
+        Exception exception,
+        string logPrefix,
+        Stopwatch timer,
+        AutomationRunMode mode)
+    {
+        if (exception is AccountAccessException accountAccessException)
+        {
+            port.MarkDeferred(item.Id, TimeSpan.Zero);
+            await port.HoldAccountAutomationAsync(accountAccessException);
+            port.Log(
+                $"{logPrefix} STOPPED {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | "
+                + "account requires manual review; queued item kept");
+            return false;
+        }
+
+        if (AutomationNetworkBackoff.IsTransientConnectionFailure(exception))
+        {
+            var retryDelay = port.NextNetworkRetryDelay();
+            port.MarkNetworkUnavailable(retryDelay);
+            if (port.MarkDeferred(item.Id, retryDelay))
+            {
+                port.Log(
+                    $"{logPrefix} TRANSIENT {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | "
+                    + $"slow/unavailable page; safe retry in {retryDelay.TotalSeconds:F0}s without consuming retries");
+                return true;
+            }
+        }
+
+        if (BrowserFailureClassifier.IsTargetCrash(exception))
+        {
+            var retryDelay = TimeSpan.FromSeconds(15);
+            if (port.MarkDeferred(item.Id, retryDelay))
+            {
+                port.Log(
+                    $"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | "
+                    + $"browser target crashed; fresh session retry in {retryDelay.TotalSeconds:F0}s");
+                return true;
+            }
+        }
+
+        // Official demolition replaces the current page context. If that navigation race escapes
+        // Worker confirmation, retry without consuming the functional retry budget.
+        if (port.IsDemolition(item)
+            && BrowserFailureClassifier.IsTransientNavigation(exception))
+        {
+            var retryDelay = TimeSpan.FromSeconds(15);
+            if (port.MarkDeferred(item.Id, retryDelay))
+            {
+                port.Log(
+                    $"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | "
+                    + "demolition page changed while confirming the submitted step; "
+                    + $"safe retry in {retryDelay.TotalSeconds:F0}s without consuming retries");
+                return true;
+            }
+        }
+
+        if (exception is UnexpectedTravianLanguageException languageException)
+        {
+            port.MarkDeferred(item.Id, TimeSpan.Zero);
+            port.Log(
+                $"{logPrefix} PAUSED {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | "
+                + "Travian language must be English before automation can continue.");
+            await port.HandleUnexpectedTravianLanguageAsync(languageException);
+            return false;
+        }
+
+        // A runtime item with maxRetries=0 would otherwise immediately requeue this programming error.
+        if (exception is InvalidOperationException invalidOperation
+            && invalidOperation.Message.Contains("different thread owns it", StringComparison.OrdinalIgnoreCase))
+        {
+            var retryDelay = TimeSpan.FromMinutes(30);
+            if (port.MarkDeferred(item.Id, retryDelay))
+            {
+                port.Log(
+                    $"ALARM: task '{item.TaskName}' hit a UI-thread access error "
+                    + $"({logPrefix}, {timer.Elapsed.TotalSeconds:F1}s). Deferred "
+                    + $"{retryDelay.TotalMinutes:F0} min and will retry — something is wrong, please check.");
+                return true;
+            }
+        }
+
+        return await policies.Failure.HandleAsync(
+            item,
+            exception,
+            logPrefix,
+            timer,
+            mode);
     }
 
     private BotOptions RefreshHeroOptions(QueueItem item, BotOptions options)
@@ -212,4 +318,10 @@ internal sealed class AutomationQueueItemLifecycle(IAutomationQueueItemLifecycle
             ? $"{logPrefix} OK {timer.Elapsed.TotalSeconds:F1}s | queue:{item.TaskName}"
             : $"{logPrefix} OK {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName}";
     }
+
+    private static bool IsBuildingMutationTask(string? taskName) =>
+        string.Equals(taskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "demolish_building_to_level", StringComparison.OrdinalIgnoreCase);
 }

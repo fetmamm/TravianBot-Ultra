@@ -21,6 +21,7 @@ public sealed record TroopTrainingBuildingPayload(
 {
     public bool MinimumTroopsEnabled { get; init; }
     public int MaximumMinimumTroops { get; init; } = 100;
+    public bool AutomaticResourceSelection { get; init; }
 }
 
 public sealed record TroopTrainingPayload(
@@ -72,7 +73,8 @@ public sealed record TroopTrainingPayload(
             || !TryReadBool(payload, keys.CheckWood, true, out var checkWood)
             || !TryReadBool(payload, keys.CheckClay, true, out var checkClay)
             || !TryReadBool(payload, keys.CheckIron, true, out var checkIron)
-            || !TryReadBool(payload, keys.CheckCrop, true, out var checkCrop))
+            || !TryReadBool(payload, keys.CheckCrop, true, out var checkCrop)
+            || !TryReadBool(payload, keys.AutomaticResourceSelection, false, out var automaticResourceSelection))
         {
             return false;
         }
@@ -95,6 +97,7 @@ public sealed record TroopTrainingPayload(
         {
             MinimumTroopsEnabled = minimumTroopsEnabled,
             MaximumMinimumTroops = maximumMinimumTroops,
+            AutomaticResourceSelection = automaticResourceSelection,
         };
         return true;
     }
@@ -118,6 +121,7 @@ public sealed record TroopTrainingPayload(
         result[keys.CheckClay] = value.CheckClay ? "true" : "false";
         result[keys.CheckIron] = value.CheckIron ? "true" : "false";
         result[keys.CheckCrop] = value.CheckCrop ? "true" : "false";
+        result[keys.AutomaticResourceSelection] = value.AutomaticResourceSelection ? "true" : "false";
     }
 
     private static bool TryReadBool(IReadOnlyDictionary<string, string> payload, string key, bool defaultValue, out bool value)
@@ -175,7 +179,8 @@ public sealed record TroopTrainingPayload(
                 BotOptionPayloadKeys.TroopTrainingBarracksCheckWood,
                 BotOptionPayloadKeys.TroopTrainingBarracksCheckClay,
                 BotOptionPayloadKeys.TroopTrainingBarracksCheckIron,
-                BotOptionPayloadKeys.TroopTrainingBarracksCheckCrop),
+                BotOptionPayloadKeys.TroopTrainingBarracksCheckCrop,
+                BotOptionPayloadKeys.TroopTrainingBarracksAutomaticResourceSelection),
             TroopTrainingBuildingType.Stable => new(
                 BotOptionPayloadKeys.TroopTrainingStableEnabled,
                 BotOptionPayloadKeys.TroopTrainingStableTroopType,
@@ -192,7 +197,8 @@ public sealed record TroopTrainingPayload(
                 BotOptionPayloadKeys.TroopTrainingStableCheckWood,
                 BotOptionPayloadKeys.TroopTrainingStableCheckClay,
                 BotOptionPayloadKeys.TroopTrainingStableCheckIron,
-                BotOptionPayloadKeys.TroopTrainingStableCheckCrop),
+                BotOptionPayloadKeys.TroopTrainingStableCheckCrop,
+                BotOptionPayloadKeys.TroopTrainingStableAutomaticResourceSelection),
             _ => new(
                 BotOptionPayloadKeys.TroopTrainingWorkshopEnabled,
                 BotOptionPayloadKeys.TroopTrainingWorkshopTroopType,
@@ -209,7 +215,8 @@ public sealed record TroopTrainingPayload(
                 BotOptionPayloadKeys.TroopTrainingWorkshopCheckWood,
                 BotOptionPayloadKeys.TroopTrainingWorkshopCheckClay,
                 BotOptionPayloadKeys.TroopTrainingWorkshopCheckIron,
-                BotOptionPayloadKeys.TroopTrainingWorkshopCheckCrop),
+                BotOptionPayloadKeys.TroopTrainingWorkshopCheckCrop,
+                BotOptionPayloadKeys.TroopTrainingWorkshopAutomaticResourceSelection),
         };
     }
 
@@ -229,5 +236,6 @@ public sealed record TroopTrainingPayload(
         string CheckWood,
         string CheckClay,
         string CheckIron,
-        string CheckCrop);
+        string CheckCrop,
+        string AutomaticResourceSelection);
 }

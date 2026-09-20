@@ -223,6 +223,7 @@ public static class BotOptionPayloadKeys
     public const string TroopTrainingBarracksCheckClay = "troop_training_barracks_check_clay";
     public const string TroopTrainingBarracksCheckIron = "troop_training_barracks_check_iron";
     public const string TroopTrainingBarracksCheckCrop = "troop_training_barracks_check_crop";
+    public const string TroopTrainingBarracksAutomaticResourceSelection = "troop_training_barracks_automatic_resource_selection";
     public const string TroopTrainingStableEnabled = "troop_training_stable_enabled";
     public const string TroopTrainingStableTroopType = "troop_training_stable_troop_type";
     public const string TroopTrainingStableMaxQueueHours = "troop_training_stable_max_queue_hours";
@@ -239,6 +240,7 @@ public static class BotOptionPayloadKeys
     public const string TroopTrainingStableCheckClay = "troop_training_stable_check_clay";
     public const string TroopTrainingStableCheckIron = "troop_training_stable_check_iron";
     public const string TroopTrainingStableCheckCrop = "troop_training_stable_check_crop";
+    public const string TroopTrainingStableAutomaticResourceSelection = "troop_training_stable_automatic_resource_selection";
     public const string TroopTrainingWorkshopEnabled = "troop_training_workshop_enabled";
     public const string TroopTrainingWorkshopTroopType = "troop_training_workshop_troop_type";
     public const string TroopTrainingWorkshopMaxQueueHours = "troop_training_workshop_max_queue_hours";
@@ -255,6 +257,7 @@ public static class BotOptionPayloadKeys
     public const string TroopTrainingWorkshopCheckClay = "troop_training_workshop_check_clay";
     public const string TroopTrainingWorkshopCheckIron = "troop_training_workshop_check_iron";
     public const string TroopTrainingWorkshopCheckCrop = "troop_training_workshop_check_crop";
+    public const string TroopTrainingWorkshopAutomaticResourceSelection = "troop_training_workshop_automatic_resource_selection";
     public const string TroopTrainingFallbackCooldownSeconds = "troop_training_fallback_cooldown_seconds";
     public const string BreweryAutoCelebrationEnabled = "brewery_auto_celebration_enabled";
     public const string NpcTradeEnabled = "npc_trade_enabled";
@@ -311,6 +314,7 @@ public static class BotOptionPayloadKeys
     public const string SmartSleepFallbackMinMinutes = "smart_sleep_fallback_min_minutes";
     public const string SmartSleepFallbackMaxMinutes = "smart_sleep_fallback_max_minutes";
     public const string SmartSleepDeadlineGroups = "smart_sleep_deadline_groups";
+    public const string SmartSleepWakeWhenConstructionQueueClears = "smart_sleep_wake_when_construction_queue_clears";
     public const string SessionActivityHistory = "session_activity_history";
 
     public const string ActionPacingEnabled = "action_pacing_enabled";
@@ -361,6 +365,8 @@ public static class BotOptionPayloadKeys
     public const string ActionPacingIdleBrowsePageMessages = "action_pacing_idle_browse_page_messages";
 
     public const string ConstructionHumanizeDelayEnabled = "construction_humanize_delay_enabled";
+    public const string ConstructionMainBuildingRebuildEnabled = "construction_main_building_rebuild_enabled";
+    public const string ConstructionMainBuildingRebuildTargetLevel = "construction_main_building_rebuild_target_level";
     public const string ConstructionStorageUpgradeLevelsAhead = "construction_storage_upgrade_levels_ahead";
     public const string ConstructionCropShortageRecoveryEnabled = "construction_crop_shortage_recovery_enabled";
     public const string UpgradeDeferReasonCropShortage = "crop_shortage";
@@ -368,6 +374,8 @@ public static class BotOptionPayloadKeys
     public const string CropShortageOriginalPriority = "crop_shortage_original_priority";
     public const string CropShortageCompletedSteps = "crop_shortage_completed_steps";
     public const string AutoAddedByCropShortageRecovery = "crop_shortage_recovery";
+    public const string AutoAddedByMainBuildingRebuild = "main_building_rebuild";
+    public const string AutoAddedByHeroRallyPointRepair = "hero_rally_point_repair";
     public const string ConstructionHumanizeStateVersion = "construction_humanize_state_version";
     public const string ConstructionHumanizeQueuePercentMin = "construction_humanize_queue_percent_min";
     public const string ConstructionHumanizeQueuePercentMax = "construction_humanize_queue_percent_max";

@@ -41,6 +41,7 @@ public sealed class TroopTrainingSettingsStoreTests : IDisposable
         Assert.True(loaded.Barracks.MinimumTroopsEnabled);
         Assert.Equal(20, loaded.Barracks.MinimumTroops);
         Assert.Equal(100, loaded.Barracks.MaximumMinimumTroops);
+        Assert.True(loaded.Barracks.AutomaticResourceSelection);
         Assert.Equal(60, loaded.FallbackCooldownSeconds);
     }
 
@@ -76,6 +77,7 @@ public sealed class TroopTrainingSettingsStoreTests : IDisposable
         {
             MinimumTroopsEnabled = true,
             MaximumMinimumTroops = 100,
+            AutomaticResourceSelection = true,
         };
         return new TroopTrainingPayload(building, building, building, fallback);
     }

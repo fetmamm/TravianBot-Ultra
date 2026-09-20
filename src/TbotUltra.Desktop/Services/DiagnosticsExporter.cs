@@ -117,8 +117,16 @@ internal sealed class DiagnosticsExporter
             cancellationToken.ThrowIfCancellationRequested();
             var archiveName = MakeUniqueFileName(Path.GetFileName(sourcePath), usedNames);
             var relativePath = Path.Combine("logs", archiveName);
-            WriteSanitizedSharedTextFile(sourcePath, Path.Combine(stagingPath, relativePath));
-            included.Add(ToArchivePath(relativePath));
+            var destinationPath = Path.Combine(stagingPath, relativePath);
+            if (TryIncludeOptionalFile(
+                    sourcePath,
+                    destinationPath,
+                    "Log file",
+                    missing,
+                    () => WriteSanitizedSharedTextFile(sourcePath, destinationPath)))
+            {
+                included.Add(ToArchivePath(relativePath));
+            }
         }
     }
 
@@ -146,11 +154,12 @@ internal sealed class DiagnosticsExporter
         if (File.Exists(templatePath))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            WriteSanitizedConfigurationFile(
+            TryWriteSanitizedConfigurationFile(
                 templatePath,
                 Path.Combine("configuration", "global", "building_templates.json"),
                 stagingPath,
-                included);
+                included,
+                missing);
         }
 
         if (!Directory.Exists(configRoot))
@@ -163,7 +172,12 @@ internal sealed class DiagnosticsExporter
                      .Where(path => GlobalConfigurationFiles.Contains(Path.GetFileName(path))))
         {
             cancellationToken.ThrowIfCancellationRequested();
-            WriteSanitizedConfigurationFile(sourcePath, Path.Combine("configuration", "global", Path.GetFileName(sourcePath)), stagingPath, included);
+            TryWriteSanitizedConfigurationFile(
+                sourcePath,
+                Path.Combine("configuration", "global", Path.GetFileName(sourcePath)),
+                stagingPath,
+                included,
+                missing);
         }
 
         var accountsRoot = Path.Combine(configRoot, "accounts");
@@ -182,23 +196,39 @@ internal sealed class DiagnosticsExporter
                          .Where(path => AccountConfigurationFiles.Contains(Path.GetFileName(path))))
             {
                 cancellationToken.ThrowIfCancellationRequested();
-                WriteSanitizedConfigurationFile(
+                TryWriteSanitizedConfigurationFile(
                     sourcePath,
                     Path.Combine("configuration", "accounts", safeAccountName, Path.GetFileName(sourcePath)),
                     stagingPath,
-                    included);
+                    included,
+                    missing);
             }
         }
     }
 
-    private static void WriteSanitizedConfigurationFile(string sourcePath, string relativePath, string stagingPath, List<string> included)
+    private static void TryWriteSanitizedConfigurationFile(
+        string sourcePath,
+        string relativePath,
+        string stagingPath,
+        List<string> included,
+        List<string> missing)
     {
-        var content = ReadSharedTextWithRetry(sourcePath);
-        var sanitized = DiagnosticsSanitizer.SanitizeJson(content);
         var destinationPath = Path.Combine(stagingPath, relativePath);
-        CreateDirectoryWithRetry(Path.GetDirectoryName(destinationPath)!);
-        WriteAllTextWithRetry(destinationPath, sanitized);
-        included.Add(ToArchivePath(relativePath));
+        if (TryIncludeOptionalFile(
+                sourcePath,
+                destinationPath,
+                "Configuration file",
+                missing,
+                () =>
+                {
+                    var content = ReadSharedTextWithRetry(sourcePath);
+                    var sanitized = DiagnosticsSanitizer.SanitizeJson(content);
+                    CreateDirectoryWithRetry(Path.GetDirectoryName(destinationPath)!);
+                    WriteAllTextWithRetry(destinationPath, sanitized);
+                }))
+        {
+            included.Add(ToArchivePath(relativePath));
+        }
     }
 
     private static void CopyRuntimeDiagnostics(
@@ -223,19 +253,49 @@ internal sealed class DiagnosticsExporter
             var destinationPath = Path.Combine(stagingPath, relativePath);
             CreateDirectoryWithRetry(Path.GetDirectoryName(destinationPath)!);
 
-            if (sourcePath.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
-                || sourcePath.EndsWith(".htm", StringComparison.OrdinalIgnoreCase)
-                || sourcePath.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)
-                || sourcePath.EndsWith(".log", StringComparison.OrdinalIgnoreCase))
+            if (TryIncludeOptionalFile(
+                    sourcePath,
+                    destinationPath,
+                    "Runtime diagnostics file",
+                    missing,
+                    () =>
+                    {
+                        if (sourcePath.EndsWith(".html", StringComparison.OrdinalIgnoreCase)
+                            || sourcePath.EndsWith(".htm", StringComparison.OrdinalIgnoreCase)
+                            || sourcePath.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)
+                            || sourcePath.EndsWith(".log", StringComparison.OrdinalIgnoreCase))
+                        {
+                            WriteSanitizedSharedTextFile(sourcePath, destinationPath);
+                        }
+                        else
+                        {
+                            CopySharedFileWithRetry(sourcePath, destinationPath);
+                        }
+                    }))
             {
-                WriteSanitizedSharedTextFile(sourcePath, destinationPath);
+                included.Add(ToArchivePath(relativePath));
             }
-            else
-            {
-                CopySharedFileWithRetry(sourcePath, destinationPath);
-            }
+        }
+    }
 
-            included.Add(ToArchivePath(relativePath));
+    private static bool TryIncludeOptionalFile(
+        string sourcePath,
+        string destinationPath,
+        string sourceKind,
+        List<string> missing,
+        Action include)
+    {
+        try
+        {
+            include();
+            return true;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            TryDeleteFile(destinationPath);
+            missing.Add(DiagnosticsSanitizer.SanitizeText(
+                $"{sourceKind} '{Path.GetFileName(sourcePath)}' could not be included: {ex.Message}"));
+            return false;
         }
     }
 

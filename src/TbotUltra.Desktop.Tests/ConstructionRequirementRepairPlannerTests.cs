@@ -1,6 +1,7 @@
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Desktop.Services.Orchestration;
 using TbotUltra.Worker.Domain;
 using Xunit;
 
@@ -118,7 +119,7 @@ public sealed class ConstructionRequirementRepairPlannerTests
             "Academy is required",
             "Academy level 1");
 
-        var payload = MainWindow.BuildConstructionRequirementRepairPayload(
+        var payload = AutomationConstructionRequirementGuard.BuildRepairPayload(
             parent,
             step,
             markAsAutomaticRepair: false);
@@ -140,7 +141,7 @@ public sealed class ConstructionRequirementRepairPlannerTests
             "Academy is required",
             "Academy level 1");
 
-        var payload = MainWindow.BuildConstructionRequirementRepairPayload(
+        var payload = AutomationConstructionRequirementGuard.BuildRepairPayload(
             parent,
             step,
             markAsAutomaticRepair: true);

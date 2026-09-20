@@ -27,6 +27,7 @@ public static class TroopTrainingQuickSettings
             {
                 MinimumTroopsEnabled = options.TroopTrainingBarracksMinimumTroopsEnabled,
                 MaximumMinimumTroops = options.TroopTrainingBarracksMaximumMinimumTroops,
+                AutomaticResourceSelection = options.TroopTrainingBarracksAutomaticResourceSelection,
             },
             new TroopTrainingBuildingPayload(
                 options.TroopTrainingStableEnabled,
@@ -46,6 +47,7 @@ public static class TroopTrainingQuickSettings
             {
                 MinimumTroopsEnabled = options.TroopTrainingStableMinimumTroopsEnabled,
                 MaximumMinimumTroops = options.TroopTrainingStableMaximumMinimumTroops,
+                AutomaticResourceSelection = options.TroopTrainingStableAutomaticResourceSelection,
             },
             new TroopTrainingBuildingPayload(
                 options.TroopTrainingWorkshopEnabled,
@@ -65,6 +67,7 @@ public static class TroopTrainingQuickSettings
             {
                 MinimumTroopsEnabled = options.TroopTrainingWorkshopMinimumTroopsEnabled,
                 MaximumMinimumTroops = options.TroopTrainingWorkshopMaximumMinimumTroops,
+                AutomaticResourceSelection = options.TroopTrainingWorkshopAutomaticResourceSelection,
             },
             options.TroopTrainingFallbackCooldownSeconds);
     }

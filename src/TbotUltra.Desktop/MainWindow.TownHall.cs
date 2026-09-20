@@ -11,53 +11,6 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private bool TryHandleTownHallUnavailableExecution(QueueItem item, Exception exception, string logPrefix)
-    {
-        if (!string.Equals(item.TaskName, "run_town_hall_celebration", StringComparison.OrdinalIgnoreCase)
-            || !exception.Message.Contains("town_hall_unavailable=missing", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        _botService.MarkQueueItemSucceeded(item.Id);
-        var villageKey = GetQueueItemVillageKey(item);
-        var villageName = GetQueueItemVillageName(item);
-        if (string.IsNullOrWhiteSpace(villageKey))
-        {
-            AppendLog($"{logPrefix} SKIP task={item.TaskName} | Town Hall missing, but the village identity was unavailable; the task was removed without changing another village's setting.");
-            return true;
-        }
-
-        void Apply()
-        {
-            var village = new VillageSettingsStore.VillageKeyInfo(
-                villageKey,
-                villageName ?? villageKey,
-                null,
-                null,
-                false);
-            PersistAutomationGroupEnabledForVillage(
-                village,
-                enabled: false,
-                QueueGroupCatalog.GetKey(QueueGroup.TownHallCelebration));
-            TownHallCelebrationStateStore.Clear(_projectRoot, _accountStore.ActiveAccountName(), villageKey);
-            InvalidateVillageOverviewTownHallCache();
-            RefreshAutomationLoopDashboardUi();
-        }
-
-        if (Dispatcher.CheckAccess())
-        {
-            Apply();
-        }
-        else
-        {
-            Dispatcher.Invoke(Apply);
-        }
-
-        AppendLog($"{logPrefix} DISABLED task={item.TaskName} | Town Hall is not built in '{villageName ?? villageKey}'. Town Hall celebrations were turned off for this village.");
-        return true;
-    }
-
     private void OpenTownHallSettingsFromVillageSettings(IReadOnlyList<VillageSettingsRow> villageSettingsRows)
     {
         OpenSettingsWindow(SettingsCategory.Celebrations, villageSettingsRows);

@@ -59,6 +59,20 @@ public sealed class AutomationNetworkBackoffTests
             new InvalidOperationException("page state is 'logged_out'")));
     }
 
+    [Theory]
+    [InlineData("net::ERR_NAME_NOT_RESOLVED")]
+    [InlineData("net::ERR_NETWORK_CHANGED")]
+    [InlineData("net::ERR_CONNECTION_TIMED_OUT")]
+    [InlineData("Current URL is chrome-error://chromewebdata/")]
+    public void IsTransientConnectionFailure_ClassifiesRawNetworkFailures(string message)
+    {
+        var exception = new InvalidOperationException(
+            "Worker operation failed.",
+            new InvalidOperationException(message));
+
+        Assert.True(AutomationNetworkBackoff.IsTransientConnectionFailure(exception));
+    }
+
     private sealed class MutableTimeProvider(DateTimeOffset now) : TimeProvider
     {
         private DateTimeOffset _now = now;

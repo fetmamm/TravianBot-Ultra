@@ -9,7 +9,12 @@ ligger i [farmlists-and-travco](2026-06-09-farmlists-and-travco.md).
 ## Skanning och lagring
 
 - Map Oasis Analyzer anvander den inloggade Official-sessionens `POST /api/v1/map/position`
-  med zoom level 3. Skanningen serialiseras genom `BotTaskRunner`, har retry/pacing och parsern
+  med zoom level 3 pa vanliga kartor. Om svaret enbart innehaller `{k.regionTooltip}` ar det en
+  regionskarta; skanningen provar da zoom level 2 med 21x17-rutetackning och faller endast tillbaka
+  till zoom level 1 med 11x9-rutetackning om zoom level 2 ocksa ar en region-overlay. Skanningen
+  borjar vid den valda startpunkten och fortsatter utat utan att oka antalet kartanrop. Standardomradet
+  ar en rektangular radie pa 40 koordinater i varje riktning. Helkarteskanning och upprepad skanning
+  kraver bekraftelse; upprepning tillats eftersom oasernas djur kan andras. Skanningen serialiseras genom `BotTaskRunner`, har retry/pacing och parsern
   ska forbli browserfri och enhetstestbar.
 - Skanningscheckpoint och senast kompletta resultat lagras konto-/serverspecifikt under
   `config/accounts/<account>/cache/map-oasis/`; checkpoint ateranvands endast med samma filter.

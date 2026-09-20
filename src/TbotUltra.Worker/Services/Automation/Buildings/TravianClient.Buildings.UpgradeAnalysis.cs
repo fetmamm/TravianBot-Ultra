@@ -497,6 +497,12 @@ public sealed partial class TravianClient
                 await Task.Delay(250 * attempt, cancellationToken);
                 continue;
             }
+            catch (TransientNavigationException)
+            {
+                // Safe read-only navigation failures are deferred by queue orchestration. Preserve the
+                // exception type and skip slow diagnostics capture so this remains retry status, not an alarm.
+                throw;
+            }
             catch (Exception ex)
             {
                 await CaptureFailureArtifactsAsync($"upgrade-slot-{slotId}-exception", cancellationToken);

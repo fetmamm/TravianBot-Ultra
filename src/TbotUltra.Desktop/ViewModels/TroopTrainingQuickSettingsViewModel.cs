@@ -14,6 +14,7 @@ public sealed class TroopTrainingQuickVillageRow : BaseViewModel
     private bool _checkClay;
     private bool _checkIron;
     private bool _checkCrop;
+    private bool _automaticResourceSelection;
     private int _fallbackCooldownSeconds;
 
     public TroopTrainingQuickVillageRow(
@@ -41,6 +42,7 @@ public sealed class TroopTrainingQuickVillageRow : BaseViewModel
         _checkClay = basePayload.Barracks.CheckClay;
         _checkIron = basePayload.Barracks.CheckIron;
         _checkCrop = basePayload.Barracks.CheckCrop;
+        _automaticResourceSelection = basePayload.Barracks.AutomaticResourceSelection;
         _fallbackCooldownSeconds = NormalizeFallbackCooldown(basePayload.FallbackCooldownSeconds);
     }
 
@@ -91,10 +93,27 @@ public sealed class TroopTrainingQuickVillageRow : BaseViewModel
         set => SetProperty(ref _checkCrop, value);
     }
 
+    public bool AutomaticResourceSelection
+    {
+        get => _automaticResourceSelection;
+        set
+        {
+            if (!SetProperty(ref _automaticResourceSelection, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(IsManualResourceSelectionEnabled));
+            OnPropertyChanged(nameof(HasResourceSelection));
+        }
+    }
+
+    public bool IsManualResourceSelectionEnabled => !AutomaticResourceSelection;
+
     public bool RequiresResourceSelection => IsBuildTroopsEnabled
         && BuildingCells.Any(cell => cell.IsEnabled && cell.UsesResourcePercentMode);
 
-    public bool HasResourceSelection => CheckWood || CheckClay || CheckIron || CheckCrop;
+    public bool HasResourceSelection => AutomaticResourceSelection || CheckWood || CheckClay || CheckIron || CheckCrop;
 
     public int FallbackCooldownSeconds
     {
@@ -129,6 +148,7 @@ public sealed class TroopTrainingQuickVillageRow : BaseViewModel
         CheckClay = source.CheckClay;
         CheckIron = source.CheckIron;
         CheckCrop = source.CheckCrop;
+        AutomaticResourceSelection = source.AutomaticResourceSelection;
         FallbackCooldownSeconds = source.FallbackCooldownSeconds;
     }
 
@@ -154,6 +174,7 @@ public sealed class TroopTrainingQuickVillageRow : BaseViewModel
             CheckClay = CheckClay,
             CheckIron = CheckIron,
             CheckCrop = CheckCrop,
+            AutomaticResourceSelection = AutomaticResourceSelection,
         };
     }
 

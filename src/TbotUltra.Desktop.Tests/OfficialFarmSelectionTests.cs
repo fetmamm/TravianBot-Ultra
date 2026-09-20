@@ -138,6 +138,63 @@ public sealed class OfficialFarmSelectionTests
     }
 
     [Fact]
+    public void Filter_AppliesInclusiveMinimumAndMaximumDistance()
+    {
+        var rows = new[]
+        {
+            Row("1|1", pop: 0, distance: 9.9),
+            Row("2|2", pop: 0, distance: 10),
+            Row("3|3", pop: 0, distance: 20),
+            Row("4|4", pop: 0, distance: 20.1),
+        };
+
+        var result = OfficialFarmSelection.Filter(
+            rows,
+            new HashSet<string>(),
+            amount: 10,
+            order: "distance_asc",
+            populationMode: "all",
+            populationLimit: 0,
+            maximumDistance: 20,
+            skipDuplicates: true,
+            minimumDistance: 10);
+
+        Assert.Equal([(2, 2), (3, 3)], result.Select(item => (item.X, item.Y)).ToArray());
+    }
+
+    [Theory]
+    [InlineData("all", "", "", null, null)]
+    [InlineData("within", "20", "", null, 20.0)]
+    [InlineData("at_least", "20", "", 20.0, null)]
+    [InlineData("between", "20", "40", 20.0, 40.0)]
+    public void DistanceFilter_ResolvesSupportedModes(
+        string mode,
+        string first,
+        string second,
+        double? expectedMinimum,
+        double? expectedMaximum)
+    {
+        var valid = OfficialFarmDistanceFilter.TryResolve(
+            mode,
+            first,
+            second,
+            out var minimum,
+            out var maximum);
+
+        Assert.True(valid);
+        Assert.Equal(expectedMinimum, minimum);
+        Assert.Equal(expectedMaximum, maximum);
+    }
+
+    [Theory]
+    [InlineData("within", "-1", "")]
+    [InlineData("at_least", "not-a-number", "")]
+    [InlineData("between", "40", "20")]
+    [InlineData("between", "20", "")]
+    public void DistanceFilter_RejectsInvalidRanges(string mode, string first, string second)
+        => Assert.False(OfficialFarmDistanceFilter.TryResolve(mode, first, second, out _, out _));
+
+    [Fact]
     public void Filter_KeepsOnlySelectedOasisTypesAndExcludesOccupied()
     {
         var rows = new[]
@@ -192,17 +249,56 @@ public sealed class OfficialFarmSelectionTests
     }
 
     [Fact]
+    public void Filter_ExcludesNatarVillagesOnlyWhenRequested()
+    {
+        var rows = new[]
+        {
+            Row("1|1", pop: 100, distance: 1, account: "Natars"),
+            Row("2|2", pop: 100, distance: 2, account: "Player"),
+        };
+
+        var defaultResult = OfficialFarmSelection.Filter(
+            rows,
+            new HashSet<string>(),
+            amount: 10,
+            order: "distance_asc",
+            populationMode: "all",
+            populationLimit: 0,
+            maximumDistance: null,
+            skipDuplicates: true);
+        var excludedResult = OfficialFarmSelection.Filter(
+            rows,
+            new HashSet<string>(),
+            amount: 10,
+            order: "distance_asc",
+            populationMode: "all",
+            populationLimit: 0,
+            maximumDistance: null,
+            skipDuplicates: true,
+            excludeNatars: true);
+
+        Assert.Equal([(1, 1), (2, 2)], defaultResult.Select(item => (item.X, item.Y)).ToArray());
+        var coordinate = Assert.Single(excludedResult);
+        Assert.Equal((2, 2), (coordinate.X, coordinate.Y));
+    }
+
+    [Fact]
     public void ParseProtectionList_AcceptsSemicolonsAndNewLines()
     {
-        var result = OfficialAddFarmsWindow.ParseProtectionList(" Alpha ; Beta\r\nalpha\n Gamma ");
+        var result = FarmListsWorkflow.ParseProtectionList(" Alpha ; Beta\r\nalpha\n Gamma ");
 
         Assert.Equal(["Alpha", "Beta", "Gamma"], result);
     }
 
-    private static TravcoListStore.TravcoSavedRow Row(string coordinates, long pop, double distance) =>
+    private static TravcoListStore.TravcoSavedRow Row(
+        string coordinates,
+        long pop,
+        double distance,
+        string account = "") =>
         new()
         {
             Coordinates = coordinates,
+            Account = account,
             Pop = pop,
             Distance = distance,
             Selected = true,

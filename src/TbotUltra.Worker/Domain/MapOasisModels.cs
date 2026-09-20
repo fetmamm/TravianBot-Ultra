@@ -22,6 +22,13 @@ public sealed record MapOasisScanResult(
     int TotalAreas,
     bool IsPartialResult = false);
 
+public sealed record MapOasisApiCapture(
+    string Url,
+    int CenterX,
+    int CenterY,
+    int ZoomLevel,
+    string Json);
+
 public enum MapOasisScanScope
 {
     WholeMap,
@@ -41,7 +48,31 @@ public sealed record MapOasisScanRequest(
     int Radius,
     MapOasisScanSpeed Speed)
 {
-    public const int DefaultRadius = 30;
+    public const int DefaultRadius = 40;
+}
+
+public sealed record MapOasisScanEstimate(
+    int Zoom3Requests,
+    int Zoom2Requests,
+    int Zoom1Requests)
+{
+    public static MapOasisScanEstimate Calculate(MapOasisScanRequest request)
+    {
+        var minimumX = request.Scope == MapOasisScanScope.Radius ? Math.Max(-200, request.CenterX - request.Radius) : -200;
+        var maximumX = request.Scope == MapOasisScanScope.Radius ? Math.Min(200, request.CenterX + request.Radius) : 200;
+        var minimumY = request.Scope == MapOasisScanScope.Radius ? Math.Max(-200, request.CenterY - request.Radius) : -200;
+        var maximumY = request.Scope == MapOasisScanScope.Radius ? Math.Min(200, request.CenterY + request.Radius) : 200;
+        var width = Math.Max(0, maximumX - minimumX + 1);
+        var height = Math.Max(0, maximumY - minimumY + 1);
+
+        return new MapOasisScanEstimate(
+            CountAreas(width, 31) * CountAreas(height, 31),
+            CountAreas(width, 21) * CountAreas(height, 17),
+            CountAreas(width, 11) * CountAreas(height, 9));
+    }
+
+    private static int CountAreas(int coordinateCount, int areaSize)
+        => coordinateCount == 0 ? 0 : (coordinateCount + areaSize - 1) / areaSize;
 }
 
 public sealed record MapOasisScanInput(

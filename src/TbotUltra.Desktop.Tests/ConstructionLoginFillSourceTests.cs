@@ -61,4 +61,50 @@ public sealed class ConstructionLoginFillSourceTests
             methodBody,
             StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void ConfirmedEmptyQueue_PreparesImmediateFillBeforeDeferredRefresh()
+    {
+        var projectRoot = ProjectRootLocator.FindProjectRoot();
+        var source = File.ReadAllText(Path.Combine(
+            projectRoot,
+            "src",
+            "TbotUltra.Desktop",
+            "MainWindow.VillageWorking.cs"));
+        var methodStart = source.IndexOf(
+            "private void CacheVillageStatus(",
+            StringComparison.Ordinal);
+        var methodEnd = source.IndexOf(
+            "    // Re-keys any cached village status",
+            methodStart,
+            StringComparison.Ordinal);
+
+        Assert.True(methodStart >= 0 && methodEnd > methodStart);
+        var methodBody = source[methodStart..methodEnd];
+        var prepareIndex = methodBody.IndexOf(
+            "PrepareConstructionLoginFill(",
+            StringComparison.Ordinal);
+        var refreshIndex = methodBody.IndexOf(
+            "TriggerDeferredConstructionWaitRefresh(",
+            StringComparison.Ordinal);
+
+        Assert.True(prepareIndex >= 0);
+        Assert.True(refreshIndex > prepareIndex);
+    }
+
+    [Fact]
+    public void QueueFullCard_ShowsWaitingInsteadOfRetry()
+    {
+        var projectRoot = ProjectRootLocator.FindProjectRoot();
+        var source = File.ReadAllText(Path.Combine(
+            projectRoot,
+            "src",
+            "TbotUltra.Desktop",
+            "MainWindow.AutomationLoop.Ui.cs"));
+
+        Assert.Contains(
+            "ConstructionDeferReason.QueueFull => \"Waiting\"",
+            source,
+            StringComparison.Ordinal);
+    }
 }

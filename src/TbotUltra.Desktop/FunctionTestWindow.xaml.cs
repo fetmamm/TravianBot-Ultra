@@ -19,6 +19,7 @@ public partial class FunctionTestWindow : Window
     public event RoutedEventHandler? StartAdventureRequested;
     public event RoutedEventHandler? BulkMessagesRequested;
     public event RoutedEventHandler? SavePageHtmlRequested;
+    public event RoutedEventHandler? SaveMapApiRequested;
     public event RoutedEventHandler? RunNewAccountAnalysisRequested;
     public event RoutedEventHandler? ClearNewAccountAnalysisRequested;
     public event RoutedEventHandler? UpdateVersionPreviewRequested;
@@ -102,6 +103,11 @@ public partial class FunctionTestWindow : Window
     private void SavePageHtmlButton_Click(object sender, RoutedEventArgs e)
     {
         SavePageHtmlRequested?.Invoke(sender, e);
+    }
+
+    private void SaveMapApiButton_Click(object sender, RoutedEventArgs e)
+    {
+        SaveMapApiRequested?.Invoke(sender, e);
     }
 
     private void RunNewAccountAnalysisButton_Click(object sender, RoutedEventArgs e)

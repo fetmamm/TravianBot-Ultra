@@ -148,6 +148,7 @@ public static class BotOptionsFactory
             TroopTrainingBarracksCheckClay = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksCheckClay, true),
             TroopTrainingBarracksCheckIron = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksCheckIron, true),
             TroopTrainingBarracksCheckCrop = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksCheckCrop, false),
+            TroopTrainingBarracksAutomaticResourceSelection = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingBarracksAutomaticResourceSelection, false),
             TroopTrainingStableEnabled = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableEnabled, false),
             TroopTrainingStableTroopType = configuration[BotOptionPayloadKeys.TroopTrainingStableTroopType] ?? string.Empty,
             TroopTrainingStableMaxQueueHours = configuration[BotOptionPayloadKeys.TroopTrainingStableMaxQueueHours] ?? "no_limit",
@@ -164,6 +165,7 @@ public static class BotOptionsFactory
             TroopTrainingStableCheckClay = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableCheckClay, true),
             TroopTrainingStableCheckIron = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableCheckIron, true),
             TroopTrainingStableCheckCrop = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableCheckCrop, false),
+            TroopTrainingStableAutomaticResourceSelection = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingStableAutomaticResourceSelection, false),
             TroopTrainingWorkshopEnabled = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopEnabled, false),
             TroopTrainingWorkshopTroopType = configuration[BotOptionPayloadKeys.TroopTrainingWorkshopTroopType] ?? string.Empty,
             TroopTrainingWorkshopMaxQueueHours = configuration[BotOptionPayloadKeys.TroopTrainingWorkshopMaxQueueHours] ?? "no_limit",
@@ -180,6 +182,7 @@ public static class BotOptionsFactory
             TroopTrainingWorkshopCheckClay = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckClay, true),
             TroopTrainingWorkshopCheckIron = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckIron, true),
             TroopTrainingWorkshopCheckCrop = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopCheckCrop, false),
+            TroopTrainingWorkshopAutomaticResourceSelection = configuration.GetValue(BotOptionPayloadKeys.TroopTrainingWorkshopAutomaticResourceSelection, false),
             TroopTrainingFallbackCooldownSeconds = ClampTroopTrainingFallbackCooldownSeconds(configuration.GetValue(BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds, 120)),
             BreweryAutoCelebrationEnabled = configuration.GetValue(BotOptionPayloadKeys.BreweryAutoCelebrationEnabled, false),
             NpcTradeEnabled = GetValueOrDefault(configuration, BotOptionPayloadKeys.NpcTradeEnabled, defaultValue: false),
@@ -258,6 +261,13 @@ public static class BotOptionsFactory
             ActionPacingIdleBrowsePageReports = configuration.GetValue(BotOptionPayloadKeys.ActionPacingIdleBrowsePageReports, PacingDefaults.ActionPacingIdleBrowsePageReports),
             ActionPacingIdleBrowsePageMessages = configuration.GetValue(BotOptionPayloadKeys.ActionPacingIdleBrowsePageMessages, PacingDefaults.ActionPacingIdleBrowsePageMessages),
             ConstructionHumanizeDelayEnabled = configuration.GetValue(BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled, PacingDefaults.ConstructionHumanizeDelayEnabled),
+            ConstructionMainBuildingRebuildEnabled = configuration.GetValue(
+                BotOptionPayloadKeys.ConstructionMainBuildingRebuildEnabled,
+                ConstructionDefaults.MainBuildingRebuildEnabled),
+            ConstructionMainBuildingRebuildTargetLevel = ConstructionDefaults.NormalizeMainBuildingRebuildTargetLevel(
+                configuration.GetValue(
+                    BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel,
+                    ConstructionDefaults.MainBuildingRebuildTargetLevel)),
             ConstructionStorageUpgradeLevelsAhead = ConstructionDefaults.NormalizeStorageUpgradeLevelsAhead(
                 configuration.GetValue(BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead, ConstructionDefaults.StorageUpgradeLevelsAhead)),
             ConstructionCropShortageRecoveryEnabled = configuration.GetValue(

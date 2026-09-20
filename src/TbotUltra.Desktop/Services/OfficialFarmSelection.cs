@@ -16,6 +16,7 @@ public static class OfficialFarmSelection
     // includeOccupied: when false, rows flagged IsOccupied are dropped unless requireUnoccupiedOasis
     //   is true. In that mode stale saved occupancy is ignored and the Add-target form live-checks owner.
     // requireUnoccupiedOasis: marks returned coordinates for a live Add-target owner check before Save.
+    // excludeNatars: drops villages whose saved account is the Natar system player.
     public static IReadOnlyList<FarmCoordinate> Filter(
         IEnumerable<TravcoListStore.TravcoSavedRow> sourceRows,
         IReadOnlySet<string> existingCoordinates,
@@ -29,7 +30,9 @@ public static class OfficialFarmSelection
         IReadOnlySet<string>? oasisTypes = null,
         bool includeOccupied = true,
         bool skipLowPopulationVillages = false,
-        bool requireUnoccupiedOasis = false)
+        bool requireUnoccupiedOasis = false,
+        double? minimumDistance = null,
+        bool excludeNatars = false)
     {
         if (amount <= 0)
         {
@@ -56,6 +59,11 @@ public static class OfficialFarmSelection
                 continue;
             }
 
+            if (excludeNatars && IsNatarAccount(row.Account))
+            {
+                continue;
+            }
+
             var distance = referenceVillage is { } village
                 ? TravianMapDistance.Calculate(village.X, village.Y, x, y)
                 : row.Distance;
@@ -74,6 +82,11 @@ public static class OfficialFarmSelection
             // Only drop villages with a KNOWN population at or below the threshold; rows with unknown
             // population are kept so we never silently discard targets we could not read.
             filtered = filtered.Where(row => !(row.Pop.HasValue && row.Pop.Value <= LowPopulationThreshold));
+        }
+
+        if (minimumDistance.HasValue)
+        {
+            filtered = filtered.Where(row => row.Distance.HasValue && row.Distance.Value >= minimumDistance.Value);
         }
 
         if (maximumDistance.HasValue)
@@ -107,6 +120,13 @@ public static class OfficialFarmSelection
         }
 
         return result;
+    }
+
+    private static bool IsNatarAccount(string? account)
+    {
+        var normalized = account?.Trim();
+        return string.Equals(normalized, "Natar", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "Natars", StringComparison.OrdinalIgnoreCase);
     }
 
 }

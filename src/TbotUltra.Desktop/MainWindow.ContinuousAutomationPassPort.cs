@@ -92,6 +92,21 @@ public partial class MainWindow
 
         public QueueItem? SelectNextQueueItem() => owner._automationQueueSelection.Select();
 
+        public void LogSmartSleepBlockedByReadyTask(QueueItem item)
+        {
+            if (!owner._smartSleepSettings.Enabled)
+            {
+                return;
+            }
+
+            var villageName = NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-";
+            var villageKey = owner.GetQueueItemVillageKey(item) ?? villageName;
+            owner.AppendLoopPickVerbose(
+                $"[smart-sleep] blocked by ready task: group={item.Group}, "
+                    + $"task='{item.TaskName}', village='{villageName}'.",
+                $"smart-sleep:blocker:{item.Group}:{item.TaskName}:{villageKey}");
+        }
+
         public void MarkActivePass() => owner._automationSessionRuntime.MarkActivePass();
 
         public ValueTask MaybeKeepBrowserFreshAsync(
@@ -130,9 +145,13 @@ public partial class MainWindow
             var smartSleepItems = relevantItems
                 .Where(item => owner._automationPassRuntime.SmartSleepDeadlineGroups.Contains(item.Group))
                 .ToList();
+            var smartSleepQueueDeadlineOverrides = owner.ResolveSmartSleepQueueDeadlineOverrides(
+                smartSleepItems,
+                now);
             var smartSleepForecast = owner._continuousAutomationForecast.Resolve(
                 now,
-                queueItemsOverride: smartSleepItems);
+                queueItemsOverride: smartSleepItems,
+                wakeWhenConstructionQueueClears: owner._smartSleepWakeWhenConstructionQueueClears);
             DateTimeOffset? smartSleepConstructionAvailability = null;
             if (smartSleepForecast.Item?.Group == QueueGroup.Construction
                 && smartSleepForecast.State == ContinuousLoopForecastState.Waiting)
@@ -146,7 +165,8 @@ public partial class MainWindow
                 nextVillageStatusRound,
                 smartSleepItems,
                 owner._automationPassRuntime.SmartSleepDeadlineGroups,
-                smartSleepConstructionAvailability);
+                smartSleepConstructionAvailability,
+                smartSleepQueueDeadlineOverrides);
         }
 
         public bool TryRequestSmartSleep(DateTimeOffset? trustedDeadlineUtc) =>

@@ -1,6 +1,7 @@
 using System.Linq;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.ViewModels;
 using Xunit;
 
@@ -167,7 +168,7 @@ public sealed class FarmListsViewModelTests
     [Fact]
     public void BuildFarmListVillageHeader_UsesKnownCoordinatesImmediately()
     {
-        var header = MainWindow.BuildFarmListVillageHeader(
+        var header = FarmListsWorkflow.BuildVillageHeader(
             "Swollster",
             new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
@@ -206,15 +207,15 @@ public sealed class FarmListsViewModelTests
     {
         var vm = new FarmListsViewModel();
 
+        Assert.Equal("Shared interval", vm.DispatchIntervalTitle);
+        Assert.Contains("shared run", vm.DispatchIntervalDescription);
+        Assert.True(vm.UseSharedSchedule);
+
+        vm.UseIndividualSchedules = true;
+
         Assert.Equal("Default interval", vm.DispatchIntervalTitle);
         Assert.Contains("first loaded", vm.DispatchIntervalDescription);
         Assert.True(vm.UseIndividualSchedules);
-
-        vm.UseSharedSchedule = true;
-
-        Assert.Equal("Shared interval", vm.DispatchIntervalTitle);
-        Assert.Contains("enabled lists", vm.DispatchModeDescription);
-        Assert.True(vm.UseSharedSchedule);
 
         vm.SendAllLists = true;
 

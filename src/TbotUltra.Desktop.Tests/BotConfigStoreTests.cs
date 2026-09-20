@@ -69,6 +69,8 @@ public sealed class BotConfigStoreTests : IDisposable
             BotOptionPayloadKeys.ConstructFasterMinBuildMinutes,
             BotOptionPayloadKeys.ConstructFasterRandomEnabled,
             BotOptionPayloadKeys.ConstructFasterRandomChancePercent,
+            BotOptionPayloadKeys.ConstructionMainBuildingRebuildEnabled,
+            BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel,
             BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead,
             BotOptionPayloadKeys.HeroAdventureVideoChancePercent,
         };
@@ -384,6 +386,7 @@ public sealed class BotConfigStoreTests : IDisposable
         config[BotOptionPayloadKeys.SessionPacingSleepMaxMinutes] = 90;
         config[BotOptionPayloadKeys.SessionPacingAllowedHours] = new JsonArray(0, 1, 2);
         config[BotOptionPayloadKeys.SmartSleepDeadlineGroups] = new JsonArray("construction", "hero");
+        config[BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears] = false;
         config[BotOptionPayloadKeys.SessionPacingDailyMaxHours] = 12;
         config[BotOptionPayloadKeys.SessionPacingRuntimeDate] = "2026-06-14";
         config[BotOptionPayloadKeys.SessionPacingRuntimeSeconds] = 3600;
@@ -404,6 +407,7 @@ public sealed class BotConfigStoreTests : IDisposable
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.SessionPacingSleepMaxMinutes));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.SessionPacingAllowedHours));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.SmartSleepDeadlineGroups));
+        Assert.False(global.ContainsKey(BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.SessionPacingDailyMaxHours));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.SessionPacingDailyHistory));
         Assert.False(global.ContainsKey(BotOptionPayloadKeys.ActionPacingTaskMinSeconds));
@@ -413,6 +417,7 @@ public sealed class BotConfigStoreTests : IDisposable
         Assert.Equal(90, account[BotOptionPayloadKeys.SessionPacingSleepMaxMinutes]!.GetValue<int>());
         Assert.Equal(12, account[BotOptionPayloadKeys.SessionPacingDailyMaxHours]!.GetValue<int>());
         Assert.Equal(2, account[BotOptionPayloadKeys.SmartSleepDeadlineGroups]!.AsArray().Count);
+        Assert.False(account[BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears]!.GetValue<bool>());
         Assert.Equal("2026-06-14", account[BotOptionPayloadKeys.SessionPacingRuntimeDate]!.GetValue<string>());
         Assert.Equal(3600, account[BotOptionPayloadKeys.SessionPacingRuntimeSeconds]!.GetValue<int>());
         Assert.NotNull(account[BotOptionPayloadKeys.SessionPacingDailyHistory]);

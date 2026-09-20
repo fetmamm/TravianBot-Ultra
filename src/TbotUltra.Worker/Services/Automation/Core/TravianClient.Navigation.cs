@@ -313,12 +313,28 @@ public sealed partial class TravianClient
             {
                 await RetryAsync($"navigate to {pathOrUrl}", async () =>
                 {
-                    var response = await _page.GotoAsync(url, new PageGotoOptions
+                    IResponse? response = null;
+                    try
+                    {
+                        response = await _page.GotoAsync(url, new PageGotoOptions
                         {
                             WaitUntil = WaitUntilState.DOMContentLoaded,
                             Timeout = _config.TimeoutMs,
                         })
                         .WaitAsync(cancellationToken);
+                    }
+                    catch (Exception ex) when (IsTimeoutError(ex))
+                    {
+                        if (!await DidTimedOutNavigationReachUsablePageAsync(pathOrUrl, cancellationToken))
+                        {
+                            throw;
+                        }
+
+                        Notify(
+                            $"[nav] GOTO timeout recovered: expected page is usable despite missing navigation event "
+                            + $"current='{_page.Url}'.");
+                    }
+
                     httpStatus = response?.Status;
                     if (response is not null && response.Headers.TryGetValue("date", out var dateHeader))
                     {
@@ -336,9 +352,18 @@ public sealed partial class TravianClient
             }
             catch (Exception ex) when (IsTimeoutError(ex))
             {
-                throw new TransientNavigationException(
-                    $"Navigation to '{url}' timed out after safe retries.",
-                    ex);
+                if (await DidTimedOutNavigationReachUsablePageAsync(pathOrUrl, cancellationToken))
+                {
+                    Notify(
+                        $"[nav] GOTO timeout recovered: expected page is usable after safe retries "
+                        + $"current='{_page.Url}'.");
+                }
+                else
+                {
+                    throw new TransientNavigationException(
+                        $"Navigation to '{url}' timed out after safe retries.",
+                        ex);
+                }
             }
 
             try

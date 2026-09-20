@@ -6,12 +6,48 @@ public sealed record TroopTrainingResourceThresholdEvaluation(
     string WaitReason,
     IReadOnlyDictionary<string, long> RequiredResources);
 
+public sealed record TroopTrainingResourceSelection(
+    string ResourceKey,
+    bool CheckWood,
+    bool CheckClay,
+    bool CheckIron,
+    bool CheckCrop);
+
 /// <summary>
 /// Evaluates the Build troops percentage trigger. Selected resources use OR semantics: training is ready
 /// when any selected resource reaches the threshold, and otherwise waits for the earliest selected resource.
 /// </summary>
 public static class TroopTrainingResourceThresholdCalculator
 {
+    public static TroopTrainingResourceSelection ResolveAutomaticResourceSelection(
+        TroopTrainingCost cost,
+        IReadOnlyDictionary<string, long> currentResources,
+        long? warehouseCapacity,
+        long? granaryCapacity)
+    {
+        var costs = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["wood"] = cost.Wood,
+            ["clay"] = cost.Clay,
+            ["iron"] = cost.Iron,
+            ["crop"] = cost.Crop,
+        };
+        var highestCost = costs.Values.Max();
+        var resourceKey = costs
+            .Where(pair => pair.Value == highestCost)
+            .OrderBy(pair => ResourceFillRatio(pair.Key, currentResources, warehouseCapacity, granaryCapacity))
+            .ThenBy(pair => Array.IndexOf(["wood", "clay", "iron", "crop"], pair.Key))
+            .Select(pair => pair.Key)
+            .First();
+
+        return new TroopTrainingResourceSelection(
+            resourceKey,
+            CheckWood: resourceKey == "wood",
+            CheckClay: resourceKey == "clay",
+            CheckIron: resourceKey == "iron",
+            CheckCrop: resourceKey == "crop");
+    }
+
     public static TroopTrainingResourceThresholdEvaluation Evaluate(
         IReadOnlyDictionary<string, long> currentResources,
         IReadOnlyDictionary<string, double?> productionByHour,
@@ -81,5 +117,16 @@ public static class TroopTrainingResourceThresholdCalculator
             .ThenBy(item => string.Equals(item.Reason, "recheck_needed", StringComparison.OrdinalIgnoreCase) ? 0 : 1)
             .First();
         return new TroopTrainingResourceThresholdEvaluation(false, earliest.Seconds, earliest.Reason, required);
+    }
+
+    private static double ResourceFillRatio(
+        string key,
+        IReadOnlyDictionary<string, long> currentResources,
+        long? warehouseCapacity,
+        long? granaryCapacity)
+    {
+        currentResources.TryGetValue(key, out var current);
+        var capacity = key == "crop" ? granaryCapacity : warehouseCapacity;
+        return capacity is > 0 ? Math.Max(0, current) / (double)capacity.Value : Math.Max(0, current);
     }
 }

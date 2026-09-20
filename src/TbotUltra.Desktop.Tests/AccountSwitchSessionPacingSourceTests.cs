@@ -69,4 +69,33 @@ public sealed class AccountSwitchSessionPacingSourceTests
         Assert.Contains("_sleepSnapshot = SleepSnapshot.Idle;", resetBody, StringComparison.Ordinal);
         Assert.Contains("_sessionPacer.Reset();", resetBody, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void ActiveSessionExtensionDialog_OffersBlueSleepNowAction()
+    {
+        var projectRoot = ProjectRootLocator.FindProjectRoot();
+        var source = File.ReadAllText(Path.Combine(
+            projectRoot,
+            "src",
+            "TbotUltra.Desktop",
+            "MainWindow.SessionPacing.cs"));
+        var methodStart = source.IndexOf(
+            "private void SessionPacingExtendButton_Click",
+            StringComparison.Ordinal);
+        var methodEnd = source.IndexOf(
+            "    private void UpdateSessionPacingUi()",
+            methodStart,
+            StringComparison.Ordinal);
+
+        Assert.True(methodStart >= 0 && methodEnd > methodStart);
+        var methodBody = source[methodStart..methodEnd];
+        var cancelIndex = methodBody.IndexOf("(\"Cancel\", MessageBoxResult.Cancel)", StringComparison.Ordinal);
+        var sleepIndex = methodBody.IndexOf("(\"Sleep now\", MessageBoxResult.No)", StringComparison.Ordinal);
+        var extendIndex = methodBody.IndexOf("(\"Extend session\", MessageBoxResult.Yes)", StringComparison.Ordinal);
+
+        Assert.True(cancelIndex >= 0 && sleepIndex > cancelIndex && extendIndex > sleepIndex);
+        Assert.Contains("accentResult: extendingSleep ? null : MessageBoxResult.No", methodBody, StringComparison.Ordinal);
+        Assert.Contains("if (result == MessageBoxResult.No)", methodBody, StringComparison.Ordinal);
+        Assert.Contains("RequestManualSessionSleep();", methodBody, StringComparison.Ordinal);
+    }
 }

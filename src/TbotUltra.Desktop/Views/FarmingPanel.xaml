@@ -415,27 +415,6 @@
                                                                     <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
                                                                     <Setter Property="BorderThickness" Value="1" />
                                                                     <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding UseIndividualSchedules}" Value="True">
-                                                                            <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
-                                                                            <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </Border.Style>
-                                                            <RadioButton x:Name="FarmSendListPerListRadioButton"
-                                                                         GroupName="FarmSendMode"
-                                                                         HorizontalContentAlignment="Stretch"
-                                                                         IsChecked="{Binding UseIndividualSchedules, Mode=TwoWay}">
-                                                                <TextBlock Text="Induvidual" FontSize="12" FontWeight="SemiBold" Margin="3,0,0,0" />
-                                                            </RadioButton>
-                                                        </Border>
-                                                        <Border Grid.Column="1" CornerRadius="6" Padding="7" Margin="4,0">
-                                                            <Border.Style>
-                                                                <Style TargetType="Border">
-                                                                    <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
-                                                                    <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
-                                                                    <Setter Property="BorderThickness" Value="1" />
-                                                                    <Style.Triggers>
                                                                         <DataTrigger Binding="{Binding UseSharedSchedule}" Value="True">
                                                                             <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
                                                                             <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
@@ -448,6 +427,27 @@
                                                                          HorizontalContentAlignment="Stretch"
                                                                          IsChecked="{Binding UseSharedSchedule, Mode=TwoWay}">
                                                                 <TextBlock Text="Shared" FontSize="12" FontWeight="SemiBold" Margin="3,0,0,0" />
+                                                            </RadioButton>
+                                                        </Border>
+                                                        <Border Grid.Column="1" CornerRadius="6" Padding="7" Margin="4,0">
+                                                            <Border.Style>
+                                                                <Style TargetType="Border">
+                                                                    <Setter Property="Background" Value="{DynamicResource ControlBackgroundBrush}" />
+                                                                    <Setter Property="BorderBrush" Value="{DynamicResource BorderMutedBrush}" />
+                                                                    <Setter Property="BorderThickness" Value="1" />
+                                                                    <Style.Triggers>
+                                                                        <DataTrigger Binding="{Binding UseIndividualSchedules}" Value="True">
+                                                                            <Setter Property="Background" Value="{DynamicResource SuccessBgBrush}" />
+                                                                            <Setter Property="BorderBrush" Value="{DynamicResource SuccessBorderBrush}" />
+                                                                        </DataTrigger>
+                                                                    </Style.Triggers>
+                                                                </Style>
+                                                            </Border.Style>
+                                                            <RadioButton x:Name="FarmSendListPerListRadioButton"
+                                                                         GroupName="FarmSendMode"
+                                                                         HorizontalContentAlignment="Stretch"
+                                                                         IsChecked="{Binding UseIndividualSchedules, Mode=TwoWay}">
+                                                                <TextBlock Text="Individual" FontSize="12" FontWeight="SemiBold" Margin="3,0,0,0" />
                                                             </RadioButton>
                                                         </Border>
                                                         <Border Grid.Column="2" CornerRadius="6" Padding="7" Margin="4,0,0,0">

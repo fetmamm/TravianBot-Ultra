@@ -342,6 +342,11 @@
                                                     <ContentControl Style="{StaticResource SettingInfoIconStyle}" ToolTip="Sleeps only when the scheduler knows that no task is needed soon, then wakes near the next task." />
                                                 </StackPanel>
                                                 <TextBlock Text="Sleep between known task deadlines." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="20,3,0,10" />
+                                                <CheckBox x:Name="SmartSleepWakeWhenConstructionQueueClearsCheckBox"
+                                                          Content="Wake when construction queue clears"
+                                                          IsChecked="{Binding SettingsVm.Pacing.SmartSleepWakeWhenConstructionQueueClears, Mode=TwoWay}"
+                                                          Margin="20,0,0,8"
+                                                          ToolTip="Stay asleep when a queued construction starts after the current one. Wake near the completion of the final construction in that queue." />
                                                 <Grid Margin="20,0,0,0">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="130" />
@@ -384,7 +389,7 @@
                                                         <ItemsControl ItemsSource="{Binding SettingsVm.Pacing.SmartSleepDeadlineGroups}" Margin="0,6,0,0">
                                                             <ItemsControl.ItemsPanel>
                                                                 <ItemsPanelTemplate>
-                                                                    <UniformGrid Columns="2" />
+                                                                    <local:VerticalFirstUniformGrid Columns="2" />
                                                                 </ItemsPanelTemplate>
                                                             </ItemsControl.ItemsPanel>
                                                             <ItemsControl.ItemTemplate>
@@ -789,6 +794,27 @@
                                        Margin="0,0,0,10" />
 
                             <Border Style="{StaticResource SettingsGroupBox}">
+                                <StackPanel>
+                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                        <CheckBox Content="Rebuild Main Building if destroyed"
+                                                  FontWeight="SemiBold"
+                                                  Foreground="{DynamicResource TextPrimaryBrush}"
+                                                  IsChecked="{Binding SettingsVm.Construction.MainBuildingRebuildEnabled, Mode=TwoWay}" />
+                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                        ToolTip="Uses normal complete Dorf2 reads to detect a missing Main Building. No extra scan or navigation is performed." />
+                                    </StackPanel>
+                                    <StackPanel Orientation="Horizontal" Margin="0,8,0,0" VerticalAlignment="Center">
+                                        <TextBlock Text="Rebuild to level" VerticalAlignment="Center" />
+                                        <ComboBox x:Name="MainBuildingRebuildTargetLevelComboBox"
+                                                  Width="72"
+                                                  Margin="12,0,0,0"
+                                                  IsEnabled="{Binding SettingsVm.Construction.MainBuildingRebuildEnabled}"
+                                                  SelectedItem="{Binding SettingsVm.Construction.MainBuildingRebuildTargetLevel, Mode=TwoWay}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </Border>
+
+                            <Border Style="{StaticResource SettingsGroupBox}" Margin="0,10,0,0">
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
                                     <TextBlock Text="Auto storage upgrade"
                                                FontWeight="SemiBold"

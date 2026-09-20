@@ -36,6 +36,14 @@ public sealed class AlarmClassificationTests
         Assert.False(MainWindow.IsAlarmMessage(message));
     }
 
+    [Theory]
+    [InlineData("[resource-refresh] FAIL Timeout 20000ms exceeded.")]
+    [InlineData("Background resource refresh skipped: Timeout 20000ms exceeded.")]
+    public void SingleBackgroundResourceRefreshTimeout_IsNotAlarm(string message)
+    {
+        Assert.False(MainWindow.IsAlarmMessage(message));
+    }
+
     [Fact]
     public void ProductionBonusInspectionFallback_IsWarningNotAlarm()
     {
@@ -74,11 +82,67 @@ public sealed class AlarmClassificationTests
             "Upgrade analysis failed for slot 10: exhausted retries."));
     }
 
+    [Theory]
+    [InlineData("[ensure-logged-in] browser network error page detected url='chrome-error://chromewebdata/'.")]
+    [InlineData("[nav] GOTO start target='https://lobby.legends.travian.com/account' from='chrome-error://chromewebdata/' pages=1")]
+    [InlineData("[lobby-login] transient lobby attempt 1/3 failed: net::ERR_TIMED_OUT")]
+    [InlineData("[lobby-login] transient lobby attempt 2/3 failed: net::ERR_TIMED_OUT")]
+    public void IntermediateNetworkRecoveryMessages_AreNotAlarms(string message)
+    {
+        Assert.False(MainWindow.IsAlarmMessage(message));
+    }
+
+    [Theory]
+    [InlineData("[upgrade_all_resources_to_level FAILED] after 12.6s: InvalidOperationException: navigate to /dorf1.php failed after 3 attempts: net::ERR_NAME_NOT_RESOLVED")]
+    [InlineData("[queue] FAIL id=123 task='upgrade_all_resources_to_level' after 12.8s: InvalidOperationException: net::ERR_NETWORK_CHANGED")]
+    [InlineData("[LOOP 13] FAIL 12.8s | InvalidOperationException: net::ERR_CONNECTION_TIMED_OUT")]
+    public void NetworkOutageFollowOnDiagnostics_AreNotSeparateAlarms(string message)
+    {
+        Assert.False(MainWindow.IsAlarmMessage(message));
+    }
+
+    [Fact]
+    public void RecoveredNavigationTimeout_IsNotAlarm()
+    {
+        Assert.False(MainWindow.IsAlarmMessage(
+            "[nav] RELOAD timeout recovered: expected page is usable despite missing navigation event."));
+    }
+
+    [Fact]
+    public void ExhaustedLobbyRecovery_RemainsAlarm()
+    {
+        Assert.True(MainWindow.IsAlarmMessage(
+            "[lobby-login] transient lobby attempt 3/3 failed: net::ERR_CONNECTION_TIMED_OUT"));
+    }
+
     [Fact]
     public void CompletedVillageMembershipVerification_IsNotAlarm()
     {
         Assert.False(MainWindow.IsAlarmMessage(
             "[village-membership] profile verification complete: villages=8 removedConfirmed=true."));
+    }
+
+    [Theory]
+    [InlineData("[village-membership] live sidebar differs from the verified UI list (2/2); blocking automation until profile verification completes.")]
+    [InlineData("[village-membership] profile verification returned 2 village(s).")]
+    public void SuccessfulVillageMembershipVerificationProgress_IsNotAlarm(string message)
+    {
+        Assert.False(MainWindow.IsAlarmMessage(message));
+    }
+
+    [Fact]
+    public void RetryingWakeLogin_IsNotAlarm()
+    {
+        Assert.False(MainWindow.IsAlarmMessage(
+            "[pacing] wake login failed (attempt 4) — retrying in 10 min."));
+    }
+
+    [Theory]
+    [InlineData("[upgrade_all_resources_to_level FAILED] after 179.7s: InvalidOperationException: Upgrade analysis failed for slot 8: Navigation to 'https://example.test/build.php?id=8' timed out after safe retries.")]
+    [InlineData("Could not capture diagnostics for 'upgrade-slot-8-exception': Timeout 20000ms exceeded.")]
+    public void DeferredSafeNavigationDiagnostics_AreNotAlarms(string message)
+    {
+        Assert.False(MainWindow.IsAlarmMessage(message));
     }
 
     [Fact]

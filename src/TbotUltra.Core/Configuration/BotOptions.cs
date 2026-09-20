@@ -44,7 +44,7 @@ public sealed record BotOptions
     public int ContinuousFarmDispatchDelayMaxMinutes { get; init; } = FarmingDefaults.DefaultDispatchDelayMaxMinutes;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmSendMode)]
-    public string ContinuousFarmSendMode { get; init; } = FarmingDefaults.SendModeListPerList;
+    public string ContinuousFarmSendMode { get; init; } = FarmingDefaults.DefaultSendMode;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.FarmListOnlyCreateReportsWithLosses)]
     public bool FarmListOnlyCreateReportsWithLosses { get; init; } = FarmingDefaults.OnlyCreateReportsWithLosses;
@@ -235,6 +235,9 @@ public sealed record BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksCheckCrop)]
     public bool TroopTrainingBarracksCheckCrop { get; init; }
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksAutomaticResourceSelection)]
+    public bool TroopTrainingBarracksAutomaticResourceSelection { get; init; }
+
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableEnabled)]
     public bool TroopTrainingStableEnabled { get; init; }
 
@@ -283,6 +286,9 @@ public sealed record BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableCheckCrop)]
     public bool TroopTrainingStableCheckCrop { get; init; }
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableAutomaticResourceSelection)]
+    public bool TroopTrainingStableAutomaticResourceSelection { get; init; }
+
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopEnabled)]
     public bool TroopTrainingWorkshopEnabled { get; init; }
 
@@ -330,6 +336,9 @@ public sealed record BotOptions
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopCheckCrop)]
     public bool TroopTrainingWorkshopCheckCrop { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopAutomaticResourceSelection)]
+    public bool TroopTrainingWorkshopAutomaticResourceSelection { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds)]
     public int TroopTrainingFallbackCooldownSeconds { get; init; } = 300;
@@ -543,6 +552,12 @@ public sealed record BotOptions
 
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled)]
     public bool ConstructionHumanizeDelayEnabled { get; init; } = PacingDefaults.ConstructionHumanizeDelayEnabled;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionMainBuildingRebuildEnabled)]
+    public bool ConstructionMainBuildingRebuildEnabled { get; init; } = ConstructionDefaults.MainBuildingRebuildEnabled;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel)]
+    public int ConstructionMainBuildingRebuildTargetLevel { get; init; } = ConstructionDefaults.MainBuildingRebuildTargetLevel;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead)]
     public int ConstructionStorageUpgradeLevelsAhead { get; init; } = ConstructionDefaults.StorageUpgradeLevelsAhead;

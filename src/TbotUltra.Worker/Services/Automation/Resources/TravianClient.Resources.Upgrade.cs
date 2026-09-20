@@ -176,6 +176,15 @@ public sealed partial class TravianClient
                 // Read the population this level grants before clicking (page changes after).
                 var populationDelta = pageAnalysis.PopulationDelta;
                 var nextLevel = Math.Min(effectiveTarget, highestKnownLevel + 1);
+                var durationAnomaly = DetectMainBuildingDurationAnomaly(
+                    BuildingCatalogService.GidForName(resourceName),
+                    nextLevel,
+                    expectedWaitSeconds,
+                    $"upgrading resource slot {slotId}");
+                if (durationAnomaly is not null)
+                {
+                    return durationAnomaly;
+                }
                 var clickSafety = await VerifyResourceUpgradePreClickSafetyAsync(
                     slotId,
                     field?.FieldType,
@@ -606,6 +615,15 @@ public sealed partial class TravianClient
                         // Read the population this level grants before clicking (page changes after).
                         var populationDelta = pageAnalysis.PopulationDelta;
                         var nextLevel = Math.Min(effectiveTarget, highestQueuedLevel + 1);
+                        var durationAnomaly = DetectMainBuildingDurationAnomaly(
+                            BuildingCatalogService.GidForName(resourceName),
+                            nextLevel,
+                            rawUpgradeSeconds,
+                            $"upgrading resource slot {slot}");
+                        if (durationAnomaly is not null)
+                        {
+                            return WithQueuedLevelProjections(durationAnomaly);
+                        }
                         var clickSafety = await VerifyResourceUpgradePreClickSafetyAsync(
                             slot,
                             candidate.FieldType,

@@ -62,6 +62,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Verify selector changes against live Official HTML or a captured fixture. React elements must be visible and
   actionable, and dialog actions must be scoped to the open dialog.
 - State-changing clicks must be exact. Navigation retry does not permit repeating an action.
+- A timed-out read-only navigation may be accepted only when the current URL still matches the exact
+  requested Official page and the rendered DOM exposes a known authenticated Travian shell without a
+  browser error document. The post-lobby clean-context rotation follows the same rule before discarding it.
 - Prefer trusted Playwright clicks for visible classic buttons. Synthetic dispatch is an actionability fallback
   or a tool for genuine React/hidden controls. Preserve the farm-list real-click-with-JS-fallback pattern.
 - React inputs may require native value assignment plus `input`/`change` events.
@@ -116,14 +119,21 @@ Published artifacts belong under `artifacts/`, never beside source files.
   snapshots; unavailable targets remain unselected, existing active village queue work is projected first, storage
   additions are confirmed once across all selected villages, and the final cross-village insert is atomic.
 - New settings require the complete pipeline: model, defaults, load/save, ViewModel, UI, and tests.
+- Smart Sleep's account-scoped `Wake when construction queue clears` option changes only its wake deadline.
+  With confirmed Plus overview data, a queued pair uses the final timer; Roman resource and building queues
+  are evaluated separately. Normal online construction scheduling always keeps the earliest-slot behavior.
+- Transient background resource-read timeouts use the shared automation network backoff, retain the last
+  trusted snapshot, and stop that refresh tick. A later successful read clears the shared backoff.
 - Resource bulk-upgrade payloads must capture the four checkbox values currently visible for the selected village;
   explicitly commit their two-way WPF bindings before reading `SelectedUpgradeTypes` at the queue boundary.
 - Synthetic `desktop_runtime_manual:*` history rows are classified by their domain. Unknown manual runtime names
   default to Account, never Construction; only explicit resource/building operations may use Construction.
 - Daily details task counts come from the account-scoped task-activity journal, never queue-row status or timestamps.
-  Record completed task handlers, successful manual operations, and typed `work_queued` actions; construction counts
-  require `QueuedOrInProgress` or `ConfirmedComplete` evidence, while waits, failures, cancellations, and
-  already-satisfied observations never count as work performed. Do not fabricate activity before the journal exists.
+  Record completed task handlers, successful manual operations, and typed `work_queued` actions. Construction results
+  with an explicit completed-upgrade count contribute exactly N activities even if the task then defers; otherwise require
+  `QueuedOrInProgress` or `ConfirmedComplete` evidence. Confirmed nested actions such as `hero_adventure` get their own
+  activity name, while waits, failures, cancellations, and already-satisfied observations never count as work performed.
+  Do not fabricate activity before the journal exists.
 - Account `Manual login` is account-scoped and permits an empty password. It opens the Official lobby
   without submitting credentials, blocks the desktop behind a `Login done`/`Cancel` confirmation, verifies
   the live lobby before continuing, and temporarily permits browser popups, user-opened tabs, and authentication
@@ -142,6 +152,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   shared browser. Every normal main context also installs CMP UI suppression at document start, before its visible
   page is created; manual lobby authentication can otherwise prime an in-page consent overlay that is recreated
   during later read-only status passes. Bonus videos remain isolated in their separate browser context.
+- An account's optional display name is local presentation only; authentication continues to use the lobby email.
+  The internal account key is immutable after creation. New accounts allocate a unique key atomically, including
+  when the same email has multiple pending `Choose in lobby` worlds, and resolving a lobby world never renames it.
 - Lobby `Play now` uses a trusted click and waits for the configured game origin. If a lobby-owned request fails
   with a verified Chromium proxy error before that origin commits, end the wait early and retry exactly once only
   while the same fresh world card remains visible and actionable in the lobby. Reapply SSO consent suppression to
@@ -159,6 +172,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Hero attribute automation uses account-scoped absolute maximums (0-100) keyed by attribute; missing or invalid
   values default to 100. Read the four live Official attribute inputs before every plus click, never cross a maximum,
   and do not requeue point spending when the latest complete snapshot shows every configured maximum is reached.
+- Hero adventure automation treats `.noRallyPointInHomeVillage` plus the page's matching Official `viewData`
+  home-village identity as authoritative missing-Rally-Point evidence. Queue one deduplicated slot 39/gid 16
+  construction for that exact village, gate it with the village's Hero group, and retry the adventure after completion.
 - Demolition is a village-scoped queue group: start one Official `table#demolish` step, persist the server timer plus its random delay as `NextAttemptAt`, and never poll or sleep through it in the browser. Submit the Official form with a trusted click, tolerate only its expected navigation-context replacement, wait for the returned Main Building page, and require its active timer as confirmation; never revisit the same Main Building merely to submit. It has no per-village group toggle; an explicitly queued demolition is always group-enabled, while the village's master Auto toggle still controls automation.
 - Persist village identity by coordinates/key, not display name. Names may collide or change; queue items retain
   their target village identity.
@@ -645,10 +661,16 @@ Published artifacts belong under `artifacts/`, never beside source files.
   bounded backoff; repeated identical sidebar evidence must not spam profile navigation.
 - New-account analysis is account+server scoped. A pending first-login analysis forces hero inventory, hero
   attributes, and new-village startup until all three succeed; legacy account snapshots are already initialized.
+  When its post-login snapshot already contains complete village status and startup did not navigate between villages,
+  return to Dorf1 without re-reading Dorf1/Dorf2; retain the full refresh after incomplete analysis or a village switch.
 - Browser activity statistics are account-scoped: lifetime counters persist; session counters do not.
 - Build troops `% resources` checkboxes use OR semantics: at least one resource must be selected, any selected
   resource at or above the percentage threshold releases training, and deferred waits use the earliest selected
   resource ETA. This trigger never replaces the normal all-resource affordability, NPC, or hero-resource checks.
+- Build troops `Auto` resource selection overrides and disables the manual resource checkboxes. For each selected
+  troop it monitors the resource with the highest catalog unit cost; equal costs choose the resource with the lowest
+  current storage percentage. Changing the troop changes the automatic resource on the next settings snapshot.
+  An unstable training form defers for at least 60 seconds after its bounded preparation retries instead of alarming.
 - New Build troops settings default all three training buildings to `% resources` at 90%, with Wood, Clay and Iron
   selected and Crop unselected. Troop-settings sync copies all three building rules plus shared resource/fallback
   settings from one source village to selected targets, but never changes a target village's Build troops ON toggle.
@@ -671,7 +693,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   recipients from a verified send. The analysis preview shows the summed map.sql village population per player in
   the exact selected send order.
 - Farm-list exact timers get a 5-15s render margin; unreadable disabled timers use an estimated 60s wait.
-- "Individual schedule" and "Shared schedule" send only UI-enabled farm lists ONE AT A TIME via
+- "Shared schedule" is the default farm-list send mode and appears before "Individual schedule" in the UI.
+  Both modes send only UI-enabled farm lists ONE AT A TIME via
   `SendFarmListsSequentiallyAsync`: click each list's Start,
   then wait for that list's `.farmListStatus` "N/M being raided" numerator to rise (or its Start to disable)
   before the next individual click so a failed list is detected before advancing.
@@ -781,8 +804,17 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - One `activate_production_bonus` run is a contiguous four-resource batch: after its initial cooldown gate,
   attempt every resource found activatable before returning control to other automation. A failure or newly
   created internal video cooldown for one resource must not stop the remaining resources in that same batch.
-- Diagnostics use shared busy/cancel behavior, sanitize settings/logs/paths/URLs/auth/proxy data, and never present
-  partial output as a successful archive. Screenshots may contain visible game data.
+- Diagnostics use shared busy/cancel behavior and sanitize settings/logs/paths/URLs/auth/proxy data. An unreadable
+  optional source file must be skipped and listed in the manifest instead of aborting the archive; archive creation
+  failures are never presented as success. Screenshots may contain visible game data.
+- The Debug map-API capture reads the coordinates and zoom currently shown on `/karte.php` and saves one raw
+  `/api/v1/map/position` response in the root `docs/DOM/` folder for selector/parser troubleshooting.
+- Map oasis scans probe zoom level 3 first. If every returned tile is a `{k.regionTooltip}` overlay, the scan is
+  on a regional world and must try zoom level 2 with its verified 21x17 tile coverage, then zoom level 1 with
+  11x9 coverage only if zoom 2 is also an overlay; checkpoints include the chosen API zoom so incompatible scans
+  are never resumed. Scan areas are ordered from the selected starting point outwards without increasing the area
+  count; the default rectangular radius is 40 coordinates in each direction. Whole-map scans and repeated scans
+  require confirmation, while repeated scans remain available because oasis animals can change.
 - The Dashboard active-village border represents verified live browser state only. Queue selection/Running state
   must never pre-mark a task's target village; update it only after a successful browser village verification.
 - Incoming Attack monitoring may navigate to Rally Point only while Continuous Loop or Auto Queue is running; being
@@ -870,6 +902,11 @@ Published artifacts belong under `artifacts/`, never beside source files.
   construction-slot waits remain non-alarm status.
   Official empty slots still contain a clickable `a.emptyBuildingSlot`; that link is explicit empty evidence, not
   occupancy. Treat `emptyBuildingSlot`, `g0`, and `data-gid=0` as empty before applying generic link evidence.
+- Main Building auto-rebuild is authorized only by a complete 22-slot Dorf2 overview that confirms gid 15 is absent;
+  partial/unknown reads never enqueue it. Normal Dorf2 reads perform this check without dedicated navigation. Before
+  any resource-field or building start, a duration above the healthy level-1 Main Building catalog baseline by at
+  least 50% (and five seconds) may request one Dorf2 verification; it must not itself prove absence or block rebuilding
+  gid 15. The resulting composite construct owns the configured final target level and is deduplicated per village.
 - An automation run captures Worker's actual `BrowserGeneration`; never mirror or synthesize that generation in
   Desktop. Runtime-item reconciliation identifies village scope with `BotOptionPayloadKeys.TargetVillageKey` and
   must preserve an existing pending item's authoritative `NextAttemptAt` when refreshing payload or priority.

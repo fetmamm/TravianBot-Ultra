@@ -241,6 +241,7 @@
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
                                 <RowDefinition Height="Auto" />
+                                <RowDefinition Height="Auto" />
                             </Grid.RowDefinitions>
 
                             <TextBlock Text="Amount per list" VerticalAlignment="Center" />
@@ -278,10 +279,19 @@
 
                             <TextBlock Grid.Row="3" Text="Distance filter" VerticalAlignment="Center" Margin="0,10,0,0" />
                             <StackPanel Grid.Row="3" Grid.Column="1" Orientation="Horizontal" Margin="0,10,0,0">
-                                <CheckBox x:Name="DistanceFilterCheckBox" Content="Within"
-                                          Checked="InputChanged" Unchecked="InputChanged" />
-                                <TextBox x:Name="DistanceTextBox" Width="100" Margin="12,0,8,0"
+                                <ComboBox x:Name="DistanceFilterModeComboBox" Width="140"
+                                          SelectionChanged="InputChanged">
+                                    <ComboBoxItem Tag="all" Content="All distances" IsSelected="True" />
+                                    <ComboBoxItem Tag="within" Content="Within" />
+                                    <ComboBoxItem Tag="at_least" Content="At least" />
+                                    <ComboBoxItem Tag="between" Content="Between" />
+                                </ComboBox>
+                                <TextBox x:Name="DistanceFirstTextBox" Width="75" Margin="12,0,8,0"
                                          Text="20" TextChanged="InputChanged" />
+                                <TextBlock x:Name="DistanceRangeSeparatorTextBlock" Text="to"
+                                           Margin="0,0,8,0" VerticalAlignment="Center" Visibility="Collapsed" />
+                                <TextBox x:Name="DistanceSecondTextBox" Width="75" Margin="0,0,8,0"
+                                         Text="40" TextChanged="InputChanged" Visibility="Collapsed" />
                                 <TextBlock Text="fields" VerticalAlignment="Center" />
                             </StackPanel>
 
@@ -292,6 +302,10 @@
                             <CheckBox x:Name="SkipLowPopVillagesCheckBox" Grid.Row="5" Grid.ColumnSpan="2"
                                       Margin="0,8,0,0"
                                       Content="Don't add villages with 8 population or less"
+                                      IsChecked="False" Checked="InputChanged" Unchecked="InputChanged" />
+                            <CheckBox x:Name="ExcludeNatarsCheckBox" Grid.Row="6" Grid.ColumnSpan="2"
+                                      Margin="0,8,0,0"
+                                      Content="Exclude Natars"
                                       IsChecked="False" Checked="InputChanged" Unchecked="InputChanged" />
                         </Grid>
                         </StackPanel>

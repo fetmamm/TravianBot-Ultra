@@ -72,8 +72,13 @@ internal sealed class AutomationNetworkBackoff(
     {
         for (var current = exception; current is not null; current = current.InnerException)
         {
+            var message = current.Message;
             if (current is TransientNavigationException
-                || current.Message.Contains("page state is 'unknown'", StringComparison.OrdinalIgnoreCase))
+                || message.Contains("page state is 'unknown'", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("ERR_NAME_NOT_RESOLVED", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("ERR_NETWORK_CHANGED", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("ERR_CONNECTION_", StringComparison.OrdinalIgnoreCase)
+                || message.Contains("chrome-error://", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }

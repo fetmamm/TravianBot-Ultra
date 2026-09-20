@@ -36,19 +36,4 @@ public sealed class ConstructionProgressNotificationSourceTests
         Assert.Contains("_botService.ConstructionQueueObserved += OnConstructionQueueObserved", mainWindowSource, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void SuccessfulBuildingMutation_ReusesCurrentDorf2BeforeFullRefreshFallback()
-    {
-        var root = ProjectRootLocator.FindProjectRoot();
-        var source = File.ReadAllText(Path.Combine(
-            root,
-            "src",
-            "TbotUltra.Desktop",
-            "MainWindow.QueueExecution.cs"));
-
-        Assert.Contains("ReadCurrentBuildingOverviewStatusAsync", source, StringComparison.Ordinal);
-        Assert.Contains("CanUseCurrentDorf2Snapshot", source, StringComparison.Ordinal);
-        Assert.Contains("skipped Dorf1 navigation", source, StringComparison.Ordinal);
-        Assert.Contains("falling back to full Dorf1+Dorf2 status", source, StringComparison.Ordinal);
-    }
 }

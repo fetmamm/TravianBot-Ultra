@@ -1202,26 +1202,7 @@ public partial class MainWindow
             return;
         }
 
-        var farmSnapshot = Dispatcher.CheckAccess()
-            ? new
-            {
-                TotalCount = _farmLists.Count(IsRealFarmListRow),
-                SelectedNames = _farmLists.Where(item => IsRealFarmListRow(item) && item.IsEnabled).Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList(),
-                AvailableNames = _farmLists.Where(IsRealFarmListRow).Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList(),
-            }
-            : await Dispatcher.InvokeAsync(() => new
-            {
-                TotalCount = _farmLists.Count(IsRealFarmListRow),
-                SelectedNames = _farmLists.Where(item => IsRealFarmListRow(item) && item.IsEnabled).Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList(),
-                AvailableNames = _farmLists.Where(IsRealFarmListRow).Select(item => item.Name).Where(name => !string.IsNullOrWhiteSpace(name)).ToList(),
-            });
-
-        var needsAnalyze = farmSnapshot.TotalCount <= 0
-            || farmSnapshot.SelectedNames.Count <= 0
-            || farmSnapshot.SelectedNames.Any(name => !farmSnapshot.AvailableNames.Any(existing => string.Equals(existing, name, StringComparison.OrdinalIgnoreCase)))
-            || _lastFarmListsAnalysisAt == DateTimeOffset.MinValue;
-
-        if (!needsAnalyze)
+        if (!_farmListsWorkflow.AutomationSnapshot.NeedsAnalysis)
         {
             return;
         }
@@ -1265,6 +1246,16 @@ public partial class MainWindow
         {
             return true;
         }
+
+        if (item.Payload.TryGetValue(BotOptionPayloadKeys.AutoAddedBy, out var autoAddedBy)
+            && string.Equals(
+                autoAddedBy,
+                BotOptionPayloadKeys.AutoAddedByHeroRallyPointRepair,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return IsGroupEnabledForVillage(GetQueueItemVillageKey(item), QueueGroup.Hero);
+        }
+
         return IsGroupEnabledForVillage(GetQueueItemVillageKey(item), item.Group);
     }
 
@@ -1909,6 +1900,7 @@ public partial class MainWindow
     {
         return ex.GetType().Name.Contains("TimeoutException", StringComparison.OrdinalIgnoreCase)
             || ex.Message.Contains("Timeout", StringComparison.OrdinalIgnoreCase)
+            || IsExpectedWakeLoginRetry(ex)
             || IsTransientPageReadFailure(ex);
     }
 
@@ -1925,7 +1917,7 @@ public partial class MainWindow
         }
         using (_dashboardActivityTracker.Begin("Checking Gold Club status"))
         {
-            var enabled = await _botService.ReadAndPersistGoldClubStatusAsync(options, AppendLog, cancellationToken);
+            var enabled = await _farmListsWorkflow.IsGoldClubActiveAsync(options, cancellationToken);
             return _automationSessionRuntime.ApplyGoldClubStatus(enabled);
         }
     }

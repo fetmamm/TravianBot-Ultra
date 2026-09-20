@@ -1,5 +1,4 @@
 using TbotUltra.Desktop.ViewModels;
-using TbotUltra.Worker.Domain;
 using Xunit;
 
 namespace TbotUltra.Desktop.Tests;
@@ -20,15 +19,31 @@ public sealed class PacingSettingsViewModelTests
     }
 
     [Fact]
-    public void SmartSleepDeadlineGroups_DefaultToAllAndAllowIndividualGroupsToBeDisabled()
+    public void SmartSleepDeadlineGroups_UseRequestedOrderAndDefaults()
     {
         var vm = new PacingSettingsViewModel();
 
-        Assert.Equal(Enum.GetValues<QueueGroup>().Length, vm.GetSelectedSmartSleepDeadlineGroups().Count);
-
-        vm.SetSmartSleepDeadlineGroups(["construction", "hero"]);
-
+        Assert.Equal(
+            [
+                "Construction",
+                "Hero",
+                "Farming",
+                "Build Troops",
+                "Upgrade Troops",
+                "Demolish",
+                "Brewery Celebration",
+                "NPC Trade",
+                "Resource Transfer",
+                "Reinforcements",
+                "Town Hall celebration",
+                "Account",
+            ],
+            vm.SmartSleepDeadlineGroups.Select(group => group.Title));
         Assert.Equal(["construction", "hero"], vm.GetSelectedSmartSleepDeadlineGroups());
+
+        vm.SetSmartSleepDeadlineGroups(["farming"]);
+
+        Assert.Equal(["farming"], vm.GetSelectedSmartSleepDeadlineGroups());
     }
 
     [Fact]
@@ -41,6 +56,7 @@ public sealed class PacingSettingsViewModelTests
             FarmListStepDelayMinSeconds = "11",
             FarmListStepDelayMaxSeconds = "12",
             ShortVillageDeferSeconds = 90,
+            SmartSleepWakeWhenConstructionQueueClears = false,
         };
         vm.SetSmartSleepDeadlineGroups(["hero"]);
 
@@ -53,7 +69,8 @@ public sealed class PacingSettingsViewModelTests
         Assert.Equal(60, vm.ShortVillageDeferSeconds);
         Assert.Equal("10", vm.SmartSleepWakeBeforeMinutes);
         Assert.Equal("20", vm.SmartSleepWakeAfterMinutes);
-        Assert.Equal(Enum.GetValues<QueueGroup>().Length, vm.GetSelectedSmartSleepDeadlineGroups().Count);
+        Assert.True(vm.SmartSleepWakeWhenConstructionQueueClears);
+        Assert.Equal(["construction", "hero"], vm.GetSelectedSmartSleepDeadlineGroups());
     }
 
     [Theory]

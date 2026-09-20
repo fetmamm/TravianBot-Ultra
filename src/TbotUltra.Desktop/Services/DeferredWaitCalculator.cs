@@ -16,7 +16,10 @@ public sealed record DeferredTroopTrainingRequest(
     bool CheckWood,
     bool CheckClay,
     bool CheckIron,
-    bool CheckCrop);
+    bool CheckCrop)
+{
+    public bool AutomaticResourceSelection { get; init; }
+}
 
 public sealed record DeferredTroopTrainingEvaluation(
     bool Ready,
@@ -128,9 +131,9 @@ public static class DeferredWaitCalculator
     {
         return
         [
-            new DeferredTroopTrainingRequest("Barracks", options.TroopTrainingBarracksEnabled, options.TroopTrainingBarracksRunMode, options.TroopTrainingBarracksMinimumResourcesPercent, options.TroopTrainingBarracksCheckWood, options.TroopTrainingBarracksCheckClay, options.TroopTrainingBarracksCheckIron, options.TroopTrainingBarracksCheckCrop),
-            new DeferredTroopTrainingRequest("Stable", options.TroopTrainingStableEnabled, options.TroopTrainingStableRunMode, options.TroopTrainingStableMinimumResourcesPercent, options.TroopTrainingStableCheckWood, options.TroopTrainingStableCheckClay, options.TroopTrainingStableCheckIron, options.TroopTrainingStableCheckCrop),
-            new DeferredTroopTrainingRequest("Workshop", options.TroopTrainingWorkshopEnabled, options.TroopTrainingWorkshopRunMode, options.TroopTrainingWorkshopMinimumResourcesPercent, options.TroopTrainingWorkshopCheckWood, options.TroopTrainingWorkshopCheckClay, options.TroopTrainingWorkshopCheckIron, options.TroopTrainingWorkshopCheckCrop),
+            new DeferredTroopTrainingRequest("Barracks", options.TroopTrainingBarracksEnabled, options.TroopTrainingBarracksRunMode, options.TroopTrainingBarracksMinimumResourcesPercent, options.TroopTrainingBarracksCheckWood, options.TroopTrainingBarracksCheckClay, options.TroopTrainingBarracksCheckIron, options.TroopTrainingBarracksCheckCrop) { AutomaticResourceSelection = options.TroopTrainingBarracksAutomaticResourceSelection },
+            new DeferredTroopTrainingRequest("Stable", options.TroopTrainingStableEnabled, options.TroopTrainingStableRunMode, options.TroopTrainingStableMinimumResourcesPercent, options.TroopTrainingStableCheckWood, options.TroopTrainingStableCheckClay, options.TroopTrainingStableCheckIron, options.TroopTrainingStableCheckCrop) { AutomaticResourceSelection = options.TroopTrainingStableAutomaticResourceSelection },
+            new DeferredTroopTrainingRequest("Workshop", options.TroopTrainingWorkshopEnabled, options.TroopTrainingWorkshopRunMode, options.TroopTrainingWorkshopMinimumResourcesPercent, options.TroopTrainingWorkshopCheckWood, options.TroopTrainingWorkshopCheckClay, options.TroopTrainingWorkshopCheckIron, options.TroopTrainingWorkshopCheckCrop) { AutomaticResourceSelection = options.TroopTrainingWorkshopAutomaticResourceSelection },
         ];
     }
 
@@ -145,6 +148,7 @@ public static class DeferredWaitCalculator
     {
         var enabledRequests = requests
             .Where(item => item.Enabled)
+            .Where(item => !item.AutomaticResourceSelection)
             .Where(item => string.Equals(item.RunMode, "resource_percent", StringComparison.OrdinalIgnoreCase))
             .Where(item => Math.Clamp(item.MinimumResourcesPercent, 0, 100) > 0)
             .Where(item => knownBuildings.Count == 0 || knownBuildings.Any(building =>

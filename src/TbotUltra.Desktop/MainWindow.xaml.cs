@@ -38,7 +38,6 @@ public partial class MainWindow : Window
     private const string DashboardVisibleGroupsConfigKey = "dashboard_visible_groups";
     private const int ResourceFieldMaxLevel = 40;
     private const int NonCapitalResourceMaxLevel = 10;
-    private const int MaxFarmListsShown = 120;
     private const int MaxLogLinesPerFlush = 24;
     private static readonly TimeSpan LogUiFlushBudget = TimeSpan.FromMilliseconds(12);
     private const int MaxSessionLogFiles = 5;
@@ -117,7 +116,8 @@ public partial class MainWindow : Window
     private readonly IDesktopBotService _botService;
     private readonly HeroPanelService _heroPanelService;
     private readonly ResourcesPanelService _resourcesPanelService;
-    private readonly FarmingPanelService _farmingPanelService;
+    private readonly IFarmListsWorkflow _farmListsWorkflow;
+    private readonly FarmListsDialogAdapter _farmListsDialogs;
     private readonly BuildingsPanelService _buildingsPanelService;
     private readonly TroopTrainingPanelService _troopTrainingPanelService;
     private readonly QueuePanelService _queuePanelService;
@@ -347,7 +347,6 @@ public partial class MainWindow : Window
     private bool _suppressFarmListUiRefresh;
     private bool _suppressFarmingSettingsConfigWrite;
     private bool _farmingOperationBusy;
-    private DateTimeOffset _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
     private VillageStatus? _lastBuildingStatus;
     private VillageStatus? _lastResourceStatusForUi;
     private readonly object _pendingLogSync = new();
@@ -498,8 +497,24 @@ public partial class MainWindow : Window
         _continuousVillageStatusRound = new ContinuousVillageStatusRound(
             _villageStatusRoundCoordinator,
             new MainWindowVillageStatusRoundPort(this));
+        var constructionRequirementGuard = new AutomationConstructionRequirementGuard(
+            new MainWindowAutomationConstructionRequirementGuardPort(this));
+        var constructLiveReconciliation = new AutomationConstructLiveReconciliation(
+            new MainWindowAutomationConstructLiveReconciliationPort(this));
+        var constructPreflight = new AutomationConstructPreflight(
+            new MainWindowAutomationConstructPreflightPort(this));
+        var queueItemPolicies = new AutomationQueueItemPolicies(
+            new AutomationQueueItemPreExecution(
+                constructionRequirementGuard,
+                constructLiveReconciliation,
+                constructPreflight),
+            new AutomationMissingBuildingUpgradeRecovery(
+                new MainWindowAutomationMissingBuildingUpgradeRecoveryPort(this)),
+            new AutomationQueueItemSuccess(new MainWindowAutomationQueueItemSuccessPort(this)),
+            new AutomationQueueItemFailure(new MainWindowAutomationQueueItemFailurePort(this)));
         _automationQueueItemLifecycle = new AutomationQueueItemLifecycle(
-            new MainWindowAutomationQueueItemLifecyclePort(this));
+            new MainWindowAutomationQueueItemLifecyclePort(this),
+            queueItemPolicies);
         var automationActionExecutor = new AutomationActionExecutor(
             new MainWindowAutomationActionExecutionPort(this, _automationQueueItemLifecycle));
         var automationPass = new AutomationPassPort(
@@ -513,7 +528,14 @@ public partial class MainWindow : Window
         _automationDesk.Updated += AutomationDesk_Updated;
         _heroPanelService = new HeroPanelService(new DesktopHeroPanelClient(_botService), _botConfigStore);
         _resourcesPanelService = new ResourcesPanelService(_botConfigStore, _villageSettingsStore);
-        _farmingPanelService = new FarmingPanelService(new DesktopFarmingPanelClient(_botService), _botConfigStore);
+        _farmListsWorkflow = new FarmListsWorkflow(
+            new OfficialFarmListsBrowserAdapter(taskRunner),
+            new MainWindowFarmListsAutomationAdapter(this),
+            _botConfigStore,
+            _projectRoot,
+            _accountStore.ActiveAccountName,
+            AppendLog);
+        _farmListsDialogs = new FarmListsDialogAdapter(this);
         _buildingsPanelService = new BuildingsPanelService(new DesktopBuildingsPanelClient(_botService));
         _troopTrainingPanelService = new TroopTrainingPanelService(new DesktopTroopTrainingPanelClient(_botService), _botConfigStore, _projectRoot);
         _queuePanelService = new QueuePanelService(new DesktopQueuePanelClient(_botService));
@@ -1597,49 +1619,6 @@ public partial class MainWindow : Window
     private static string FormatExceptionForLog(Exception ex)
     {
         return $"{ex.GetType().Name}: {ex.Message}";
-    }
-
-    private async Task<bool> TryHandleTroopsBlockedExecutionAsync(QueueItem queueItem, Exception ex, string logPrefix)
-    {
-        if (!string.Equals(queueItem.TaskName, "upgrade_troops_at_smithy", StringComparison.OrdinalIgnoreCase))
-        {
-            return false;
-        }
-
-        if (!TryExtractTroopsBlockedReason(ex.Message, out var reasonKey, out var reasonText))
-        {
-            return false;
-        }
-
-        if (string.Equals(reasonKey, TroopsBlockedReasonSmithyMissing, StringComparison.OrdinalIgnoreCase))
-        {
-            var verifiedMissing = await VerifySmithyMissingAsync(queueItem);
-            if (verifiedMissing != true)
-            {
-                _botService.MarkQueueItemDeferred(queueItem.Id, TimeSpan.FromSeconds(10));
-                AppendLog(verifiedMissing == false
-                    ? $"{logPrefix} RETRY task={queueItem.TaskName} | Smithy exists after verification. Ignoring transient missing read."
-                    : $"{logPrefix} RETRY task={queueItem.TaskName} | Could not verify Smithy state. Skipping permanent block.");
-                return true;
-            }
-        }
-
-        _botService.MarkQueueItemSucceeded(queueItem.Id);
-
-        // Both "All done" and "Smithy missing" are per-village: one village may have a smithy with nothing
-        // left to upgrade while another still has work (or no smithy at all). Disable the Upgrade Troops group
-        // for THIS village only so other villages keep running. Falls back to the global block when the task
-        // carries no village context.
-        if (DisableTroopsGroupForQueueItemVillage(queueItem, out var blockedVillageName))
-        {
-            AppendLog($"{logPrefix} BLOCKED task={queueItem.TaskName} | {reasonText} — Upgrade Troops disabled for "
-                + $"'{blockedVillageName}'. Re-select troops or re-enable the village's Troops group to resume.");
-            return true;
-        }
-
-        SetTroopsBlockedState(reasonKey, reasonText);
-        AppendLog($"{logPrefix} BLOCKED task={queueItem.TaskName} | {reasonText}");
-        return true;
     }
 
     // Turns the Upgrade Troops group OFF for the queue item's village only (per-village EnabledGroups), so

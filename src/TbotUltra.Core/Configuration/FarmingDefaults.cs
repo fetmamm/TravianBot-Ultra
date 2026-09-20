@@ -5,6 +5,7 @@ public static class FarmingDefaults
     public const string SendModeListPerList = "list_per_list";
     public const string SendModeSharedSchedule = "shared_schedule";
     public const string SendModeAllAtOnce = "all_at_once";
+    public const string DefaultSendMode = SendModeSharedSchedule;
 
     // Delay between farm sends is a random pick in [min, max] minutes.
     public const int DefaultDispatchDelayMinMinutes = 30;
@@ -46,6 +47,8 @@ public static class FarmingDefaults
 
         return string.Equals(normalized, SendModeSharedSchedule, StringComparison.OrdinalIgnoreCase)
             ? SendModeSharedSchedule
-            : SendModeListPerList;
+            : string.Equals(normalized, SendModeListPerList, StringComparison.OrdinalIgnoreCase)
+                ? SendModeListPerList
+                : DefaultSendMode;
     }
 }

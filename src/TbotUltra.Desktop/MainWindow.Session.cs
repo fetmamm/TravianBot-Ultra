@@ -27,7 +27,9 @@ public partial class MainWindow
         => await GuardUiAsync(() => ExecuteLoginFlowAsync());
 
     // Login function as the button is clicked
-    private async Task ExecuteLoginFlowAsync(bool forceNewAccountAnalysis = false)
+    private async Task ExecuteLoginFlowAsync(
+        bool forceNewAccountAnalysis = false,
+        bool retryFailureIsStatus = false)
     {
         AppendLog("[login] ***** Login started. *****");
         if (BlockIfActiveAccountOnHold("Login"))
@@ -280,8 +282,19 @@ public partial class MainWindow
                     GetSelectedVillageName(),
                     GetSelectedVillageUrl(),
                     cancellationToken: operationToken);
-                await ApplyCurrentVillageToUiAsync(options, operationToken);
-                AppendLog("[post-login] Refreshed current village UI after post-login analysis.");
+                if (PostLoginRefreshDecisions.ShouldReadCurrentVillageStatus(
+                        officialServer,
+                        newAccountAnalysisPending,
+                        newVillagesAnalyzed,
+                        newVillageAnalysisNavigated))
+                {
+                    await ApplyCurrentVillageToUiAsync(options, operationToken);
+                    AppendLog("[post-login] Refreshed current village UI after post-login analysis.");
+                }
+                else
+                {
+                    AppendLog("[post-login] Reused the complete first-login village snapshot after returning to resource fields.");
+                }
             }
 
             _browserSessionLikelyOpen = true;
@@ -326,7 +339,21 @@ public partial class MainWindow
             BrowserInfoTextBlock.Text = "Browser: error";
             StatusTextBlock.Text = TryGetFriendlyLoginError(ex) ?? "Login failed.";
             _browserSessionLikelyOpen = false;
-            FailOperation(operationId, operationSw, ex);
+            if (retryFailureIsStatus && IsExpectedWakeLoginRetry(ex))
+            {
+                SetManualExecutionOutcome(operationId, ManualExecutionOutcome.Canceled);
+                _operationNamesById.Remove(operationId);
+                if (string.Equals(_pendingManualOperationId, operationId, StringComparison.OrdinalIgnoreCase))
+                {
+                    _pendingManualOperationId = null;
+                }
+
+                AppendLog($"[{operationId}] RETRY {operationSw.Elapsed.TotalSeconds:F1}s | Login unavailable; background wake retry remains active.");
+            }
+            else
+            {
+                FailOperation(operationId, operationSw, ex);
+            }
         }
         finally
         {
@@ -352,6 +379,22 @@ public partial class MainWindow
                 }
             });
         }
+    }
+
+    internal static bool IsExpectedWakeLoginRetry(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is TransientNavigationException
+                || current.Message.Contains(
+                    "Login through the Travian lobby did not reach the configured game world",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     // Full-window modal overlay shown while a login/logout runs (incl. account-switch auto-login). It
@@ -633,6 +676,7 @@ public partial class MainWindow
     private static AccountEntry CloneAccount(AccountEntry source) => new()
     {
         Name = source.Name,
+        DisplayName = source.DisplayName,
         Username = source.Username,
         Password = source.Password,
         ManualLogin = source.ManualLogin,
@@ -803,7 +847,7 @@ public partial class MainWindow
             IsSessionSleeping);
         if (requiresConfirmation && !ConfirmAccountSwitch(FindAccount(current), selected))
         {
-            AppendLog($"Account switch to '{selected.Name}' cancelled by user.");
+            AppendLog($"Account switch to '{selected.AccountDisplayName}' cancelled by user.");
             RefreshAccountPicker();
             return;
         }
@@ -823,12 +867,12 @@ public partial class MainWindow
             if (previousLoggedIn)
             {
                 // Mirror the Login button: open a fresh browser/session and log into the new account.
-                AppendLog($"Logging into '{selected.Name}'.");
+                AppendLog($"Logging into '{selected.AccountDisplayName}'.");
                 await ExecuteLoginFlowAsync();
             }
             else
             {
-                StatusTextBlock.Text = $"Active account: {selected.Name}. Press Login to start a new session.";
+                StatusTextBlock.Text = $"Active account: {selected.AccountDisplayName}. Press Login to start a new session.";
             }
         }
         catch (Exception ex)
@@ -1067,9 +1111,7 @@ public partial class MainWindow
         }
         _farmLists.Clear();
         EnsureFarmListPlaceholderRow();
-        _analyzedFarmCoordinates.Clear();
-        _farmListCapacitiesByName.Clear();
-        _lastFarmListsAnalysisAt = DateTimeOffset.MinValue;
+        _farmListsWorkflow.ResetProjection();
         _farmingFeaturesAvailable = true;
         if (FarmingStatusTextBlock is not null)
         {

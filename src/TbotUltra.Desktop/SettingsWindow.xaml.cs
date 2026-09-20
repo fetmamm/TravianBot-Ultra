@@ -262,6 +262,12 @@ public partial class SettingsWindow : Window
             _config[BotOptionPayloadKeys.DailyGoldSpendingLimit]?.GetValue<int>() ?? DefaultDailyGoldSpendingLimit).ToString(CultureInfo.InvariantCulture);
         LoadDailyServerResetToUi();
         LoadPacingConfigToUi();
+        SettingsVm.Construction.MainBuildingRebuildEnabled = ReadBool(
+            BotOptionPayloadKeys.ConstructionMainBuildingRebuildEnabled,
+            ConstructionDefaults.MainBuildingRebuildEnabled);
+        SettingsVm.Construction.MainBuildingRebuildTargetLevel = ConstructionDefaults.NormalizeMainBuildingRebuildTargetLevel(
+            _config[BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel]?.GetValue<int>()
+            ?? ConstructionDefaults.MainBuildingRebuildTargetLevel);
         SettingsVm.Construction.StorageUpgradeLevelsAhead = ConstructionDefaults.NormalizeStorageUpgradeLevelsAhead(
             _config[BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead]?.GetValue<int>()
             ?? ConstructionDefaults.StorageUpgradeLevelsAhead);
@@ -407,6 +413,9 @@ public partial class SettingsWindow : Window
 
     private void InitializeConstructionChoices()
     {
+        MainBuildingRebuildTargetLevelComboBox.ItemsSource = Enumerable.Range(
+            ConstructionDefaults.MainBuildingRebuildTargetLevelMin,
+            ConstructionDefaults.MainBuildingRebuildTargetLevelMax - ConstructionDefaults.MainBuildingRebuildTargetLevelMin + 1);
         StorageUpgradeLevelsAheadComboBox.ItemsSource = Enumerable.Range(
             ConstructionDefaults.StorageUpgradeLevelsAheadMin,
             ConstructionDefaults.StorageUpgradeLevelsAheadMax - ConstructionDefaults.StorageUpgradeLevelsAheadMin + 1);
@@ -785,6 +794,10 @@ public partial class SettingsWindow : Window
             SettingsVm.TroopTrainingFallbackCooldownSeconds;
         SaveDailyServerResetFromUi(draft);
         SavePacingConfigFromUi(draft);
+        draft[BotOptionPayloadKeys.ConstructionMainBuildingRebuildEnabled] =
+            SettingsVm.Construction.MainBuildingRebuildEnabled;
+        draft[BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel] =
+            SettingsVm.Construction.MainBuildingRebuildTargetLevel;
         draft[BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead] =
             SettingsVm.Construction.StorageUpgradeLevelsAhead;
         draft[BotOptionPayloadKeys.ConstructionCropShortageRecoveryEnabled] =
@@ -1349,6 +1362,7 @@ public partial class SettingsWindow : Window
         ContinuousKeepAliveMaxMinutesTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.ContinuousKeepAliveMaxMinutes);
         SessionPacingEnabledCheckBox.SetCurrentValue(ToggleButton.IsCheckedProperty, SettingsVm.Pacing.SessionPacingEnabled);
         SmartSleepEnabledCheckBox.SetCurrentValue(ToggleButton.IsCheckedProperty, SettingsVm.Pacing.SmartSleepEnabled);
+        SmartSleepWakeWhenConstructionQueueClearsCheckBox.SetCurrentValue(ToggleButton.IsCheckedProperty, SettingsVm.Pacing.SmartSleepWakeWhenConstructionQueueClears);
         SmartSleepMinimumOpportunityTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes);
         SmartSleepWakeBeforeTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.SmartSleepWakeBeforeMinutes);
         SmartSleepWakeAfterTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.SmartSleepWakeAfterMinutes);
@@ -1375,6 +1389,9 @@ public partial class SettingsWindow : Window
 
     private void SynchronizeConstructionControls()
     {
+        MainBuildingRebuildTargetLevelComboBox.SetCurrentValue(
+            Selector.SelectedItemProperty,
+            SettingsVm.Construction.MainBuildingRebuildTargetLevel);
         StorageUpgradeLevelsAheadComboBox.SetCurrentValue(
             Selector.SelectedItemProperty,
             SettingsVm.Construction.StorageUpgradeLevelsAhead);
@@ -1547,6 +1564,9 @@ public partial class SettingsWindow : Window
     {
         SettingsVm.Pacing.SessionPacingEnabled = ReadBool(BotOptionPayloadKeys.SessionPacingEnabled, PacingDefaults.SessionPacingEnabled);
         SettingsVm.Pacing.SmartSleepEnabled = ReadBool(BotOptionPayloadKeys.SmartSleepEnabled, PacingDefaults.SmartSleepEnabled);
+        SettingsVm.Pacing.SmartSleepWakeWhenConstructionQueueClears = ReadBool(
+            BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears,
+            PacingDefaults.SmartSleepWakeWhenConstructionQueueClears);
         SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes = ReadInt(BotOptionPayloadKeys.SmartSleepMinimumOpportunityMinutes, PacingDefaults.SmartSleepMinimumOpportunityMinutes).ToString(CultureInfo.InvariantCulture);
         SettingsVm.Pacing.SmartSleepWakeBeforeMinutes = ReadInt(BotOptionPayloadKeys.SmartSleepWakeBeforeMinutes, PacingDefaults.SmartSleepWakeBeforeMinutes).ToString(CultureInfo.InvariantCulture);
         SettingsVm.Pacing.SmartSleepWakeAfterMinutes = ReadInt(BotOptionPayloadKeys.SmartSleepWakeAfterMinutes, PacingDefaults.SmartSleepWakeAfterMinutes).ToString(CultureInfo.InvariantCulture);
@@ -1622,6 +1642,7 @@ public partial class SettingsWindow : Window
     {
         target[BotOptionPayloadKeys.SessionPacingEnabled] = SettingsVm.Pacing.SessionPacingEnabled;
         target[BotOptionPayloadKeys.SmartSleepEnabled] = SettingsVm.Pacing.SmartSleepEnabled;
+        target[BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears] = SettingsVm.Pacing.SmartSleepWakeWhenConstructionQueueClears;
         target[BotOptionPayloadKeys.SmartSleepMinimumOpportunityMinutes] = ReadIntText(SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes, PacingDefaults.SmartSleepMinimumOpportunityMinutes, 1, 1440);
         target[BotOptionPayloadKeys.SmartSleepWakeBeforeMinutes] = ReadIntText(SettingsVm.Pacing.SmartSleepWakeBeforeMinutes, PacingDefaults.SmartSleepWakeBeforeMinutes, 0, 1440);
         target[BotOptionPayloadKeys.SmartSleepWakeAfterMinutes] = ReadIntText(SettingsVm.Pacing.SmartSleepWakeAfterMinutes, PacingDefaults.SmartSleepWakeAfterMinutes, 0, 1440);

@@ -142,8 +142,12 @@ public sealed class PanelSmokeTests
             var panel = new FarmingPanel();
             var tabs = Assert.IsType<TabControl>(panel.FindName("FarmingTabControl"));
             var travcoHost = Assert.IsType<ContentControl>(panel.FindName("TravcoToolsHost"));
-            Assert.IsType<RadioButton>(panel.FindName("FarmSendSharedScheduleRadioButton"));
+            var sharedSchedule = Assert.IsType<RadioButton>(panel.FindName("FarmSendSharedScheduleRadioButton"));
+            var individualSchedule = Assert.IsType<RadioButton>(panel.FindName("FarmSendListPerListRadioButton"));
             Assert.IsType<Button>(panel.FindName("FarmListIntervalsResetButton"));
+
+            Assert.Equal(0, Grid.GetColumn(Assert.IsType<Border>(sharedSchedule.Parent)));
+            Assert.Equal(1, Grid.GetColumn(Assert.IsType<Border>(individualSchedule.Parent)));
 
             Assert.Equal(
                 new[] { "Farming", "Inactive / oasis scan" },

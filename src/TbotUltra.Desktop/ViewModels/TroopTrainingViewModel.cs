@@ -57,6 +57,7 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
     private bool _checkClay = true;
     private bool _checkIron = true;
     private bool _checkCrop;
+    private bool _automaticResourceSelection;
     private int _fallbackCooldownSeconds = 300;
     private bool _autoCelebrationEnabled;
     private bool _autoCelebrationExplicitlyConfigured;
@@ -204,6 +205,26 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
         }
     }
 
+    public bool AutomaticResourceSelection
+    {
+        get => _automaticResourceSelection;
+        set
+        {
+            if (!SetProperty(ref _automaticResourceSelection, value))
+            {
+                return;
+            }
+
+            OnPropertyChanged(nameof(IsManualResourceSelectionEnabled));
+            if (!_isConfigSuppressed)
+            {
+                ConfigChanged?.Invoke();
+            }
+        }
+    }
+
+    public bool IsManualResourceSelectionEnabled => !AutomaticResourceSelection;
+
     public int FallbackCooldownSeconds
     {
         get => _fallbackCooldownSeconds;
@@ -312,6 +333,7 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
             CheckClay = options.TroopTrainingBarracksCheckClay;
             CheckIron = options.TroopTrainingBarracksCheckIron;
             CheckCrop = options.TroopTrainingBarracksCheckCrop;
+            AutomaticResourceSelection = options.TroopTrainingBarracksAutomaticResourceSelection;
             FallbackCooldownSeconds = options.TroopTrainingFallbackCooldownSeconds;
             NpcTradeEnabled = options.NpcTradeEnabled;
             NpcTradeConstructionEnabled = options.NpcTradeConstructionEnabled;
@@ -373,6 +395,7 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
             CheckClay = payload.Barracks.CheckClay;
             CheckIron = payload.Barracks.CheckIron;
             CheckCrop = payload.Barracks.CheckCrop;
+            AutomaticResourceSelection = payload.Barracks.AutomaticResourceSelection;
             FallbackCooldownSeconds = payload.FallbackCooldownSeconds;
         }
         finally
@@ -408,6 +431,7 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
             {
                 MinimumTroopsEnabled = option.MinimumTroopsEnabled,
                 MaximumMinimumTroops = option.MaximumMinimumTroops,
+                AutomaticResourceSelection = AutomaticResourceSelection,
             };
         }
 
@@ -428,7 +452,7 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
         }
 
         var requiresResourceSelection = Buildings.Any(option => option.IsEnabled && option.UsesResourcePercentMode);
-        if (requiresResourceSelection && !CheckWood && !CheckClay && !CheckIron && !CheckCrop)
+        if (requiresResourceSelection && !AutomaticResourceSelection && !CheckWood && !CheckClay && !CheckIron && !CheckCrop)
         {
             error = "Select at least one resource when an enabled troop building uses % resources.";
             return false;

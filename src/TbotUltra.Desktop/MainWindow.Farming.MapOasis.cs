@@ -1,3 +1,5 @@
+using System.IO;
+using TbotUltra.Core.Accounts;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Worker.Domain;
 
@@ -5,6 +7,18 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
+    private bool HasMapOasisScanResult()
+    {
+        var accountName = _accountStore.ActiveAccountName();
+        if (string.IsNullOrWhiteSpace(accountName))
+        {
+            return false;
+        }
+
+        var options = LoadBotOptions();
+        return File.Exists(AccountStoragePaths.MapOasisCachePath(_projectRoot, accountName, options.BaseUrl));
+    }
+
     // Runs an oasis scan and returns every recognized oasis (free and occupied, all bonus types).
     // Type/occupied filtering is applied later when adding farms, so the scan stores everything.
     // Automation is already paused by the Travco tools window that hosts this scan, so no extra

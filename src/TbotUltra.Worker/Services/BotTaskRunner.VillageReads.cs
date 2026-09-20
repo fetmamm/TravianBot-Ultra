@@ -346,6 +346,25 @@ public sealed partial class BotTaskRunner
         return capture ?? throw new InvalidOperationException("Could not read current page HTML.");
     }
 
+    public async Task<MapOasisApiCapture> CaptureCurrentMapAreaAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        MapOasisApiCapture? capture = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client => capture = await client.CaptureCurrentMapAreaAsync(cancellationToken),
+            saveStateMode: BrowserStateSaveMode.Skip);
+
+        return capture ?? throw new InvalidOperationException("Could not capture the current map API area.");
+    }
+
     public async Task<ReportPngResult> SaveReportScreenshotAsync(
         BotOptions options,
         string filePath,

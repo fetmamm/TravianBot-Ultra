@@ -40,6 +40,80 @@ public sealed class BotTaskActivityPolicyTests
     }
 
     [Fact]
+    public void DeferredConstructionActivity_CountsMutationsCompletedBeforeQueueFilled()
+    {
+        var results = new[]
+        {
+            new BotTaskResult(
+                "upgrade_all_resources_to_level",
+                "Resource slot 6: build queue full. Deferring upgrade. Upgrades performed: 2. queue_wait_seconds=29",
+                ConstructionTaskOutcome.WaitingOrBlocked),
+        };
+
+        Assert.Equal(2, BotTaskRunner.CountVerifiedActivities(
+            "upgrade_all_resources_to_level",
+            results,
+            handlerCompleted: false,
+            waitReasonCode: null));
+    }
+
+    [Fact]
+    public void CompletedBulkResourceActivity_CountsEveryReportedUpgrade()
+    {
+        var results = new[]
+        {
+            new BotTaskResult(
+                "upgrade_all_resources_to_level",
+                "All selected resource fields are at or above target level 2. Upgrades made: 2.",
+                ConstructionTaskOutcome.AlreadySatisfied),
+        };
+
+        Assert.Equal(2, BotTaskRunner.CountVerifiedActivities(
+            "upgrade_all_resources_to_level",
+            results,
+            handlerCompleted: true,
+            waitReasonCode: null));
+    }
+
+    [Fact]
+    public void ConstructionActivity_DoesNotCountPreviouslyQueuedUpgrade()
+    {
+        var results = new[]
+        {
+            new BotTaskResult(
+                "upgrade_building_to_level",
+                "Upgrade already queued and still in progress. Upgrades performed: 0. queue_wait_seconds=29",
+                ConstructionTaskOutcome.QueuedOrInProgress),
+        };
+
+        Assert.Equal(0, BotTaskRunner.CountVerifiedActivities(
+            "upgrade_building_to_level",
+            results,
+            handlerCompleted: false,
+            waitReasonCode: TaskWaitReasons.WorkQueued));
+    }
+
+    [Fact]
+    public void HeroAdventureActivity_IsPublishedSeparatelyAfterConfirmedDispatch()
+    {
+        var results = new[]
+        {
+            new BotTaskResult(
+                "hero_adventure",
+                "Actions: adventure_sent(top,duration=300s,return_eta=600s). queue_wait_seconds=600",
+                ConstructionTaskOutcome.None),
+        };
+
+        Assert.Equal(
+            ["hero_adventure"],
+            BotTaskRunner.ResolveVerifiedActivityNames(
+                "hero_manage",
+                results,
+                handlerCompleted: false,
+                waitReasonCode: null));
+    }
+
+    [Fact]
     public void CompletedNonConstructionTask_CountsOneRun()
     {
         Assert.Equal(1, BotTaskRunner.CountVerifiedActivities(

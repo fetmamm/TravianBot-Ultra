@@ -1,3 +1,4 @@
+using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services.Automation;
 using Xunit;
 
@@ -126,6 +127,21 @@ public sealed class MapOasisApiParserTests
     }
 
     [Fact]
+    public void IsRegionOverlay_DetectsRiseOfGovernorsZoomThreeResponse()
+    {
+        const string json = """
+            {"tiles":[
+              {"position":{"x":-187,"y":-185},"title":"{k.regionTooltip} Volubilis","text":"The eagles slight eyes VII"},
+              {"position":{"x":-186,"y":-185},"did":22071,"title":"{k.regionTooltip} Volubilis","text":"Village in region"}
+            ]}
+            """;
+
+        Assert.True(MapOasisApiParser.IsRegionOverlay(json));
+        Assert.False(MapOasisApiParser.IsRegionOverlay(CreateResponse(
+            "{\"position\":{\"x\":-187,\"y\":-185},\"did\":-1,\"title\":\"{k.fo}\",\"text\":\"{a:r2} {a.r2} 25%\"}")));
+    }
+
+    [Fact]
     public void CreateScanCenters_CoversFullFourHundredOneTileWorld()
     {
         var centers = MapOasisApiParser.CreateScanCenters();
@@ -141,6 +157,66 @@ public sealed class MapOasisApiParserTests
         var centers = MapOasisApiParser.CreateScanCenters(-30, 30, -30, 30);
 
         Assert.Equal([(-15, -15), (16, -15), (16, 16), (-15, 16)], centers);
+    }
+
+    [Fact]
+    public void CreateScanCenters_ForDetailedRegionTiles_UsesBoundedRectangularCoverage()
+    {
+        var centers = MapOasisApiParser.CreateScanCenters(-198, -178, -192, -176, 10, 8);
+
+        Assert.Equal([(-188, -184)], centers);
+    }
+
+    [Fact]
+    public void CreateScanCenters_ZoomTwoCoversFullWorldInFourHundredEightyAreas()
+    {
+        var centers = MapOasisApiParser.CreateScanCenters(-200, 200, -200, 200, 10, 8);
+
+        Assert.Equal(480, centers.Count);
+        Assert.Equal((-190, -192), centers[0]);
+    }
+
+    [Fact]
+    public void CreateScanCenters_StartsNearSelectedVillageAndMovesOutwardWithoutExtraAreas()
+    {
+        var centers = MapOasisApiParser.CreateScanCenters(
+            -40,
+            40,
+            -40,
+            40,
+            startingX: 0,
+            startingY: 0);
+
+        Assert.Equal(
+            [(6, 6), (37, 6), (37, 37), (6, 37), (-25, 37), (-25, 6), (-25, -25), (6, -25), (37, -25)],
+            centers);
+    }
+
+    [Fact]
+    public void CreateScanCenters_WholeMapStartsNearestSelectedVillageWithoutExtraAreas()
+    {
+        var centers = MapOasisApiParser.CreateScanCenters(startingX: 101, startingY: 114);
+
+        Assert.Equal(169, centers.Count);
+        Assert.Equal((94, 125), centers[0]);
+        Assert.Equal(169, centers.Distinct().Count());
+    }
+
+    [Theory]
+    [InlineData(MapOasisScanScope.Radius, 9, 20, 72)]
+    [InlineData(MapOasisScanScope.WholeMap, 169, 480, 1665)]
+    public void ScanEstimate_MatchesAreaCoverage(
+        MapOasisScanScope scope,
+        int expectedZoom3,
+        int expectedZoom2,
+        int expectedZoom1)
+    {
+        var estimate = MapOasisScanEstimate.Calculate(
+            new MapOasisScanRequest(0, 0, scope, MapOasisScanRequest.DefaultRadius, MapOasisScanSpeed.Normal));
+
+        Assert.Equal(expectedZoom3, estimate.Zoom3Requests);
+        Assert.Equal(expectedZoom2, estimate.Zoom2Requests);
+        Assert.Equal(expectedZoom1, estimate.Zoom1Requests);
     }
 
     private static string CreateResponse(string tiles) => $"{{\"tiles\":[{tiles}]}}";

@@ -250,8 +250,23 @@ public static class LogClassifier
             return false;
         }
 
-        return message.Contains("TransientNavigationException", StringComparison.OrdinalIgnoreCase)
-            && message.Contains("timed out after safe retries", StringComparison.OrdinalIgnoreCase);
+        return message.Contains("timed out after safe retries", StringComparison.OrdinalIgnoreCase)
+            && !message.Contains("ALARM:", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static bool IsNetworkOutageDiagnostic(string message)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        return Contains(
+            message.ToLowerInvariant(),
+            "err_name_not_resolved",
+            "err_network_changed",
+            "err_connection_",
+            "chrome-error://");
     }
 
     private static bool Contains(string haystack, params string[] needles)

@@ -25,6 +25,15 @@ public partial class MainWindow
                     item,
                     now);
         }
+        public TimeSpan? ResolveSmartSleepConstructionQueueClearDelay(QueueItem item, DateTimeOffset now)
+        {
+            var status = owner.ResolveBuildingStatusForQueueItem(item);
+            return ConstructionQueueState.ResolveSmartSleepQueueClearDelay(
+                status,
+                owner._travianPlusActive,
+                item,
+                now);
+        }
         public TimeSpan? ResolveConstructPrerequisiteDelay(QueueItem item, DateTimeOffset now) =>
             owner.TryResolveConstructActivePrerequisiteDelay(item, now, out var dependencyDelay)
                 ? dependencyDelay.Delay

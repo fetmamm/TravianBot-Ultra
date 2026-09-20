@@ -22,6 +22,7 @@ public sealed class SettingsExchangeServiceTests : IDisposable
             [BotOptionPayloadKeys.SessionPacingDailyMaxHours] = 10,
             [BotOptionPayloadKeys.SessionPacingAllowedHours] = new JsonArray(2, 3, 4, 18),
             [BotOptionPayloadKeys.SmartSleepDeadlineGroups] = new JsonArray("construction", "hero"),
+            [BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears] = false,
             [BotOptionPayloadKeys.ActionPacingTaskMinSeconds] = 1.5,
             [BotOptionPayloadKeys.ActionPacingTaskMaxSeconds] = 4.5,
             [BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead] = 4,

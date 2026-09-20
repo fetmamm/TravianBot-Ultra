@@ -166,6 +166,55 @@ public sealed class AccountAnalysisStore
             });
     }
 
+    public void SaveAutomationLoopPreferences(
+        string accountName,
+        string serverUrl,
+        string fallbackTribe,
+        IReadOnlyList<string> enabledGroups,
+        IReadOnlyList<string> visibleGroups)
+    {
+        Update(accountName, serverUrl, existing => existing is null
+            ? new AccountAnalysisSnapshot(
+                SchemaVersion: AccountAnalysisConstants.CurrentSchemaVersion,
+                AnalyzedAtUtc: DateTimeOffset.UtcNow,
+                AccountName: accountName,
+                ServerUrl: serverUrl,
+                Tribe: fallbackTribe,
+                GoldClubEnabled: false,
+                BuildingCatalog: [],
+                AutomationLoopEnabledGroups: enabledGroups.ToList(),
+                AutomationLoopVisibleGroups: visibleGroups.ToList())
+            : existing with
+            {
+                AnalyzedAtUtc = DateTimeOffset.UtcNow,
+                AutomationLoopEnabledGroups = enabledGroups.ToList(),
+                AutomationLoopVisibleGroups = visibleGroups.ToList(),
+            });
+    }
+
+    public void SaveAutoCelebrationPreference(
+        string accountName,
+        string serverUrl,
+        string fallbackTribe,
+        bool enabled)
+    {
+        Update(accountName, serverUrl, existing => existing is null
+            ? new AccountAnalysisSnapshot(
+                SchemaVersion: AccountAnalysisConstants.CurrentSchemaVersion,
+                AnalyzedAtUtc: DateTimeOffset.UtcNow,
+                AccountName: accountName,
+                ServerUrl: serverUrl,
+                Tribe: fallbackTribe,
+                GoldClubEnabled: false,
+                BuildingCatalog: [],
+                AutoCelebrationEnabled: enabled)
+            : existing with
+            {
+                AnalyzedAtUtc = DateTimeOffset.UtcNow,
+                AutoCelebrationEnabled = enabled,
+            });
+    }
+
     public AccountAnalysisSnapshot? Update(
         string accountName,
         string serverUrl,

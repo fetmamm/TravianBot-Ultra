@@ -213,6 +213,27 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
+    public void FromConfiguration_MainBuildingRebuildDefaultsAndClamps()
+    {
+        var defaults = new ConfigurationBuilder().AddInMemoryCollection().Build();
+        var configured = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [BotOptionPayloadKeys.ConstructionMainBuildingRebuildEnabled] = "false",
+                [BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel] = "99",
+            })
+            .Build();
+
+        var defaultOptions = BotOptionsFactory.FromConfiguration(defaults);
+        var configuredOptions = BotOptionsFactory.FromConfiguration(configured);
+
+        Assert.True(defaultOptions.ConstructionMainBuildingRebuildEnabled);
+        Assert.Equal(1, defaultOptions.ConstructionMainBuildingRebuildTargetLevel);
+        Assert.False(configuredOptions.ConstructionMainBuildingRebuildEnabled);
+        Assert.Equal(20, configuredOptions.ConstructionMainBuildingRebuildTargetLevel);
+    }
+
+    [Fact]
     public void Apply_PreservesStorageUpgradeLevelsAhead()
     {
         var source = new BotOptions { ConstructionStorageUpgradeLevelsAhead = 4 };
@@ -787,7 +808,7 @@ public sealed class BotOptionsPayloadApplierTests
 
         Assert.Equal(4, options.ContinuousFarmDispatchDelayMinMinutes);
         Assert.Equal(18, options.ContinuousFarmDispatchDelayMaxMinutes);
-        Assert.Equal(FarmingDefaults.SendModeListPerList, options.ContinuousFarmSendMode);
+        Assert.Equal(FarmingDefaults.SendModeSharedSchedule, options.ContinuousFarmSendMode);
         Assert.True(options.ContinuousFarmDeactivateLosses);
         Assert.False(options.ContinuousFarmDeactivateOasisLosses);
     }
@@ -857,6 +878,12 @@ public sealed class BotOptionsPayloadApplierTests
         Assert.True(options.ActionPacingIdleBrowsePageStatisticsAttackers);
         Assert.Equal(0.3, options.CollectStepDelayMinSeconds);
         Assert.Equal(0.8, options.CollectStepDelayMaxSeconds);
+        Assert.True(options.ConstructionHumanizeDelayEnabled);
+        Assert.Equal(10.0, options.ConstructionHumanizeQueuePercentMin);
+        Assert.Equal(40.0, options.ConstructionHumanizeQueuePercentMax);
+        Assert.Equal(30.0, options.ConstructionHumanizeMaxDelayMinutes);
+        Assert.Equal(0.5, options.ConstructionHumanizeNoPlusMinMinutes);
+        Assert.Equal(4.0, options.ConstructionHumanizeNoPlusMaxMinutes);
         Assert.Equal(90, options.TroopTrainingBarracksMinimumResourcesPercent);
         Assert.Equal(90, options.TroopTrainingStableMinimumResourcesPercent);
         Assert.Equal(90, options.TroopTrainingWorkshopMinimumResourcesPercent);

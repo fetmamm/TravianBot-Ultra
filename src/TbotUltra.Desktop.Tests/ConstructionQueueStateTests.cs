@@ -562,6 +562,85 @@ public sealed class ConstructionQueueStateTests
     }
 
     [Fact]
+    public void ResolveSmartSleepQueueClearDelay_PlusQueueUsesFinalConstructionTimer()
+    {
+        var status = CreateStatus([], [], 2, 600) with
+        {
+            ActiveConstructions =
+            [
+                new ActiveConstruction(ConstructionKind.Building, "Warehouse", 5, 600, "00:10:00"),
+                new ActiveConstruction(ConstructionKind.Building, "Granary", 5, 3600, "01:00:00"),
+            ],
+            ActiveConstructionsFromOverview = true,
+        };
+        var item = new QueueItem
+        {
+            TaskName = "upgrade_building_to_level",
+            Payload = new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.QueueHumanizeExtraSeconds] = "30",
+            },
+        };
+
+        var result = ConstructionQueueState.ResolveSmartSleepQueueClearDelay(status, true, item, Now);
+
+        Assert.Equal(TimeSpan.FromSeconds(3630), result);
+    }
+
+    [Fact]
+    public void ResolveSmartSleepQueueClearDelay_RomansTreatConstructionCategoriesSeparately()
+    {
+        var status = CreateStatus([], [], 3, 600) with
+        {
+            Tribe = "Romans",
+            ActiveConstructions =
+            [
+                new ActiveConstruction(ConstructionKind.Building, "Warehouse", 5, 600, "00:10:00"),
+                new ActiveConstruction(ConstructionKind.Building, "Granary", 5, 3600, "01:00:00"),
+                new ActiveConstruction(ConstructionKind.Resource, "Cropland", 5, 1200, "00:20:00"),
+            ],
+            ActiveConstructionsFromOverview = true,
+        };
+
+        var buildingDelay = ConstructionQueueState.ResolveSmartSleepQueueClearDelay(
+            status,
+            true,
+            new QueueItem { TaskName = "upgrade_building_to_level" },
+            Now);
+        var resourceDelay = ConstructionQueueState.ResolveSmartSleepQueueClearDelay(
+            status,
+            true,
+            new QueueItem { TaskName = "upgrade_all_resources_to_level" },
+            Now);
+
+        Assert.Equal(TimeSpan.FromHours(1), buildingDelay);
+        Assert.Null(resourceDelay);
+    }
+
+    [Fact]
+    public void ResolveSmartSleepQueueClearDelay_RequiresConfirmedPlusQueueAndCompleteTimers()
+    {
+        var status = CreateStatus([], [], 2, 600) with
+        {
+            ActiveConstructions =
+            [
+                new ActiveConstruction(ConstructionKind.Building, "Warehouse", 5, 600, "00:10:00"),
+                new ActiveConstruction(ConstructionKind.Building, "Granary", 5, null, null),
+            ],
+            ActiveConstructionsFromOverview = true,
+        };
+        var item = new QueueItem { TaskName = "upgrade_building_to_level" };
+
+        Assert.Null(ConstructionQueueState.ResolveSmartSleepQueueClearDelay(status, false, item, Now));
+        Assert.Null(ConstructionQueueState.ResolveSmartSleepQueueClearDelay(status, true, item, Now));
+        Assert.Null(ConstructionQueueState.ResolveSmartSleepQueueClearDelay(
+            status with { ActiveConstructionsFromOverview = false },
+            true,
+            item,
+            Now));
+    }
+
+    [Fact]
     public void ResolveQueueFullRetryDelay_KeepsFutureCombinedDeadlineWhenSlotIsFree()
     {
         var now = new DateTimeOffset(2026, 7, 12, 12, 0, 0, TimeSpan.Zero);

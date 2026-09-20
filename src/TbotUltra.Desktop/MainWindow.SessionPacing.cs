@@ -22,6 +22,7 @@ public partial class MainWindow
         PacingDefaults.SmartSleepWakeAfterMinutes,
         PacingDefaults.SmartSleepFallbackMinMinutes,
         PacingDefaults.SmartSleepFallbackMaxMinutes);
+    private bool _smartSleepWakeWhenConstructionQueueClears = PacingDefaults.SmartSleepWakeWhenConstructionQueueClears;
     private string _sessionPacingAccountName = string.Empty;
 
     // >0 while a scope-limited manual function (Analyze farmlists / Add farms / Create farmlists / Travco)
@@ -102,6 +103,10 @@ public partial class MainWindow
             ReadInt(config, BotOptionPayloadKeys.SmartSleepWakeAfterMinutes, PacingDefaults.SmartSleepWakeAfterMinutes, 0, 1440),
             ReadInt(config, BotOptionPayloadKeys.SmartSleepFallbackMinMinutes, PacingDefaults.SmartSleepFallbackMinMinutes, 1, 10080),
             ReadInt(config, BotOptionPayloadKeys.SmartSleepFallbackMaxMinutes, PacingDefaults.SmartSleepFallbackMaxMinutes, 1, 10080));
+        _smartSleepWakeWhenConstructionQueueClears = ReadBool(
+            config,
+            BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears,
+            PacingDefaults.SmartSleepWakeWhenConstructionQueueClears);
         _automationPassRuntime.SetSmartSleepDeadlineGroups(SmartSleepDeadlinePolicy.ReadGroups(
             config[BotOptionPayloadKeys.SmartSleepDeadlineGroups]));
         _sessionPacer.Configure(new SessionPacerSettings(
@@ -119,6 +124,44 @@ public partial class MainWindow
             RunTimerEnabled: sessionPacingEnabled),
             reloadRuntime);
         ConfigureProxyPlanTransition(accountName);
+    }
+
+    private IReadOnlyDictionary<Guid, DateTimeOffset> ResolveSmartSleepQueueDeadlineOverrides(
+        IEnumerable<QueueItem> items,
+        DateTimeOffset now)
+    {
+        var overrides = new Dictionary<Guid, DateTimeOffset>();
+        if (!_smartSleepWakeWhenConstructionQueueClears)
+        {
+            return overrides;
+        }
+
+        foreach (var item in items.Where(item =>
+                     item.Status == QueueStatus.Pending
+                     && item.Group == QueueGroup.Construction))
+        {
+            var queueClearDelay = ConstructionQueueState.ResolveSmartSleepQueueClearDelay(
+                ResolveBuildingStatusForQueueItem(item),
+                _travianPlusActive,
+                item,
+                now);
+            if (queueClearDelay is not { } delay || delay <= TimeSpan.Zero)
+            {
+                continue;
+            }
+
+            var queueClearDeadline = now.Add(delay);
+            var effectiveDeadline = item.NextAttemptAt > queueClearDeadline
+                ? item.NextAttemptAt
+                : queueClearDeadline;
+            overrides[item.Id] = effectiveDeadline;
+            AppendLoopPickVerbose(
+                $"[smart-sleep] construction wake waits for queue clear at "
+                    + $"'{FormatQueueServerTime(effectiveDeadline)}' for {item.DisplayName ?? item.TaskName}.",
+                $"smart-sleep:construction-queue-clear:{item.Id}:{effectiveDeadline.UtcTicks}");
+        }
+
+        return overrides;
     }
 
     private void PersistSessionPacingRuntimeState()
@@ -434,7 +477,7 @@ public partial class MainWindow
 
         for (var attempt = 1; ; attempt++)
         {
-            await ExecuteLoginFlowAsync();
+            await ExecuteLoginFlowAsync(retryFailureIsStatus: true);
             if (_isLoggedIn)
             {
                 if (attempt > 1)
@@ -631,16 +674,31 @@ public partial class MainWindow
 
         picker.SelectionChanged += (_, _) => UpdateDescription();
         UpdateDescription();
+        IReadOnlyList<(string Label, MessageBoxResult Result)> buttons = extendingSleep
+            ? [("Cancel", MessageBoxResult.Cancel), ("Extend sleep", MessageBoxResult.Yes)]
+            :
+            [
+                ("Cancel", MessageBoxResult.Cancel),
+                ("Sleep now", MessageBoxResult.No),
+                ("Extend session", MessageBoxResult.Yes),
+            ];
         var result = AppDialog.ShowCustomContent(
             this,
             content,
             extendingSleep ? "Extend sleep" : "Extend active session",
-            [("Cancel", MessageBoxResult.Cancel), (extendingSleep ? "Extend sleep" : "Extend session", MessageBoxResult.Yes)],
+            buttons,
             MessageBoxImage.Information,
             MessageBoxResult.Yes,
             MessageBoxResult.Cancel,
+            accentResult: extendingSleep ? null : MessageBoxResult.No,
             successResult: MessageBoxResult.Yes,
             hideIcon: true);
+        if (result == MessageBoxResult.No)
+        {
+            RequestManualSessionSleep();
+            return;
+        }
+
         if (result != MessageBoxResult.Yes)
         {
             return;

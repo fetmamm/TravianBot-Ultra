@@ -559,7 +559,20 @@ public partial class MainWindow
             || value.Contains("chromium warmup completed")
             || value.Contains("[lobby-login] manually selected owned world resolved to")
             || (value.Contains("[browser-click]") && value.Contains("skipped candidate"))
+            || (value.Contains("[nav] goto start") && value.Contains("from='chrome-error://chromewebdata/'"))
+            || value.Contains("[ensure-logged-in] browser network error page detected")
+            || value.Contains("[lobby-login] transient lobby attempt 1/3 failed")
+            || value.Contains("[lobby-login] transient lobby attempt 2/3 failed")
+            || (value.Contains("[pacing] wake login failed") && value.Contains("retrying in"))
+            || value.Contains("could not capture diagnostics for '")
+            || (value.Contains("[village-membership]")
+                && value.Contains("blocking automation until profile verification completes"))
+            || (value.Contains("[village-membership] profile verification returned ")
+                && !value.Contains("returned no villages"))
             || value.Contains("unable to retrieve content because the page is navigating and changing the content")
+            || ((value.Contains("[resource-refresh] fail")
+                    || value.Contains("background resource refresh skipped:"))
+                && value.Contains("timeout"))
             || (value.Contains("[browser-video] isolated bonus-video browser closed reason="))
             || (value.Contains("[construct-faster]")
                 && (value.Contains("video attempt") && value.Contains("ended before normal completion")
@@ -577,6 +590,14 @@ public partial class MainWindow
         if (value.Contains("alarm:"))
         {
             return true;
+        }
+
+        // A connection outage is reported once by the exhausted lobby recovery. Worker, queue and
+        // loop diagnostics are follow-on views of the same incident and must not create separate alarms.
+        if (LogClassifier.IsNetworkOutageDiagnostic(message)
+            && !value.Contains("[lobby-login] transient lobby attempt 3/3 failed"))
+        {
+            return false;
         }
 
         // Safe navigation failures are deferred without consuming task retries. The Worker emits its
@@ -638,6 +659,11 @@ public partial class MainWindow
         // is a harmless navigation race (the page reloaded while a read was in flight). The worker
         // retries and continues, so don't raise it as a red alarm.
         if (value.Contains("execution context was destroyed"))
+        {
+            return false;
+        }
+
+        if (value.Contains("[nav]") && value.Contains("timeout recovered"))
         {
             return false;
         }
@@ -707,10 +733,7 @@ public partial class MainWindow
             || (value.Contains("not logged in")
                 && value.Contains("current page state is 'unknown'"))
             || (value.Contains("[resource-refresh] fail")
-                && (value.Contains("execution context was destroyed")
-                    || value.Contains("timeout")))
-            || (value.Contains("background resource refresh skipped:")
-                && value.Contains("timeout"))
+                && value.Contains("execution context was destroyed"))
             || (value.Contains("hero_adventure.php")
                 && value.Contains("transient navigation context error")
                 && value.Contains("retrying"))

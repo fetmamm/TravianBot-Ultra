@@ -100,6 +100,38 @@ public sealed class AutoQueueAutomationPassTests
         Assert.Equal(Now.AddMinutes(3), preparation.RequestedSmartSleepDeadline);
     }
 
+    [Fact]
+    public async Task DeferredConstruction_UsesQueueClearOnlyForSmartSleepDeadline()
+    {
+        var deferred = new QueueItem
+        {
+            TaskName = "upgrade_building",
+            Group = QueueGroup.Construction,
+            Status = QueueStatus.Pending,
+            NextAttemptAt = Now.AddMinutes(30),
+        };
+        var queueClear = Now.AddHours(2);
+        var preparation = new InMemoryAutoQueueAutomationPassPort
+        {
+            QueueItems = [deferred],
+            SmartSleepQueueDeadlineOverrides = new Dictionary<Guid, DateTimeOffset>
+            {
+                [deferred.Id] = queueClear,
+            },
+        };
+        var delay = new ControlledDelay();
+        var autoQueuePass = new AutoQueueAutomationPass(preparation, new FixedTimeProvider(Now));
+        using var loopController = new LoopController();
+        await using var automation = CreateAutomationDesk(loopController, autoQueuePass, delay.WaitAsync);
+
+        await automation.StartAsync(new AutomationStart(
+            AutomationRunMode.AutoQueue,
+            new AutomationRunContext("account-1", new Uri("https://ts1.x1.example/"), 7)));
+
+        Assert.Equal(TimeSpan.FromMinutes(30), await delay.Requested.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.Equal(queueClear, preparation.RequestedSmartSleepDeadline);
+    }
+
     private static AutomationDesk CreateAutomationDesk(
         LoopController loopController,
         IAutomationModePassPort autoQueuePass,
@@ -126,6 +158,8 @@ public sealed class AutoQueueAutomationPassTests
         public IReadOnlyList<QueueItem> QueueItems { get; init; } = [];
         public List<string> LogMessages { get; } = [];
         public DateTimeOffset? RequestedSmartSleepDeadline { get; private set; }
+        public IReadOnlyDictionary<Guid, DateTimeOffset> SmartSleepQueueDeadlineOverrides { get; init; } =
+            new Dictionary<Guid, DateTimeOffset>();
         public bool PrioritizeDeadlineWorkOnWake { get; set; } = true;
         public long RunLogId => 7;
         public IReadOnlySet<QueueGroup> SmartSleepDeadlineGroups { get; } =
@@ -135,6 +169,9 @@ public sealed class AutoQueueAutomationPassTests
             ValueTask.CompletedTask;
         public QueueItem? SelectNextQueueItem() => SelectedItems.Count == 0 ? null : SelectedItems.Dequeue();
         public IReadOnlyList<QueueItem> GetQueueItems() => QueueItems;
+        public IReadOnlyDictionary<Guid, DateTimeOffset> GetSmartSleepQueueDeadlineOverrides(
+            IReadOnlyList<QueueItem> items,
+            DateTimeOffset now) => SmartSleepQueueDeadlineOverrides;
         public bool IsAllowedByAutomationSettings(QueueItem item) => true;
         public bool TryRequestSmartSleep(DateTimeOffset? trustedDeadlineUtc)
         {

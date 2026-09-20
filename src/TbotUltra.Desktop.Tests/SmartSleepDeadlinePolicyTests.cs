@@ -8,12 +8,13 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class SmartSleepDeadlinePolicyTests
 {
     [Fact]
-    public void MissingConfiguration_DefaultsToEveryQueueGroup()
+    public void MissingConfiguration_DefaultsToConstructionAndHero()
     {
         var groups = SmartSleepDeadlinePolicy.ReadGroups(null);
 
-        Assert.Equal(Enum.GetValues<QueueGroup>().Length, groups.Count);
-        Assert.All(Enum.GetValues<QueueGroup>(), group => Assert.Contains(group, groups));
+        Assert.Equal(2, groups.Count);
+        Assert.Contains(QueueGroup.Construction, groups);
+        Assert.Contains(QueueGroup.Hero, groups);
     }
 
     [Fact]
@@ -74,5 +75,28 @@ public sealed class SmartSleepDeadlinePolicyTests
             nextConstructionAvailabilityUtc: null);
 
         Assert.Null(delay);
+    }
+
+    [Fact]
+    public void ResolveNextDelay_UsesConstructionQueueClearOverride()
+    {
+        var now = new DateTimeOffset(2026, 9, 12, 10, 0, 0, TimeSpan.Zero);
+        var construction = new QueueItem
+        {
+            TaskName = "upgrade_building_to_level",
+            Group = QueueGroup.Construction,
+            Status = QueueStatus.Pending,
+            NextAttemptAt = now,
+        };
+        var queueClear = now.AddHours(2);
+
+        var delay = SmartSleepDeadlinePolicy.ResolveNextDelay(
+            now,
+            [construction],
+            new HashSet<QueueGroup> { QueueGroup.Construction },
+            nextConstructionAvailabilityUtc: queueClear,
+            queueDeadlineOverrides: new Dictionary<Guid, DateTimeOffset> { [construction.Id] = queueClear });
+
+        Assert.Equal(TimeSpan.FromHours(2), delay);
     }
 }

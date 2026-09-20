@@ -40,84 +40,28 @@ public partial class MainWindow
 
         public BotOptions LoadCurrentOptions() => owner.LoadBotOptions();
 
-        public void MarkRunning(QueueItem item)
-        {
+        public void MarkDueConstructionForPreSleepFill(QueueItem item) =>
             owner.MarkDueConstructionForPreSleepFill(item);
+
+        public void RefreshConstructFasterPayloadForExecution(QueueItem item) =>
             owner.RefreshConstructFasterPayloadForExecution(item);
-            owner._botService.MarkQueueItemRunning(item.Id);
-            owner.RefreshQueueUiOnUiThread(item.Id);
-            owner.SetActiveAutomationTask(item.TaskName);
-            owner.SetActiveFunctionExecution(
-                string.IsNullOrWhiteSpace(item.DisplayName) ? item.TaskName : item.DisplayName);
-        }
 
-        public async ValueTask<QueueItemGuardResult> RunPreExecutionGuardsAsync(
-            QueueItem item,
-            BotOptions options,
-            string logPrefix,
-            Stopwatch timer,
-            CancellationToken cancellationToken)
-        {
-            if (owner.TryHandleUpgradeWaitingForConstruct(item, logPrefix, timer))
-            {
-                return new QueueItemGuardResult(true, false);
-            }
+        public bool MarkRunning(Guid itemId) => owner._botService.MarkQueueItemRunning(itemId);
 
-            var constructRefresh =
-                await owner.TryRefreshConstructTargetVillageStatusBeforeGuardAsync(
-                    item,
-                    options,
-                    cancellationToken);
-            if (constructRefresh.FreshStatus is not null
-                && owner.TryHandleExistingConstructBeforeGuards(
-                    item,
-                    constructRefresh.FreshStatus,
-                    logPrefix,
-                    timer))
-            {
-                return new QueueItemGuardResult(true, true);
-            }
+        public void RefreshQueueUi(Guid itemId) => owner.RefreshQueueUiOnUiThread(itemId);
 
-            if (constructRefresh.FreshStatus is not null
-                && owner.TryHandleOccupiedConstructSlotBeforeGuards(
-                    item,
-                    constructRefresh.FreshStatus,
-                    logPrefix,
-                    timer))
-            {
-                return new QueueItemGuardResult(true, true);
-            }
+        public void SetActiveAutomationTask(string? taskName) => owner.SetActiveAutomationTask(taskName);
 
-            if (constructRefresh.CanUseCache
-                && await owner.TryHandleConstructQueueFullBeforeRequirementGuardAsync(
-                    item,
-                    logPrefix,
-                    timer))
-            {
-                return new QueueItemGuardResult(true, true);
-            }
-
-            if (constructRefresh.CanUseCache
-                && await owner.TryHandleConstructRequirementPreRunGuardAsync(
-                    item,
-                    logPrefix,
-                    timer))
-            {
-                return new QueueItemGuardResult(true, true);
-            }
-
-            return QueueItemGuardResult.NotHandled;
-        }
+        public void SetActiveFunctionExecution(string? displayName) =>
+            owner.SetActiveFunctionExecution(displayName);
 
         public BotOptions ApplyQueueItemOptions(BotOptions options, QueueItem item) =>
             owner.ApplyHeroResourceSettingsForQueueItem(options, item);
 
-        public CancellationToken BeginQueueItemOperation(
+        public CancellationToken BeginDemolitionOperation(
             QueueItem item,
             CancellationToken cancellationToken) =>
-            IsDemolition(item)
-                ? owner.BeginDemolishOperation(item, cancellationToken)
-                : cancellationToken;
+            owner.BeginDemolishOperation(item, cancellationToken);
 
         public ValueTask<BotTaskExecutionResult> ExecuteWorkerAsync(
             BotOptions options,
@@ -128,28 +72,6 @@ public partial class MainWindow
                 item,
                 owner.AppendLog,
                 cancellationToken));
-
-        public ValueTask<bool> TryRecoverMissingBuildingUpgradeAsync(
-            QueueItem item,
-            BotOptions options,
-            BotTaskExecutionResult executionResult,
-            string logPrefix,
-            Stopwatch timer,
-            CancellationToken cancellationToken) =>
-            new(owner.TryRecoverMissingBuildingUpgradeAsync(
-                item,
-                options,
-                executionResult,
-                logPrefix,
-                timer,
-                cancellationToken));
-
-        public ValueTask<bool> HandleSucceededAsync(
-            QueueItem item,
-            BotOptions options,
-            BotTaskExecutionResult executionResult,
-            CancellationToken cancellationToken) =>
-            new(owner.HandleQueueItemSucceededAsync(item, options, executionResult, cancellationToken));
 
         public bool IsLoadBuildingsSnapshot(QueueItem item) =>
             string.Equals(
@@ -172,57 +94,27 @@ public partial class MainWindow
 
         public bool WasDemolitionStopped(Guid itemId) => owner.WasDemolishOperationStopped(itemId);
 
-        public void MarkDeferred(Guid itemId) =>
-            owner._botService.MarkQueueItemDeferred(itemId, TimeSpan.Zero);
+        public bool MarkDeferred(Guid itemId, TimeSpan delay) =>
+            owner._botService.MarkQueueItemDeferred(itemId, delay);
 
-        public ValueTask<bool> HandleFailureAsync(
-            QueueItem item,
-            Exception exception,
-            string logPrefix,
-            Stopwatch timer,
-            AutomationRunMode mode) =>
-            new(owner.HandleQueueItemFailureAsync(
-                item,
-                exception,
-                logPrefix,
-                timer,
-                ToQueueExecutionMode(mode)));
+        public TimeSpan NextNetworkRetryDelay() => owner._automationNetworkBackoff.NextRetryDelay();
 
-        public async ValueTask FinalizeExecutionAsync(
-            QueueItem item,
-            AutomationRunMode mode,
-            bool freshBuildingsRefreshDone,
-            CancellationToken cancellationToken)
-        {
-            if (IsDemolition(item))
-            {
-                owner.CompleteDemolishOperation(item.Id);
-            }
-            owner.SetActiveAutomationTask(null);
-            owner.SetActiveFunctionExecution(null);
-            owner.RefreshQueueUiOnUiThread(item.Id);
-            if (!cancellationToken.IsCancellationRequested
-                && mode == AutomationRunMode.AutoQueue
-                && IsBuildingMutationTask(item.TaskName)
-                && !freshBuildingsRefreshDone)
-            {
-                try
-                {
-                    await owner.LoadBuildingsSnapshotIntoUiAsync(cancellationToken);
-                }
-                catch
-                {
-                    // The UI keeps its previous state when the last-known snapshot cannot be restored.
-                }
-            }
-        }
+        public void MarkNetworkUnavailable(TimeSpan retryDelay) =>
+            owner._automationNetworkBackoff.MarkUnavailable(retryDelay);
+
+        public ValueTask HoldAccountAutomationAsync(AccountAccessException exception) =>
+            new(owner.HoldAccountAutomationAsync(exception));
+
+        public ValueTask HandleUnexpectedTravianLanguageAsync(
+            UnexpectedTravianLanguageException exception) =>
+            new(owner.HandleUnexpectedTravianLanguageAsync(exception));
+
+        public void CompleteDemolitionOperation(Guid itemId) => owner.CompleteDemolishOperation(itemId);
+
+        public ValueTask RestoreBuildingsSnapshotAsync(CancellationToken cancellationToken) =>
+            new(owner.LoadBuildingsSnapshotIntoUiAsync(cancellationToken));
 
         public void Log(string message) => owner.AppendLog(message);
-
-        private static QueueExecutionMode ToQueueExecutionMode(AutomationRunMode mode) =>
-            mode == AutomationRunMode.ContinuousLoop
-                ? QueueExecutionMode.ContinuousLoop
-                : QueueExecutionMode.AutoQueue;
 
         private sealed class QueueItemExecutionScope(
             IDisposable logContext,

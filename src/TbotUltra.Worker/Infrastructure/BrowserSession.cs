@@ -612,11 +612,25 @@ public sealed partial class BrowserSession : IAsyncDisposable
             cleanPage = await OpenMainContextPageAsync(cancellationToken);
             var gamePageUrl = new Uri(effectiveUri, "/dorf1.php").AbsoluteUri;
             _log?.Invoke("[browser] preloading the clean post-login game page before closing the lobby context.");
-            await cleanPage.GotoAsync(gamePageUrl, new PageGotoOptions
+            try
             {
-                WaitUntil = WaitUntilState.DOMContentLoaded,
-                Timeout = _config.TimeoutMs,
-            }).WaitAsync(cancellationToken);
+                await cleanPage.GotoAsync(gamePageUrl, new PageGotoOptions
+                {
+                    WaitUntil = WaitUntilState.DOMContentLoaded,
+                    Timeout = _config.TimeoutMs,
+                }).WaitAsync(cancellationToken);
+            }
+            catch (Exception ex) when (IsNavigationTimeout(ex))
+            {
+                if (!await IsUsableExpectedGamePageAsync(cleanPage, gamePageUrl, cancellationToken))
+                {
+                    throw;
+                }
+
+                _log?.Invoke(
+                    "[browser] clean post-login navigation timeout recovered; "
+                    + "the authenticated Dorf1 page is already usable.");
+            }
             _log?.Invoke("[browser] clean post-login game page loaded; closing the lobby context.");
         }
         catch
@@ -643,6 +657,53 @@ public sealed partial class BrowserSession : IAsyncDisposable
         _browserTrace.Event("PAGE_CONTEXT", "lobby-context-closed", detail: "reason=clean-game-page-loaded");
         _log?.Invoke("[browser] lobby context closed after the clean game page loaded; Chromium stayed running.");
         return cleanPage;
+    }
+
+    private static bool IsNavigationTimeout(Exception exception)
+    {
+        for (var current = exception; current is not null; current = current.InnerException)
+        {
+            if (current is TimeoutException
+                || (current.Message.Contains("Timeout", StringComparison.OrdinalIgnoreCase)
+                    && current.Message.Contains("exceeded", StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static async Task<bool> IsUsableExpectedGamePageAsync(
+        IPage page,
+        string expectedUrl,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!Uri.TryCreate(page.Url, UriKind.Absolute, out var current)
+            || !Uri.TryCreate(expectedUrl, UriKind.Absolute, out var expected)
+            || !string.Equals(current.Authority, expected.Authority, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(current.AbsolutePath, expected.AbsolutePath, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        try
+        {
+            return await page.EvaluateAsync<bool>(
+                """
+                () => !!document.body
+                    && !document.body.classList.contains('neterror')
+                    && !document.querySelector('#main-frame-error, .error-code')
+                    && !!document.querySelector(
+                        '#heroImageButton, #sidebarBoxActiveVillage, #villageName[data-x][data-y], '
+                        + '#sidebarBoxVillageList, .villageList, #villageList, #resourceFieldContainer')
+                """).WaitAsync(cancellationToken);
+        }
+        catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
+        {
+            return false;
+        }
     }
 
     private BrowserTypeLaunchOptions CreateChromiumLaunchOptions(bool keepNativePopupBlocker)

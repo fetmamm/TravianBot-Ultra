@@ -74,6 +74,10 @@ public sealed class AutomationPassRuntimeTests
     {
         var runtime = new AutomationPassRuntime();
 
+        Assert.Equal(2, runtime.SmartSleepDeadlineGroups.Count);
+        Assert.Contains(QueueGroup.Construction, runtime.SmartSleepDeadlineGroups);
+        Assert.Contains(QueueGroup.Hero, runtime.SmartSleepDeadlineGroups);
+
         runtime.SetSmartSleepDeadlineGroups(new HashSet<QueueGroup> { QueueGroup.Construction });
         runtime.PrioritizeDeadlineWorkOnWake = true;
 

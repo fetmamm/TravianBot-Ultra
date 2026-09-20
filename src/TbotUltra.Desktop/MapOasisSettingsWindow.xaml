@@ -22,7 +22,7 @@
                     FontWeight="SemiBold"
                     Foreground="{DynamicResource TextPrimaryBrush}" />
 
-            <TextBlock Text="Scans the map for every oasis and saves as a local list in the program to use in 'Add farms to list'."
+            <TextBlock Text="Scans the selected map area for oases and saves a local list for 'Add farms to list'."
                     Foreground="{DynamicResource TextSecondaryBrush}"
                     TextWrapping="Wrap"
                     Margin="0,5,0,0" />
@@ -36,9 +36,9 @@
                 <TextBlock Foreground="{DynamicResource WarningTextBrush}"
                         FontWeight="SemiBold"
                         TextWrapping="Wrap">
-                    <Run Text="Recommended: Only run this ONCE per account to avoid ban!" />
+                    <Run Text="Use the smallest area that covers what you need." />
                     <LineBreak />
-                    <Run Text="Oases keep the same positions unless the server restarts." />
+                    <Run Text="Oasis positions are stable, but animals can change between scans." />
                 </TextBlock>
             </Border>
         </StackPanel>
@@ -69,7 +69,8 @@
                                      Margin="18,0,0,0" Checked="StartingPoint_Changed" />
                     </StackPanel>
                     <ComboBox x:Name="VillageComboBox" Margin="0,8,0,0" ItemsSource="{Binding Villages}"
-                              DisplayMemberPath="NameWithCoords" SelectedItem="{Binding SelectedVillage}" />
+                              DisplayMemberPath="NameWithCoords" SelectedItem="{Binding SelectedVillage}"
+                              SelectionChanged="EstimateInput_Changed" />
                 </StackPanel>
             </Grid>
         </Border>
@@ -86,12 +87,17 @@
                                 ToolTip="Whole map scans every map area. Radius scans the selected number of coordinates north, south, east and west from the starting point." />
                 <StackPanel Grid.Row="1" Grid.ColumnSpan="2" Margin="0,8,0,0">
                     <RadioButton x:Name="WholeMapRadioButton" Content="Analyze whole map" GroupName="MapOasisArea"
-                                 IsChecked="True" Checked="Area_Changed" />
+                                 Checked="Area_Changed" />
                     <StackPanel Orientation="Horizontal" Margin="0,7,0,0">
                         <RadioButton x:Name="RadiusRadioButton" Content="Analyze radius" GroupName="MapOasisArea"
-                                     Checked="Area_Changed" VerticalAlignment="Center" />
-                        <TextBox x:Name="RadiusTextBox" Text="30" Width="58" Margin="10,0,0,0" VerticalContentAlignment="Center" />
+                                     IsChecked="True" Checked="Area_Changed" VerticalAlignment="Center" />
+                        <TextBox x:Name="RadiusTextBox" Text="40" Width="58" Margin="10,0,0,0"
+                                 VerticalContentAlignment="Center" TextChanged="EstimateInput_Changed" />
                     </StackPanel>
+                    <TextBlock x:Name="RequestEstimateTextBlock"
+                               Margin="0,9,0,0"
+                               Foreground="{DynamicResource TextSecondaryBrush}"
+                               TextWrapping="Wrap" />
                 </StackPanel>
             </Grid>
         </Border>

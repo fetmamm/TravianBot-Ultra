@@ -11,7 +11,8 @@ internal sealed record ContinuousAutomationDeadlineSnapshot(
     DateTimeOffset? NextVillageStatusRoundUtc,
     IReadOnlyList<QueueItem> SmartSleepItems,
     IReadOnlySet<QueueGroup> SmartSleepDeadlineGroups,
-    DateTimeOffset? SmartSleepConstructionAvailabilityUtc = null);
+    DateTimeOffset? SmartSleepConstructionAvailabilityUtc = null,
+    IReadOnlyDictionary<Guid, DateTimeOffset>? SmartSleepQueueDeadlineOverrides = null);
 
 internal interface IContinuousAutomationPassPort
 {
@@ -35,6 +36,7 @@ internal interface IContinuousAutomationPassPort
     ValueTask EnsureRuntimeItemsAsync(BotOptions options, CancellationToken cancellationToken);
     ValueTask MaybeCheckInboxAsync(CancellationToken cancellationToken);
     QueueItem? SelectNextQueueItem();
+    void LogSmartSleepBlockedByReadyTask(QueueItem item);
     void MarkActivePass();
     ValueTask MaybeKeepBrowserFreshAsync(BotOptions options, CancellationToken cancellationToken);
     ContinuousAutomationDeadlineSnapshot ReadDeadlines(BotOptions options);
@@ -120,6 +122,7 @@ internal sealed class ContinuousAutomationPass(
             var next = port.SelectNextQueueItem();
             if (next is not null)
             {
+                port.LogSmartSleepBlockedByReadyTask(next);
                 port.PrioritizeDeadlineWorkOnWake = false;
                 LogSelection(passId, next);
                 port.MarkActivePass();
@@ -135,6 +138,7 @@ internal sealed class ContinuousAutomationPass(
                 next = port.SelectNextQueueItem();
                 if (next is not null)
                 {
+                    port.LogSmartSleepBlockedByReadyTask(next);
                     LogSelection(passId, next);
                     port.MarkActivePass();
                     return new AutomationStateSnapshot([AutomationCandidate.FromQueueItem(next)]);
@@ -167,7 +171,8 @@ internal sealed class ContinuousAutomationPass(
                 nowForDeadline,
                 deadlines.SmartSleepItems,
                 deadlines.SmartSleepDeadlineGroups,
-                deadlines.SmartSleepConstructionAvailabilityUtc);
+                deadlines.SmartSleepConstructionAvailabilityUtc,
+                deadlines.SmartSleepQueueDeadlineOverrides);
             DateTimeOffset? smartSleepDeadline = smartSleepDelay is { } trustedDelay
                 ? nowForDeadline.Add(trustedDelay)
                 : null;

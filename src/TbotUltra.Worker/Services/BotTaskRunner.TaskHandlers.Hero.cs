@@ -11,6 +11,10 @@ public sealed partial class BotTaskRunner
             context.Options.HeroStatPriority, context.Options.HeroAdventurePickOrder,
             context.Options.HeroHpRegenPerDayPercent, context.CancellationToken);
         context.Log(result);
+        if (IsHeroAdventureDispatched(result))
+        {
+            context.RecordTaskResult("hero_adventure", result);
+        }
         ThrowIfTaskBlocked("hero_manage", result);
     }
 

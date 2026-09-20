@@ -816,6 +816,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
             [BotOptionPayloadKeys.TroopTrainingBarracksCheckClay] = "true",
             [BotOptionPayloadKeys.TroopTrainingBarracksCheckIron] = "false",
             [BotOptionPayloadKeys.TroopTrainingBarracksCheckCrop] = "true",
+            [BotOptionPayloadKeys.TroopTrainingBarracksAutomaticResourceSelection] = "true",
             [BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds] = "60",
         };
 
@@ -825,17 +826,19 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         Assert.Equal("Clubswinger", parsed.Barracks.TroopType);
         Assert.Equal(100, parsed.Barracks.KeepResourcesPercent);
         Assert.False(parsed.Barracks.CheckIron);
+        Assert.True(parsed.Barracks.AutomaticResourceSelection);
         Assert.True(parsed.Barracks.MinimumTroopsEnabled);
         Assert.Equal(10, parsed.Barracks.MinimumTroops);
         Assert.Equal(25, parsed.Barracks.MaximumMinimumTroops);
         Assert.Equal(60, parsed.FallbackCooldownSeconds);
         var serialized = parsed.ToDictionary();
-        Assert.Equal(49, serialized.Count);
+        Assert.Equal(52, serialized.Count);
         Assert.Equal("true", serialized[BotOptionPayloadKeys.TroopTrainingBarracksEnabled]);
         Assert.Equal("Clubswinger", serialized[BotOptionPayloadKeys.TroopTrainingBarracksTroopType]);
         Assert.Equal("100", serialized[BotOptionPayloadKeys.TroopTrainingBarracksKeepResourcesPercent]);
         Assert.Equal("true", serialized[BotOptionPayloadKeys.TroopTrainingBarracksMinimumTroopsEnabled]);
         Assert.Equal("25", serialized[BotOptionPayloadKeys.TroopTrainingBarracksMaximumMinimumTroops]);
+        Assert.Equal("true", serialized[BotOptionPayloadKeys.TroopTrainingBarracksAutomaticResourceSelection]);
         Assert.Equal("60", serialized[BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds]);
     }
 

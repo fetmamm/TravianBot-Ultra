@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Models;
@@ -153,28 +154,30 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
-    public async Task FarmingPanelService_ForwardsEveryManualOperationAndCancellationToken()
+    public async Task FarmListsWorkflow_OrchestratesAnalysisAndDispatchIntents()
     {
         var client = new RecordingFarmingClient();
-        var service = new FarmingPanelService(client, CreateConfigStore());
+        var service = CreateFarmListsWorkflow(client, CreateConfigStore());
         var options = new BotOptions();
-        var request = new FarmListCreateRequest(["A"], "Capital", "did:1", "Phalanx", 3);
-        var coordinates = new[] { new FarmCoordinate(1, -2) };
         using var cancellation = new CancellationTokenSource();
-        Action<string> log = _ => { };
 
-        Assert.True(await service.ReadAndPersistGoldClubStatusAsync(options, log, cancellation.Token));
-        Assert.Same(client.Overview, await service.ReadOverviewAsync(options, log, cancellation.Token));
-        Assert.Equal(client.AddResult, await service.AddFarmsAsync(options, "A", "Phalanx", 3, 5, coordinates, true, null, log, null, cancellation.Token));
-        Assert.Equal(client.Identity, await service.ReadTargetProtectionIdentityAsync(options, log, cancellation.Token));
-        Assert.Equal(client.CreateResult, await service.CreateListsAsync(options, request, log, null, cancellation.Token));
-        Assert.Equal(2, await service.SendOneAsync(options, "A", log, cancellation.Token));
-        Assert.Equal(3, await service.SendSelectedAsync(options, ["A"], ["11"], log, cancellation.Token));
-        Assert.Equal(4, await service.SendAllAsync(options, log, cancellation.Token));
+        var analysis = await service.AnalyzeAsync(options, cancellation.Token);
+        Assert.True(analysis.IsAvailable);
+        Assert.Same(client.Overview, analysis.Lists);
+        var row = new FarmListStatusRow
+        {
+            Name = "A",
+            ListId = "11",
+            ActiveFarmCount = 1,
+            TotalFarmCount = 1,
+            IsEnabled = true,
+        };
+        Assert.True(await service.DispatchOneAsync(options, row, cancellation.Token));
+        Assert.Equal(2, row.RemainingSeconds);
+        Assert.Equal(3, (await service.DispatchManyAsync(options, [row], true, cancellation.Token)).SentCount);
+        Assert.Equal(4, (await service.DispatchManyAsync(options, [row], false, cancellation.Token)).SentCount);
 
-        Assert.Equal(["gold", "overview", "add", "identity", "create", "one", "selected", "all"], client.Calls);
-        Assert.Same(coordinates, client.Coordinates);
-        Assert.Same(request, client.CreateRequest);
+        Assert.Equal(["gold", "overview", "one", "selected", "all"], client.Calls);
         Assert.Equal("A", client.SendOneName);
         Assert.Equal(["A"], client.SelectedNames);
         Assert.Equal(["11"], client.SelectedIds);
@@ -182,7 +185,365 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
-    public void FarmingPanelService_PersistsDestinationStateWithoutChangingTheContract()
+    public async Task FarmListsWorkflow_ProjectsMergedOverviewAndPreparesAddFlow()
+    {
+        var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());
+        var options = new BotOptions
+        {
+            ContinuousFarmListIds = ["lid-1"],
+            ContinuousFarmDispatchDelayMinMinutes = 12,
+            ContinuousFarmDispatchDelayMaxMinutes = 18,
+        };
+        var lists = new[]
+        {
+            new FarmListOverview(" Raiders ", 2, 3, 30, "lid-1", 100, ["1|2"], VillageName: "Capital", VillageIndex: 0),
+            new FarmListOverview("Raiders", 3, 3, null, "lid-1", 100, ["1|2", "3|4"], VillageName: "Capital", VillageIndex: 0),
+            new FarmListOverview("Disabled", 1, 1, null, "lid-2", 50, ["5|6"], VillageName: "Second", VillageIndex: 1),
+        };
+
+        var projection = workflow.ProjectOverview(
+            lists,
+            options,
+            new Dictionary<string, string> { ["Capital"] = "(10|20)" },
+            new FarmListsPresentationOptions(true, true, 4));
+
+        Assert.Equal(2, projection.Rows.Count);
+        var raiders = Assert.Single(projection.Rows, row => row.ListId == "lid-1");
+        Assert.Equal("Capital (10|20)", raiders.VillageHeaderText);
+        Assert.Equal(3, raiders.ActiveFarmCount);
+        Assert.True(raiders.IsEnabled);
+        Assert.Equal("12", raiders.IntervalMinMinutesText);
+        Assert.False(Assert.Single(projection.Rows, row => row.ListId == "lid-2").IsEnabled);
+        Assert.Equal(["1|2", "3|4", "5|6"], projection.AnalyzedCoordinates.Order());
+        Assert.Contains("'Raiders' 1/3", projection.IncompleteReads);
+
+        var loadResult = await workflow.PrepareAddFarmsAsync(
+            options,
+            [new TravcoListStore.TravcoSavedList
+            {
+                Name = "Source",
+                Rows = [new TravcoListStore.TravcoSavedRow { Selected = true }],
+            }],
+            CancellationToken.None);
+        Assert.True(loadResult.Ok);
+        Assert.Equal(2, loadResult.TargetLists.Count);
+        Assert.Contains("3|4", loadResult.ExistingCoordinates);
+        Assert.Contains("'Raiders' 1/3", loadResult.IncompleteFarmLists!);
+    }
+
+    [Fact]
+    public void FarmListsWorkflow_BuildsCapacityAndDuplicateSafeAddPlans()
+    {
+        var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());
+        var sourceId = Guid.NewGuid();
+        var rows = new[]
+        {
+            new TravcoListStore.TravcoSavedRow { Coordinates = "1|2", Distance = 1 },
+            new TravcoListStore.TravcoSavedRow { Coordinates = "3|4", Distance = 2 },
+        };
+
+        var plans = workflow.BuildAddPlans(new OfficialFarmAddPlanRequest(
+            sourceId,
+            "Source",
+            rows,
+            [new OfficialFarmAddTarget("A", 99, true), new OfficialFarmAddTarget("B", 99, true)],
+            new HashSet<string>(),
+            "distance_asc",
+            "all",
+            0,
+            null,
+            null,
+            null,
+            null,
+            true,
+            false,
+            false,
+            false,
+            1,
+            true));
+
+        Assert.Equal(2, plans.Count);
+        Assert.Equal(new FarmCoordinate(1, 2), plans[0].Coordinates[0]);
+        Assert.Equal(2, plans[0].Coordinates.Count);
+        Assert.Equal(new FarmCoordinate(3, 4), Assert.Single(plans[1].Coordinates));
+    }
+
+    [Fact]
+    public void FarmListsWorkflow_ExcludesNatarsFromAddPlansWhenRequested()
+    {
+        var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());
+        var rows = new[]
+        {
+            new TravcoListStore.TravcoSavedRow { Coordinates = "1|2", Account = "Natars", Distance = 1 },
+            new TravcoListStore.TravcoSavedRow { Coordinates = "3|4", Account = "Player", Distance = 2 },
+        };
+
+        var plans = workflow.BuildAddPlans(new OfficialFarmAddPlanRequest(
+            Guid.NewGuid(),
+            "Source",
+            rows,
+            [new OfficialFarmAddTarget("A", 0, true)],
+            new HashSet<string>(),
+            "distance_asc",
+            "all",
+            0,
+            null,
+            null,
+            null,
+            null,
+            true,
+            false,
+            false,
+            false,
+            100,
+            true,
+            ExcludeNatars: true));
+
+        var plan = Assert.Single(plans);
+        Assert.Equal(new FarmCoordinate(3, 4), Assert.Single(plan.Coordinates));
+    }
+
+    [Fact]
+    public async Task FarmListsWorkflow_OwnsSnapshotRoundTripAndTimerRebase()
+    {
+        var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());
+        var lists = new[]
+        {
+            new FarmListOverview(
+                "Raiders", 2, 3, 60, "lid-1", 100, ["1|2", "3|4"],
+                VillageName: "Capital", VillageIndex: 0),
+        };
+
+        await workflow.SaveSnapshotAsync(lists, CancellationToken.None);
+        var fresh = await workflow.LoadFreshSnapshotAsync(CancellationToken.None);
+        var restored = await workflow.LoadRestoredSnapshotAsync(DateTimeOffset.UtcNow.AddSeconds(30));
+
+        Assert.Equal("lid-1", Assert.Single(fresh!).ListId);
+        var restoredList = Assert.Single(restored!);
+        Assert.InRange(restoredList.RemainingSeconds!.Value, 29, 30);
+        Assert.Equal(["1|2", "3|4"], restoredList.FarmCoordinates);
+        Assert.Equal("Capital", restoredList.VillageName);
+    }
+
+    [Fact]
+    public async Task FarmListsWorkflow_QuarantinesCorruptSnapshots()
+    {
+        var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());
+        var path = AccountStoragePaths.FarmListsSnapshotPath(_root, "alice");
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+        await File.WriteAllTextAsync(path, "{broken");
+
+        Assert.Null(await workflow.LoadRestoredSnapshotAsync(DateTimeOffset.UtcNow));
+        Assert.False(File.Exists(path));
+        Assert.Single(Directory.GetFiles(Path.GetDirectoryName(path)!, $"{Path.GetFileName(path)}.corrupt-*"));
+    }
+
+    [Fact]
+    public void FarmListsWorkflow_OwnsDispatchTransitions()
+    {
+        var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());
+        var options = new BotOptions
+        {
+            ContinuousFarmDispatchDelayMinMinutes = 10,
+            ContinuousFarmDispatchDelayMaxMinutes = 10,
+        };
+        var row = new FarmListStatusRow { Name = "Raiders", ListId = "lid-1", RemainingSeconds = 45 };
+
+        Assert.True(workflow.RecordDispatch(row, succeeded: true, options));
+        Assert.NotNull(row.LastSentAtUtc);
+        Assert.Equal(row.LastSentAtUtc!.Value.AddMinutes(10), row.NextSendAtUtc);
+        Assert.False(row.LastSendFailed);
+
+        Assert.True(workflow.PersistDispatchInterval(row, 20, 20, options));
+        Assert.Equal(row.LastSentAtUtc.Value.AddMinutes(20), row.NextSendAtUtc);
+
+        row.RemainingSeconds = 90;
+        Assert.True(workflow.ReconcileDispatches(
+            [row],
+            [FarmListsWorkflow.DispatchKey(row)],
+            options));
+        Assert.False(row.LastSendFailed);
+
+        row.ActiveFarmCount = 1;
+        row.TotalFarmCount = 1;
+        row.RemainingSeconds = null;
+        row.IsEnabled = true;
+        Assert.Equal(["lid:lid-1"], workflow.GetReadyDispatchKeys([row], enabledOnly: true));
+        Assert.Equal(["lid:lid-1"], workflow.GetAutoDispatchKeys([row], sendAllLists: true));
+    }
+
+    [Fact]
+    public void FarmListsWorkflow_PreparesAndPersistsTargetProtection()
+    {
+        var store = CreateConfigStore();
+        store.Save(new JsonObject());
+        var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), store);
+        var unavailable = workflow.PrepareTargetProtection(
+            new FarmTargetIdentity(false, null, null),
+            new AddFarmsProtectionPreferences(true, "Enemy", "Rivals"));
+
+        Assert.False(unavailable.IsAvailable);
+
+        var prepared = workflow.PrepareTargetProtection(
+            new FarmTargetIdentity(true, "Owner", "Friends"),
+            new AddFarmsProtectionPreferences(true, " Enemy ; enemy\nBandit ", "Rivals"));
+
+        Assert.True(prepared.IsAvailable);
+        Assert.Equal(
+            FarmTargetProtectionDecision.ExcludedPlayer,
+            prepared.Context!.Evaluate(false, new FarmTargetIdentity(true, "Bandit", null)));
+        Assert.Equal(
+            FarmTargetProtectionDecision.ExcludedAlliance,
+            prepared.Context.Evaluate(false, new FarmTargetIdentity(true, "Someone", "Friends")));
+        var loaded = workflow.LoadTargetProtectionPreferences();
+        Assert.True(loaded.ExcludeOwnAlliance);
+        Assert.Equal(" Enemy ; enemy\nBandit ", loaded.ExcludedPlayers);
+        Assert.Equal("Rivals", loaded.ExcludedAlliances);
+
+        var loggedOut = workflow.ValidateLossDestinationSetup(isLoggedIn: false);
+        Assert.False(loggedOut.CanStart);
+        Assert.Equal("You must log in first.", loggedOut.FailureMessage);
+        Assert.True(workflow.ValidateLossDestinationSetup(isLoggedIn: true).CanStart);
+    }
+
+    [Fact]
+    public async Task FarmListsWorkflow_OrchestratesCreateAndMultiListAdd()
+    {
+        var store = CreateConfigStore();
+        store.Save(new JsonObject());
+        var client = new RecordingFarmingClient();
+        var workflow = CreateFarmListsWorkflow(client, store);
+        var options = new BotOptions();
+        var createRequest = new FarmListCreateRequest(["A"], "Capital", "did:1", "Phalanx", 3);
+
+        var created = await workflow.CreateAfterAnalysisAsync(
+            options,
+            createRequest,
+            new Progress<FarmListCreateProgress>(),
+            CancellationToken.None);
+
+        Assert.Equal(client.CreateResult, created);
+        Assert.Equal(["gold", "overview", "create"], client.Calls);
+
+        client.Calls.Clear();
+        var protection = new FarmTargetProtectionContext("Owner", null, false, [], []);
+        var added = await workflow.RunAddPlansAsync(
+            options,
+            [
+                new OfficialFarmAddPlan(Guid.NewGuid(), "Source", "A", 5, [new FarmCoordinate(1, 2)]),
+                new OfficialFarmAddPlan(Guid.NewGuid(), "Source", "B", 5, [new FarmCoordinate(3, 4)]),
+            ],
+            true,
+            "Phalanx",
+            3,
+            protection,
+            new Progress<FarmAddProgress>(),
+            CancellationToken.None);
+
+        Assert.Equal(["add", "add"], client.Calls);
+        Assert.Equal(10, added.Requested);
+        Assert.Equal(6, added.Added);
+        Assert.Equal(2, added.Duplicates);
+        Assert.Equal(2, added.Failed);
+    }
+
+    [Fact]
+    public async Task FarmListsWorkflow_OwnsLossDestinationCreationAndVerification()
+    {
+        var store = CreateConfigStore();
+        store.Save(new JsonObject());
+        var client = new RecordingFarmingClient
+        {
+            Overview = [new FarmListOverview(
+                "Red losses", 0, 0, null, "list-7", 100, [], VillageName: "Capital")],
+            CreateResult = new FarmListCreateBatchResult(1, 1, ["Red losses"]),
+        };
+        var workflow = CreateFarmListsWorkflow(client, store);
+
+        var result = await workflow.CreateLossDestinationAsync(
+            new BotOptions { TargetVillageName = "Capital" },
+            [new VillageSelectionItem
+            {
+                Name = "Capital",
+                Url = "https://example.invalid/dorf1.php?newdid=7",
+                IsCapital = true,
+                Tribe = "Gauls",
+            }],
+            "Gauls",
+            FarmListLossColors.Red,
+            "Red losses",
+            CancellationToken.None);
+
+        Assert.Equal("list-7", result.Destination.ListId);
+        Assert.Equal("7", client.CreateRequest!.VillageId);
+        Assert.Equal(["create", "gold", "overview"], client.Calls);
+        Assert.Equal(
+            "Red losses",
+            store.Load()[BotOptionPayloadKeys.ContinuousFarmRedLossDestinationBaseName]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task FarmListsWorkflow_PausesAndResumesOriginalAutomationMode()
+    {
+        var store = CreateConfigStore();
+        store.Save(new JsonObject());
+        var automation = new RecordingFarmListsAutomationAdapter { ContinuousLoopRunning = true };
+        var workflow = new FarmListsWorkflow(
+            new RecordingFarmingClient(),
+            automation,
+            store,
+            _root,
+            () => "alice",
+            _ => { });
+
+        var resume = await workflow.PauseAutomationAsync(CancellationToken.None);
+
+        Assert.True(resume.ContinuousLoop);
+        Assert.False(automation.ContinuousLoopRunning);
+
+        await workflow.ResumeAutomationAsync(resume);
+
+        Assert.True(automation.ContinuousLoopRunning);
+        Assert.False(automation.AutoQueueRunning);
+    }
+
+    [Fact]
+    public void FarmListsWorkflow_PersistsSelectionAndRefreshesPendingPayload()
+    {
+        var store = CreateConfigStore();
+        store.Save(new JsonObject());
+        var queueItem = new QueueItem
+        {
+            TaskName = "send_farmlists",
+            Group = QueueGroup.Farming,
+            Status = QueueStatus.Pending,
+            Payload = new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.TargetVillageKey] = "xy:1|2",
+                [BotOptionPayloadKeys.ContinuousFarmListNames] = "Old",
+            },
+        };
+        var deadline = queueItem.NextAttemptAt;
+        var automation = new RecordingFarmListsAutomationAdapter { QueueItems = [queueItem] };
+        var workflow = new FarmListsWorkflow(
+            new RecordingFarmingClient(), automation, store, _root, () => "alice", _ => { });
+
+        workflow.SaveSelection(
+        [
+            new FarmListStatusRow { Name = "Raiders", ListId = "lid-1", IsEnabled = true },
+            new FarmListStatusRow { Name = "Disabled", ListId = "lid-2", IsEnabled = false },
+        ]);
+
+        var config = store.Load();
+        Assert.Equal("Raiders", config[BotOptionPayloadKeys.ContinuousFarmListNames]![0]!.GetValue<string>());
+        Assert.Equal("lid-1", config[BotOptionPayloadKeys.ContinuousFarmListIds]![0]!.GetValue<string>());
+        Assert.Equal("Raiders", automation.UpdatedPayload![BotOptionPayloadKeys.ContinuousFarmListNames]);
+        Assert.Equal("lid-1", automation.UpdatedPayload[BotOptionPayloadKeys.ContinuousFarmListIds]);
+        Assert.Equal(deadline, queueItem.NextAttemptAt);
+    }
+
+    [Fact]
+    public void FarmListsWorkflow_PersistsDestinationStateWithoutChangingTheContract()
     {
         var store = CreateConfigStore();
         store.Save(new JsonObject
@@ -191,7 +552,7 @@ public sealed class PanelServiceContractTests : IDisposable
             [BotOptionPayloadKeys.ContinuousFarmLossDestinationBaseName] = "Old base",
             ["unrelated"] = "keep",
         });
-        var service = new FarmingPanelService(new RecordingFarmingClient(), store);
+        var service = CreateFarmListsWorkflow(new RecordingFarmingClient(), store);
 
         var result = service.SaveSettings(new FarmingPanelSettings(
             SendMode: FarmingDefaults.SendModeSharedSchedule,
@@ -205,7 +566,6 @@ public sealed class PanelServiceContractTests : IDisposable
             MoveYellowLosses: true,
             SelectedRedDestination: new FarmLossDestinationOption("red-id", "Red farms", "Capital", 3, 12),
             SelectedYellowDestination: new FarmLossDestinationOption("yellow-id", "Yellow farms", "Capital", 4, 12)));
-        service.SaveDestinationBaseName(true, "Pinned red base");
         var persisted = store.Load();
 
         Assert.Equal(FarmingDefaults.SendModeSharedSchedule, result.SendMode);
@@ -214,7 +574,7 @@ public sealed class PanelServiceContractTests : IDisposable
         Assert.True(result.MoveYellowLossesEnabled);
         Assert.Equal("red-id", persisted[BotOptionPayloadKeys.ContinuousFarmRedLossDestinationListId]!.GetValue<string>());
         Assert.Equal("Red farms", persisted[BotOptionPayloadKeys.ContinuousFarmRedLossDestinationListName]!.GetValue<string>());
-        Assert.Equal("Pinned red base", persisted[BotOptionPayloadKeys.ContinuousFarmRedLossDestinationBaseName]!.GetValue<string>());
+        Assert.Equal("Red farms", persisted[BotOptionPayloadKeys.ContinuousFarmRedLossDestinationBaseName]!.GetValue<string>());
         Assert.Equal("yellow-id", persisted[BotOptionPayloadKeys.ContinuousFarmYellowLossDestinationListId]!.GetValue<string>());
         Assert.Equal(4, persisted[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMinMinutes]!.GetValue<int>());
         Assert.Equal(9, persisted[BotOptionPayloadKeys.ContinuousFarmDispatchDelayMaxMinutes]!.GetValue<int>());
@@ -294,6 +654,39 @@ public sealed class PanelServiceContractTests : IDisposable
     {
         Directory.CreateDirectory(_root);
         return new BotConfigStore(Path.Combine(_root, "bot.json"), _root, () => "alice");
+    }
+
+    private FarmListsWorkflow CreateFarmListsWorkflow(IFarmListsBrowserAdapter client, BotConfigStore store)
+        => new(client, new RecordingFarmListsAutomationAdapter(), store, _root, () => "alice", _ => { });
+
+    private sealed class RecordingFarmListsAutomationAdapter : IFarmListsAutomationAdapter
+    {
+        public bool ContinuousLoopRunning { get; set; }
+        public bool StartContinuousAfterQueueStop { get; set; }
+        public bool AutoQueueRunning { get; set; }
+        public bool UiBusy { get; set; }
+        public bool SessionAvailable { get; set; } = true;
+        public IReadOnlyList<QueueItem> QueueItems { get; set; } = [];
+        public Dictionary<string, string>? UpdatedPayload { get; private set; }
+        public void ClearPendingRestarts() { }
+        public void RequestStopAfterCurrentAction()
+        {
+            ContinuousLoopRunning = false;
+            AutoQueueRunning = false;
+            UiBusy = false;
+        }
+        public void UpdateExecutionIndicator() { }
+        public void StartContinuousLoop() => ContinuousLoopRunning = true;
+        public Task StartAutoQueueAsync()
+        {
+            AutoQueueRunning = true;
+            return Task.CompletedTask;
+        }
+        public bool UpdateDeferredQueueItem(Guid id, Dictionary<string, string> payload)
+        {
+            UpdatedPayload = payload;
+            return true;
+        }
     }
 
     private static TroopTrainingPayload TrainingPayload(string troop, int fallback)
@@ -382,12 +775,12 @@ public sealed class PanelServiceContractTests : IDisposable
         private Task<T> Record<T>(string call, BotOptions options, CancellationToken token, T result) { Calls.Add(call); Options.Add(options); CancellationTokens.Add(token); return Task.FromResult(result); }
     }
 
-    private sealed class RecordingFarmingClient : IFarmingPanelClient
+    private sealed class RecordingFarmingClient : IFarmListsBrowserAdapter
     {
-        public IReadOnlyList<FarmListOverview> Overview { get; } = [new("A", 1, 2, 30)];
+        public IReadOnlyList<FarmListOverview> Overview { get; set; } = [new("A", 1, 2, 30)];
         public FarmAddBatchResult AddResult { get; } = new("A", 5, 5, 3, 1, 1);
         public FarmTargetIdentity Identity { get; } = new(true, "Owner", "Alliance");
-        public FarmListCreateBatchResult CreateResult { get; } = new(1, 1, ["A"]);
+        public FarmListCreateBatchResult CreateResult { get; set; } = new(1, 1, ["A"]);
         public List<string> Calls { get; } = [];
         public List<CancellationToken> CancellationTokens { get; } = [];
         public IReadOnlyList<FarmCoordinate>? Coordinates { get; private set; }

@@ -151,7 +151,7 @@ public partial class AccountsWindow : Window
         var activeAccount = _accounts.FirstOrDefault(a => a.IsActive);
         InfoTextBlock.Text = activeAccount is null
             ? $"Active account: {_activeAccountName}"
-            : $"Active account: {activeAccount.Username} @ {(string.IsNullOrWhiteSpace(activeAccount.ServerName) ? activeAccount.ServerUrl : activeAccount.ServerName)}";
+            : $"Active account: {activeAccount.AccountDisplayName} @ {(string.IsNullOrWhiteSpace(activeAccount.ServerName) ? activeAccount.ServerUrl : activeAccount.ServerName)}";
         UpdateActionButtons();
     }
 
@@ -185,6 +185,7 @@ public partial class AccountsWindow : Window
         _editingOriginalName = selected.Name;
         _editingOriginalServerName = string.IsNullOrWhiteSpace(selected.ServerName) ? _defaultServerName : selected.ServerName;
 
+        DisplayNameTextBox.Text = selected.DisplayName;
         UsernameTextBox.Text = selected.Username;
         PasswordBox.Password = selected.Password;
         PasswordTextBox.Text = selected.Password;
@@ -235,7 +236,7 @@ public partial class AccountsWindow : Window
             _store.SetActive(selected.Name);
             Reload();
             SelectByName(selected.Name);
-            InfoTextBlock.Text = $"Active account set to '{selected.Username}'.";
+            InfoTextBlock.Text = $"Active account set to '{selected.AccountDisplayName}'.";
         }
         catch (Exception ex)
         {
@@ -271,7 +272,7 @@ public partial class AccountsWindow : Window
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        SaveEditor(isUpdate: false);
+        SaveEditor(isUpdate: _editingExistingAccount);
     }
 
     private void UpdateButton_Click(object sender, RoutedEventArgs e)
@@ -324,7 +325,9 @@ public partial class AccountsWindow : Window
                     return false;
                 }
 
-                var runtime = _proxyPlanStore.LoadRuntime(entry.Name);
+                var runtime = _editingExistingAccount
+                    ? _proxyPlanStore.LoadRuntime(entry.Name)
+                    : new AccountProxyRuntimeState();
                 var resolution = AccountProxyPlanResolver.Resolve(_editorProxyPlan, entry.Name, DateTimeOffset.Now, runtime);
                 var current = _proxyLibraryEntries.FirstOrDefault(proxy => string.Equals(proxy.Id, resolution.ProxyId, StringComparison.OrdinalIgnoreCase));
                 if (current is null && !string.IsNullOrWhiteSpace(resolution.ProxyId))
@@ -340,15 +343,28 @@ public partial class AccountsWindow : Window
                 }
             }
 
-            if (entry.ProxyEnabled && !ConfirmProxyReuseForSave(entry.ProxyServer, entry.Name))
+            var proxyReuseAccountName = _editingExistingAccount ? entry.Name : string.Empty;
+            if (entry.ProxyEnabled && !ConfirmProxyReuseForSave(entry.ProxyServer, proxyReuseAccountName))
             {
                 return false;
             }
 
             var setActiveForSave = !_editingExistingAccount && _accounts.Count == 0;
-            _store.SaveAccount(entry, setActive: setActiveForSave);
+            var draftAccountName = entry.Name;
+            if (_editingExistingAccount)
+            {
+                _store.SaveAccount(entry, setActive: setActiveForSave);
+            }
+            else
+            {
+                _store.CreateAccount(entry, setActive: setActiveForSave);
+            }
             _proxyPlanStore.SaveActive(entry.Name, _editorProxyPlan);
-            _proxyPlanStore.DeleteDraft(entry.Name);
+            _proxyPlanStore.DeleteDraft(draftAccountName);
+            if (!string.Equals(draftAccountName, entry.Name, StringComparison.OrdinalIgnoreCase))
+            {
+                _proxyPlanStore.DeleteDraft(entry.Name);
+            }
             if (rotationEnabled)
             {
                 foreach (var assignment in _editorProxyPlan.Assignments)
@@ -360,8 +376,8 @@ public partial class AccountsWindow : Window
             Reload();
             SelectByName(entry.Name);
             InfoTextBlock.Text = isUpdate
-                ? $"Updated account '{entry.Username}'."
-                : $"Saved account '{entry.Username}'.";
+                ? $"Updated account '{entry.AccountDisplayName}'."
+                : $"Saved account '{entry.AccountDisplayName}'.";
             return true;
         }
         catch (Exception ex)
@@ -386,7 +402,7 @@ public partial class AccountsWindow : Window
             {
                 var confirmAnyway = AppDialog.ShowCustom(
                     this,
-                    $"Delete active account '{selected.Username}' anyway?\n\nThis clears {blockingQueueItems} pending, running, or paused queue item(s) and removes the account state. This cannot be undone.",
+                    $"Delete active account '{selected.AccountDisplayName}' anyway?\n\nThis clears {blockingQueueItems} pending, running, or paused queue item(s) and removes the account state. This cannot be undone.",
                     "Delete account",
                     [("Delete anyway", MessageBoxResult.Yes), ("Cancel", MessageBoxResult.Cancel)],
                     MessageBoxImage.Warning,
@@ -399,7 +415,7 @@ public partial class AccountsWindow : Window
             }
             else
             {
-                var confirm = AppDialog.Show(this, $"Delete account '{selected.Username}'?", "Delete account", MessageBoxButton.YesNo, MessageBoxImage.Question);
+                var confirm = AppDialog.Show(this, $"Delete account '{selected.AccountDisplayName}'?", "Delete account", MessageBoxButton.YesNo, MessageBoxImage.Question);
                 if (confirm != MessageBoxResult.Yes)
                 {
                     return;
@@ -412,8 +428,8 @@ public partial class AccountsWindow : Window
             _deletionService.DeleteAccount(selected.Name, deleteAnyway: deleteAnyway);
             Reload();
             InfoTextBlock.Text = deleteAnyway
-                ? $"Deleted account '{selected.Username}' and cleared {blockingQueueItems} queue item(s)."
-                : $"Deleted account '{selected.Username}'.";
+                ? $"Deleted account '{selected.AccountDisplayName}' and cleared {blockingQueueItems} queue item(s)."
+                : $"Deleted account '{selected.AccountDisplayName}'.";
         }
         catch (Exception ex)
         {
@@ -1255,7 +1271,8 @@ public partial class AccountsWindow : Window
             _editingOriginalName,
             _editorProxyUsername,
             _editorProxyPassword,
-            ResolveEditorProxyId(proxyServer)));
+            ResolveEditorProxyId(proxyServer),
+            DisplayNameTextBox.Text));
     }
 
     private void SelectByName(string name)
@@ -1273,6 +1290,7 @@ public partial class AccountsWindow : Window
         _editingOriginalName = string.Empty;
         _editingOriginalServerName = string.Empty;
         _editorProxyId = string.Empty;
+        DisplayNameTextBox.Text = string.Empty;
         UsernameTextBox.Text = string.Empty;
         PasswordBox.Password = string.Empty;
         PasswordTextBox.Text = string.Empty;
@@ -1382,7 +1400,8 @@ public partial class AccountsWindow : Window
             (ServerComboBox.SelectedItem as ServerOption)?.BaseUrl?.Trim() ?? string.Empty,
             UseProxyCheckBox.IsChecked == true,
             BuildProxyServerString(),
-            NeverUseOwnIpCheckBox.IsChecked == true);
+            NeverUseOwnIpCheckBox.IsChecked == true,
+            DisplayNameTextBox.Text.Trim());
 
     private void SetProxyFieldsEnabled(bool enabled)
     {
@@ -1630,7 +1649,7 @@ public partial class AccountsWindow : Window
 
     private void UpdateActionButtons()
     {
-        SaveButton.IsEnabled = !_editingExistingAccount;
+        SaveButton.IsEnabled = !_editingExistingAccount || HasUnsavedChanges();
         UpdateButton.IsEnabled = _editingExistingAccount && HasUnsavedChanges();
         DeleteButton.IsEnabled = _editingExistingAccount;
     }

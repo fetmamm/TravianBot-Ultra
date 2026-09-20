@@ -24,19 +24,29 @@
         </Grid.RowDefinitions>
 
         <DockPanel Grid.Row="0" Margin="0,0,0,10">
-            <Button x:Name="SavePageHtmlButton"
-                    DockPanel.Dock="Right"
-                    HorizontalAlignment="Right"
-                    VerticalAlignment="Top"
-                    Padding="12,5"
-                    Content="Save HTML"
-                    Background="{DynamicResource SuccessBgBrush}"
-                    BorderBrush="{DynamicResource SuccessBorderBrush}"
-                    Foreground="{DynamicResource SuccessTextBrush}"
-                    FontWeight="SemiBold"
-                    ToolTip="Opens a dialog to save the raw HTML of the page the browser is currently on to a file for later analysis."
-                    ToolTipService.InitialShowDelay="500"
-                    Click="SavePageHtmlButton_Click" />
+            <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                <Button x:Name="SaveMapApiButton"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Margin="0,0,8,0"
+                        Padding="12,5"
+                        Content="Save map API"
+                        ToolTip="Saves one map API response at the coordinates and zoom currently shown on the map. Open and center the map first."
+                        ToolTipService.InitialShowDelay="500"
+                        Click="SaveMapApiButton_Click" />
+                <Button x:Name="SavePageHtmlButton"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        Padding="12,5"
+                        Content="Save HTML"
+                        Background="{DynamicResource SuccessBgBrush}"
+                        BorderBrush="{DynamicResource SuccessBorderBrush}"
+                        Foreground="{DynamicResource SuccessTextBrush}"
+                        FontWeight="SemiBold"
+                        ToolTip="Opens a dialog to save the raw HTML of the page the browser is currently on to a file for later analysis."
+                        ToolTipService.InitialShowDelay="500"
+                        Click="SavePageHtmlButton_Click" />
+            </StackPanel>
             <TextBlock Text="Debug tools"
                        FontSize="16"
                        FontWeight="SemiBold"

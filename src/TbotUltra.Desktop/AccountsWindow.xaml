@@ -49,7 +49,7 @@
                                     <ColumnDefinition Width="*" />
                                     <ColumnDefinition Width="*" />
                                 </Grid.ColumnDefinitions>
-                                <TextBlock Grid.Column="0" Text="{Binding Username}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0">
+                                <TextBlock Grid.Column="0" Text="{Binding AccountDisplayName}" TextTrimming="CharacterEllipsis" Margin="0,0,8,0">
                                     <TextBlock.Style>
                                         <Style TargetType="TextBlock">
                                             <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
@@ -86,20 +86,29 @@
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
+                        <RowDefinition Height="Auto" />
                         <RowDefinition Height="*" />
                         <RowDefinition Height="Auto" />
                     </Grid.RowDefinitions>
 
-                <StackPanel Grid.Row="0" Grid.Column="0" Orientation="Horizontal" Margin="0,0,8,8" VerticalAlignment="Center">
+                <TextBlock Grid.Row="0" Grid.Column="0" Text="Username (optional)" Margin="0,0,8,8" VerticalAlignment="Center" />
+                <TextBox x:Name="DisplayNameTextBox"
+                         Grid.Row="0"
+                         Grid.Column="1"
+                         Margin="0,0,0,8"
+                         TextChanged="EditorField_Changed"
+                         ToolTip="Optional name shown in Tbot Ultra to distinguish accounts. It is not used to sign in." />
+
+                <StackPanel Grid.Row="1" Grid.Column="0" Orientation="Horizontal" Margin="0,0,8,8" VerticalAlignment="Center">
                     <TextBlock Text="Email" VerticalAlignment="Center" />
                     <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
                                     Margin="6,0,0,0"
                                     ToolTip="Tbot Ultra signs in to your Travian lobby account with this email, selects the configured game world, and clicks Play now.&#10;Lobby data is isolated in a clean game context before normal automation begins." />
                 </StackPanel>
-                <TextBox x:Name="UsernameTextBox" Grid.Row="0" Grid.Column="1" Margin="0,0,0,8" TextChanged="EditorField_Changed" />
+                <TextBox x:Name="UsernameTextBox" Grid.Row="1" Grid.Column="1" Margin="0,0,0,8" TextChanged="EditorField_Changed" />
 
-                <TextBlock Grid.Row="1" Grid.Column="0" Text="Password" Margin="0,0,8,8" VerticalAlignment="Center" />
-                <StackPanel Grid.Row="1" Grid.Column="1" Margin="0,0,0,8">
+                <TextBlock Grid.Row="2" Grid.Column="0" Text="Password" Margin="0,0,8,8" VerticalAlignment="Center" />
+                <StackPanel Grid.Row="2" Grid.Column="1" Margin="0,0,0,8">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -131,8 +140,8 @@
                     </StackPanel>
                 </StackPanel>
 
-                <TextBlock Grid.Row="2" Grid.Column="0" Text="Server" Margin="0,0,8,8" VerticalAlignment="Center" />
-                <Grid Grid.Row="2" Grid.Column="1" Margin="0,0,0,8">
+                <TextBlock Grid.Row="3" Grid.Column="0" Text="Server" Margin="0,0,8,8" VerticalAlignment="Center" />
+                <Grid Grid.Row="3" Grid.Column="1" Margin="0,0,0,8">
                     <Grid.ColumnDefinitions>
                         <ColumnDefinition Width="*" />
                         <ColumnDefinition Width="130" />
@@ -164,14 +173,14 @@
                             Click="ServerListButton_Click" />
                 </Grid>
 
-                <TextBlock Grid.Row="3" Grid.Column="0" Text="Selected URL" Margin="0,0,8,16" VerticalAlignment="Center" />
-                <TextBlock x:Name="ServerUrlTextBlock" Grid.Row="3" Grid.Column="1" Margin="0,0,0,16" VerticalAlignment="Center" Foreground="{DynamicResource SlateTextBrush}" />
+                <TextBlock Grid.Row="4" Grid.Column="0" Text="Selected URL" Margin="0,0,8,16" VerticalAlignment="Center" />
+                <TextBlock x:Name="ServerUrlTextBlock" Grid.Row="4" Grid.Column="1" Margin="0,0,0,16" VerticalAlignment="Center" Foreground="{DynamicResource SlateTextBrush}" />
 
-                <Border Grid.Row="4" Grid.RowSpan="2" Grid.ColumnSpan="2" Margin="0,0,0,8"
+                <Border Grid.Row="5" Grid.RowSpan="2" Grid.ColumnSpan="2" Margin="0,0,0,8"
                         Background="{DynamicResource ControlBackgroundBrush}"
                         BorderBrush="{DynamicResource BorderBrush}" BorderThickness="1" CornerRadius="8" />
 
-                <StackPanel Grid.Row="4" Grid.Column="0" Margin="14,12,12,8" VerticalAlignment="Top">
+                <StackPanel Grid.Row="5" Grid.Column="0" Margin="14,12,12,8" VerticalAlignment="Top">
                     <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                         <TextBlock Text="PROXY SETTINGS" FontSize="11" FontWeight="SemiBold" VerticalAlignment="Center" />
                     </StackPanel>
@@ -201,7 +210,7 @@
                                         ToolTip="Blocks browser startup unless this account has a valid working proxy configured.&#10;Use this to avoid exposing your own IP address to Travian." />
                     </StackPanel>
                 </StackPanel>
-                <Grid Grid.Row="4" Grid.Column="1" Margin="0,12,14,8">
+                <Grid Grid.Row="5" Grid.Column="1" Margin="0,12,14,8">
                     <Grid.RowDefinitions>
                         <RowDefinition Height="Auto" />
                         <RowDefinition Height="Auto" />
@@ -397,7 +406,7 @@
                     </Grid>
                 </Grid>
 
-                <Border Grid.Row="5" Grid.ColumnSpan="2" Margin="14,6,14,14" Padding="0"
+                <Border Grid.Row="6" Grid.ColumnSpan="2" Margin="14,6,14,14" Padding="0"
                         Background="Transparent" BorderThickness="0">
                     <Grid>
                         <Grid.ColumnDefinitions>
@@ -426,7 +435,7 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Row="6"
+                <Border Grid.Row="7"
                         Grid.ColumnSpan="2"
                         Margin="0,12,0,0"
                         Padding="10,8"

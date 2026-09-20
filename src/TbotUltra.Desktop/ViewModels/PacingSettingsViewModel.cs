@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Collections.ObjectModel;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Common;
+using TbotUltra.Desktop.Services.Orchestration;
 using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop.ViewModels;
@@ -43,6 +44,7 @@ public sealed class PacingSettingsViewModel : BaseViewModel
     private string _continuousKeepAliveMaxMinutes = PacingDefaults.ContinuousKeepAliveMaxMinutes.ToString(CultureInfo.InvariantCulture);
     private bool _sessionPacingEnabled = PacingDefaults.SessionPacingEnabled;
     private bool _smartSleepEnabled = PacingDefaults.SmartSleepEnabled;
+    private bool _smartSleepWakeWhenConstructionQueueClears = PacingDefaults.SmartSleepWakeWhenConstructionQueueClears;
     private string _smartSleepMinimumOpportunityMinutes = PacingDefaults.SmartSleepMinimumOpportunityMinutes.ToString(CultureInfo.InvariantCulture);
     private string _smartSleepWakeBeforeMinutes = PacingDefaults.SmartSleepWakeBeforeMinutes.ToString(CultureInfo.InvariantCulture);
     private string _smartSleepWakeAfterMinutes = PacingDefaults.SmartSleepWakeAfterMinutes.ToString(CultureInfo.InvariantCulture);
@@ -71,12 +73,13 @@ public sealed class PacingSettingsViewModel : BaseViewModel
 
     public PacingSettingsViewModel()
     {
-        foreach (var group in QueueGroupCatalog.AllGroups.OrderBy(group => (int)group))
+        foreach (var group in SmartSleepDeadlinePolicy.AllGroups)
         {
             SmartSleepDeadlineGroups.Add(new SmartSleepDeadlineGroupOptionViewModel(
                 QueueGroupCatalog.GetKey(group),
                 QueueGroupCatalog.GetTitle(group)));
         }
+        SetSmartSleepDeadlineGroups(SmartSleepDeadlinePolicy.DefaultGroups.Select(QueueGroupCatalog.GetKey));
 
         for (var hour = 0; hour < 24; hour++)
         {
@@ -147,6 +150,7 @@ public sealed class PacingSettingsViewModel : BaseViewModel
             }
         }
     }
+    public bool SmartSleepWakeWhenConstructionQueueClears { get => _smartSleepWakeWhenConstructionQueueClears; set => SetProperty(ref _smartSleepWakeWhenConstructionQueueClears, value); }
     public string SmartSleepMinimumOpportunityMinutes { get => _smartSleepMinimumOpportunityMinutes; set => SetProperty(ref _smartSleepMinimumOpportunityMinutes, value); }
     public string SmartSleepWakeBeforeMinutes { get => _smartSleepWakeBeforeMinutes; set => SetProperty(ref _smartSleepWakeBeforeMinutes, value); }
     public string SmartSleepWakeAfterMinutes { get => _smartSleepWakeAfterMinutes; set => SetProperty(ref _smartSleepWakeAfterMinutes, value); }
@@ -232,12 +236,13 @@ public sealed class PacingSettingsViewModel : BaseViewModel
         ContinuousKeepAliveMaxMinutes = PacingDefaults.ContinuousKeepAliveMaxMinutes.ToString(CultureInfo.InvariantCulture);
         SessionPacingEnabled = PacingDefaults.SessionPacingEnabled;
         SmartSleepEnabled = PacingDefaults.SmartSleepEnabled;
+        SmartSleepWakeWhenConstructionQueueClears = PacingDefaults.SmartSleepWakeWhenConstructionQueueClears;
         SmartSleepMinimumOpportunityMinutes = PacingDefaults.SmartSleepMinimumOpportunityMinutes.ToString(CultureInfo.InvariantCulture);
         SmartSleepWakeBeforeMinutes = PacingDefaults.SmartSleepWakeBeforeMinutes.ToString(CultureInfo.InvariantCulture);
         SmartSleepWakeAfterMinutes = PacingDefaults.SmartSleepWakeAfterMinutes.ToString(CultureInfo.InvariantCulture);
         SmartSleepFallbackMinMinutes = PacingDefaults.SmartSleepFallbackMinMinutes.ToString(CultureInfo.InvariantCulture);
         SmartSleepFallbackMaxMinutes = PacingDefaults.SmartSleepFallbackMaxMinutes.ToString(CultureInfo.InvariantCulture);
-        SetSmartSleepDeadlineGroups(SmartSleepDeadlineGroups.Select(group => group.GroupKey));
+        SetSmartSleepDeadlineGroups(SmartSleepDeadlinePolicy.DefaultGroups.Select(QueueGroupCatalog.GetKey));
         SessionRunMinMinutes = PacingDefaults.SessionPacingRunMinMinutes.ToString(CultureInfo.InvariantCulture);
         SessionRunMaxMinutes = PacingDefaults.SessionPacingRunMaxMinutes.ToString(CultureInfo.InvariantCulture);
         SessionSleepMinMinutes = PacingDefaults.SessionPacingSleepMinMinutes.ToString(CultureInfo.InvariantCulture);
@@ -272,7 +277,7 @@ public sealed class PacingSettingsViewModel : BaseViewModel
     public void SetSmartSleepDeadlineGroups(IEnumerable<string>? groupKeys)
     {
         var selected = groupKeys is null
-            ? SmartSleepDeadlineGroups.Select(group => group.GroupKey).ToHashSet(StringComparer.OrdinalIgnoreCase)
+            ? SmartSleepDeadlinePolicy.DefaultGroups.Select(QueueGroupCatalog.GetKey).ToHashSet(StringComparer.OrdinalIgnoreCase)
             : groupKeys.ToHashSet(StringComparer.OrdinalIgnoreCase);
         foreach (var group in SmartSleepDeadlineGroups)
         {
