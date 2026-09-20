@@ -1,0 +1,37 @@
+<div id="heroAdventure">
+  <span class="noRallyPointInHomeVillage">
+    The hero's home village needs a rally point in order to send the hero
+  </span>
+</div>
+<script>
+initializePage({
+  viewData: {
+    "data": {
+      "ownPlayer": {
+        "hero": {
+          "homeVillage": {
+            "id": 24443,
+            "name": "WHY"
+          }
+        },
+        "villages": [
+          {
+            "id": 6981,
+            "name": "WhyNot",
+            "hasRallyPoint": true,
+            "x": 101,
+            "y": 114
+          },
+          {
+            "id": 24443,
+            "name": "WHY",
+            "hasRallyPoint": false,
+            "x": 164,
+            "y": 110
+          }
+        ]
+      }
+    }
+  }
+});
+</script>

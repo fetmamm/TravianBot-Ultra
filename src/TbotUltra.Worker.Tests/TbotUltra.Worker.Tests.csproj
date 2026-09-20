@@ -20,8 +20,7 @@
     <None Include="..\..\.release-template\config\bot.json"
           Link="ReleaseTemplate\bot.json"
           CopyToOutputDirectory="PreserveNewest" />
-    <None Include="..\..\docs\DOM\hero_adv_noRp.txt"
-          Link="Fixtures\hero_adv_noRp.txt"
+    <None Update="Fixtures\hero_adv_noRp.txt"
           CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\scripts\Test-ReleaseBundle.ps1"
           Link="ReleaseScripts\Test-ReleaseBundle.ps1"
