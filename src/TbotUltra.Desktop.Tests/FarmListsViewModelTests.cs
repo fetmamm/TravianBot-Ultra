@@ -207,15 +207,15 @@ public sealed class FarmListsViewModelTests
     {
         var vm = new FarmListsViewModel();
 
+        Assert.Equal("Shared interval", vm.DispatchIntervalTitle);
+        Assert.Contains("shared run", vm.DispatchIntervalDescription);
+        Assert.True(vm.UseSharedSchedule);
+
+        vm.UseIndividualSchedules = true;
+
         Assert.Equal("Default interval", vm.DispatchIntervalTitle);
         Assert.Contains("first loaded", vm.DispatchIntervalDescription);
         Assert.True(vm.UseIndividualSchedules);
-
-        vm.UseSharedSchedule = true;
-
-        Assert.Equal("Shared interval", vm.DispatchIntervalTitle);
-        Assert.Contains("enabled lists", vm.DispatchModeDescription);
-        Assert.True(vm.UseSharedSchedule);
 
         vm.SendAllLists = true;
 

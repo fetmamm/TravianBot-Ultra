@@ -9,7 +9,7 @@
   ],
   "continuous_farm_dispatch_delay_min_minutes": 30,
   "continuous_farm_dispatch_delay_max_minutes": 90,
-  "continuous_farm_send_mode": "list_per_list",
+  "continuous_farm_send_mode": "shared_schedule",
   "github_releases_url": "",
   "human_like_enabled": false,
   "human_like_speed": "slow",

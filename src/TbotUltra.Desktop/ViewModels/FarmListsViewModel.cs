@@ -26,7 +26,7 @@ public sealed class FarmListsViewModel : BaseViewModel
     private bool _canCreate = true;
     private bool _canSendAll;
     private int _settingsNotificationSuppressionCount;
-    private string _sendMode = FarmingDefaults.SendModeListPerList;
+    private string _sendMode = FarmingDefaults.DefaultSendMode;
     private string _dispatchDelayMinMinutes = "15";
     private string _dispatchDelayMaxMinutes = "30";
     private bool _deactivateRedLosses;

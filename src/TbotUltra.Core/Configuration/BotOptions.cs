@@ -44,7 +44,7 @@ public sealed record BotOptions
     public int ContinuousFarmDispatchDelayMaxMinutes { get; init; } = FarmingDefaults.DefaultDispatchDelayMaxMinutes;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousFarmSendMode)]
-    public string ContinuousFarmSendMode { get; init; } = FarmingDefaults.SendModeListPerList;
+    public string ContinuousFarmSendMode { get; init; } = FarmingDefaults.DefaultSendMode;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.FarmListOnlyCreateReportsWithLosses)]
     public bool FarmListOnlyCreateReportsWithLosses { get; init; } = FarmingDefaults.OnlyCreateReportsWithLosses;

@@ -808,7 +808,7 @@ public sealed class BotOptionsPayloadApplierTests
 
         Assert.Equal(4, options.ContinuousFarmDispatchDelayMinMinutes);
         Assert.Equal(18, options.ContinuousFarmDispatchDelayMaxMinutes);
-        Assert.Equal(FarmingDefaults.SendModeListPerList, options.ContinuousFarmSendMode);
+        Assert.Equal(FarmingDefaults.SendModeSharedSchedule, options.ContinuousFarmSendMode);
         Assert.True(options.ContinuousFarmDeactivateLosses);
         Assert.False(options.ContinuousFarmDeactivateOasisLosses);
     }

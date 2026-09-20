@@ -690,7 +690,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   recipients from a verified send. The analysis preview shows the summed map.sql village population per player in
   the exact selected send order.
 - Farm-list exact timers get a 5-15s render margin; unreadable disabled timers use an estimated 60s wait.
-- "Individual schedule" and "Shared schedule" send only UI-enabled farm lists ONE AT A TIME via
+- "Shared schedule" is the default farm-list send mode and appears before "Individual schedule" in the UI.
+  Both modes send only UI-enabled farm lists ONE AT A TIME via
   `SendFarmListsSequentiallyAsync`: click each list's Start,
   then wait for that list's `.farmListStatus` "N/M being raided" numerator to rise (or its Start to disable)
   before the next individual click so a failed list is detected before advancing.
