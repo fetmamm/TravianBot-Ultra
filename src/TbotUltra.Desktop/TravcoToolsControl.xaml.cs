@@ -25,6 +25,7 @@ public partial class TravcoToolsControl : UserControl
     public Func<TravcoSearchRequest, IProgress<TravcoSearchProgress>, CancellationToken, Task<TravcoScrapeResult>>? SearchRequested { get; init; }
     public Func<IProgress<(int CurrentPage, int TotalPages)>, CancellationToken, Task<TravcoScrapeResult>>? ScrapeAllPagesRequested { get; init; }
     public Func<MapOasisScanRequest, IProgress<MapOasisScanProgress>, CancellationToken, Task<List<OasisInfo>>>? MapOasisScanRequested { get; init; }
+    public Func<bool>? MapOasisScanExists { get; init; }
     public Func<MapSqlVillageImportRequest, IProgress<MapSqlVillageImportProgress>, CancellationToken, Task<MapSqlVillageImportResult>>? AddAllVillagesRequested { get; init; }
     public Func<Task>? CloseRequested { get; init; }
     public Func<IReadOnlyList<VillageSelectionItem>>? VillagesRequested { get; init; }
@@ -282,7 +283,10 @@ public partial class TravcoToolsControl : UserControl
             return;
         }
 
-        var settings = new MapOasisSettingsWindow(_viewModel.Villages, _viewModel.SelectedVillage)
+        var settings = new MapOasisSettingsWindow(
+            _viewModel.Villages,
+            _viewModel.SelectedVillage,
+            MapOasisScanExists?.Invoke() == true)
         {
             Owner = Window.GetWindow(this),
         };

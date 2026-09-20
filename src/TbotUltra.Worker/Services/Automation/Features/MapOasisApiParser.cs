@@ -77,7 +77,9 @@ internal static partial class MapOasisApiParser
         int maximumX = 200,
         int minimumY = -200,
         int maximumY = 200,
-        int tileRadius = 15)
+        int tileRadius = 15,
+        int? startingX = null,
+        int? startingY = null)
     {
         if (minimumX > maximumX || minimumY > maximumY || tileRadius < 0)
         {
@@ -87,14 +89,7 @@ internal static partial class MapOasisApiParser
         var width = (tileRadius * 2) + 1;
         var xAxis = CreateScanAxis(minimumX, maximumX, width, tileRadius);
         var yAxis = CreateScanAxis(minimumY, maximumY, width, tileRadius);
-        var centers = new List<(int X, int Y)>(xAxis.Count * yAxis.Count);
-        for (var row = 0; row < yAxis.Count; row++)
-        {
-            var xValues = row % 2 == 0 ? xAxis : xAxis.AsEnumerable().Reverse();
-            centers.AddRange(xValues.Select(x => (x, yAxis[row])));
-        }
-
-        return centers;
+        return OrderScanCenters(xAxis, yAxis, startingX, startingY);
     }
 
     public static IReadOnlyList<(int X, int Y)> CreateScanCenters(
@@ -103,7 +98,9 @@ internal static partial class MapOasisApiParser
         int minimumY,
         int maximumY,
         int horizontalTileRadius,
-        int verticalTileRadius)
+        int verticalTileRadius,
+        int? startingX = null,
+        int? startingY = null)
     {
         if (minimumX > maximumX || minimumY > maximumY
             || horizontalTileRadius < 0 || verticalTileRadius < 0)
@@ -113,14 +110,7 @@ internal static partial class MapOasisApiParser
 
         var xAxis = CreateBoundedScanAxis(minimumX, maximumX, horizontalTileRadius);
         var yAxis = CreateBoundedScanAxis(minimumY, maximumY, verticalTileRadius);
-        var centers = new List<(int X, int Y)>(xAxis.Count * yAxis.Count);
-        for (var row = 0; row < yAxis.Count; row++)
-        {
-            var xValues = row % 2 == 0 ? xAxis : xAxis.AsEnumerable().Reverse();
-            centers.AddRange(xValues.Select(x => (x, yAxis[row])));
-        }
-
-        return centers;
+        return OrderScanCenters(xAxis, yAxis, startingX, startingY);
     }
 
     private static List<int> CreateScanAxis(int minimumCoordinate, int maximumCoordinate, int width, int tileRadius)
@@ -145,6 +135,60 @@ internal static partial class MapOasisApiParser
         }
 
         return axis;
+    }
+
+    private static IReadOnlyList<(int X, int Y)> OrderScanCenters(
+        IReadOnlyList<int> xAxis,
+        IReadOnlyList<int> yAxis,
+        int? startingX,
+        int? startingY)
+    {
+        var centers = new List<(int X, int Y)>(xAxis.Count * yAxis.Count);
+        if (startingX is null || startingY is null)
+        {
+            for (var row = 0; row < yAxis.Count; row++)
+            {
+                var xValues = row % 2 == 0 ? xAxis : xAxis.Reverse();
+                centers.AddRange(xValues.Select(x => (x, yAxis[row])));
+            }
+
+            return centers;
+        }
+
+        var column = Enumerable.Range(0, xAxis.Count).MinBy(index => Math.Abs(xAxis[index] - startingX.Value));
+        var rowIndex = Enumerable.Range(0, yAxis.Count).MinBy(index => Math.Abs(yAxis[index] - startingY.Value));
+        AddIfInside(column, rowIndex);
+
+        var directions = new (int X, int Y)[] { (1, 0), (0, 1), (-1, 0), (0, -1) };
+        var stepLength = 1;
+        var directionIndex = 0;
+        while (centers.Count < xAxis.Count * yAxis.Count)
+        {
+            for (var repeat = 0; repeat < 2; repeat++)
+            {
+                var direction = directions[directionIndex % directions.Length];
+                for (var step = 0; step < stepLength; step++)
+                {
+                    column += direction.X;
+                    rowIndex += direction.Y;
+                    AddIfInside(column, rowIndex);
+                }
+
+                directionIndex++;
+            }
+
+            stepLength++;
+        }
+
+        return centers;
+
+        void AddIfInside(int xIndex, int yIndex)
+        {
+            if (xIndex >= 0 && xIndex < xAxis.Count && yIndex >= 0 && yIndex < yAxis.Count)
+            {
+                centers.Add((xAxis[xIndex], yAxis[yIndex]));
+            }
+        }
     }
 
     // Travian embeds Unicode bidi-control characters (U+202D/U+202C) throughout the tile text,

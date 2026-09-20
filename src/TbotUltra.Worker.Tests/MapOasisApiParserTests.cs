@@ -1,3 +1,4 @@
+using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services.Automation;
 using Xunit;
 
@@ -173,6 +174,49 @@ public sealed class MapOasisApiParserTests
 
         Assert.Equal(480, centers.Count);
         Assert.Equal((-190, -192), centers[0]);
+    }
+
+    [Fact]
+    public void CreateScanCenters_StartsNearSelectedVillageAndMovesOutwardWithoutExtraAreas()
+    {
+        var centers = MapOasisApiParser.CreateScanCenters(
+            -40,
+            40,
+            -40,
+            40,
+            startingX: 0,
+            startingY: 0);
+
+        Assert.Equal(
+            [(6, 6), (37, 6), (37, 37), (6, 37), (-25, 37), (-25, 6), (-25, -25), (6, -25), (37, -25)],
+            centers);
+    }
+
+    [Fact]
+    public void CreateScanCenters_WholeMapStartsNearestSelectedVillageWithoutExtraAreas()
+    {
+        var centers = MapOasisApiParser.CreateScanCenters(startingX: 101, startingY: 114);
+
+        Assert.Equal(169, centers.Count);
+        Assert.Equal((94, 125), centers[0]);
+        Assert.Equal(169, centers.Distinct().Count());
+    }
+
+    [Theory]
+    [InlineData(MapOasisScanScope.Radius, 9, 20, 72)]
+    [InlineData(MapOasisScanScope.WholeMap, 169, 480, 1665)]
+    public void ScanEstimate_MatchesAreaCoverage(
+        MapOasisScanScope scope,
+        int expectedZoom3,
+        int expectedZoom2,
+        int expectedZoom1)
+    {
+        var estimate = MapOasisScanEstimate.Calculate(
+            new MapOasisScanRequest(0, 0, scope, MapOasisScanRequest.DefaultRadius, MapOasisScanSpeed.Normal));
+
+        Assert.Equal(expectedZoom3, estimate.Zoom3Requests);
+        Assert.Equal(expectedZoom2, estimate.Zoom2Requests);
+        Assert.Equal(expectedZoom1, estimate.Zoom1Requests);
     }
 
     private static string CreateResponse(string tiles) => $"{{\"tiles\":[{tiles}]}}";

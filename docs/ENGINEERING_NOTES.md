@@ -809,7 +809,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Map oasis scans probe zoom level 3 first. If every returned tile is a `{k.regionTooltip}` overlay, the scan is
   on a regional world and must try zoom level 2 with its verified 21x17 tile coverage, then zoom level 1 with
   11x9 coverage only if zoom 2 is also an overlay; checkpoints include the chosen API zoom so incompatible scans
-  are never resumed.
+  are never resumed. Scan areas are ordered from the selected starting point outwards without increasing the area
+  count; the default rectangular radius is 40 coordinates in each direction. Whole-map scans and repeated scans
+  require confirmation, while repeated scans remain available because oasis animals can change.
 - The Dashboard active-village border represents verified live browser state only. Queue selection/Running state
   must never pre-mark a task's target village; update it only after a successful browser village verification.
 - Incoming Attack monitoring may navigate to Rally Point only while Continuous Loop or Auto Queue is running; being

@@ -42,7 +42,13 @@ internal sealed class MapOasisScanOperation(
             throw new InvalidOperationException("Map oasis center must be within the map boundaries.");
         }
 
-        var centers = MapOasisApiParser.CreateScanCenters(minimumX, maximumX, minimumY, maximumY);
+        var centers = MapOasisApiParser.CreateScanCenters(
+            minimumX,
+            maximumX,
+            minimumY,
+            maximumY,
+            startingX: request.CenterX,
+            startingY: request.CenterY);
         var zoomLevel = 3;
         string? firstAreaJson = null;
         if (centers.Count > 0)
@@ -58,7 +64,9 @@ internal sealed class MapOasisScanOperation(
                     minimumY,
                     maximumY,
                     horizontalTileRadius: 10,
-                    verticalTileRadius: 8);
+                    verticalTileRadius: 8,
+                    startingX: request.CenterX,
+                    startingY: request.CenterY);
                 firstCenter = centers[0];
                 firstAreaJson = await ReadWithRetryAsync(firstCenter.X, firstCenter.Y, zoomLevel, cancellationToken);
                 if (MapOasisApiParser.IsRegionOverlay(firstAreaJson))
@@ -70,7 +78,9 @@ internal sealed class MapOasisScanOperation(
                         minimumY,
                         maximumY,
                         horizontalTileRadius: 5,
-                        verticalTileRadius: 4);
+                        verticalTileRadius: 4,
+                        startingX: request.CenterX,
+                        startingY: request.CenterY);
                     firstCenter = centers[0];
                     firstAreaJson = await ReadWithRetryAsync(firstCenter.X, firstCenter.Y, zoomLevel, cancellationToken);
                     if (MapOasisApiParser.IsRegionOverlay(firstAreaJson))
@@ -89,7 +99,7 @@ internal sealed class MapOasisScanOperation(
 
         var selected = new HashSet<string>(input.SelectedTypes, StringComparer.OrdinalIgnoreCase);
         var filterKey = string.Join("|", selected.OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
-            + $";scope={request.Scope};center={request.CenterX}|{request.CenterY};radius={request.Radius};speed={request.Speed};mapApiZoom={zoomLevel}";
+            + $";scope={request.Scope};center={request.CenterX}|{request.CenterY};radius={request.Radius};speed={request.Speed};mapApiZoom={zoomLevel};order=centerOutV1";
         var checkpointPath = AccountStoragePaths.MapOasisCheckpointPath(projectRoot, accountName, serverUrl);
         var checkpoint = await LoadSnapshotAsync(checkpointPath, filterKey, input.IncludeOccupied, cancellationToken);
         var completedAreas = checkpoint?.CompletedAreas.ToHashSet() ?? [];
@@ -151,10 +161,27 @@ internal sealed class MapOasisScanOperation(
         for (var attempt = 1; attempt <= 3; attempt++)
         {
             try { return await reader.ReadMapAreaAsync(x, y, zoomLevel, token); }
-            catch (Exception ex) when (ex is not OperationCanceledException && attempt < 3)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                log($"[map-oasis] area ({x}|{y}) at zoom level {zoomLevel} attempt {attempt}/3 failed: {ex.Message}");
-                await Task.Delay(TimeSpan.FromSeconds(attempt), token);
+                if (ex.Message.Contains("HTTP 403", StringComparison.OrdinalIgnoreCase)
+                    || ex.Message.Contains("captcha", StringComparison.OrdinalIgnoreCase))
+                {
+                    throw new InvalidOperationException(
+                        "Map oasis scan stopped because Travian denied the request or requested verification.",
+                        ex);
+                }
+
+                if (attempt == 3)
+                {
+                    break;
+                }
+
+                var rateLimited = ex.Message.Contains("HTTP 429", StringComparison.OrdinalIgnoreCase);
+                var minimumSeconds = rateLimited ? 30 * attempt : 2 * attempt;
+                var maximumSeconds = rateLimited ? 60 * attempt : 4 * attempt;
+                var delaySeconds = Random.Shared.NextDouble() * (maximumSeconds - minimumSeconds) + minimumSeconds;
+                log($"[map-oasis] area ({x}|{y}) at zoom level {zoomLevel} attempt {attempt}/3 failed: {ex.Message}. Retrying in {delaySeconds:0.0}s.");
+                await Task.Delay(TimeSpan.FromSeconds(delaySeconds), token);
             }
         }
         throw new InvalidOperationException($"Could not read map area centered at ({x}|{y}) at zoom level {zoomLevel} after 3 attempts.");

@@ -96,6 +96,32 @@ public sealed class MapOasisScanOperationTests
         }
     }
 
+    [Fact]
+    public async Task ExecuteAsync_StopsImmediatelyWhenTravianDeniesMapRequests()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"tbot-map-oasis-denied-{Guid.NewGuid():N}");
+        try
+        {
+            var reader = new RejectingMapReader();
+            var operation = new MapOasisScanOperation(reader, root, "account", "https://example.com", _ => { });
+
+            var error = await Assert.ThrowsAsync<InvalidOperationException>(() => operation.ExecuteAsync(
+                new MapOasisScanInput(
+                    new MapOasisScanRequest(0, 0, MapOasisScanScope.Radius, 1, MapOasisScanSpeed.Fast),
+                    IncludeOccupied: true,
+                    SelectedTypes: ["Crop"]),
+                progress: null,
+                CancellationToken.None));
+
+            Assert.Contains("denied the request", error.Message);
+            Assert.Equal(1, reader.CallCount);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
     private sealed class ScriptedMapReader(string json) : IMapOasisAreaReader
     {
         public Task<string> ReadMapAreaAsync(int x, int y, int zoomLevel, CancellationToken cancellationToken) => Task.FromResult(json);
@@ -111,6 +137,17 @@ public sealed class MapOasisScanOperationTests
             return Task.FromResult(zoomLevel == detailedZoomLevel
                 ? """{"tiles":[{"position":{"x":-187,"y":-185},"did":-1,"title":"{k.fo}","text":"{k.regionTooltip} Volubilis<br />{a:r2} {a.r2} 25%<br />{a:r4} {a.r4} 25%"}]}"""
                 : """{"tiles":[{"position":{"x":-187,"y":-185},"title":"{k.regionTooltip} Volubilis","text":"The eagles slight eyes VII"}]}""");
+        }
+    }
+
+    private sealed class RejectingMapReader : IMapOasisAreaReader
+    {
+        public int CallCount { get; private set; }
+
+        public Task<string> ReadMapAreaAsync(int x, int y, int zoomLevel, CancellationToken cancellationToken)
+        {
+            CallCount++;
+            throw new InvalidOperationException("HTTP 403: forbidden");
         }
     }
 }
