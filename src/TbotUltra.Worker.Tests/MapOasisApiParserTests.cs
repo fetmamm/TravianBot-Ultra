@@ -126,6 +126,21 @@ public sealed class MapOasisApiParserTests
     }
 
     [Fact]
+    public void IsRegionOverlay_DetectsRiseOfGovernorsZoomThreeResponse()
+    {
+        const string json = """
+            {"tiles":[
+              {"position":{"x":-187,"y":-185},"title":"{k.regionTooltip} Volubilis","text":"The eagles slight eyes VII"},
+              {"position":{"x":-186,"y":-185},"did":22071,"title":"{k.regionTooltip} Volubilis","text":"Village in region"}
+            ]}
+            """;
+
+        Assert.True(MapOasisApiParser.IsRegionOverlay(json));
+        Assert.False(MapOasisApiParser.IsRegionOverlay(CreateResponse(
+            "{\"position\":{\"x\":-187,\"y\":-185},\"did\":-1,\"title\":\"{k.fo}\",\"text\":\"{a:r2} {a.r2} 25%\"}")));
+    }
+
+    [Fact]
     public void CreateScanCenters_CoversFullFourHundredOneTileWorld()
     {
         var centers = MapOasisApiParser.CreateScanCenters();
@@ -141,6 +156,23 @@ public sealed class MapOasisApiParserTests
         var centers = MapOasisApiParser.CreateScanCenters(-30, 30, -30, 30);
 
         Assert.Equal([(-15, -15), (16, -15), (16, 16), (-15, 16)], centers);
+    }
+
+    [Fact]
+    public void CreateScanCenters_ForDetailedRegionTiles_UsesBoundedRectangularCoverage()
+    {
+        var centers = MapOasisApiParser.CreateScanCenters(-198, -178, -192, -176, 10, 8);
+
+        Assert.Equal([(-188, -184)], centers);
+    }
+
+    [Fact]
+    public void CreateScanCenters_ZoomTwoCoversFullWorldInFourHundredEightyAreas()
+    {
+        var centers = MapOasisApiParser.CreateScanCenters(-200, 200, -200, 200, 10, 8);
+
+        Assert.Equal(480, centers.Count);
+        Assert.Equal((-190, -192), centers[0]);
     }
 
     private static string CreateResponse(string tiles) => $"{{\"tiles\":[{tiles}]}}";

@@ -7,7 +7,7 @@ namespace TbotUltra.Worker.Services.Automation;
 
 internal interface IMapOasisAreaReader
 {
-    Task<string> ReadMapAreaAsync(int x, int y, CancellationToken cancellationToken);
+    Task<string> ReadMapAreaAsync(int x, int y, int zoomLevel, CancellationToken cancellationToken);
 }
 
 internal sealed class MapOasisScanOperation(
@@ -43,14 +43,58 @@ internal sealed class MapOasisScanOperation(
         }
 
         var centers = MapOasisApiParser.CreateScanCenters(minimumX, maximumX, minimumY, maximumY);
+        var zoomLevel = 3;
+        string? firstAreaJson = null;
+        if (centers.Count > 0)
+        {
+            var firstCenter = centers[0];
+            firstAreaJson = await ReadWithRetryAsync(firstCenter.X, firstCenter.Y, zoomLevel, cancellationToken);
+            if (MapOasisApiParser.IsRegionOverlay(firstAreaJson))
+            {
+                zoomLevel = 2;
+                centers = MapOasisApiParser.CreateScanCenters(
+                    minimumX,
+                    maximumX,
+                    minimumY,
+                    maximumY,
+                    horizontalTileRadius: 10,
+                    verticalTileRadius: 8);
+                firstCenter = centers[0];
+                firstAreaJson = await ReadWithRetryAsync(firstCenter.X, firstCenter.Y, zoomLevel, cancellationToken);
+                if (MapOasisApiParser.IsRegionOverlay(firstAreaJson))
+                {
+                    zoomLevel = 1;
+                    centers = MapOasisApiParser.CreateScanCenters(
+                        minimumX,
+                        maximumX,
+                        minimumY,
+                        maximumY,
+                        horizontalTileRadius: 5,
+                        verticalTileRadius: 4);
+                    firstCenter = centers[0];
+                    firstAreaJson = await ReadWithRetryAsync(firstCenter.X, firstCenter.Y, zoomLevel, cancellationToken);
+                    if (MapOasisApiParser.IsRegionOverlay(firstAreaJson))
+                    {
+                        throw new InvalidOperationException("The map API returned only regional overlays at zoom levels 3, 2, and 1.");
+                    }
+
+                    log("[map-oasis] regional overlays detected at zoom levels 3 and 2; using detailed zoom level 1 with 11x9 tile coverage.");
+                }
+                else
+                {
+                    log("[map-oasis] regional map overlay detected at zoom level 3; using detailed zoom level 2 with 21x17 tile coverage.");
+                }
+            }
+        }
+
         var selected = new HashSet<string>(input.SelectedTypes, StringComparer.OrdinalIgnoreCase);
         var filterKey = string.Join("|", selected.OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
-            + $";scope={request.Scope};center={request.CenterX}|{request.CenterY};radius={request.Radius};speed={request.Speed}";
+            + $";scope={request.Scope};center={request.CenterX}|{request.CenterY};radius={request.Radius};speed={request.Speed};mapApiZoom={zoomLevel}";
         var checkpointPath = AccountStoragePaths.MapOasisCheckpointPath(projectRoot, accountName, serverUrl);
         var checkpoint = await LoadSnapshotAsync(checkpointPath, filterKey, input.IncludeOccupied, cancellationToken);
         var completedAreas = checkpoint?.CompletedAreas.ToHashSet() ?? [];
         var found = (checkpoint?.Oases ?? []).ToDictionary(oasis => (oasis.X, oasis.Y));
-        log($"[map-oasis] scanning {centers.Count} map areas with zoom level 3; scope={request.Scope}; center=({request.CenterX}|{request.CenterY}); radius={request.Radius}; speed={request.Speed}.");
+        log($"[map-oasis] scanning {centers.Count} map areas with zoom level {zoomLevel}; scope={request.Scope}; center=({request.CenterX}|{request.CenterY}); radius={request.Radius}; speed={request.Speed}.");
 
         try
         {
@@ -59,7 +103,9 @@ internal sealed class MapOasisScanOperation(
                 cancellationToken.ThrowIfCancellationRequested();
                 if (completedAreas.Contains(index)) continue;
                 var center = centers[index];
-                var json = await ReadWithRetryAsync(center.X, center.Y, cancellationToken);
+                var json = index == 0 && firstAreaJson is not null
+                    ? firstAreaJson
+                    : await ReadWithRetryAsync(center.X, center.Y, zoomLevel, cancellationToken);
                 foreach (var oasis in MapOasisApiParser.Parse(json))
                 {
                     if (oasis.X is < -200 or > 200 || oasis.Y is < -200 or > 200
@@ -100,18 +146,18 @@ internal sealed class MapOasisScanOperation(
         return new MapOasisScanResult(result, completedAreas.Count, centers.Count);
     }
 
-    private async Task<string> ReadWithRetryAsync(int x, int y, CancellationToken token)
+    private async Task<string> ReadWithRetryAsync(int x, int y, int zoomLevel, CancellationToken token)
     {
         for (var attempt = 1; attempt <= 3; attempt++)
         {
-            try { return await reader.ReadMapAreaAsync(x, y, token); }
+            try { return await reader.ReadMapAreaAsync(x, y, zoomLevel, token); }
             catch (Exception ex) when (ex is not OperationCanceledException && attempt < 3)
             {
-                log($"[map-oasis] area ({x}|{y}) attempt {attempt}/3 failed: {ex.Message}");
+                log($"[map-oasis] area ({x}|{y}) at zoom level {zoomLevel} attempt {attempt}/3 failed: {ex.Message}");
                 await Task.Delay(TimeSpan.FromSeconds(attempt), token);
             }
         }
-        throw new InvalidOperationException($"Could not read map area centered at ({x}|{y}) after 3 attempts.");
+        throw new InvalidOperationException($"Could not read map area centered at ({x}|{y}) at zoom level {zoomLevel} after 3 attempts.");
     }
 
     private async Task ApplyDelayAsync(MapOasisScanSpeed speed, int completed, CancellationToken token)

@@ -7,6 +7,28 @@ namespace TbotUltra.Worker.Services.Automation;
 
 internal static partial class MapOasisApiParser
 {
+    public static bool IsRegionOverlay(string json)
+    {
+        using var document = JsonDocument.Parse(json);
+        if (!document.RootElement.TryGetProperty("tiles", out var tiles)
+            || tiles.ValueKind != JsonValueKind.Array
+            || tiles.GetArrayLength() == 0)
+        {
+            return false;
+        }
+
+        foreach (var tile in tiles.EnumerateArray())
+        {
+            if (!TryReadString(tile, "title", out var title)
+                || !title.StartsWith("{k.regionTooltip}", StringComparison.Ordinal))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
     public static IReadOnlyList<MapOasisEntry> Parse(string json)
     {
         using var document = JsonDocument.Parse(json);
@@ -75,12 +97,51 @@ internal static partial class MapOasisApiParser
         return centers;
     }
 
+    public static IReadOnlyList<(int X, int Y)> CreateScanCenters(
+        int minimumX,
+        int maximumX,
+        int minimumY,
+        int maximumY,
+        int horizontalTileRadius,
+        int verticalTileRadius)
+    {
+        if (minimumX > maximumX || minimumY > maximumY
+            || horizontalTileRadius < 0 || verticalTileRadius < 0)
+        {
+            throw new ArgumentOutOfRangeException(nameof(minimumX));
+        }
+
+        var xAxis = CreateBoundedScanAxis(minimumX, maximumX, horizontalTileRadius);
+        var yAxis = CreateBoundedScanAxis(minimumY, maximumY, verticalTileRadius);
+        var centers = new List<(int X, int Y)>(xAxis.Count * yAxis.Count);
+        for (var row = 0; row < yAxis.Count; row++)
+        {
+            var xValues = row % 2 == 0 ? xAxis : xAxis.AsEnumerable().Reverse();
+            centers.AddRange(xValues.Select(x => (x, yAxis[row])));
+        }
+
+        return centers;
+    }
+
     private static List<int> CreateScanAxis(int minimumCoordinate, int maximumCoordinate, int width, int tileRadius)
     {
         var axis = new List<int>();
         for (var start = minimumCoordinate; start <= maximumCoordinate; start += width)
         {
             axis.Add(start + tileRadius);
+        }
+
+        return axis;
+    }
+
+    private static List<int> CreateBoundedScanAxis(int minimumCoordinate, int maximumCoordinate, int tileRadius)
+    {
+        var width = (tileRadius * 2) + 1;
+        var axis = new List<int>();
+        for (var start = minimumCoordinate; start <= maximumCoordinate; start += width)
+        {
+            var end = Math.Min(start + width - 1, maximumCoordinate);
+            axis.Add(start + ((end - start) / 2));
         }
 
         return axis;

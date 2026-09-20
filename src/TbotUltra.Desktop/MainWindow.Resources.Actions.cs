@@ -83,6 +83,7 @@ public partial class MainWindow
         _resourceTestFunctionsWindow.StartAdventureRequested += StartAdventureDebugButton_Click;
         _resourceTestFunctionsWindow.BulkMessagesRequested += BulkMessagesButton_Click;
         _resourceTestFunctionsWindow.SavePageHtmlRequested += SavePageHtmlButton_Click;
+        _resourceTestFunctionsWindow.SaveMapApiRequested += SaveMapApiButton_Click;
         _resourceTestFunctionsWindow.RunNewAccountAnalysisRequested += RunNewAccountAnalysisDebugButton_Click;
         _resourceTestFunctionsWindow.ClearNewAccountAnalysisRequested += ClearNewAccountAnalysisDebugButton_Click;
         _resourceTestFunctionsWindow.UpdateVersionPreviewRequested += UpdateVersionPreviewButton_Click;
@@ -103,6 +104,7 @@ public partial class MainWindow
             _resourceTestFunctionsWindow.StartAdventureRequested -= StartAdventureDebugButton_Click;
             _resourceTestFunctionsWindow.BulkMessagesRequested -= BulkMessagesButton_Click;
             _resourceTestFunctionsWindow.SavePageHtmlRequested -= SavePageHtmlButton_Click;
+            _resourceTestFunctionsWindow.SaveMapApiRequested -= SaveMapApiButton_Click;
             _resourceTestFunctionsWindow.RunNewAccountAnalysisRequested -= RunNewAccountAnalysisDebugButton_Click;
             _resourceTestFunctionsWindow.ClearNewAccountAnalysisRequested -= ClearNewAccountAnalysisDebugButton_Click;
             _resourceTestFunctionsWindow.UpdateVersionPreviewRequested -= UpdateVersionPreviewButton_Click;
@@ -279,6 +281,36 @@ public partial class MainWindow
         }
 
         OpenSavePageHtmlWindow();
+    }
+
+    private async void SaveMapApiButton_Click(object sender, RoutedEventArgs e)
+        => await GuardUiAsync(SaveMapApiButtonClickAsync);
+
+    private async Task SaveMapApiButtonClickAsync()
+    {
+        if (BlockIfSessionSleeping("Save map API"))
+        {
+            return;
+        }
+
+        await RunGuardedOperationAsync(
+            "SaveMapApi",
+            "Save map API paused.",
+            ToggleResourceTabActionsBusy,
+            async (operationId, operationToken) =>
+            {
+                var options = LoadBotOptions();
+                AppendLog($"[{operationId}] capturing the current map API area.");
+                var capture = await _botService.CaptureCurrentMapAreaAsync(options, AppendLog, operationToken);
+
+                Directory.CreateDirectory(SavePageHtmlDirectory);
+                var fileName = $"map_api_{DateTimeOffset.Now:yyyyMMdd_HHmmss}_x{capture.CenterX}_y{capture.CenterY}_z{capture.ZoomLevel}.json";
+                var filePath = Path.Combine(SavePageHtmlDirectory, fileName);
+                await File.WriteAllTextAsync(filePath, capture.Json, operationToken);
+
+                AppendLog($"[{operationId}] saved {capture.Json.Length} chars from center=({capture.CenterX}|{capture.CenterY}) zoom={capture.ZoomLevel} to {filePath}.");
+                return $"Saved map API response to {filePath}";
+            });
     }
 
     private void OpenSavePageHtmlWindow(Window? sourceWindow = null, bool closeSourceWindow = false)

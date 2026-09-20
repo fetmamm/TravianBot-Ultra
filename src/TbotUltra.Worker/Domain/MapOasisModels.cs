@@ -22,6 +22,13 @@ public sealed record MapOasisScanResult(
     int TotalAreas,
     bool IsPartialResult = false);
 
+public sealed record MapOasisApiCapture(
+    string Url,
+    int CenterX,
+    int CenterY,
+    int ZoomLevel,
+    string Json);
+
 public enum MapOasisScanScope
 {
     WholeMap,

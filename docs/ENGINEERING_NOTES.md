@@ -804,6 +804,12 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Diagnostics use shared busy/cancel behavior and sanitize settings/logs/paths/URLs/auth/proxy data. An unreadable
   optional source file must be skipped and listed in the manifest instead of aborting the archive; archive creation
   failures are never presented as success. Screenshots may contain visible game data.
+- The Debug map-API capture reads the coordinates and zoom currently shown on `/karte.php` and saves one raw
+  `/api/v1/map/position` response in the root `docs/DOM/` folder for selector/parser troubleshooting.
+- Map oasis scans probe zoom level 3 first. If every returned tile is a `{k.regionTooltip}` overlay, the scan is
+  on a regional world and must try zoom level 2 with its verified 21x17 tile coverage, then zoom level 1 with
+  11x9 coverage only if zoom 2 is also an overlay; checkpoints include the chosen API zoom so incompatible scans
+  are never resumed.
 - The Dashboard active-village border represents verified live browser state only. Queue selection/Running state
   must never pre-mark a task's target village; update it only after a successful browser village verification.
 - Incoming Attack monitoring may navigate to Rally Point only while Continuous Loop or Auto Queue is running; being

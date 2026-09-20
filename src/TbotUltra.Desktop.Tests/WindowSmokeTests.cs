@@ -171,6 +171,30 @@ public sealed class WindowSmokeTests
     }
 
     [Fact]
+    public void DebugWindow_ProvidesCurrentMapApiCapture()
+    {
+        _wpf.Run(() =>
+        {
+            var window = new FunctionTestWindow();
+            try
+            {
+                var requested = false;
+                window.SaveMapApiRequested += (_, _) => requested = true;
+                var button = Assert.IsType<Button>(window.FindName("SaveMapApiButton"));
+
+                button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+                Assert.True(requested);
+                Assert.Equal("Save map API", button.Content);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void DebugWindow_ProvidesOneYellowFarmMoveAction()
     {
         _wpf.Run(() =>
