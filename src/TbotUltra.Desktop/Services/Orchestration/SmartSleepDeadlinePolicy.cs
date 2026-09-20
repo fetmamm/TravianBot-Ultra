@@ -52,13 +52,18 @@ internal static class SmartSleepDeadlinePolicy
         DateTimeOffset now,
         IEnumerable<QueueItem> queueItems,
         IReadOnlySet<QueueGroup> deadlineGroups,
-        DateTimeOffset? nextConstructionAvailabilityUtc)
+        DateTimeOffset? nextConstructionAvailabilityUtc,
+        IReadOnlyDictionary<Guid, DateTimeOffset>? queueDeadlineOverrides = null)
     {
         var nextQueueDeadline = queueItems
             .Where(item => item.Status == QueueStatus.Pending
-                && item.NextAttemptAt > now
                 && deadlineGroups.Contains(item.Group))
-            .Select(item => (DateTimeOffset?)item.NextAttemptAt)
+            .Select(item => queueDeadlineOverrides is not null
+                && queueDeadlineOverrides.TryGetValue(item.Id, out var overriddenDeadline)
+                    ? overriddenDeadline
+                    : item.NextAttemptAt)
+            .Where(deadline => deadline > now)
+            .Select(deadline => (DateTimeOffset?)deadline)
             .Min();
         var constructionDeadline = deadlineGroups.Contains(QueueGroup.Construction)
             ? nextConstructionAvailabilityUtc

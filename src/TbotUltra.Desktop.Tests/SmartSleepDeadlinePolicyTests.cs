@@ -76,4 +76,27 @@ public sealed class SmartSleepDeadlinePolicyTests
 
         Assert.Null(delay);
     }
+
+    [Fact]
+    public void ResolveNextDelay_UsesConstructionQueueClearOverride()
+    {
+        var now = new DateTimeOffset(2026, 9, 12, 10, 0, 0, TimeSpan.Zero);
+        var construction = new QueueItem
+        {
+            TaskName = "upgrade_building_to_level",
+            Group = QueueGroup.Construction,
+            Status = QueueStatus.Pending,
+            NextAttemptAt = now,
+        };
+        var queueClear = now.AddHours(2);
+
+        var delay = SmartSleepDeadlinePolicy.ResolveNextDelay(
+            now,
+            [construction],
+            new HashSet<QueueGroup> { QueueGroup.Construction },
+            nextConstructionAvailabilityUtc: queueClear,
+            queueDeadlineOverrides: new Dictionary<Guid, DateTimeOffset> { [construction.Id] = queueClear });
+
+        Assert.Equal(TimeSpan.FromHours(2), delay);
+    }
 }

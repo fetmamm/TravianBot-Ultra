@@ -22,6 +22,7 @@ public static class PacingDefaults
     public const int SmartSleepWakeAfterMinutes = 20;
     public const int SmartSleepFallbackMinMinutes = 30;
     public const int SmartSleepFallbackMaxMinutes = 60;
+    public const bool SmartSleepWakeWhenConstructionQueueClears = true;
 
     public const bool ActionPacingEnabled = true;
     public const double ActionPacingTaskMinSeconds = 0.8;

@@ -34,6 +34,10 @@ public partial class MainWindow
 
         public IReadOnlyList<QueueItem> GetQueueItems() => owner._botService.GetQueueItemsForDisplay();
 
+        public IReadOnlyDictionary<Guid, DateTimeOffset> GetSmartSleepQueueDeadlineOverrides(
+            IReadOnlyList<QueueItem> items,
+            DateTimeOffset now) => owner.ResolveSmartSleepQueueDeadlineOverrides(items, now);
+
         public bool IsAllowedByAutomationSettings(QueueItem item) =>
             owner.IsQueueItemAllowedByAutomationSettings(item);
 

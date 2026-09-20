@@ -9,6 +9,7 @@ internal interface IContinuousAutomationForecastPort
     string? GetVillageKey(QueueItem item);
     bool IsAllowedByAutomationSettings(QueueItem item);
     TimeSpan? ResolveConstructionQueueDelay(QueueItem item, DateTimeOffset now);
+    TimeSpan? ResolveSmartSleepConstructionQueueClearDelay(QueueItem item, DateTimeOffset now);
     TimeSpan? ResolveConstructPrerequisiteDelay(QueueItem item, DateTimeOffset now);
     QueueItem? SelectPreview(
         DateTimeOffset evaluationTime,
@@ -22,7 +23,8 @@ internal sealed class ContinuousAutomationForecastCoordinator(IContinuousAutomat
     internal ContinuousLoopForecast Resolve(
         DateTimeOffset now,
         string? villageKeyFilter = null,
-        IReadOnlyList<QueueItem>? queueItemsOverride = null)
+        IReadOnlyList<QueueItem>? queueItemsOverride = null,
+        bool wakeWhenConstructionQueueClears = false)
     {
         var queueItems = queueItemsOverride ?? port.GetQueueItems();
         var scopedItems = queueItems
@@ -37,14 +39,36 @@ internal sealed class ContinuousAutomationForecastCoordinator(IContinuousAutomat
         var pending = scopedItems
             .Where(item => item.Status == QueueStatus.Pending)
             .ToList();
-        var candidateDeadlines = pending
-            .Where(item => item.NextAttemptAt > now)
-            .Select(item => item.NextAttemptAt)
-            .ToHashSet();
-        foreach (var item in pending.Where(item => item.Group == QueueGroup.Construction))
+        var candidateDeadlines = new HashSet<DateTimeOffset>();
+        foreach (var item in pending)
         {
-            AddPositiveDelay(candidateDeadlines, now, port.ResolveConstructionQueueDelay(item, now));
-            AddPositiveDelay(candidateDeadlines, now, port.ResolveConstructPrerequisiteDelay(item, now));
+            var queueClearDelay = item.Group == QueueGroup.Construction && wakeWhenConstructionQueueClears
+                ? port.ResolveSmartSleepConstructionQueueClearDelay(item, now)
+                : null;
+            if (queueClearDelay is { } clearDelay && clearDelay > TimeSpan.Zero)
+            {
+                var queueClearDeadline = now.Add(clearDelay);
+                candidateDeadlines.Add(item.NextAttemptAt > queueClearDeadline
+                    ? item.NextAttemptAt
+                    : queueClearDeadline);
+            }
+            else
+            {
+                if (item.NextAttemptAt > now)
+                {
+                    candidateDeadlines.Add(item.NextAttemptAt);
+                }
+
+                if (item.Group == QueueGroup.Construction)
+                {
+                    AddPositiveDelay(candidateDeadlines, now, port.ResolveConstructionQueueDelay(item, now));
+                }
+            }
+
+            if (item.Group == QueueGroup.Construction)
+            {
+                AddPositiveDelay(candidateDeadlines, now, port.ResolveConstructPrerequisiteDelay(item, now));
+            }
         }
 
         return ContinuousLoopForecastPlanner.Resolve(

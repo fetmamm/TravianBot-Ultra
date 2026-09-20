@@ -342,6 +342,11 @@
                                                     <ContentControl Style="{StaticResource SettingInfoIconStyle}" ToolTip="Sleeps only when the scheduler knows that no task is needed soon, then wakes near the next task." />
                                                 </StackPanel>
                                                 <TextBlock Text="Sleep between known task deadlines." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="20,3,0,10" />
+                                                <CheckBox x:Name="SmartSleepWakeWhenConstructionQueueClearsCheckBox"
+                                                          Content="Wake when construction queue clears"
+                                                          IsChecked="{Binding SettingsVm.Pacing.SmartSleepWakeWhenConstructionQueueClears, Mode=TwoWay}"
+                                                          Margin="20,0,0,8"
+                                                          ToolTip="Stay asleep when a queued construction starts after the current one. Wake near the completion of the final construction in that queue." />
                                                 <Grid Margin="20,0,0,0">
                                                     <Grid.ColumnDefinitions>
                                                         <ColumnDefinition Width="130" />

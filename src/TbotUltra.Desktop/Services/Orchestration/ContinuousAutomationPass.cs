@@ -11,7 +11,8 @@ internal sealed record ContinuousAutomationDeadlineSnapshot(
     DateTimeOffset? NextVillageStatusRoundUtc,
     IReadOnlyList<QueueItem> SmartSleepItems,
     IReadOnlySet<QueueGroup> SmartSleepDeadlineGroups,
-    DateTimeOffset? SmartSleepConstructionAvailabilityUtc = null);
+    DateTimeOffset? SmartSleepConstructionAvailabilityUtc = null,
+    IReadOnlyDictionary<Guid, DateTimeOffset>? SmartSleepQueueDeadlineOverrides = null);
 
 internal interface IContinuousAutomationPassPort
 {
@@ -170,7 +171,8 @@ internal sealed class ContinuousAutomationPass(
                 nowForDeadline,
                 deadlines.SmartSleepItems,
                 deadlines.SmartSleepDeadlineGroups,
-                deadlines.SmartSleepConstructionAvailabilityUtc);
+                deadlines.SmartSleepConstructionAvailabilityUtc,
+                deadlines.SmartSleepQueueDeadlineOverrides);
             DateTimeOffset? smartSleepDeadline = smartSleepDelay is { } trustedDelay
                 ? nowForDeadline.Add(trustedDelay)
                 : null;

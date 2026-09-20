@@ -122,6 +122,7 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.SmartSleepFallbackMinMinutes,
         BotOptionPayloadKeys.SmartSleepFallbackMaxMinutes,
         BotOptionPayloadKeys.SmartSleepDeadlineGroups,
+        BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears,
         BotOptionPayloadKeys.SessionActivityHistory,
         BotOptionPayloadKeys.ActionPacingEnabled,
         BotOptionPayloadKeys.ActionPacingTaskMinSeconds,

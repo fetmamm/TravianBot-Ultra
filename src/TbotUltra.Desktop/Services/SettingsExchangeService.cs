@@ -319,6 +319,7 @@ internal sealed class SettingsExchangeService
         {
             BotOptionPayloadKeys.SessionPacingEnabled,
             BotOptionPayloadKeys.SmartSleepEnabled,
+            BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears,
             BotOptionPayloadKeys.ActionPacingEnabled,
             BotOptionPayloadKeys.ContinuousKeepAliveEnabled,
             BotOptionPayloadKeys.VillageStatusSweepEnabled,

@@ -44,6 +44,7 @@ public sealed class PacingSettingsViewModel : BaseViewModel
     private string _continuousKeepAliveMaxMinutes = PacingDefaults.ContinuousKeepAliveMaxMinutes.ToString(CultureInfo.InvariantCulture);
     private bool _sessionPacingEnabled = PacingDefaults.SessionPacingEnabled;
     private bool _smartSleepEnabled = PacingDefaults.SmartSleepEnabled;
+    private bool _smartSleepWakeWhenConstructionQueueClears = PacingDefaults.SmartSleepWakeWhenConstructionQueueClears;
     private string _smartSleepMinimumOpportunityMinutes = PacingDefaults.SmartSleepMinimumOpportunityMinutes.ToString(CultureInfo.InvariantCulture);
     private string _smartSleepWakeBeforeMinutes = PacingDefaults.SmartSleepWakeBeforeMinutes.ToString(CultureInfo.InvariantCulture);
     private string _smartSleepWakeAfterMinutes = PacingDefaults.SmartSleepWakeAfterMinutes.ToString(CultureInfo.InvariantCulture);
@@ -149,6 +150,7 @@ public sealed class PacingSettingsViewModel : BaseViewModel
             }
         }
     }
+    public bool SmartSleepWakeWhenConstructionQueueClears { get => _smartSleepWakeWhenConstructionQueueClears; set => SetProperty(ref _smartSleepWakeWhenConstructionQueueClears, value); }
     public string SmartSleepMinimumOpportunityMinutes { get => _smartSleepMinimumOpportunityMinutes; set => SetProperty(ref _smartSleepMinimumOpportunityMinutes, value); }
     public string SmartSleepWakeBeforeMinutes { get => _smartSleepWakeBeforeMinutes; set => SetProperty(ref _smartSleepWakeBeforeMinutes, value); }
     public string SmartSleepWakeAfterMinutes { get => _smartSleepWakeAfterMinutes; set => SetProperty(ref _smartSleepWakeAfterMinutes, value); }
@@ -234,6 +236,7 @@ public sealed class PacingSettingsViewModel : BaseViewModel
         ContinuousKeepAliveMaxMinutes = PacingDefaults.ContinuousKeepAliveMaxMinutes.ToString(CultureInfo.InvariantCulture);
         SessionPacingEnabled = PacingDefaults.SessionPacingEnabled;
         SmartSleepEnabled = PacingDefaults.SmartSleepEnabled;
+        SmartSleepWakeWhenConstructionQueueClears = PacingDefaults.SmartSleepWakeWhenConstructionQueueClears;
         SmartSleepMinimumOpportunityMinutes = PacingDefaults.SmartSleepMinimumOpportunityMinutes.ToString(CultureInfo.InvariantCulture);
         SmartSleepWakeBeforeMinutes = PacingDefaults.SmartSleepWakeBeforeMinutes.ToString(CultureInfo.InvariantCulture);
         SmartSleepWakeAfterMinutes = PacingDefaults.SmartSleepWakeAfterMinutes.ToString(CultureInfo.InvariantCulture);

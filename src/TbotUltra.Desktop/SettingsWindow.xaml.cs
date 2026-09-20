@@ -1362,6 +1362,7 @@ public partial class SettingsWindow : Window
         ContinuousKeepAliveMaxMinutesTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.ContinuousKeepAliveMaxMinutes);
         SessionPacingEnabledCheckBox.SetCurrentValue(ToggleButton.IsCheckedProperty, SettingsVm.Pacing.SessionPacingEnabled);
         SmartSleepEnabledCheckBox.SetCurrentValue(ToggleButton.IsCheckedProperty, SettingsVm.Pacing.SmartSleepEnabled);
+        SmartSleepWakeWhenConstructionQueueClearsCheckBox.SetCurrentValue(ToggleButton.IsCheckedProperty, SettingsVm.Pacing.SmartSleepWakeWhenConstructionQueueClears);
         SmartSleepMinimumOpportunityTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes);
         SmartSleepWakeBeforeTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.SmartSleepWakeBeforeMinutes);
         SmartSleepWakeAfterTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.SmartSleepWakeAfterMinutes);
@@ -1563,6 +1564,9 @@ public partial class SettingsWindow : Window
     {
         SettingsVm.Pacing.SessionPacingEnabled = ReadBool(BotOptionPayloadKeys.SessionPacingEnabled, PacingDefaults.SessionPacingEnabled);
         SettingsVm.Pacing.SmartSleepEnabled = ReadBool(BotOptionPayloadKeys.SmartSleepEnabled, PacingDefaults.SmartSleepEnabled);
+        SettingsVm.Pacing.SmartSleepWakeWhenConstructionQueueClears = ReadBool(
+            BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears,
+            PacingDefaults.SmartSleepWakeWhenConstructionQueueClears);
         SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes = ReadInt(BotOptionPayloadKeys.SmartSleepMinimumOpportunityMinutes, PacingDefaults.SmartSleepMinimumOpportunityMinutes).ToString(CultureInfo.InvariantCulture);
         SettingsVm.Pacing.SmartSleepWakeBeforeMinutes = ReadInt(BotOptionPayloadKeys.SmartSleepWakeBeforeMinutes, PacingDefaults.SmartSleepWakeBeforeMinutes).ToString(CultureInfo.InvariantCulture);
         SettingsVm.Pacing.SmartSleepWakeAfterMinutes = ReadInt(BotOptionPayloadKeys.SmartSleepWakeAfterMinutes, PacingDefaults.SmartSleepWakeAfterMinutes).ToString(CultureInfo.InvariantCulture);
@@ -1638,6 +1642,7 @@ public partial class SettingsWindow : Window
     {
         target[BotOptionPayloadKeys.SessionPacingEnabled] = SettingsVm.Pacing.SessionPacingEnabled;
         target[BotOptionPayloadKeys.SmartSleepEnabled] = SettingsVm.Pacing.SmartSleepEnabled;
+        target[BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears] = SettingsVm.Pacing.SmartSleepWakeWhenConstructionQueueClears;
         target[BotOptionPayloadKeys.SmartSleepMinimumOpportunityMinutes] = ReadIntText(SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes, PacingDefaults.SmartSleepMinimumOpportunityMinutes, 1, 1440);
         target[BotOptionPayloadKeys.SmartSleepWakeBeforeMinutes] = ReadIntText(SettingsVm.Pacing.SmartSleepWakeBeforeMinutes, PacingDefaults.SmartSleepWakeBeforeMinutes, 0, 1440);
         target[BotOptionPayloadKeys.SmartSleepWakeAfterMinutes] = ReadIntText(SettingsVm.Pacing.SmartSleepWakeAfterMinutes, PacingDefaults.SmartSleepWakeAfterMinutes, 0, 1440);
