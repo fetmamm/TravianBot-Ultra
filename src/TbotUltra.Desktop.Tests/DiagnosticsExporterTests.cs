@@ -111,6 +111,30 @@ public sealed class DiagnosticsExporterTests
     }
 
     [Fact]
+    public async Task CreateAsync_SkipsLockedRuntimeScreenshotAndStillCreatesArchive()
+    {
+        using var fixture = new DiagnosticsFixture();
+        fixture.WriteProjectFile("logs/readable.log", "readable");
+        const string screenshotName = "20260915-103352562-build-slot-22-pre-click-safety.png";
+        var lockedScreenshotPath = fixture.WriteProjectBytes(
+            $"temp_build_out/diagnostics/{screenshotName}",
+            [1, 2, 3, 4]);
+        await using var lockedScreenshot = new FileStream(
+            lockedScreenshotPath,
+            FileMode.Open,
+            FileAccess.ReadWrite,
+            FileShare.None);
+
+        var result = await fixture.Exporter.CreateAsync(fixture.Request([]));
+
+        Assert.True(File.Exists(result.ZipPath));
+        Assert.Contains(result.MissingFiles, message => message.Contains(screenshotName, StringComparison.Ordinal));
+        using var archive = ZipFile.OpenRead(result.ZipPath);
+        Assert.DoesNotContain(archive.Entries, entry => entry.FullName == $"runtime-diagnostics/{screenshotName}");
+        Assert.Contains(screenshotName, ReadEntry(archive.GetEntry("diagnostics.txt")!), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task CreateAsync_HonorsCancellationBeforeExport()
     {
         using var fixture = new DiagnosticsFixture();
@@ -162,11 +186,12 @@ public sealed class DiagnosticsExporterTests
         internal string WriteAppFile(string relativePath, string content)
             => WriteFile(AppRoot, relativePath, content);
 
-        internal void WriteProjectBytes(string relativePath, byte[] content)
+        internal string WriteProjectBytes(string relativePath, byte[] content)
         {
             var path = Path.Combine(ProjectRoot, relativePath);
             Directory.CreateDirectory(Path.GetDirectoryName(path)!);
             File.WriteAllBytes(path, content);
+            return path;
         }
 
         private static string WriteFile(string root, string relativePath, string content)
