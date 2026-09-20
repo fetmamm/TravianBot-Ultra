@@ -272,7 +272,7 @@ public partial class AccountsWindow : Window
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        SaveEditor(isUpdate: false);
+        SaveEditor(isUpdate: _editingExistingAccount);
     }
 
     private void UpdateButton_Click(object sender, RoutedEventArgs e)
@@ -1649,7 +1649,7 @@ public partial class AccountsWindow : Window
 
     private void UpdateActionButtons()
     {
-        SaveButton.IsEnabled = !_editingExistingAccount;
+        SaveButton.IsEnabled = !_editingExistingAccount || HasUnsavedChanges();
         UpdateButton.IsEnabled = _editingExistingAccount && HasUnsavedChanges();
         DeleteButton.IsEnabled = _editingExistingAccount;
     }

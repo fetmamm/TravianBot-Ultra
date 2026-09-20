@@ -26,6 +26,69 @@ public sealed class WindowSmokeTests
     }
 
     [Fact]
+    public void AccountsWindow_EnablesSaveWhenExistingAccountDisplayNameChanges()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"tbot-accounts-window-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(Path.Combine(root, "config"));
+        try
+        {
+            var store = new EnvAccountStore(Path.Combine(root, ".env"));
+            var server = new ServerOption { Name = "International - x5", BaseUrl = "https://example.com" };
+            store.SaveAccount(
+                new AccountEntry
+                {
+                    Name = "account",
+                    Username = "player@example.com",
+                    Password = "secret",
+                    ServerName = server.Name,
+                    ServerUrl = server.BaseUrl,
+                },
+                setActive: true);
+            var configStore = new BotConfigStore(
+                Path.Combine(root, "config", "bot.json"),
+                root,
+                store.ActiveAccountName);
+            var deletionService = new AccountDeletionService(
+                root,
+                store,
+                configStore,
+                new TbotUltra.Worker.Services.JsonQueueStore(Path.Combine(root, "queue.json")));
+
+            _wpf.Run(() =>
+            {
+                var window = new AccountsWindow(
+                    store,
+                    deletionService,
+                    new ServerCatalogStore(Path.Combine(root, "servers.json")),
+                    server.Name,
+                    server.BaseUrl,
+                    [server],
+                    [server]);
+                var displayName = Assert.IsType<TextBox>(window.FindName("DisplayNameTextBox"));
+                var save = Assert.IsType<Button>(window.FindName("SaveButton"));
+                var originalDisplayName = displayName.Text;
+                try
+                {
+                    Assert.False(save.IsEnabled);
+
+                    displayName.Text = "ROG X5";
+
+                    Assert.True(save.IsEnabled);
+                }
+                finally
+                {
+                    displayName.Text = originalDisplayName;
+                    window.Close();
+                }
+            });
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public void TroopSettingsWindows_LoadWithSyncControlsAndAllTargetsSelected()
     {
         _wpf.Run(() =>
