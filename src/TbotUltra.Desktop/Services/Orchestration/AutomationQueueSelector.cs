@@ -74,6 +74,7 @@ internal static class AutomationQueueSelector
             preview: true,
             excludedVillageKey: null,
             urgentOnly: true,
+            commitConstruction: !input.Preview,
             selectReadyConstruction);
         if (urgentCandidate is not null)
         {
@@ -99,6 +100,7 @@ internal static class AutomationQueueSelector
             preview: true,
             excludedVillageKey: input.VillageBatch.VillageKey,
             urgentOnly: false,
+            commitConstruction: !input.Preview,
             selectReadyConstruction);
 
         if (currentVillageCandidate is not null)
@@ -190,6 +192,7 @@ internal static class AutomationQueueSelector
         bool preview,
         string? excludedVillageKey,
         bool urgentOnly,
+        bool commitConstruction,
         Func<IReadOnlyList<QueueItem>, DateTimeOffset, bool, QueueItem?> selectReadyConstruction)
     {
         foreach (var group in selectionPlan.OrderedGroups)
@@ -210,12 +213,20 @@ internal static class AutomationQueueSelector
             var candidate = QueueVillageRotation.SelectByVillageRotation(
                 groupItems,
                 item => villageKeysByItemId.TryGetValue(item.Id, out var villageKey) ? villageKey : null,
-                villageItems => SelectReadyItemWithinGroup(
-                    group,
-                    villageItems,
-                    now,
-                    preview,
-                    selectReadyConstruction),
+                villageItems =>
+                {
+                    var ready = SelectReadyItemWithinGroup(
+                        group,
+                        villageItems,
+                        now,
+                        preview,
+                        selectReadyConstruction);
+                    // Commit even a blocked remote construction: a full queue can persist its
+                    // finish-plus-humanization deadline without visiting that village.
+                    return group == QueueGroup.Construction && commitConstruction
+                        ? SelectReadyItemWithinGroup(group, villageItems, now, preview: false, selectReadyConstruction)
+                        : ready;
+                },
                 ref rotationVillageKey);
             if (candidate is not null)
             {

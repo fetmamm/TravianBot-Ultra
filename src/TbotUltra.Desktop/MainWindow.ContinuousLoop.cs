@@ -1549,6 +1549,7 @@ public partial class MainWindow
 
         if (selection.QueueFullBlocker is not null && !preview)
         {
+            TryPrepareConstructionFullQueueDelay(selection.QueueFullBlocker, now);
             var blockerIndex = orderedGroupItems
                 .Select((item, index) => (item, index))
                 .FirstOrDefault(entry => entry.item.Id == selection.QueueFullBlocker.Id)
@@ -1557,6 +1558,12 @@ public partial class MainWindow
                 .Skip(blockerIndex + 1)
                 .Count(candidate => candidate.Status == QueueStatus.Pending);
             LogConstructionQueueFullSummary(selection.QueueFullBlocker, blockedItems, now);
+        }
+        else if (selection.UsedIndependentCategoryLookAhead && !preview
+            && firstItem is not null && availability == ConstructionQueueAvailability.Full)
+        {
+            // Romans may work in the other lane while this lane waits for a slot.
+            TryPrepareConstructionFullQueueDelay(firstItem, now);
         }
 
         if (selection.Item is null)
@@ -1663,6 +1670,46 @@ public partial class MainWindow
             $"group=Construction task='{item.TaskName}' waiting for persisted pre-navigation human delay";
         RequestQueueUiRefresh(item.Id);
         return true;
+    }
+
+    private void TryPrepareConstructionFullQueueDelay(QueueItem item, DateTimeOffset now)
+    {
+        var decision = ConstructionStartDelayPlanner.ResolveAfterFullQueue(
+            item,
+            ResolveBuildingStatusForQueueItem(item),
+            _travianPlusActive,
+            LoadBotOptions(),
+            now,
+            (minimum, maximum) => minimum + Random.Shared.NextDouble() * (maximum - minimum));
+        if (decision is null)
+        {
+            return;
+        }
+
+        var payload = new Dictionary<string, string>(item.Payload, StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonQueueFull,
+            [BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
+                ConstructionQueueState.CurrentDeferClassificationVersion,
+            [BotOptionPayloadKeys.QueueHumanizeExtraSeconds] = decision.HumanizeExtraSeconds.ToString(),
+            [BotOptionPayloadKeys.ConstructionHumanizePreNavigationDelaySatisfied] = "true",
+        };
+        if (!_botService.UpdateDeferredQueueItem(
+                item.Id, payload, TimeSpan.FromSeconds(decision.QueueRetrySeconds)))
+        {
+            AppendLog($"[construction-timing] could not persist full-queue pre-navigation delay id={item.Id} task='{item.TaskName}'.");
+            return;
+        }
+
+        item.Payload = payload;
+        item.NextAttemptAt = decision.ReadyAtUtc;
+        var villageName = NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-";
+        AppendLog(
+            $"[construction-timing] village='{villageName}' task='{item.TaskName}' trigger=normal-full-queue " +
+            $"observedAt='{now:O}' referenceFinishAt='{decision.ReferenceFinishUtc:O}' " +
+            $"humanDelaySeconds={decision.HumanizeExtraSeconds} effectiveReadyAt='{decision.ReadyAtUtc:O}' " +
+            $"navigation=pending reason='{decision.Reason}'.");
+        RequestQueueUiRefresh(item.Id);
     }
 
     private bool TryDeferConstructUntilActivePrerequisiteFinishes(

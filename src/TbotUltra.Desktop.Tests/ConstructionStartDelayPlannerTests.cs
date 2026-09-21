@@ -79,6 +79,96 @@ public sealed class ConstructionStartDelayPlannerTests
         Assert.Equal(0, randomCalls);
     }
 
+    [Fact]
+    public void ResolveAfterFullQueue_PlusUsesTheBuildContinuingAfterFirstFinish()
+    {
+        var status = StatusWithActiveBuild(1_000) with
+        {
+            ActiveConstructions =
+            [
+                new ActiveConstruction(ConstructionKind.Building, "Main Building", 4, 1_000, null,
+                    TimerSnapshot.FromRemaining(1_000, Now)),
+                new ActiveConstruction(ConstructionKind.Building, "Warehouse", 2, 1_600, null,
+                    TimerSnapshot.FromRemaining(1_600, Now)),
+            ],
+        };
+        var result = ConstructionStartDelayPlanner.ResolveAfterFullQueue(
+            PendingConstruction(), status, true,
+            new BotOptions
+            {
+                ConstructionHumanizeDelayEnabled = true,
+                ConstructionHumanizeQueuePercentMin = 10,
+                ConstructionHumanizeQueuePercentMax = 20,
+                ConstructionHumanizeMaxDelayMinutes = 25,
+            },
+            Now, (_, _) => 15);
+
+        Assert.NotNull(result);
+        Assert.Equal(1_091, result.QueueRetrySeconds);
+        Assert.Equal(91, result.HumanizeExtraSeconds);
+        Assert.Equal(Now.AddSeconds(1_000), result.ReferenceFinishUtc);
+        Assert.Equal(Now.AddSeconds(1_091), result.ReadyAtUtc);
+    }
+
+    [Fact]
+    public void ResolveAfterFullQueue_NoPlusWaitsPastTheFinish()
+    {
+        var result = ConstructionStartDelayPlanner.ResolveAfterFullQueue(
+            PendingConstruction(), StatusWithActiveBuild(1_000), false,
+            new BotOptions
+            {
+                ConstructionHumanizeDelayEnabled = true,
+                ConstructionHumanizeNoPlusMinMinutes = 10,
+                ConstructionHumanizeNoPlusMaxMinutes = 20,
+            },
+            Now, (_, _) => 10);
+
+        Assert.NotNull(result);
+        Assert.Equal(1_601, result.QueueRetrySeconds);
+        Assert.Equal(601, result.HumanizeExtraSeconds);
+    }
+
+    [Fact]
+    public void ResolveAfterFullQueue_UnknownSnapshotDoesNotRandomize()
+    {
+        var randomCalls = 0;
+        var result = ConstructionStartDelayPlanner.ResolveAfterFullQueue(
+            PendingConstruction(), null, false,
+            new BotOptions { ConstructionHumanizeDelayEnabled = true },
+            Now, (_, _) => { randomCalls++; return 10; });
+
+        Assert.Null(result);
+        Assert.Equal(0, randomCalls);
+    }
+
+    [Fact]
+    public void ResolveAfterFullQueue_UnconfirmedOverviewDoesNotPersistATimer()
+    {
+        var status = StatusWithActiveBuild(1_000) with { ActiveConstructionsFromOverview = false };
+
+        var result = ConstructionStartDelayPlanner.ResolveAfterFullQueue(
+            PendingConstruction(), status, false,
+            new BotOptions { ConstructionHumanizeDelayEnabled = true }, Now, (_, _) => 10);
+
+        Assert.Null(result);
+    }
+
+    [Fact]
+    public void ResolveAfterFullQueue_PreparedDelayDoesNotRandomizeAgain()
+    {
+        var item = PendingConstruction();
+        item.Payload[BotOptionPayloadKeys.ConstructionHumanizePreNavigationDelaySatisfied] = "true";
+        var randomCalls = 0;
+
+        var result = ConstructionStartDelayPlanner.ResolveAfterFullQueue(
+            item, StatusWithActiveBuild(1_000), false,
+            new BotOptions { ConstructionHumanizeDelayEnabled = true }, Now,
+            (_, _) => { randomCalls++; return 10; });
+
+        Assert.Null(result);
+        Assert.Equal(0, randomCalls);
+    }
+
     private static QueueItem PendingConstruction() => new()
     {
         TaskName = "upgrade_building_to_level",

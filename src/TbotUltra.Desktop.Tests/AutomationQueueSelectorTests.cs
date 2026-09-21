@@ -141,6 +141,100 @@ public sealed class AutomationQueueSelectorTests
         Assert.Equal(Now.AddSeconds(10), result.HoldUntil);
     }
 
+    [Fact]
+    public void Select_RemoteConstructionCommitsDelayBeforeChangingVillage()
+    {
+        var remote = Candidate("upgrade_building_to_level", "b");
+        var calls = new List<bool>();
+
+        var result = AutomationQueueSelector.Select(
+            new AutomationQueueSelectionInput([remote], [QueueGroup.Construction],
+                new VillageBatchSnapshot("a", 1), "a", Now, 30, Preview: false),
+            (items, now, preview) =>
+            {
+                calls.Add(preview);
+                if (!preview)
+                {
+                    items[0].NextAttemptAt = now.AddMinutes(5);
+                    return null;
+                }
+
+                return ContinuousLoopSelector.SelectReadyGroupHead(items, now);
+            });
+
+        Assert.Null(result.Selected);
+        Assert.Equal(Now.AddMinutes(5), remote.Item.NextAttemptAt);
+        Assert.Contains(false, calls);
+    }
+
+    [Fact]
+    public void Select_RemoteDelayLetsAnotherVillageRunWithoutSkippingItsQueueHead()
+    {
+        var delayed = Candidate("upgrade_building_to_level", "b", priority: 10);
+        var laterInSameVillage = Candidate("upgrade_building_to_level", "b");
+        var other = Candidate("upgrade_building_to_level", "c");
+
+        var result = AutomationQueueSelector.Select(
+            new AutomationQueueSelectionInput([delayed, laterInSameVillage, other],
+                [QueueGroup.Construction], new VillageBatchSnapshot("a", 1), "a", Now, 30, Preview: false),
+            (items, now, preview) =>
+            {
+                if (items[0].Id == delayed.Item.Id && !preview)
+                {
+                    items[0].NextAttemptAt = now.AddMinutes(5);
+                    return null;
+                }
+
+                return ContinuousLoopSelector.SelectReadyGroupHead(items, now);
+            });
+
+        Assert.Same(other.Item, result.Selected);
+    }
+
+    [Fact]
+    public void Select_RemoteFullQueueIsPreparedWithoutNavigating()
+    {
+        var blocked = Candidate("upgrade_building_to_level", "b");
+        var committed = false;
+
+        var result = AutomationQueueSelector.Select(
+            new AutomationQueueSelectionInput([blocked], [QueueGroup.Construction],
+                new VillageBatchSnapshot("a", 1), "a", Now, 30, Preview: false),
+            (items, now, preview) =>
+            {
+                if (!preview)
+                {
+                    committed = true;
+                    items[0].NextAttemptAt = now.AddMinutes(10);
+                }
+
+                return null; // Full queue: no ready item even in the preview.
+            });
+
+        Assert.Null(result.Selected);
+        Assert.True(committed);
+        Assert.Equal(Now.AddMinutes(10), blocked.Item.NextAttemptAt);
+    }
+
+    [Fact]
+    public void Select_PreviewDoesNotCommitRemoteConstruction()
+    {
+        var remote = Candidate("upgrade_building_to_level", "b");
+        var commits = 0;
+
+        var result = AutomationQueueSelector.Select(
+            new AutomationQueueSelectionInput([remote], [QueueGroup.Construction],
+                new VillageBatchSnapshot("a", 1), "a", Now, 30, Preview: true),
+            (items, now, preview) =>
+            {
+                if (!preview) commits++;
+                return ContinuousLoopSelector.SelectReadyGroupHead(items, now);
+            });
+
+        Assert.Same(remote.Item, result.Selected);
+        Assert.Equal(0, commits);
+    }
+
     private static AutomationQueueSelectionResult Select(
         IReadOnlyList<ContinuousLoopSelectionCandidate> candidates,
         VillageBatchSnapshot batch,
