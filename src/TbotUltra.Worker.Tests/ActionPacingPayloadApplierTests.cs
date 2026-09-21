@@ -30,6 +30,29 @@ public sealed class ActionPacingPayloadApplierTests
         Assert.Equal(expected, options.ShortVillageDeferSeconds);
     }
 
+    [Theory]
+    [InlineData(null, 15)]
+    [InlineData("5", 5)]
+    [InlineData("10", 10)]
+    [InlineData("15", 15)]
+    [InlineData("30", 30)]
+    [InlineData("20", 15)]
+    public void FromConfiguration_NormalizesVillageRoundSleepExtension(string? configured, int expected)
+    {
+        var values = new Dictionary<string, string?>
+        {
+            ["server_name"] = "srv",
+            ["base_url"] = "https://example.com",
+        };
+        if (configured is not null)
+            values[BotOptionPayloadKeys.VillageRoundSleepExtensionMinutes] = configured;
+
+        var options = BotOptionsFactory.FromConfiguration(
+            new ConfigurationBuilder().AddInMemoryCollection(values).Build());
+
+        Assert.Equal(expected, options.VillageRoundSleepExtensionMinutes);
+    }
+
     [Fact]
     public void Apply_MapsEveryActionPacingPayloadKey()
     {
@@ -48,6 +71,7 @@ public sealed class ActionPacingPayloadApplierTests
             [BotOptionPayloadKeys.FarmListStepDelayMinSeconds] = "9",
             [BotOptionPayloadKeys.FarmListStepDelayMaxSeconds] = "10",
             [BotOptionPayloadKeys.ShortVillageDeferSeconds] = "90",
+            [BotOptionPayloadKeys.VillageRoundSleepExtensionMinutes] = "30",
         };
 
         var result = BotOptionsPayloadApplier.Apply(source, payload);
@@ -64,6 +88,7 @@ public sealed class ActionPacingPayloadApplierTests
         Assert.Equal(9, result.FarmListStepDelayMinSeconds);
         Assert.Equal(10, result.FarmListStepDelayMaxSeconds);
         Assert.Equal(90, result.ShortVillageDeferSeconds);
+        Assert.Equal(30, result.VillageRoundSleepExtensionMinutes);
     }
 
     [Fact]

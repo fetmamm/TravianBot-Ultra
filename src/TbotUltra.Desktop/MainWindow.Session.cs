@@ -146,6 +146,7 @@ public partial class MainWindow
 
                 _browserSessionLikelyOpen = true;
                 PrepareConstructionLoginFillForActiveVerifiedVillage();
+                _continuousVillageStatusRound.RequestLoginRound(preserveIncomplete: _sessionPacingWakeInProgress);
                 NotifySessionPacingOnlineStarted();
                 CompleteOperation(operationId, operationSw, "Login completed (quick re-login).");
                 return;
@@ -299,6 +300,7 @@ public partial class MainWindow
 
             _browserSessionLikelyOpen = true;
             PrepareConstructionLoginFillForActiveVerifiedVillage();
+            _continuousVillageStatusRound.RequestLoginRound(preserveIncomplete: _sessionPacingWakeInProgress);
             NotifySessionPacingOnlineStarted();
             // Anchor for the quick re-login window: only a COMPLETED full stack counts.
             PersistLastFullPostLoginTimestamp();
@@ -496,6 +498,7 @@ public partial class MainWindow
 
     private void ResetLoggedOutUiState()
     {
+        _continuousVillageStatusRound.ResetLoginRound();
         StatusTextBlock.Text = "Logged out.";
         UpdateLoginButtonsVisual(false);
         _isLoggedIn = false;
@@ -1288,6 +1291,7 @@ public partial class MainWindow
         _inboxAutoEnabled = false;
         NotifySessionPacingOnlineStopped();
         ResetSessionPacing();
+        _continuousVillageStatusRound.ResetLoginRound();
         await StopAllAutomationAndWaitAsync();
 
         // bot.json is global, so the previous account's village/farm-list pointers would otherwise leak

@@ -1595,6 +1595,8 @@ public partial class SettingsWindow : Window
         SettingsVm.Pacing.LoopMaxSeconds = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, PacingDefaults.ActionPacingLoopMaxSeconds));
         SettingsVm.Pacing.ShortVillageDeferSeconds = PacingDefaults.NormalizeShortVillageDeferSeconds(
             ReadInt(BotOptionPayloadKeys.ShortVillageDeferSeconds, PacingDefaults.ShortVillageDeferSeconds));
+        SettingsVm.Pacing.VillageRoundSleepExtensionMinutes = PacingDefaults.NormalizeVillageRoundSleepExtensionMinutes(
+            ReadInt(BotOptionPayloadKeys.VillageRoundSleepExtensionMinutes, PacingDefaults.VillageRoundSleepExtensionMinutes));
         SettingsVm.Pacing.ContinuousKeepAliveEnabled = ReadBool(BotOptionPayloadKeys.ContinuousKeepAliveEnabled, PacingDefaults.ContinuousKeepAliveEnabled);
         SettingsVm.Pacing.ContinuousKeepAliveMinMinutes = ReadInt(BotOptionPayloadKeys.ContinuousKeepAliveMinMinutes, PacingDefaults.ContinuousKeepAliveMinMinutes).ToString(CultureInfo.InvariantCulture);
         SettingsVm.Pacing.ContinuousKeepAliveMaxMinutes = ReadInt(BotOptionPayloadKeys.ContinuousKeepAliveMaxMinutes, PacingDefaults.ContinuousKeepAliveMaxMinutes).ToString(CultureInfo.InvariantCulture);
@@ -1671,6 +1673,8 @@ public partial class SettingsWindow : Window
         WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingLoopMinSeconds, BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, SettingsVm.Pacing.LoopMinSeconds, SettingsVm.Pacing.LoopMaxSeconds, PacingDefaults.ActionPacingLoopMinSeconds, PacingDefaults.ActionPacingLoopMaxSeconds);
         target[BotOptionPayloadKeys.ShortVillageDeferSeconds] = PacingDefaults.NormalizeShortVillageDeferSeconds(
             SettingsVm.Pacing.ShortVillageDeferSeconds);
+        target[BotOptionPayloadKeys.VillageRoundSleepExtensionMinutes] = PacingDefaults.NormalizeVillageRoundSleepExtensionMinutes(
+            SettingsVm.Pacing.VillageRoundSleepExtensionMinutes);
         target[BotOptionPayloadKeys.ContinuousKeepAliveEnabled] = SettingsVm.Pacing.ContinuousKeepAliveEnabled;
         target[BotOptionPayloadKeys.ContinuousKeepAliveMinMinutes] = ReadIntText(SettingsVm.Pacing.ContinuousKeepAliveMinMinutes, PacingDefaults.ContinuousKeepAliveMinMinutes, 1, 1440);
         target[BotOptionPayloadKeys.ContinuousKeepAliveMaxMinutes] = ReadIntText(SettingsVm.Pacing.ContinuousKeepAliveMaxMinutes, PacingDefaults.ContinuousKeepAliveMaxMinutes, 1, 1440);

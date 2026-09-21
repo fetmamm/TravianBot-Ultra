@@ -57,7 +57,10 @@ public sealed class ContinuousVillageStatusRoundTests
         public List<string> Trace { get; } = [];
         public DateTimeOffset NextRoundUtc { get; init; }
         public IReadOnlyList<VillageStatusRoundVillage> Villages { get; init; } = [];
+        public bool CancelAfterFirstDelay { get; set; }
+        public int DelayCount { get; private set; }
         public string? ActiveAccountName => "account-1";
+        public string? ActiveVillageKey { get; init; }
         public DateTimeOffset GetNextRoundUtc() => NextRoundUtc;
         public ValueTask<bool> EnsureVillageMembershipVerifiedAsync(
             BotOptions options,
@@ -102,9 +105,59 @@ public sealed class ContinuousVillageStatusRoundTests
             Trace.Add($"visit:{village.Key}");
             return ValueTask.FromResult(new VillageStatusRoundVisitResult(true, false));
         }
-        public ValueTask DelayBeforeNextVillageAsync(CancellationToken cancellationToken) =>
-            ValueTask.CompletedTask;
+        public ValueTask DelayBeforeNextVillageAsync(CancellationToken cancellationToken)
+        {
+            DelayCount++;
+            if (CancelAfterFirstDelay && DelayCount == 1)
+                throw new OperationCanceledException();
+            return ValueTask.CompletedTask;
+        }
         public void Log(string message) { }
+    }
+
+    [Fact]
+    public async Task PostLoginRound_StartsAtActiveVillage_AndDoesNotRequireRecurringScan()
+    {
+        var port = new InMemoryPort
+        {
+            NextRoundUtc = Now.AddHours(1),
+            ActiveVillageKey = "b",
+            Villages = [new("a", "A", null), new("b", "B", null), new("c", "C", null)],
+        };
+        var round = new ContinuousVillageStatusRound(
+            new VillageStatusRoundCoordinator((_, _) => 0), port, new FixedTimeProvider(Now));
+
+        round.RequestLoginRound();
+        await round.RunIfDueAsync(new BotOptions { VillageStatusSweepEnabled = false }, default);
+
+        Assert.Equal(["visit:b", "visit:c", "visit:a"],
+            port.Trace.Where(entry => entry.StartsWith("visit:")).ToArray());
+        Assert.DoesNotContain(port.Trace, entry => entry.StartsWith("schedule:"));
+        Assert.False(round.LoginRoundPending);
+    }
+
+    [Fact]
+    public async Task PostLoginRound_ResumesRemainingVillagesAfterInterruption()
+    {
+        var port = new InMemoryPort
+        {
+            NextRoundUtc = Now.AddHours(1),
+            ActiveVillageKey = "b",
+            Villages = [new("a", "A", null), new("b", "B", null)],
+            CancelAfterFirstDelay = true,
+        };
+        var round = new ContinuousVillageStatusRound(
+            new VillageStatusRoundCoordinator((_, _) => 0), port, new FixedTimeProvider(Now));
+        round.RequestLoginRound();
+
+        await Assert.ThrowsAsync<OperationCanceledException>(async () =>
+            await round.RunIfDueAsync(new BotOptions { VillageStatusSweepEnabled = false }, default));
+        Assert.True(round.LoginRoundPending);
+        await round.RunIfDueAsync(new BotOptions { VillageStatusSweepEnabled = false }, default);
+
+        Assert.Equal(["visit:b", "visit:a"],
+            port.Trace.Where(entry => entry.StartsWith("visit:")).ToArray());
+        Assert.False(round.LoginRoundPending);
     }
 
     private sealed class FixedTimeProvider(DateTimeOffset now) : TimeProvider

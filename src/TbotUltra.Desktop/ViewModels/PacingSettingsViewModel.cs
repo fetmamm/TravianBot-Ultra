@@ -19,6 +19,7 @@ public sealed class PacingSettingsViewModel : BaseViewModel
     private string _loopMinSeconds = Format(PacingDefaults.ActionPacingLoopMinSeconds);
     private string _loopMaxSeconds = Format(PacingDefaults.ActionPacingLoopMaxSeconds);
     private int _shortVillageDeferSeconds = PacingDefaults.ShortVillageDeferSeconds;
+    private int _villageRoundSleepExtensionMinutes = PacingDefaults.VillageRoundSleepExtensionMinutes;
     private string _farmListStepDelayMinSeconds = Format(PacingDefaults.FarmListStepDelayMinSeconds);
     private string _farmListStepDelayMaxSeconds = Format(PacingDefaults.FarmListStepDelayMaxSeconds);
     private string _collectStepDelayMinSeconds = Format(PacingDefaults.CollectStepDelayMinSeconds);
@@ -102,6 +103,12 @@ public sealed class PacingSettingsViewModel : BaseViewModel
     {
         get => _shortVillageDeferSeconds;
         set => SetProperty(ref _shortVillageDeferSeconds, PacingDefaults.NormalizeShortVillageDeferSeconds(value));
+    }
+    public int VillageRoundSleepExtensionMinutes
+    {
+        get => _villageRoundSleepExtensionMinutes;
+        set => SetProperty(ref _villageRoundSleepExtensionMinutes,
+            PacingDefaults.NormalizeVillageRoundSleepExtensionMinutes(value));
     }
     public string FarmListStepDelayMinSeconds { get => _farmListStepDelayMinSeconds; set => SetProperty(ref _farmListStepDelayMinSeconds, value); }
     public string FarmListStepDelayMaxSeconds { get => _farmListStepDelayMaxSeconds; set => SetProperty(ref _farmListStepDelayMaxSeconds, value); }
@@ -211,6 +218,7 @@ public sealed class PacingSettingsViewModel : BaseViewModel
         LoopMinSeconds = Format(PacingDefaults.ActionPacingLoopMinSeconds);
         LoopMaxSeconds = Format(PacingDefaults.ActionPacingLoopMaxSeconds);
         ShortVillageDeferSeconds = PacingDefaults.ShortVillageDeferSeconds;
+        VillageRoundSleepExtensionMinutes = PacingDefaults.VillageRoundSleepExtensionMinutes;
         FarmListStepDelayMinSeconds = Format(PacingDefaults.FarmListStepDelayMinSeconds);
         FarmListStepDelayMaxSeconds = Format(PacingDefaults.FarmListStepDelayMaxSeconds);
         CollectStepDelayMinSeconds = Format(PacingDefaults.CollectStepDelayMinSeconds);

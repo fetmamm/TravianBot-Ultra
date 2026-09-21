@@ -356,6 +356,7 @@ internal sealed class SettingsExchangeService
         Add(Int(BotOptionPayloadKeys.SmartSleepFallbackMaxMinutes, "Pacing", 1, 10080));
         Add(QueueGroups(BotOptionPayloadKeys.SmartSleepDeadlineGroups, "Pacing"));
         Add(Int(BotOptionPayloadKeys.ShortVillageDeferSeconds, "Pacing", 20, 90, PacingDefaults.ShortVillageDeferChoicesSeconds));
+        Add(Int(BotOptionPayloadKeys.VillageRoundSleepExtensionMinutes, "Pacing", 5, 30, PacingDefaults.VillageRoundSleepExtensionChoicesMinutes));
         Add(Int(BotOptionPayloadKeys.ContinuousKeepAliveMinMinutes, "Pacing", 1, 1440));
         Add(Int(BotOptionPayloadKeys.ContinuousKeepAliveMaxMinutes, "Pacing", 1, 1440));
         Add(Int(BotOptionPayloadKeys.VillageStatusSweepRoundMinMinutes, "Pacing", 1, 1440));

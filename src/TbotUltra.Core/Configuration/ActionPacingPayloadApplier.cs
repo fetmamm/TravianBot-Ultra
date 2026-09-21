@@ -12,7 +12,8 @@ internal sealed record ActionPacingPayloadValues(
     double LoopMaxSeconds,
     double FarmListStepMinSeconds,
     double FarmListStepMaxSeconds,
-    int ShortVillageDeferSeconds);
+    int ShortVillageDeferSeconds,
+    int VillageRoundSleepExtensionMinutes);
 
 /// <summary>
 /// Applies action-pacing payload keys without owning unrelated bot options.
@@ -35,7 +36,8 @@ internal static class ActionPacingPayloadApplier
             source.ActionPacingLoopMaxSeconds,
             source.FarmListStepDelayMinSeconds,
             source.FarmListStepDelayMaxSeconds,
-            PacingDefaults.NormalizeShortVillageDeferSeconds(source.ShortVillageDeferSeconds));
+            PacingDefaults.NormalizeShortVillageDeferSeconds(source.ShortVillageDeferSeconds),
+            PacingDefaults.NormalizeVillageRoundSleepExtensionMinutes(source.VillageRoundSleepExtensionMinutes));
 
         if (payload is null)
         {
@@ -101,6 +103,14 @@ internal static class ActionPacingPayloadApplier
                 result = result with
                 {
                     ShortVillageDeferSeconds = PacingDefaults.NormalizeShortVillageDeferSeconds(shortVillageDeferSeconds),
+                };
+            }
+            else if (key.Equals(BotOptionPayloadKeys.VillageRoundSleepExtensionMinutes, StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(value, out var extensionMinutes))
+            {
+                result = result with
+                {
+                    VillageRoundSleepExtensionMinutes = PacingDefaults.NormalizeVillageRoundSleepExtensionMinutes(extensionMinutes),
                 };
             }
         }

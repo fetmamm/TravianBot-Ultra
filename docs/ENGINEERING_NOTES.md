@@ -882,10 +882,13 @@ Published artifacts belong under `artifacts/`, never beside source files.
   delay (and existing race buffer). Forecasts must reuse the live selector without mutating queue, rotation, or
   pacing state; normal construction navigation must not start exactly when the raw timer expires. Select and persist
   the normal construction delay before navigating to the task village; the worker then consumes that one-shot decision
-  without randomizing again. Login-fill and pre-sleep-fill keep their explicit early-fill exceptions. Login never
-  forces or reschedules a Village scan: it may fill only the live-verified browser village, while an independently due
-  scan may fill free slots as it naturally visits each village. Full slots retain their persisted queue-humanize extra
-  so later navigation still waits for the effective deadline.
+  without randomizing again. Login-fill and pre-sleep-fill keep their explicit early-fill exceptions. A successful
+  login queues one post-login village round when automation starts: visit the live-verified browser village first,
+  shuffle the rest, and fill only live-verified free slots in each village (including a partially occupied Plus queue).
+  Resume an unfinished round after pause or sleep instead of restarting it; a completed round counts as the due
+  Village scan, but a disabled recurring scan remains disabled. Full slots retain their persisted queue-humanize extra
+  so later navigation still waits for the effective deadline. Planned Smart/Session pacing sleep may wait for this
+  round only up to its Pacing extension choice; varied allowed-hours and daily-max boundaries remain hard stops.
 - Every target-specific live confirmation that a building or resource entered Travian's construction queue publishes
   that authoritative overview snapshot to Desktop immediately. Update the coordinate-owned village cache and green
   construction-slot icons before the enclosing Worker task finishes; retain the validated current-Dorf2 post-task

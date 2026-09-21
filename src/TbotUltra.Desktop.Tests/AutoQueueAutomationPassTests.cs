@@ -154,6 +154,9 @@ public sealed class AutoQueueAutomationPassTests
 
     private sealed class InMemoryAutoQueueAutomationPassPort : IAutoQueueAutomationPassPort
     {
+        public bool HasPendingLoginRound => false;
+        public QueueItem? SelectReadyPriorityQueueItem(BotOptions options) => null;
+        public ValueTask RunPendingLoginRoundAsync(BotOptions options, CancellationToken cancellationToken) => ValueTask.CompletedTask;
         public Queue<QueueItem?> SelectedItems { get; init; } = new([null]);
         public IReadOnlyList<QueueItem> QueueItems { get; init; } = [];
         public List<string> LogMessages { get; } = [];

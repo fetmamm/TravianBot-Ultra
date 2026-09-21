@@ -134,6 +134,7 @@ public sealed class BotConfigStore
         BotOptionPayloadKeys.ActionPacingLoopMinSeconds,
         BotOptionPayloadKeys.ActionPacingLoopMaxSeconds,
         BotOptionPayloadKeys.ShortVillageDeferSeconds,
+        BotOptionPayloadKeys.VillageRoundSleepExtensionMinutes,
         BotOptionPayloadKeys.ContinuousKeepAliveEnabled,
         BotOptionPayloadKeys.ContinuousKeepAliveMinMinutes,
         BotOptionPayloadKeys.ContinuousKeepAliveMaxMinutes,

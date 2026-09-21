@@ -14,6 +14,7 @@ public partial class MainWindow
             new Dictionary<string, VillageSelectionItem>();
 
         public string? ActiveAccountName => owner._accountStore.ActiveAccountName();
+        public string? ActiveVillageKey => owner._activeWorkingVillageKey;
         public DateTimeOffset GetNextRoundUtc() => owner.GetVillageStatusSweepNextScanUtc();
         public ValueTask<bool> EnsureVillageMembershipVerifiedAsync(
             BotOptions options,
@@ -44,7 +45,10 @@ public partial class MainWindow
                 .ToList();
         }
         public IDisposable BeginRoundActivity(int villageCount) =>
-            owner._dashboardActivityTracker.Begin($"Village scan (0/{villageCount})");
+            owner._dashboardActivityTracker.Begin(
+                owner._continuousVillageStatusRound.LoginRoundPending
+                    ? $"Village round (0/{villageCount})"
+                    : $"Village scan (0/{villageCount})");
         public VillageStatusRoundScheduleResult ScheduleNext(
             string? expectedAccountName,
             int minMinutes,

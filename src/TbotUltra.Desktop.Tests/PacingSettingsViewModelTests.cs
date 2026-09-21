@@ -85,6 +85,19 @@ public sealed class PacingSettingsViewModelTests
         Assert.Equal(expected, vm.ShortVillageDeferSeconds);
     }
 
+    [Theory]
+    [InlineData(5, 5)]
+    [InlineData(10, 10)]
+    [InlineData(15, 15)]
+    [InlineData(30, 30)]
+    [InlineData(20, 15)]
+    public void VillageRoundSleepExtensionMinutes_AllowsOnlyDropdownChoices(int value, int expected)
+    {
+        var vm = new PacingSettingsViewModel { VillageRoundSleepExtensionMinutes = value };
+
+        Assert.Equal(expected, vm.VillageRoundSleepExtensionMinutes);
+    }
+
     [Fact]
     public void DisablingDorf2_ClearsDependentVillageScanSelections()
     {

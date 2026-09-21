@@ -35,6 +35,8 @@ public static class PacingDefaults
     public const double ActionPacingLoopMaxSeconds = 25.0;
     public const int ShortVillageDeferSeconds = 60;
     public static IReadOnlyList<int> ShortVillageDeferChoicesSeconds { get; } = [20, 60, 90];
+    public const int VillageRoundSleepExtensionMinutes = 15;
+    public static IReadOnlyList<int> VillageRoundSleepExtensionChoicesMinutes { get; } = [5, 10, 15, 30];
     public const bool ContinuousKeepAliveEnabled = true;
     public const int ContinuousKeepAliveMinMinutes = 4;
     public const int ContinuousKeepAliveMaxMinutes = 15;
@@ -94,6 +96,9 @@ public static class PacingDefaults
 
     public static int NormalizeShortVillageDeferSeconds(int value)
         => ShortVillageDeferChoicesSeconds.Contains(value) ? value : ShortVillageDeferSeconds;
+
+    public static int NormalizeVillageRoundSleepExtensionMinutes(int value)
+        => VillageRoundSleepExtensionChoicesMinutes.Contains(value) ? value : VillageRoundSleepExtensionMinutes;
 
     // Pre-sleep fill (part of the construction start delay feature): shortly before a session-pacing
     // sleep, pull humanize-deferred construction starts forward so every build slot that CAN be

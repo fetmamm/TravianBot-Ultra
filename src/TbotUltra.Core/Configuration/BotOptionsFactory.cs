@@ -224,6 +224,8 @@ public static class BotOptionsFactory
             ActionPacingLoopMaxSeconds = ClampDelaySeconds(configuration.GetValue(BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, actionPacingDefaults.LoopMaxSeconds)),
             ShortVillageDeferSeconds = PacingDefaults.NormalizeShortVillageDeferSeconds(
                 configuration.GetValue(BotOptionPayloadKeys.ShortVillageDeferSeconds, PacingDefaults.ShortVillageDeferSeconds)),
+            VillageRoundSleepExtensionMinutes = PacingDefaults.NormalizeVillageRoundSleepExtensionMinutes(
+                configuration.GetValue(BotOptionPayloadKeys.VillageRoundSleepExtensionMinutes, PacingDefaults.VillageRoundSleepExtensionMinutes)),
             ContinuousKeepAliveEnabled = configuration.GetValue(BotOptionPayloadKeys.ContinuousKeepAliveEnabled, PacingDefaults.ContinuousKeepAliveEnabled),
             ContinuousKeepAliveMinMinutes = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ContinuousKeepAliveMinMinutes, PacingDefaults.ContinuousKeepAliveMinMinutes), 1, 1440),
             ContinuousKeepAliveMaxMinutes = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ContinuousKeepAliveMaxMinutes, PacingDefaults.ContinuousKeepAliveMaxMinutes), 1, 1440),

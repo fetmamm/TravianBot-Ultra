@@ -459,6 +459,8 @@ public sealed record BotOptions
 
     [ConfigurationKeyName(BotOptionPayloadKeys.ShortVillageDeferSeconds)]
     public int ShortVillageDeferSeconds { get; init; } = PacingDefaults.ShortVillageDeferSeconds;
+    [ConfigurationKeyName(BotOptionPayloadKeys.VillageRoundSleepExtensionMinutes)]
+    public int VillageRoundSleepExtensionMinutes { get; init; } = PacingDefaults.VillageRoundSleepExtensionMinutes;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousKeepAliveEnabled)]
     public bool ContinuousKeepAliveEnabled { get; init; } = PacingDefaults.ContinuousKeepAliveEnabled;

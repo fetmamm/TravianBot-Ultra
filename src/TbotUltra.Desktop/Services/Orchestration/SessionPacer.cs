@@ -98,6 +98,17 @@ public sealed class SessionPacer
 
     public SessionPacerPhase Phase { get; private set; } = SessionPacerPhase.Disabled;
     public SessionSleepReason SleepReason { get; private set; }
+    public SessionSleepReason PendingSleepReason => _pendingSleepReason;
+    public SessionSleepReason ActiveHardRestriction => _settings.Enabled
+        ? GetActiveRestriction(_now())
+        : SessionSleepReason.None;
+
+    public void ApplyActiveHardRestrictionToPendingSleep()
+    {
+        var restriction = ActiveHardRestriction;
+        if (restriction != SessionSleepReason.None)
+            _pendingSleepReason = restriction;
+    }
     public bool CanWakeNow => Phase == SessionPacerPhase.Sleeping
         && SleepReason is SessionSleepReason.SessionPacing or SessionSleepReason.SmartSleep or SessionSleepReason.Manual or SessionSleepReason.Schedule;
     public TimeSpan? TimeUntilSleep => _runDeadline is null ? null : Positive(_runDeadline.Value - _now());

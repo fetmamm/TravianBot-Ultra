@@ -1,4 +1,5 @@
 using TbotUltra.Core.Configuration;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.Services.Orchestration;
 using TbotUltra.Worker.Domain;
 
@@ -21,6 +22,18 @@ public partial class MainWindow
 
         public IReadOnlySet<QueueGroup> SmartSleepDeadlineGroups =>
             owner._automationPassRuntime.SmartSleepDeadlineGroups;
+
+        public bool HasPendingLoginRound => owner._continuousVillageStatusRound.LoginRoundPending;
+
+        public QueueItem? SelectReadyPriorityQueueItem(BotOptions options) =>
+            owner.SelectUrgentQueueItemForVillageStatusSweep(
+                options,
+                new HashSet<Guid>(),
+                explicitPriorityOnly: true);
+
+        public ValueTask RunPendingLoginRoundAsync(BotOptions options, CancellationToken cancellationToken) =>
+            owner._continuousVillageStatusRound.RunIfDueAsync(
+                AutomationExecutionOptions.WithoutImplicitVillageTarget(options), cancellationToken);
 
         public BotOptions LoadOptionsWithSelectedVillage() =>
             owner.ApplySelectedVillageToOptions(owner.LoadBotOptions());

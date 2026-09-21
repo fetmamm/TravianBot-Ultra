@@ -23,6 +23,8 @@ internal interface IContinuousAutomationPassPort
     DateTimeOffset VillageMembershipVerificationNotBeforeUtc { get; }
     DateTimeOffset NextKeepAliveAtUtc { get; }
     bool PrioritizeDeadlineWorkOnWake { get; set; }
+    bool HasPendingLoginRound { get; }
+    QueueItem? SelectReadyPriorityQueueItem(BotOptions options);
     ValueTask EnsureChromiumInstalledAsync();
     ValueTask<bool> EnsureVillageMembershipVerifiedAsync(BotOptions options, CancellationToken cancellationToken);
     bool ConsumeImmediateWorkRequest();
@@ -92,22 +94,40 @@ internal sealed class ContinuousAutomationPass(
             }
 
             var immediateWorkRequested = port.ConsumeImmediateWorkRequest();
-            if (!immediateWorkRequested)
+            var loginRoundPending = port.HasPendingLoginRound;
+            if (!immediateWorkRequested && !loginRoundPending)
             {
                 await port.MaybeTakeIdleBreakAsync(options, cancellationToken);
                 immediateWorkRequested = port.ConsumeImmediateWorkRequest();
             }
-            if (!immediateWorkRequested)
+            if (!immediateWorkRequested && !loginRoundPending)
             {
                 await port.MaybeDoIdleBrowseAsync(options, cancellationToken);
             }
 
             await port.HonorPendingVillageSwitchAsync(options, cancellationToken);
+            if (loginRoundPending)
+            {
+                await port.EnsureRuntimeItemsAsync(options, cancellationToken);
+                var priority = port.SelectReadyPriorityQueueItem(options);
+                if (priority is not null)
+                {
+                    port.Log($"[village-round] explicit priority task runs before village round: {priority.TaskName}.");
+                    port.MarkActivePass();
+                    return new AutomationStateSnapshot([AutomationCandidate.FromQueueItem(priority)]);
+                }
+                port.PrioritizeDeadlineWorkOnWake = false;
+            }
             var prioritizeDeadlineWork = port.PrioritizeDeadlineWorkOnWake;
             if (!prioritizeDeadlineWork)
             {
                 var forceVillageStatusRound = port.ConsumeForceVillageStatusRoundRequest();
                 await port.MaybeRunVillageStatusRoundAsync(options, cancellationToken, forceVillageStatusRound);
+                if (port.HasPendingLoginRound)
+                {
+                    port.Log("[village-round] round paused before completion; ordinary tasks remain deferred.");
+                    return new AutomationStateSnapshot([], NextWakeAt: _timeProvider.GetUtcNow().AddSeconds(10));
+                }
             }
             else
             {
@@ -134,6 +154,8 @@ internal sealed class ContinuousAutomationPass(
                 port.PrioritizeDeadlineWorkOnWake = false;
                 var forceVillageStatusRound = port.ConsumeForceVillageStatusRoundRequest();
                 await port.MaybeRunVillageStatusRoundAsync(options, cancellationToken, forceVillageStatusRound);
+                if (port.HasPendingLoginRound)
+                    return new AutomationStateSnapshot([], NextWakeAt: _timeProvider.GetUtcNow().AddSeconds(10));
                 await port.EnsureRuntimeItemsAsync(options, cancellationToken);
                 next = port.SelectNextQueueItem();
                 if (next is not null)

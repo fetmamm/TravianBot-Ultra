@@ -8,6 +8,9 @@ internal interface IAutoQueueAutomationPassPort
     BotOptions LoadOptionsWithSelectedVillage();
     long RunLogId { get; }
     bool PrioritizeDeadlineWorkOnWake { get; set; }
+    bool HasPendingLoginRound { get; }
+    QueueItem? SelectReadyPriorityQueueItem(BotOptions options);
+    ValueTask RunPendingLoginRoundAsync(BotOptions options, CancellationToken cancellationToken);
     IReadOnlySet<QueueGroup> SmartSleepDeadlineGroups { get; }
     ValueTask HonorPendingVillageSwitchAsync(BotOptions options, CancellationToken cancellationToken);
     QueueItem? SelectNextQueueItem();
@@ -33,9 +36,17 @@ internal sealed class AutoQueueAutomationPass(
         AutomationRunContext context,
         CancellationToken cancellationToken)
     {
-        await port.HonorPendingVillageSwitchAsync(
-            port.LoadOptionsWithSelectedVillage(),
-            cancellationToken);
+        var options = port.LoadOptionsWithSelectedVillage();
+        await port.HonorPendingVillageSwitchAsync(options, cancellationToken);
+        if (port.HasPendingLoginRound)
+        {
+            var priority = port.SelectReadyPriorityQueueItem(options);
+            if (priority is not null)
+                return new AutomationStateSnapshot([AutomationCandidate.FromQueueItem(priority)]);
+            await port.RunPendingLoginRoundAsync(options, cancellationToken);
+            if (port.HasPendingLoginRound)
+                return new AutomationStateSnapshot([], NextWakeAt: _timeProvider.GetUtcNow().AddSeconds(10));
+        }
 
         var selected = port.SelectNextQueueItem();
         if (selected is not null)

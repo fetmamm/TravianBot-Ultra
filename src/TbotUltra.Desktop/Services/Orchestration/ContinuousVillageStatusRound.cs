@@ -5,6 +5,7 @@ namespace TbotUltra.Desktop.Services.Orchestration;
 internal interface IContinuousVillageStatusRoundPort : IVillageStatusRoundPort
 {
     DateTimeOffset GetNextRoundUtc();
+    string? ActiveVillageKey { get; }
     string? ActiveAccountName { get; }
     ValueTask<bool> EnsureVillageMembershipVerifiedAsync(
         BotOptions options,
@@ -24,14 +25,40 @@ internal sealed class ContinuousVillageStatusRound(
     TimeProvider? timeProvider = null)
 {
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly object _loginRoundSync = new();
+    private bool _loginRoundPending;
+    private List<string>? _loginRoundRemainingKeys;
+
+    internal bool LoginRoundPending
+    {
+        get { lock (_loginRoundSync) return _loginRoundPending; }
+    }
+
+    internal void RequestLoginRound(bool preserveIncomplete = false)
+    {
+        lock (_loginRoundSync)
+        {
+            if (preserveIncomplete && _loginRoundPending)
+                return;
+            _loginRoundPending = true;
+            _loginRoundRemainingKeys = null;
+        }
+        port.Log("[village-round] post-login village round queued.");
+    }
+
+    internal void ResetLoginRound()
+    {
+        lock (_loginRoundSync) { _loginRoundPending = false; _loginRoundRemainingKeys = null; }
+    }
 
     internal async ValueTask RunIfDueAsync(
         BotOptions options,
         CancellationToken cancellationToken,
         bool force = false)
     {
-        if ((!options.VillageStatusSweepEnabled && !force)
-            || (!force && _timeProvider.GetUtcNow() < port.GetNextRoundUtc()))
+        var loginRound = LoginRoundPending;
+        if ((!options.VillageStatusSweepEnabled && !force && !loginRound)
+            || (!force && !loginRound && _timeProvider.GetUtcNow() < port.GetNextRoundUtc()))
         {
             return;
         }
@@ -50,10 +77,41 @@ internal sealed class ContinuousVillageStatusRound(
         }
 
         using var activity = port.BeginRoundActivity(villages.Count);
-        var result = await coordinator.RunAsync(villages, port, cancellationToken);
-        if (!result.Completed)
+        if (loginRound)
         {
-            return;
+            lock (_loginRoundSync)
+            {
+                _loginRoundRemainingKeys ??= coordinator.OrderStartingAt(villages, port.ActiveVillageKey)
+                    .Select(village => village.Key).ToList();
+            }
+            var remaining = _loginRoundRemainingKeys!;
+            var ordered = remaining.Select(key => villages.FirstOrDefault(village =>
+                    string.Equals(village.Key, key, StringComparison.OrdinalIgnoreCase)))
+                .Where(village => village is not null).Select(village => village!).ToList();
+            if (ordered.Count == 0)
+            {
+                lock (_loginRoundSync) { _loginRoundPending = false; _loginRoundRemainingKeys = null; }
+                return;
+            }
+            port.Log($"[village-round] starting/resuming post-login round; {ordered.Count} village(s) remaining.");
+            var loginResult = await coordinator.RunAsync(ordered, port, cancellationToken,
+                preserveOrder: true,
+                onVisited: village => { lock (_loginRoundSync) remaining.RemoveAll(key =>
+                    string.Equals(key, village.Key, StringComparison.OrdinalIgnoreCase)); },
+                startIndex: villages.Count - ordered.Count,
+                totalCount: villages.Count);
+            if (!loginResult.Completed)
+                return;
+            lock (_loginRoundSync) { _loginRoundPending = false; _loginRoundRemainingKeys = null; }
+            port.Log("[village-round] post-login round complete.");
+            if (!options.VillageStatusSweepEnabled)
+                return;
+        }
+        else
+        {
+            var result = await coordinator.RunAsync(villages, port, cancellationToken);
+            if (!result.Completed)
+                return;
         }
 
         var min = Math.Min(

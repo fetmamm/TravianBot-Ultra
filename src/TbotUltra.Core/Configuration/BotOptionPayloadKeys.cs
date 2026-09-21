@@ -327,6 +327,7 @@ public static class BotOptionPayloadKeys
     public const string ActionPacingLoopMinSeconds = "action_pacing_loop_min_seconds";
     public const string ActionPacingLoopMaxSeconds = "action_pacing_loop_max_seconds";
     public const string ShortVillageDeferSeconds = "short_village_defer_seconds";
+    public const string VillageRoundSleepExtensionMinutes = "village_round_sleep_extension_minutes";
     public const string ContinuousKeepAliveEnabled = "continuous_keep_alive_enabled";
     public const string ContinuousKeepAliveMinMinutes = "continuous_keep_alive_min_minutes";
     public const string ContinuousKeepAliveMaxMinutes = "continuous_keep_alive_max_minutes";

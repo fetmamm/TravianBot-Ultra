@@ -34,6 +34,14 @@ public partial class MainWindow
             set => owner._automationPassRuntime.PrioritizeDeadlineWorkOnWake = value;
         }
 
+        public bool HasPendingLoginRound => owner._continuousVillageStatusRound.LoginRoundPending;
+
+        public QueueItem? SelectReadyPriorityQueueItem(BotOptions options) =>
+            owner.SelectUrgentQueueItemForVillageStatusSweep(
+                options,
+                new HashSet<Guid>(),
+                explicitPriorityOnly: true);
+
         public ValueTask EnsureChromiumInstalledAsync() =>
             new(owner.EnsureChromiumInstalledAsync());
 

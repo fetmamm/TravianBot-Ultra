@@ -101,7 +101,7 @@ public partial class MainWindow
         BotOptions options,
         VillageSelectionItem village,
         CancellationToken cancellationToken) =>
-        options.VillageStatusSweepDorf2Enabled
+        (options.VillageStatusSweepDorf2Enabled || _continuousVillageStatusRound.LoginRoundPending)
             ? options.VillageStatusSweepSmithyEnabled
                 ? _botService.ReadVillageStatusWithSmithyAsync(
                     options,
@@ -347,13 +347,50 @@ public partial class MainWindow
         }
 
         var attemptedItemIds = new HashSet<Guid>();
+        var postLoginRound = _continuousVillageStatusRound.LoginRoundPending;
+        var shortVillageHoldApplied = false;
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            var urgent = SelectUrgentQueueItemForVillageStatusSweep(options, attemptedItemIds);
+            var urgent = SelectUrgentQueueItemForVillageStatusSweep(options, attemptedItemIds,
+                explicitPriorityOnly: postLoginRound);
             var next = urgent ?? SelectNextQueueItemForVillageStatusSweep(villageKey, attemptedItemIds);
             if (next is null)
             {
+                if (postLoginRound && !shortVillageHoldApplied)
+                {
+                    var holdCandidates = _botService.GetQueueItemsForDisplay()
+                        .Where(item => !attemptedItemIds.Contains(item.Id))
+                        .Select(item => new ContinuousLoopSelectionCandidate(
+                            item,
+                            GetQueueItemVillageKey(item),
+                            IsQueueItemAllowedByAutomationSettings(item),
+                            ContinuousLoopSelector.IsUtilityTask(item.TaskName)
+                                && IsAutoCollectUtilityTaskEnabledNow(item.TaskName, options)))
+                        .ToList();
+                    var hold = AutomationQueueSelector.Select(
+                        new AutomationQueueSelectionInput(
+                            holdCandidates,
+                            GetContinuousLoopConsideredGroupsInOrder(),
+                            _automationPassRuntime.SnapshotVillageBatch(_activeWorkingVillageKey),
+                            villageKey,
+                            DateTimeOffset.UtcNow,
+                            options.ShortVillageDeferSeconds,
+                            Preview: true),
+                        SelectReadyConstructionForAutomationPass);
+                    if (hold.Reason == AutomationQueueSelectionReason.ShortVillageHold
+                        && hold.HoldUntil is { } holdUntil
+                        && holdUntil > DateTimeOffset.UtcNow)
+                    {
+                        shortVillageHoldApplied = true;
+                        AppendLog($"[village-round] waiting up to {Math.Ceiling((holdUntil - DateTimeOffset.UtcNow).TotalSeconds)}s "
+                            + $"for a soon-ready task in '{village.Name}'.");
+                        var holdDelay = holdUntil - DateTimeOffset.UtcNow;
+                        if (holdDelay > TimeSpan.Zero)
+                            await Task.Delay(holdDelay, cancellationToken);
+                        continue;
+                    }
+                }
                 if (_automationPassRuntime.SnapshotVillageBatch(_activeWorkingVillageKey).HasUrgentPreemption)
                 {
                     _automationPassRuntime.CompleteUrgentPreemption(_activeWorkingVillageKey);
@@ -491,10 +528,12 @@ public partial class MainWindow
 
     private QueueItem? SelectUrgentQueueItemForVillageStatusSweep(
         BotOptions options,
-        IReadOnlySet<Guid> attemptedItemIds)
+        IReadOnlySet<Guid> attemptedItemIds,
+        bool explicitPriorityOnly = false)
     {
         var candidates = _botService.GetQueueItemsForDisplay()
             .Where(item => !attemptedItemIds.Contains(item.Id))
+            .Where(item => !explicitPriorityOnly || item.Priority > 0)
             .Select(item => new ContinuousLoopSelectionCandidate(
                 item,
                 GetQueueItemVillageKey(item),
@@ -526,8 +565,9 @@ public partial class MainWindow
         bool inboxStatusChecked,
         CancellationToken cancellationToken)
     {
+        var postLoginRound = _continuousVillageStatusRound.LoginRoundPending;
         using var villageActivity = _dashboardActivityTracker.Begin(
-            $"Village scan ({villageNumber}/{villageCount}): {village.Name}");
+            $"{(postLoginRound ? "Village round" : "Village scan")} ({villageNumber}/{villageCount}): {village.Name}");
         cancellationToken.ThrowIfCancellationRequested();
         var inboxCheckedDuringVisit = false;
         try
@@ -542,6 +582,14 @@ public partial class MainWindow
                         CacheVillageStatus(status, targetVillage.Name, triggerDeferredWaitRefresh: false);
                         SetActiveWorkingVillageFromStatus(status);
                         ReconcilePendingBuildingQueueWithLiveStatus(status);
+                        if (postLoginRound)
+                        {
+                            PrepareConstructionLoginFill(
+                                "village-round",
+                                targetVillage.Name,
+                                GetVillageKey(targetVillage),
+                                verifiedStatus: status);
+                        }
                         SyncDashboardVillageUiFromVillages(
                             status.Villages,
                             status.ActiveVillage,
@@ -591,7 +639,7 @@ public partial class MainWindow
                     ExecuteReadyVillageStatusSweepTasksAsync(options, targetVillage, attempts, token)));
             return await _villageStatusReactionCoordinator.RunAsync(
                 village,
-                options.VillageStatusSweepDorf1Enabled,
+                options.VillageStatusSweepDorf1Enabled || postLoginRound,
                 inboxStatusChecked,
                 port,
                 cancellationToken);

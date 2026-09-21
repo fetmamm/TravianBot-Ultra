@@ -331,6 +331,8 @@ public sealed class ContinuousAutomationPassTests
         public DateTimeOffset VillageMembershipVerificationNotBeforeUtc => DateTimeOffset.MinValue;
         public DateTimeOffset NextKeepAliveAtUtc { get; init; } = DateTimeOffset.MaxValue;
         public bool PrioritizeDeadlineWorkOnWake { get; set; }
+        public bool HasPendingLoginRound { get; init; }
+        public QueueItem? SelectReadyPriorityQueueItem(BotOptions options) => null;
         public ValueTask EnsureChromiumInstalledAsync()
         {
             ChromiumPreparationCount++;

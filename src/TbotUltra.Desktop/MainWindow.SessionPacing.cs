@@ -15,6 +15,8 @@ public partial class MainWindow
     private bool _sessionPacingSleepInProgress;
     private bool _sessionPacingWakeInProgress;
     private bool _sessionPacingSleepDeferredForManualOperation;
+    private DateTimeOffset? _villageRoundSleepDeferredUntilUtc;
+    private bool _villageRoundSleepRetryScheduled;
     private SmartSleepSettings _smartSleepSettings = new(
         PacingDefaults.SmartSleepEnabled,
         PacingDefaults.SmartSleepMinimumOpportunityMinutes,
@@ -217,6 +219,7 @@ public partial class MainWindow
     {
         _sleepSnapshot = SleepSnapshot.Idle;
         _sessionPacingSleepDeferredForManualOperation = false;
+        _villageRoundSleepDeferredUntilUtc = null;
         _villageStatusRoundRuntime.SetForceOnWakeRequest(false);
         _automationPassRuntime.PrioritizeDeadlineWorkOnWake = false;
         _pacingPauseRequestCount = 0;
@@ -269,6 +272,25 @@ public partial class MainWindow
         {
             return;
         }
+
+        if (!manual && _continuousVillageStatusRound.LoginRoundPending
+            && (IsContinuousLoopRunning() || _autoQueueRunning)
+            && _sessionPacer.PendingSleepReason is SessionSleepReason.SessionPacing or SessionSleepReason.SmartSleep)
+        {
+            _villageRoundSleepDeferredUntilUtc ??= DateTimeOffset.UtcNow.AddMinutes(
+                PacingDefaults.NormalizeVillageRoundSleepExtensionMinutes(
+                    LoadBotOptions().VillageRoundSleepExtensionMinutes));
+            if (DateTimeOffset.UtcNow < _villageRoundSleepDeferredUntilUtc
+                && _sessionPacer.ActiveHardRestriction == SessionSleepReason.None)
+            {
+                AppendLog($"[village-round] planned sleep delayed while village round finishes; "
+                    + $"up to {Math.Ceiling((_villageRoundSleepDeferredUntilUtc.Value - DateTimeOffset.UtcNow).TotalSeconds)}s remaining.");
+                return;
+            }
+        }
+
+        _sessionPacer.ApplyActiveHardRestrictionToPendingSleep();
+        _villageRoundSleepDeferredUntilUtc = null;
 
         if (_loopController.HasActiveOperation)
         {
@@ -722,7 +744,34 @@ public partial class MainWindow
             return;
         }
 
-        SessionPacingStatusTextBlock.Text = _sessionPacer.StatusText;
+        if (_villageRoundSleepDeferredUntilUtc is not null
+            && _sessionPacer.PendingSleepReason == SessionSleepReason.None)
+        {
+            _villageRoundSleepDeferredUntilUtc = null;
+            AppendLog("[village-round] planned sleep was canceled; the village round continues.");
+        }
+
+        if (_villageRoundSleepDeferredUntilUtc is { } sleepDeadline
+            && !_villageRoundSleepRetryScheduled
+            && (!_continuousVillageStatusRound.LoginRoundPending
+                || (!IsContinuousLoopRunning() && !_autoQueueRunning)
+                || DateTimeOffset.UtcNow >= sleepDeadline
+                || _sessionPacer.ActiveHardRestriction != SessionSleepReason.None))
+        {
+            _villageRoundSleepRetryScheduled = true;
+            _backgroundTasks.Track(SafeSessionPacingInvokeAsync(async () =>
+            {
+                try { await HandleSessionPacingSleepStartingAsync(); }
+                finally { _villageRoundSleepRetryScheduled = false; }
+            }));
+        }
+
+        SessionPacingStatusTextBlock.Text = _villageRoundSleepDeferredUntilUtc is { } deferredUntil
+            ? $"Village round: sleep in {SessionPacer.FormatDuration(
+                deferredUntil > DateTimeOffset.UtcNow
+                    ? deferredUntil - DateTimeOffset.UtcNow
+                    : TimeSpan.Zero)}"
+            : _sessionPacer.StatusText;
         UpdateDailyPacingUi();
         SessionPacingRunNowButton.Visibility = _sessionPacer.CanWakeNow
             ? Visibility.Visible
