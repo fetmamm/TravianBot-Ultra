@@ -38,4 +38,5 @@ public partial class DashboardPanel : UserControl
     private void VillageStatusSweepSetting_Changed(object sender, RoutedEventArgs e) => Host?.OnVillageStatusSweepSettingChanged(sender, e);
     private void VillageStatusSweepSettingsButton_Click(object sender, RoutedEventArgs e) => Host?.OnVillageStatusSweepSettingsClicked(sender, e);
     private void IncomingAttackButton_Click(object sender, RoutedEventArgs e) => Host?.OnIncomingAttackClicked(sender, e);
+    private void VillageQueueButton_Click(object sender, RoutedEventArgs e) => Host?.OnDashboardVillageQueueClicked(sender, e);
 }

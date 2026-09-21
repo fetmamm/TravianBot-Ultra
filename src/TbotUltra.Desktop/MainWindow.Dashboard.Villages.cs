@@ -1300,6 +1300,36 @@ public partial class MainWindow
         ShowSelectedVillageFromCache(selected);
     }
 
+    private void DashboardVillageQueueButton_Click(object sender, RoutedEventArgs e)
+    {
+        if ((sender as Button)?.Tag is not VillageSelectionItem village)
+        {
+            return;
+        }
+
+        var villageKey = GetVillageKey(village);
+        var selected = (VillageComboBox.ItemsSource as IEnumerable<VillageSelectionItem>)?
+            .FirstOrDefault(candidate => string.Equals(
+                GetVillageKey(candidate), villageKey, StringComparison.OrdinalIgnoreCase));
+        if (selected is null)
+        {
+            AppendLog($"[dashboard] queue shortcut skipped: village '{village.Name}' is no longer in the picker.");
+            return;
+        }
+
+        if (ReferenceEquals(VillageComboBox.SelectedItem, selected))
+        {
+            RefreshQueueUi();
+        }
+        else
+        {
+            VillageComboBox.SelectedItem = selected; // View context only; never switches the browser village.
+        }
+        QueueSectionTabControl.SelectedItem = QueuePanelControl.ActiveTab;
+        OpenQueueFromBuildings();
+        AppendLog($"[dashboard] opened active queue for village '{selected.Name}' key='{villageKey}'.");
+    }
+
 
     private bool IsExecutionActiveForVillageChange()
     {

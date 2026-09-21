@@ -135,6 +135,48 @@ public sealed class PanelSmokeTests
     }
 
     [Fact]
+    public void DashboardPanel_QueueShortcutExistsForFullAndEmptyVillageQueues()
+    {
+        _wpf.Run(() =>
+        {
+            var panel = new DashboardPanel();
+            var villages = Assert.IsType<ItemsControl>(panel.FindName("DashboardVillageList"));
+            var full = new VillageSelectionItem { Name = "Full", HasQueue = true };
+            var empty = new VillageSelectionItem { Name = "Empty", HasQueue = false };
+            villages.ItemsSource = new[] { full, empty };
+
+            panel.Measure(new Size(1280, 900));
+            panel.Arrange(new Rect(0, 0, 1280, 900));
+            panel.UpdateLayout();
+
+            foreach (var village in new[] { full, empty })
+            {
+                var presenter = Assert.IsType<ContentPresenter>(villages.ItemContainerGenerator.ContainerFromItem(village));
+                var button = Assert.IsType<Button>(presenter.ContentTemplate.FindName("VillageQueueButton", presenter));
+                Assert.Same(village, button.Tag);
+                Assert.True(button.IsEnabled);
+                button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent, button));
+            }
+        });
+    }
+
+    [Fact]
+    public void DashboardQueueShortcut_SelectsVillageViewAndActiveQueueOnly()
+    {
+        var root = TbotUltra.Worker.ProjectRootLocator.FindProjectRoot();
+        var source = File.ReadAllText(Path.Combine(root, "src", "TbotUltra.Desktop", "MainWindow.Dashboard.Villages.cs"));
+        var start = source.IndexOf("private void DashboardVillageQueueButton_Click", StringComparison.Ordinal);
+        var end = source.IndexOf("private bool IsExecutionActiveForVillageChange", start, StringComparison.Ordinal);
+        var shortcut = source[start..end];
+
+        Assert.Contains("GetVillageKey(village)", shortcut, StringComparison.Ordinal);
+        Assert.Contains("VillageComboBox.SelectedItem = selected", shortcut, StringComparison.Ordinal);
+        Assert.Contains("QueueSectionTabControl.SelectedItem = QueuePanelControl.ActiveTab", shortcut, StringComparison.Ordinal);
+        Assert.Contains("OpenQueueFromBuildings()", shortcut, StringComparison.Ordinal);
+        Assert.DoesNotContain("SwitchToActiveVillageAsync", shortcut, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void FarmingPanel_ContainsFarmingAndInactiveOasisScanTabsInOrder()
     {
         _wpf.Run(() =>

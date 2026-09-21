@@ -40,4 +40,5 @@ public partial class MainWindow
     internal void OnVillageStatusSweepSettingChanged(object sender, RoutedEventArgs e) => VillageStatusSweepSetting_Changed(sender, e);
     internal void OnVillageStatusSweepSettingsClicked(object sender, RoutedEventArgs e) => VillageStatusSweepSettingsButton_Click(sender, e);
     internal void OnIncomingAttackClicked(object sender, RoutedEventArgs e) => IncomingAttackButton_Click(sender, e);
+    internal void OnDashboardVillageQueueClicked(object sender, RoutedEventArgs e) => DashboardVillageQueueButton_Click(sender, e);
 }
