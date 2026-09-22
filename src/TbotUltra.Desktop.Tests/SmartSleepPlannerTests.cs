@@ -1,3 +1,4 @@
+using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Services.Orchestration;
 using Xunit;
 
@@ -6,6 +7,13 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class SmartSleepPlannerTests
 {
     private static readonly SmartSleepSettings Settings = new(true, 20, 5, 10, 30, 60);
+
+    [Fact]
+    public void DefaultFallbackWindow_Is90To180Minutes()
+    {
+        Assert.Equal(90, PacingDefaults.SmartSleepFallbackMinMinutes);
+        Assert.Equal(180, PacingDefaults.SmartSleepFallbackMaxMinutes);
+    }
 
     [Fact]
     public void TrustedDeadline_UsesConfigurableWakeWindow()

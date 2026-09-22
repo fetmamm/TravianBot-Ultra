@@ -178,7 +178,7 @@
                       CanUserAddRows="False"
                       CanUserDeleteRows="False"
                       CanUserReorderColumns="False"
-                      CanUserResizeColumns="False"
+                      CanUserResizeColumns="True"
                       GridLinesVisibility="Horizontal"
                       HorizontalGridLinesBrush="{DynamicResource AppBackgroundBrush}"
                       RowBackground="{DynamicResource SurfaceBrush}"
@@ -209,7 +209,7 @@
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Group" Width="1.15*" MinWidth="90" Binding="{Binding GroupName}" />
                     <DataGridTextColumn Header="Village" Width="1.2*" MinWidth="100" Binding="{Binding VillageName}" />
-                    <DataGridTextColumn Header="Task" Width="2.4*" MinWidth="220" Binding="{Binding DisplayName}" />
+                    <DataGridTextColumn Header="Task" Width="3.6*" MinWidth="330" Binding="{Binding DisplayName}" />
                     <DataGridTemplateColumn Header="Status" Width="*" MinWidth="85">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
@@ -234,7 +234,7 @@
                         </DataGridTemplateColumn.CellTemplate>
                     </DataGridTemplateColumn>
                     <DataGridTextColumn Header="Time" Width="1.1*" MinWidth="90" Binding="{Binding BuildTimeText}" />
-                    <DataGridTemplateColumn Header="Cost (W | C | I | Cr)" Width="1.7*" MinWidth="165">
+                    <DataGridTemplateColumn Header="Cost (W | C | I | Cr)" Width="2.55*" MinWidth="247.5">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>
                                 <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
@@ -343,7 +343,7 @@
                       CanUserAddRows="False"
                       CanUserDeleteRows="False"
                       CanUserReorderColumns="False"
-                      CanUserResizeColumns="False"
+                      CanUserResizeColumns="True"
                       GridLinesVisibility="Horizontal"
                       HorizontalGridLinesBrush="{DynamicResource AppBackgroundBrush}"
                       RowBackground="{DynamicResource SurfaceBrush}"
@@ -363,7 +363,7 @@
                 <DataGrid.Columns>
                     <DataGridTextColumn Header="Group" Width="1.15*" MinWidth="90" Binding="{Binding GroupName}" />
                     <DataGridTextColumn Header="Village" Width="1.2*" MinWidth="100" Binding="{Binding VillageName}" />
-                    <DataGridTextColumn Header="Completed task" Width="2.4*" MinWidth="220" Binding="{Binding DisplayName}" />
+                    <DataGridTextColumn Header="Completed task" Width="3.6*" MinWidth="330" Binding="{Binding DisplayName}" />
                     <DataGridTemplateColumn Header="Status" Width="*" MinWidth="85">
                         <DataGridTemplateColumn.CellTemplate>
                             <DataTemplate>

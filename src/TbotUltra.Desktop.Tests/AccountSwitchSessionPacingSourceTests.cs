@@ -98,4 +98,44 @@ public sealed class AccountSwitchSessionPacingSourceTests
         Assert.Contains("if (result == MessageBoxResult.No)", methodBody, StringComparison.Ordinal);
         Assert.Contains("RequestManualSessionSleep();", methodBody, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void SmartSleepHeaderAction_ConfirmsSharedManualSleepAndPreservesCurrentWork()
+    {
+        var projectRoot = ProjectRootLocator.FindProjectRoot();
+        var xaml = File.ReadAllText(Path.Combine(
+            projectRoot,
+            "src",
+            "TbotUltra.Desktop",
+            "MainWindow.xaml"));
+        Assert.Contains("x:Name=\"SmartSleepNowButton\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Content=\"&#xE708;\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Background=\"{DynamicResource InfoBgBrush}\"", xaml, StringComparison.Ordinal);
+        Assert.Contains("Click=\"SmartSleepNowButton_Click\"", xaml, StringComparison.Ordinal);
+
+        var source = File.ReadAllText(Path.Combine(
+            projectRoot,
+            "src",
+            "TbotUltra.Desktop",
+            "MainWindow.SessionPacing.cs"));
+        var methodStart = source.IndexOf(
+            "private void SmartSleepNowButton_Click",
+            StringComparison.Ordinal);
+        var methodEnd = source.IndexOf(
+            "    private void SessionPacingExtendButton_Click",
+            methodStart,
+            StringComparison.Ordinal);
+
+        Assert.True(methodStart >= 0 && methodEnd > methodStart);
+        var methodBody = source[methodStart..methodEnd];
+        Assert.Contains("_sessionSleepMinMinutes", methodBody, StringComparison.Ordinal);
+        Assert.Contains("_sessionSleepMaxMinutes", methodBody, StringComparison.Ordinal);
+        Assert.Contains("[(\"Cancel\", MessageBoxResult.Cancel), (\"Sleep now\", MessageBoxResult.Yes)]", methodBody, StringComparison.Ordinal);
+        Assert.Contains("MessageBoxResult.Cancel,", methodBody, StringComparison.Ordinal);
+        Assert.Contains("RequestManualSessionSleep();", methodBody, StringComparison.Ordinal);
+
+        Assert.Contains("SmartSleepNowButton.Visibility = _smartSleepSettings.Enabled", source, StringComparison.Ordinal);
+        Assert.Contains("RequestAutomationStop(AutomationStopMode.AfterCurrentAction);", source, StringComparison.Ordinal);
+        Assert.Contains("HandleSessionPacingSleepStartingAsync(manual)", source, StringComparison.Ordinal);
+    }
 }

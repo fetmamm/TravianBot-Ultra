@@ -73,7 +73,7 @@ public sealed class QueuePanelRenderingTests
     }
 
     [Fact]
-    public void ActiveQueue_ColumnsHaveNonCollapsibleMinimumWidthsAndCannotBeUserResized()
+    public void ActiveQueue_ColumnsHaveNonCollapsibleMinimumWidthsAndCanBeEnlarged()
     {
         _wpf.Run(() =>
         {
@@ -104,15 +104,15 @@ public sealed class QueuePanelRenderingTests
             var queueGrid = FindVisualChildren<DataGrid>(panel)
                 .Single(grid => ReferenceEquals(grid.ItemsSource, viewModel.ActiveQueueRows));
 
-            Assert.False(queueGrid.CanUserResizeColumns);
+            Assert.True(queueGrid.CanUserResizeColumns);
             Assert.Collection(
                 queueGrid.Columns,
                 column => Assert.True(column.MinWidth >= 90),
                 column => Assert.True(column.MinWidth >= 100),
-                column => Assert.True(column.MinWidth >= 220),
+                column => Assert.True(column.MinWidth >= 330),
                 column => Assert.True(column.MinWidth >= 85),
                 column => Assert.True(column.MinWidth >= 90),
-                column => Assert.True(column.MinWidth >= 165));
+                column => Assert.True(column.MinWidth >= 247.5));
         });
     }
 

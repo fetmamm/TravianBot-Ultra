@@ -15,6 +15,9 @@ public partial class MainWindow
     private bool _sessionPacingSleepInProgress;
     private bool _sessionPacingWakeInProgress;
     private bool _sessionPacingSleepDeferredForManualOperation;
+    private bool _manualSessionSleepRequested;
+    private int _sessionSleepMinMinutes = PacingDefaults.SessionPacingSleepMinMinutes;
+    private int _sessionSleepMaxMinutes = PacingDefaults.SessionPacingSleepMaxMinutes;
     private DateTimeOffset? _villageRoundSleepDeferredUntilUtc;
     private bool _villageRoundSleepRetryScheduled;
     private SmartSleepSettings _smartSleepSettings = new(
@@ -111,12 +114,26 @@ public partial class MainWindow
             PacingDefaults.SmartSleepWakeWhenConstructionQueueClears);
         _automationPassRuntime.SetSmartSleepDeadlineGroups(SmartSleepDeadlinePolicy.ReadGroups(
             config[BotOptionPayloadKeys.SmartSleepDeadlineGroups]));
+        _sessionSleepMinMinutes = ReadInt(
+            config,
+            BotOptionPayloadKeys.SessionPacingSleepMinMinutes,
+            PacingDefaults.SessionPacingSleepMinMinutes,
+            5,
+            10080);
+        _sessionSleepMaxMinutes = Math.Max(
+            _sessionSleepMinMinutes,
+            ReadInt(
+                config,
+                BotOptionPayloadKeys.SessionPacingSleepMaxMinutes,
+                PacingDefaults.SessionPacingSleepMaxMinutes,
+                5,
+                10080));
         _sessionPacer.Configure(new SessionPacerSettings(
             sessionPacingEnabled || smartSleepEnabled,
             ReadInt(config, BotOptionPayloadKeys.SessionPacingRunMinMinutes, PacingDefaults.SessionPacingRunMinMinutes, 1, 10080),
             ReadInt(config, BotOptionPayloadKeys.SessionPacingRunMaxMinutes, PacingDefaults.SessionPacingRunMaxMinutes, 1, 10080),
-            ReadInt(config, BotOptionPayloadKeys.SessionPacingSleepMinMinutes, PacingDefaults.SessionPacingSleepMinMinutes, 5, 10080),
-            ReadInt(config, BotOptionPayloadKeys.SessionPacingSleepMaxMinutes, PacingDefaults.SessionPacingSleepMaxMinutes, 5, 10080),
+            _sessionSleepMinMinutes,
+            _sessionSleepMaxMinutes,
             ReadAllowedHours(config),
             ReadInt(config, BotOptionPayloadKeys.SessionPacingDailyMaxHours, PacingDefaults.SessionPacingDailyMaxHours, 0, 24),
             ReadRuntimeDate(config),
@@ -219,6 +236,7 @@ public partial class MainWindow
     {
         _sleepSnapshot = SleepSnapshot.Idle;
         _sessionPacingSleepDeferredForManualOperation = false;
+        _manualSessionSleepRequested = false;
         _villageRoundSleepDeferredUntilUtc = null;
         _villageStatusRoundRuntime.SetForceOnWakeRequest(false);
         _automationPassRuntime.PrioritizeDeadlineWorkOnWake = false;
@@ -250,13 +268,21 @@ public partial class MainWindow
     // controlled-sleep flow but forces the sleep so it also works when session pacing is turned off.
     private void RequestManualSessionSleep()
     {
-        if (IsSessionSleeping)
+        if (IsSessionSleeping || _sessionPacingSleepInProgress || _manualSessionSleepRequested)
         {
-            AppendLog("[pacing] manual sleep ignored: already sleeping.");
+            AppendLog("[pacing] manual sleep ignored: sleep is already active or starting.");
             return;
         }
 
-        AppendLog("[pacing] manual sleep requested from settings.");
+        // Preserve what should resume before asking the running automation to stop after its current action.
+        _sleepSnapshot = new SleepSnapshot(
+            WasLoggedIn: _isLoggedIn,
+            WasContinuousLoopRunning: IsContinuousLoopRunning(),
+            WasQueueAutoRunning: _autoQueueRunning);
+        _manualSessionSleepRequested = true;
+        RequestAutomationStop(AutomationStopMode.AfterCurrentAction);
+        AppendLog("[pacing] manual sleep requested; waiting for the current action, then starting no new work.");
+        UpdateSessionPacingUi();
         _backgroundTasks.Track(SafeSessionPacingInvokeAsync(() => HandleSessionPacingSleepStartingAsync(manual: true)));
     }
 
@@ -307,10 +333,13 @@ public partial class MainWindow
         try
         {
             // Capture the pre-sleep state BEFORE stopping anything, so wake can restore it.
-            _sleepSnapshot = new SleepSnapshot(
-                WasLoggedIn: _isLoggedIn,
-                WasContinuousLoopRunning: IsContinuousLoopRunning(),
-                WasQueueAutoRunning: _autoQueueRunning);
+            if (!manual)
+            {
+                _sleepSnapshot = new SleepSnapshot(
+                    WasLoggedIn: _isLoggedIn,
+                    WasContinuousLoopRunning: IsContinuousLoopRunning(),
+                    WasQueueAutoRunning: _autoQueueRunning);
+            }
             AppendLog($"[pacing] pre-sleep state: loggedIn={_sleepSnapshot.WasLoggedIn}, "
                 + $"continuousLoop={_sleepSnapshot.WasContinuousLoopRunning}, queueAutoRun={_sleepSnapshot.WasQueueAutoRunning}.");
 
@@ -364,6 +393,7 @@ public partial class MainWindow
 
             ConfigureSessionPacerFromConfig();
             _sessionPacer.BeginSleep(manual);
+            _manualSessionSleepRequested = false;
             if (_sessionPacer.PlannedWakeAt is { } wakeAt)
             {
                 await ApplyProxyPlanForWakeAsync(wakeAt);
@@ -373,6 +403,12 @@ public partial class MainWindow
         finally
         {
             _sessionPacingSleepInProgress = false;
+            if (manual && !IsSessionSleeping)
+            {
+                _manualSessionSleepRequested = false;
+            }
+
+            UpdateSessionPacingUi();
         }
     }
 
@@ -410,13 +446,16 @@ public partial class MainWindow
         }
 
         _sessionPacingSleepDeferredForManualOperation = false;
+        var manual = _manualSessionSleepRequested;
         if (IsFreezeActive || IsSessionSleeping || _sessionPacingSleepInProgress || _loopController.HasActiveOperation)
         {
             return;
         }
 
-        AppendLog("[pacing] delayed automatic sleep starting after manual operation completed.");
-        _backgroundTasks.Track(SafeSessionPacingInvokeAsync(() => HandleSessionPacingSleepStartingAsync()));
+        AppendLog(manual
+            ? "[pacing] delayed manual sleep starting after the current operation completed."
+            : "[pacing] delayed automatic sleep starting after manual operation completed.");
+        _backgroundTasks.Track(SafeSessionPacingInvokeAsync(() => HandleSessionPacingSleepStartingAsync(manual)));
     }
 
     private async Task HandleSessionPacingWakeRequestedAsync()
@@ -627,6 +666,57 @@ public partial class MainWindow
         _sessionPacer.WakeNow();
     }
 
+    private void SmartSleepNowButton_Click(object sender, RoutedEventArgs e)
+    {
+        if (!_smartSleepSettings.Enabled
+            || !_isLoggedIn
+            || IsSessionSleeping
+            || _sessionPacingSleepInProgress
+            || _manualSessionSleepRequested
+            || IsFreezeActive
+            || (!IsContinuousLoopRunning() && !_autoQueueRunning))
+        {
+            return;
+        }
+
+        var minimumMinutes = _sessionSleepMinMinutes;
+        var maximumMinutes = _sessionSleepMaxMinutes;
+        var durationText = minimumMinutes == maximumMinutes
+            ? $"{minimumMinutes} minutes"
+            : $"{minimumMinutes}–{maximumMinutes} minutes";
+        var content = new StackPanel();
+        content.Children.Add(new TextBlock
+        {
+            Text = "Put Tbot Ultra to sleep now?",
+            Foreground = (Brush)FindResource("TextPrimaryBrush"),
+            FontSize = 16,
+            FontWeight = FontWeights.SemiBold,
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = $"The current action will finish, no new work will start, and the browser will close. "
+                + $"Tbot Ultra will wake automatically after {durationText} and resume the previous automation.",
+            Margin = new Thickness(0, 10, 0, 0),
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = (Brush)FindResource("TextSecondaryBrush"),
+        });
+
+        var result = AppDialog.ShowCustomContent(
+            this,
+            content,
+            "Sleep now",
+            [("Cancel", MessageBoxResult.Cancel), ("Sleep now", MessageBoxResult.Yes)],
+            MessageBoxImage.Question,
+            MessageBoxResult.Cancel,
+            MessageBoxResult.Cancel,
+            accentResult: MessageBoxResult.Yes,
+            hideIcon: true);
+        if (result == MessageBoxResult.Yes)
+        {
+            RequestManualSessionSleep();
+        }
+    }
+
     private void SessionPacingExtendButton_Click(object sender, RoutedEventArgs e)
     {
         var extendingSleep = IsSessionSleeping;
@@ -779,6 +869,15 @@ public partial class MainWindow
         SessionPacingRunNowButton.ToolTip = _sessionPacer.SleepReason == SessionSleepReason.Schedule
             ? "Run now (override the off-hours schedule)"
             : "Run now";
+        SmartSleepNowButton.Visibility = _smartSleepSettings.Enabled
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+        SmartSleepNowButton.IsEnabled = _isLoggedIn
+            && !IsSessionSleeping
+            && !_sessionPacingSleepInProgress
+            && !_manualSessionSleepRequested
+            && !IsFreezeActive
+            && (IsContinuousLoopRunning() || _autoQueueRunning);
         var canExtendSleep = IsSessionSleeping
             && _sessionPacer.SleepReason is SessionSleepReason.SessionPacing or SessionSleepReason.Manual;
         var canExtendRun = _sessionPacer.Phase == SessionPacerPhase.Running

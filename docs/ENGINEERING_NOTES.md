@@ -122,6 +122,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Smart Sleep's account-scoped `Wake when construction queue clears` option changes only its wake deadline.
   With confirmed Plus overview data, a queued pair uses the final timer; Roman resource and building queues
   are evaluated separately. Normal online construction scheduling always keeps the earliest-slot behavior.
+- The Session card's blue manual-sleep action is shown only while Smart Sleep is selected. It uses the shared
+  Session pacing sleep Min/Max interval, lets the current action finish without starting new work, then restores
+  the pre-sleep automation state after wake; it never invokes Smart Sleep deadline planning or pre-sleep filling.
 - Transient background resource-read timeouts use the shared automation network backoff, retain the last
   trusted snapshot, and stop that refresh tick. A later successful read clears the shared backoff.
 - Resource bulk-upgrade payloads must capture the four checkbox values currently visible for the selected village;

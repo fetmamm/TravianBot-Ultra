@@ -27,7 +27,7 @@ public partial class MainWindow
             CanUserAddRows = false,
             CanUserDeleteRows = false,
             CanUserReorderColumns = false,
-            CanUserResizeColumns = false,
+            CanUserResizeColumns = true,
             BorderBrush = new SolidColorBrush(ThemeColors.Get("BorderBrush")),
             BorderThickness = new Thickness(1),
             Margin = new Thickness(0, 0, 0, 8),
@@ -38,10 +38,10 @@ public partial class MainWindow
         VirtualizingPanel.SetVirtualizationMode(activeGrid, VirtualizationMode.Recycling);
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Group", Binding = new Binding("GroupName"), Width = new DataGridLength(1.15, DataGridLengthUnitType.Star), MinWidth = 90 });
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Village", Binding = new Binding("VillageName"), Width = new DataGridLength(1.2, DataGridLengthUnitType.Star), MinWidth = 100 });
-        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Task", Binding = new Binding("DisplayName"), Width = new DataGridLength(2, DataGridLengthUnitType.Star), MinWidth = 220 });
+        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Task", Binding = new Binding("DisplayName"), Width = new DataGridLength(3, DataGridLengthUnitType.Star), MinWidth = 330 });
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Status", Binding = new Binding("Status"), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 85 });
         activeGrid.Columns.Add(new DataGridTextColumn { Header = "Time", Binding = new Binding("BuildTimeText"), Width = new DataGridLength(1.1, DataGridLengthUnitType.Star), MinWidth = 90 });
-        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Cost (W | C | I | Cr)", Binding = new Binding("CostText"), Width = new DataGridLength(1.7, DataGridLengthUnitType.Star), MinWidth = 165 });
+        activeGrid.Columns.Add(new DataGridTextColumn { Header = "Cost (W | C | I | Cr)", Binding = new Binding("CostText"), Width = new DataGridLength(2.55, DataGridLengthUnitType.Star), MinWidth = 247.5 });
 
         var historyGrid = new DataGrid
         {
@@ -50,7 +50,7 @@ public partial class MainWindow
             CanUserAddRows = false,
             CanUserDeleteRows = false,
             CanUserReorderColumns = false,
-            CanUserResizeColumns = false,
+            CanUserResizeColumns = true,
             BorderBrush = new SolidColorBrush(ThemeColors.Get("BorderBrush")),
             BorderThickness = new Thickness(1),
             ItemsSource = QueueHistoryDataGrid.ItemsSource,
@@ -60,7 +60,7 @@ public partial class MainWindow
         VirtualizingPanel.SetVirtualizationMode(historyGrid, VirtualizationMode.Recycling);
         historyGrid.Columns.Add(new DataGridTextColumn { Header = "Group", Binding = new Binding("GroupName"), Width = new DataGridLength(1.15, DataGridLengthUnitType.Star), MinWidth = 90 });
         historyGrid.Columns.Add(new DataGridTextColumn { Header = "Village", Binding = new Binding("VillageName"), Width = new DataGridLength(1.2, DataGridLengthUnitType.Star), MinWidth = 100 });
-        historyGrid.Columns.Add(new DataGridTextColumn { Header = "Completed task", Binding = new Binding("DisplayName"), Width = new DataGridLength(2, DataGridLengthUnitType.Star), MinWidth = 220 });
+        historyGrid.Columns.Add(new DataGridTextColumn { Header = "Completed task", Binding = new Binding("DisplayName"), Width = new DataGridLength(3, DataGridLengthUnitType.Star), MinWidth = 330 });
         historyGrid.Columns.Add(new DataGridTextColumn { Header = "Status", Binding = new Binding("Status"), Width = new DataGridLength(1, DataGridLengthUnitType.Star), MinWidth = 85 });
         historyGrid.Columns.Add(new DataGridTextColumn { Header = "Created", Binding = new Binding("CreatedAtServer"), Width = new DataGridLength(2, DataGridLengthUnitType.Star), MinWidth = 150 });
 
