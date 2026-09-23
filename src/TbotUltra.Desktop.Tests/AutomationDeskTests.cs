@@ -53,8 +53,8 @@ public sealed class AutomationDeskTests
         using var loopController = new LoopController();
         await using var automation = new AutomationDesk(
             loopController,
-            state,
-            officialTravian,
+            CreateModePass(state, officialTravian),
+            CreateModePass(state, officialTravian),
             new FixedTimeProvider(now));
         var completed = new TaskCompletionSource<AutomationEvent.ActionFinished>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -84,8 +84,8 @@ public sealed class AutomationDeskTests
         using var loopController = new LoopController();
         await using var automation = new AutomationDesk(
             loopController,
-            state,
-            new InMemoryOfficialTravianPort(AutomationActionOutcome.Completed),
+            CreateModePass(state, new InMemoryOfficialTravianPort(AutomationActionOutcome.Completed)),
+            CreateModePass(state, new InMemoryOfficialTravianPort(AutomationActionOutcome.Completed)),
             new FixedTimeProvider(now));
         var eventTypes = new List<Type>();
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -128,8 +128,8 @@ public sealed class AutomationDeskTests
         using var loopController = new LoopController();
         await using var automation = new AutomationDesk(
             loopController,
-            state,
-            new InMemoryOfficialTravianPort(AutomationActionOutcome.Completed),
+            CreateModePass(state, new InMemoryOfficialTravianPort(AutomationActionOutcome.Completed)),
+            CreateModePass(state, new InMemoryOfficialTravianPort(AutomationActionOutcome.Completed)),
             new FixedTimeProvider(now));
         var completed = new TaskCompletionSource<AutomationEvent.ActionFinished>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -166,8 +166,8 @@ public sealed class AutomationDeskTests
         using var loopController = new LoopController();
         await using var automation = new AutomationDesk(
             loopController,
-            state,
-            new InMemoryOfficialTravianPort(AutomationActionOutcome.Completed),
+            CreateModePass(state, new InMemoryOfficialTravianPort(AutomationActionOutcome.Completed)),
+            CreateModePass(state, new InMemoryOfficialTravianPort(AutomationActionOutcome.Completed)),
             time,
             delay.WaitAsync);
         var completed = new TaskCompletionSource<AutomationEvent.ActionFinished>(
@@ -200,8 +200,8 @@ public sealed class AutomationDeskTests
         using var loopController = new LoopController();
         await using var automation = new AutomationDesk(
             loopController,
-            state,
-            new InMemoryOfficialTravianPort(AutomationActionOutcome.Completed),
+            CreateModePass(state, new InMemoryOfficialTravianPort(AutomationActionOutcome.Completed)),
+            CreateModePass(state, new InMemoryOfficialTravianPort(AutomationActionOutcome.Completed)),
             new FixedTimeProvider(now));
         var stopped = new TaskCompletionSource<AutomationEvent.RunStopped>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -269,8 +269,8 @@ public sealed class AutomationDeskTests
         using var loopController = new LoopController();
         await using var automation = new AutomationDesk(
             loopController,
-            state,
-            officialTravian,
+            CreateModePass(state, officialTravian),
+            CreateModePass(state, officialTravian),
             new FixedTimeProvider(now));
         await automation.StartAsync(new AutomationStart(
             AutomationRunMode.ContinuousLoop,
@@ -295,8 +295,8 @@ public sealed class AutomationDeskTests
         using var loopController = new LoopController();
         await using var automation = new AutomationDesk(
             loopController,
-            state,
-            officialTravian,
+            CreateModePass(state, officialTravian),
+            CreateModePass(state, officialTravian),
             new FixedTimeProvider(now));
         await automation.StartAsync(new AutomationStart(
             AutomationRunMode.ContinuousLoop,
@@ -320,8 +320,8 @@ public sealed class AutomationDeskTests
         using var loopController = new LoopController();
         await using var automation = new AutomationDesk(
             loopController,
-            state,
-            officialTravian,
+            CreateModePass(state, officialTravian),
+            CreateModePass(state, officialTravian),
             new FixedTimeProvider(now));
         await automation.StartAsync(new AutomationStart(
             AutomationRunMode.ContinuousLoop,
@@ -349,8 +349,8 @@ public sealed class AutomationDeskTests
         using var loopController = new LoopController();
         await using var automation = new AutomationDesk(
             loopController,
-            state,
-            new ThrowingOfficialTravianPort(),
+            CreateModePass(state, new ThrowingOfficialTravianPort()),
+            CreateModePass(state, new ThrowingOfficialTravianPort()),
             new FixedTimeProvider(now));
         var faulted = new TaskCompletionSource<AutomationUpdate>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -380,11 +380,14 @@ public sealed class AutomationDeskTests
         using var loopController = new LoopController();
         await using var automation = new AutomationDesk(
             loopController,
-            new ThrowingAutomationStatePort(new AutomationContextException(
+            new ThrowingAutomationModePass(new AutomationContextException(
                 AutomationFailureKind.StaleBrowserGeneration,
                 "browser-generation-changed",
                 "changed")),
-            new InMemoryOfficialTravianPort(AutomationActionOutcome.Completed),
+            new ThrowingAutomationModePass(new AutomationContextException(
+                AutomationFailureKind.StaleBrowserGeneration,
+                "browser-generation-changed",
+                "changed")),
             new FixedTimeProvider(now));
         var faulted = new TaskCompletionSource<AutomationEvent.RunFaulted>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -413,8 +416,8 @@ public sealed class AutomationDeskTests
         using var loopController = new LoopController();
         await using var automation = new AutomationDesk(
             loopController,
-            new ThrowingAutomationStatePort(new TransientNavigationException("navigation timed out")),
-            new InMemoryOfficialTravianPort(AutomationActionOutcome.Completed),
+            new ThrowingAutomationModePass(new TransientNavigationException("navigation timed out")),
+            new ThrowingAutomationModePass(new TransientNavigationException("navigation timed out")),
             new FixedTimeProvider(now));
         var deferred = new TaskCompletionSource<AutomationEvent.RunDeferred>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -454,8 +457,8 @@ public sealed class AutomationDeskTests
         using var loopController = new LoopController();
         await using var automation = new AutomationDesk(
             loopController,
-            state,
-            officialTravian,
+            CreateModePass(state, officialTravian),
+            CreateModePass(state, officialTravian),
             new FixedTimeProvider(now));
         var decisionRequested = new TaskCompletionSource<AutomationEvent.DecisionRequested>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -505,8 +508,8 @@ public sealed class AutomationDeskTests
         using var loopController = new LoopController();
         await using var automation = new AutomationDesk(
             loopController,
-            state,
-            new RecordingOfficialTravianPort(),
+            CreateModePass(state, new RecordingOfficialTravianPort()),
+            CreateModePass(state, new RecordingOfficialTravianPort()),
             new FixedTimeProvider(now));
         var firstRequest = new TaskCompletionSource<AutomationDecisionRequestId>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -549,7 +552,21 @@ public sealed class AutomationDeskTests
             automation.Respond(staleId, AutomationDecisionChoice.Approve));
     }
 
-    private sealed class InMemoryAutomationStatePort(AutomationStateSnapshot snapshot) : IAutomationStatePort
+    private static IAutomationModePassPort CreateModePass(
+        InMemoryAutomationStatePort state,
+        ITestAutomationExecutor executor) => new DelegateAutomationModePassPort(
+            cancellationToken => state.ReadAsync(cancellationToken),
+            (action, cancellationToken) => executor.ExecuteAsync(action, cancellationToken),
+            (action, outcome, cancellationToken) => state.CompleteAsync(action, outcome, cancellationToken));
+
+    private interface ITestAutomationExecutor
+    {
+        ValueTask<AutomationActionOutcome> ExecuteAsync(
+            AutomationCandidate action,
+            CancellationToken cancellationToken);
+    }
+
+    private sealed class InMemoryAutomationStatePort(AutomationStateSnapshot snapshot)
     {
         private AutomationStateSnapshot _snapshot = snapshot;
         private readonly TaskCompletionSource _firstRead = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -559,54 +576,51 @@ public sealed class AutomationDeskTests
         public void Replace(AutomationStateSnapshot replacement) => _snapshot = replacement;
 
         public ValueTask<AutomationStateSnapshot> ReadAsync(
-            AutomationRunMode mode,
-            AutomationRunContext context,
             CancellationToken cancellationToken)
         {
             _firstRead.TrySetResult();
             return ValueTask.FromResult(_snapshot);
         }
 
-        public ValueTask ApplyAsync(
-            AutomationRunMode mode,
-            AutomationRunContext context,
-            AutomationStateChange change,
+        public ValueTask CompleteAsync(
+            AutomationCandidate action,
+            AutomationActionOutcome outcome,
             CancellationToken cancellationToken)
         {
-            if (change is AutomationStateChange.ActionFinished finished)
-            {
-                _snapshot = new AutomationStateSnapshot(
-                    _snapshot.Candidates.Where(candidate => candidate.Id != finished.ItemId).ToList());
-            }
+            _snapshot = new AutomationStateSnapshot(
+                _snapshot.Candidates.Where(candidate => candidate.Id != action.Id).ToList());
 
             return ValueTask.CompletedTask;
         }
     }
 
-    private sealed class InMemoryOfficialTravianPort(AutomationActionOutcome outcome) : IOfficialTravianAutomationPort
+    private sealed class InMemoryOfficialTravianPort(AutomationActionOutcome outcome) : ITestAutomationExecutor
     {
         public ValueTask<AutomationActionOutcome> ExecuteAsync(
-            AutomationRunMode mode,
-            AutomationRunContext context,
             AutomationCandidate action,
             CancellationToken cancellationToken) => ValueTask.FromResult(outcome);
     }
 
-    private sealed class ThrowingAutomationStatePort(Exception exception) : IAutomationStatePort
+    private sealed class ThrowingAutomationModePass(Exception exception) : IAutomationModePassPort
     {
         public ValueTask<AutomationStateSnapshot> ReadAsync(
-            AutomationRunMode mode,
             AutomationRunContext context,
             CancellationToken cancellationToken) => ValueTask.FromException<AutomationStateSnapshot>(exception);
 
-        public ValueTask ApplyAsync(
-            AutomationRunMode mode,
+        public ValueTask<AutomationActionOutcome> ExecuteAsync(
             AutomationRunContext context,
-            AutomationStateChange change,
+            AutomationCandidate action,
+            CancellationToken cancellationToken) =>
+            ValueTask.FromResult(AutomationActionOutcome.Skipped);
+
+        public ValueTask CompleteAsync(
+            AutomationRunContext context,
+            AutomationCandidate action,
+            AutomationActionOutcome outcome,
             CancellationToken cancellationToken) => ValueTask.CompletedTask;
     }
 
-    private sealed class BlockingOfficialTravianPort : IOfficialTravianAutomationPort
+    private sealed class BlockingOfficialTravianPort : ITestAutomationExecutor
     {
         private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _completion = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -616,8 +630,6 @@ public sealed class AutomationDeskTests
         public void Complete() => _completion.TrySetResult();
 
         public async ValueTask<AutomationActionOutcome> ExecuteAsync(
-            AutomationRunMode mode,
-            AutomationRunContext context,
             AutomationCandidate action,
             CancellationToken cancellationToken)
         {
@@ -627,7 +639,7 @@ public sealed class AutomationDeskTests
         }
     }
 
-    private sealed class NonCancelableFirstActionPort : IOfficialTravianAutomationPort
+    private sealed class NonCancelableFirstActionPort : ITestAutomationExecutor
     {
         private readonly TaskCompletionSource _firstStarted = new(TaskCreationOptions.RunContinuationsAsynchronously);
         private readonly TaskCompletionSource _firstCompletion = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -638,8 +650,6 @@ public sealed class AutomationDeskTests
         public void CompleteFirstAction() => _firstCompletion.TrySetResult();
 
         public async ValueTask<AutomationActionOutcome> ExecuteAsync(
-            AutomationRunMode mode,
-            AutomationRunContext context,
             AutomationCandidate action,
             CancellationToken cancellationToken)
         {
@@ -653,23 +663,19 @@ public sealed class AutomationDeskTests
         }
     }
 
-    private sealed class ThrowingOfficialTravianPort : IOfficialTravianAutomationPort
+    private sealed class ThrowingOfficialTravianPort : ITestAutomationExecutor
     {
         public ValueTask<AutomationActionOutcome> ExecuteAsync(
-            AutomationRunMode mode,
-            AutomationRunContext context,
             AutomationCandidate action,
             CancellationToken cancellationToken) =>
             ValueTask.FromException<AutomationActionOutcome>(new InvalidOperationException("adapter failed"));
     }
 
-    private sealed class RecordingOfficialTravianPort : IOfficialTravianAutomationPort
+    private sealed class RecordingOfficialTravianPort : ITestAutomationExecutor
     {
         public int CallCount { get; private set; }
 
         public ValueTask<AutomationActionOutcome> ExecuteAsync(
-            AutomationRunMode mode,
-            AutomationRunContext context,
             AutomationCandidate action,
             CancellationToken cancellationToken)
         {

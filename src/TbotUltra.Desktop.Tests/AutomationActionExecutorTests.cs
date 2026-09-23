@@ -32,12 +32,11 @@ public sealed class AutomationActionExecutorTests
         var modePass = new DelegateAutomationModePassPort(
             _ => ValueTask.FromResult(reads.Dequeue()),
             (action, token) => executor.ExecuteAsync(AutomationRunMode.ContinuousLoop, action, token));
-        var pass = new AutomationPassPort(() => "account-1", () => 7, modePass, modePass);
         using var loopController = new LoopController();
         await using var automation = new AutomationDesk(
             loopController,
-            pass,
-            pass,
+            modePass,
+            modePass,
             new FixedTimeProvider(Now));
         var finished = new TaskCompletionSource<AutomationEvent.ActionFinished>(
             TaskCreationOptions.RunContinuationsAsynchronously);
@@ -125,12 +124,11 @@ public sealed class AutomationActionExecutorTests
         var modePass = new DelegateAutomationModePassPort(
             _ => ValueTask.FromResult(reads.Dequeue()),
             (candidate, token) => executor.ExecuteAsync(mode, candidate, token));
-        var pass = new AutomationPassPort(() => "account-1", () => 7, modePass, modePass);
         using var loopController = new LoopController();
         await using var automation = new AutomationDesk(
             loopController,
-            pass,
-            pass,
+            modePass,
+            modePass,
             new FixedTimeProvider(Now));
         var finished = new TaskCompletionSource<AutomationEvent.ActionFinished>(
             TaskCreationOptions.RunContinuationsAsynchronously);

@@ -137,17 +137,13 @@ public sealed class AutoQueueAutomationPassTests
         IAutomationModePassPort autoQueuePass,
         Func<TimeSpan, CancellationToken, Task>? delayAsync = null)
     {
-        var pass = new AutomationPassPort(
-            () => "account-1",
-            () => 7,
-            new DelegateAutomationModePassPort(
-                _ => ValueTask.FromResult(new AutomationStateSnapshot([], IsComplete: true)),
-                (_, _) => ValueTask.FromResult(AutomationActionOutcome.Skipped)),
-            autoQueuePass);
+        var continuousPass = new DelegateAutomationModePassPort(
+            _ => ValueTask.FromResult(new AutomationStateSnapshot([], IsComplete: true)),
+            (_, _) => ValueTask.FromResult(AutomationActionOutcome.Skipped));
         return new AutomationDesk(
             loopController,
-            pass,
-            pass,
+            continuousPass,
+            autoQueuePass,
             new FixedTimeProvider(Now),
             delayAsync);
     }

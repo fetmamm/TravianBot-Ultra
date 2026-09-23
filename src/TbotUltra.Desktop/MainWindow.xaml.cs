@@ -483,48 +483,18 @@ public partial class MainWindow : Window
         var queueScheduler = new PriorityFifoQueueScheduler();
         var queueExecutor = new QueueExecutor(taskRunner);
         _botService = new DesktopBotService(taskRunner, queueStore, queueScheduler, queueExecutor);
-        _automationQueueSelection = new AutomationQueueSelectionCoordinator(
-            new MainWindowAutomationQueueSelectionPort(this));
-        _continuousAutomationForecast = new ContinuousAutomationForecastCoordinator(
-            new MainWindowContinuousAutomationForecastPort(this));
-        _continuousRuntimeItemPreparation = new ContinuousRuntimeItemPreparation(
-            new MainWindowContinuousRuntimeItemPreparationPort(this));
-        _continuousIdlePacing = new ContinuousIdlePacing(
-            _automationIdlePacing,
-            new MainWindowContinuousIdlePacingPort(this));
-        _villageStatusRoundRuntime = new VillageStatusRoundRuntime(
-            new FileVillageStatusRoundStatePort(_projectRoot));
-        _continuousVillageStatusRound = new ContinuousVillageStatusRound(
-            _villageStatusRoundCoordinator,
-            new MainWindowVillageStatusRoundPort(this));
-        var constructionRequirementGuard = new AutomationConstructionRequirementGuard(
-            new MainWindowAutomationConstructionRequirementGuardPort(this));
-        var constructLiveReconciliation = new AutomationConstructLiveReconciliation(
-            new MainWindowAutomationConstructLiveReconciliationPort(this));
-        var constructPreflight = new AutomationConstructPreflight(
-            new MainWindowAutomationConstructPreflightPort(this));
-        var queueItemPolicies = new AutomationQueueItemPolicies(
-            new AutomationQueueItemPreExecution(
-                constructionRequirementGuard,
-                constructLiveReconciliation,
-                constructPreflight),
-            new AutomationMissingBuildingUpgradeRecovery(
-                new MainWindowAutomationMissingBuildingUpgradeRecoveryPort(this)),
-            new AutomationQueueItemSuccess(new MainWindowAutomationQueueItemSuccessPort(this)),
-            new AutomationQueueItemFailure(new MainWindowAutomationQueueItemFailurePort(this)));
-        _automationQueueItemLifecycle = new AutomationQueueItemLifecycle(
-            new MainWindowAutomationQueueItemLifecyclePort(this),
-            queueItemPolicies);
-        var automationActionExecutor = new AutomationActionExecutor(
-            new MainWindowAutomationActionExecutionPort(this, _automationQueueItemLifecycle));
-        var automationPass = new AutomationPassPort(
-            _accountStore.ActiveAccountName,
-            () => _botService.BrowserGeneration,
-            new ContinuousAutomationPass(
-                new MainWindowContinuousAutomationPassPort(this, automationActionExecutor)),
-            new AutoQueueAutomationPass(
-                new MainWindowAutoQueueAutomationPassPort(this, automationActionExecutor)));
-        _automationDesk = new AutomationDesk(_loopController, automationPass, automationPass);
+        var automationAdapter = new MainWindowAutomationAdapter(this, _projectRoot);
+        _automationQueueSelection = automationAdapter.QueueSelection;
+        _continuousAutomationForecast = automationAdapter.Forecast;
+        _continuousRuntimeItemPreparation = automationAdapter.RuntimeItemPreparation;
+        _continuousIdlePacing = automationAdapter.IdlePacing;
+        _villageStatusRoundRuntime = automationAdapter.VillageStatusRoundRuntime;
+        _continuousVillageStatusRound = automationAdapter.VillageStatusRound;
+        _automationQueueItemLifecycle = automationAdapter.QueueItemLifecycle;
+        _automationDesk = new AutomationDesk(
+            _loopController,
+            automationAdapter.ContinuousLoop,
+            automationAdapter.AutoQueue);
         _automationDesk.Updated += AutomationDesk_Updated;
         _heroPanelService = new HeroPanelService(new DesktopHeroPanelClient(_botService), _botConfigStore);
         _resourcesPanelService = new ResourcesPanelService(_botConfigStore, _villageSettingsStore);

@@ -28,40 +28,6 @@ internal sealed record AutomationStateSnapshot(
     bool IsComplete = false,
     DateTimeOffset? NextWakeAt = null);
 
-internal abstract record AutomationStateChange
-{
-    private AutomationStateChange()
-    {
-    }
-
-    internal sealed record ActionFinished(
-        Guid ItemId,
-        AutomationActionOutcome Outcome) : AutomationStateChange;
-}
-
-internal interface IAutomationStatePort
-{
-    ValueTask<AutomationStateSnapshot> ReadAsync(
-        AutomationRunMode mode,
-        AutomationRunContext context,
-        CancellationToken cancellationToken);
-
-    ValueTask ApplyAsync(
-        AutomationRunMode mode,
-        AutomationRunContext context,
-        AutomationStateChange change,
-        CancellationToken cancellationToken);
-}
-
-internal interface IOfficialTravianAutomationPort
-{
-    ValueTask<AutomationActionOutcome> ExecuteAsync(
-        AutomationRunMode mode,
-        AutomationRunContext context,
-        AutomationCandidate action,
-        CancellationToken cancellationToken);
-}
-
 internal interface IAutomationModePassPort
 {
     ValueTask<AutomationStateSnapshot> ReadAsync(
@@ -72,45 +38,45 @@ internal interface IAutomationModePassPort
         AutomationRunContext context,
         AutomationCandidate action,
         CancellationToken cancellationToken);
+
+    ValueTask CompleteAsync(
+        AutomationRunContext context,
+        AutomationCandidate action,
+        AutomationActionOutcome outcome,
+        CancellationToken cancellationToken);
 }
 
-internal sealed class AutomationPassPort(
+internal sealed class ContextGuardedAutomationModePass(
     Func<string?> activeAccountKey,
     Func<long> browserGeneration,
-    IAutomationModePassPort continuousLoop,
-    IAutomationModePassPort autoQueue) : IAutomationStatePort, IOfficialTravianAutomationPort
+    IAutomationModePassPort inner) : IAutomationModePassPort
 {
     public ValueTask<AutomationStateSnapshot> ReadAsync(
-        AutomationRunMode mode,
         AutomationRunContext context,
         CancellationToken cancellationToken)
     {
         EnsureCurrentContext(context);
-        return Resolve(mode).ReadAsync(context, cancellationToken);
+        return inner.ReadAsync(context, cancellationToken);
     }
 
-    public ValueTask ApplyAsync(
-        AutomationRunMode mode,
-        AutomationRunContext context,
-        AutomationStateChange change,
-        CancellationToken cancellationToken) => ValueTask.CompletedTask;
-
     public ValueTask<AutomationActionOutcome> ExecuteAsync(
-        AutomationRunMode mode,
         AutomationRunContext context,
         AutomationCandidate action,
         CancellationToken cancellationToken)
     {
         EnsureCurrentContext(context);
-        return Resolve(mode).ExecuteAsync(context, action, cancellationToken);
+        return inner.ExecuteAsync(context, action, cancellationToken);
     }
 
-    private IAutomationModePassPort Resolve(AutomationRunMode mode) => mode switch
+    public ValueTask CompleteAsync(
+        AutomationRunContext context,
+        AutomationCandidate action,
+        AutomationActionOutcome outcome,
+        CancellationToken cancellationToken)
     {
-        AutomationRunMode.ContinuousLoop => continuousLoop,
-        AutomationRunMode.AutoQueue => autoQueue,
-        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown automation run mode."),
-    };
+        EnsureCurrentContext(context);
+        return inner.CompleteAsync(context, action, outcome, cancellationToken);
+    }
 
     private void EnsureCurrentContext(AutomationRunContext context)
     {
@@ -137,7 +103,8 @@ internal sealed class AutomationPassPort(
 
 internal sealed class DelegateAutomationModePassPort(
     Func<CancellationToken, ValueTask<AutomationStateSnapshot>> readAsync,
-    Func<AutomationCandidate, CancellationToken, ValueTask<AutomationActionOutcome>> executeAsync)
+    Func<AutomationCandidate, CancellationToken, ValueTask<AutomationActionOutcome>> executeAsync,
+    Func<AutomationCandidate, AutomationActionOutcome, CancellationToken, ValueTask>? completeAsync = null)
     : IAutomationModePassPort
 {
     public ValueTask<AutomationStateSnapshot> ReadAsync(
@@ -148,33 +115,33 @@ internal sealed class DelegateAutomationModePassPort(
         AutomationRunContext context,
         AutomationCandidate action,
         CancellationToken cancellationToken) => executeAsync(action, cancellationToken);
+
+    public ValueTask CompleteAsync(
+        AutomationRunContext context,
+        AutomationCandidate action,
+        AutomationActionOutcome outcome,
+        CancellationToken cancellationToken) =>
+        completeAsync?.Invoke(action, outcome, cancellationToken) ?? ValueTask.CompletedTask;
 }
 
-internal sealed class EmptyAutomationStatePort : IAutomationStatePort
+internal sealed class EmptyAutomationModePass : IAutomationModePassPort
 {
-    internal static EmptyAutomationStatePort Instance { get; } = new();
+    internal static EmptyAutomationModePass Instance { get; } = new();
 
     public ValueTask<AutomationStateSnapshot> ReadAsync(
-        AutomationRunMode mode,
         AutomationRunContext context,
         CancellationToken cancellationToken) =>
         ValueTask.FromResult(new AutomationStateSnapshot([]));
 
-    public ValueTask ApplyAsync(
-        AutomationRunMode mode,
-        AutomationRunContext context,
-        AutomationStateChange change,
-        CancellationToken cancellationToken) => ValueTask.CompletedTask;
-}
-
-internal sealed class EmptyOfficialTravianAutomationPort : IOfficialTravianAutomationPort
-{
-    internal static EmptyOfficialTravianAutomationPort Instance { get; } = new();
-
     public ValueTask<AutomationActionOutcome> ExecuteAsync(
-        AutomationRunMode mode,
         AutomationRunContext context,
         AutomationCandidate action,
         CancellationToken cancellationToken) =>
         ValueTask.FromResult(AutomationActionOutcome.Skipped);
+
+    public ValueTask CompleteAsync(
+        AutomationRunContext context,
+        AutomationCandidate action,
+        AutomationActionOutcome outcome,
+        CancellationToken cancellationToken) => ValueTask.CompletedTask;
 }

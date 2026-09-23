@@ -257,6 +257,12 @@ internal sealed class ContinuousAutomationPass(
         AutomationCandidate action,
         CancellationToken cancellationToken) => port.ExecuteAsync(action, cancellationToken);
 
+    public ValueTask CompleteAsync(
+        AutomationRunContext context,
+        AutomationCandidate action,
+        AutomationActionOutcome outcome,
+        CancellationToken cancellationToken) => ValueTask.CompletedTask;
+
     private void LogSelection(long passId, QueueItem item)
     {
         port.Log(

@@ -91,4 +91,10 @@ internal sealed class AutoQueueAutomationPass(
         AutomationRunContext context,
         AutomationCandidate action,
         CancellationToken cancellationToken) => port.ExecuteAsync(action, cancellationToken);
+
+    public ValueTask CompleteAsync(
+        AutomationRunContext context,
+        AutomationCandidate action,
+        AutomationActionOutcome outcome,
+        CancellationToken cancellationToken) => ValueTask.CompletedTask;
 }

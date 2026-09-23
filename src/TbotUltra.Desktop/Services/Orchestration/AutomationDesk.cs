@@ -1,14 +1,14 @@
 namespace TbotUltra.Desktop.Services.Orchestration;
 
 /// <summary>
-/// Owns the authoritative Desktop automation run state. Automation policy is
-/// migrated behind this interface in behavior-preserving vertical slices.
+/// Owns the authoritative Desktop automation run state and the run-mode modules
+/// behind the caller-first interface.
 /// </summary>
 public sealed class AutomationDesk : IAutomationDesk, IAsyncDisposable
 {
     private readonly LoopController _loopController;
-    private readonly IAutomationStatePort _state;
-    private readonly IOfficialTravianAutomationPort _officialTravian;
+    private readonly IAutomationModePassPort _continuousLoop;
+    private readonly IAutomationModePassPort _autoQueue;
     private readonly TimeProvider _timeProvider;
     private readonly Func<TimeSpan, CancellationToken, Task> _delayAsync;
     private readonly AutomationNetworkBackoff _networkBackoff;
@@ -30,23 +30,23 @@ public sealed class AutomationDesk : IAutomationDesk, IAsyncDisposable
     public AutomationDesk(LoopController loopController, TimeProvider? timeProvider = null)
         : this(
             loopController,
-            EmptyAutomationStatePort.Instance,
-            EmptyOfficialTravianAutomationPort.Instance,
+            EmptyAutomationModePass.Instance,
+            EmptyAutomationModePass.Instance,
             timeProvider)
     {
     }
 
     internal AutomationDesk(
         LoopController loopController,
-        IAutomationStatePort state,
-        IOfficialTravianAutomationPort officialTravian,
+        IAutomationModePassPort continuousLoop,
+        IAutomationModePassPort autoQueue,
         TimeProvider? timeProvider = null,
         Func<TimeSpan, CancellationToken, Task>? delayAsync = null,
         AutomationNetworkBackoff? networkBackoff = null)
     {
         _loopController = loopController;
-        _state = state;
-        _officialTravian = officialTravian;
+        _continuousLoop = continuousLoop;
+        _autoQueue = autoQueue;
         _timeProvider = timeProvider ?? TimeProvider.System;
         _delayAsync = delayAsync ?? ((delay, cancellationToken) =>
             Task.Delay(delay, _timeProvider, cancellationToken));
@@ -423,7 +423,8 @@ public sealed class AutomationDesk : IAutomationDesk, IAsyncDisposable
     {
         try
         {
-            var snapshot = await _state.ReadAsync(mode, context, cancellationToken).ConfigureAwait(false);
+            var modePass = ResolveModePass(mode);
+            var snapshot = await modePass.ReadAsync(context, cancellationToken).ConfigureAwait(false);
             _networkBackoff.MarkHealthy();
             var now = _timeProvider.GetUtcNow();
             var action = snapshot.Candidates
@@ -465,12 +466,10 @@ public sealed class AutomationDesk : IAutomationDesk, IAsyncDisposable
 
                 if (choice == AutomationDecisionChoice.Decline)
                 {
-                    await _state.ApplyAsync(
-                            mode,
+                    await modePass.CompleteAsync(
                             context,
-                            new AutomationStateChange.ActionFinished(
-                                action.Id,
-                                AutomationActionOutcome.Skipped),
+                            action,
+                            AutomationActionOutcome.Skipped,
                             cancellationToken)
                         .ConfigureAwait(false);
                     PublishRunEvent(new AutomationEvent.ActionFinished(
@@ -482,19 +481,15 @@ public sealed class AutomationDesk : IAutomationDesk, IAsyncDisposable
                 }
             }
 
-            var outcome = await _officialTravian
-                .ExecuteAsync(mode, context, action, cancellationToken)
+            var outcome = await modePass
+                .ExecuteAsync(context, action, cancellationToken)
                 .ConfigureAwait(false);
             if (!IsCurrentRun(runId, context))
             {
                 return AutomationPassResult.NoWork;
             }
 
-            await _state.ApplyAsync(
-                    mode,
-                    context,
-                    new AutomationStateChange.ActionFinished(action.Id, outcome),
-                    cancellationToken)
+            await modePass.CompleteAsync(context, action, outcome, cancellationToken)
                 .ConfigureAwait(false);
             PublishRunEvent(new AutomationEvent.ActionFinished(
                 runId,
@@ -560,6 +555,13 @@ public sealed class AutomationDesk : IAutomationDesk, IAsyncDisposable
             return AutomationPassResult.NoWork;
         }
     }
+
+    private IAutomationModePassPort ResolveModePass(AutomationRunMode mode) => mode switch
+    {
+        AutomationRunMode.ContinuousLoop => _continuousLoop,
+        AutomationRunMode.AutoQueue => _autoQueue,
+        _ => throw new ArgumentOutOfRangeException(nameof(mode), mode, "Unknown automation run mode."),
+    };
 
     private void CompleteRun(AutomationRunId runId, AutomationRunMode mode)
     {

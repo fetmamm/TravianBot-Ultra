@@ -197,9 +197,8 @@ public sealed class AutomationQueueItemLifecycleTests
                 token)
                     ? AutomationActionOutcome.Completed
                     : AutomationActionOutcome.Blocked);
-        var pass = new AutomationPassPort(() => "account-1", () => 7, modePass, modePass);
         using var loopController = new LoopController();
-        await using var automation = new AutomationDesk(loopController, pass, pass);
+        await using var automation = new AutomationDesk(loopController, modePass, modePass);
         var finished = new TaskCompletionSource<AutomationEvent.ActionFinished>(
             TaskCreationOptions.RunContinuationsAsynchronously);
         automation.Updated += (_, update) =>
