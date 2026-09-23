@@ -558,6 +558,7 @@ public partial class MainWindow
             || value.Contains("chromium warmup started")
             || value.Contains("chromium warmup completed")
             || value.Contains("[lobby-login] manually selected owned world resolved to")
+            || value.Contains("[pre-sleep-fill] hold started:")
             || (value.Contains("[browser-click]") && value.Contains("skipped candidate"))
             || (value.Contains("[nav] goto start") && value.Contains("from='chrome-error://chromewebdata/'"))
             || value.Contains("[ensure-logged-in] browser network error page detected")

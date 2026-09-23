@@ -69,6 +69,13 @@ public sealed class AlarmClassificationTests
     }
 
     [Fact]
+    public void PreSleepFillHoldStarted_IsNotAlarm()
+    {
+        Assert.False(MainWindow.IsAlarmMessage(
+            "[pre-sleep-fill] hold started: tracked=1, pendingDispatch=1, running=0, dispatchTimeout=30s, holdLimit=3m."));
+    }
+
+    [Fact]
     public void TransientUpgradeAnalysisRetry_IsNotAlarm()
     {
         Assert.False(MainWindow.IsAlarmMessage(
