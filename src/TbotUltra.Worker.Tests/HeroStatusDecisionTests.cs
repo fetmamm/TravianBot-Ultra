@@ -78,4 +78,50 @@ public sealed class HeroStatusDecisionTests
             HeroStatusDecision.ComputeHpWaitSeconds(hp, threshold, regenPerDay, 7 * 24 * 60 * 60));
     }
 
+    [Fact]
+    public void ResolveIsInVillage_RunningSignalWinsOverStaleHomeSignal()
+    {
+        Assert.False(HeroStatusDecision.ResolveIsInVillage(
+            reinforcing: false,
+            running: true,
+            home: true,
+            legacyStatus: null,
+            officialAway: false,
+            sidebarText: null));
+    }
+
+    [Theory]
+    [InlineData(true, false, false, false)]
+    [InlineData(false, false, true, true)]
+    [InlineData(false, false, false, true)]
+    public void ResolveIsInVillage_UsesStrongSignalsAndKeepsUnknownNonBlocking(
+        bool reinforcing,
+        bool running,
+        bool home,
+        bool expected)
+    {
+        Assert.Equal(expected, HeroStatusDecision.ResolveIsInVillage(
+            reinforcing,
+            running,
+            home,
+            legacyStatus: null,
+            officialAway: false,
+            sidebarText: null));
+    }
+
+    [Fact]
+    public void AdventureDispatchConfirmation_AcceptsAuthoritativeAwayStatusAfterRedirect()
+    {
+        Assert.True(HeroStatusDecision.IsAdventureDispatchConfirmed(
+            activeAdventurePage: false,
+            isInVillage: false,
+            isDead: false,
+            isReviving: false));
+        Assert.False(HeroStatusDecision.IsAdventureDispatchConfirmed(
+            activeAdventurePage: false,
+            isInVillage: true,
+            isDead: false,
+            isReviving: false));
+    }
+
 }

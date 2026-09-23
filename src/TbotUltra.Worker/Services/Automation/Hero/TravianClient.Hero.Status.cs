@@ -643,7 +643,7 @@ public sealed partial class TravianClient
         }
 
         Notify("[hero:verbose] reading live hero attributes");
-        await GotoAsync(Paths.HeroAttributes, cancellationToken);
+        await EnsurePageForReadAsync(Paths.HeroAttributes, "live hero attributes", cancellationToken);
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 

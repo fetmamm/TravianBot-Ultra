@@ -78,6 +78,7 @@ public sealed partial class TravianClient
 
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         var result = await ReadCurrentVillageStatusAsync(cancellationToken);
+        _session.SaveRecentVillageStatus(result, DateTimeOffset.UtcNow);
         trace.Complete(
             "success",
             $"village={result.ActiveVillage} resources={result.Resources.Count} buildings={result.Buildings.Count} queue={result.BuildQueue.Count}");
@@ -98,6 +99,7 @@ public sealed partial class TravianClient
 
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         var result = await ReadCurrentVillageStatusAsync(cancellationToken, knownVillages, knownBuildings);
+        _session.SaveRecentVillageStatus(result, DateTimeOffset.UtcNow);
         trace.Complete(
             "success",
             $"village={result.ActiveVillage} resources={result.Resources.Count} buildings={result.Buildings.Count} queue={result.BuildQueue.Count}");

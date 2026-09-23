@@ -30,7 +30,7 @@ public sealed class HeroAttributePageSnapshotTests
         var knownWithoutNewPoints = method.IndexOf(
             "cachedSnapshot is not null && !quick.HasUnassignedPointsSignal",
             StringComparison.Ordinal);
-        var navigation = method.IndexOf("GotoAsync(Paths.HeroAttributes", StringComparison.Ordinal);
+        var navigation = method.IndexOf("EnsurePageForReadAsync(Paths.HeroAttributes", StringComparison.Ordinal);
 
         Assert.True(cacheRead >= 0 && knownWithoutNewPoints > cacheRead && navigation > knownWithoutNewPoints,
             "Known Hero attributes must avoid navigation unless the sidebar signals new points.");
@@ -57,7 +57,7 @@ public sealed class HeroAttributePageSnapshotTests
 
         Assert.True(methodStart >= 0 && methodEnd > methodStart);
         var method = source[methodStart..methodEnd];
-        var attributesNavigation = method.IndexOf("GotoAsync(Paths.HeroAttributes", StringComparison.Ordinal);
+        var attributesNavigation = method.IndexOf("EnsurePageForReadAsync(Paths.HeroAttributes", StringComparison.Ordinal);
         var runtimeRead = method.IndexOf("ReadHeroStatusAsync(cancellationToken)", StringComparison.Ordinal);
         Assert.True(runtimeRead > attributesNavigation);
         Assert.Contains("HomeVillageHeroAway = heroAway", method, StringComparison.Ordinal);

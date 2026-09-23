@@ -2063,9 +2063,21 @@ public partial class MainWindow
         if (!string.Equals(before.VillageKey, after.VillageKey, StringComparison.OrdinalIgnoreCase)
             || before.AttemptCount == 0)
         {
-            AppendLog(
-                $"[village-batch] start village='{GetQueueItemVillageName(item) ?? _activeWorkingVillageName ?? "-"}' "
-                + $"key='{after.VillageKey}' source='{source}'.");
+            var targetName = GetQueueItemVillageName(item) ?? _activeWorkingVillageName ?? "-";
+            var targetKey = GetQueueItemVillageKey(item);
+            if (!string.IsNullOrWhiteSpace(targetKey)
+                && !string.Equals(targetKey, after.VillageKey, StringComparison.OrdinalIgnoreCase))
+            {
+                AppendLog(
+                    $"[village-batch] switch requested fromKey='{after.VillageKey}' "
+                    + $"toVillage='{targetName}' targetKey='{targetKey}' source='{source}'.");
+            }
+            else
+            {
+                AppendLog(
+                    $"[village-batch] start village='{targetName}' "
+                    + $"key='{after.VillageKey}' source='{source}'.");
+            }
         }
 
     }

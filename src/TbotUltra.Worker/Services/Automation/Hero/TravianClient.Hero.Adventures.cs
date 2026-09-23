@@ -124,13 +124,32 @@ public sealed partial class TravianClient
         }
 
         await WaitForPageReadyAsync(cancellationToken); // Wait for page to load
-        var dispatched = await IsHeroAdventureActivePageAsync(cancellationToken);
+        var activeAdventurePage = await IsHeroAdventureActivePageAsync(cancellationToken);
         var returnSeconds = await ReadAdventureReturnSecondsAsync(cancellationToken) ?? fallbackReturnFromDetail;
-        Notify($"[adventure] dispatch confirmed={dispatched}, hero return ETA={returnSeconds}s");
 
         // Navigate back to dorf1 after the "To adventure" submit so we don't leave the page on the
         // adventure result view (keeps the page fresh for the next hero status read).
         await EnsureFreshDorf1ForHeroAsync(forceReload: false, cancellationToken);
+
+        var quick = await ReadHeroQuickStatusAsync(
+            allowDorf1Fallback: false,
+            forceDorf1Reload: false,
+            cancellationToken);
+        var isReviving = string.Equals(quick.Status.State, "Reviving", StringComparison.OrdinalIgnoreCase)
+            || quick.Status.ReviveRemainingSeconds is > 0;
+        var dispatched = HeroStatusDecision.IsAdventureDispatchConfirmed(
+            activeAdventurePage,
+            quick.IsInVillage,
+            quick.Status.IsDead,
+            isReviving);
+        if (quick.Status.SecondsUntilReturn is > 0)
+        {
+            returnSeconds = quick.Status.SecondsUntilReturn.Value;
+        }
+
+        Notify(
+            $"[adventure] dispatch confirmed={dispatched}, source={(activeAdventurePage ? "adventure-page" : "live-hero-status")}, "
+            + $"inVillage={quick.IsInVillage}, dead={quick.Status.IsDead}, reviving={isReviving}, hero return ETA={returnSeconds}s");
 
         return (dispatched, duration, returnSeconds);
     }

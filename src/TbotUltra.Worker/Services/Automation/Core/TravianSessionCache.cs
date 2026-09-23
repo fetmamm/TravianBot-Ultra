@@ -36,11 +36,6 @@ public sealed class TravianSessionCache
     // delay forever. No deadline is created while the hero is away or no adventure exists.
     public System.DateTimeOffset? HeroAdventureDispatchNotBeforeUtc { get; set; }
 
-    // True once hero_manage has looked at the hero in this browser session. The restart delay models
-    // "do not dispatch the instant the hero becomes ready", so it must not fire on the very first look
-    // after login — a hero that is already home and ready there has been idle while the bot was off.
-    public bool HeroStateObserved { get; set; }
-
     // Short-lived construction snapshot shared by the per-operation TravianClient instances that
     // use the same visible browser. Navigation and construction mutations invalidate it centrally.
     public System.Collections.Generic.IReadOnlyList<Domain.ActiveConstruction>? CachedActiveConstructions { get; set; }
@@ -67,6 +62,36 @@ public sealed class TravianSessionCache
     public string? TroopQueueSnapshotVillageKey { get; set; }
     public System.Collections.Generic.Dictionary<TbotUltra.Core.Travian.TroopTrainingBuildingType, Domain.TroopTrainingQueueStatus>? TroopQueueSnapshotByBuilding { get; set; }
     public System.DateTimeOffset TroopQueueSnapshotAt { get; set; } = System.DateTimeOffset.MinValue;
+
+    private Domain.VillageStatus? RecentVillageStatus { get; set; }
+    private System.DateTimeOffset RecentVillageStatusAt { get; set; } = System.DateTimeOffset.MinValue;
+
+    internal void SaveRecentVillageStatus(Domain.VillageStatus status, System.DateTimeOffset observedAt)
+    {
+        RecentVillageStatus = status;
+        RecentVillageStatusAt = observedAt;
+    }
+
+    internal Domain.VillageStatus? TryTakeRecentVillageStatus(
+        string? villageKey,
+        System.DateTimeOffset now,
+        System.TimeSpan maxAge)
+    {
+        var status = RecentVillageStatus;
+        RecentVillageStatus = null;
+        if (status is null || string.IsNullOrWhiteSpace(villageKey))
+        {
+            return null;
+        }
+
+        var cachedKey = status.ActiveVillageCoordX.HasValue && status.ActiveVillageCoordY.HasValue
+            ? $"xy:{status.ActiveVillageCoordX.Value}|{status.ActiveVillageCoordY.Value}"
+            : null;
+        return now - RecentVillageStatusAt <= maxAge
+            && string.Equals(cachedKey, villageKey, System.StringComparison.OrdinalIgnoreCase)
+            ? status
+            : null;
+    }
 
     // Ongoing-construction count seen at the previous construction start-gate check, keyed by
     // "{villageNewdid}:{slotCategory}". Lets the humanized start delay tell "a build just finished,

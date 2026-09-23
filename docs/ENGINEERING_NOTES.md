@@ -133,6 +133,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   the pre-sleep automation state after wake; it never invokes Smart Sleep deadline planning or pre-sleep filling.
   While sleeping, the same action extends the existing wake deadline by a user-selected 5/10/20/30/60 minutes;
   the Session pacing `+` action stays hidden and the confirmation warns that Smart Sleep tasks may be delayed.
+- Every sleep logs its absolute planned wake. Wake completion logs trigger, planned/actual timestamps, early/late
+  offset, and flags timer delays of at least five seconds as possible system-suspend or UI-dispatcher delay.
 - Transient background resource-read timeouts use the shared automation network backoff, retain the last
   trusted snapshot, and stop that refresh tick. A later successful read clears the shared backoff.
 - Resource bulk-upgrade payloads must capture the four checkbox values currently visible for the selected village;
@@ -693,6 +695,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Build troops `maximum` amount mode must click Travian's numeric `.details .cta a[href='#']` shortcut beside the
   selected troop input and verify Travian filled the advertised amount; do not type that maximum manually. The
   existing paced Train-button click remains the submit action after the shortcut succeeds.
+- An immediately following Build troops task may consume the prior complete village status once, for at most 20
+  seconds, only while still on Dorf2 with the same coordinate key. A mismatch or stale snapshot falls back to the
+  normal Dorf1/Dorf2 read. A troop-building queue page may be reused for its candidate action when the exact slot URL
+  still matches and no stale-timer marker is present; the live DOM is still read before any click.
 - Dashboard B/S/W troop indicators represent effective per-village Build troops configuration, never training
   queue activity: green means Auto + Build troops + that building toggle are enabled and the building exists;
   amber means effectively enabled but the building is missing or its status is unknown; muted means disabled.
@@ -778,6 +784,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Hero Attributes navigation is required only when the sidebar signals new points or no known attribute snapshot
   exists. Successful point allocation invalidates memory and disk, and incomplete DOM reads never overwrite a valid
   snapshot. Hero HP uses the global SVG first and opens Attributes only when that live signal is unavailable.
+- Hero-away signals outrank a concurrently rendered stale home icon. Adventure dispatch confirmation may come from
+  the adventure result page or the fresh global Hero status after Travian redirects to Dorf1. The configured Hero
+  restart delay also applies to the first ready observation after login, before navigating to Adventures.
 - Automatic ointment use is triggered only for a home, living Hero with an available adventure when HP reaches or
   falls below the configured adventure minimum. Identify the inventory item by Official Travian's `item106`
   contract (with `inventory_5` as a fixture-backed fallback), pace both clicks, and verify live HP after Use. A

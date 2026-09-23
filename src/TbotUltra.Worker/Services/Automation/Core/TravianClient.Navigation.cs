@@ -299,6 +299,10 @@ public sealed partial class TravianClient
     {
         var url = TravianUrls.ToAbsoluteUrl(ServerUrl, pathOrUrl);
         var beforeUrl = _page.Url;
+        if (UrlMatchesPath(beforeUrl, pathOrUrl))
+        {
+            Notify($"[nav-audit] same-target GOTO requested; target='{url}' current='{beforeUrl}'. Review whether a live reload or page reuse was intended.");
+        }
         using var trace = _browserTrace.BeginOperation(
             "NAV",
             "goto",
@@ -397,6 +401,30 @@ public sealed partial class TravianClient
             trace.Complete("failed", $"{ex.GetType().Name}: {ex.Message}", _page.Url);
             throw;
         }
+    }
+
+    // Reuses an already-open page only when its URL contract matches and Travian has not marked a timer
+    // stale. Callers still perform their normal live DOM read; this only removes a redundant navigation.
+    private async Task EnsurePageForReadAsync(
+        string pathOrUrl,
+        string purpose,
+        CancellationToken cancellationToken)
+    {
+        if (!IsCurrentUrlForPath(pathOrUrl))
+        {
+            await GotoAsync(pathOrUrl, cancellationToken);
+            return;
+        }
+
+        if (await IsPageMarkedStaleAsync())
+        {
+            Notify($"[nav] current page is stale; reloading for {purpose}.");
+            await ReloadOrGotoAsync(pathOrUrl, cancellationToken);
+            return;
+        }
+
+        Notify($"[nav] reusing current page for {purpose}; url='{_page.Url}'.");
+        await WaitForPageReadyAsync(cancellationToken);
     }
 
     // Reloads in place when already on the target path, otherwise navigates to it.

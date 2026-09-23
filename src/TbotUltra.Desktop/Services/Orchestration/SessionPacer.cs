@@ -193,7 +193,7 @@ public sealed class SessionPacer
                 if (restriction == SessionSleepReason.None)
                 {
                     Logger?.Invoke("[pacing] updated settings cleared the active restriction - waking immediately.");
-                    CompleteSleepAndWake();
+                    CompleteSleepAndWake("settings-cleared-restriction");
                     return;
                 }
 
@@ -426,7 +426,9 @@ public sealed class SessionPacer
         _requestedSmartWakeAt = null;
         _automationActive = false;
         _timer.Start();
-        Logger?.Invoke($"{SleepReasonLabel(reason)} sleep starting; sleeping for {Format(TimeUntilWake)}.");
+        Logger?.Invoke(
+            $"{SleepReasonLabel(reason)} sleep starting; sleeping for {Format(TimeUntilWake)}; "
+            + $"planned wake '{_wakeAt:yyyy-MM-dd HH:mm:ss zzz}'.");
         RaiseTick();
     }
 
@@ -540,7 +542,7 @@ public sealed class SessionPacer
             Logger?.Invoke("[pacing] manual Run now: overriding the schedule for the current off-hours window.");
         }
 
-        CompleteSleepAndWake();
+        CompleteSleepAndWake("manual");
     }
 
     // True when a fresh online session would immediately be forced to sleep by an active restriction
@@ -703,8 +705,24 @@ public sealed class SessionPacer
         RaiseTick();
     }
 
-    private void CompleteSleepAndWake()
+    private void CompleteSleepAndWake(string trigger)
     {
+        var actual = _now();
+        var planned = _wakeAt;
+        if (planned is { } plannedAt)
+        {
+            var difference = actual - plannedAt;
+            var late = difference > TimeSpan.Zero ? difference : TimeSpan.Zero;
+            var early = difference < TimeSpan.Zero ? -difference : TimeSpan.Zero;
+            var delayedTimer = late >= TimeSpan.FromSeconds(5);
+            Logger?.Invoke(
+                $"[pacing] wake timing trigger={trigger} planned='{plannedAt:yyyy-MM-dd HH:mm:ss zzz}' "
+                + $"actual='{actual:yyyy-MM-dd HH:mm:ss zzz}' late={Format(late)} early={Format(early)} "
+                + $"delayedTimer={delayedTimer.ToString().ToLowerInvariant()}"
+                + (delayedTimer ? " possibleCause='system-suspend-or-ui-dispatcher-delay'" : string.Empty)
+                + ".");
+        }
+
         _wakeAt = null;
         _manualSleep = false;
         _activeSleepDuration = null;
@@ -746,7 +764,7 @@ public sealed class SessionPacer
             var restriction = GetActiveRestriction(now);
             if (restriction == SessionSleepReason.None)
             {
-                CompleteSleepAndWake();
+                CompleteSleepAndWake("deadline");
             }
             else
             {

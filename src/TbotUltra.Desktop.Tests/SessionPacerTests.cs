@@ -42,6 +42,26 @@ public sealed class SessionPacerTests
     }
 
     [Fact]
+    public void SmartSleep_LogsPlannedActualAndLateWakeTimes()
+    {
+        var now = new DateTimeOffset(2026, 9, 23, 8, 0, 0, TimeSpan.Zero);
+        var logs = new List<string>();
+        var pacer = new SessionPacer(() => now) { Logger = logs.Add };
+        pacer.Configure(new SessionPacerSettings(true, 15, 50, 10, 40, RunTimerEnabled: false));
+        pacer.NotifyAutomationStarted();
+        pacer.SleepStarting += (_, _) => pacer.BeginSleep();
+        Assert.True(pacer.RequestSmartSleep(now.AddMinutes(30)));
+
+        now = now.AddMinutes(42);
+        pacer.TickForTests();
+
+        Assert.Contains(logs, line => line.Contains("planned='2026-09-23 08:30:00 +00:00'", StringComparison.Ordinal)
+            && line.Contains("actual='2026-09-23 08:42:00 +00:00'", StringComparison.Ordinal)
+            && line.Contains("late=00:12:00", StringComparison.Ordinal)
+            && line.Contains("delayedTimer=true", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void SmartSleep_WakeInsideDisabledHourMovesToNextAllowedBoundary()
     {
         var localOffset = TimeSpan.FromHours(2);

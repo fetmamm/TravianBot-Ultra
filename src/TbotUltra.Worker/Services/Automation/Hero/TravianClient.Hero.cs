@@ -520,13 +520,8 @@ public sealed partial class TravianClient : IHeroClient
             _session.HeroAdventureDispatchNotBeforeUtc = null;
         }
 
-        // Flagged unconditionally (also when the hero is away or dead) so "first look of the session"
-        // really means the first hero read after login, not the first read that happened to be ready.
-        var isFirstHeroObservationThisSession = !_session.HeroStateObserved;
-        _session.HeroStateObserved = true;
-
         var adventureRestartDelayWaitSeconds = adventureCount > 0 && canSendByHp && inVillage
-            ? ResolveHeroAdventureRestartDelayWaitSeconds(isFirstHeroObservationThisSession)
+            ? ResolveHeroAdventureRestartDelayWaitSeconds()
             : 0;
 
         if (isReviving)
@@ -656,7 +651,7 @@ public sealed partial class TravianClient : IHeroClient
 
     }
 
-    private int ResolveHeroAdventureRestartDelayWaitSeconds(bool isFirstHeroObservationThisSession)
+    private int ResolveHeroAdventureRestartDelayWaitSeconds()
     {
         if (!_config.HeroAdventureRestartDelayEnabled)
         {
@@ -676,20 +671,11 @@ public sealed partial class TravianClient : IHeroClient
             return 0;
         }
 
-        // The delay spaces out the moment the hero becomes ready. On the first hero check after login
-        // a home, ready hero has already been waiting while the bot was offline, so there is nothing
-        // to space out — dispatch now. Later transitions (hero returns home, a new adventure appears)
-        // still arm the delay, because by then the session has seen the hero at least once.
-        if (isFirstHeroObservationThisSession)
-        {
-            Notify("[hero] first hero check this session and the hero is home and ready — dispatching without the restart delay.");
-            return 0;
-        }
-
         var delaySeconds = ResolveRestartDelaySeconds(
             _config.HeroAdventureRestartDelayMinMinutes,
             _config.HeroAdventureRestartDelayMaxMinutes);
         _session.HeroAdventureDispatchNotBeforeUtc = now.AddSeconds(delaySeconds);
+        Notify($"[hero] armed adventure restart delay for {TravianParsing.FormatDuration(delaySeconds)}; no adventure-page navigation is needed before the deadline.");
         return Math.Max(1, delaySeconds);
     }
 
@@ -728,42 +714,66 @@ public sealed partial class TravianClient : IHeroClient
     {
         // Sidebar hero status icon on dorf1/dorf2 carries class names like heroStatus50 (in village),
         // heroStatus52/53 (on the way), heroStatus51 (dead). The status text (title/aria) is also localized.
-        return await _page.EvaluateAsync<bool>(
+        var raw = await _page.EvaluateAsync<string>(
             """
             () => {
-              // 1) Most reliable: explicit hero home/running icons in the top bar/sidebar.
-              if (document.querySelector('i.heroReinforcing, .heroState i.statusSupport_medium')) return false;
-              if (document.querySelector('i.heroHome, [class*="heroHome"]')) return true;
-              if (document.querySelector('i.heroRunning, [class*="heroRunning"]')) return false;
-
-              // 2) Legacy hero status class.
+              // Capture all signals before deciding: during a redirect Travian can briefly render a
+              // stale home icon together with the authoritative running icon.
               const icon = document.querySelector('.heroStatus, [class*="heroStatus"]');
-              if (icon) {
-                const cls = (icon.className || '').toString();
-                // Treat heroStatus100/heroStatusHome/heroStatus50 as "in this village".
-                if (/heroStatus(?:100|50|Home)\b/i.test(cls)) return true;
-                // Anything else (52/53 = on the way, 51 = dead) => not in this village.
-                if (/heroStatus\d+/i.test(cls)) return false;
-              }
-              // 3) Official Travian (T4.6): a hero on its way is shown by a heroRunning icon in the
-              // top-bar sidebar, and on the adventures page by a statusRunning icon + .heroState /
-              // "on its way to an adventure" / "Arrival in <timerReact>". There is no heroStatus
-              // class. Any of these means the hero is NOT in the village.
-              if (document.querySelector('[class*="statusRunning"], .heroState, .timerReact')) return false;
+              const className = (icon?.className || '').toString();
+              const legacyMatch = className.match(/heroStatus(\d+)/i);
               const officialBox = document.querySelector('#topBarHero, #heroV2, .heroV2');
               const officialText = (officialBox?.textContent || '').toLowerCase();
-              if (/on its way|on the way to|arrival in/.test(officialText)) return false;
-
-              // 4) Fallback: localized status text in the hero sidebar box.
               const box = document.querySelector('#sidebarBoxHero, .heroSidebar, .heroStatusMessage');
-              const text = (box?.textContent || '').toLowerCase();
-              if (!text) return true; // unknown — don't block
-              if (/(home|in this village|in der heimat|på väg|on the way|adventure|äventyr|abenteuer|dead|tot|d[öo]d)/i.test(text)) {
-                return /(home|in this village|in der heimat)/i.test(text);
-              }
-              return true;
+              return JSON.stringify({
+                reinforcing: !!document.querySelector('i.heroReinforcing, .heroState i.statusSupport_medium'),
+                running: !!document.querySelector('i.heroRunning, [class*="heroRunning"], [class*="statusRunning"]'),
+                home: !!document.querySelector('i.heroHome, [class*="heroHome"]') || /heroStatus(?:100|50|Home)\b/i.test(className),
+                legacyStatus: legacyMatch ? Number(legacyMatch[1]) : null,
+                officialAway: !!document.querySelector('.heroState, .timerReact') || /on its way|on the way to|arrival in/.test(officialText),
+                sidebarText: (box?.textContent || '').toLowerCase()
+              });
             }
             """);
+
+        HeroPresenceSignalsJs? signals = null;
+        try
+        {
+            signals = JsonSerializer.Deserialize<HeroPresenceSignalsJs>(raw);
+        }
+        catch (JsonException ex)
+        {
+            Notify($"[hero:verbose] could not parse hero presence signals: {ex.Message}");
+        }
+
+        return signals is null || HeroStatusDecision.ResolveIsInVillage(
+            signals.Reinforcing,
+            signals.Running,
+            signals.Home,
+            signals.LegacyStatus,
+            signals.OfficialAway,
+            signals.SidebarText);
+    }
+
+    private sealed class HeroPresenceSignalsJs
+    {
+        [JsonPropertyName("reinforcing")]
+        public bool Reinforcing { get; init; }
+
+        [JsonPropertyName("running")]
+        public bool Running { get; init; }
+
+        [JsonPropertyName("home")]
+        public bool Home { get; init; }
+
+        [JsonPropertyName("legacyStatus")]
+        public int? LegacyStatus { get; init; }
+
+        [JsonPropertyName("officialAway")]
+        public bool OfficialAway { get; init; }
+
+        [JsonPropertyName("sidebarText")]
+        public string? SidebarText { get; init; }
     }
 
     private sealed record HeroQuickStatus(

@@ -54,6 +54,59 @@ internal static class HeroStatusDecision
         return isReinforcing ? 30 * 60 : 15 * 60;
     }
 
+    internal static bool ResolveIsInVillage(
+        bool reinforcing,
+        bool running,
+        bool home,
+        int? legacyStatus,
+        bool officialAway,
+        string? sidebarText)
+    {
+        if (reinforcing || running || officialAway)
+        {
+            return false;
+        }
+
+        if (home)
+        {
+            return true;
+        }
+
+        if (legacyStatus.HasValue)
+        {
+            return legacyStatus is 50 or 100;
+        }
+
+        var text = (sidebarText ?? string.Empty).ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return true;
+        }
+
+        if (text.Contains("home", StringComparison.Ordinal)
+            || text.Contains("in this village", StringComparison.Ordinal)
+            || text.Contains("in der heimat", StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return !(text.Contains("på väg", StringComparison.Ordinal)
+            || text.Contains("on the way", StringComparison.Ordinal)
+            || text.Contains("adventure", StringComparison.Ordinal)
+            || text.Contains("äventyr", StringComparison.Ordinal)
+            || text.Contains("abenteuer", StringComparison.Ordinal)
+            || text.Contains("dead", StringComparison.Ordinal)
+            || text.Contains("tot", StringComparison.Ordinal)
+            || text.Contains("död", StringComparison.Ordinal));
+    }
+
+    internal static bool IsAdventureDispatchConfirmed(
+        bool activeAdventurePage,
+        bool isInVillage,
+        bool isDead,
+        bool isReviving)
+        => activeAdventurePage || (!isInVillage && !isDead && !isReviving);
+
     internal static int ComputeHpWaitSeconds(
         int? hpPercent,
         int thresholdPercent,

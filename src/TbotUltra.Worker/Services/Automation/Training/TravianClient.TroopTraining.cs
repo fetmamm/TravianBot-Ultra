@@ -121,6 +121,7 @@ public sealed partial class TravianClient : ITrainingClient
     }
 
     private static readonly TimeSpan TroopTrainingQueueSnapshotMaxAge = TimeSpan.FromSeconds(90);
+    private static readonly TimeSpan VillageStatusReuseMaxAge = TimeSpan.FromSeconds(20);
 
     // Called wherever build_troops reads a troop building's queue (candidate scan + after submit) so the
     // post-build refresh can reuse the data instead of navigating back to the same building pages.
@@ -153,7 +154,22 @@ public sealed partial class TravianClient : ITrainingClient
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         Notify("[troops:verbose]loading village status.");
 
-        var status = await ReadVillageStatusAsync(cancellationToken);
+        VillageStatus? status = null;
+        if (IsCurrentUrlForPath(Paths.Buildings))
+        {
+            var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+            var activeVillageKey = BuildTroopQueueVillageKey(activeCoords.X, activeCoords.Y);
+            status = _session.TryTakeRecentVillageStatus(
+                activeVillageKey,
+                DateTimeOffset.UtcNow,
+                VillageStatusReuseMaxAge);
+            if (status is not null)
+            {
+                Notify($"[troops] reusing verified village status for '{status.ActiveVillage}' before training; page and coordinates still match.");
+            }
+        }
+
+        status ??= await ReadVillageStatusAsync(cancellationToken);
         Notify($"[troops:verbose]activeVillage='{status.ActiveVillage}', tribe='{status.Tribe}', resources={string.Join(", ", status.Resources.Select(pair => $"{pair.Key}={pair.Value}"))}.");
         if (!TroopCatalog.IsKnownTribe(status.Tribe))
         {
@@ -536,8 +552,11 @@ public sealed partial class TravianClient : ITrainingClient
             return new TroopTrainingAttemptOutcome(false, $"Skip {candidate.Request.BuildingName}: building slot not found.");
         }
 
-        Notify($"[troops:verbose]navigating to {candidate.Request.BuildingName} slot {candidate.QueueStatus.SlotId.Value}.");
-        await GotoAsync(Paths.BuildBySlot(candidate.QueueStatus.SlotId.Value), cancellationToken);
+        Notify($"[troops:verbose]opening {candidate.Request.BuildingName} slot {candidate.QueueStatus.SlotId.Value}.");
+        await EnsurePageForReadAsync(
+            Paths.BuildBySlot(candidate.QueueStatus.SlotId.Value),
+            $"train at {candidate.Request.BuildingName}",
+            cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         Notify($"[troops:verbose]page after navigation url='{_page.Url}'.");
 
