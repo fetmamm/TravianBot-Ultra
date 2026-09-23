@@ -391,6 +391,10 @@ public partial class MainWindow
                         continue;
                     }
                 }
+                if (postLoginRound)
+                {
+                    LogRomanLoginFillOutcome(villageKey, village.Name);
+                }
                 if (_automationPassRuntime.SnapshotVillageBatch(_activeWorkingVillageKey).HasUrgentPreemption)
                 {
                     _automationPassRuntime.CompleteUrgentPreemption(_activeWorkingVillageKey);
@@ -442,6 +446,44 @@ public partial class MainWindow
             await ApplyPostTaskCooldownAsync(next, options, cancellationToken);
         }
 
+    }
+
+    private void LogRomanLoginFillOutcome(string villageKey, string villageName)
+    {
+        if (!_villageStatusCache.TryGetByKey(villageKey, out var status))
+        {
+            return;
+        }
+
+        var pending = _botService.GetQueueItemsForDisplay()
+            .Where(item => item.Status == QueueStatus.Pending)
+            .Where(item => IsConstructionQueueTask(item.TaskName))
+            .Where(item => string.Equals(GetQueueItemVillageKey(item), villageKey, StringComparison.OrdinalIgnoreCase))
+            .Where(IsQueueItemAllowedByAutomationSettings)
+            .ToList();
+        var decision = RomanLoginFillPolicy.Resolve(
+            status,
+            _travianPlusActive,
+            pending.Any(item => ConstructionQueueState.IsResourceConstructionTask(item.TaskName)),
+            pending.Any(item => !ConstructionQueueState.IsResourceConstructionTask(item.TaskName)));
+        switch (decision.State)
+        {
+            case RomanLoginFillState.Complete:
+                AppendLog(
+                    $"[construction-login-fill] completed village='{villageName}': " +
+                    $"live Roman queue is 3/3 ({decision.ResourceCount} resource, {decision.BuildingCount} building).");
+                break;
+            case RomanLoginFillState.NeedsComplementaryCategory:
+                AppendLog(
+                    $"[construction-login-fill] stopped village='{villageName}' at " +
+                    $"{decision.ResourceCount + decision.BuildingCount}/3: complementary Roman category is queued but not runnable.");
+                break;
+            case RomanLoginFillState.Blocked:
+                AppendLog(
+                    $"[construction-login-fill] stopped village='{villageName}' at " +
+                    $"{decision.ResourceCount + decision.BuildingCount}/3: {decision.Reason}.");
+                break;
+        }
     }
 
     private QueueItem? SelectNextQueueItemForVillageStatusSweep(
@@ -1544,7 +1586,10 @@ public partial class MainWindow
                     || HasEarlierStoragePreflightDependency(orderedGroupItems, index);
             },
             index => ResolveConstructionQueueAvailability(orderedGroupItems[index], now),
-            allowIndependentCategoryLookAhead);
+            allowIndependentCategoryLookAhead,
+            firstItem is null
+                ? RomanConstructionPriority.Auto
+                : _villageSettingsStore.GetRomanConstructionPriority(GetQueueItemVillageKey(firstItem)));
         skipReason = selection.SkipReason;
 
         if (selection.QueueFullBlocker is not null && !preview)
@@ -1577,6 +1622,14 @@ public partial class MainWindow
             AppendLog(
                 $"[construction-queue] Roman category look-ahead selected " +
                 $"task='{selection.Item.TaskName}' village='{villageName}' because the earlier category is blocked.");
+        }
+        else if (selection.UsedRomanPriority && !preview)
+        {
+            var villageName = NormalizeVillageName(GetQueueItemVillageName(selection.Item)) ?? "-";
+            var priority = _villageSettingsStore.GetRomanConstructionPriority(GetQueueItemVillageKey(selection.Item));
+            AppendLog(
+                $"[construction-queue] Roman priority='{priority}' selected " +
+                $"task='{selection.Item.TaskName}' village='{villageName}'.");
         }
 
         if (TryDeferConstructUntilActivePrerequisiteFinishes(selection.Item, now, preview, out var dependencySkipReason))

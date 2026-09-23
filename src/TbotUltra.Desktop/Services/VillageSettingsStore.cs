@@ -64,6 +64,9 @@ public sealed partial class VillageSettingsStore
         public int? HeroResourceMaxUsePerResource { get; set; }
         // Bulk resource upgrades are scoped per village. Null is the legacy/default all-resource selection.
         public List<string>? ResourceUpgradeTypes { get; set; }
+        // Romans can choose which construction category receives the flexible Plus slot. Null is the
+        // legacy/default Auto behavior, which follows the earliest runnable queue lane.
+        public string? RomanConstructionPriority { get; set; }
         public DateTimeOffset LastSeenUtc { get; set; } = DateTimeOffset.UtcNow;
         // When this village first went missing from a CONFIRMED login/scan village list (coordinate
         // identity), or null while it is live. Set/cleared only by DisableVillagesMissingFromConfirmedList.
@@ -214,6 +217,12 @@ public sealed partial class VillageSettingsStore
                     migratedAnything = true;
                 }
 
+                if (string.IsNullOrWhiteSpace(record.RomanConstructionPriority))
+                {
+                    record.RomanConstructionPriority = RomanConstructionPriority.Auto.ToString();
+                    migratedAnything = true;
+                }
+
                 if (enableVillagesForNewDefault)
                 {
                     record.IsEnabled = DefaultAutomationEnabled;
@@ -275,6 +284,7 @@ public sealed partial class VillageSettingsStore
         winner.HeroResourceMaxUseEnabled ??= loser.HeroResourceMaxUseEnabled;
         winner.HeroResourceMaxUsePerResource ??= loser.HeroResourceMaxUsePerResource;
         winner.ResourceUpgradeTypes ??= loser.ResourceUpgradeTypes;
+        winner.RomanConstructionPriority ??= loser.RomanConstructionPriority;
         winner.IsEnabled = winner.IsEnabled || loser.IsEnabled;
         if (winner.LastSeenUtc < loser.LastSeenUtc)
         {

@@ -7,7 +7,8 @@ public sealed record ConstructionQueueSelection(
     string? SkipReason,
     QueueItem? QueueFullBlocker,
     bool ForcedLiveValidation,
-    bool UsedIndependentCategoryLookAhead = false);
+    bool UsedIndependentCategoryLookAhead = false,
+    bool UsedRomanPriority = false);
 
 public static class ConstructionQueueSelector
 {
@@ -17,7 +18,8 @@ public static class ConstructionQueueSelector
         ConstructionQueueAvailability availability,
         Func<int, bool>? isBlockedByEarlierDependency = null,
         Func<int, ConstructionQueueAvailability>? availabilityForIndex = null,
-        bool allowIndependentCategoryLookAhead = false)
+        bool allowIndependentCategoryLookAhead = false,
+        RomanConstructionPriority romanPriority = RomanConstructionPriority.Auto)
     {
         if (orderedItems.Count == 0)
         {
@@ -47,6 +49,19 @@ public static class ConstructionQueueSelector
                 "group=Construction has only in-progress single-level tasks; waiting for the next queue refresh",
                 null,
                 false);
+        }
+
+        var prioritySelection = TrySelectRomanPriority(
+            orderedItems,
+            itemIndex,
+            now,
+            allowIndependentCategoryLookAhead,
+            romanPriority,
+            isBlockedByEarlierDependency,
+            availabilityForIndex);
+        if (prioritySelection is not null)
+        {
+            return prioritySelection;
         }
 
         var item = orderedItems[itemIndex];
@@ -95,6 +110,18 @@ public static class ConstructionQueueSelector
                     false);
             }
 
+            var independentLane = TrySelectIndependentCategoryLane(
+                orderedItems,
+                itemIndex,
+                now,
+                allowIndependentCategoryLookAhead,
+                isBlockedByEarlierDependency,
+                availabilityForIndex);
+            if (independentLane is not null)
+            {
+                return independentLane;
+            }
+
             var waitSeconds = Math.Max(0, (item.NextAttemptAt - now).TotalSeconds);
             return new ConstructionQueueSelection(
                 null,
@@ -135,6 +162,73 @@ public static class ConstructionQueueSelector
         }
 
         return new ConstructionQueueSelection(item, null, null, false);
+    }
+
+    private static ConstructionQueueSelection? TrySelectRomanPriority(
+        IReadOnlyList<QueueItem> orderedItems,
+        int startIndex,
+        DateTimeOffset now,
+        bool allowIndependentCategoryLookAhead,
+        RomanConstructionPriority romanPriority,
+        Func<int, bool>? isBlockedByEarlierDependency,
+        Func<int, ConstructionQueueAvailability>? availabilityForIndex)
+    {
+        if (!allowIndependentCategoryLookAhead
+            || romanPriority == RomanConstructionPriority.Auto
+            || availabilityForIndex is null)
+        {
+            return null;
+        }
+
+        var preferResources = romanPriority == RomanConstructionPriority.Resources;
+        var hasOtherLane = false;
+        int? preferredLaneHead = null;
+        for (var index = startIndex; index < orderedItems.Count; index++)
+        {
+            var candidate = orderedItems[index];
+            if (CanYieldQueueOrderAfterInProgress(candidate, now))
+            {
+                continue;
+            }
+
+            var isResource = ConstructionQueueState.IsResourceConstructionTask(candidate.TaskName);
+            if (isResource == preferResources)
+            {
+                preferredLaneHead ??= index;
+            }
+            else
+            {
+                hasOtherLane = true;
+            }
+
+            if (preferredLaneHead.HasValue && hasOtherLane)
+            {
+                break;
+            }
+        }
+
+        if (!preferredLaneHead.HasValue || !hasOtherLane || preferredLaneHead.Value == startIndex)
+        {
+            return null;
+        }
+
+        var preferredIndex = preferredLaneHead.Value;
+        var preferred = orderedItems[preferredIndex];
+        if (preferred.Status != QueueStatus.Pending
+            || preferred.NextAttemptAt > now
+            || availabilityForIndex(preferredIndex) != ConstructionQueueAvailability.Available
+            || isBlockedByEarlierDependency?.Invoke(preferredIndex) == true)
+        {
+            return null;
+        }
+
+        return new ConstructionQueueSelection(
+            preferred,
+            null,
+            null,
+            false,
+            UsedIndependentCategoryLookAhead: false,
+            UsedRomanPriority: true);
     }
 
     private static ConstructionQueueSelection? TrySelectIndependentCategoryLane(

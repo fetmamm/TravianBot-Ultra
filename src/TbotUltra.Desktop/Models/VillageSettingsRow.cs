@@ -23,9 +23,31 @@ public sealed class VillageSettingsRow : INotifyPropertyChanged
     // Only meaningful on special servers where villages can have different tribes; the column that
     // shows this is hidden entirely when every village shares one tribe.
     public string TribeText { get; init; } = string.Empty;
+    public Visibility RomanConstructionPriorityVisibility => !IsCheckAllRow
+        && string.Equals(TribeText, "Romans", StringComparison.OrdinalIgnoreCase)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
+    public IReadOnlyList<RomanConstructionPriority> RomanConstructionPriorityOptions { get; } =
+        Enum.GetValues<RomanConstructionPriority>();
 
     // Stable village identity used to persist the enabled choice. Not displayed.
     public VillageSettingsStore.VillageKeyInfo? KeyInfo { get; init; }
+
+    private RomanConstructionPriority _romanConstructionPriority = RomanConstructionPriority.Auto;
+    public RomanConstructionPriority RomanConstructionPriority
+    {
+        get => _romanConstructionPriority;
+        set
+        {
+            if (_romanConstructionPriority == value)
+            {
+                return;
+            }
+
+            _romanConstructionPriority = value;
+            OnPropertyChanged();
+        }
+    }
 
     // Per-village automation-group toggles (one per visible dashboard card). The window subscribes to each
     // toggle's PropertyChanged to persist the village's enabled-group set.

@@ -175,6 +175,99 @@ public sealed class ConstructionQueueSelectorTests
     }
 
     [Fact]
+    public void SelectNext_RomanBuildingTimer_DoesNotDelayReadyResourceLane()
+    {
+        var activeBuildingGroup = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonInProgress);
+        activeBuildingGroup.TaskName = "upgrade_all_buildings_to_level";
+        var resource = CreateReadyItem("upgrade_all_resources_to_level");
+
+        var result = ConstructionQueueSelector.SelectNext(
+            [activeBuildingGroup, resource],
+            Now,
+            ConstructionQueueAvailability.Full,
+            availabilityForIndex: index => index == 1
+                ? ConstructionQueueAvailability.Available
+                : ConstructionQueueAvailability.Full,
+            allowIndependentCategoryLookAhead: true);
+
+        Assert.Same(resource, result.Item);
+        Assert.True(result.UsedIndependentCategoryLookAhead);
+    }
+
+    [Fact]
+    public void SelectNext_RomanResourcePriority_SelectsResourceAheadOfReadyBuilding()
+    {
+        var building = CreateReadyItem();
+        var resource = CreateReadyItem("upgrade_all_resources_to_level");
+
+        var result = ConstructionQueueSelector.SelectNext(
+            [building, resource],
+            Now,
+            ConstructionQueueAvailability.Available,
+            availabilityForIndex: _ => ConstructionQueueAvailability.Available,
+            allowIndependentCategoryLookAhead: true,
+            romanPriority: RomanConstructionPriority.Resources);
+
+        Assert.Same(resource, result.Item);
+        Assert.True(result.UsedRomanPriority);
+    }
+
+    [Fact]
+    public void SelectNext_RomanBuildingPriority_SelectsBuildingAheadOfReadyResource()
+    {
+        var resource = CreateReadyItem("upgrade_all_resources_to_level");
+        var building = CreateReadyItem();
+
+        var result = ConstructionQueueSelector.SelectNext(
+            [resource, building],
+            Now,
+            ConstructionQueueAvailability.Available,
+            availabilityForIndex: _ => ConstructionQueueAvailability.Available,
+            allowIndependentCategoryLookAhead: true,
+            romanPriority: RomanConstructionPriority.Buildings);
+
+        Assert.Same(building, result.Item);
+        Assert.True(result.UsedRomanPriority);
+    }
+
+    [Fact]
+    public void SelectNext_RomanPriorityFallsBackWhenPreferredLaneIsWaiting()
+    {
+        var building = CreateReadyItem();
+        var resource = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonResources);
+        resource.TaskName = "upgrade_all_resources_to_level";
+
+        var result = ConstructionQueueSelector.SelectNext(
+            [building, resource],
+            Now,
+            ConstructionQueueAvailability.Available,
+            availabilityForIndex: _ => ConstructionQueueAvailability.Available,
+            allowIndependentCategoryLookAhead: true,
+            romanPriority: RomanConstructionPriority.Resources);
+
+        Assert.Same(building, result.Item);
+        Assert.False(result.UsedRomanPriority);
+    }
+
+    [Fact]
+    public void SelectNext_RomanAutoPreservesQueueHeadCategory()
+    {
+        var building = CreateReadyItem();
+        var resource = CreateReadyItem("upgrade_all_resources_to_level");
+
+        var result = ConstructionQueueSelector.SelectNext(
+            [building, resource],
+            Now,
+            ConstructionQueueAvailability.Available,
+            availabilityForIndex: _ => ConstructionQueueAvailability.Available,
+            allowIndependentCategoryLookAhead: true,
+            romanPriority: RomanConstructionPriority.Auto);
+
+        Assert.Same(building, result.Item);
+        Assert.False(result.UsedRomanPriority);
+    }
+
+    [Fact]
     public void SelectNext_RomanLookAhead_PreservesOrderWithinResourceLane()
     {
         var blockedBuilding = CreateDeferredItem(BotOptionPayloadKeys.UpgradeDeferReasonQueueFull);

@@ -308,6 +308,24 @@ public sealed class VillageSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void RomanConstructionPriority_DefaultsToAutoAndPersistsPerVillage()
+    {
+        var store = CreateStore();
+        var village = new Info("did:2", "Roman", 5, -3, IsCapital: false);
+        store.Merge(new[] { village });
+
+        Assert.Equal(RomanConstructionPriority.Auto, store.GetRomanConstructionPriority(village));
+
+        store.SetRomanConstructionPriority(village, RomanConstructionPriority.Resources);
+
+        var reloaded = CreateStore();
+        Assert.Equal(RomanConstructionPriority.Resources, reloaded.GetRomanConstructionPriority(village));
+        Assert.Equal(
+            RomanConstructionPriority.Resources,
+            reloaded.GetRomanConstructionPriority("name:roman"));
+    }
+
+    [Fact]
     public void HeroResourceSettings_DefaultConstructionOnlyAndPersistPerVillageSettings()
     {
         var store = CreateStore();

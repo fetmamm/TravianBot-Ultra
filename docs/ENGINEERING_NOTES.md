@@ -515,7 +515,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
   timing. Romans have one resource plus one building slot without Plus; Plus adds one flexible third slot (up to
   two resources or two buildings, three total). Romans preserve FIFO independently within the resource and building
   categories: when one category is full, its rows may be passed only to run the earliest ready row from the other
-  category. Other tribes preserve one strict construction order. An in-progress aggregate such as
+  category. Their per-village priority defaults to Auto (earliest runnable lane); Resources targets two resource
+  fields plus one building and Buildings targets two buildings plus one resource whenever both lanes are queued.
+  A login-fill burst remains on the village until live status is 3/3 or the complementary lane is explicitly blocked.
+  Other tribes preserve one strict construction order. An in-progress aggregate such as
   `upgrade_all_resources_to_level` remains the head of the Roman resource category until it is complete.
 - A confirmed empty overview gives the first stale resource `page_timer` head one immediate live validation so a
   free slot cannot idle behind an obsolete timer. Hero inventory is never polled for this: only an observed inventory

@@ -2,6 +2,7 @@ using Xunit;
 using System.Windows;
 using System.Windows.Controls;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.Views;
 
 namespace TbotUltra.Desktop.Tests;
@@ -176,25 +177,52 @@ public sealed class VillageSettingsPanelTests
         });
     }
 
+    [Fact]
+    public void RomanConstructionPriority_IsShownForRomansAndPublishesChanges()
+    {
+        _wpf.Run(() =>
+        {
+            var roman = BuildRow("Rome", true, false, false, true, tribe: "Romans", includeConstruction: true);
+            var gaul = BuildRow("Gaul", true, false, false, true, tribe: "Gauls", includeConstruction: true);
+            var changes = 0;
+            var panel = new VillageSettingsPanel(
+                [roman, gaul],
+                onRomanConstructionPriorityChanged: _ => changes++);
+            var grid = Assert.IsType<DataGrid>(panel.FindName("VillageSettingsDataGrid"));
+
+            Assert.Contains(grid.Columns, column => HeaderTitle(column) == "Roman priority");
+            Assert.Equal(Visibility.Visible, roman.RomanConstructionPriorityVisibility);
+            Assert.Equal(Visibility.Collapsed, gaul.RomanConstructionPriorityVisibility);
+
+            roman.RomanConstructionPriority = RomanConstructionPriority.Resources;
+
+            Assert.Equal(1, changes);
+        });
+    }
+
     private static VillageSettingsRow BuildRow(
         string name,
         bool isAutomationEnabled,
         bool isNpcTradeEnabled,
         bool isFarmingEnabled,
         bool canToggleFarming,
-        bool includeDemolish = false) => new()
+        bool includeDemolish = false,
+        string tribe = "",
+        bool includeConstruction = false) => new()
     {
         Name = name,
         PopText = "100",
+        TribeText = tribe,
         IsEnabledForAutomation = isAutomationEnabled,
         NpcTrade = isNpcTradeEnabled,
-        GroupToggles = BuildGroupToggles(isFarmingEnabled, canToggleFarming, includeDemolish),
+        GroupToggles = BuildGroupToggles(isFarmingEnabled, canToggleFarming, includeDemolish, includeConstruction),
     };
 
     private static IReadOnlyList<VillageGroupToggle> BuildGroupToggles(
         bool isFarmingEnabled,
         bool canToggleFarming,
-        bool includeDemolish)
+        bool includeDemolish,
+        bool includeConstruction)
     {
         var toggles = new List<VillageGroupToggle>
         {
@@ -206,6 +234,17 @@ public sealed class VillageSettingsPanelTests
                 CanToggle = canToggleFarming,
             },
         };
+        if (includeConstruction)
+        {
+            toggles.Add(new VillageGroupToggle
+            {
+                GroupKey = "construction",
+                Title = "Construction",
+                IsEnabled = true,
+                CanToggle = true,
+            });
+        }
+
         if (includeDemolish)
         {
             toggles.Add(new VillageGroupToggle

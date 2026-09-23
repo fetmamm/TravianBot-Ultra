@@ -872,6 +872,7 @@ public partial class MainWindow
                     NpcTrade = _villageSettingsStore.GetNpcTrade(keyInfo),
                     HeroResourcesEnabled = _villageSettingsStore.GetHeroResourcesEnabled(keyInfo),
                     ConstructFasterEnabled = _villageSettingsStore.GetConstructFaster(keyInfo),
+                    RomanConstructionPriority = _villageSettingsStore.GetRomanConstructionPriority(keyInfo),
                     AttackScanEnabled = IsIncomingAttackMonitoringEnabled(keyInfo.Key),
                     TroopEvadeEnabled = TroopsHubPanelControl.EvasionPanel.Villages
                         .FirstOrDefault(item => string.Equals(item.VillageKey, keyInfo.Key, StringComparison.OrdinalIgnoreCase))
@@ -890,6 +891,7 @@ public partial class MainWindow
             onTroopEvadeChanged: PersistVillageTroopEvadeFromSettingsRow,
             onHeroResourcesChanged: PersistVillageHeroResourcesFromSettingsRow,
             onConstructFasterChanged: PersistVillageConstructFasterFromSettingsRow,
+            onRomanConstructionPriorityChanged: PersistVillageRomanConstructionPriorityFromSettingsRow,
             onGroupsChanged: PersistVillageGroupsFromSettingsRow,
             onTroopSettingsRequested: OpenTroopSettingsFromVillageSettings,
             onSmithyUpgradeSettingsRequested: OpenSmithyUpgradeSettingsFromVillageSettings,
@@ -1298,6 +1300,17 @@ public partial class MainWindow
         // touch the running bot. Show this village's cached buildings/resources and filter the queue to
         // it. Use the "Switch village" button to actually move the bot to this village.
         ShowSelectedVillageFromCache(selected);
+    }
+
+    private void PersistVillageRomanConstructionPriorityFromSettingsRow(VillageSettingsRow row)
+    {
+        if (row?.KeyInfo is null
+            || !string.Equals(row.TribeText, "Romans", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        _villageSettingsStore.SetRomanConstructionPriority(row.KeyInfo, row.RomanConstructionPriority);
     }
 
     private void DashboardVillageQueueButton_Click(object sender, RoutedEventArgs e)
