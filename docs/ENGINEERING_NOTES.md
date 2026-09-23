@@ -184,6 +184,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   "Check all" changes persist each affected row and publish one consolidated settings-changed notification.
 - Farming requires confirmed active Gold Club. Dashboard and Village settings must project Farming as OFF and
   non-clickable when Gold Club is false or unknown, and execution gating must enforce the same rule.
+- `FarmListsWorkflow` owns Farm Lists analysis plus projection, snapshot restore, create/add completion refresh,
+  dispatch reconciliation, and the automation pause lease used by loss-destination setup. WPF may gather dialog
+  input and render returned views, but must not recreate those multi-step operations.
 - Hero attribute automation uses account-scoped absolute maximums (0-100) keyed by attribute; missing or invalid
   values default to 100. Read the four live Official attribute inputs before every plus click, never cross a maximum,
   and do not requeue point spending when the latest complete snapshot shows every configured maximum is reached.

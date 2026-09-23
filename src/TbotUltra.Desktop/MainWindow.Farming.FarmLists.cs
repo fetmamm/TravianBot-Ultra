@@ -97,9 +97,10 @@ public partial class MainWindow
 
     private async Task<bool> RefreshFarmListsFromServerAsync(BotOptions options, CancellationToken cancellationToken)
     {
-        var analysis = await _farmListsWorkflow.AnalyzeAsync(options, cancellationToken);
-        UpdateGoldClubInfo(analysis.IsAvailable);
-        if (!analysis.IsAvailable)
+        var request = await CreateFarmListsViewRequestAsync(options);
+        var result = await _farmListsWorkflow.AnalyzeAsync(request, cancellationToken);
+        UpdateGoldClubInfo(result.IsAvailable);
+        if (!result.IsAvailable)
         {
             await Dispatcher.InvokeAsync(() =>
             {
@@ -111,28 +112,42 @@ public partial class MainWindow
             return false;
         }
 
-        var lists = analysis.Lists;
-        await ApplyFarmListOverviewToUiAsync(lists);
+        await ApplyFarmListsViewToUiAsync(result);
         await Dispatcher.InvokeAsync(() =>
-            UpdateSelectedCachedTimerStatus(status => status with { FarmLists = lists }));
+            UpdateSelectedCachedTimerStatus(status => status with { FarmLists = result.Lists }));
         return true;
     }
 
-    // Projects a server overview through the workflow module, then lets WPF apply the returned rows.
-    private async Task ApplyFarmListOverviewToUiAsync(IReadOnlyList<FarmListOverview> lists)
+    private async Task<FarmListsViewRequest> CreateFarmListsViewRequestAsync(BotOptions options)
     {
         var villageCoordinates = Dispatcher.CheckAccess()
             ? BuildUniqueVillageCoordsByName()
             : await Dispatcher.InvokeAsync(BuildUniqueVillageCoordsByName);
-        var projection = _farmListsWorkflow.ProjectOverview(
-            lists,
-            LoadBotOptions(),
+        return new FarmListsViewRequest(
+            options,
             villageCoordinates,
             new FarmListsPresentationOptions(
                 _showFarmListLastSentTimer,
                 _farmListLastSentLimitEnabled,
                 _farmListLastSentLimitHours));
+    }
 
+    // The workflow owns projection and automation state; WPF only renders the returned view.
+    private async Task ApplyFarmListsViewToUiAsync(FarmListsViewResult result)
+    {
+        if (!result.IsAvailable)
+        {
+            await Dispatcher.InvokeAsync(() =>
+            {
+                _farmLists.Clear();
+                EnsureFarmListPlaceholderRow();
+                RefreshFarmLossDestinationOptions();
+                SetFarmingFeatureAvailability(false, "Farming unavailable: Gold Club is not active on this account.");
+            });
+            return;
+        }
+
+        var projection = result.Projection;
         await Dispatcher.InvokeAsync(() =>
         {
             _suppressFarmListUiRefresh = true;
@@ -152,7 +167,6 @@ public partial class MainWindow
             }
 
             SetFarmingFeatureAvailability(true);
-            _farmListsWorkflow.CaptureAutomationState(_farmLists, DateTimeOffset.UtcNow);
             if (_farmLists.Any(IsRealFarmListRow))
             {
                 if (string.Equals(_farmingBlockedReasonKey, FarmingBlockedReasonNoFarmLists, StringComparison.OrdinalIgnoreCase))
@@ -179,6 +193,13 @@ public partial class MainWindow
             SyncFarmListSelectionHandlers();
             RefreshFarmListsItemsControl();
         });
+    }
+
+    private async Task ApplyCachedFarmListsToUiAsync(IReadOnlyList<FarmListOverview> lists)
+    {
+        var options = ApplySelectedVillageToOptions(LoadBotOptions());
+        var request = await CreateFarmListsViewRequestAsync(options);
+        await ApplyFarmListsViewToUiAsync(_farmListsWorkflow.ProjectCached(request, lists));
     }
 
     // After the auto-loop send_farmlists task actually dispatches a list it defers with a
@@ -219,11 +240,20 @@ public partial class MainWindow
             // On a real send the worker just read the farm page and wrote a fresh snapshot — apply
             // it directly so the UI updates instantly without navigating the browser again. On a
             // rename ("not found") there is no fresh snapshot, so fall back to a full re-analyze.
-            if (sendHappened && await TryApplyFarmListsSnapshotAsync())
+            var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            var snapshot = sendHappened
+                ? await TryApplyFarmListsSnapshotAsync(options)
+                : null;
+            if (snapshot is not null)
             {
                 if (sendAllLists)
                 {
-                    if (_farmListsWorkflow.ReconcileDispatches(_farmLists, attemptedKeys, LoadBotOptions()))
+                    var dispatch = _farmListsWorkflow.ReconcileAutomaticDispatch(
+                        snapshot,
+                        attemptedKeys,
+                        options);
+                    await ApplyFarmListsViewToUiAsync(dispatch.View);
+                    if (dispatch.SuccessfulDispatch)
                     {
                         WakeContinuousFarmScheduling();
                     }
@@ -231,7 +261,6 @@ public partial class MainWindow
                 return;
             }
 
-            var options = ApplySelectedVillageToOptions(LoadBotOptions());
             await RefreshFarmListsFromServerAsync(options, _loopController.AcquireSessionScopeToken());
         }
         catch (Exception ex)
@@ -240,31 +269,38 @@ public partial class MainWindow
         }
     }
 
-    private async Task<bool> TryApplyFarmListsSnapshotAsync()
+    private async Task<FarmListsViewResult?> TryApplyFarmListsSnapshotAsync(BotOptions options)
     {
-        var lists = await _farmListsWorkflow.LoadFreshSnapshotAsync(
+        var request = await CreateFarmListsViewRequestAsync(options);
+        var result = await _farmListsWorkflow.RestoreAsync(
+            request,
+            DateTimeOffset.UtcNow,
+            requireFreshSnapshot: true,
             _loopController.AcquireSessionScopeToken());
-        if (lists is null)
+        if (result is null)
         {
-            return false;
+            return null;
         }
 
-        await ApplyFarmListOverviewToUiAsync(lists);
-        return true;
+        await ApplyFarmListsViewToUiAsync(result);
+        return result;
     }
 
     private async Task RestoreFarmListsFromSnapshotForActiveAccount()
     {
-        var lists = await _farmListsWorkflow.LoadRestoredSnapshotAsync(DateTimeOffset.UtcNow);
-        if (lists is null || lists.Count == 0)
+        var options = ApplySelectedVillageToOptions(LoadBotOptions());
+        var request = await CreateFarmListsViewRequestAsync(options);
+        var result = await _farmListsWorkflow.RestoreAsync(
+            request,
+            DateTimeOffset.UtcNow,
+            requireFreshSnapshot: false);
+        if (result is null)
         {
             return;
         }
 
-        await ApplyFarmListOverviewToUiAsync(lists);
-        // A restore is not a fresh analyze: continuous automation must still run one live read.
-        _farmListsWorkflow.InvalidateAnalysis();
-        AppendLog($"[farm-list] restored {lists.Count} saved farm list(s) from the last analysis.");
+        await ApplyFarmListsViewToUiAsync(result);
+        AppendLog($"[farm-list] restored {result.Lists.Count} saved farm list(s) from the last analysis.");
     }
 
     private async void AnalyzeFarmListsButton_Click(object sender, RoutedEventArgs e)
@@ -340,27 +376,15 @@ public partial class MainWindow
         try
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            var viewRequest = await CreateFarmListsViewRequestAsync(options);
+            var addSession = _farmListsWorkflow.CreateAddSession(viewRequest, _travcoListStore.LoadAll);
             async Task<OfficialAddFarmsLoadResult> LoadOfficialAsync(CancellationToken cancellationToken)
             {
                 await EnsureChromiumInstalledAsync();
-                var available = await RefreshFarmListsFromServerAsync(options, cancellationToken);
-                if (!available)
-                {
-                    return new OfficialAddFarmsLoadResult(
-                        false,
-                        "Gold Club is not active.",
-                        [],
-                        [],
-                        new HashSet<string>());
-                }
-
-                return await _farmListsWorkflow.PrepareAddFarmsAsync(
-                    options,
-                    _travcoListStore.LoadAll(),
-                    cancellationToken);
+                return await addSession.LoadAsync(cancellationToken);
             }
 
-            Task<OfficialFarmAddRunResult> RunOfficialPlansAsync(
+            async Task<OfficialFarmAddRunResult> RunOfficialPlansAsync(
                 IReadOnlyList<OfficialFarmAddPlan> plans,
                 bool useDefaultTroops,
                 string troopType,
@@ -368,8 +392,8 @@ public partial class MainWindow
                 FarmTargetProtectionContext protection,
                 IProgress<FarmAddProgress> progress,
                 CancellationToken cancellationToken)
-                => _farmListsWorkflow.RunAddPlansAsync(
-                    options,
+            {
+                return await addSession.RunAsync(
                     plans,
                     useDefaultTroops,
                     troopType,
@@ -377,6 +401,7 @@ public partial class MainWindow
                     protection,
                     progress,
                     cancellationToken);
+            }
             var villageOptions = GetFarmListCreationVillages()
                 .Select(village => new OfficialAddFarmsWindow.AddFarmsVillageOption(
                     village.Name,
@@ -388,12 +413,17 @@ public partial class MainWindow
                 LoadAddFarmsTroopCount(),
                 LoadOfficialAsync,
                 RunOfficialPlansAsync,
-                _farmListsWorkflow.BuildAddPlans,
+                addSession.BuildPlans,
                 operationToken,
-                _farmListsWorkflow.LoadTargetProtectionPreferences(),
-                _farmListsWorkflow.PrepareTargetProtection,
+                addSession.ProtectionPreferences,
+                addSession.PrepareTargetProtection,
                 villageOptions,
                 GetSelectedVillageName()));
+            if (addSession.LatestView is { } latestView)
+            {
+                UpdateGoldClubInfo(latestView.IsAvailable);
+                await ApplyFarmListsViewToUiAsync(latestView);
+            }
             if (!dialogResult.Accepted || dialogResult.RunResult is null)
             {
                 if (!string.IsNullOrWhiteSpace(dialogResult.LoadFailureMessage))
@@ -417,7 +447,6 @@ public partial class MainWindow
 
             BusyOverlay.ShowCancel = false;
             ShowBusyOverlay("Adding farms", "Finalizing farm list updates...");
-            await RefreshFarmListsFromServerAsync(options, operationToken);
             var runResult = dialogResult.RunResult;
             HideBusyOverlay();
 
@@ -504,6 +533,7 @@ public partial class MainWindow
         BeginManualFunctionPacingPause();
         try
         {
+            var viewRequest = await CreateFarmListsViewRequestAsync(options);
             BusyOverlay.ShowCancel = true;
             ShowBusyOverlay("Analyze farmlists", "Reading current farmlists...");
             await EnsureChromiumInstalledAsync();
@@ -516,17 +546,14 @@ public partial class MainWindow
                 return;
             }
 
+            var createSession = _farmListsWorkflow.CreateCreateSession(viewRequest);
             async Task<FarmListCreateBatchResult> RunAsync(
                 FarmListCreateRequest request,
                 IProgress<FarmListCreateProgress> progress,
                 CancellationToken cancellationToken)
             {
                 await EnsureChromiumInstalledAsync();
-                return await _farmListsWorkflow.CreateAfterAnalysisAsync(
-                    options,
-                    request,
-                    progress,
-                    cancellationToken);
+                return await createSession.RunAsync(request, progress, cancellationToken);
             }
 
             var createResult = _farmListsDialogs.ShowCreateFarmLists(new CreateFarmListsDialogRequest(
@@ -542,7 +569,11 @@ public partial class MainWindow
                 return;
             }
 
-            await RefreshFarmListsFromServerAsync(options, operationToken);
+            if (createSession.LatestView is { } createdView)
+            {
+                UpdateGoldClubInfo(createdView.IsAvailable);
+                await ApplyFarmListsViewToUiAsync(createdView);
+            }
 
             var createdCount = createResult.CreatedCount;
             AppDialog.ShowCustom(
@@ -739,13 +770,15 @@ public partial class MainWindow
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
             await EnsureChromiumInstalledAsync();
+            var viewRequest = await CreateFarmListsViewRequestAsync(options);
             var dispatch = await _farmListsWorkflow.DispatchManyAsync(
-                options,
+                viewRequest,
                 _farmLists.ToList(),
                 sendToggled,
                 operationToken);
-            await RefreshFarmListsFromServerAsync(options, operationToken);
-            if (_farmListsWorkflow.ReconcileDispatches(_farmLists, dispatch.AttemptedKeys, LoadBotOptions()))
+            UpdateGoldClubInfo(dispatch.View.IsAvailable);
+            await ApplyFarmListsViewToUiAsync(dispatch.View);
+            if (dispatch.SuccessfulDispatch)
             {
                 WakeContinuousFarmScheduling();
             }
@@ -1142,7 +1175,7 @@ public partial class MainWindow
             return;
         }
 
-        var automationResume = FarmListsAutomationResume.None;
+        IAsyncDisposable? automationPause = null;
         var operationToken = _loopController.StartOperation("loss-farmlist-destination");
         _farmLossDestinationSelectionInProgress = true;
         BeginManualFunctionPacingPause();
@@ -1150,7 +1183,7 @@ public partial class MainWindow
         ShowBusyOverlay("Choose loss farmlist", "Pausing automation after the current action...");
         try
         {
-            automationResume = await _farmListsWorkflow.PauseAutomationAsync(operationToken);
+            automationPause = await _farmListsWorkflow.AcquireAutomationPauseAsync(operationToken);
 
             BusyOverlay.Text = "Reading all existing farmlists...";
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
@@ -1204,7 +1237,10 @@ public partial class MainWindow
             EndManualFunctionPacingPause();
             DisposeOperationCts();
             _farmLossDestinationSelectionInProgress = false;
-            await _farmListsWorkflow.ResumeAutomationAsync(automationResume);
+            if (automationPause is not null)
+            {
+                await automationPause.DisposeAsync();
+            }
         }
     }
 
@@ -1217,15 +1253,16 @@ public partial class MainWindow
         BusyOverlay.ShowCancel = true;
         ShowBusyOverlay("Creating loss farmlist", $"Creating '{listName}'...");
         await EnsureChromiumInstalledAsync();
+        var viewRequest = await CreateFarmListsViewRequestAsync(options);
         var result = await _farmListsWorkflow.CreateLossDestinationAsync(
-            options,
+            viewRequest,
             GetFarmListCreationVillages(),
             ResolveCurrentTribeForFarming(),
             lossColor,
             listName,
             cancellationToken);
-        UpdateGoldClubInfo(result.Analysis.IsAvailable);
-        await ApplyFarmListOverviewToUiAsync(result.Analysis.Lists);
+        UpdateGoldClubInfo(result.View.IsAvailable);
+        await ApplyFarmListsViewToUiAsync(result.View);
         var isRed = lossColor == FarmListLossColors.Red;
         SetSelectedLossDestination(isRed, result.Destination);
         AppendLog($"[farm-list] created and selected '{result.Destination.Name}' as the {lossColor.ToString().ToLowerInvariant()} loss destination.");

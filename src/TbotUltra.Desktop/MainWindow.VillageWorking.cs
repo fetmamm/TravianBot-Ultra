@@ -1402,7 +1402,7 @@ public partial class MainWindow
 
             if (cached.FarmLists is { Count: > 0 })
             {
-                _ = ApplyFarmListOverviewToUiAsync(cached.FarmLists);
+                _ = ApplyCachedFarmListsToUiAsync(cached.FarmLists);
             }
 
             BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"selected village '{selected.Name}'");

@@ -13,6 +13,9 @@ Aktivt beslut, 2026-06-09.
 - Official Add Farms anvander sparade Travco-listor.
 - Add target kor sekventiellt, verifierar exakt list-id, vantar pa React Save och fortsatter efter valideringsfel.
 - Travco DOM-resultat lases som `JsonElement` och konverteras darefter till domanmodeller.
+- Desktop anvander `FarmListsWorkflow` som den djupa modulen for hela anvandaroperationer. Analys och projektion,
+  snapshot-aterstallning, slutlig refresh efter Create/Add, dispatch-reconciliation och automationens paus/aterstart
+  ligger bakom denna seam; WPF-adaptern samlar dialoginput och renderar workflow-resultatet.
 
 ## Konsekvenser
 

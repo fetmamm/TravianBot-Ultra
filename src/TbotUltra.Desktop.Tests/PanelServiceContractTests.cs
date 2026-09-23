@@ -161,7 +161,7 @@ public sealed class PanelServiceContractTests : IDisposable
         var options = new BotOptions();
         using var cancellation = new CancellationTokenSource();
 
-        var analysis = await service.AnalyzeAsync(options, cancellation.Token);
+        var analysis = await service.AnalyzeAsync(ViewRequest(options), cancellation.Token);
         Assert.True(analysis.IsAvailable);
         Assert.Same(client.Overview, analysis.Lists);
         var row = new FarmListStatusRow
@@ -174,10 +174,12 @@ public sealed class PanelServiceContractTests : IDisposable
         };
         Assert.True(await service.DispatchOneAsync(options, row, cancellation.Token));
         Assert.Equal(2, row.RemainingSeconds);
-        Assert.Equal(3, (await service.DispatchManyAsync(options, [row], true, cancellation.Token)).SentCount);
-        Assert.Equal(4, (await service.DispatchManyAsync(options, [row], false, cancellation.Token)).SentCount);
+        Assert.Equal(3, (await service.DispatchManyAsync(ViewRequest(options), [row], true, cancellation.Token)).SentCount);
+        Assert.Equal(4, (await service.DispatchManyAsync(ViewRequest(options), [row], false, cancellation.Token)).SentCount);
 
-        Assert.Equal(["gold", "overview", "one", "selected", "all"], client.Calls);
+        Assert.Equal(
+            ["gold", "overview", "one", "selected", "gold", "overview", "all", "gold", "overview"],
+            client.Calls);
         Assert.Equal("A", client.SendOneName);
         Assert.Equal(["A"], client.SelectedNames);
         Assert.Equal(["11"], client.SelectedIds);
@@ -187,7 +189,8 @@ public sealed class PanelServiceContractTests : IDisposable
     [Fact]
     public async Task FarmListsWorkflow_ProjectsMergedOverviewAndPreparesAddFlow()
     {
-        var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());
+        var client = new RecordingFarmingClient();
+        var workflow = CreateFarmListsWorkflow(client, CreateConfigStore());
         var options = new BotOptions
         {
             ContinuousFarmListIds = ["lid-1"],
@@ -201,11 +204,11 @@ public sealed class PanelServiceContractTests : IDisposable
             new FarmListOverview("Disabled", 1, 1, null, "lid-2", 50, ["5|6"], VillageName: "Second", VillageIndex: 1),
         };
 
-        var projection = workflow.ProjectOverview(
-            lists,
+        client.Overview = lists;
+        var viewRequest = ViewRequest(
             options,
-            new Dictionary<string, string> { ["Capital"] = "(10|20)" },
-            new FarmListsPresentationOptions(true, true, 4));
+            new Dictionary<string, string> { ["Capital"] = "(10|20)" });
+        var projection = (await workflow.AnalyzeAsync(viewRequest, CancellationToken.None)).Projection;
 
         Assert.Equal(2, projection.Rows.Count);
         var raiders = Assert.Single(projection.Rows, row => row.ListId == "lid-1");
@@ -217,14 +220,14 @@ public sealed class PanelServiceContractTests : IDisposable
         Assert.Equal(["1|2", "3|4", "5|6"], projection.AnalyzedCoordinates.Order());
         Assert.Contains("'Raiders' 1/3", projection.IncompleteReads);
 
-        var loadResult = await workflow.PrepareAddFarmsAsync(
-            options,
-            [new TravcoListStore.TravcoSavedList
+        var addSession = workflow.CreateAddSession(
+            viewRequest,
+            () => [new TravcoListStore.TravcoSavedList
             {
                 Name = "Source",
                 Rows = [new TravcoListStore.TravcoSavedRow { Selected = true }],
-            }],
-            CancellationToken.None);
+            }]);
+        var loadResult = await addSession.LoadAsync(CancellationToken.None);
         Assert.True(loadResult.Ok);
         Assert.Equal(2, loadResult.TargetLists.Count);
         Assert.Contains("3|4", loadResult.ExistingCoordinates);
@@ -242,7 +245,8 @@ public sealed class PanelServiceContractTests : IDisposable
             new TravcoListStore.TravcoSavedRow { Coordinates = "3|4", Distance = 2 },
         };
 
-        var plans = workflow.BuildAddPlans(new OfficialFarmAddPlanRequest(
+        var addSession = workflow.CreateAddSession(ViewRequest(new BotOptions()), () => []);
+        var plans = addSession.BuildPlans(new OfficialFarmAddPlanRequest(
             sourceId,
             "Source",
             rows,
@@ -278,7 +282,8 @@ public sealed class PanelServiceContractTests : IDisposable
             new TravcoListStore.TravcoSavedRow { Coordinates = "3|4", Account = "Player", Distance = 2 },
         };
 
-        var plans = workflow.BuildAddPlans(new OfficialFarmAddPlanRequest(
+        var addSession = workflow.CreateAddSession(ViewRequest(new BotOptions()), () => []);
+        var plans = addSession.BuildPlans(new OfficialFarmAddPlanRequest(
             Guid.NewGuid(),
             "Source",
             rows,
@@ -315,14 +320,21 @@ public sealed class PanelServiceContractTests : IDisposable
         };
 
         await workflow.SaveSnapshotAsync(lists, CancellationToken.None);
-        var fresh = await workflow.LoadFreshSnapshotAsync(CancellationToken.None);
-        var restored = await workflow.LoadRestoredSnapshotAsync(DateTimeOffset.UtcNow.AddSeconds(30));
+        var fresh = await workflow.RestoreAsync(
+            ViewRequest(new BotOptions()),
+            DateTimeOffset.UtcNow,
+            requireFreshSnapshot: true);
+        var restored = await workflow.RestoreAsync(
+            ViewRequest(new BotOptions()),
+            DateTimeOffset.UtcNow.AddSeconds(30),
+            requireFreshSnapshot: false);
 
-        Assert.Equal("lid-1", Assert.Single(fresh!).ListId);
-        var restoredList = Assert.Single(restored!);
+        Assert.Equal("lid-1", Assert.Single(fresh!.Lists).ListId);
+        var restoredList = Assert.Single(restored!.Lists);
         Assert.InRange(restoredList.RemainingSeconds!.Value, 29, 30);
         Assert.Equal(["1|2", "3|4"], restoredList.FarmCoordinates);
         Assert.Equal("Capital", restoredList.VillageName);
+        Assert.True(workflow.AutomationSnapshot.NeedsAnalysis);
     }
 
     [Fact]
@@ -333,7 +345,10 @@ public sealed class PanelServiceContractTests : IDisposable
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         await File.WriteAllTextAsync(path, "{broken");
 
-        Assert.Null(await workflow.LoadRestoredSnapshotAsync(DateTimeOffset.UtcNow));
+        Assert.Null(await workflow.RestoreAsync(
+            ViewRequest(new BotOptions()),
+            DateTimeOffset.UtcNow,
+            requireFreshSnapshot: false));
         Assert.False(File.Exists(path));
         Assert.Single(Directory.GetFiles(Path.GetDirectoryName(path)!, $"{Path.GetFileName(path)}.corrupt-*"));
     }
@@ -416,19 +431,20 @@ public sealed class PanelServiceContractTests : IDisposable
         var options = new BotOptions();
         var createRequest = new FarmListCreateRequest(["A"], "Capital", "did:1", "Phalanx", 3);
 
-        var created = await workflow.CreateAfterAnalysisAsync(
-            options,
+        var createSession = workflow.CreateCreateSession(ViewRequest(options));
+        var created = await createSession.RunAsync(
             createRequest,
             new Progress<FarmListCreateProgress>(),
             CancellationToken.None);
 
         Assert.Equal(client.CreateResult, created);
-        Assert.Equal(["gold", "overview", "create"], client.Calls);
+        Assert.NotNull(createSession.LatestView);
+        Assert.Equal(["gold", "overview", "create", "gold", "overview"], client.Calls);
 
         client.Calls.Clear();
         var protection = new FarmTargetProtectionContext("Owner", null, false, [], []);
-        var added = await workflow.RunAddPlansAsync(
-            options,
+        var addSession = workflow.CreateAddSession(ViewRequest(options), () => []);
+        var added = await addSession.RunAsync(
             [
                 new OfficialFarmAddPlan(Guid.NewGuid(), "Source", "A", 5, [new FarmCoordinate(1, 2)]),
                 new OfficialFarmAddPlan(Guid.NewGuid(), "Source", "B", 5, [new FarmCoordinate(3, 4)]),
@@ -440,11 +456,12 @@ public sealed class PanelServiceContractTests : IDisposable
             new Progress<FarmAddProgress>(),
             CancellationToken.None);
 
-        Assert.Equal(["add", "add"], client.Calls);
+        Assert.Equal(["add", "add", "gold", "overview"], client.Calls);
         Assert.Equal(10, added.Requested);
         Assert.Equal(6, added.Added);
         Assert.Equal(2, added.Duplicates);
         Assert.Equal(2, added.Failed);
+        Assert.NotNull(addSession.LatestView);
     }
 
     [Fact]
@@ -461,7 +478,7 @@ public sealed class PanelServiceContractTests : IDisposable
         var workflow = CreateFarmListsWorkflow(client, store);
 
         var result = await workflow.CreateLossDestinationAsync(
-            new BotOptions { TargetVillageName = "Capital" },
+            ViewRequest(new BotOptions { TargetVillageName = "Capital" }),
             [new VillageSelectionItem
             {
                 Name = "Capital",
@@ -496,12 +513,10 @@ public sealed class PanelServiceContractTests : IDisposable
             () => "alice",
             _ => { });
 
-        var resume = await workflow.PauseAutomationAsync(CancellationToken.None);
-
-        Assert.True(resume.ContinuousLoop);
+        var pause = await workflow.AcquireAutomationPauseAsync(CancellationToken.None);
         Assert.False(automation.ContinuousLoopRunning);
 
-        await workflow.ResumeAutomationAsync(resume);
+        await pause.DisposeAsync();
 
         Assert.True(automation.ContinuousLoopRunning);
         Assert.False(automation.AutoQueueRunning);
@@ -655,6 +670,14 @@ public sealed class PanelServiceContractTests : IDisposable
         Directory.CreateDirectory(_root);
         return new BotConfigStore(Path.Combine(_root, "bot.json"), _root, () => "alice");
     }
+
+    private static FarmListsViewRequest ViewRequest(
+        BotOptions options,
+        IReadOnlyDictionary<string, string>? villageCoordinates = null)
+        => new(
+            options,
+            villageCoordinates ?? new Dictionary<string, string>(),
+            new FarmListsPresentationOptions(true, true, 4));
 
     private FarmListsWorkflow CreateFarmListsWorkflow(IFarmListsBrowserAdapter client, BotConfigStore store)
         => new(client, new RecordingFarmListsAutomationAdapter(), store, _root, () => "alice", _ => { });
