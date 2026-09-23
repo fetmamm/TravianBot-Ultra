@@ -12,14 +12,8 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private bool _sessionPacingSleepInProgress;
-    private bool _sessionPacingWakeInProgress;
-    private bool _sessionPacingSleepDeferredForManualOperation;
-    private bool _manualSessionSleepRequested;
     private int _sessionSleepMinMinutes = PacingDefaults.SessionPacingSleepMinMinutes;
     private int _sessionSleepMaxMinutes = PacingDefaults.SessionPacingSleepMaxMinutes;
-    private DateTimeOffset? _villageRoundSleepDeferredUntilUtc;
-    private bool _villageRoundSleepRetryScheduled;
     private SmartSleepSettings _smartSleepSettings = new(
         PacingDefaults.SmartSleepEnabled,
         PacingDefaults.SmartSleepMinimumOpportunityMinutes,
@@ -49,22 +43,15 @@ public partial class MainWindow
         double? LimitSeconds,
         int DailyMaxHours);
 
-    // Snapshot of what was actually running when sleep started, so wake restores the same state instead
-    // of always starting the continuous loop (the toggle defaults to ON even when the bot was idle).
-    private SleepSnapshot _sleepSnapshot = SleepSnapshot.Idle;
-    // A bonus video can run for up to two minutes, followed by bounded browser cleanup. Sleep first
-    // requests a graceful stop so an in-flight video and its own confirmation can complete, but never
-    // lets a wedged video block the session indefinitely.
-    private static readonly TimeSpan GracefulSleepStopTimeout = TimeSpan.FromSeconds(130);
     private bool IsSessionSleeping => _sessionPacer.Phase == SessionPacerPhase.Sleeping;
 
     private void InitializeSessionPacing()
     {
         _sessionPacer.Logger = AppendLog;
         _sessionPacer.SleepStarting += (_, _) => _backgroundTasks.Track(
-            SafeSessionPacingInvokeAsync(() => HandleSessionPacingSleepStartingAsync()));
+            SafeSessionPacingInvokeAsync(_sessionSleepLifecycle.StartAutomaticSleepAsync));
         _sessionPacer.WakeRequested += (_, _) => _backgroundTasks.Track(
-            SafeSessionPacingInvokeAsync(HandleSessionPacingWakeRequestedAsync));
+            SafeSessionPacingInvokeAsync(_sessionSleepLifecycle.WakeAsync));
         _sessionPacer.RuntimeStateChanged += (_, _) => PersistSessionPacingRuntimeState();
         _sessionPacer.IsManualOperationActive = () => _pacingPauseRequestCount > 0;
 
@@ -252,14 +239,10 @@ public partial class MainWindow
 
     private void ResetSessionPacing()
     {
-        _sleepSnapshot = SleepSnapshot.Idle;
-        _sessionPacingSleepDeferredForManualOperation = false;
-        _manualSessionSleepRequested = false;
-        _villageRoundSleepDeferredUntilUtc = null;
         _villageStatusRoundRuntime.SetForceOnWakeRequest(false);
         _automationPassRuntime.PrioritizeDeadlineWorkOnWake = false;
         _pacingPauseRequestCount = 0;
-        _sessionPacer.Reset();
+        _sessionSleepLifecycle.Reset();
     }
 
     // Freeze the pacing run->sleep countdown while a scope-limited manual function runs. Pair with
@@ -286,403 +269,7 @@ public partial class MainWindow
     // controlled-sleep flow but forces the sleep so it also works when session pacing is turned off.
     private void RequestManualSessionSleep()
     {
-        if (IsSessionSleeping || _sessionPacingSleepInProgress || _manualSessionSleepRequested)
-        {
-            AppendLog("[pacing] manual sleep ignored: sleep is already active or starting.");
-            return;
-        }
-
-        // Preserve what should resume before asking the running automation to stop after its current action.
-        _sleepSnapshot = new SleepSnapshot(
-            WasLoggedIn: _isLoggedIn,
-            WasContinuousLoopRunning: IsContinuousLoopRunning(),
-            WasQueueAutoRunning: _autoQueueRunning);
-        _manualSessionSleepRequested = true;
-        RequestAutomationStop(AutomationStopMode.AfterCurrentAction);
-        AppendLog("[pacing] manual sleep requested; waiting for the current action, then starting no new work.");
-        UpdateSessionPacingUi();
-        _backgroundTasks.Track(SafeSessionPacingInvokeAsync(() => HandleSessionPacingSleepStartingAsync(manual: true)));
-    }
-
-    private async Task HandleSessionPacingSleepStartingAsync(bool manual = false)
-    {
-        if (IsFreezeActive)
-        {
-            AppendLog("[pacing] sleep start skipped: freeze is active.");
-            return;
-        }
-
-        if (_sessionPacingSleepInProgress)
-        {
-            return;
-        }
-
-        if (!manual && _continuousVillageStatusRound.LoginRoundPending
-            && (IsContinuousLoopRunning() || _autoQueueRunning)
-            && _sessionPacer.PendingSleepReason is SessionSleepReason.SessionPacing or SessionSleepReason.SmartSleep)
-        {
-            _villageRoundSleepDeferredUntilUtc ??= DateTimeOffset.UtcNow.AddMinutes(
-                PacingDefaults.NormalizeVillageRoundSleepExtensionMinutes(
-                    LoadBotOptions().VillageRoundSleepExtensionMinutes));
-            if (DateTimeOffset.UtcNow < _villageRoundSleepDeferredUntilUtc
-                && _sessionPacer.ActiveHardRestriction == SessionSleepReason.None)
-            {
-                AppendLog($"[village-round] planned sleep delayed while village round finishes; "
-                    + $"up to {Math.Ceiling((_villageRoundSleepDeferredUntilUtc.Value - DateTimeOffset.UtcNow).TotalSeconds)}s remaining.");
-                return;
-            }
-        }
-
-        _sessionPacer.ApplyActiveHardRestrictionToPendingSleep();
-        _villageRoundSleepDeferredUntilUtc = null;
-
-        if (_loopController.HasActiveOperation)
-        {
-            if (!_sessionPacingSleepDeferredForManualOperation)
-            {
-                AppendLog("[pacing] sleep delayed until the active manual operation finishes.");
-            }
-
-            _sessionPacingSleepDeferredForManualOperation = true;
-            return;
-        }
-
-        _sessionPacingSleepInProgress = true;
-        try
-        {
-            // Capture the pre-sleep state BEFORE stopping anything, so wake can restore it.
-            if (!manual)
-            {
-                _sleepSnapshot = new SleepSnapshot(
-                    WasLoggedIn: _isLoggedIn,
-                    WasContinuousLoopRunning: IsContinuousLoopRunning(),
-                    WasQueueAutoRunning: _autoQueueRunning);
-            }
-            AppendLog($"[pacing] pre-sleep state: loggedIn={_sleepSnapshot.WasLoggedIn}, "
-                + $"continuousLoop={_sleepSnapshot.WasContinuousLoopRunning}, queueAutoRun={_sleepSnapshot.WasQueueAutoRunning}.");
-
-            if (!manual)
-            {
-                var fillWait = await WaitBrieflyForPreSleepFillItemsAsync();
-                if (_sessionPacer.PendingSleepReason == SessionSleepReason.SmartSleep
-                    && _sessionPacer.PendingSmartWakeAt is { } pendingWakeAt)
-                {
-                    var remainingOpportunity = pendingWakeAt - DateTimeOffset.UtcNow;
-                    var minimumOpportunity = TimeSpan.FromMinutes(
-                        Math.Max(1, _smartSleepSettings.MinimumOpportunityMinutes));
-                    if (remainingOpportunity < minimumOpportunity
-                        && _sessionPacer.CancelPendingSmartSleep())
-                    {
-                        AppendLog(
-                            $"[smart-sleep] decision=stay-online reason=opportunity-shrunk-after-fill "
-                            + $"remaining={FormatPositiveDuration(remainingOpportunity)} "
-                            + $"minimum={FormatPositiveDuration(minimumOpportunity)} "
-                            + $"fillTracked={fillWait.TrackedCount} fillStarted={fillWait.StartedCount} "
-                            + $"fillOutcome={fillWait.Outcome}.");
-                        return;
-                    }
-
-                    AppendLog(
-                        $"[smart-sleep] pre-shutdown validation passed: "
-                        + $"remaining={FormatPositiveDuration(remainingOpportunity)}, "
-                        + $"minimum={FormatPositiveDuration(minimumOpportunity)}, "
-                        + $"fillTracked={fillWait.TrackedCount}, fillStarted={fillWait.StartedCount}, "
-                        + $"fillOutcome={fillWait.Outcome}.");
-                }
-            }
-
-            var stoppedGracefully = await RequestGracefulAutomationStopForSleepAsync();
-            if (!stoppedGracefully)
-            {
-                AppendLog("[pacing] graceful stop timed out; canceling the remaining automation.");
-            }
-
-            AppendLog("[pacing] controlled session stop requested.");
-            RequestAutomationStop(AutomationStopMode.CancelCurrentAction);
-            _loopController.CancelOperation();
-
-            // Disable background session work BEFORE closing the browser (mirrors ResetForAccountSwitchAsync). While
-            // these stay true, the ~20s resource-refresh tick can slip onto the session gate during/after
-            // shutdown is running, a background tick could otherwise open or reuse the session.
-            _isLoggedIn = false;
-            _browserSessionLikelyOpen = false;
-            _inboxAutoEnabled = false;
-            await StopAllAutomationAndWaitAsync();
-
-            var operationId = BeginOperation("Session sleep");
-            var operationSw = System.Diagnostics.Stopwatch.StartNew();
-            ToggleUiBusy(true);
-            try
-            {
-                await CloseBrowserForSleepAsync(operationId);
-                CompleteOperation(operationId, operationSw, "Session sleep browser close completed.");
-            }
-            catch (Exception ex)
-            {
-                AppendLog($"[pacing] session browser close failed; sleep was not started: {ex.Message}");
-                return;
-            }
-            finally
-            {
-                ToggleUiBusy(false);
-            }
-
-            if (_pendingProxyChangeAtSleep is { } pendingProxy)
-            {
-                _accountStore.SaveAccount(pendingProxy, setActive: false);
-                _pendingProxyChangeAtSleep = null;
-                AppendLog("[proxy-change] pending proxy activated at session sleep; next wake will start a fresh browser.");
-            }
-
-            ConfigureSessionPacerFromConfig();
-            _sessionPacer.BeginSleep(manual);
-            _manualSessionSleepRequested = false;
-            if (_sessionPacer.PlannedWakeAt is { } wakeAt)
-            {
-                await ApplyProxyPlanForWakeAsync(wakeAt);
-            }
-            UpdateSessionActivityState(forcePersist: true);
-        }
-        finally
-        {
-            _sessionPacingSleepInProgress = false;
-            if (manual && !IsSessionSleeping)
-            {
-                _manualSessionSleepRequested = false;
-            }
-
-            UpdateSessionPacingUi();
-        }
-    }
-
-    private async Task<bool> RequestGracefulAutomationStopForSleepAsync()
-    {
-        RequestAutomationStop(AutomationStopMode.AfterCurrentAction);
-        var deadline = DateTimeOffset.UtcNow + GracefulSleepStopTimeout;
-        var announced = false;
-        while (DateTimeOffset.UtcNow < deadline)
-        {
-            if (!_autoQueueRunning
-                && !IsContinuousLoopRunning()
-                && !_loopController.HasActiveOperation)
-            {
-                return true;
-            }
-
-            if (!announced)
-            {
-                announced = true;
-                AppendLog("[pacing] waiting for the current action to finish before sleep; no new action will start.");
-            }
-
-            await Task.Delay(Random.Shared.Next(150, 350));
-        }
-
-        return false;
-    }
-
-    private void TryStartDeferredSessionPacingSleepAfterOperation()
-    {
-        if (!_sessionPacingSleepDeferredForManualOperation)
-        {
-            return;
-        }
-
-        _sessionPacingSleepDeferredForManualOperation = false;
-        var manual = _manualSessionSleepRequested;
-        if (IsFreezeActive || IsSessionSleeping || _sessionPacingSleepInProgress || _loopController.HasActiveOperation)
-        {
-            return;
-        }
-
-        AppendLog(manual
-            ? "[pacing] delayed manual sleep starting after the current operation completed."
-            : "[pacing] delayed automatic sleep starting after manual operation completed.");
-        _backgroundTasks.Track(SafeSessionPacingInvokeAsync(() => HandleSessionPacingSleepStartingAsync(manual)));
-    }
-
-    private async Task HandleSessionPacingWakeRequestedAsync()
-    {
-        if (IsFreezeActive)
-        {
-            AppendLog("[pacing] wake skipped: freeze is active.");
-            return;
-        }
-
-        if (_sessionPacingWakeInProgress)
-        {
-            return;
-        }
-
-        _sessionPacingWakeInProgress = true;
-        try
-        {
-            if (_loginInProgress || _accountSwitchInProgress)
-            {
-                AppendLog("[pacing] wake skipped: login or account switch already in progress.");
-                return;
-            }
-
-            // Restore the pre-sleep state. If the bot was idle/logged out before sleeping, stay that way.
-            if (!_sleepSnapshot.WasLoggedIn)
-            {
-                AppendLog("[pacing] wake: was logged out/idle before sleep — staying idle.");
-                return;
-            }
-
-            // Wake login must survive a transient failure (the root cause of the overnight stall: the
-            // post-login snapshot navigation timed out, ExecuteLoginFlowAsync swallowed it, _isLoggedIn
-            // stayed false, and the pacer — already Disabled with its timer stopped — never retried). Keep
-            // re-logging-in on a backoff until it takes or the state says to stop.
-            if (!await TryWakeLoginWithRetryAsync())
-            {
-                return;
-            }
-
-            if (_villageStatusRoundRuntime.ConsumeForceOnWakeRequest())
-            {
-                _villageStatusRoundRuntime.RequestForce();
-                AppendLog("[smart-sleep] fallback wake will run one Village Status Round.");
-            }
-
-            var loopIdle = !IsContinuousLoopRunning();
-            switch (SessionWakeDecisions.ResolveResume(_sleepSnapshot, loopIdle, _autoQueueRunning))
-            {
-                case WakeResumeAction.ResumeContinuousLoop:
-                    AppendLog("[pacing] wake: resuming continuous loop (was running before sleep).");
-                    StartContinuousLoopRunner();
-                    break;
-                case WakeResumeAction.ResumeQueueAutoRun:
-                    AppendLog("[pacing] wake: resuming queue auto-run (was running before sleep).");
-                    _ = TriggerQueueAutoRunAsync();
-                    break;
-                default:
-                    AppendLog("[pacing] wake: logged in, staying idle (was not running before sleep).");
-                    break;
-            }
-        }
-        finally
-        {
-            _sessionPacingWakeInProgress = false;
-        }
-    }
-
-    // Re-runs ExecuteLoginFlowAsync on a backoff until it logs in. ExecuteLoginFlowAsync swallows its own
-    // exceptions and only leaves _isLoggedIn false on failure, so this loop just retries it. Returns true once
-    // logged in, false if the retry was aborted (manual login, new sleep, account switch, or app shutdown).
-    private async Task<bool> TryWakeLoginWithRetryAsync()
-    {
-        // Preserve what to resume after login. If a scheduled off-hours / daily-limit window opens mid-retry,
-        // a login attempt converts into a planned sleep via TryEnterPlannedSleepInsteadOfLogin, which resets
-        // these to "idle". Without restoring them, the wake after that window would log in but never resume
-        // the automation that was running before the original sleep.
-        var resumeContinuousLoop = _sleepSnapshot.WasContinuousLoopRunning;
-        var resumeQueueAutoRun = _sleepSnapshot.WasQueueAutoRunning;
-
-        for (var attempt = 1; ; attempt++)
-        {
-            await ExecuteLoginFlowAsync(retryFailureIsStatus: true);
-            if (_isLoggedIn)
-            {
-                if (attempt > 1)
-                {
-                    AppendLog($"[pacing] wake login succeeded on attempt {attempt}.");
-                }
-
-                return true;
-            }
-
-            // A planned sleep window (off-hours / daily limit) took over this attempt. Restore the resume
-            // intent so the wake after that window continues automation instead of sitting idle logged in.
-            if (IsSessionSleeping)
-            {
-                _sleepSnapshot = new SleepSnapshot(true, resumeContinuousLoop, resumeQueueAutoRun);
-                AppendLog("[pacing] wake retry: a planned sleep window took over; automation will resume after it.");
-                return false;
-            }
-
-            if (ShouldAbortWakeRetry(out var reason))
-            {
-                AppendLog($"[pacing] wake login retry stopped: {reason}.");
-                return false;
-            }
-
-            var wait = SessionWakeDecisions.NextWakeLoginRetryDelay(attempt);
-            AppendLog($"[pacing] wake login failed (attempt {attempt}) — retrying in {wait.TotalMinutes:0} min.");
-
-            if (!await DelayWhileWakeRetryAllowedAsync(wait))
-            {
-                AppendLog("[pacing] wake login retry stopped during wait (state changed or app closing).");
-                return false;
-            }
-        }
-    }
-
-    // Abort the wake-login retry when logging in no longer makes sense: the user logged in manually, a new
-    // sleep window began, an account switch started, or the app is shutting down.
-    private bool ShouldAbortWakeRetry(out string reason)
-    {
-        var decision = SessionWakeDecisions.ResolveAbort(new WakeRetryState(
-            IsLoggedIn: _isLoggedIn,
-            IsSessionSleeping: IsSessionSleeping,
-            AccountSwitchInProgress: _accountSwitchInProgress,
-            AppClosing: _shutdownInProgress || _shutdownCompleted || _loopController.IsClosing));
-        reason = decision.Reason;
-        return decision.ShouldAbort;
-    }
-
-    // Sleeps up to `total` in short slices so an abort (or app shutdown) is noticed within a couple of seconds
-    // instead of blocking for the whole retry interval. Returns false as soon as the retry should stop.
-    private async Task<bool> DelayWhileWakeRetryAllowedAsync(TimeSpan total)
-    {
-        var remaining = total;
-        var slice = TimeSpan.FromSeconds(2);
-        while (remaining > TimeSpan.Zero)
-        {
-            if (ShouldAbortWakeRetry(out _))
-            {
-                return false;
-            }
-
-            var wait = remaining < slice ? remaining : slice;
-            await Task.Delay(wait);
-            remaining -= wait;
-        }
-
-        return !ShouldAbortWakeRetry(out _);
-    }
-
-    // Login should respect planned off-hours / daily-limit windows, but manual in-session actions
-    // must not start the normal run/sleep timer.
-    private async Task<bool> TryEnterPlannedSleepInsteadOfLoginAsync()
-    {
-        if (_loginInProgress || _accountSwitchInProgress || _sessionPacingSleepInProgress)
-        {
-            return false;
-        }
-
-        ConfigureSessionPacerFromConfig();
-        if (!_sessionPacer.ShouldSleepNow())
-        {
-            return false;
-        }
-
-        _sleepSnapshot = new SleepSnapshot(true, false, false);
-
-        // A planned sleep can be entered while a prior page remains open (for example after a
-        // bonus-video cleanup left it on about:blank). Sleep owns no browser process, so do not
-        // publish Sleeping until shutdown has completed and verified all tracked process identities.
-        await CloseBrowserForSleepAsync("Planned sleep");
-
-        if (!_sessionPacer.BeginScheduledSleepNow())
-        {
-            return false;
-        }
-
-        AppendLog("[login] planned sleep window is active — entering sleep instead of logging in. "
-            + "Press the session pacing Run-now button to log in anyway.");
-        UpdateSessionPacingUi();
-        return true;
+        _backgroundTasks.Track(SafeSessionPacingInvokeAsync(_sessionSleepLifecycle.RequestManualSleepAsync));
     }
 
     private async Task SafeSessionPacingInvokeAsync(Func<Task> action)
@@ -712,8 +299,8 @@ public partial class MainWindow
     private void SmartSleepNowButton_Click(object sender, RoutedEventArgs e)
     {
         if (!_smartSleepSettings.Enabled
-            || _sessionPacingSleepInProgress
-            || _manualSessionSleepRequested
+            || _sessionSleepLifecycle.IsSleepInProgress
+            || _sessionSleepLifecycle.IsManualSleepRequested
             || IsFreezeActive)
         {
             return;
@@ -978,29 +565,13 @@ public partial class MainWindow
             return;
         }
 
-        if (_villageRoundSleepDeferredUntilUtc is not null
-            && _sessionPacer.PendingSleepReason == SessionSleepReason.None)
+        if (_sessionSleepLifecycle.VillageRoundDeferredUntilUtc is not null)
         {
-            _villageRoundSleepDeferredUntilUtc = null;
-            AppendLog("[village-round] planned sleep was canceled; the village round continues.");
+            _backgroundTasks.Track(SafeSessionPacingInvokeAsync(
+                _sessionSleepLifecycle.PollVillageRoundDeferredSleepAsync));
         }
 
-        if (_villageRoundSleepDeferredUntilUtc is { } sleepDeadline
-            && !_villageRoundSleepRetryScheduled
-            && (!_continuousVillageStatusRound.LoginRoundPending
-                || (!IsContinuousLoopRunning() && !_autoQueueRunning)
-                || DateTimeOffset.UtcNow >= sleepDeadline
-                || _sessionPacer.ActiveHardRestriction != SessionSleepReason.None))
-        {
-            _villageRoundSleepRetryScheduled = true;
-            _backgroundTasks.Track(SafeSessionPacingInvokeAsync(async () =>
-            {
-                try { await HandleSessionPacingSleepStartingAsync(); }
-                finally { _villageRoundSleepRetryScheduled = false; }
-            }));
-        }
-
-        SessionPacingStatusTextBlock.Text = _villageRoundSleepDeferredUntilUtc is { } deferredUntil
+        SessionPacingStatusTextBlock.Text = _sessionSleepLifecycle.VillageRoundDeferredUntilUtc is { } deferredUntil
             ? $"Village round: sleep in {SessionPacer.FormatDuration(
                 deferredUntil > DateTimeOffset.UtcNow
                     ? deferredUntil - DateTimeOffset.UtcNow
@@ -1018,8 +589,8 @@ public partial class MainWindow
             : Visibility.Collapsed;
         var canExtendSmartSleep = IsSessionSleeping
             && _sessionPacer.SleepReason is not (SessionSleepReason.Schedule or SessionSleepReason.DailyLimit);
-        SmartSleepNowButton.IsEnabled = !_sessionPacingSleepInProgress
-            && !_manualSessionSleepRequested
+        SmartSleepNowButton.IsEnabled = !_sessionSleepLifecycle.IsSleepInProgress
+            && !_sessionSleepLifecycle.IsManualSleepRequested
             && !IsFreezeActive
             && (canExtendSmartSleep
                 || (_isLoggedIn && (IsContinuousLoopRunning() || _autoQueueRunning)));
@@ -1179,7 +750,7 @@ public partial class MainWindow
 
     private bool TryRequestSmartSleep(DateTimeOffset? trustedDeadlineUtc)
     {
-        if (!_smartSleepSettings.Enabled || IsSessionSleeping || _sessionPacingSleepInProgress)
+        if (!_smartSleepSettings.Enabled || IsSessionSleeping || _sessionSleepLifecycle.IsSleepInProgress)
         {
             return false;
         }

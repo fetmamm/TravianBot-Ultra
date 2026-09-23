@@ -46,7 +46,7 @@ public partial class MainWindow
         // If session pacing is in a planned off-hours / daily-limit window, logging in would run the whole
         // login + analyze stack only to immediately sleep and log back out. Go straight to sleep instead;
         // the user can press the pacing Run-now (play) button to override and log in normally.
-        if (await TryEnterPlannedSleepInsteadOfLoginAsync())
+        if (await _sessionSleepLifecycle.TryEnterPlannedSleepInsteadOfLoginAsync())
         {
             return;
         }
@@ -146,7 +146,7 @@ public partial class MainWindow
 
                 _browserSessionLikelyOpen = true;
                 PrepareConstructionLoginFillForActiveVerifiedVillage();
-                _continuousVillageStatusRound.RequestLoginRound(preserveIncomplete: _sessionPacingWakeInProgress);
+                _continuousVillageStatusRound.RequestLoginRound(preserveIncomplete: _sessionSleepLifecycle.IsWakeInProgress);
                 NotifySessionPacingOnlineStarted();
                 CompleteOperation(operationId, operationSw, "Login completed (quick re-login).");
                 return;
@@ -300,7 +300,7 @@ public partial class MainWindow
 
             _browserSessionLikelyOpen = true;
             PrepareConstructionLoginFillForActiveVerifiedVillage();
-            _continuousVillageStatusRound.RequestLoginRound(preserveIncomplete: _sessionPacingWakeInProgress);
+            _continuousVillageStatusRound.RequestLoginRound(preserveIncomplete: _sessionSleepLifecycle.IsWakeInProgress);
             NotifySessionPacingOnlineStarted();
             // Anchor for the quick re-login window: only a COMPLETED full stack counts.
             PersistLastFullPostLoginTimestamp();

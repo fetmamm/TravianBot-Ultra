@@ -98,8 +98,10 @@ One `partial class BotTaskRunner` in `Services/`, split by concern:
   `SessionPacer`, `BackgroundTaskTracker`). `AutomationDesk` is the deep module and shared test surface for
   Continuous Loop and Auto Queue; `MainWindow.AutomationAdapter.cs` is the single production composition root
   for its WPF and Worker adapters. The run-mode interface owns read, execute, and completion as one lifecycle;
-  context generation checks decorate each production run mode. Other services include `ContinuousLoopSelector`,
-  `AccountEditorState`, `ProxyCheckService`, and `*Store.cs` (per-feature persistence),
+  context generation checks decorate each production run mode. `SessionSleepLifecycle` owns the complete
+  capture → stop → close → wake → login → restore transaction; `SessionPacer` remains the timer/state machine,
+  while `MainWindow.SessionSleepLifecycleAdapter.cs` contains the WPF and browser adapter. Other services include
+  `ContinuousLoopSelector`, `AccountEditorState`, `ProxyCheckService`, and `*Store.cs` (per-feature persistence),
   queue helpers, `DesktopBotService`.
 - Proxyrotation — `AccountProxyPlan*` i `Services/` ager modell, atomisk lagring, normalisering, resolver och
   validering; `ProxyScheduleWindow` redigerar planen och `MainWindow.ProxyPlan` kopplar den till login/sleep/recovery.
@@ -157,5 +159,6 @@ Applies to the whole solution. The codebase already follows this — keep it con
 | Config / payloads / flavor | `Core/Configuration/`, `Core/Tasks/` |
 | Browser lifecycle | `Worker/Infrastructure/BrowserSession.cs` |
 | Continuous Loop / Auto Queue orchestration | `Desktop/Services/Orchestration/AutomationDesk.cs`, `Desktop/MainWindow.AutomationAdapter.cs` |
+| Session sleep/wake lifecycle | `Desktop/Services/Orchestration/SessionSleepLifecycle.cs`, `Desktop/MainWindow.SessionSleepLifecycleAdapter.cs` |
 | UI loop/threading | `Desktop/Services/Orchestration/LoopController.cs`, `ContinuousLoopSelector.cs` |
 | Per-feature UI panel | `Desktop/MainWindow.<Area>.cs` + matching `ViewModels/<Area>ViewModel.cs` |

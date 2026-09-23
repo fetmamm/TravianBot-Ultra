@@ -42,6 +42,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Prefer handler dictionaries for gid/type behavior instead of growing switch chains.
 - Desktop calls Worker through explicit interfaces and ViewModels; calculations do not belong in code-behind.
 - `LoopController` owns loop lifecycle and cancellation. UI code must not create competing loop state.
+- `SessionSleepLifecycle` owns capture, graceful stop, browser close, wake login retry, and automation restore.
+  `SessionPacer` owns timing/state transitions; `MainWindow` only adapts WPF, browser, login, and automation effects.
 - Long-running UI commands use the shared busy/guard pattern, expose Cancel when supported, and restore UI
   state in `finally`.
 - A dispatcher exception raised before any WPF window has loaded is a fatal startup failure: log it and explicitly
@@ -947,6 +949,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Smaller domain services for construction, farming, hero, map, messages, and account state.
 - One deep Desktop orchestration module owns Continuous Loop and Auto Queue policy and runtime state;
   `LoopController` retains lifecycle/cancellation and Worker retains Official Travian browser actions.
+- One deep Desktop sleep lifecycle owns the complete sleep snapshot transaction; `SessionPacer` remains its
+  timer/state machine and browser/login work stays behind the Desktop adapter seam.
 - Pure fixture-tested parsers/calculators independent of Playwright.
 - Thin browser adapters with explicit timeouts, cancellation, and result states.
 - ViewModels exposing commands/state without browser or filesystem details.

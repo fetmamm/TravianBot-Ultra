@@ -16,8 +16,6 @@ namespace TbotUltra.Desktop;
 // immediately instead of deferring again (the human pause was served by the random reschedule).
 public partial class MainWindow
 {
-    private sealed record PreSleepFillWaitResult(int TrackedCount, int StartedCount, string Outcome);
-
     private DateTimeOffset _lastPreSleepFillCheckUtc = DateTimeOffset.MinValue;
     private static readonly TimeSpan PreSleepFillCheckInterval = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan PreSleepFillDispatchTimeout = TimeSpan.FromSeconds(30);
@@ -198,7 +196,7 @@ public partial class MainWindow
 
     // Bounded hold before an automatic sleep: if a pre-sleep fill item is due or already running, give
     // it a short chance to finish so the final build is actually clicked home before the browser closes.
-    private async Task<PreSleepFillWaitResult> WaitBrieflyForPreSleepFillItemsAsync()
+    private async Task<SessionPreSleepFillResult> WaitBrieflyForPreSleepFillItemsAsync()
     {
         var startedAt = DateTimeOffset.UtcNow;
         var deadline = startedAt.AddMinutes(PacingDefaults.PreSleepFillSleepHoldMaxMinutes);
@@ -208,7 +206,7 @@ public partial class MainWindow
             .ToList();
         if (initialItems.Count == 0)
         {
-            return new PreSleepFillWaitResult(0, 0, "none");
+            return SessionPreSleepFillResult.None;
         }
 
         var trackedIds = initialItems.Select(item => item.Id).ToHashSet();
@@ -263,7 +261,7 @@ public partial class MainWindow
                 AppendLog(
                     $"[pre-sleep-fill] hold completed: tracked={trackedIds.Count}, started={startedIds.Count}, "
                     + $"elapsed={(now - startedAt).TotalSeconds:F1}s, outcome=completed-or-deferred.");
-                return new PreSleepFillWaitResult(trackedIds.Count, startedIds.Count, "completed-or-deferred");
+                return new SessionPreSleepFillResult(trackedIds.Count, startedIds.Count, "completed-or-deferred");
             }
 
             if (running.Count == 0 && startedIds.Count == 0 && now >= dispatchDeadline)
@@ -280,7 +278,7 @@ public partial class MainWindow
                     $"[pre-sleep-fill] hold released: tracked={trackedIds.Count}, started=0, "
                     + $"elapsed={(now - startedAt).TotalSeconds:F1}s, outcome=dispatch-not-started, "
                     + $"clearedFlags={awaitingDispatch.Count}.");
-                return new PreSleepFillWaitResult(trackedIds.Count, 0, "dispatch-not-started");
+                return new SessionPreSleepFillResult(trackedIds.Count, 0, "dispatch-not-started");
             }
 
             await Task.Delay(TimeSpan.FromSeconds(1));
@@ -295,6 +293,6 @@ public partial class MainWindow
             $"[pre-sleep-fill] hold timed out: tracked={trackedIds.Count}, started={startedIds.Count}, "
             + $"elapsed={(DateTimeOffset.UtcNow - startedAt).TotalSeconds:F1}s, "
             + $"states=[{finalStates}].");
-        return new PreSleepFillWaitResult(trackedIds.Count, startedIds.Count, "timeout");
+        return new SessionPreSleepFillResult(trackedIds.Count, startedIds.Count, "timeout");
     }
 }

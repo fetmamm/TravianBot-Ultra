@@ -218,6 +218,7 @@ public partial class MainWindow : Window
     private readonly VillageStatusReactionCoordinator<VillageSelectionItem, VillageStatus> _villageStatusReactionCoordinator = new();
     private readonly BackgroundTaskTracker _backgroundTasks = new();
     private readonly SessionPacer _sessionPacer = new();
+    private readonly SessionSleepLifecycle _sessionSleepLifecycle;
 
     // Initialized in field initializers (i.e. before InitializeComponent runs)
     // so XAML bindings such as {Binding HeroVm, ElementName=RootWindow} resolve
@@ -464,6 +465,9 @@ public partial class MainWindow : Window
             _villageCacheStore.Save(write.AccountName, write.Snapshot);
             return Task.CompletedTask;
         });
+        _sessionSleepLifecycle = new SessionSleepLifecycle(
+            _sessionPacer,
+            new MainWindowSessionSleepLifecyclePort(this));
         InitializeSessionPacing();
         _accountAnalysisStore = new AccountAnalysisStore(_projectRoot);
         _heroAttributeSnapshotStore = new HeroAttributeSnapshotStore(_projectRoot);
@@ -1543,7 +1547,8 @@ public partial class MainWindow : Window
         _loopController.DisposeOperation();
         if (hadActiveOperation)
         {
-            TryStartDeferredSessionPacingSleepAfterOperation();
+            _backgroundTasks.Track(SafeSessionPacingInvokeAsync(
+                _sessionSleepLifecycle.StartDeferredSleepAsync));
         }
     }
 

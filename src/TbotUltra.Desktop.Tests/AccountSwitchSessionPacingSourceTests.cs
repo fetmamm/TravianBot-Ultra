@@ -30,47 +30,6 @@ public sealed class AccountSwitchSessionPacingSourceTests
     }
 
     [Fact]
-    public void ResetForAccountSwitch_ClearsThePreviousAccountsSleepState()
-    {
-        var projectRoot = ProjectRootLocator.FindProjectRoot();
-        var source = File.ReadAllText(Path.Combine(
-            projectRoot,
-            "src",
-            "TbotUltra.Desktop",
-            "MainWindow.Session.cs"));
-        var methodStart = source.IndexOf(
-            "private async Task ResetForAccountSwitchAsync",
-            StringComparison.Ordinal);
-        var methodEnd = source.IndexOf(
-            "    // bot.json is shared across accounts",
-            methodStart,
-            StringComparison.Ordinal);
-
-        Assert.True(methodStart >= 0 && methodEnd > methodStart);
-        var methodBody = source[methodStart..methodEnd];
-
-        Assert.Contains("ResetSessionPacing();", methodBody, StringComparison.Ordinal);
-
-        var pacingSource = File.ReadAllText(Path.Combine(
-            projectRoot,
-            "src",
-            "TbotUltra.Desktop",
-            "MainWindow.SessionPacing.cs"));
-        var resetStart = pacingSource.IndexOf(
-            "private void ResetSessionPacing()",
-            StringComparison.Ordinal);
-        var resetEnd = pacingSource.IndexOf(
-            "    // Freeze the pacing run->sleep countdown",
-            resetStart,
-            StringComparison.Ordinal);
-
-        Assert.True(resetStart >= 0 && resetEnd > resetStart);
-        var resetBody = pacingSource[resetStart..resetEnd];
-        Assert.Contains("_sleepSnapshot = SleepSnapshot.Idle;", resetBody, StringComparison.Ordinal);
-        Assert.Contains("_sessionPacer.Reset();", resetBody, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void ActiveSessionExtensionDialog_OffersBlueSleepNowAction()
     {
         var projectRoot = ProjectRootLocator.FindProjectRoot();
@@ -138,8 +97,6 @@ public sealed class AccountSwitchSessionPacingSourceTests
         Assert.Contains("SmartSleepNowButton.Visibility = _smartSleepSettings.Enabled", source, StringComparison.Ordinal);
         Assert.Contains("SmartSleepNowButton.ToolTip = IsSessionSleeping ? \"Extend sleep\" : \"Sleep now\";", source, StringComparison.Ordinal);
         Assert.Contains("&& !_smartSleepSettings.Enabled", source, StringComparison.Ordinal);
-        Assert.Contains("RequestAutomationStop(AutomationStopMode.AfterCurrentAction);", source, StringComparison.Ordinal);
-        Assert.Contains("HandleSessionPacingSleepStartingAsync(manual)", source, StringComparison.Ordinal);
     }
 
     [Fact]

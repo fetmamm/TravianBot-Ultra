@@ -117,7 +117,7 @@ public partial class MainWindow
         if (isScheduledSleep && result == MessageBoxResult.Yes)
         {
             // Run program is an explicit login request, never an automation-resume request.
-            _sleepSnapshot = new SleepSnapshot(true, false, false);
+            _sessionSleepLifecycle.PrepareExplicitWakeLogin();
             _sessionPacer.WakeNow();
         }
     }
