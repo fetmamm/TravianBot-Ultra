@@ -122,9 +122,17 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Smart Sleep's account-scoped `Wake when construction queue clears` option changes only its wake deadline.
   With confirmed Plus overview data, a queued pair uses the final timer; Roman resource and building queues
   are evaluated separately. Normal online construction scheduling always keeps the earliest-slot behavior.
+  Trusted deadlines within a randomized 10-15 minute coalescing window remain in the current online session.
+  Before browser shutdown, revalidate the configured minimum sleep opportunity after any construction-fill hold;
+  cancel Smart Sleep if the remaining opportunity is too short. A pending login-fill marker alone never holds sleep:
+  only a running fill or a due pre-sleep fill may do so, and a due fill must explicitly wake the automation desk.
+  Smart Sleep diagnostics use one construction-deadline summary plus a structured decision line containing the
+  trusted, randomized, schedule-adjusted effective wake and the final pre-shutdown validation outcome.
 - The Session card's blue manual-sleep action is shown only while Smart Sleep is selected. It uses the shared
   Session pacing sleep Min/Max interval, lets the current action finish without starting new work, then restores
   the pre-sleep automation state after wake; it never invokes Smart Sleep deadline planning or pre-sleep filling.
+  While sleeping, the same action extends the existing wake deadline by a user-selected 5/10/20/30/60 minutes;
+  the Session pacing `+` action stays hidden and the confirmation warns that Smart Sleep tasks may be delayed.
 - Transient background resource-read timeouts use the shared automation network backoff, retain the last
   trusted snapshot, and stop that refresh tick. A later successful read clears the shared backoff.
 - Resource bulk-upgrade payloads must capture the four checkbox values currently visible for the selected village;

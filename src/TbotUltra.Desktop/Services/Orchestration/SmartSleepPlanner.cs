@@ -1,3 +1,5 @@
+using TbotUltra.Core.Configuration;
+
 namespace TbotUltra.Desktop.Services.Orchestration;
 
 public sealed record SmartSleepSettings(
@@ -8,7 +10,20 @@ public sealed record SmartSleepSettings(
     int FallbackMinMinutes,
     int FallbackMaxMinutes);
 
-public readonly record struct SmartSleepPlan(bool ShouldSleep, DateTimeOffset? WakeAtUtc, bool UsesFallback);
+public enum SmartSleepDecision
+{
+    Disabled,
+    Sleep,
+    DeadlineCoalesced,
+    OpportunityTooShort,
+}
+
+public readonly record struct SmartSleepPlan(
+    bool ShouldSleep,
+    DateTimeOffset? WakeAtUtc,
+    bool UsesFallback,
+    SmartSleepDecision Decision,
+    int CoalescingMinutes = 0);
 
 public static class SmartSleepPlanner
 {
@@ -20,11 +35,28 @@ public static class SmartSleepPlanner
     {
         if (!settings.Enabled)
         {
-            return default;
+            return new SmartSleepPlan(false, null, false, SmartSleepDecision.Disabled);
         }
 
         var random = nextRandom ?? Random.Shared.Next;
         var usesFallback = trustedDeadlineUtc is null;
+        var coalescingMinutes = 0;
+        if (trustedDeadlineUtc is { } trustedDeadline)
+        {
+            coalescingMinutes = random(
+                PacingDefaults.SmartSleepDeadlineCoalescingMinMinutes,
+                PacingDefaults.SmartSleepDeadlineCoalescingMaxMinutes + 1);
+            if (trustedDeadline - nowUtc <= TimeSpan.FromMinutes(coalescingMinutes))
+            {
+                return new SmartSleepPlan(
+                    false,
+                    trustedDeadline,
+                    false,
+                    SmartSleepDecision.DeadlineCoalesced,
+                    coalescingMinutes);
+            }
+        }
+
         DateTimeOffset wakeAt;
         if (usesFallback)
         {
@@ -41,12 +73,22 @@ public static class SmartSleepPlanner
         }
         else
         {
-            return default;
+            return new SmartSleepPlan(false, null, usesFallback, SmartSleepDecision.Disabled);
         }
 
         var minimum = TimeSpan.FromMinutes(Math.Max(1, settings.MinimumOpportunityMinutes));
         return wakeAt - nowUtc >= minimum
-            ? new SmartSleepPlan(true, wakeAt, usesFallback)
-            : new SmartSleepPlan(false, wakeAt, usesFallback);
+            ? new SmartSleepPlan(
+                true,
+                wakeAt,
+                usesFallback,
+                SmartSleepDecision.Sleep,
+                coalescingMinutes)
+            : new SmartSleepPlan(
+                false,
+                wakeAt,
+                usesFallback,
+                SmartSleepDecision.OpportunityTooShort,
+                coalescingMinutes);
     }
 }

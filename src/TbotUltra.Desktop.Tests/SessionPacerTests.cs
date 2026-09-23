@@ -26,6 +26,59 @@ public sealed class SessionPacerTests
     }
 
     [Fact]
+    public void SmartSleep_CanBeExtendedRepeatedlyFromItsExistingWakeTime()
+    {
+        var now = new DateTimeOffset(2026, 9, 11, 10, 0, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(true, 15, 50, 10, 40, RunTimerEnabled: false));
+        pacer.NotifyAutomationStarted();
+        pacer.SleepStarting += (_, _) => pacer.BeginSleep();
+        Assert.True(pacer.RequestSmartSleep(now.AddMinutes(45)));
+
+        Assert.Equal(TimeSpan.FromMinutes(20), pacer.ExtendSleep(TimeSpan.FromMinutes(20)));
+        Assert.Equal(TimeSpan.FromMinutes(30), pacer.ExtendSleep(TimeSpan.FromMinutes(30)));
+
+        Assert.Equal(now.AddMinutes(95), pacer.PlannedWakeAt);
+    }
+
+    [Fact]
+    public void SmartSleep_WakeInsideDisabledHourMovesToNextAllowedBoundary()
+    {
+        var localOffset = TimeSpan.FromHours(2);
+        var now = new DateTimeOffset(2026, 9, 11, 23, 30, 0, localOffset);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(
+            true,
+            15,
+            50,
+            10,
+            40,
+            Enumerable.Range(0, 24).Except([0]).ToArray(),
+            HoursVariationPercent: 0,
+            RunTimerEnabled: false));
+
+        var requestedUtc = now.ToUniversalTime().AddMinutes(45);
+        var effective = pacer.ResolveEffectiveSmartSleepWakeAt(requestedUtc);
+
+        Assert.Equal(new DateTimeOffset(2026, 9, 12, 1, 0, 0, localOffset), effective);
+    }
+
+    [Fact]
+    public void PendingSmartSleep_CanBeCanceledBeforeBrowserShutdown()
+    {
+        var now = new DateTimeOffset(2026, 9, 11, 10, 0, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(true, 15, 50, 10, 40, RunTimerEnabled: false));
+        pacer.NotifyAutomationStarted();
+
+        Assert.True(pacer.RequestSmartSleep(now.AddMinutes(45)));
+        Assert.Equal(now.AddMinutes(45), pacer.PendingSmartWakeAt);
+        Assert.True(pacer.CancelPendingSmartSleep());
+        Assert.Null(pacer.PendingSmartWakeAt);
+        Assert.Equal(SessionPacerPhase.Running, pacer.Phase);
+    }
+
+    [Fact]
     public void PauseAndResumeSleep_PreservesRemainingTime()
     {
         var now = new DateTimeOffset(2026, 7, 22, 12, 0, 0, TimeSpan.Zero);

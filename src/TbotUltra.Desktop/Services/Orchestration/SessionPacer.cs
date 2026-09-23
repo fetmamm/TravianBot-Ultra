@@ -116,6 +116,9 @@ public sealed class SessionPacer
     public TimeSpan? ActiveRunDuration => _activeRunDuration;
     public TimeSpan? ActiveSleepDuration => _activeSleepDuration;
     public DateTimeOffset? PlannedWakeAt => _wakeAt;
+    public DateTimeOffset? PendingSmartWakeAt => _pendingSleepReason == SessionSleepReason.SmartSleep
+        ? _requestedSmartWakeAt
+        : null;
     public bool IsRunTimerEnabled => _settings.Enabled && _settings.RunTimerEnabled;
     public bool IsSleepPaused => Phase == SessionPacerPhase.Sleeping && _pausedSleepRemaining is not null;
     public TimeSpan? PausedSleepRemaining => _pausedSleepRemaining;
@@ -384,7 +387,14 @@ public sealed class SessionPacer
         }
         else if (reason == SessionSleepReason.SmartSleep && _requestedSmartWakeAt is { } smartWakeAt)
         {
-            _wakeAt = smartWakeAt > now ? smartWakeAt : now;
+            var requestedWakeAt = smartWakeAt > now ? smartWakeAt : now;
+            _wakeAt = ResolveEffectiveSmartSleepWakeAt(requestedWakeAt);
+            if (_wakeAt > requestedWakeAt)
+            {
+                Logger?.Invoke(
+                    $"[smart-sleep] effective wake moved from {requestedWakeAt:yyyy-MM-dd HH:mm:ss zzz} "
+                    + $"to {_wakeAt:yyyy-MM-dd HH:mm:ss zzz} by allowed-hours schedule.");
+            }
             _activeSleepDuration = Positive(_wakeAt.Value - now);
             _requestedSmartWakeAt = null;
         }
@@ -580,8 +590,35 @@ public sealed class SessionPacer
             return false;
         }
 
-        _requestedSmartWakeAt = wakeAt;
+        _requestedSmartWakeAt = ResolveEffectiveSmartSleepWakeAt(wakeAt);
         RequestSleep(SessionSleepReason.SmartSleep);
+        return true;
+    }
+
+    public DateTimeOffset ResolveEffectiveSmartSleepWakeAt(DateTimeOffset requestedWakeAt)
+    {
+        var scheduleWakeAt = requestedWakeAt.ToOffset(_now().Offset);
+        if (IsScheduleAllowed(scheduleWakeAt))
+        {
+            return requestedWakeAt;
+        }
+
+        return GetNextScheduleTransition(scheduleWakeAt, allowed: true)
+            ?? scheduleWakeAt.AddDays(2);
+    }
+
+    public bool CancelPendingSmartSleep()
+    {
+        if (_pendingSleepReason != SessionSleepReason.SmartSleep || !_sleepStartRaised)
+        {
+            return false;
+        }
+
+        _pendingSleepReason = SessionSleepReason.None;
+        _requestedSmartWakeAt = null;
+        _sleepStartRaised = false;
+        _timer.Start();
+        RaiseTick();
         return true;
     }
 

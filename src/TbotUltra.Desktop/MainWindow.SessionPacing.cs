@@ -150,6 +150,7 @@ public partial class MainWindow
         DateTimeOffset now)
     {
         var overrides = new Dictionary<Guid, DateTimeOffset>();
+        var candidates = new List<(QueueItem Item, DateTimeOffset Deadline)>();
         if (!_smartSleepWakeWhenConstructionQueueClears)
         {
             return overrides;
@@ -174,10 +175,27 @@ public partial class MainWindow
                 ? item.NextAttemptAt
                 : queueClearDeadline;
             overrides[item.Id] = effectiveDeadline;
+            candidates.Add((item, effectiveDeadline));
+        }
+
+        if (candidates.Count > 0)
+        {
+            var selected = candidates
+                .OrderBy(candidate => candidate.Deadline)
+                .ThenBy(candidate => candidate.Item.Id)
+                .First();
+            var distinctDeadlineCount = candidates
+                .Select(candidate => candidate.Deadline)
+                .Distinct()
+                .Count();
+            var villageName = NormalizeVillageName(GetQueueItemVillageName(selected.Item)) ?? "-";
             AppendLoopPickVerbose(
-                $"[smart-sleep] construction wake waits for queue clear at "
-                    + $"'{FormatQueueServerTime(effectiveDeadline)}' for {item.DisplayName ?? item.TaskName}.",
-                $"smart-sleep:construction-queue-clear:{item.Id}:{effectiveDeadline.UtcTicks}");
+                $"[smart-sleep] construction deadline summary: candidates={candidates.Count}, "
+                + $"distinctDeadlines={distinctDeadlineCount}, selected='{FormatQueueServerTime(selected.Deadline)}', "
+                + $"task='{selected.Item.DisplayName ?? selected.Item.TaskName}', village='{villageName}', "
+                + $"itemId={selected.Item.Id}, mode=queue-clear.",
+                $"smart-sleep:construction-summary:{selected.Item.Id}:{selected.Deadline.UtcTicks}:"
+                    + $"{candidates.Count}:{distinctDeadlineCount}");
         }
 
         return overrides;
@@ -345,7 +363,32 @@ public partial class MainWindow
 
             if (!manual)
             {
-                await WaitBrieflyForPreSleepFillItemsAsync();
+                var fillWait = await WaitBrieflyForPreSleepFillItemsAsync();
+                if (_sessionPacer.PendingSleepReason == SessionSleepReason.SmartSleep
+                    && _sessionPacer.PendingSmartWakeAt is { } pendingWakeAt)
+                {
+                    var remainingOpportunity = pendingWakeAt - DateTimeOffset.UtcNow;
+                    var minimumOpportunity = TimeSpan.FromMinutes(
+                        Math.Max(1, _smartSleepSettings.MinimumOpportunityMinutes));
+                    if (remainingOpportunity < minimumOpportunity
+                        && _sessionPacer.CancelPendingSmartSleep())
+                    {
+                        AppendLog(
+                            $"[smart-sleep] decision=stay-online reason=opportunity-shrunk-after-fill "
+                            + $"remaining={FormatPositiveDuration(remainingOpportunity)} "
+                            + $"minimum={FormatPositiveDuration(minimumOpportunity)} "
+                            + $"fillTracked={fillWait.TrackedCount} fillStarted={fillWait.StartedCount} "
+                            + $"fillOutcome={fillWait.Outcome}.");
+                        return;
+                    }
+
+                    AppendLog(
+                        $"[smart-sleep] pre-shutdown validation passed: "
+                        + $"remaining={FormatPositiveDuration(remainingOpportunity)}, "
+                        + $"minimum={FormatPositiveDuration(minimumOpportunity)}, "
+                        + $"fillTracked={fillWait.TrackedCount}, fillStarted={fillWait.StartedCount}, "
+                        + $"fillOutcome={fillWait.Outcome}.");
+                }
             }
 
             var stoppedGracefully = await RequestGracefulAutomationStopForSleepAsync();
@@ -669,12 +712,20 @@ public partial class MainWindow
     private void SmartSleepNowButton_Click(object sender, RoutedEventArgs e)
     {
         if (!_smartSleepSettings.Enabled
-            || !_isLoggedIn
-            || IsSessionSleeping
             || _sessionPacingSleepInProgress
             || _manualSessionSleepRequested
-            || IsFreezeActive
-            || (!IsContinuousLoopRunning() && !_autoQueueRunning))
+            || IsFreezeActive)
+        {
+            return;
+        }
+
+        if (IsSessionSleeping)
+        {
+            ShowSleepExtensionDialog(warnAboutDelayedTasks: true);
+            return;
+        }
+
+        if (!_isLoggedIn || (!IsContinuousLoopRunning() && !_autoQueueRunning))
         {
             return;
         }
@@ -717,12 +768,111 @@ public partial class MainWindow
         }
     }
 
+    private void ShowSleepExtensionDialog(bool warnAboutDelayedTasks)
+    {
+        if (!IsSessionSleeping
+            || _sessionPacer.SleepReason is SessionSleepReason.Schedule or SessionSleepReason.DailyLimit)
+        {
+            AppendLog("[pacing] sleep extension is unavailable for this sleep window.");
+            return;
+        }
+
+        var selectedMinutes = 20;
+        var description = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = (Brush)FindResource("InfoTextBrush"),
+        };
+        var descriptionCard = new Border
+        {
+            Background = (Brush)FindResource("InfoBgBrush"),
+            BorderBrush = (Brush)FindResource("InfoBrush"),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(5),
+            Padding = new Thickness(10, 8, 10, 8),
+            Margin = new Thickness(0, 12, 0, 0),
+            Child = description,
+        };
+        var picker = new ComboBox
+        {
+            Height = 30,
+            Width = 360,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 6, 0, 0),
+            ItemsSource = new[] { "5 minutes", "10 minutes", "20 minutes", "30 minutes", "60 minutes" },
+            SelectedItem = "20 minutes",
+        };
+        var content = new StackPanel();
+        content.Children.Add(new TextBlock
+        {
+            Text = "Extend sleep",
+            Margin = new Thickness(0, 0, 0, 8),
+            Foreground = (Brush)FindResource("TextPrimaryBrush"),
+            FontSize = 16,
+            FontWeight = FontWeights.SemiBold,
+        });
+        content.Children.Add(new TextBlock
+        {
+            Text = "Extend by",
+            Margin = new Thickness(0, 12, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Foreground = (Brush)FindResource("TextSubtleBrush"),
+            FontSize = 12,
+        });
+        content.Children.Add(picker);
+        content.Children.Add(descriptionCard);
+
+        void UpdateDescription()
+        {
+            selectedMinutes = picker.SelectedItem is string value
+                && int.TryParse(value.Split(' ', StringSplitOptions.RemoveEmptyEntries)[0], out var minutes)
+                ? minutes
+                : 20;
+            var requested = TimeSpan.FromMinutes(selectedMinutes);
+            var currentRemaining = _sessionPacer.IsSleepPaused
+                ? _sessionPacer.PausedSleepRemaining ?? TimeSpan.Zero
+                : _sessionPacer.TimeUntilWake ?? TimeSpan.Zero;
+            var newWakeAt = DateTimeOffset.UtcNow.Add(currentRemaining).Add(requested);
+            description.Text = $"Sleep will be extended by {selectedMinutes} minutes. "
+                + $"New wake: {FormatQueueServerTime(newWakeAt)}."
+                + (warnAboutDelayedTasks ? " Planned tasks may be delayed." : string.Empty);
+        }
+
+        picker.SelectionChanged += (_, _) => UpdateDescription();
+        UpdateDescription();
+        var result = AppDialog.ShowCustomContent(
+            this,
+            content,
+            "Extend sleep",
+            [("Cancel", MessageBoxResult.Cancel), ("Extend sleep", MessageBoxResult.Yes)],
+            MessageBoxImage.Information,
+            MessageBoxResult.Cancel,
+            MessageBoxResult.Cancel,
+            successResult: MessageBoxResult.Yes,
+            hideIcon: true);
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        var extended = _sessionPacer.ExtendSleep(TimeSpan.FromMinutes(selectedMinutes));
+        if (extended > TimeSpan.Zero)
+        {
+            AppendLog($"[pacing] sleep extended by {SessionPacer.FormatDuration(extended)}; "
+                + $"new wake {(_sessionPacer.PlannedWakeAt is { } wakeAt ? FormatQueueServerTime(wakeAt) : "paused")}.");
+            UpdateSessionPacingUi();
+        }
+    }
+
     private void SessionPacingExtendButton_Click(object sender, RoutedEventArgs e)
     {
-        var extendingSleep = IsSessionSleeping;
-        var allowed = extendingSleep
-            ? TimeSpan.FromMinutes(60)
-            : _sessionPacer.GetAllowedRunExtension(TimeSpan.FromMinutes(60));
+        if (IsSessionSleeping)
+        {
+            ShowSleepExtensionDialog(warnAboutDelayedTasks: false);
+            return;
+        }
+
+        var allowed = _sessionPacer.GetAllowedRunExtension(TimeSpan.FromMinutes(60));
         if (allowed <= TimeSpan.Zero)
         {
             AppendLog("[pacing] session extension is unavailable because the next restriction is due.");
@@ -753,7 +903,7 @@ public partial class MainWindow
         var content = new StackPanel();
         content.Children.Add(new TextBlock
         {
-            Text = extendingSleep ? "Extend sleep" : "Extend active session",
+            Text = "Extend active session",
             Margin = new Thickness(0, 0, 0, 8),
             Foreground = (Brush)FindResource("TextPrimaryBrush"),
             FontSize = 16,
@@ -777,32 +927,29 @@ public partial class MainWindow
                 ? minutes
                 : 20;
             var requested = TimeSpan.FromMinutes(selectedMinutes);
-            var actual = extendingSleep ? requested : _sessionPacer.GetAllowedRunExtension(requested);
-            var subject = extendingSleep ? "sleep" : "the active session";
+            var actual = _sessionPacer.GetAllowedRunExtension(requested);
             description.Text = actual == requested
-                ? $"You are about to extend {subject} by {selectedMinutes} minutes."
-                : $"You are about to extend {subject} by {(int)Math.Floor(actual.TotalMinutes)} minutes (limited by the next restriction).";
+                ? $"You are about to extend the active session by {selectedMinutes} minutes."
+                : $"You are about to extend the active session by {(int)Math.Floor(actual.TotalMinutes)} minutes (limited by the next restriction).";
         }
 
         picker.SelectionChanged += (_, _) => UpdateDescription();
         UpdateDescription();
-        IReadOnlyList<(string Label, MessageBoxResult Result)> buttons = extendingSleep
-            ? [("Cancel", MessageBoxResult.Cancel), ("Extend sleep", MessageBoxResult.Yes)]
-            :
-            [
-                ("Cancel", MessageBoxResult.Cancel),
-                ("Sleep now", MessageBoxResult.No),
-                ("Extend session", MessageBoxResult.Yes),
-            ];
+        IReadOnlyList<(string Label, MessageBoxResult Result)> buttons =
+        [
+            ("Cancel", MessageBoxResult.Cancel),
+            ("Sleep now", MessageBoxResult.No),
+            ("Extend session", MessageBoxResult.Yes),
+        ];
         var result = AppDialog.ShowCustomContent(
             this,
             content,
-            extendingSleep ? "Extend sleep" : "Extend active session",
+            "Extend active session",
             buttons,
             MessageBoxImage.Information,
             MessageBoxResult.Yes,
             MessageBoxResult.Cancel,
-            accentResult: extendingSleep ? null : MessageBoxResult.No,
+            accentResult: MessageBoxResult.No,
             successResult: MessageBoxResult.Yes,
             hideIcon: true);
         if (result == MessageBoxResult.No)
@@ -816,13 +963,10 @@ public partial class MainWindow
             return;
         }
 
-        var requestedExtension = TimeSpan.FromMinutes(selectedMinutes);
-        var extended = extendingSleep
-            ? _sessionPacer.ExtendSleep(requestedExtension)
-            : _sessionPacer.ExtendRun(requestedExtension);
+        var extended = _sessionPacer.ExtendRun(TimeSpan.FromMinutes(selectedMinutes));
         if (extended > TimeSpan.Zero)
         {
-            AppendLog($"[pacing] {(extendingSleep ? "sleep" : "active session")} extended by {SessionPacer.FormatDuration(extended)}.");
+            AppendLog($"[pacing] active session extended by {SessionPacer.FormatDuration(extended)}.");
             UpdateSessionPacingUi();
         }
     }
@@ -872,13 +1016,16 @@ public partial class MainWindow
         SmartSleepNowButton.Visibility = _smartSleepSettings.Enabled
             ? Visibility.Visible
             : Visibility.Collapsed;
-        SmartSleepNowButton.IsEnabled = _isLoggedIn
-            && !IsSessionSleeping
-            && !_sessionPacingSleepInProgress
+        var canExtendSmartSleep = IsSessionSleeping
+            && _sessionPacer.SleepReason is not (SessionSleepReason.Schedule or SessionSleepReason.DailyLimit);
+        SmartSleepNowButton.IsEnabled = !_sessionPacingSleepInProgress
             && !_manualSessionSleepRequested
             && !IsFreezeActive
-            && (IsContinuousLoopRunning() || _autoQueueRunning);
+            && (canExtendSmartSleep
+                || (_isLoggedIn && (IsContinuousLoopRunning() || _autoQueueRunning)));
+        SmartSleepNowButton.ToolTip = IsSessionSleeping ? "Extend sleep" : "Sleep now";
         var canExtendSleep = IsSessionSleeping
+            && !_smartSleepSettings.Enabled
             && _sessionPacer.SleepReason is SessionSleepReason.SessionPacing or SessionSleepReason.Manual;
         var canExtendRun = _sessionPacer.Phase == SessionPacerPhase.Running
             && _sessionPacer.IsRunTimerEnabled;
@@ -1041,13 +1188,42 @@ public partial class MainWindow
         var plan = SmartSleepPlanner.Plan(now, trustedDeadlineUtc, _smartSleepSettings);
         if (!plan.ShouldSleep || plan.WakeAtUtc is not { } wakeAt)
         {
+            if (plan.Decision is SmartSleepDecision.DeadlineCoalesced or SmartSleepDecision.OpportunityTooShort)
+            {
+                var reason = plan.Decision == SmartSleepDecision.DeadlineCoalesced
+                    ? "deadline-coalesced"
+                    : "opportunity-too-short";
+                var candidate = plan.WakeAtUtc is { } candidateWake
+                    ? FormatQueueServerTime(candidateWake)
+                    : "-";
+                var deadline = trustedDeadlineUtc is { } trustedDeadline
+                    ? FormatQueueServerTime(trustedDeadline)
+                    : "-";
+                AppendLoopPickVerbose(
+                    $"[smart-sleep] decision=stay-online reason={reason} "
+                    + $"trustedDeadline='{deadline}' candidateWake='{candidate}' "
+                    + $"minimum={_smartSleepSettings.MinimumOpportunityMinutes}m "
+                    + $"coalescing={plan.CoalescingMinutes}m.",
+                    $"smart-sleep:stay-online:{reason}:{trustedDeadlineUtc?.UtcTicks}:"
+                        + $"{plan.CoalescingMinutes}");
+            }
             return false;
         }
 
+        var effectiveWakeAt = _sessionPacer.ResolveEffectiveSmartSleepWakeAt(wakeAt);
+        var source = plan.UsesFallback ? "fallback" : "automation-deadline";
+        var trusted = trustedDeadlineUtc is { } trustedDeadlineValue
+            ? FormatQueueServerTime(trustedDeadlineValue)
+            : "-";
         AppendLog(
-            $"[smart-sleep] idle opportunity detected; wake planned at {FormatQueueServerTime(wakeAt)} "
-            + (plan.UsesFallback ? "(fallback check)." : "(automation deadline)."));
-        var requested = _sessionPacer.RequestSmartSleep(wakeAt);
+            $"[smart-sleep] decision=sleep source={source} trustedDeadline='{trusted}' "
+            + $"randomizedWake='{FormatQueueServerTime(wakeAt)}' "
+            + $"effectiveWake='{FormatQueueServerTime(effectiveWakeAt)}' "
+            + $"scheduleAdjusted={effectiveWakeAt > wakeAt} "
+            + $"opportunity={FormatPositiveDuration(effectiveWakeAt - now)} "
+            + $"minimum={_smartSleepSettings.MinimumOpportunityMinutes}m "
+            + $"coalescing={plan.CoalescingMinutes}m.");
+        var requested = _sessionPacer.RequestSmartSleep(effectiveWakeAt);
         if (requested)
         {
             _villageStatusRoundRuntime.SetForceOnWakeRequest(plan.UsesFallback);
@@ -1055,6 +1231,11 @@ public partial class MainWindow
         }
         return requested;
     }
+
+    private static string FormatPositiveDuration(TimeSpan duration) =>
+        duration <= TimeSpan.Zero
+            ? "00:00:00"
+            : $"{(int)duration.TotalHours:00}:{duration.Minutes:00}:{duration.Seconds:00}";
 
     private void OnTaskActivityRecorded(BotTaskActivity activity)
     {

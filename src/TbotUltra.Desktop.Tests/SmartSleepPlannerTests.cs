@@ -38,6 +38,19 @@ public sealed class SmartSleepPlannerTests
         var plan = SmartSleepPlanner.Plan(now, now.AddMinutes(22), Settings, (min, _) => min);
 
         Assert.False(plan.ShouldSleep);
+        Assert.Equal(SmartSleepDecision.OpportunityTooShort, plan.Decision);
+    }
+
+    [Fact]
+    public void NearbyTrustedDeadline_IsCoalescedIntoCurrentOnlineSession()
+    {
+        var now = new DateTimeOffset(2026, 9, 11, 10, 0, 0, TimeSpan.Zero);
+
+        var plan = SmartSleepPlanner.Plan(now, now.AddMinutes(10), Settings, (min, _) => min);
+
+        Assert.False(plan.ShouldSleep);
+        Assert.Equal(SmartSleepDecision.DeadlineCoalesced, plan.Decision);
+        Assert.Equal(10, plan.CoalescingMinutes);
     }
 
     [Fact]

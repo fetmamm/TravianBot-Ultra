@@ -16,8 +16,11 @@ namespace TbotUltra.Desktop;
 // immediately instead of deferring again (the human pause was served by the random reschedule).
 public partial class MainWindow
 {
+    private sealed record PreSleepFillWaitResult(int TrackedCount, int StartedCount, string Outcome);
+
     private DateTimeOffset _lastPreSleepFillCheckUtc = DateTimeOffset.MinValue;
     private static readonly TimeSpan PreSleepFillCheckInterval = TimeSpan.FromSeconds(15);
+    private static readonly TimeSpan PreSleepFillDispatchTimeout = TimeSpan.FromSeconds(30);
 
     // Called every second from the clock tick; cheap guards first, real work at most every 15s.
     private void TickPreSleepConstructionFill()
@@ -195,35 +198,103 @@ public partial class MainWindow
 
     // Bounded hold before an automatic sleep: if a pre-sleep fill item is due or already running, give
     // it a short chance to finish so the final build is actually clicked home before the browser closes.
-    private async Task WaitBrieflyForPreSleepFillItemsAsync()
+    private async Task<PreSleepFillWaitResult> WaitBrieflyForPreSleepFillItemsAsync()
     {
-        var deadline = DateTimeOffset.UtcNow.AddMinutes(PacingDefaults.PreSleepFillSleepHoldMaxMinutes);
-        var announced = false;
+        var startedAt = DateTimeOffset.UtcNow;
+        var deadline = startedAt.AddMinutes(PacingDefaults.PreSleepFillSleepHoldMaxMinutes);
+        var dispatchDeadline = startedAt.Add(PreSleepFillDispatchTimeout);
+        var initialItems = _botService.GetQueueItemsForDisplay()
+            .Where(item => PreSleepFillHoldPolicy.Evaluate(item, startedAt) != PreSleepFillHoldState.Ignore)
+            .ToList();
+        if (initialItems.Count == 0)
+        {
+            return new PreSleepFillWaitResult(0, 0, "none");
+        }
+
+        var trackedIds = initialItems.Select(item => item.Id).ToHashSet();
+        var startedIds = initialItems
+            .Where(item => PreSleepFillHoldPolicy.Evaluate(item, startedAt) == PreSleepFillHoldState.Running)
+            .Select(item => item.Id)
+            .ToHashSet();
+        var pendingDispatchIds = initialItems
+            .Where(item => PreSleepFillHoldPolicy.Evaluate(item, startedAt) == PreSleepFillHoldState.AwaitingDispatch)
+            .Select(item => item.Id)
+            .ToHashSet();
+        var itemSummary = string.Join(
+            ", ",
+            initialItems.Select(item =>
+            {
+                var villageName = NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-";
+                return $"{item.Id}:{item.TaskName}:{villageName}:{item.Status}";
+            }));
+
+        AppendLog(
+            $"[pre-sleep-fill] hold started: tracked={trackedIds.Count}, "
+            + $"pendingDispatch={pendingDispatchIds.Count}, running={startedIds.Count}, "
+            + $"dispatchTimeout={PreSleepFillDispatchTimeout.TotalSeconds:F0}s, "
+            + $"holdLimit={PacingDefaults.PreSleepFillSleepHoldMaxMinutes}m, items=[{itemSummary}].");
+
+        if (pendingDispatchIds.Count > 0)
+        {
+            _automationDesk.Wake(AutomationWakeReason.QueueChanged);
+            AppendLog(
+                $"[pre-sleep-fill] automation wake requested for {pendingDispatchIds.Count} due construction item(s).");
+        }
+
         while (DateTimeOffset.UtcNow < deadline)
         {
             var now = DateTimeOffset.UtcNow;
-            var hasActiveFillItem = _botService.GetQueueItemsForDisplay()
-                .Where(item => item.Group == QueueGroup.Construction)
-                .Where(item => item.Payload.ContainsKey(BotOptionPayloadKeys.ConstructionPreSleepFill)
-                    || item.Payload.ContainsKey(BotOptionPayloadKeys.ConstructionLoginFill))
-                .Any(item => item.Status == QueueStatus.Running
-                    || (item.Status == QueueStatus.Pending && item.NextAttemptAt <= now + TimeSpan.FromSeconds(30)));
-            if (!hasActiveFillItem)
+            var currentItems = _botService.GetQueueItemsForDisplay()
+                .Where(item => trackedIds.Contains(item.Id))
+                .ToDictionary(item => item.Id);
+            foreach (var item in currentItems.Values.Where(item => item.Status == QueueStatus.Running))
             {
-                return;
+                startedIds.Add(item.Id);
             }
 
-            if (!announced)
+            var running = currentItems.Values
+                .Where(item => item.Status == QueueStatus.Running)
+                .ToList();
+            var awaitingDispatch = currentItems.Values
+                .Where(item => PreSleepFillHoldPolicy.Evaluate(item, now) == PreSleepFillHoldState.AwaitingDispatch)
+                .ToList();
+            if (running.Count == 0 && awaitingDispatch.Count == 0)
             {
-                announced = true;
                 AppendLog(
-                    $"[pre-sleep-fill] delaying sleep briefly (max {PacingDefaults.PreSleepFillSleepHoldMaxMinutes}m): " +
-                    "a final construction start is due or running.");
+                    $"[pre-sleep-fill] hold completed: tracked={trackedIds.Count}, started={startedIds.Count}, "
+                    + $"elapsed={(now - startedAt).TotalSeconds:F1}s, outcome=completed-or-deferred.");
+                return new PreSleepFillWaitResult(trackedIds.Count, startedIds.Count, "completed-or-deferred");
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(5));
+            if (running.Count == 0 && startedIds.Count == 0 && now >= dispatchDeadline)
+            {
+                foreach (var item in awaitingDispatch)
+                {
+                    _botService.PatchDeferredQueueItem(
+                        item.Id,
+                        null,
+                        [BotOptionPayloadKeys.ConstructionPreSleepFill]);
+                }
+
+                AppendLog(
+                    $"[pre-sleep-fill] hold released: tracked={trackedIds.Count}, started=0, "
+                    + $"elapsed={(now - startedAt).TotalSeconds:F1}s, outcome=dispatch-not-started, "
+                    + $"clearedFlags={awaitingDispatch.Count}.");
+                return new PreSleepFillWaitResult(trackedIds.Count, 0, "dispatch-not-started");
+            }
+
+            await Task.Delay(TimeSpan.FromSeconds(1));
         }
 
-        AppendLog("[pre-sleep-fill] sleep hold reached its limit; continuing with sleep.");
+        var finalStates = string.Join(
+            ", ",
+            _botService.GetQueueItemsForDisplay()
+                .Where(item => trackedIds.Contains(item.Id))
+                .Select(item => $"{item.Id}:{item.Status}:{item.NextAttemptAt:O}"));
+        AppendLog(
+            $"[pre-sleep-fill] hold timed out: tracked={trackedIds.Count}, started={startedIds.Count}, "
+            + $"elapsed={(DateTimeOffset.UtcNow - startedAt).TotalSeconds:F1}s, "
+            + $"states=[{finalStates}].");
+        return new PreSleepFillWaitResult(trackedIds.Count, startedIds.Count, "timeout");
     }
 }
