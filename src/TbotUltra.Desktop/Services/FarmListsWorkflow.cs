@@ -14,37 +14,6 @@ using System.Text.RegularExpressions;
 
 namespace TbotUltra.Desktop.Services;
 
-internal interface IFarmListsWorkflow
-{
-    FarmListsAutomationSnapshot AutomationSnapshot { get; }
-    Task<FarmListsViewResult> AnalyzeAsync(FarmListsViewRequest request, CancellationToken cancellationToken);
-    Task<FarmListsViewResult?> RestoreAsync(FarmListsViewRequest request, DateTimeOffset now,
-        bool requireFreshSnapshot, CancellationToken cancellationToken = default);
-    FarmListsViewResult ProjectCached(FarmListsViewRequest request, IReadOnlyList<FarmListOverview> lists);
-    FarmListsCreateSession CreateCreateSession(FarmListsViewRequest viewRequest);
-    Task<FarmLossDestinationCreationResult> CreateLossDestinationAsync(FarmListsViewRequest viewRequest,
-        IReadOnlyList<VillageSelectionItem> villages, string fallbackTribe, FarmListLossColors lossColor,
-        string listName, CancellationToken cancellationToken);
-    FarmListsAddSession CreateAddSession(
-        FarmListsViewRequest viewRequest,
-        Func<IReadOnlyList<TravcoListStore.TravcoSavedList>> loadSourceLists);
-    Task<IAsyncDisposable> AcquireAutomationPauseAsync(CancellationToken cancellationToken);
-    void SaveSelection(IEnumerable<FarmListStatusRow> rows);
-    bool CanReuseRecentAnalysis(DateTimeOffset now);
-    void InvalidateAnalysis();
-    void ResetProjection();
-    bool PersistDispatchInterval(FarmListStatusRow row, int minMinutes, int maxMinutes, BotOptions options);
-    Task<FarmListsBatchDispatchOutcome> DispatchManyAsync(FarmListsViewRequest viewRequest,
-        IReadOnlyList<FarmListStatusRow> rows, bool enabledOnly, CancellationToken cancellationToken);
-    FarmListsAutomaticDispatch ReconcileAutomaticDispatch(FarmListsViewResult view,
-        IReadOnlyCollection<string> attemptedKeys, BotOptions options);
-    IReadOnlyList<string> GetAutoDispatchKeys(IEnumerable<FarmListStatusRow> rows, bool sendAllLists);
-    FarmLossDestinationSetupValidation ValidateLossDestinationSetup(bool isLoggedIn);
-    Task<bool> IsGoldClubActiveAsync(BotOptions options, CancellationToken cancellationToken);
-    Task<bool> DispatchOneAsync(BotOptions options, FarmListStatusRow row, CancellationToken cancellationToken);
-    FarmingSettingsSaveResult SaveSettings(FarmingPanelSettings settings);
-}
-
 /// <summary>
 /// Owns the Farm Lists desktop workflow and its account-scoped settings.
 /// Browser work crosses the single <see cref="IFarmListsBrowserAdapter"/> seam.
@@ -55,10 +24,15 @@ public sealed class FarmListsWorkflow(
     BotConfigStore configStore,
     string projectRoot,
     Func<string> activeAccountName,
-    Action<string> log) : IFarmListsWorkflow
+    Action<string> log,
+    TimeSpan? automationStopCleanupTimeout = null)
 {
     public const int MaximumVisibleLists = 120;
     private static readonly TimeSpan RecentAnalysisWindow = TimeSpan.FromMinutes(5);
+    private readonly TimeSpan _automationStopCleanupTimeout = automationStopCleanupTimeout
+        is { } configuredTimeout && configuredTimeout > TimeSpan.Zero
+            ? configuredTimeout
+            : TimeSpan.FromSeconds(5);
     private readonly object _stateLock = new();
     private FarmListsAutomationSnapshot _automationSnapshot = FarmListsAutomationSnapshot.Empty;
     private FarmListsProjection _currentProjection = FarmListsProjection.Empty;
@@ -164,10 +138,10 @@ public sealed class FarmListsWorkflow(
         return new FarmListsCreateResult(creation, refreshed);
     }
 
-    public FarmListsCreateSession CreateCreateSession(FarmListsViewRequest viewRequest)
+    internal FarmListsCreateSession CreateCreateSession(FarmListsViewRequest viewRequest)
         => new(this, viewRequest);
 
-    public FarmListsAddSession CreateAddSession(
+    internal FarmListsAddSession CreateAddSession(
         FarmListsViewRequest viewRequest,
         Func<IReadOnlyList<TravcoListStore.TravcoSavedList>> loadSourceLists)
         => new(this, viewRequest, loadSourceLists, LoadTargetProtectionPreferences());
@@ -426,14 +400,23 @@ public sealed class FarmListsWorkflow(
         return new FarmListsAutomaticDispatch(view, successfulDispatch);
     }
 
-    private async Task<FarmListsAutomationResume> PauseAutomationAsync(CancellationToken cancellationToken)
+    private FarmListsAutomationResume CaptureAutomationResume()
     {
         var resumeContinuous = automation.ContinuousLoopRunning || automation.StartContinuousAfterQueueStop;
         var resumeQueue = !resumeContinuous && automation.AutoQueueRunning;
+        return new FarmListsAutomationResume(resumeContinuous, resumeQueue);
+    }
+
+    private async Task PauseAutomationAsync(
+        FarmListsAutomationResume resume,
+        CancellationToken cancellationToken)
+    {
+        var resumeContinuous = resume.ContinuousLoop;
+        var resumeQueue = resume.AutoQueue;
         if (!resumeContinuous && !resumeQueue)
         {
             log("[farm-list] bot already paused; starting loss destination setup.");
-            return FarmListsAutomationResume.None;
+            return;
         }
 
         automation.ClearPendingRestarts();
@@ -441,21 +424,106 @@ public sealed class FarmListsWorkflow(
         automation.UpdateExecutionIndicator();
         log("[farm-list] pause requested; waiting for the current bot action to finish.");
 
-        while (automation.AutoQueueRunning || automation.ContinuousLoopRunning || automation.UiBusy)
+        await WaitForAutomationStopAsync(cancellationToken);
+        log("[farm-list] automation paused; loss destination setup has priority.");
+    }
+
+    private async Task WaitForAutomationStopAsync(CancellationToken cancellationToken)
+    {
+        while (!AutomationStopped)
         {
             cancellationToken.ThrowIfCancellationRequested();
             await Task.Delay(Random.Shared.Next(150, 350), cancellationToken);
         }
 
         await Task.Delay(100, cancellationToken);
-        log("[farm-list] automation paused; loss destination setup has priority.");
-        return new FarmListsAutomationResume(resumeContinuous, resumeQueue);
     }
 
-    public async Task<IAsyncDisposable> AcquireAutomationPauseAsync(CancellationToken cancellationToken)
+    private bool AutomationStopped =>
+        !automation.AutoQueueRunning && !automation.ContinuousLoopRunning && !automation.UiBusy;
+
+    private async Task<bool> WaitForAutomationStopDuringCancellationAsync()
     {
-        var resume = await PauseAutomationAsync(cancellationToken);
-        return new AutomationPauseLease(this, resume);
+        using var timeout = new CancellationTokenSource(_automationStopCleanupTimeout);
+        try
+        {
+            await WaitForAutomationStopAsync(timeout.Token);
+            return true;
+        }
+        catch (OperationCanceledException) when (timeout.IsCancellationRequested)
+        {
+            return AutomationStopped;
+        }
+    }
+
+    private async Task<IAsyncDisposable> AcquireAutomationPauseAsync(CancellationToken cancellationToken)
+    {
+        var pause = new AutomationPauseLease(this, CaptureAutomationResume());
+        try
+        {
+            await PauseAutomationAsync(pause.Resume, cancellationToken);
+            return pause;
+        }
+        catch
+        {
+            if (await WaitForAutomationStopDuringCancellationAsync())
+            {
+                await pause.DisposeAsync();
+            }
+            else
+            {
+                pause.ResumeAfterStop();
+                log(
+                    "[farm-list] cancellation cleanup timed out before automation stopped; "
+                    + "the original automation mode will resume after the stop completes.");
+            }
+            throw;
+        }
+    }
+
+    public async Task<FarmLossDestinationSetupResult> ConfigureLossDestinationAsync(
+        FarmListsViewRequest viewRequest,
+        IReadOnlyList<VillageSelectionItem> villages,
+        string fallbackTribe,
+        FarmListLossColors lossColor,
+        Func<FarmListsViewResult, CancellationToken, ValueTask<FarmLossDestinationChoice>> chooseDestinationAsync,
+        CancellationToken cancellationToken)
+    {
+        await using var pause = await AcquireAutomationPauseAsync(cancellationToken);
+        var view = await AnalyzeAsync(viewRequest, cancellationToken);
+        if (!view.IsAvailable)
+        {
+            throw new InvalidOperationException(
+                "Gold Club is not active, so existing farmlists could not be loaded.");
+        }
+
+        var choice = await chooseDestinationAsync(view, cancellationToken);
+        switch (choice)
+        {
+            case FarmLossDestinationChoice.Cancel:
+                return new FarmLossDestinationSetupResult(null, view, Cancelled: true, Created: false);
+            case FarmLossDestinationChoice.UseExisting existing:
+                return new FarmLossDestinationSetupResult(
+                    existing.Destination,
+                    view,
+                    Cancelled: false,
+                    Created: false);
+            case FarmLossDestinationChoice.Create create:
+                var created = await CreateLossDestinationAsync(
+                    viewRequest,
+                    villages,
+                    fallbackTribe,
+                    lossColor,
+                    create.ListName,
+                    cancellationToken);
+                return new FarmLossDestinationSetupResult(
+                    created.Destination,
+                    created.View,
+                    Cancelled: false,
+                    Created: true);
+            default:
+                throw new ArgumentOutOfRangeException(nameof(choice), choice, "Unknown loss destination choice.");
+        }
     }
 
     private async Task ResumeAutomationAsync(FarmListsAutomationResume resume)
@@ -510,6 +578,19 @@ public sealed class FarmListsWorkflow(
     {
         private bool _disposed;
 
+        internal FarmListsAutomationResume Resume => resume;
+
+        internal void ResumeAfterStop()
+        {
+            if (_disposed)
+            {
+                return;
+            }
+
+            _disposed = true;
+            workflow.BeginResumeAfterStop(resume);
+        }
+
         public async ValueTask DisposeAsync()
         {
             if (_disposed)
@@ -519,6 +600,26 @@ public sealed class FarmListsWorkflow(
 
             _disposed = true;
             await workflow.ResumeAutomationAsync(resume);
+        }
+    }
+
+    private void BeginResumeAfterStop(FarmListsAutomationResume resume) =>
+        _ = ResumeAutomationWhenStoppedAsync(resume);
+
+    private async Task ResumeAutomationWhenStoppedAsync(FarmListsAutomationResume resume)
+    {
+        try
+        {
+            while (!AutomationStopped)
+            {
+                await Task.Delay(250);
+            }
+
+            await ResumeAutomationAsync(resume);
+        }
+        catch (Exception ex)
+        {
+            log($"[farm-list] delayed automation resume failed: {ex.Message}");
         }
     }
 
@@ -1410,7 +1511,7 @@ public sealed record FarmListsViewResult(
     public static FarmListsViewResult Unavailable { get; } = new(false, [], FarmListsProjection.Empty);
 }
 
-public sealed record FarmListsAnalysisResult(
+internal sealed record FarmListsAnalysisResult(
     bool IsAvailable,
     IReadOnlyList<FarmListOverview> Lists);
 
@@ -1434,15 +1535,15 @@ public sealed record OfficialFarmAddRunResult(
     int ExcludedAlliances = 0,
     int IdentityUnavailable = 0);
 
-public sealed record FarmListsAddPreparation(
+internal sealed record FarmListsAddPreparation(
     FarmListsViewResult View,
     OfficialAddFarmsLoadResult LoadResult);
 
-public sealed record FarmListsAddRunResult(
+internal sealed record FarmListsAddRunResult(
     OfficialFarmAddRunResult RunResult,
     FarmListsViewResult View);
 
-public sealed record FarmListsCreateResult(
+internal sealed record FarmListsCreateResult(
     FarmListCreateBatchResult Creation,
     FarmListsViewResult View);
 
@@ -1478,7 +1579,7 @@ public sealed record OfficialFarmAddPlanRequest(
     bool SkipDuplicates,
     bool ExcludeNatars = false);
 
-public sealed class FarmListsCreateSession(
+internal sealed class FarmListsCreateSession(
     FarmListsWorkflow workflow,
     FarmListsViewRequest viewRequest)
 {
@@ -1495,7 +1596,7 @@ public sealed class FarmListsCreateSession(
     }
 }
 
-public sealed class FarmListsAddSession(
+internal sealed class FarmListsAddSession(
     FarmListsWorkflow workflow,
     FarmListsViewRequest viewRequest,
     Func<IReadOnlyList<TravcoListStore.TravcoSavedList>> loadSourceLists,
@@ -1561,7 +1662,7 @@ public interface IFarmListsAutomationAdapter
     bool UpdateDeferredQueueItem(Guid id, Dictionary<string, string> payload);
 }
 
-public sealed record FarmListsAutomationResume(bool ContinuousLoop, bool AutoQueue)
+internal sealed record FarmListsAutomationResume(bool ContinuousLoop, bool AutoQueue)
 {
     public static FarmListsAutomationResume None { get; } = new(false, false);
 }
@@ -1585,6 +1686,25 @@ public sealed record FarmLossDestinationSetupValidation(bool CanStart, string? F
 public sealed record FarmLossDestinationCreationResult(
     FarmLossDestinationOption Destination,
     FarmListsViewResult View);
+
+public abstract record FarmLossDestinationChoice
+{
+    private FarmLossDestinationChoice()
+    {
+    }
+
+    public sealed record Cancel : FarmLossDestinationChoice;
+
+    public sealed record UseExisting(FarmLossDestinationOption Destination) : FarmLossDestinationChoice;
+
+    public sealed record Create(string ListName) : FarmLossDestinationChoice;
+}
+
+public sealed record FarmLossDestinationSetupResult(
+    FarmLossDestinationOption? Destination,
+    FarmListsViewResult View,
+    bool Cancelled,
+    bool Created);
 
 public sealed record FarmListBatchDispatchResult(
     int SentCount,

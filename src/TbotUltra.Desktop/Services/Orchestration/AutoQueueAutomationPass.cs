@@ -6,19 +6,7 @@ namespace TbotUltra.Desktop.Services.Orchestration;
 internal interface IAutoQueueAutomationPassPort
 {
     BotOptions LoadOptionsWithSelectedVillage();
-    long RunLogId { get; }
-    bool PrioritizeDeadlineWorkOnWake { get; set; }
-    bool HasPendingLoginRound { get; }
-    QueueItem? SelectReadyPriorityQueueItem(BotOptions options);
-    ValueTask RunPendingLoginRoundAsync(BotOptions options, CancellationToken cancellationToken);
-    IReadOnlySet<QueueGroup> SmartSleepDeadlineGroups { get; }
     ValueTask HonorPendingVillageSwitchAsync(BotOptions options, CancellationToken cancellationToken);
-    QueueItem? SelectNextQueueItem();
-    IReadOnlyList<QueueItem> GetQueueItems();
-    IReadOnlyDictionary<Guid, DateTimeOffset> GetSmartSleepQueueDeadlineOverrides(
-        IReadOnlyList<QueueItem> items,
-        DateTimeOffset now);
-    bool IsAllowedByAutomationSettings(QueueItem item);
     bool TryRequestSmartSleep(DateTimeOffset? trustedDeadlineUtc);
     void Log(string message);
     ValueTask<AutomationActionOutcome> ExecuteAsync(
@@ -26,39 +14,58 @@ internal interface IAutoQueueAutomationPassPort
         CancellationToken cancellationToken);
 }
 
-internal sealed class AutoQueueAutomationPass(
-    IAutoQueueAutomationPassPort port,
-    TimeProvider? timeProvider = null) : IAutomationModePassPort
+internal sealed class AutoQueueAutomationPass : IAutomationModePassPort
 {
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly IAutoQueueAutomationPassPort _port;
+    private readonly IAutoQueueAutomationPassRuntime _runtime;
+    private readonly TimeProvider _timeProvider;
+
+    internal AutoQueueAutomationPass(
+        IAutoQueueAutomationPassPort port,
+        TimeProvider? timeProvider = null)
+        : this(
+            port,
+            port as IAutoQueueAutomationPassRuntime
+                ?? throw new ArgumentException("A runtime is required for the auto-queue pass.", nameof(port)),
+            timeProvider)
+    {
+    }
+
+    internal AutoQueueAutomationPass(
+        IAutoQueueAutomationPassPort port,
+        IAutoQueueAutomationPassRuntime runtime,
+        TimeProvider? timeProvider = null)
+    {
+        _port = port;
+        _runtime = runtime;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     public async ValueTask<AutomationStateSnapshot> ReadAsync(
         AutomationRunContext context,
         CancellationToken cancellationToken)
     {
-        var options = port.LoadOptionsWithSelectedVillage();
-        await port.HonorPendingVillageSwitchAsync(options, cancellationToken);
-        if (port.HasPendingLoginRound)
+        var options = _port.LoadOptionsWithSelectedVillage();
+        await _port.HonorPendingVillageSwitchAsync(options, cancellationToken);
+        if (_runtime.HasPendingLoginRound)
         {
-            var priority = port.SelectReadyPriorityQueueItem(options);
+            var priority = _runtime.SelectReadyPriorityQueueItem(options);
             if (priority is not null)
                 return new AutomationStateSnapshot([AutomationCandidate.FromQueueItem(priority)]);
-            await port.RunPendingLoginRoundAsync(options, cancellationToken);
-            if (port.HasPendingLoginRound)
+            await _runtime.RunPendingLoginRoundAsync(options, cancellationToken);
+            if (_runtime.HasPendingLoginRound)
                 return new AutomationStateSnapshot([], NextWakeAt: _timeProvider.GetUtcNow().AddSeconds(10));
         }
 
-        var selected = port.SelectNextQueueItem();
+        var selected = _runtime.SelectNextQueueItem();
         if (selected is not null)
         {
-            port.PrioritizeDeadlineWorkOnWake = false;
+            _runtime.PrioritizeDeadlineWorkOnWake = false;
             return new AutomationStateSnapshot([AutomationCandidate.FromQueueItem(selected)]);
         }
 
         var now = _timeProvider.GetUtcNow();
-        var eligibleItems = port.GetQueueItems()
-            .Where(port.IsAllowedByAutomationSettings)
-            .ToList();
+        var eligibleItems = _runtime.GetEligibleQueueItems();
         var nextDeferredItem = eligibleItems
             .Where(item => !item.IsRuntimeOnly && item.Status == QueueStatus.Pending)
             .FirstOrDefault(item => item.NextAttemptAt > now)
@@ -69,28 +76,28 @@ internal sealed class AutoQueueAutomationPass(
 
         if (nextDeferredItem is null)
         {
-            port.Log($"[AUTOQ {port.RunLogId}] DONE (queue empty).");
+            _port.Log($"[AUTOQ {_runtime.RunLogId}] DONE (queue empty).");
             return new AutomationStateSnapshot([], IsComplete: true);
         }
 
-        port.Log(
-            $"[AUTOQ {port.RunLogId}] WAIT "
+        _port.Log(
+            $"[AUTOQ {_runtime.RunLogId}] WAIT "
             + $"{Math.Max(0, (nextDeferredItem.NextAttemptAt - now).TotalSeconds):F0}s "
             + $"for deferred task={nextDeferredItem.TaskName}");
         var smartSleepDelay = SmartSleepDeadlinePolicy.ResolveNextDelay(
             now,
             eligibleItems,
-            port.SmartSleepDeadlineGroups,
+            _runtime.SmartSleepDeadlineGroups,
             nextConstructionAvailabilityUtc: null,
-            queueDeadlineOverrides: port.GetSmartSleepQueueDeadlineOverrides(eligibleItems, now));
-        _ = port.TryRequestSmartSleep(smartSleepDelay is { } delay ? now.Add(delay) : null);
+            queueDeadlineOverrides: _runtime.GetSmartSleepQueueDeadlineOverrides(eligibleItems, now));
+        _ = _port.TryRequestSmartSleep(smartSleepDelay is { } delay ? now.Add(delay) : null);
         return new AutomationStateSnapshot([AutomationCandidate.FromQueueItem(nextDeferredItem)]);
     }
 
     public ValueTask<AutomationActionOutcome> ExecuteAsync(
         AutomationRunContext context,
         AutomationCandidate action,
-        CancellationToken cancellationToken) => port.ExecuteAsync(action, cancellationToken);
+        CancellationToken cancellationToken) => _port.ExecuteAsync(action, cancellationToken);
 
     public ValueTask CompleteAsync(
         AutomationRunContext context,

@@ -297,7 +297,9 @@ public sealed class ContinuousAutomationPassTests
             delayAsync);
     }
 
-    private sealed class InMemoryContinuousAutomationPassPort : IContinuousAutomationPassPort
+    private sealed class InMemoryContinuousAutomationPassPort :
+        IContinuousAutomationPassPort,
+        IContinuousAutomationPassRuntime
     {
         public Queue<QueueItem?> SelectedItems { get; init; } = new([null]);
         public Queue<bool> ProxyRecoveryResults { get; init; } = new([false]);

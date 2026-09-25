@@ -7,13 +7,16 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private sealed class MainWindowContinuousAutomationForecastPort(MainWindow owner)
+    private sealed class MainWindowContinuousAutomationForecastPort(
+        MainWindow owner,
+        AutomationQueueEligibility queueEligibility,
+        AutomationQueueSelectionCoordinator queueSelection)
         : IContinuousAutomationForecastPort
     {
         public IReadOnlyList<QueueItem> GetQueueItems() => owner.GetQueueSnapshotForUi();
         public string? GetVillageKey(QueueItem item) => owner.GetQueueItemVillageKey(item);
         public bool IsAllowedByAutomationSettings(QueueItem item) =>
-            owner.IsQueueItemAllowedByAutomationSettings(item);
+            queueEligibility.IsAllowed(item);
         public TimeSpan? ResolveConstructionQueueDelay(QueueItem item, DateTimeOffset now)
         {
             var status = owner.ResolveBuildingStatusForQueueItem(item);
@@ -41,7 +44,7 @@ public partial class MainWindow
         public QueueItem? SelectPreview(
             DateTimeOffset evaluationTime,
             string? villageKeyFilter,
-            IReadOnlyList<QueueItem> queueItems) => owner._automationQueueSelection.Select(
+            IReadOnlyList<QueueItem> queueItems) => queueSelection.Select(
                 preview: true,
                 evaluationTimeUtc: evaluationTime,
                 villageKeyFilter: villageKeyFilter,

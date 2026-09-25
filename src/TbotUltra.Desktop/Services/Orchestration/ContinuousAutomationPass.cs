@@ -17,33 +17,17 @@ internal sealed record ContinuousAutomationDeadlineSnapshot(
 internal interface IContinuousAutomationPassPort
 {
     BotOptions LoadOptions();
-    long BeginPass();
     bool TryScheduleAutomaticProxyRecovery(BotOptions options);
-    TimeSpan NetworkBackoffRemaining { get; }
     DateTimeOffset VillageMembershipVerificationNotBeforeUtc { get; }
-    DateTimeOffset NextKeepAliveAtUtc { get; }
-    bool PrioritizeDeadlineWorkOnWake { get; set; }
-    bool HasPendingLoginRound { get; }
-    QueueItem? SelectReadyPriorityQueueItem(BotOptions options);
     ValueTask EnsureChromiumInstalledAsync();
     ValueTask<bool> EnsureVillageMembershipVerifiedAsync(BotOptions options, CancellationToken cancellationToken);
-    bool ConsumeImmediateWorkRequest();
-    ValueTask MaybeTakeIdleBreakAsync(BotOptions options, CancellationToken cancellationToken);
-    ValueTask MaybeDoIdleBrowseAsync(BotOptions options, CancellationToken cancellationToken);
     ValueTask HonorPendingVillageSwitchAsync(BotOptions options, CancellationToken cancellationToken);
-    bool ConsumeForceVillageStatusRoundRequest();
-    ValueTask MaybeRunVillageStatusRoundAsync(BotOptions options, CancellationToken cancellationToken, bool force);
     ValueTask EnsureConstructionStatusAsync(BotOptions options, CancellationToken cancellationToken);
     ValueTask MaybeAnalyzeNewVillageAsync(BotOptions options, CancellationToken cancellationToken);
-    ValueTask EnsureRuntimeItemsAsync(BotOptions options, CancellationToken cancellationToken);
     ValueTask MaybeCheckInboxAsync(CancellationToken cancellationToken);
-    QueueItem? SelectNextQueueItem();
     void LogSmartSleepBlockedByReadyTask(QueueItem item);
-    void MarkActivePass();
     ValueTask MaybeKeepBrowserFreshAsync(BotOptions options, CancellationToken cancellationToken);
-    ContinuousAutomationDeadlineSnapshot ReadDeadlines(BotOptions options);
     bool TryRequestSmartSleep(DateTimeOffset? trustedDeadlineUtc);
-    bool ShouldPublishIdleHeartbeat(TimeSpan interval);
     void Log(string message);
     string FormatException(Exception exception);
     ValueTask HoldAccountAutomationAsync(AccountAccessException exception);
@@ -52,131 +36,152 @@ internal interface IContinuousAutomationPassPort
         CancellationToken cancellationToken);
 }
 
-internal sealed class ContinuousAutomationPass(
-    IContinuousAutomationPassPort port,
-    TimeProvider? timeProvider = null) : IAutomationModePassPort
+internal sealed class ContinuousAutomationPass : IAutomationModePassPort
 {
     private static readonly TimeSpan IdleHeartbeatInterval = TimeSpan.FromMinutes(2);
-    private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly IContinuousAutomationPassPort _port;
+    private readonly IContinuousAutomationPassRuntime _runtime;
+    private readonly TimeProvider _timeProvider;
+
+    internal ContinuousAutomationPass(
+        IContinuousAutomationPassPort port,
+        TimeProvider? timeProvider = null)
+        : this(
+            port,
+            port as IContinuousAutomationPassRuntime
+                ?? throw new ArgumentException("A runtime is required for the continuous pass.", nameof(port)),
+            timeProvider)
+    {
+    }
+
+    internal ContinuousAutomationPass(
+        IContinuousAutomationPassPort port,
+        IContinuousAutomationPassRuntime runtime,
+        TimeProvider? timeProvider = null)
+    {
+        _port = port;
+        _runtime = runtime;
+        _timeProvider = timeProvider ?? TimeProvider.System;
+    }
 
     public async ValueTask<AutomationStateSnapshot> ReadAsync(
         AutomationRunContext context,
         CancellationToken cancellationToken)
     {
-        var options = AutomationExecutionOptions.WithoutImplicitVillageTarget(port.LoadOptions());
-        var passId = port.BeginPass();
+        var options = AutomationExecutionOptions.WithoutImplicitVillageTarget(_port.LoadOptions());
+        var passId = _runtime.BeginPass();
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            if (port.TryScheduleAutomaticProxyRecovery(options))
+            if (_port.TryScheduleAutomaticProxyRecovery(options))
             {
                 return new AutomationStateSnapshot([], IsComplete: true);
             }
 
-            var networkBackoffRemaining = port.NetworkBackoffRemaining;
+            var networkBackoffRemaining = _runtime.NetworkBackoffRemaining;
             if (networkBackoffRemaining > TimeSpan.Zero)
             {
-                port.Log($"[LOOP {passId}] WAIT {Math.Ceiling(networkBackoffRemaining.TotalSeconds):F0}s");
+                _port.Log($"[LOOP {passId}] WAIT {Math.Ceiling(networkBackoffRemaining.TotalSeconds):F0}s");
                 return new AutomationStateSnapshot(
                     [],
                     NextWakeAt: _timeProvider.GetUtcNow().Add(networkBackoffRemaining));
             }
 
-            await port.EnsureChromiumInstalledAsync();
-            if (!await port.EnsureVillageMembershipVerifiedAsync(options, cancellationToken))
+            await _port.EnsureChromiumInstalledAsync();
+            if (!await _port.EnsureVillageMembershipVerifiedAsync(options, cancellationToken))
             {
                 var now = _timeProvider.GetUtcNow();
                 return new AutomationStateSnapshot(
                     [],
-                    NextWakeAt: port.VillageMembershipVerificationNotBeforeUtc > now
-                        ? port.VillageMembershipVerificationNotBeforeUtc
+                    NextWakeAt: _port.VillageMembershipVerificationNotBeforeUtc > now
+                        ? _port.VillageMembershipVerificationNotBeforeUtc
                         : now.AddSeconds(30));
             }
 
-            var immediateWorkRequested = port.ConsumeImmediateWorkRequest();
-            var loginRoundPending = port.HasPendingLoginRound;
+            var immediateWorkRequested = _runtime.ConsumeImmediateWorkRequest();
+            var loginRoundPending = _runtime.HasPendingLoginRound;
             if (!immediateWorkRequested && !loginRoundPending)
             {
-                await port.MaybeTakeIdleBreakAsync(options, cancellationToken);
-                immediateWorkRequested = port.ConsumeImmediateWorkRequest();
+                await _runtime.MaybeTakeIdleBreakAsync(options, cancellationToken);
+                immediateWorkRequested = _runtime.ConsumeImmediateWorkRequest();
             }
             if (!immediateWorkRequested && !loginRoundPending)
             {
-                await port.MaybeDoIdleBrowseAsync(options, cancellationToken);
+                await _runtime.MaybeDoIdleBrowseAsync(options, cancellationToken);
             }
 
-            await port.HonorPendingVillageSwitchAsync(options, cancellationToken);
+            await _port.HonorPendingVillageSwitchAsync(options, cancellationToken);
             if (loginRoundPending)
             {
-                await port.EnsureRuntimeItemsAsync(options, cancellationToken);
-                var priority = port.SelectReadyPriorityQueueItem(options);
+                await _runtime.EnsureRuntimeItemsAsync(options, cancellationToken);
+                var priority = _runtime.SelectReadyPriorityQueueItem(options);
                 if (priority is not null)
                 {
-                    port.Log($"[village-round] explicit priority task runs before village round: {priority.TaskName}.");
-                    port.MarkActivePass();
+                    _port.Log($"[village-round] explicit priority task runs before village round: {priority.TaskName}.");
+                    _runtime.MarkActivePass();
                     return new AutomationStateSnapshot([AutomationCandidate.FromQueueItem(priority)]);
                 }
-                port.PrioritizeDeadlineWorkOnWake = false;
+                _runtime.PrioritizeDeadlineWorkOnWake = false;
             }
-            var prioritizeDeadlineWork = port.PrioritizeDeadlineWorkOnWake;
+            var prioritizeDeadlineWork = _runtime.PrioritizeDeadlineWorkOnWake;
             if (!prioritizeDeadlineWork)
             {
-                var forceVillageStatusRound = port.ConsumeForceVillageStatusRoundRequest();
-                await port.MaybeRunVillageStatusRoundAsync(options, cancellationToken, forceVillageStatusRound);
-                if (port.HasPendingLoginRound)
+                var forceVillageStatusRound = _runtime.ConsumeForceVillageStatusRoundRequest();
+                await _runtime.MaybeRunVillageStatusRoundAsync(options, cancellationToken, forceVillageStatusRound);
+                if (_runtime.HasPendingLoginRound)
                 {
-                    port.Log("[village-round] round paused before completion; ordinary tasks remain deferred.");
+                    _port.Log("[village-round] round paused before completion; ordinary tasks remain deferred.");
                     return new AutomationStateSnapshot([], NextWakeAt: _timeProvider.GetUtcNow().AddSeconds(10));
                 }
             }
             else
             {
-                port.Log("[smart-sleep] deadline wake is checking queued work before Village scan.");
+                _port.Log("[smart-sleep] deadline wake is checking queued work before Village scan.");
             }
 
-            await port.EnsureConstructionStatusAsync(options, cancellationToken);
-            await port.MaybeAnalyzeNewVillageAsync(options, cancellationToken);
-            await port.EnsureRuntimeItemsAsync(options, cancellationToken);
-            await port.MaybeCheckInboxAsync(cancellationToken);
+            await _port.EnsureConstructionStatusAsync(options, cancellationToken);
+            await _port.MaybeAnalyzeNewVillageAsync(options, cancellationToken);
+            await _runtime.EnsureRuntimeItemsAsync(options, cancellationToken);
+            await _port.MaybeCheckInboxAsync(cancellationToken);
 
-            var next = port.SelectNextQueueItem();
+            var next = _runtime.SelectNextQueueItem();
             if (next is not null)
             {
-                port.LogSmartSleepBlockedByReadyTask(next);
-                port.PrioritizeDeadlineWorkOnWake = false;
+                _port.LogSmartSleepBlockedByReadyTask(next);
+                _runtime.PrioritizeDeadlineWorkOnWake = false;
                 LogSelection(passId, next);
-                port.MarkActivePass();
+                _runtime.MarkActivePass();
                 return new AutomationStateSnapshot([AutomationCandidate.FromQueueItem(next)]);
             }
 
             if (prioritizeDeadlineWork)
             {
-                port.PrioritizeDeadlineWorkOnWake = false;
-                var forceVillageStatusRound = port.ConsumeForceVillageStatusRoundRequest();
-                await port.MaybeRunVillageStatusRoundAsync(options, cancellationToken, forceVillageStatusRound);
-                if (port.HasPendingLoginRound)
+                _runtime.PrioritizeDeadlineWorkOnWake = false;
+                var forceVillageStatusRound = _runtime.ConsumeForceVillageStatusRoundRequest();
+                await _runtime.MaybeRunVillageStatusRoundAsync(options, cancellationToken, forceVillageStatusRound);
+                if (_runtime.HasPendingLoginRound)
                     return new AutomationStateSnapshot([], NextWakeAt: _timeProvider.GetUtcNow().AddSeconds(10));
-                await port.EnsureRuntimeItemsAsync(options, cancellationToken);
-                next = port.SelectNextQueueItem();
+                await _runtime.EnsureRuntimeItemsAsync(options, cancellationToken);
+                next = _runtime.SelectNextQueueItem();
                 if (next is not null)
                 {
-                    port.LogSmartSleepBlockedByReadyTask(next);
+                    _port.LogSmartSleepBlockedByReadyTask(next);
                     LogSelection(passId, next);
-                    port.MarkActivePass();
+                    _runtime.MarkActivePass();
                     return new AutomationStateSnapshot([AutomationCandidate.FromQueueItem(next)]);
                 }
             }
 
-            await port.MaybeKeepBrowserFreshAsync(options, cancellationToken);
+            await _port.MaybeKeepBrowserFreshAsync(options, cancellationToken);
             var nowForDeadline = _timeProvider.GetUtcNow();
             ContinuousAutomationDeadlineSnapshot deadlines;
             try
             {
-                deadlines = port.ReadDeadlines(options);
+                deadlines = _runtime.ReadDeadlines(options);
             }
             catch (Exception ex)
             {
-                port.Log($"[smart-sleep] deadline calculation failed; using fallback check: {ex.Message}");
+                _port.Log($"[smart-sleep] deadline calculation failed; using fallback check: {ex.Message}");
                 deadlines = new ContinuousAutomationDeadlineSnapshot(
                     null,
                     null,
@@ -198,23 +203,23 @@ internal sealed class ContinuousAutomationPass(
             DateTimeOffset? smartSleepDeadline = smartSleepDelay is { } trustedDelay
                 ? nowForDeadline.Add(trustedDelay)
                 : null;
-            var smartSleepRequested = port.TryRequestSmartSleep(smartSleepDeadline);
+            var smartSleepRequested = _port.TryRequestSmartSleep(smartSleepDeadline);
             var totalSeconds = AutomationDeadlinePolicy.ResolveWaitSeconds(
                 waitDelay,
                 options,
                 networkBackoff: false);
-            if (port.ShouldPublishIdleHeartbeat(IdleHeartbeatInterval))
+            if (_runtime.ShouldPublishIdleHeartbeat(IdleHeartbeatInterval))
             {
-                port.Log($"[LOOP {passId}] idle — nothing ready, waiting {totalSeconds}s");
+                _port.Log($"[LOOP {passId}] idle — nothing ready, waiting {totalSeconds}s");
             }
 
             var nextWakeAt = nowForDeadline.AddSeconds(totalSeconds);
             if (!smartSleepRequested
                 && options.ContinuousKeepAliveEnabled
-                && port.NextKeepAliveAtUtc > nowForDeadline
-                && port.NextKeepAliveAtUtc < nextWakeAt)
+                && _runtime.NextKeepAliveAtUtc > nowForDeadline
+                && _runtime.NextKeepAliveAtUtc < nextWakeAt)
             {
-                nextWakeAt = port.NextKeepAliveAtUtc;
+                nextWakeAt = _runtime.NextKeepAliveAtUtc;
             }
 
             return new AutomationStateSnapshot([], NextWakeAt: nextWakeAt);
@@ -225,12 +230,12 @@ internal sealed class ContinuousAutomationPass(
         }
         catch (AccountAccessException ex)
         {
-            await port.HoldAccountAutomationAsync(ex);
+            await _port.HoldAccountAutomationAsync(ex);
             throw;
         }
         catch (Exception ex) when (AutomationNetworkBackoff.IsTransientConnectionFailure(ex))
         {
-            if (port.TryScheduleAutomaticProxyRecovery(options))
+            if (_port.TryScheduleAutomaticProxyRecovery(options))
             {
                 return new AutomationStateSnapshot([], IsComplete: true);
             }
@@ -239,9 +244,9 @@ internal sealed class ContinuousAutomationPass(
         }
         catch (Exception ex)
         {
-            port.Log(
+            _port.Log(
                 $"[LOOP {passId}] FAIL {stopwatch.Elapsed.TotalSeconds:F1}s | "
-                + port.FormatException(ex));
+                + _port.FormatException(ex));
             var retrySeconds = AutomationDeadlinePolicy.ResolveWaitSeconds(
                 null,
                 options,
@@ -255,7 +260,7 @@ internal sealed class ContinuousAutomationPass(
     public ValueTask<AutomationActionOutcome> ExecuteAsync(
         AutomationRunContext context,
         AutomationCandidate action,
-        CancellationToken cancellationToken) => port.ExecuteAsync(action, cancellationToken);
+        CancellationToken cancellationToken) => _port.ExecuteAsync(action, cancellationToken);
 
     public ValueTask CompleteAsync(
         AutomationRunContext context,
@@ -265,7 +270,7 @@ internal sealed class ContinuousAutomationPass(
 
     private void LogSelection(long passId, QueueItem item)
     {
-        port.Log(
+        _port.Log(
             $"[LOOP {passId}] PICK group={item.Group}, task={item.TaskName}, "
             + $"retries={item.Retries}/{item.MaxRetries}");
     }

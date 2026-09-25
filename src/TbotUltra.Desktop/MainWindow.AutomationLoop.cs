@@ -61,9 +61,9 @@ public partial class MainWindow
         }
 
         var initialOptions = LoadBotOptions();
-        _automationSessionRuntime.RequestConstructionStatusSync();
-        _automationPassRuntime.ResetVillageBatch();
-        _automationIdlePacing.Reset();
+        _automationDesk.RequestConstructionStatusSync();
+        _automationDesk.ResetVillageBatch();
+        _automationDesk.ResetIdlePacing();
 
         AutomationRunContext context;
         try

@@ -182,7 +182,7 @@ public partial class MainWindow
     // (which may navigate) stays on the dedicated 5-minute timer.
     private async Task RefreshInboxIndicatorsQuickAsync()
     {
-        if (_loopController.IsClosing || !_inboxAutoEnabled || IsSessionSleeping || _automationNetworkBackoff.IsUnavailable)
+        if (_loopController.IsClosing || !_inboxAutoEnabled || IsSessionSleeping || _automationDesk.IsNetworkUnavailable)
         {
             return;
         }
@@ -206,7 +206,7 @@ public partial class MainWindow
         {
             if (IsTransientPageReadFailure(ex))
             {
-                _automationNetworkBackoff.MarkUnavailable(TimeSpan.FromSeconds(30));
+                _automationDesk.MarkNetworkUnavailable(TimeSpan.FromSeconds(30));
                 AppendLog($"[inbox-refresh:verbose] quick check skipped after transient page failure ({ex.Message})");
             }
             else

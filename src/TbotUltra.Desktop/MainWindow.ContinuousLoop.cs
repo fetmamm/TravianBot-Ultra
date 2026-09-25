@@ -28,14 +28,14 @@ public partial class MainWindow
     private DateTimeOffset _confirmedVillageMembershipAtUtc = DateTimeOffset.MinValue;
 
     private DateTimeOffset GetContinuousKeepAliveNextReloadUtc()
-        => _automationSessionRuntime.NextKeepAliveAtUtc;
+        => _automationDesk.NextKeepAliveAtUtc;
 
     private DateTimeOffset GetVillageStatusSweepNextScanUtc()
-        => _villageStatusRoundRuntime.GetNextRoundUtc(_accountStore.ActiveAccountName());
+        => _automationDesk.GetNextVillageStatusRoundUtc(_accountStore.ActiveAccountName());
 
     private void ResetVillageStatusSweepSchedule()
     {
-        var cleared = _villageStatusRoundRuntime.Reset(_accountStore.ActiveAccountName());
+        var cleared = _automationDesk.ResetVillageStatusRound(_accountStore.ActiveAccountName());
 
         if (!cleared)
         {
@@ -49,7 +49,7 @@ public partial class MainWindow
 
         if (IsContinuousLoopRunning())
         {
-            _villageStatusRoundRuntime.RequestForce();
+            _automationDesk.RequestForcedVillageStatusRound();
             RequestContinuousAutomationWake();
             AppendLog("[village-scan] Scan now requested; the active loop will start it at the next safe boundary.");
             return;
@@ -67,7 +67,7 @@ public partial class MainWindow
             return;
         }
 
-        if (!_villageStatusRoundRuntime.TryBeginManualRun())
+        if (!_automationDesk.TryBeginManualVillageStatusRound())
         {
             return;
         }
@@ -77,7 +77,7 @@ public partial class MainWindow
         {
             var options = AutomationExecutionOptions.WithoutImplicitVillageTarget(LoadBotOptions());
             AppendLog("[village-scan] Scan now starting a manual round.");
-            await _continuousVillageStatusRound.RunIfDueAsync(
+            await _automationDesk.RunVillageStatusRoundAsync(
                 options,
                 cancellationToken,
                 force: true);
@@ -93,7 +93,7 @@ public partial class MainWindow
         finally
         {
             _loopController.DisposeOperation();
-            _villageStatusRoundRuntime.EndManualRun();
+            _automationDesk.EndManualVillageStatusRound();
         }
     }
 
@@ -101,7 +101,7 @@ public partial class MainWindow
         BotOptions options,
         VillageSelectionItem village,
         CancellationToken cancellationToken) =>
-        (options.VillageStatusSweepDorf2Enabled || _continuousVillageStatusRound.LoginRoundPending)
+        (options.VillageStatusSweepDorf2Enabled || _automationDesk.LoginVillageStatusRoundPending)
             ? options.VillageStatusSweepSmithyEnabled
                 ? _botService.ReadVillageStatusWithSmithyAsync(
                     options,
@@ -173,7 +173,7 @@ public partial class MainWindow
                 "Village scan: before reward collection");
             RecordVillageBatchAttempt(item, "village-scan");
             attempts++;
-            if (!await _automationQueueItemLifecycle.ExecuteAsync(
+            if (!await _automationDesk.ExecuteQueueItemAsync(
                     item,
                     options,
                     "[village-scan]",
@@ -334,120 +334,6 @@ public partial class MainWindow
         }
     }
 
-    private async Task<bool> ExecuteReadyVillageStatusSweepTasksAsync(
-        BotOptions options,
-        VillageSelectionItem village,
-        int _,
-        CancellationToken cancellationToken)
-    {
-        var villageKey = _villageSettingsStore.ResolveCanonicalKey(GetVillageKey(village));
-        if (string.IsNullOrWhiteSpace(villageKey))
-        {
-            return true;
-        }
-
-        var attemptedItemIds = new HashSet<Guid>();
-        var postLoginRound = _continuousVillageStatusRound.LoginRoundPending;
-        var shortVillageHoldApplied = false;
-        while (true)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var urgent = SelectUrgentQueueItemForVillageStatusSweep(options, attemptedItemIds,
-                explicitPriorityOnly: postLoginRound);
-            var next = urgent ?? SelectNextQueueItemForVillageStatusSweep(villageKey, attemptedItemIds);
-            if (next is null)
-            {
-                if (postLoginRound && !shortVillageHoldApplied)
-                {
-                    var holdCandidates = _botService.GetQueueItemsForDisplay()
-                        .Where(item => !attemptedItemIds.Contains(item.Id))
-                        .Select(item => new ContinuousLoopSelectionCandidate(
-                            item,
-                            GetQueueItemVillageKey(item),
-                            IsQueueItemAllowedByAutomationSettings(item),
-                            ContinuousLoopSelector.IsUtilityTask(item.TaskName)
-                                && IsAutoCollectUtilityTaskEnabledNow(item.TaskName, options)))
-                        .ToList();
-                    var hold = AutomationQueueSelector.Select(
-                        new AutomationQueueSelectionInput(
-                            holdCandidates,
-                            GetContinuousLoopConsideredGroupsInOrder(),
-                            _automationPassRuntime.SnapshotVillageBatch(_activeWorkingVillageKey),
-                            villageKey,
-                            DateTimeOffset.UtcNow,
-                            options.ShortVillageDeferSeconds,
-                            Preview: true),
-                        SelectReadyConstructionForAutomationPass);
-                    if (hold.Reason == AutomationQueueSelectionReason.ShortVillageHold
-                        && hold.HoldUntil is { } holdUntil
-                        && holdUntil > DateTimeOffset.UtcNow)
-                    {
-                        shortVillageHoldApplied = true;
-                        AppendLog($"[village-round] waiting up to {Math.Ceiling((holdUntil - DateTimeOffset.UtcNow).TotalSeconds)}s "
-                            + $"for a soon-ready task in '{village.Name}'.");
-                        var holdDelay = holdUntil - DateTimeOffset.UtcNow;
-                        if (holdDelay > TimeSpan.Zero)
-                            await Task.Delay(holdDelay, cancellationToken);
-                        continue;
-                    }
-                }
-                if (postLoginRound)
-                {
-                    LogRomanLoginFillOutcome(villageKey, village.Name);
-                }
-                if (_automationPassRuntime.SnapshotVillageBatch(_activeWorkingVillageKey).HasUrgentPreemption)
-                {
-                    _automationPassRuntime.CompleteUrgentPreemption(_activeWorkingVillageKey);
-                    AppendLog(
-                        $"[village-scan] urgent work complete; '{village.Name}' has no more ready work.");
-                }
-                return true;
-            }
-
-            attemptedItemIds.Add(next.Id);
-            if (urgent is not null
-                && !string.Equals(
-                    GetQueueItemVillageKey(urgent),
-                    _activeWorkingVillageKey,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                _automationPassRuntime.RecordUrgentPreemption(
-                    _activeWorkingVillageKey,
-                    GetQueueItemVillageKey(urgent));
-                AppendLog(
-                    $"[village-scan] urgent preemption task='{urgent.TaskName}' "
-                    + $"village='{GetQueueItemVillageName(urgent) ?? "-"}'; "
-                    + $"'{village.Name}' will resume afterward.");
-            }
-            else
-            {
-                AppendLog(
-                    $"[village-scan] reacting in '{village.Name}': "
-                    + $"group={next.Group}, task={next.TaskName}.");
-            }
-            await ActionPacer.FromOptions(options, AppendLog).DelayAsync(
-                options.ActionPacingTaskMinSeconds,
-                options.ActionPacingTaskMaxSeconds,
-                cancellationToken,
-                "Village scan: before task");
-            RecordVillageBatchAttempt(next, "village-scan");
-            var shouldContinue = await _automationQueueItemLifecycle.ExecuteAsync(
-                next,
-                options,
-                "[village-scan]",
-                AutomationRunMode.ContinuousLoop,
-                cancellationToken);
-            MarkContinuousBrowserActivity(options);
-            if (!shouldContinue)
-            {
-                return false;
-            }
-
-            await ApplyPostTaskCooldownAsync(next, options, cancellationToken);
-        }
-
-    }
-
     private void LogRomanLoginFillOutcome(string villageKey, string villageName)
     {
         if (!_villageStatusCache.TryGetByKey(villageKey, out var status))
@@ -486,47 +372,6 @@ public partial class MainWindow
         }
     }
 
-    private QueueItem? SelectNextQueueItemForVillageStatusSweep(
-        string villageKey,
-        IReadOnlySet<Guid> attemptedItemIds)
-    {
-        var now = DateTimeOffset.UtcNow;
-        var candidates = _botService.GetQueueItemsForDisplay()
-            .Select(item => new ContinuousLoopSelectionCandidate(
-                item,
-                GetQueueItemVillageKey(item),
-                IsQueueItemAllowedByAutomationSettings(item),
-                IsUtilityEnabled: false))
-            .Where(candidate => ContinuousLoopSelector.IsVillageStatusSweepCandidate(candidate, villageKey))
-            .ToList();
-        var plan = ContinuousLoopSelector.CreatePlan(new ContinuousLoopSelectionInput(
-            candidates,
-            GetContinuousLoopConsideredGroupsInOrder()));
-        var villageKeys = candidates.ToDictionary(candidate => candidate.Item.Id, candidate => candidate.VillageKey);
-
-        foreach (var group in plan.OrderedGroups)
-        {
-            var villageItems = ContinuousLoopSelector.SelectVillageItems(
-                plan.OrderedItemsByGroup[group],
-                villageKeys,
-                villageKey);
-            if (villageItems.Count == 0)
-            {
-                continue;
-            }
-
-            var candidate = group == QueueGroup.Construction
-                ? SelectNextConstructionQueueItem(villageItems, now, out _)
-                : ContinuousLoopSelector.SelectReadyGroupHead(villageItems, now);
-            if (candidate is not null && !attemptedItemIds.Contains(candidate.Id))
-            {
-                return candidate;
-            }
-        }
-
-        return null;
-    }
-
     private static readonly TimeSpan LoopPickVerboseThrottle = TimeSpan.FromMinutes(5);
     private static readonly TimeSpan GoldClubInactiveRecheckInterval = TimeSpan.FromMinutes(10);
     private async Task TriggerQueueAutoRunAsync()
@@ -558,45 +403,14 @@ public partial class MainWindow
             return;
         }
 
-        _automationPassRuntime.BeginAutoQueueRun(Interlocked.Increment(ref _operationCounter));
+        _automationDesk.BeginAutoQueueRun(Interlocked.Increment(ref _operationCounter));
         LogConservativeAutomationWarnings(AutomationExecutionOptions.WithoutImplicitVillageTarget(LoadBotOptions()));
-        AppendLog($"[AUTOQ {_automationPassRuntime.AutoQueueRunLogId}] START");
+        AppendLog($"[AUTOQ {_automationDesk.AutoQueueRunLogId}] START");
         var result = await _automationDesk.StartAsync(new AutomationStart(AutomationRunMode.AutoQueue, context));
         if (result is AutomationStartResult.Busy)
         {
             AppendLog("[automation] Auto Queue start skipped because another run owns the gate.");
         }
-    }
-
-    private QueueItem? SelectUrgentQueueItemForVillageStatusSweep(
-        BotOptions options,
-        IReadOnlySet<Guid> attemptedItemIds,
-        bool explicitPriorityOnly = false)
-    {
-        var candidates = _botService.GetQueueItemsForDisplay()
-            .Where(item => !attemptedItemIds.Contains(item.Id))
-            .Where(item => !explicitPriorityOnly || item.Priority > 0)
-            .Select(item => new ContinuousLoopSelectionCandidate(
-                item,
-                GetQueueItemVillageKey(item),
-                IsQueueItemAllowedByAutomationSettings(item),
-                ContinuousLoopSelector.IsUtilityTask(item.TaskName)
-                    && IsAutoCollectUtilityTaskEnabledNow(item.TaskName, options)))
-            .ToList();
-        var batch = _automationPassRuntime.SnapshotVillageBatch(_activeWorkingVillageKey);
-        var result = AutomationQueueSelector.Select(
-            new AutomationQueueSelectionInput(
-                candidates,
-                GetContinuousLoopConsideredGroupsInOrder(),
-                batch,
-                _activeWorkingVillageKey,
-                DateTimeOffset.UtcNow,
-                options.ShortVillageDeferSeconds,
-                Preview: true),
-            SelectReadyConstructionForAutomationPass);
-        return result.Reason == AutomationQueueSelectionReason.UrgentPreemption
-            ? result.Selected
-            : null;
     }
 
     private async ValueTask<VillageStatusRoundVisitResult> VisitVillageStatusRoundAsync(
@@ -607,7 +421,7 @@ public partial class MainWindow
         bool inboxStatusChecked,
         CancellationToken cancellationToken)
     {
-        var postLoginRound = _continuousVillageStatusRound.LoginRoundPending;
+        var postLoginRound = _automationDesk.LoginVillageStatusRoundPending;
         using var villageActivity = _dashboardActivityTracker.Begin(
             $"{(postLoginRound ? "Village round" : "Village scan")} ({villageNumber}/{villageCount}): {village.Name}");
         cancellationToken.ThrowIfCancellationRequested();
@@ -666,7 +480,7 @@ public partial class MainWindow
                 async (targetVillage, token) =>
                 {
                     AppendLog($"[village-scan] updated '{targetVillage.Name}'.");
-                    await _continuousRuntimeItemPreparation.PrepareAsync(
+                    await _automationDesk.PrepareRuntimeItemsAsync(
                         options,
                         token,
                         new AutomationRuntimeVillage(
@@ -677,8 +491,17 @@ public partial class MainWindow
                             targetVillage.CoordX,
                             targetVillage.CoordY));
                 },
-                (targetVillage, attempts, token) => new ValueTask<bool>(
-                    ExecuteReadyVillageStatusSweepTasksAsync(options, targetVillage, attempts, token)));
+                (targetVillage, attempts, token) =>
+                    _automationDesk.ExecuteVillageStatusTasksAsync(
+                        options,
+                        new AutomationRuntimeVillage(
+                            GetVillageKey(targetVillage),
+                            targetVillage.Name,
+                            targetVillage.Url,
+                            targetVillage.IsCapital,
+                            targetVillage.CoordX,
+                            targetVillage.CoordY),
+                        token));
             return await _villageStatusReactionCoordinator.RunAsync(
                 village,
                 options.VillageStatusSweepDorf1Enabled || postLoginRound,
@@ -986,7 +809,7 @@ public partial class MainWindow
 
     private void RequestContinuousAutomationWake()
     {
-        _automationPassRuntime.RequestImmediateWork();
+        _automationDesk.RequestImmediateWork();
         _automationDesk.Wake(AutomationWakeReason.QueueChanged);
     }
 
@@ -1241,7 +1064,7 @@ public partial class MainWindow
 
     private async Task EnsureContinuousLoopConstructionStatusAsync(BotOptions options, CancellationToken cancellationToken)
     {
-        if (!_automationSessionRuntime.ConstructionStatusNeedsSync
+        if (!_automationDesk.ConstructionStatusNeedsSync
             || !GetContinuousLoopEnabledGroupsInOrder().Contains(QueueGroup.Construction))
         {
             return;
@@ -1271,7 +1094,7 @@ public partial class MainWindow
                     PopulateBuildingsTab(status);
                 }
             });
-            _automationSessionRuntime.MarkConstructionStatusSynchronized();
+            _automationDesk.MarkConstructionStatusSynchronized();
         }
         catch (OperationCanceledException)
         {
@@ -1327,101 +1150,11 @@ public partial class MainWindow
                 : null;
     }
 
-    // Whether a queue item's automation group is enabled for ITS OWN village. Lets a group turned off on
-    // village B block B's tasks even while another village is selected/worked. Village-less (global)
-    // tasks and unknown villages fall back to the account default group set.
-    private bool IsQueueItemGroupEnabledForItsVillage(QueueItem item)
-    {
-        if (item.Group == QueueGroup.Demolish)
-        {
-            return true;
-        }
+    private bool IsQueueItemAllowedByAutomationSettings(QueueItem item) =>
+        _automationDesk.IsQueueItemAllowed(item);
 
-        if (item.Payload.TryGetValue(BotOptionPayloadKeys.AutoAddedBy, out var autoAddedBy)
-            && string.Equals(
-                autoAddedBy,
-                BotOptionPayloadKeys.AutoAddedByHeroRallyPointRepair,
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return IsGroupEnabledForVillage(GetQueueItemVillageKey(item), QueueGroup.Hero);
-        }
-
-        return IsGroupEnabledForVillage(GetQueueItemVillageKey(item), item.Group);
-    }
-
-    // Village settings are authoritative for all automated queue execution: if the village Auto toggle
-    // is off, or the task's group is off for that village, the item stays queued but is ignored.
-    private bool IsQueueItemAllowedByAutomationSettings(QueueItem item)
-    {
-        if (string.Equals(item.TaskName, "send_farmlists", StringComparison.OrdinalIgnoreCase)
-            && string.IsNullOrWhiteSpace(GetQueueItemVillageKey(item))
-            && string.IsNullOrWhiteSpace(GetQueueItemVillageName(item)))
-        {
-            return false;
-        }
-
-        // Account is an always-on queue category. Its tasks are never gated by village Auto or by a
-        // per-village automation group toggle.
-        if (item.Group == QueueGroup.Account)
-        {
-            return true;
-        }
-
-        return IsQueueItemVillageEnabled(item) && IsQueueItemGroupEnabledForItsVillage(item);
-    }
-
-    // Whether an automation group is enabled for a specific village key (null/unknown villages fall back
-    // to the account default group set). Shared by per-item gating and per-village runtime generation.
-    private bool IsGroupEnabledForVillage(string? villageKey, QueueGroup group)
-    {
-        if (group == QueueGroup.Account)
-        {
-            return true;
-        }
-
-        if (group == QueueGroup.Farming && CurrentGoldClubAvailability != true)
-        {
-            return false;
-        }
-
-        // Village-less (global) tasks like hero_manage are enabled when the group is on for ANY enabled
-        // village — so e.g. Hero runs while the hero-home village has it on even
-        // though another village is currently selected. Resolve this from the settings store only (no UI
-        // marshalling): this runs on the continuous-loop background thread during item selection, so it must
-        // NOT call GetContinuousLoopConsideredGroupsInOrder (which Dispatcher.Invokes to the UI thread and
-        // would stall the whole loop behind UI work).
-        if (villageKey is null)
-        {
-            return IsGroupEnabledForAnyVillage(group);
-        }
-
-        var groups = _villageSettingsStore.GetEnabledGroups(villageKey)
-            ?? VillageSettingsStore.DefaultEnabledGroups;
-        return groups.Contains(QueueGroupCatalog.GetKey(group), StringComparer.OrdinalIgnoreCase);
-    }
-
-    // Whether an automation group is enabled for ANY enabled village. Store-only and thread-safe (no
-    // Dispatcher), so it is safe to call from the continuous-loop background thread. Used to gate
-    // village-less global tasks (e.g. hero_manage) without depending on the UI-selected village.
-    private bool IsGroupEnabledForAnyVillage(QueueGroup group)
-    {
-        if (group == QueueGroup.Account)
-        {
-            return true;
-        }
-
-        var key = QueueGroupCatalog.GetKey(group);
-        foreach (var (_, enabledGroups) in _villageSettingsStore.GetEnabledVillagesGroups())
-        {
-            var effective = enabledGroups ?? VillageSettingsStore.DefaultEnabledGroups;
-            if (effective.Contains(key, StringComparer.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
+    private bool IsGroupEnabledForVillage(string? villageKey, QueueGroup group) =>
+        _automationDesk.IsGroupEnabled(villageKey, group);
 
     // Villages currently enabled for automation, deduplicated by village key. Read from the Dashboard
     // village list (falls back to the dropdown), filtered against the persisted enabled state so it
@@ -1854,7 +1587,7 @@ public partial class MainWindow
         var villageKey = GetQueueItemVillageKey(blocker) ?? villageName;
         var waitSeconds = Math.Max(0, (blocker.NextAttemptAt - now).TotalSeconds);
         var state = $"{blocker.Id}:{blocker.NextAttemptAt.UtcTicks}:{blockedItems}";
-        if (!_automationSessionRuntime.TrySetConstructionSummary(villageKey, state))
+        if (!_automationDesk.TrySetConstructionSummary(villageKey, state))
         {
             return;
         }
@@ -1871,7 +1604,7 @@ public partial class MainWindow
     {
         var villageName = NormalizeVillageName(GetQueueItemVillageName(item)) ?? "-";
         var villageKey = GetQueueItemVillageKey(item) ?? villageName;
-        _automationSessionRuntime.ClearConstructionSummary(villageKey);
+        _automationDesk.ClearConstructionSummary(villageKey);
     }
 
     private static bool HasEarlierPendingConstructForSlot(
@@ -1906,7 +1639,7 @@ public partial class MainWindow
 
     private void AppendLoopPickVerbose(string message, string key)
     {
-        if (_automationSessionRuntime.ShouldPublishVerbose(key, LoopPickVerboseThrottle))
+        if (_automationDesk.ShouldPublishVerbose(key, LoopPickVerboseThrottle))
         {
             AppendLog(message);
         }
@@ -1936,7 +1669,7 @@ public partial class MainWindow
             return;
         }
 
-        if (!_automationSessionRuntime.ShouldCheckInbox(
+        if (!_automationDesk.ShouldCheckInbox(
                 _inboxAutoEnabled,
                 TimeSpan.FromSeconds(ContinuousInboxCheckIntervalSeconds)))
         {
@@ -1953,7 +1686,7 @@ public partial class MainWindow
 
     private void MarkContinuousBrowserActivity(BotOptions options)
     {
-        _automationSessionRuntime.RecordBrowserActivity(
+        _automationDesk.RecordBrowserActivity(
             options.ContinuousKeepAliveEnabled,
             options.ContinuousKeepAliveMinMinutes,
             options.ContinuousKeepAliveMaxMinutes);
@@ -1965,7 +1698,7 @@ public partial class MainWindow
     {
         var now = DateTimeOffset.UtcNow;
         var nextPendingAt = GetNextContinuousLoopPendingAt();
-        var plan = _automationSessionRuntime.PlanKeepAlive(
+        var plan = _automationDesk.PlanKeepAlive(
             options.ContinuousKeepAliveEnabled,
             options.ContinuousKeepAliveMinMinutes,
             options.ContinuousKeepAliveMaxMinutes,
@@ -2009,11 +1742,11 @@ public partial class MainWindow
         }
         catch (Exception ex)
         {
-            _automationSessionRuntime.MarkKeepAliveFailure();
+            _automationDesk.MarkKeepAliveFailure();
             if (IsTransientKeepAliveFailure(ex))
             {
-                var retryDelay = _automationNetworkBackoff.NextRetryDelay();
-                _automationNetworkBackoff.MarkUnavailable(retryDelay);
+                var retryDelay = _automationDesk.NextNetworkRetryDelay();
+                _automationDesk.MarkNetworkUnavailable(retryDelay);
                 AppendLog($"[keep-alive:verbose] refresh skipped after transient failure: {ex.Message}");
                 return;
             }
@@ -2055,7 +1788,7 @@ public partial class MainWindow
     private async Task<bool> ResolveContinuousGoldClubStatusAsync(BotOptions options, CancellationToken cancellationToken)
     {
         var accountName = _accountStore.ActiveAccountName();
-        var plan = _automationSessionRuntime.PlanGoldClubCheck(
+        var plan = _automationDesk.PlanGoldClubCheck(
             accountName,
             TryGetStoredGoldClubEnabled(accountName),
             GoldClubInactiveRecheckInterval);
@@ -2066,7 +1799,7 @@ public partial class MainWindow
         using (_dashboardActivityTracker.Begin("Checking Gold Club status"))
         {
             var enabled = await _farmListsWorkflow.IsGoldClubActiveAsync(options, cancellationToken);
-            return _automationSessionRuntime.ApplyGoldClubStatus(enabled);
+            return _automationDesk.ApplyGoldClubStatus(enabled);
         }
     }
 
@@ -2104,8 +1837,8 @@ public partial class MainWindow
 
     private void RecordVillageBatchAttempt(QueueItem item, string source)
     {
-        var before = _automationPassRuntime.SnapshotVillageBatch(_activeWorkingVillageKey);
-        var after = _automationPassRuntime.RecordVillageAttempt(
+        var before = _automationDesk.SnapshotVillageBatch(_activeWorkingVillageKey);
+        var after = _automationDesk.RecordVillageAttempt(
             GetQueueItemVillageKey(item),
             _activeWorkingVillageKey);
         if (string.IsNullOrWhiteSpace(after.VillageKey))
@@ -2176,7 +1909,7 @@ public partial class MainWindow
         }
 
         var signature = string.Join("|", warnings);
-        if (!_automationSessionRuntime.ShouldPublishWarnings(signature))
+        if (!_automationDesk.ShouldPublishWarnings(signature))
         {
             return;
         }

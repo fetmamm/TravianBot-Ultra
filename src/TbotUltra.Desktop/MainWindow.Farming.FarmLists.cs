@@ -1175,7 +1175,6 @@ public partial class MainWindow
             return;
         }
 
-        IAsyncDisposable? automationPause = null;
         var operationToken = _loopController.StartOperation("loss-farmlist-destination");
         _farmLossDestinationSelectionInProgress = true;
         BeginManualFunctionPacingPause();
@@ -1183,41 +1182,70 @@ public partial class MainWindow
         ShowBusyOverlay("Choose loss farmlist", "Pausing automation after the current action...");
         try
         {
-            automationPause = await _farmListsWorkflow.AcquireAutomationPauseAsync(operationToken);
-
-            BusyOverlay.Text = "Reading all existing farmlists...";
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
+            var viewRequest = await CreateFarmListsViewRequestAsync(options);
             await EnsureChromiumInstalledAsync();
-            if (!await RefreshFarmListsFromServerAsync(options, operationToken))
-            {
-                throw new InvalidOperationException("Gold Club is not active, so existing farmlists could not be loaded.");
-            }
+            var result = await _farmListsWorkflow.ConfigureLossDestinationAsync(
+                viewRequest,
+                GetFarmListCreationVillages(),
+                ResolveCurrentTribeForFarming(),
+                lossColor,
+                async (view, cancellationToken) =>
+                {
+                    cancellationToken.ThrowIfCancellationRequested();
+                    UpdateGoldClubInfo(view.IsAvailable);
+                    await ApplyFarmListsViewToUiAsync(view);
+                    AppendLog("[farm-list] read all existing farmlists before choosing a loss destination.");
+                    HideBusyOverlay();
 
-            AppendLog("[farm-list] read all existing farmlists before choosing a loss destination.");
-            HideBusyOverlay();
+                    var existingNames = view.Projection.Rows
+                        .Where(IsRealFarmListRow)
+                        .Select(row => row.Name)
+                        .ToList();
+                    var suggestedName = FarmLossListNaming.NextAvailable(
+                        isRed ? "Red farms" : "Yellow farms",
+                        existingNames);
+                    var existingDestinations = _farmListsViewModel.LossDestinations.ToList();
+                    var dialog = new CreateLossFarmListWindow(suggestedName, existingDestinations) { Owner = this };
+                    if (dialog.ShowDialog() != true)
+                    {
+                        return new FarmLossDestinationChoice.Cancel();
+                    }
 
-            var existingNames = _farmLists.Where(IsRealFarmListRow).Select(row => row.Name).ToList();
-            var suggestedName = FarmLossListNaming.NextAvailable(isRed ? "Red farms" : "Yellow farms", existingNames);
-            var existingDestinations = _farmListsViewModel.LossDestinations.ToList();
-            var dialog = new CreateLossFarmListWindow(suggestedName, existingDestinations) { Owner = this };
-            if (dialog.ShowDialog() != true)
+                    if (dialog.SelectedExistingDestination is { } selectedDestination)
+                    {
+                        var selected = existingDestinations.FirstOrDefault(option =>
+                            string.Equals(
+                                option.ListId,
+                                selectedDestination.ListId,
+                                StringComparison.OrdinalIgnoreCase))
+                            ?? selectedDestination;
+                        return new FarmLossDestinationChoice.UseExisting(selected);
+                    }
+
+                    BusyOverlay.ShowCancel = true;
+                    ShowBusyOverlay("Creating loss farmlist", $"Creating '{dialog.ListName}'...");
+                    return new FarmLossDestinationChoice.Create(dialog.ListName);
+                },
+                operationToken);
+
+            if (result.Cancelled || result.Destination is null)
             {
                 SetMoveLosses(isRed, false);
                 AppendLog("[farm-list] loss destination selection canceled.");
                 return;
             }
 
-            if (dialog.SelectedExistingDestination is { } selectedDestination)
+            if (result.Created)
             {
-                var selected = existingDestinations.FirstOrDefault(option =>
-                    string.Equals(option.ListId, selectedDestination.ListId, StringComparison.OrdinalIgnoreCase))
-                    ?? selectedDestination;
-                SetSelectedLossDestination(isRed, selected);
-                AppendLog($"[farm-list] selected '{selectedDestination.Name}' as the {lossColor.ToString().ToLowerInvariant()} loss destination.");
-                return;
+                UpdateGoldClubInfo(result.View.IsAvailable);
+                await ApplyFarmListsViewToUiAsync(result.View);
             }
 
-            await CreateAndSelectFarmLossDestinationAsync(options, lossColor, dialog.ListName, operationToken);
+            SetSelectedLossDestination(isRed, result.Destination);
+            AppendLog(result.Created
+                ? $"[farm-list] created and selected '{result.Destination.Name}' as the {lossColor.ToString().ToLowerInvariant()} loss destination."
+                : $"[farm-list] selected '{result.Destination.Name}' as the {lossColor.ToString().ToLowerInvariant()} loss destination.");
         }
         catch (OperationCanceledException)
         {
@@ -1237,35 +1265,7 @@ public partial class MainWindow
             EndManualFunctionPacingPause();
             DisposeOperationCts();
             _farmLossDestinationSelectionInProgress = false;
-            if (automationPause is not null)
-            {
-                await automationPause.DisposeAsync();
-            }
         }
-    }
-
-    private async Task CreateAndSelectFarmLossDestinationAsync(
-        BotOptions options,
-        FarmListLossColors lossColor,
-        string listName,
-        CancellationToken cancellationToken)
-    {
-        BusyOverlay.ShowCancel = true;
-        ShowBusyOverlay("Creating loss farmlist", $"Creating '{listName}'...");
-        await EnsureChromiumInstalledAsync();
-        var viewRequest = await CreateFarmListsViewRequestAsync(options);
-        var result = await _farmListsWorkflow.CreateLossDestinationAsync(
-            viewRequest,
-            GetFarmListCreationVillages(),
-            ResolveCurrentTribeForFarming(),
-            lossColor,
-            listName,
-            cancellationToken);
-        UpdateGoldClubInfo(result.View.IsAvailable);
-        await ApplyFarmListsViewToUiAsync(result.View);
-        var isRed = lossColor == FarmListLossColors.Red;
-        SetSelectedLossDestination(isRed, result.Destination);
-        AppendLog($"[farm-list] created and selected '{result.Destination.Name}' as the {lossColor.ToString().ToLowerInvariant()} loss destination.");
     }
 
     private void SetMoveLosses(bool isRed, bool value)

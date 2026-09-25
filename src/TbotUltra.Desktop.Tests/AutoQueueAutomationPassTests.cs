@@ -148,7 +148,9 @@ public sealed class AutoQueueAutomationPassTests
             delayAsync);
     }
 
-    private sealed class InMemoryAutoQueueAutomationPassPort : IAutoQueueAutomationPassPort
+    private sealed class InMemoryAutoQueueAutomationPassPort :
+        IAutoQueueAutomationPassPort,
+        IAutoQueueAutomationPassRuntime
     {
         public bool HasPendingLoginRound => false;
         public QueueItem? SelectReadyPriorityQueueItem(BotOptions options) => null;
@@ -168,6 +170,8 @@ public sealed class AutoQueueAutomationPassTests
             ValueTask.CompletedTask;
         public QueueItem? SelectNextQueueItem() => SelectedItems.Count == 0 ? null : SelectedItems.Dequeue();
         public IReadOnlyList<QueueItem> GetQueueItems() => QueueItems;
+        public IReadOnlyList<QueueItem> GetEligibleQueueItems() =>
+            QueueItems.Where(IsAllowedByAutomationSettings).ToList();
         public IReadOnlyDictionary<Guid, DateTimeOffset> GetSmartSleepQueueDeadlineOverrides(
             IReadOnlyList<QueueItem> items,
             DateTimeOffset now) => SmartSleepQueueDeadlineOverrides;

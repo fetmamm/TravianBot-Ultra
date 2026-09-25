@@ -13,7 +13,7 @@ public partial class MainWindow
             owner._isLoggedIn,
             owner.IsContinuousLoopRunning(),
             owner._autoQueueRunning,
-            owner._continuousVillageStatusRound?.LoginRoundPending == true,
+            owner._automationDesk?.LoginVillageStatusRoundPending == true,
             owner._loginInProgress,
             owner._accountSwitchInProgress,
             owner._shutdownInProgress || owner._shutdownCompleted || owner._loopController.IsClosing);
@@ -89,9 +89,9 @@ public partial class MainWindow
         }
 
         public bool ConsumeForcedVillageRoundOnWake() =>
-            owner._villageStatusRoundRuntime.ConsumeForceOnWakeRequest();
+            owner._automationDesk.ConsumeForceVillageStatusRoundOnWake();
 
-        public void ForceVillageRound() => owner._villageStatusRoundRuntime.RequestForce();
+        public void ForceVillageRound() => owner._automationDesk.RequestForcedVillageStatusRound();
 
         public void ResumeContinuousLoop() => owner.StartContinuousLoopRunner();
 

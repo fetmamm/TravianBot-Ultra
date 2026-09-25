@@ -57,7 +57,7 @@ public partial class MainWindow
         ClearAutomationLoopCardBlocks();
         var resetCount = ResetDeferredQueueTimersForVillage(selectedVillageName, selectedVillageKey);
         PrepareConstructionLoginFill("manual-clear-timers", selectedVillageName, selectedVillageKey);
-        _automationPassRuntime.ResetVillageBatch();
+        _automationDesk.ResetVillageBatch();
         if (IsContinuousLoopRunning() || _autoQueueRunning)
         {
         RequestContinuousAutomationWake();
@@ -71,7 +71,7 @@ public partial class MainWindow
 
     private void ClearAccountTimers()
     {
-        _automationSessionRuntime.RequestConstructionStatusSync();
+        _automationDesk.RequestConstructionStatusSync();
         _smithyUpgradeRemainingSeconds.Clear();
         _troopTrainingViewModel.ClearRuntimeTimers();
         _heroViewModel.AdventureStatusText = "Status refresh requested.";
@@ -88,7 +88,7 @@ public partial class MainWindow
 
         var resetCount = ResetAllDeferredQueueTimers();
         PrepareConstructionLoginFill("manual-clear-timers");
-        _automationPassRuntime.ResetVillageBatch();
+        _automationDesk.ResetVillageBatch();
         if (IsContinuousLoopRunning() || _autoQueueRunning)
         {
         RequestContinuousAutomationWake();
@@ -106,7 +106,7 @@ public partial class MainWindow
 
     private void ClearSelectedVillageRuntimeTimerCache(string selectedVillageName, string? selectedVillageKey)
     {
-        _automationSessionRuntime.RequestConstructionStatusSync();
+        _automationDesk.RequestConstructionStatusSync();
         _smithyUpgradeRemainingSeconds.Clear();
         _troopTrainingViewModel.ClearRuntimeTimers();
         _heroViewModel.AdventureStatusText = "Status refresh requested.";

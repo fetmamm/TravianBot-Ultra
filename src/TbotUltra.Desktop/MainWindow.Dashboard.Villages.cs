@@ -1120,18 +1120,18 @@ public partial class MainWindow
         }).ToList();
 
         cancellationToken.ThrowIfCancellationRequested();
-        var globalForecast = _continuousAutomationForecast.Resolve(
+        var globalForecast = _automationDesk.ResolveForecast(
             nowUtc,
             queueItemsOverride: queueItems);
         var exactNext = globalForecast.Item;
         var forecastsByVillage = villages.ToDictionary(
             village => village.VillageKey,
-            village => _continuousAutomationForecast.Resolve(
+            village => _automationDesk.ResolveForecast(
                 nowUtc,
                 village.VillageKey,
                 queueItems),
             StringComparer.OrdinalIgnoreCase);
-        var batchVillageKey = _automationPassRuntime.SnapshotVillageBatch(_activeWorkingVillageKey).VillageKey;
+        var batchVillageKey = _automationDesk.SnapshotVillageBatch(_activeWorkingVillageKey).VillageKey;
         var rotationKeys = QueueGroupCatalog.AllGroups.ToDictionary(
             group => group,
             _ => batchVillageKey);

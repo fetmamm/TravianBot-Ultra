@@ -6,25 +6,38 @@ public partial class MainWindow
 {
     /// <summary>
     /// Composes the WPF and Worker adapters used by the deep automation module.
-    /// MainWindow only retains the returned projections needed by presentation code.
+    /// MainWindow retains only the resulting AutomationDesk; policy modules remain desk-owned.
     /// </summary>
-    private sealed class MainWindowAutomationAdapter
+    private static class MainWindowAutomationAdapter
     {
-        internal MainWindowAutomationAdapter(MainWindow owner, string projectRoot)
+        internal static AutomationDesk Create(
+            MainWindow owner,
+            string projectRoot,
+            LoopController loopController)
         {
-            QueueSelection = new AutomationQueueSelectionCoordinator(
-                new MainWindowAutomationQueueSelectionPort(owner));
-            Forecast = new ContinuousAutomationForecastCoordinator(
-                new MainWindowContinuousAutomationForecastPort(owner));
-            RuntimeItemPreparation = new ContinuousRuntimeItemPreparation(
-                new MainWindowContinuousRuntimeItemPreparationPort(owner));
-            IdlePacing = new ContinuousIdlePacing(
-                owner._automationIdlePacing,
-                new MainWindowContinuousIdlePacingPort(owner));
-            VillageStatusRoundRuntime = new VillageStatusRoundRuntime(
+            var passRuntime = new AutomationPassRuntime();
+            var idlePacingState = new AutomationIdlePacing();
+            var networkBackoff = new AutomationNetworkBackoff();
+            var proxyRecovery = new AutomationProxyRecoveryRuntime();
+            var sessionRuntime = new AutomationSessionRuntime();
+            var villageStatusRoundCoordinator = new VillageStatusRoundCoordinator();
+            var queueEligibility = new AutomationQueueEligibility(
+                owner._villageSettingsStore,
+                () => owner.CurrentGoldClubAvailability,
+                new MainWindowAutomationQueueEligibilityPort(owner));
+            var queueSelection = new AutomationQueueSelectionCoordinator(
+                new MainWindowAutomationQueueSelectionPort(owner, queueEligibility, passRuntime));
+            var forecast = new ContinuousAutomationForecastCoordinator(
+                new MainWindowContinuousAutomationForecastPort(owner, queueEligibility, queueSelection));
+            var runtimeItemPreparation = new ContinuousRuntimeItemPreparation(
+                new MainWindowContinuousRuntimeItemPreparationPort(owner, queueEligibility));
+            var idlePacing = new ContinuousIdlePacing(
+                idlePacingState,
+                new MainWindowContinuousIdlePacingPort(owner, passRuntime));
+            var villageStatusRoundRuntime = new VillageStatusRoundRuntime(
                 new FileVillageStatusRoundStatePort(projectRoot));
-            VillageStatusRound = new ContinuousVillageStatusRound(
-                owner._villageStatusRoundCoordinator,
+            var villageStatusRound = new ContinuousVillageStatusRound(
+                villageStatusRoundCoordinator,
                 new MainWindowVillageStatusRoundPort(owner));
 
             var constructionRequirementGuard = new AutomationConstructionRequirementGuard(
@@ -42,40 +55,77 @@ public partial class MainWindow
                     new MainWindowAutomationMissingBuildingUpgradeRecoveryPort(owner)),
                 new AutomationQueueItemSuccess(new MainWindowAutomationQueueItemSuccessPort(owner)),
                 new AutomationQueueItemFailure(new MainWindowAutomationQueueItemFailurePort(owner)));
-            QueueItemLifecycle = new AutomationQueueItemLifecycle(
-                new MainWindowAutomationQueueItemLifecyclePort(owner),
+            var queueItemLifecycle = new AutomationQueueItemLifecycle(
+                new MainWindowAutomationQueueItemLifecyclePort(
+                    owner,
+                    queueEligibility,
+                    networkBackoff),
                 queueItemPolicies);
-
+            var villageStatusTasks = new VillageStatusTaskExecutionCoordinator(
+                new MainWindowVillageStatusTaskExecutionPort(owner),
+                passRuntime,
+                sessionRuntime,
+                queueSelection,
+                villageStatusRound,
+                queueItemLifecycle);
             var actionExecutor = new AutomationActionExecutor(
-                new MainWindowAutomationActionExecutionPort(owner, QueueItemLifecycle));
-            ContinuousLoop = new ContextGuardedAutomationModePass(
+                new MainWindowAutomationActionExecutionPort(owner, queueItemLifecycle, passRuntime));
+            var continuousPassPort = new MainWindowContinuousAutomationPassPort(owner, actionExecutor);
+            var deadlines = new ContinuousAutomationDeadlineCoordinator(
+                continuousPassPort,
+                passRuntime,
+                forecast);
+            var continuousPassRuntime = new ContinuousAutomationPassRuntime(
+                passRuntime,
+                networkBackoff,
+                sessionRuntime,
+                queueSelection,
+                deadlines,
+                runtimeItemPreparation,
+                idlePacing,
+                villageStatusRoundRuntime,
+                villageStatusRound);
+            var autoQueueRuntime = new AutoQueueAutomationPassRuntime(
+                passRuntime,
+                queueSelection,
+                deadlines,
+                villageStatusRound);
+
+            var runtime = new AutomationRuntime(
+                passRuntime,
+                idlePacingState,
+                networkBackoff,
+                proxyRecovery,
+                sessionRuntime,
+                queueEligibility,
+                queueSelection,
+                forecast,
+                deadlines,
+                runtimeItemPreparation,
+                idlePacing,
+                villageStatusRoundRuntime,
+                villageStatusRound,
+                villageStatusTasks,
+                queueItemLifecycle);
+
+            var continuousLoop = new ContextGuardedAutomationModePass(
                 owner._accountStore.ActiveAccountName,
                 () => owner._botService.BrowserGeneration,
                 new ContinuousAutomationPass(
-                    new MainWindowContinuousAutomationPassPort(owner, actionExecutor)));
-            AutoQueue = new ContextGuardedAutomationModePass(
+                    continuousPassPort,
+                    continuousPassRuntime));
+            var autoQueue = new ContextGuardedAutomationModePass(
                 owner._accountStore.ActiveAccountName,
                 () => owner._botService.BrowserGeneration,
                 new AutoQueueAutomationPass(
-                    new MainWindowAutoQueueAutomationPassPort(owner, actionExecutor)));
+                    new MainWindowAutoQueueAutomationPassPort(owner, actionExecutor),
+                    autoQueueRuntime));
+
+            return new AutomationDesk(
+                loopController,
+                continuousLoop,
+                autoQueue,
+                runtime: runtime);
         }
-
-        internal AutomationQueueSelectionCoordinator QueueSelection { get; }
-
-        internal ContinuousAutomationForecastCoordinator Forecast { get; }
-
-        internal ContinuousRuntimeItemPreparation RuntimeItemPreparation { get; }
-
-        internal ContinuousIdlePacing IdlePacing { get; }
-
-        internal VillageStatusRoundRuntime VillageStatusRoundRuntime { get; }
-
-        internal ContinuousVillageStatusRound VillageStatusRound { get; }
-
-        internal AutomationQueueItemLifecycle QueueItemLifecycle { get; }
-
-        internal IAutomationModePassPort ContinuousLoop { get; }
-
-        internal IAutomationModePassPort AutoQueue { get; }
     }
 }

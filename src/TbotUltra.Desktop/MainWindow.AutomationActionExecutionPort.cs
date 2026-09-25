@@ -8,12 +8,13 @@ public partial class MainWindow
 {
     private sealed class MainWindowAutomationActionExecutionPort(
         MainWindow owner,
-        AutomationQueueItemLifecycle queueItemLifecycle)
+        AutomationQueueItemLifecycle queueItemLifecycle,
+        AutomationPassRuntime passRuntime)
         : IAutomationActionExecutionPort
     {
-        public long ContinuousPassId => owner._automationPassRuntime.CurrentContinuousPassId;
+        public long ContinuousPassId => passRuntime.CurrentContinuousPassId;
 
-        public long AutoQueueRunLogId => owner._automationPassRuntime.AutoQueueRunLogId;
+        public long AutoQueueRunLogId => passRuntime.AutoQueueRunLogId;
 
         public bool LoopStopRequested => owner._loopController.LoopStopRequested;
 

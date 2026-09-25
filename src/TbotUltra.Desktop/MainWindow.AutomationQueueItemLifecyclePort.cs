@@ -10,11 +10,14 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private sealed class MainWindowAutomationQueueItemLifecyclePort(MainWindow owner)
+    private sealed class MainWindowAutomationQueueItemLifecyclePort(
+        MainWindow owner,
+        AutomationQueueEligibility queueEligibility,
+        AutomationNetworkBackoff networkBackoff)
         : IAutomationQueueItemLifecyclePort
     {
         public bool IsAllowedByAutomationSettings(QueueItem item) =>
-            owner.IsQueueItemAllowedByAutomationSettings(item);
+            queueEligibility.IsAllowed(item);
 
         public IDisposable BeginExecutionScope(QueueItem item)
         {
@@ -97,10 +100,10 @@ public partial class MainWindow
         public bool MarkDeferred(Guid itemId, TimeSpan delay) =>
             owner._botService.MarkQueueItemDeferred(itemId, delay);
 
-        public TimeSpan NextNetworkRetryDelay() => owner._automationNetworkBackoff.NextRetryDelay();
+        public TimeSpan NextNetworkRetryDelay() => networkBackoff.NextRetryDelay();
 
         public void MarkNetworkUnavailable(TimeSpan retryDelay) =>
-            owner._automationNetworkBackoff.MarkUnavailable(retryDelay);
+            networkBackoff.MarkUnavailable(retryDelay);
 
         public ValueTask HoldAccountAutomationAsync(AccountAccessException exception) =>
             new(owner.HoldAccountAutomationAsync(exception));

@@ -500,26 +500,159 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
-    public async Task FarmListsWorkflow_PausesAndResumesOriginalAutomationMode()
+    public async Task FarmListsWorkflow_OwnsPauseAnalyzeSelectionAndResumeTransaction()
     {
         var store = CreateConfigStore();
         store.Save(new JsonObject());
         var automation = new RecordingFarmListsAutomationAdapter { ContinuousLoopRunning = true };
+        var client = new RecordingFarmingClient
+        {
+            Overview = [new FarmListOverview(
+                "Existing losses", 0, 0, null, "list-7", 100, [], VillageName: "Capital")],
+        };
         var workflow = new FarmListsWorkflow(
-            new RecordingFarmingClient(),
+            client,
             automation,
             store,
             _root,
             () => "alice",
             _ => { });
 
-        var pause = await workflow.AcquireAutomationPauseAsync(CancellationToken.None);
-        Assert.False(automation.ContinuousLoopRunning);
+        var result = await workflow.ConfigureLossDestinationAsync(
+            ViewRequest(new BotOptions { TargetVillageName = "Capital" }),
+            [],
+            "Gauls",
+            FarmListLossColors.Red,
+            (view, _) =>
+            {
+                Assert.False(automation.ContinuousLoopRunning);
+                Assert.Equal("list-7", Assert.Single(view.Lists).ListId);
+                return ValueTask.FromResult<FarmLossDestinationChoice>(
+                    new FarmLossDestinationChoice.UseExisting(
+                        new FarmLossDestinationOption("list-7", "Existing losses", "Capital", 0, 100)));
+            },
+            CancellationToken.None);
 
-        await pause.DisposeAsync();
-
+        Assert.False(result.Cancelled);
+        Assert.False(result.Created);
+        Assert.Equal("list-7", result.Destination!.ListId);
+        Assert.Equal(["gold", "overview"], client.Calls);
         Assert.True(automation.ContinuousLoopRunning);
         Assert.False(automation.AutoQueueRunning);
+    }
+
+    [Fact]
+    public async Task FarmListsWorkflow_ResumesAutomationWhenPausePollingIsCancelled()
+    {
+        var store = CreateConfigStore();
+        store.Save(new JsonObject());
+        var automation = new RecordingFarmListsAutomationAdapter
+        {
+            ContinuousLoopRunning = true,
+            StopCompletionDelay = TimeSpan.FromMilliseconds(100),
+        };
+        var workflow = new FarmListsWorkflow(
+            new RecordingFarmingClient(), automation, store, _root, () => "alice", _ => { });
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(25));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => workflow.ConfigureLossDestinationAsync(
+            ViewRequest(new BotOptions()),
+            [],
+            "Gauls",
+            FarmListLossColors.Red,
+            (_, _) => ValueTask.FromResult<FarmLossDestinationChoice>(new FarmLossDestinationChoice.Cancel()),
+            cancellation.Token));
+
+        Assert.True(automation.ContinuousLoopRunning);
+        Assert.Equal(1, automation.StartContinuousLoopCount);
+    }
+
+    [Fact]
+    public async Task FarmListsWorkflow_ResumesAutomationWhenFinalPauseDelayIsCancelled()
+    {
+        var store = CreateConfigStore();
+        store.Save(new JsonObject());
+        var automation = new RecordingFarmListsAutomationAdapter { ContinuousLoopRunning = true };
+        var workflow = new FarmListsWorkflow(
+            new RecordingFarmingClient(), automation, store, _root, () => "alice", _ => { });
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(25));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => workflow.ConfigureLossDestinationAsync(
+            ViewRequest(new BotOptions()),
+            [],
+            "Gauls",
+            FarmListLossColors.Red,
+            (_, _) => ValueTask.FromResult<FarmLossDestinationChoice>(new FarmLossDestinationChoice.Cancel()),
+            cancellation.Token));
+
+        Assert.True(automation.ContinuousLoopRunning);
+    }
+
+    [Fact]
+    public async Task FarmListsWorkflow_CancellationCleanupIsBoundedAndDoesNotRestartBeforeStop()
+    {
+        var store = CreateConfigStore();
+        store.Save(new JsonObject());
+        var automation = new RecordingFarmListsAutomationAdapter
+        {
+            ContinuousLoopRunning = true,
+            IgnoreStopRequest = true,
+        };
+        var workflow = new FarmListsWorkflow(
+            new RecordingFarmingClient(),
+            automation,
+            store,
+            _root,
+            () => "alice",
+            _ => { },
+            automationStopCleanupTimeout: TimeSpan.FromMilliseconds(100));
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(25));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => workflow.ConfigureLossDestinationAsync(
+            ViewRequest(new BotOptions()),
+            [],
+            "Gauls",
+            FarmListLossColors.Red,
+            (_, _) => ValueTask.FromResult<FarmLossDestinationChoice>(new FarmLossDestinationChoice.Cancel()),
+            cancellation.Token));
+
+        Assert.True(automation.ContinuousLoopRunning);
+        Assert.Equal(0, automation.StartContinuousLoopCount);
+    }
+
+    [Fact]
+    public async Task FarmListsWorkflow_ResumesAfterStopThatExceedsCancellationCleanupTimeout()
+    {
+        var store = CreateConfigStore();
+        store.Save(new JsonObject());
+        var automation = new RecordingFarmListsAutomationAdapter
+        {
+            ContinuousLoopRunning = true,
+            StopCompletionDelay = TimeSpan.FromMilliseconds(300),
+        };
+        var workflow = new FarmListsWorkflow(
+            new RecordingFarmingClient(),
+            automation,
+            store,
+            _root,
+            () => "alice",
+            _ => { },
+            automationStopCleanupTimeout: TimeSpan.FromMilliseconds(75));
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(25));
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => workflow.ConfigureLossDestinationAsync(
+            ViewRequest(new BotOptions()),
+            [],
+            "Gauls",
+            FarmListLossColors.Red,
+            (_, _) => ValueTask.FromResult<FarmLossDestinationChoice>(new FarmLossDestinationChoice.Cancel()),
+            cancellation.Token));
+        Assert.Equal(0, automation.StartContinuousLoopCount);
+
+        await Task.Delay(550);
+
+        Assert.True(automation.ContinuousLoopRunning);
+        Assert.Equal(1, automation.StartContinuousLoopCount);
     }
 
     [Fact]
@@ -691,15 +824,38 @@ public sealed class PanelServiceContractTests : IDisposable
         public bool SessionAvailable { get; set; } = true;
         public IReadOnlyList<QueueItem> QueueItems { get; set; } = [];
         public Dictionary<string, string>? UpdatedPayload { get; private set; }
+        public TimeSpan? StopCompletionDelay { get; set; }
+        public bool IgnoreStopRequest { get; set; }
+        public int StartContinuousLoopCount { get; private set; }
         public void ClearPendingRestarts() { }
         public void RequestStopAfterCurrentAction()
         {
+            if (IgnoreStopRequest)
+            {
+                return;
+            }
+
+            if (StopCompletionDelay is { } delay)
+            {
+                _ = Task.Run(async () =>
+                {
+                    await Task.Delay(delay);
+                    ContinuousLoopRunning = false;
+                    AutoQueueRunning = false;
+                    UiBusy = false;
+                });
+                return;
+            }
             ContinuousLoopRunning = false;
             AutoQueueRunning = false;
             UiBusy = false;
         }
         public void UpdateExecutionIndicator() { }
-        public void StartContinuousLoop() => ContinuousLoopRunning = true;
+        public void StartContinuousLoop()
+        {
+            StartContinuousLoopCount++;
+            ContinuousLoopRunning = true;
+        }
         public Task StartAutoQueueAsync()
         {
             AutoQueueRunning = true;

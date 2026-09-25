@@ -5,13 +5,15 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private sealed class MainWindowContinuousIdlePacingPort(MainWindow owner)
+    private sealed class MainWindowContinuousIdlePacingPort(
+        MainWindow owner,
+        AutomationPassRuntime passRuntime)
         : IContinuousIdlePacingPort
     {
         public bool SessionAvailable =>
             !owner.IsSessionSleeping && owner._isLoggedIn && owner._browserSessionLikelyOpen;
         public bool StopRequested => owner._loopController.LoopStopRequested;
-        public bool ImmediateWorkRequested => owner._automationPassRuntime.IsImmediateWorkRequested;
+        public bool ImmediateWorkRequested => passRuntime.IsImmediateWorkRequested;
         public ValueTask DelayAsync(TimeSpan delay, CancellationToken cancellationToken) =>
             new(Task.Delay(delay, cancellationToken));
         public IDisposable BeginBrowseActivity() =>

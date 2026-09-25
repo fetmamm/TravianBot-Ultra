@@ -1,6 +1,9 @@
+using Microsoft.Extensions.Configuration;
+using static TbotUltra.Core.Configuration.PayloadValueReader;
+
 namespace TbotUltra.Core.Configuration;
 
-internal sealed record ResourceTransferPayloadValues(
+internal sealed record ResourceTransferOptions(
     bool Enabled,
     string TargetVillageName,
     List<string> SourceVillageNames,
@@ -12,13 +15,40 @@ internal sealed record ResourceTransferPayloadValues(
     bool SendIron,
     bool SendCrop);
 
-internal static class ResourceTransferPayloadApplier
+internal static class ResourceTransferOptionsModule
 {
-    internal static ResourceTransferPayloadValues Apply(
+    internal static IReadOnlyList<string> AccountScopedKeys { get; } =
+    [
+        BotOptionPayloadKeys.ResourceTransferEnabled,
+        BotOptionPayloadKeys.ResourceTransferTargetVillageName,
+        BotOptionPayloadKeys.ResourceTransferSourceVillageNames,
+        BotOptionPayloadKeys.ResourceTransferSourceThresholdPercent,
+        BotOptionPayloadKeys.ResourceTransferSourceKeepPercent,
+        BotOptionPayloadKeys.ResourceTransferTargetFillPercent,
+        BotOptionPayloadKeys.ResourceTransferSendWood,
+        BotOptionPayloadKeys.ResourceTransferSendClay,
+        BotOptionPayloadKeys.ResourceTransferSendIron,
+        BotOptionPayloadKeys.ResourceTransferSendCrop,
+    ];
+
+    internal static ResourceTransferOptions FromConfiguration(IConfiguration configuration)
+        => new(
+            configuration.GetValue(BotOptionPayloadKeys.ResourceTransferEnabled, false),
+            configuration[BotOptionPayloadKeys.ResourceTransferTargetVillageName] ?? string.Empty,
+            configuration.GetSection(BotOptionPayloadKeys.ResourceTransferSourceVillageNames).Get<List<string>>() ?? [],
+            Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ResourceTransferSourceThresholdPercent, 50), 0, 100),
+            Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ResourceTransferSourceKeepPercent, 5), 0, 99),
+            Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ResourceTransferTargetFillPercent, 90), 0, 100),
+            configuration.GetValue(BotOptionPayloadKeys.ResourceTransferSendWood, true),
+            configuration.GetValue(BotOptionPayloadKeys.ResourceTransferSendClay, true),
+            configuration.GetValue(BotOptionPayloadKeys.ResourceTransferSendIron, true),
+            configuration.GetValue(BotOptionPayloadKeys.ResourceTransferSendCrop, true));
+
+    internal static ResourceTransferOptions Apply(
         BotOptions source,
         IReadOnlyDictionary<string, string>? payload)
     {
-        var result = new ResourceTransferPayloadValues(
+        var result = new ResourceTransferOptions(
             source.ResourceTransferEnabled,
             source.ResourceTransferTargetVillageName,
             source.ResourceTransferSourceVillageNames,
@@ -90,15 +120,19 @@ internal static class ResourceTransferPayloadApplier
         return result;
     }
 
-    private static bool TryReadInt(string key, string value, string expectedKey, out int parsed)
-    {
-        parsed = 0;
-        return key.Equals(expectedKey, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out parsed);
-    }
+    internal static BotOptions ApplyTo(this ResourceTransferOptions values, BotOptions source)
+        => source with
+        {
+            ResourceTransferEnabled = values.Enabled,
+            ResourceTransferTargetVillageName = values.TargetVillageName,
+            ResourceTransferSourceVillageNames = values.SourceVillageNames,
+            ResourceTransferSourceThresholdPercent = values.SourceThresholdPercent,
+            ResourceTransferSourceKeepPercent = values.SourceKeepPercent,
+            ResourceTransferTargetFillPercent = values.TargetFillPercent,
+            ResourceTransferSendWood = values.SendWood,
+            ResourceTransferSendClay = values.SendClay,
+            ResourceTransferSendIron = values.SendIron,
+            ResourceTransferSendCrop = values.SendCrop,
+        };
 
-    private static bool TryReadBool(string key, string value, string expectedKey, out bool parsed)
-    {
-        parsed = false;
-        return key.Equals(expectedKey, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out parsed);
-    }
 }

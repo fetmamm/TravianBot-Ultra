@@ -146,7 +146,7 @@ public partial class MainWindow
 
                 _browserSessionLikelyOpen = true;
                 PrepareConstructionLoginFillForActiveVerifiedVillage();
-                _continuousVillageStatusRound.RequestLoginRound(preserveIncomplete: _sessionSleepLifecycle.IsWakeInProgress);
+                _automationDesk.RequestLoginVillageStatusRound(preserveIncomplete: _sessionSleepLifecycle.IsWakeInProgress);
                 NotifySessionPacingOnlineStarted();
                 CompleteOperation(operationId, operationSw, "Login completed (quick re-login).");
                 return;
@@ -300,7 +300,7 @@ public partial class MainWindow
 
             _browserSessionLikelyOpen = true;
             PrepareConstructionLoginFillForActiveVerifiedVillage();
-            _continuousVillageStatusRound.RequestLoginRound(preserveIncomplete: _sessionSleepLifecycle.IsWakeInProgress);
+            _automationDesk.RequestLoginVillageStatusRound(preserveIncomplete: _sessionSleepLifecycle.IsWakeInProgress);
             NotifySessionPacingOnlineStarted();
             // Anchor for the quick re-login window: only a COMPLETED full stack counts.
             PersistLastFullPostLoginTimestamp();
@@ -498,7 +498,7 @@ public partial class MainWindow
 
     private void ResetLoggedOutUiState()
     {
-        _continuousVillageStatusRound.ResetLoginRound();
+        _automationDesk.ResetLoginVillageStatusRound();
         StatusTextBlock.Text = "Logged out.";
         UpdateLoginButtonsVisual(false);
         _isLoggedIn = false;
@@ -1148,7 +1148,7 @@ public partial class MainWindow
             _pendingSwitchVillageName = null;
             _pendingSwitchVillageUrl = null;
         }
-        _automationPassRuntime.ResetVillageBatch();
+        _automationDesk.ResetVillageBatch();
         _defaultEnabledGroupKeys.Clear();
 
         _troopsBlockedReasonKey = null;
@@ -1164,7 +1164,7 @@ public partial class MainWindow
         _breweryBlockedReasonText = null;
         _breweryBlockedPreviouslyEnabled = false;
 
-        _automationSessionRuntime.Reset();
+        _automationDesk.ResetSessionRuntime();
         _inlineWaitUntilUtc = DateTimeOffset.MinValue;
         _npcTradeSessionCount = 0;
         _npcTradeTroopSessionCount = 0;
@@ -1291,7 +1291,7 @@ public partial class MainWindow
         _inboxAutoEnabled = false;
         NotifySessionPacingOnlineStopped();
         ResetSessionPacing();
-        _continuousVillageStatusRound.ResetLoginRound();
+        _automationDesk.ResetLoginVillageStatusRound();
         await StopAllAutomationAndWaitAsync();
 
         // bot.json is global, so the previous account's village/farm-list pointers would otherwise leak

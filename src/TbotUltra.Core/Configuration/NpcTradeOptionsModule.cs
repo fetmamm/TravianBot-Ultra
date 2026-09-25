@@ -1,6 +1,9 @@
+using Microsoft.Extensions.Configuration;
+using static TbotUltra.Core.Configuration.PayloadValueReader;
+
 namespace TbotUltra.Core.Configuration;
 
-internal sealed record NpcTradePayloadValues(
+internal sealed record NpcTradeOptions(
     bool Enabled,
     bool ConstructionEnabled,
     int ThresholdPercent,
@@ -11,11 +14,36 @@ internal sealed record NpcTradePayloadValues(
     bool BuildTimeLimitEnabled,
     int BuildTimeLimitSeconds);
 
-internal static class NpcTradePayloadApplier
+internal static class NpcTradeOptionsModule
 {
-    internal static NpcTradePayloadValues Apply(BotOptions source, IReadOnlyDictionary<string, string>? payload)
+    internal static IReadOnlyList<string> AccountScopedKeys { get; } =
+    [
+        BotOptionPayloadKeys.NpcTradeEnabled,
+        BotOptionPayloadKeys.NpcTradeConstructionEnabled,
+        BotOptionPayloadKeys.NpcTradeThresholdPercent,
+        BotOptionPayloadKeys.NpcTradeAnalyzeWood,
+        BotOptionPayloadKeys.NpcTradeAnalyzeClay,
+        BotOptionPayloadKeys.NpcTradeAnalyzeIron,
+        BotOptionPayloadKeys.NpcTradeAnalyzeCrop,
+        BotOptionPayloadKeys.NpcTradeBuildTimeLimitEnabled,
+        BotOptionPayloadKeys.NpcTradeBuildTimeLimitSeconds,
+    ];
+
+    internal static NpcTradeOptions FromConfiguration(IConfiguration configuration)
+        => new(
+            configuration.GetValue(BotOptionPayloadKeys.NpcTradeEnabled, false),
+            configuration.GetValue(BotOptionPayloadKeys.NpcTradeConstructionEnabled, false),
+            Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.NpcTradeThresholdPercent, 90), 1, 100),
+            configuration.GetValue(BotOptionPayloadKeys.NpcTradeAnalyzeWood, true),
+            configuration.GetValue(BotOptionPayloadKeys.NpcTradeAnalyzeClay, true),
+            configuration.GetValue(BotOptionPayloadKeys.NpcTradeAnalyzeIron, true),
+            configuration.GetValue(BotOptionPayloadKeys.NpcTradeAnalyzeCrop, true),
+            configuration.GetValue(BotOptionPayloadKeys.NpcTradeBuildTimeLimitEnabled, true),
+            configuration.GetValue(BotOptionPayloadKeys.NpcTradeBuildTimeLimitSeconds, 300));
+
+    internal static NpcTradeOptions Apply(BotOptions source, IReadOnlyDictionary<string, string>? payload)
     {
-        var result = new NpcTradePayloadValues(
+        var result = new NpcTradeOptions(
             source.NpcTradeEnabled,
             source.NpcTradeConstructionEnabled,
             source.NpcTradeThresholdPercent,
@@ -63,18 +91,21 @@ internal static class NpcTradePayloadApplier
         return result;
     }
 
+    internal static BotOptions ApplyTo(this NpcTradeOptions values, BotOptions source)
+        => source with
+        {
+            NpcTradeEnabled = values.Enabled,
+            NpcTradeConstructionEnabled = values.ConstructionEnabled,
+            NpcTradeThresholdPercent = values.ThresholdPercent,
+            NpcTradeAnalyzeWood = values.AnalyzeWood,
+            NpcTradeAnalyzeClay = values.AnalyzeClay,
+            NpcTradeAnalyzeIron = values.AnalyzeIron,
+            NpcTradeAnalyzeCrop = values.AnalyzeCrop,
+            NpcTradeBuildTimeLimitEnabled = values.BuildTimeLimitEnabled,
+            NpcTradeBuildTimeLimitSeconds = values.BuildTimeLimitSeconds,
+        };
+
     private static int NormalizeBuildTimeLimit(int value)
         => value is 30 or 60 or 300 or 1200 or 3600 ? value : 60;
 
-    private static bool TryReadInt(string key, string value, string expectedKey, out int parsed)
-    {
-        parsed = 0;
-        return key.Equals(expectedKey, StringComparison.OrdinalIgnoreCase) && int.TryParse(value, out parsed);
-    }
-
-    private static bool TryReadBool(string key, string value, string expectedKey, out bool parsed)
-    {
-        parsed = false;
-        return key.Equals(expectedKey, StringComparison.OrdinalIgnoreCase) && bool.TryParse(value, out parsed);
-    }
 }

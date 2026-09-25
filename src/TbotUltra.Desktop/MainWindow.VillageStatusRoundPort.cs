@@ -46,13 +46,13 @@ public partial class MainWindow
         }
         public IDisposable BeginRoundActivity(int villageCount) =>
             owner._dashboardActivityTracker.Begin(
-                owner._continuousVillageStatusRound.LoginRoundPending
+                owner._automationDesk.LoginVillageStatusRoundPending
                     ? $"Village round (0/{villageCount})"
                     : $"Village scan (0/{villageCount})");
         public VillageStatusRoundScheduleResult ScheduleNext(
             string? expectedAccountName,
             int minMinutes,
-            int maxMinutes) => owner._villageStatusRoundRuntime.ScheduleNext(
+            int maxMinutes) => owner._automationDesk.ScheduleNextVillageStatusRound(
                 expectedAccountName,
                 owner._accountStore.ActiveAccountName(),
                 minMinutes,
@@ -62,7 +62,7 @@ public partial class MainWindow
         {
             try
             {
-                await owner._continuousRuntimeItemPreparation.PrepareAsync(
+                await owner._automationDesk.PrepareRuntimeItemsAsync(
                     _options,
                     cancellationToken);
             }

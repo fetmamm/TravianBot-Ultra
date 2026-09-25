@@ -1,6 +1,6 @@
 # Engineering Notes
 
-Last updated: 2026-07-31
+Last updated: 2026-09-24
 
 Read this file before changing architecture, selectors, paths, browser behavior, persisted state, queueing,
 or server logic. Keep it short and current: durable rules belong here; detailed decisions belong in ADRs;
@@ -42,6 +42,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Prefer handler dictionaries for gid/type behavior instead of growing switch chains.
 - Desktop calls Worker through explicit interfaces and ViewModels; calculations do not belong in code-behind.
 - `LoopController` owns loop lifecycle and cancellation. UI code must not create competing loop state.
+- `AutomationDesk` is Desktop's single owner for Continuous Loop and Auto Queue orchestration. `MainWindow`
+  retains only the desk; its composition root constructs the desk's internal runtime modules and mode passes.
 - `SessionSleepLifecycle` owns capture, graceful stop, browser close, wake login retry, and automation restore.
   `SessionPacer` owns timing/state transitions; `MainWindow` only adapts WPF, browser, login, and automation effects.
 - Long-running UI commands use the shared busy/guard pattern, expose Cancel when supported, and restore UI
@@ -85,6 +87,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
 
 - `bot.json` is application-wide; account settings are account-scoped; village settings and queue state are
   village-scoped; runtime snapshots are Worker-owned observations, not user configuration.
+- `BotOptionsFactory` and `BotOptionsPayloadApplier` are public orchestration facades. Domain option modules own
+  their defaults, compatibility normalization, payload overlay, and projection to the flat `BotOptions` record;
+  do not duplicate a domain rule in either facade. Domain modules also declare their account-scoped keys, which
+  `AccountConfigurationScope` composes for Desktop. `BotConfigStore` continues to own persistence and migrations.
 - `Reset program` is an in-process restart boundary: cancel all automation/session work, close Chromium and
   auxiliary popups, reset pacing plus account-scoped in-memory/UI state, then reload the normal logged-out startup
   projection. Preserve account files, settings, queues, village caches, and saved login; only an explicit Login may
@@ -185,8 +191,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Farming requires confirmed active Gold Club. Dashboard and Village settings must project Farming as OFF and
   non-clickable when Gold Club is false or unknown, and execution gating must enforce the same rule.
 - `FarmListsWorkflow` owns Farm Lists analysis plus projection, snapshot restore, create/add completion refresh,
-  dispatch reconciliation, and the automation pause lease used by loss-destination setup. WPF may gather dialog
-  input and render returned views, but must not recreate those multi-step operations.
+  dispatch reconciliation, and the complete pause/analyze/choose/create-or-select/resume transaction used by
+  loss-destination setup. WPF may gather dialog input and render returned views, but must not order or recreate
+  those multi-step operations.
 - Hero attribute automation uses account-scoped absolute maximums (0-100) keyed by attribute; missing or invalid
   values default to 100. Read the four live Official attribute inputs before every plus click, never cross a maximum,
   and do not requeue point spending when the latest complete snapshot shows every configured maximum is reached.
@@ -976,6 +983,7 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - [Bonus video](adr/2026-07-18-bonus-video.md)
 - [Continuous automation orchestration](adr/2026-08-14-continuous-automation-orchestration.md)
 - [Troop evasion deadlines](adr/2026-08-22-troop-evasion.md)
+- [Configuration-to-runtime assembly](adr/2026-09-24-configuration-runtime-assembly.md)
 
 ## Arkiverad historik
 

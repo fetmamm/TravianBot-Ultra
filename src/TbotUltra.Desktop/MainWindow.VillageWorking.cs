@@ -1138,7 +1138,7 @@ public partial class MainWindow
         if (!string.IsNullOrWhiteSpace(resolvedKey))
         {
             _activeWorkingVillageKey = resolvedKey;
-            _automationPassRuntime.ObserveVerifiedVillage(resolvedKey);
+            _automationDesk.ObserveVerifiedVillage(resolvedKey);
         }
 
         ApplyActiveVillageHighlight();
@@ -1501,7 +1501,7 @@ public partial class MainWindow
 
         // Reset the shared runtime batch. The pending switch below owns browser navigation and the
         // verified-village callback establishes the new batch only after Travian confirms the switch.
-        _automationPassRuntime.ResetVillageBatch();
+        _automationDesk.ResetVillageBatch();
 
         if (IsExecutionActiveForVillageChange())
         {

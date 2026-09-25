@@ -622,9 +622,9 @@ public partial class MainWindow
 
     private void MarkNetworkConnectionHealthy()
     {
-        var recovered = _automationNetworkBackoff.ConsecutiveFailures > 0
-            || _automationNetworkBackoff.IsUnavailable;
-        _automationNetworkBackoff.MarkHealthy();
+        var recovered = _automationDesk.ConsecutiveNetworkFailures > 0
+            || _automationDesk.IsNetworkUnavailable;
+        _automationDesk.MarkNetworkHealthy();
         ResetAutomaticProxyRecoveryRetry();
         if (recovered)
         {
@@ -648,7 +648,7 @@ public partial class MainWindow
             return false;
         }
 
-        if (_automationNetworkBackoff.IsUnavailable)
+        if (_automationDesk.IsNetworkUnavailable)
         {
             return false;
         }
@@ -711,8 +711,8 @@ public partial class MainWindow
 
             if (IsTransientPageReadFailure(ex))
             {
-                var retryDelay = _automationNetworkBackoff.NextRetryDelay();
-                _automationNetworkBackoff.MarkUnavailable(retryDelay);
+                var retryDelay = _automationDesk.NextNetworkRetryDelay();
+                _automationDesk.MarkNetworkUnavailable(retryDelay);
                 AppendLog(
                     $"[resource-refresh:verbose] background refresh skipped after transient page failure; "
                     + $"shared retry in {retryDelay.TotalSeconds:F0}s ({ex.Message})");

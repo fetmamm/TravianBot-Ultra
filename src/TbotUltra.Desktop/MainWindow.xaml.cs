@@ -116,7 +116,7 @@ public partial class MainWindow : Window
     private readonly IDesktopBotService _botService;
     private readonly HeroPanelService _heroPanelService;
     private readonly ResourcesPanelService _resourcesPanelService;
-    private readonly IFarmListsWorkflow _farmListsWorkflow;
+    private readonly FarmListsWorkflow _farmListsWorkflow;
     private readonly FarmListsDialogAdapter _farmListsDialogs;
     private readonly BuildingsPanelService _buildingsPanelService;
     private readonly TroopTrainingPanelService _troopTrainingPanelService;
@@ -202,19 +202,6 @@ public partial class MainWindow : Window
     private long _operationCounter;
     private readonly LoopController _loopController;
     private readonly AutomationDesk _automationDesk;
-    private readonly AutomationQueueItemLifecycle _automationQueueItemLifecycle;
-    private readonly AutomationQueueSelectionCoordinator _automationQueueSelection;
-    private readonly ContinuousAutomationForecastCoordinator _continuousAutomationForecast;
-    private readonly ContinuousRuntimeItemPreparation _continuousRuntimeItemPreparation;
-    private readonly ContinuousIdlePacing _continuousIdlePacing;
-    private readonly ContinuousVillageStatusRound _continuousVillageStatusRound;
-    private readonly AutomationPassRuntime _automationPassRuntime = new();
-    private readonly AutomationIdlePacing _automationIdlePacing = new();
-    private readonly AutomationNetworkBackoff _automationNetworkBackoff = new();
-    private readonly AutomationProxyRecoveryRuntime _automationProxyRecoveryRuntime = new();
-    private readonly AutomationSessionRuntime _automationSessionRuntime = new();
-    private readonly VillageStatusRoundRuntime _villageStatusRoundRuntime;
-    private readonly VillageStatusRoundCoordinator _villageStatusRoundCoordinator = new();
     private readonly VillageStatusReactionCoordinator<VillageSelectionItem, VillageStatus> _villageStatusReactionCoordinator = new();
     private readonly BackgroundTaskTracker _backgroundTasks = new();
     private readonly SessionPacer _sessionPacer = new();
@@ -487,18 +474,7 @@ public partial class MainWindow : Window
         var queueScheduler = new PriorityFifoQueueScheduler();
         var queueExecutor = new QueueExecutor(taskRunner);
         _botService = new DesktopBotService(taskRunner, queueStore, queueScheduler, queueExecutor);
-        var automationAdapter = new MainWindowAutomationAdapter(this, _projectRoot);
-        _automationQueueSelection = automationAdapter.QueueSelection;
-        _continuousAutomationForecast = automationAdapter.Forecast;
-        _continuousRuntimeItemPreparation = automationAdapter.RuntimeItemPreparation;
-        _continuousIdlePacing = automationAdapter.IdlePacing;
-        _villageStatusRoundRuntime = automationAdapter.VillageStatusRoundRuntime;
-        _continuousVillageStatusRound = automationAdapter.VillageStatusRound;
-        _automationQueueItemLifecycle = automationAdapter.QueueItemLifecycle;
-        _automationDesk = new AutomationDesk(
-            _loopController,
-            automationAdapter.ContinuousLoop,
-            automationAdapter.AutoQueue);
+        _automationDesk = MainWindowAutomationAdapter.Create(this, _projectRoot, _loopController);
         _automationDesk.Updated += AutomationDesk_Updated;
         _heroPanelService = new HeroPanelService(new DesktopHeroPanelClient(_botService), _botConfigStore);
         _resourcesPanelService = new ResourcesPanelService(_botConfigStore, _villageSettingsStore);
@@ -1247,7 +1223,7 @@ public partial class MainWindow : Window
                 // Build/feature pages are not authoritative and must keep the sync request pending.
                 if (status.ActiveConstructionsFromOverview)
                 {
-                    _automationSessionRuntime.MarkConstructionStatusSynchronized();
+                    _automationDesk.MarkConstructionStatusSynchronized();
                 }
 
                 RefreshVillageActivityIndicatorsOnDashboard();

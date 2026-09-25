@@ -174,6 +174,87 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
+    public void FromConfiguration_DoesNotLoadRuntimeFarmListCursor()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [BotOptionPayloadKeys.ContinuousFarmNextListIndex] = "7",
+            })
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.Equal(0, options.ContinuousFarmNextListIndex);
+    }
+
+    [Fact]
+    public void FromConfiguration_LoadsAndNormalizesAccountOnlyDomainSettings()
+    {
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?>
+            {
+                [BotOptionPayloadKeys.FarmListOnlyCreateReportsWithLosses] = "false",
+                [BotOptionPayloadKeys.TownHallCelebrationRestartDelayMinMinutes] = "17.5",
+                [BotOptionPayloadKeys.HeroAdventureRestartDelayMinMinutes] = "13.5",
+                [BotOptionPayloadKeys.HeroHpRegenPerDayPercent] = "10",
+                [BotOptionPayloadKeys.ContinuousKeepAliveMaxMinutes] = "45",
+                [BotOptionPayloadKeys.VillageStatusSweepWorkshopEnabled] = "true",
+                [BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMinMinutes] = "6.5",
+                [BotOptionPayloadKeys.SmithyUpgradeRestartDelayMinMinutes] = "9.5",
+                [BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMin] = "0.25",
+                [BotOptionPayloadKeys.DemolishDelayMaxMinutes] = "2000",
+                [BotOptionPayloadKeys.DetailedBrowserLoggingEnabled] = "true",
+                [BotOptionPayloadKeys.TurnOffVideoSound] = "false",
+            })
+            .Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.False(options.FarmListOnlyCreateReportsWithLosses);
+        Assert.Equal(17.5, options.TownHallCelebrationRestartDelayMinMinutes);
+        Assert.Equal(13.5, options.HeroAdventureRestartDelayMinMinutes);
+        Assert.Equal(20, options.HeroHpRegenPerDayPercent);
+        Assert.Equal(45, options.ContinuousKeepAliveMaxMinutes);
+        Assert.True(options.VillageStatusSweepWorkshopEnabled);
+        Assert.Equal(6.5, options.ActionPacingIdleBrowseIntervalMinMinutes);
+        Assert.Equal(9.5, options.SmithyUpgradeRestartDelayMinMinutes);
+        Assert.Equal(0.25, options.ConstructionHumanizeQueuePercentMin);
+        Assert.Equal(1440, options.DemolishDelayMaxMinutes);
+        Assert.True(options.DetailedBrowserLoggingEnabled);
+        Assert.False(options.TurnOffVideoSound);
+    }
+
+    [Fact]
+    public void Apply_PreservesAccountOnlyDomainSettings()
+    {
+        var source = new BotOptions
+        {
+            FarmListOnlyCreateReportsWithLosses = false,
+            HeroAdventureRestartDelayMinMinutes = 13.5,
+            ContinuousKeepAliveMaxMinutes = 45,
+            SmithyUpgradeRestartDelayMinMinutes = 9.5,
+            DetailedBrowserLoggingEnabled = true,
+        };
+        var payload = new Dictionary<string, string>
+        {
+            [BotOptionPayloadKeys.FarmListOnlyCreateReportsWithLosses] = "true",
+            [BotOptionPayloadKeys.HeroAdventureRestartDelayMinMinutes] = "1",
+            [BotOptionPayloadKeys.ContinuousKeepAliveMaxMinutes] = "1",
+            [BotOptionPayloadKeys.SmithyUpgradeRestartDelayMinMinutes] = "1",
+            [BotOptionPayloadKeys.DetailedBrowserLoggingEnabled] = "false",
+        };
+
+        var options = BotOptionsPayloadApplier.Apply(source, payload);
+
+        Assert.False(options.FarmListOnlyCreateReportsWithLosses);
+        Assert.Equal(13.5, options.HeroAdventureRestartDelayMinMinutes);
+        Assert.Equal(45, options.ContinuousKeepAliveMaxMinutes);
+        Assert.Equal(9.5, options.SmithyUpgradeRestartDelayMinMinutes);
+        Assert.True(options.DetailedBrowserLoggingEnabled);
+    }
+
+    [Fact]
     public void FromConfiguration_FarmListLastSentDisplay_DefaultsAndClamps()
     {
         var defaults = new ConfigurationBuilder().AddInMemoryCollection().Build();

@@ -7,7 +7,10 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private sealed class MainWindowAutomationQueueSelectionPort(MainWindow owner)
+    private sealed class MainWindowAutomationQueueSelectionPort(
+        MainWindow owner,
+        AutomationQueueEligibility queueEligibility,
+        AutomationPassRuntime passRuntime)
         : IAutomationQueueSelectionPort
     {
         public string? ActiveVillageKey => owner._activeWorkingVillageKey;
@@ -19,21 +22,21 @@ public partial class MainWindow
         public string? GetVillageKey(QueueItem item) => owner.GetQueueItemVillageKey(item);
         public string? GetVillageName(QueueItem item) => GetQueueItemVillageName(item);
         public bool IsAllowedByAutomationSettings(QueueItem item) =>
-            owner.IsQueueItemAllowedByAutomationSettings(item);
+            queueEligibility.IsAllowed(item);
         public bool IsUtilityEnabled(string taskName, BotOptions options) =>
             owner.IsAutoCollectUtilityTaskEnabledNow(taskName, options);
         public IReadOnlyList<QueueGroup> GetConsideredGroups() =>
             owner.GetContinuousLoopConsideredGroupsInOrder();
         public VillageBatchSnapshot SnapshotVillageBatch() =>
-            owner._automationPassRuntime.SnapshotVillageBatch(owner._activeWorkingVillageKey);
+            passRuntime.SnapshotVillageBatch(owner._activeWorkingVillageKey);
         public QueueItem? SelectReadyConstruction(
             IReadOnlyList<QueueItem> villageItems,
             DateTimeOffset now,
             bool preview) => owner.SelectReadyConstructionForAutomationPass(villageItems, now, preview);
         public void CompleteUrgentPreemption() =>
-            owner._automationPassRuntime.CompleteUrgentPreemption(owner._activeWorkingVillageKey);
+            passRuntime.CompleteUrgentPreemption(owner._activeWorkingVillageKey);
         public void RecordUrgentPreemption(string? targetVillageKey) =>
-            owner._automationPassRuntime.RecordUrgentPreemption(
+            passRuntime.RecordUrgentPreemption(
                 owner._activeWorkingVillageKey,
                 targetVillageKey);
         public string FormatServerTime(DateTimeOffset value) => owner.FormatQueueServerTime(value);

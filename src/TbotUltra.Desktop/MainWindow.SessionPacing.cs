@@ -99,7 +99,7 @@ public partial class MainWindow
             config,
             BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears,
             PacingDefaults.SmartSleepWakeWhenConstructionQueueClears);
-        _automationPassRuntime.SetSmartSleepDeadlineGroups(SmartSleepDeadlinePolicy.ReadGroups(
+        _automationDesk.SetSmartSleepDeadlineGroups(SmartSleepDeadlinePolicy.ReadGroups(
             config[BotOptionPayloadKeys.SmartSleepDeadlineGroups]));
         _sessionSleepMinMinutes = ReadInt(
             config,
@@ -130,62 +130,6 @@ public partial class MainWindow
             RunTimerEnabled: sessionPacingEnabled),
             reloadRuntime);
         ConfigureProxyPlanTransition(accountName);
-    }
-
-    private IReadOnlyDictionary<Guid, DateTimeOffset> ResolveSmartSleepQueueDeadlineOverrides(
-        IEnumerable<QueueItem> items,
-        DateTimeOffset now)
-    {
-        var overrides = new Dictionary<Guid, DateTimeOffset>();
-        var candidates = new List<(QueueItem Item, DateTimeOffset Deadline)>();
-        if (!_smartSleepWakeWhenConstructionQueueClears)
-        {
-            return overrides;
-        }
-
-        foreach (var item in items.Where(item =>
-                     item.Status == QueueStatus.Pending
-                     && item.Group == QueueGroup.Construction))
-        {
-            var queueClearDelay = ConstructionQueueState.ResolveSmartSleepQueueClearDelay(
-                ResolveBuildingStatusForQueueItem(item),
-                _travianPlusActive,
-                item,
-                now);
-            if (queueClearDelay is not { } delay || delay <= TimeSpan.Zero)
-            {
-                continue;
-            }
-
-            var queueClearDeadline = now.Add(delay);
-            var effectiveDeadline = item.NextAttemptAt > queueClearDeadline
-                ? item.NextAttemptAt
-                : queueClearDeadline;
-            overrides[item.Id] = effectiveDeadline;
-            candidates.Add((item, effectiveDeadline));
-        }
-
-        if (candidates.Count > 0)
-        {
-            var selected = candidates
-                .OrderBy(candidate => candidate.Deadline)
-                .ThenBy(candidate => candidate.Item.Id)
-                .First();
-            var distinctDeadlineCount = candidates
-                .Select(candidate => candidate.Deadline)
-                .Distinct()
-                .Count();
-            var villageName = NormalizeVillageName(GetQueueItemVillageName(selected.Item)) ?? "-";
-            AppendLoopPickVerbose(
-                $"[smart-sleep] construction deadline summary: candidates={candidates.Count}, "
-                + $"distinctDeadlines={distinctDeadlineCount}, selected='{FormatQueueServerTime(selected.Deadline)}', "
-                + $"task='{selected.Item.DisplayName ?? selected.Item.TaskName}', village='{villageName}', "
-                + $"itemId={selected.Item.Id}, mode=queue-clear.",
-                $"smart-sleep:construction-summary:{selected.Item.Id}:{selected.Deadline.UtcTicks}:"
-                    + $"{candidates.Count}:{distinctDeadlineCount}");
-        }
-
-        return overrides;
     }
 
     private void PersistSessionPacingRuntimeState()
@@ -239,8 +183,8 @@ public partial class MainWindow
 
     private void ResetSessionPacing()
     {
-        _villageStatusRoundRuntime.SetForceOnWakeRequest(false);
-        _automationPassRuntime.PrioritizeDeadlineWorkOnWake = false;
+        _automationDesk.SetForceVillageStatusRoundOnWake(false);
+        _automationDesk.PrioritizeDeadlineWorkOnWake = false;
         _pacingPauseRequestCount = 0;
         _sessionSleepLifecycle.Reset();
     }
@@ -797,8 +741,8 @@ public partial class MainWindow
         var requested = _sessionPacer.RequestSmartSleep(effectiveWakeAt);
         if (requested)
         {
-            _villageStatusRoundRuntime.SetForceOnWakeRequest(plan.UsesFallback);
-            _automationPassRuntime.PrioritizeDeadlineWorkOnWake = !plan.UsesFallback;
+            _automationDesk.SetForceVillageStatusRoundOnWake(plan.UsesFallback);
+            _automationDesk.PrioritizeDeadlineWorkOnWake = !plan.UsesFallback;
         }
         return requested;
     }

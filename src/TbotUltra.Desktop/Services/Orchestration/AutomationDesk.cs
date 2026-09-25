@@ -1,3 +1,7 @@
+using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Tasks;
+using TbotUltra.Worker.Domain;
+
 namespace TbotUltra.Desktop.Services.Orchestration;
 
 /// <summary>
@@ -12,6 +16,7 @@ public sealed class AutomationDesk : IAutomationDesk, IAsyncDisposable
     private readonly TimeProvider _timeProvider;
     private readonly Func<TimeSpan, CancellationToken, Task> _delayAsync;
     private readonly AutomationNetworkBackoff _networkBackoff;
+    private readonly AutomationRuntime? _runtime;
     private readonly object _sync = new();
     private readonly object _publicationSync = new();
     private readonly SortedDictionary<long, AutomationUpdate> _pendingPublications = [];
@@ -42,7 +47,7 @@ public sealed class AutomationDesk : IAutomationDesk, IAsyncDisposable
         IAutomationModePassPort autoQueue,
         TimeProvider? timeProvider = null,
         Func<TimeSpan, CancellationToken, Task>? delayAsync = null,
-        AutomationNetworkBackoff? networkBackoff = null)
+        AutomationRuntime? runtime = null)
     {
         _loopController = loopController;
         _continuousLoop = continuousLoop;
@@ -50,9 +55,228 @@ public sealed class AutomationDesk : IAutomationDesk, IAsyncDisposable
         _timeProvider = timeProvider ?? TimeProvider.System;
         _delayAsync = delayAsync ?? ((delay, cancellationToken) =>
             Task.Delay(delay, _timeProvider, cancellationToken));
-        _networkBackoff = networkBackoff ?? new AutomationNetworkBackoff(_timeProvider);
+        _networkBackoff = runtime?.NetworkBackoff ?? new AutomationNetworkBackoff(_timeProvider);
+        _runtime = runtime;
         _loopController.AutomationStopRequested += OnAutomationStopRequested;
     }
+
+    private AutomationRuntime Runtime => _runtime
+        ?? throw new InvalidOperationException("Automation runtime is not configured for this desk.");
+
+    internal long BeginContinuousPass() => Runtime.Pass.BeginContinuousPass();
+
+    internal long CurrentContinuousPassId => Runtime.Pass.CurrentContinuousPassId;
+
+    internal long AutoQueueRunLogId => Runtime.Pass.AutoQueueRunLogId;
+
+    internal void BeginAutoQueueRun(long logId) => Runtime.Pass.BeginAutoQueueRun(logId);
+
+    internal void RequestImmediateWork() => Runtime.Pass.RequestImmediateWork();
+
+    internal bool ConsumeImmediateWorkRequest() => Runtime.Pass.ConsumeImmediateWorkRequest();
+
+    internal bool IsImmediateWorkRequested => Runtime.Pass.IsImmediateWorkRequested;
+
+    internal bool PrioritizeDeadlineWorkOnWake
+    {
+        get => Runtime.Pass.PrioritizeDeadlineWorkOnWake;
+        set => Runtime.Pass.PrioritizeDeadlineWorkOnWake = value;
+    }
+
+    internal IReadOnlySet<QueueGroup> SmartSleepDeadlineGroups => Runtime.Pass.SmartSleepDeadlineGroups;
+
+    internal void SetSmartSleepDeadlineGroups(IReadOnlySet<QueueGroup> groups) =>
+        Runtime.Pass.SetSmartSleepDeadlineGroups(groups);
+
+    internal VillageBatchSnapshot SnapshotVillageBatch(string? verifiedVillageKey) =>
+        Runtime.Pass.SnapshotVillageBatch(verifiedVillageKey);
+
+    internal void ObserveVerifiedVillage(string? villageKey) => Runtime.Pass.ObserveVerifiedVillage(villageKey);
+
+    internal VillageBatchSnapshot RecordVillageAttempt(
+        string? targetVillageKey,
+        string? verifiedVillageKey) =>
+        Runtime.Pass.RecordVillageAttempt(targetVillageKey, verifiedVillageKey);
+
+    internal void RecordUrgentPreemption(string? currentVillageKey, string? targetVillageKey) =>
+        Runtime.Pass.RecordUrgentPreemption(currentVillageKey, targetVillageKey);
+
+    internal void CompleteUrgentPreemption(string? verifiedVillageKey) =>
+        Runtime.Pass.CompleteUrgentPreemption(verifiedVillageKey);
+
+    internal void ResetVillageBatch() => Runtime.Pass.ResetVillageBatch();
+
+    internal void ResetIdlePacing() => Runtime.IdlePacingState.Reset();
+
+    internal int ConsecutiveNetworkFailures => Runtime.NetworkBackoff.ConsecutiveFailures;
+
+    internal bool IsNetworkUnavailable => Runtime.NetworkBackoff.IsUnavailable;
+
+    internal TimeSpan NetworkBackoffRemaining => Runtime.NetworkBackoff.Remaining;
+
+    internal TimeSpan NextNetworkRetryDelay() => Runtime.NetworkBackoff.NextRetryDelay();
+
+    internal void MarkNetworkUnavailable(TimeSpan delay) => Runtime.NetworkBackoff.MarkUnavailable(delay);
+
+    internal void MarkNetworkHealthy() => Runtime.NetworkBackoff.MarkHealthy();
+
+    internal bool TryReserveProxyRecovery(int consecutiveFailures, int failureThreshold) =>
+        Runtime.ProxyRecovery.TryReserve(consecutiveFailures, failureThreshold);
+
+    internal void ReleaseProxyRecovery() => Runtime.ProxyRecovery.Release();
+
+    internal AutomationProxyRecoveryRetry ScheduleProxyRecoveryRetry() => Runtime.ProxyRecovery.ScheduleRetry();
+
+    internal void ResetProxyRecoveryRetry() => Runtime.ProxyRecovery.ResetRetry();
+
+    internal DateTimeOffset NextKeepAliveAtUtc => Runtime.Session.NextKeepAliveAtUtc;
+
+    internal bool ShouldCheckInbox(bool enabled, TimeSpan interval) => Runtime.Session.ShouldCheckInbox(enabled, interval);
+
+    internal void RecordBrowserActivity(bool enabled, int minMinutes, int maxMinutes) =>
+        Runtime.Session.RecordBrowserActivity(enabled, minMinutes, maxMinutes);
+
+    internal KeepAlivePlan PlanKeepAlive(
+        bool enabled,
+        int minMinutes,
+        int maxMinutes,
+        bool sessionSleeping,
+        bool refreshRunning,
+        bool workDueSoon,
+        DateTimeOffset? nextPendingAt) =>
+        Runtime.Session.PlanKeepAlive(
+            enabled,
+            minMinutes,
+            maxMinutes,
+            sessionSleeping,
+            refreshRunning,
+            workDueSoon,
+            nextPendingAt);
+
+    internal void MarkKeepAliveFailure() => Runtime.Session.MarkKeepAliveFailure();
+
+    internal GoldClubCheckPlan PlanGoldClubCheck(
+        string? accountName,
+        bool? storedEnabled,
+        TimeSpan inactiveRecheckInterval) =>
+        Runtime.Session.PlanGoldClubCheck(accountName, storedEnabled, inactiveRecheckInterval);
+
+    internal bool ApplyGoldClubStatus(bool enabled) => Runtime.Session.ApplyGoldClubStatus(enabled);
+
+    internal void RequestConstructionStatusSync() => Runtime.Session.RequestConstructionStatusSync();
+
+    internal bool ConstructionStatusNeedsSync => Runtime.Session.ConstructionStatusNeedsSync;
+
+    internal void MarkConstructionStatusSynchronized() => Runtime.Session.MarkConstructionStatusSynchronized();
+
+    internal bool ShouldPublishWarnings(string signature) => Runtime.Session.ShouldPublishWarnings(signature);
+
+    internal bool ShouldPublishIdleHeartbeat(TimeSpan interval) => Runtime.Session.ShouldPublishIdleHeartbeat(interval);
+
+    internal void MarkActivePass() => Runtime.Session.MarkActivePass();
+
+    internal bool ShouldPublishVerbose(string key, TimeSpan interval) =>
+        Runtime.Session.ShouldPublishVerbose(key, interval);
+
+    internal bool TrySetConstructionSummary(string villageKey, string state) =>
+        Runtime.Session.TrySetConstructionSummary(villageKey, state);
+
+    internal void ClearConstructionSummary(string villageKey) => Runtime.Session.ClearConstructionSummary(villageKey);
+
+    internal void ResetSessionRuntime() => Runtime.Session.Reset();
+
+    internal bool IsQueueItemAllowed(QueueItem item) => Runtime.QueueEligibility.IsAllowed(item);
+
+    internal bool IsGroupEnabled(string? villageKey, QueueGroup group) =>
+        Runtime.QueueEligibility.IsGroupEnabled(villageKey, group);
+
+    internal QueueItem? SelectQueueItem(
+        bool preview = false,
+        DateTimeOffset? evaluationTimeUtc = null,
+        string? villageKeyFilter = null,
+        IReadOnlyList<QueueItem>? queueItemsOverride = null) =>
+        Runtime.QueueSelection.Select(preview, evaluationTimeUtc, villageKeyFilter, queueItemsOverride);
+
+    internal QueueItem? SelectReadyPriorityQueueItem(BotOptions options) =>
+        Runtime.QueueSelection.SelectUrgent(options, new HashSet<Guid>(), explicitPriorityOnly: true);
+
+    internal ContinuousLoopForecast ResolveForecast(
+        DateTimeOffset now,
+        string? villageKeyFilter = null,
+        IReadOnlyList<QueueItem>? queueItemsOverride = null,
+        bool wakeWhenConstructionQueueClears = false) =>
+        Runtime.Forecast.Resolve(now, villageKeyFilter, queueItemsOverride, wakeWhenConstructionQueueClears);
+
+    internal ContinuousAutomationDeadlineSnapshot ReadDeadlines(BotOptions options) =>
+        Runtime.Deadlines.Read(options);
+
+    internal ValueTask PrepareRuntimeItemsAsync(
+        BotOptions options,
+        CancellationToken cancellationToken,
+        AutomationRuntimeVillage? onlyVillage = null) =>
+        Runtime.RuntimeItemPreparation.PrepareAsync(options, cancellationToken, onlyVillage);
+
+    internal ValueTask MaybeTakeIdleBreakAsync(BotOptions options, CancellationToken cancellationToken) =>
+        Runtime.IdlePacing.MaybeTakeBreakAsync(options, cancellationToken);
+
+    internal ValueTask MaybeBrowseAsync(BotOptions options, CancellationToken cancellationToken) =>
+        Runtime.IdlePacing.MaybeBrowseAsync(options, cancellationToken);
+
+    internal DateTimeOffset GetNextVillageStatusRoundUtc(string? accountName) =>
+        Runtime.VillageStatusRoundState.GetNextRoundUtc(accountName);
+
+    internal bool ResetVillageStatusRound(string? accountName) => Runtime.VillageStatusRoundState.Reset(accountName);
+
+    internal VillageStatusRoundScheduleResult ScheduleNextVillageStatusRound(
+        string? expectedAccountName,
+        string? currentAccountName,
+        int minMinutes,
+        int maxMinutes) =>
+        Runtime.VillageStatusRoundState.ScheduleNext(
+            expectedAccountName,
+            currentAccountName,
+            minMinutes,
+            maxMinutes);
+
+    internal void RequestForcedVillageStatusRound() => Runtime.VillageStatusRoundState.RequestForce();
+
+    internal bool ConsumeForcedVillageStatusRoundRequest() => Runtime.VillageStatusRoundState.ConsumeForceRequest();
+
+    internal void SetForceVillageStatusRoundOnWake(bool requested) =>
+        Runtime.VillageStatusRoundState.SetForceOnWakeRequest(requested);
+
+    internal bool ConsumeForceVillageStatusRoundOnWake() => Runtime.VillageStatusRoundState.ConsumeForceOnWakeRequest();
+
+    internal bool TryBeginManualVillageStatusRound() => Runtime.VillageStatusRoundState.TryBeginManualRun();
+
+    internal void EndManualVillageStatusRound() => Runtime.VillageStatusRoundState.EndManualRun();
+
+    internal bool LoginVillageStatusRoundPending => Runtime.VillageStatusRound.LoginRoundPending;
+
+    internal void RequestLoginVillageStatusRound(bool preserveIncomplete = false) =>
+        Runtime.VillageStatusRound.RequestLoginRound(preserveIncomplete);
+
+    internal void ResetLoginVillageStatusRound() => Runtime.VillageStatusRound.ResetLoginRound();
+
+    internal ValueTask RunVillageStatusRoundAsync(
+        BotOptions options,
+        CancellationToken cancellationToken,
+        bool force = false) =>
+        Runtime.VillageStatusRound.RunIfDueAsync(options, cancellationToken, force);
+
+    internal ValueTask<bool> ExecuteVillageStatusTasksAsync(
+        BotOptions options,
+        AutomationRuntimeVillage village,
+        CancellationToken cancellationToken) =>
+        Runtime.VillageStatusTasks.ExecuteAsync(options, village, cancellationToken);
+
+    internal ValueTask<bool> ExecuteQueueItemAsync(
+        QueueItem item,
+        BotOptions options,
+        string logPrefix,
+        AutomationRunMode mode,
+        CancellationToken cancellationToken) =>
+        Runtime.QueueItemLifecycle.ExecuteAsync(item, options, logPrefix, mode, cancellationToken);
 
     public AutomationSnapshot Current
     {

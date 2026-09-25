@@ -1,6 +1,8 @@
+using Microsoft.Extensions.Configuration;
+
 namespace TbotUltra.Core.Configuration;
 
-internal sealed record ReinforcementPayloadValues(
+internal sealed record ReinforcementOptions(
     bool Enabled,
     string TargetVillageName,
     List<string> SourceVillageNames,
@@ -8,13 +10,36 @@ internal sealed record ReinforcementPayloadValues(
     int SendMinMinutes,
     int SendMaxMinutes);
 
-internal static class ReinforcementPayloadApplier
+internal static class ReinforcementOptionsModule
 {
-    internal static ReinforcementPayloadValues Apply(
+    internal static IReadOnlyList<string> AccountScopedKeys { get; } =
+    [
+        BotOptionPayloadKeys.ReinforcementsEnabled,
+        BotOptionPayloadKeys.ReinforcementsTargetVillageName,
+        BotOptionPayloadKeys.ReinforcementsSourceVillageNames,
+        BotOptionPayloadKeys.ReinforcementsTroopRules,
+        BotOptionPayloadKeys.ReinforcementsSendMinMinutes,
+        BotOptionPayloadKeys.ReinforcementsSendMaxMinutes,
+    ];
+
+    internal static ReinforcementOptions FromConfiguration(IConfiguration configuration)
+        => new(
+            configuration.GetValue(BotOptionPayloadKeys.ReinforcementsEnabled, false),
+            configuration[BotOptionPayloadKeys.ReinforcementsTargetVillageName] ?? string.Empty,
+            configuration.GetSection(BotOptionPayloadKeys.ReinforcementsSourceVillageNames).Get<List<string>>() ?? [],
+            NormalizeTroopRules(configuration.GetSection(BotOptionPayloadKeys.ReinforcementsTroopRules).Get<List<ReinforcementTroopRule>>() ?? []),
+            ReinforcementSendDefaults.NormalizeSendMinMinutes(configuration.GetValue(
+                BotOptionPayloadKeys.ReinforcementsSendMinMinutes,
+                ReinforcementSendDefaults.DefaultSendMinMinutes)),
+            ReinforcementSendDefaults.NormalizeSendMaxMinutes(configuration.GetValue(
+                BotOptionPayloadKeys.ReinforcementsSendMaxMinutes,
+                ReinforcementSendDefaults.DefaultSendMaxMinutes)));
+
+    internal static ReinforcementOptions Apply(
         BotOptions source,
         IReadOnlyDictionary<string, string>? payload)
     {
-        var result = new ReinforcementPayloadValues(
+        var result = new ReinforcementOptions(
             source.ReinforcementsEnabled,
             source.ReinforcementsTargetVillageName,
             source.ReinforcementsSourceVillageNames,
@@ -68,6 +93,17 @@ internal static class ReinforcementPayloadApplier
         return result;
     }
 
+    internal static BotOptions ApplyTo(this ReinforcementOptions values, BotOptions source)
+        => source with
+        {
+            ReinforcementsEnabled = values.Enabled,
+            ReinforcementsTargetVillageName = values.TargetVillageName,
+            ReinforcementsSourceVillageNames = values.SourceVillageNames,
+            ReinforcementsTroopRules = values.TroopRules,
+            ReinforcementsSendMinMinutes = values.SendMinMinutes,
+            ReinforcementsSendMaxMinutes = values.SendMaxMinutes,
+        };
+
     private static List<string> ParseVillageNames(string value)
         => value
             .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
@@ -94,4 +130,12 @@ internal static class ReinforcementPayloadApplier
             return [];
         }
     }
+
+    private static List<ReinforcementTroopRule> NormalizeTroopRules(IEnumerable<ReinforcementTroopRule> rules)
+        => rules
+            .Where(rule => rule is not null && !string.IsNullOrWhiteSpace(rule.TroopType))
+            .Select(rule => rule.Normalize())
+            .GroupBy(rule => $"{rule.AccountName}\u001f{rule.SourceVillageName}\u001f{rule.TroopType}", StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
 }

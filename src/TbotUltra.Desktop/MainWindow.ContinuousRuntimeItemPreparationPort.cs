@@ -9,7 +9,9 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private sealed class MainWindowContinuousRuntimeItemPreparationPort(MainWindow owner)
+    private sealed class MainWindowContinuousRuntimeItemPreparationPort(
+        MainWindow owner,
+        AutomationQueueEligibility queueEligibility)
         : IContinuousRuntimeItemPreparationPort
     {
         private readonly MainWindowAutomationRuntimeQueuePort _runtimeQueue = new(owner);
@@ -33,7 +35,7 @@ public partial class MainWindow
             owner.GetContinuousLoopConsideredGroupsInOrder();
         public IReadOnlySet<QueueGroup> GetEnabledGroupsForVillage(string villageKey) =>
             QueueGroupCatalog.AllGroups
-                .Where(group => owner.IsGroupEnabledForVillage(villageKey, group))
+                .Where(group => queueEligibility.IsGroupEnabled(villageKey, group))
                 .ToHashSet();
         public bool ShouldKeepHeroAdventurePolling() => owner.ShouldKeepHeroAdventurePolling();
         public IReadOnlyList<QueueItem> GetQueueItems() => owner._botService.GetQueueItemsForDisplay();

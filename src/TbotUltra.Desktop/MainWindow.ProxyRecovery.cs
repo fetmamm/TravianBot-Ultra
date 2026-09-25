@@ -11,8 +11,8 @@ public partial class MainWindow
     private const int AutomaticProxyRecoveryFailureThreshold = 3;
     private bool TryScheduleAutomaticProxyRecovery(BotOptions options)
     {
-        if (!_automationProxyRecoveryRuntime.TryReserve(
-                _automationNetworkBackoff.ConsecutiveFailures,
+        if (!_automationDesk.TryReserveProxyRecovery(
+                _automationDesk.ConsecutiveNetworkFailures,
                 AutomaticProxyRecoveryFailureThreshold))
         {
             return false;
@@ -23,7 +23,7 @@ public partial class MainWindow
             || string.IsNullOrWhiteSpace(account.ProxyServer)
             || !ProxyParser.TryBuild(account.ProxyServer, out _, out _))
         {
-            _automationProxyRecoveryRuntime.Release();
+            _automationDesk.ReleaseProxyRecovery();
             return false;
         }
 
@@ -165,7 +165,7 @@ public partial class MainWindow
         }
         finally
         {
-            _automationProxyRecoveryRuntime.Release();
+            _automationDesk.ReleaseProxyRecovery();
         }
     }
 
@@ -176,9 +176,9 @@ public partial class MainWindow
             return;
         }
 
-        var retry = _automationProxyRecoveryRuntime.ScheduleRetry();
+        var retry = _automationDesk.ScheduleProxyRecoveryRetry();
         var retryDelay = retry.Delay;
-        _automationNetworkBackoff.MarkUnavailable(retryDelay);
+        _automationDesk.MarkNetworkUnavailable(retryDelay);
         StatusTextBlock.Text = $"Connection unavailable. Retrying in {retryDelay.TotalMinutes:F0} min.";
         AppendLog(
             $"[proxy-recovery] {reason} Retry {retry.Attempt} scheduled in "
@@ -188,6 +188,6 @@ public partial class MainWindow
 
     private void ResetAutomaticProxyRecoveryRetry()
     {
-        _automationProxyRecoveryRuntime.ResetRetry();
+        _automationDesk.ResetProxyRecoveryRetry();
     }
 }

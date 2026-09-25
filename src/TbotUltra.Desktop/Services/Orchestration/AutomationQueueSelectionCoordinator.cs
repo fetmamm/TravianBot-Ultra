@@ -29,6 +29,14 @@ internal interface IAutomationQueueSelectionPort
 
 internal sealed class AutomationQueueSelectionCoordinator(IAutomationQueueSelectionPort port)
 {
+    internal IReadOnlyList<QueueItem> GetEligibleItems()
+    {
+        var options = port.LoadOptions();
+        return port.GetQueueItems()
+            .Where(port.IsAllowedByAutomationSettings)
+            .ToList();
+    }
+
     internal QueueItem? Select(
         bool preview = false,
         DateTimeOffset? evaluationTimeUtc = null,
@@ -43,6 +51,102 @@ internal sealed class AutomationQueueSelectionCoordinator(IAutomationQueueSelect
 
         var queueItems = queueItemsOverride ?? port.GetQueueItems();
         var now = evaluationTimeUtc ?? DateTimeOffset.UtcNow;
+        var result = Evaluate(options, queueItems, now, villageKeyFilter, preview, activeVillageKey: null);
+        if (!preview)
+        {
+            ApplySelectionResult(result, port.SnapshotVillageBatch(), options);
+        }
+
+        return result.Selected;
+    }
+
+    internal QueueItem? SelectUrgent(
+        BotOptions options,
+        IReadOnlySet<Guid> attemptedItemIds,
+        bool explicitPriorityOnly)
+    {
+        var queueItems = port.GetQueueItems()
+            .Where(item => !attemptedItemIds.Contains(item.Id))
+            .Where(item => !explicitPriorityOnly || item.Priority > 0)
+            .ToList();
+        var result = Evaluate(
+            options,
+            queueItems,
+            DateTimeOffset.UtcNow,
+            villageKeyFilter: null,
+            preview: true,
+            activeVillageKey: null);
+        return result.Reason == AutomationQueueSelectionReason.UrgentPreemption
+            ? result.Selected
+            : null;
+    }
+
+    internal AutomationQueueSelectionResult PreviewVillageHold(
+        BotOptions options,
+        IReadOnlySet<Guid> attemptedItemIds,
+        string villageKey)
+    {
+        var queueItems = port.GetQueueItems()
+            .Where(item => !attemptedItemIds.Contains(item.Id))
+            .ToList();
+        return Evaluate(
+            options,
+            queueItems,
+            DateTimeOffset.UtcNow,
+            villageKeyFilter: null,
+            preview: true,
+            activeVillageKey: villageKey);
+    }
+
+    internal QueueItem? SelectVillageStatusItem(
+        string villageKey,
+        IReadOnlySet<Guid> attemptedItemIds)
+    {
+        var now = DateTimeOffset.UtcNow;
+        var candidates = port.GetQueueItems()
+            .Select(item => new ContinuousLoopSelectionCandidate(
+                item,
+                port.GetVillageKey(item),
+                port.IsAllowedByAutomationSettings(item),
+                IsUtilityEnabled: false))
+            .Where(candidate => ContinuousLoopSelector.IsVillageStatusSweepCandidate(candidate, villageKey))
+            .ToList();
+        var plan = ContinuousLoopSelector.CreatePlan(new ContinuousLoopSelectionInput(
+            candidates,
+            port.GetConsideredGroups()));
+        var villageKeys = candidates.ToDictionary(candidate => candidate.Item.Id, candidate => candidate.VillageKey);
+
+        foreach (var group in plan.OrderedGroups)
+        {
+            var villageItems = ContinuousLoopSelector.SelectVillageItems(
+                plan.OrderedItemsByGroup[group],
+                villageKeys,
+                villageKey);
+            if (villageItems.Count == 0)
+            {
+                continue;
+            }
+
+            var candidate = group == QueueGroup.Construction
+                ? port.SelectReadyConstruction(villageItems, now, preview: false)
+                : ContinuousLoopSelector.SelectReadyGroupHead(villageItems, now);
+            if (candidate is not null && !attemptedItemIds.Contains(candidate.Id))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private AutomationQueueSelectionResult Evaluate(
+        BotOptions options,
+        IReadOnlyList<QueueItem> queueItems,
+        DateTimeOffset now,
+        string? villageKeyFilter,
+        bool preview,
+        string? activeVillageKey)
+    {
         var selectionCandidates = queueItems
             .Select(item => new ContinuousLoopSelectionCandidate(
                 item,
@@ -56,23 +160,16 @@ internal sealed class AutomationQueueSelectionCoordinator(IAutomationQueueSelect
                     villageKeyFilter,
                     StringComparison.OrdinalIgnoreCase))
             .ToList();
-        var batch = port.SnapshotVillageBatch();
-        var result = AutomationQueueSelector.Select(
+        return AutomationQueueSelector.Select(
             new AutomationQueueSelectionInput(
                 selectionCandidates,
                 port.GetConsideredGroups(),
-                batch,
-                port.ActiveVillageKey,
+                port.SnapshotVillageBatch(),
+                activeVillageKey ?? port.ActiveVillageKey,
                 now,
                 options.ShortVillageDeferSeconds,
                 preview),
             port.SelectReadyConstruction);
-        if (!preview)
-        {
-            ApplySelectionResult(result, batch, options);
-        }
-
-        return result.Selected;
     }
 
     private void ApplySelectionResult(
