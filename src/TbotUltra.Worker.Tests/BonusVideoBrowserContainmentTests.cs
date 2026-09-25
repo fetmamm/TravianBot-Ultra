@@ -1,3 +1,4 @@
+using TbotUltra.Worker.Infrastructure;
 using Xunit;
 
 namespace TbotUltra.Worker.Tests;
@@ -25,8 +26,43 @@ public sealed class BonusVideoBrowserContainmentTests
     public void IsolatedBonusBrowser_KeepsChromesNativePopupBlockerEnabled()
     {
         Assert.Contains(
-            "CreateChromiumLaunchOptions(keepNativePopupBlocker: true)",
+            "CreateChromiumLaunchOptions(keepNativePopupBlocker: true, startMinimized: true)",
             ReadBonusVideoSource(),
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void IsolatedBonusBrowser_ReassertsMinimizedWindowStateAfterPageCreation()
+    {
+        var source = ReadBonusVideoSource();
+        var pageCreated = source.IndexOf("videoContext.NewPageAsync", StringComparison.Ordinal);
+        var minimized = source.IndexOf("MinimizeBrowserWindowAsync", pageCreated, StringComparison.Ordinal);
+        var actionStarted = source.IndexOf("action(page, phaseTimeout.Token)", pageCreated, StringComparison.Ordinal);
+
+        Assert.True(minimized > pageCreated, "The isolated browser must be minimized after its page is created.");
+        Assert.True(actionStarted > minimized, "The browser must be minimized before the video action starts.");
+    }
+
+    [Theory]
+    [InlineData(false, "--start-maximized", "--start-minimized")]
+    [InlineData(true, "--start-minimized", "--start-maximized")]
+    public void ChromiumLaunchArguments_UseOnlyTheRequestedWindowState(
+        bool startMinimized,
+        string expected,
+        string forbidden)
+    {
+        var arguments = BrowserSession.CreateChromiumLaunchArguments(startMinimized);
+
+        Assert.Contains(expected, arguments);
+        Assert.DoesNotContain(forbidden, arguments);
+    }
+
+    [Fact]
+    public void MainBrowser_RemainsMaximized()
+    {
+        Assert.Contains(
+            "startMinimized: false",
+            ReadBrowserSessionSource(),
             StringComparison.Ordinal);
     }
 

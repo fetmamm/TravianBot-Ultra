@@ -235,7 +235,8 @@ public sealed partial class BrowserSession : IAsyncDisposable
                 throw;
             }
             var launchOptions = CreateChromiumLaunchOptions(
-                keepNativePopupBlocker: ShouldKeepNativePopupBlocker(_account.ManualLogin));
+                keepNativePopupBlocker: ShouldKeepNativePopupBlocker(_account.ManualLogin),
+                startMinimized: false);
             // Record the process this launch creates so a crashed run's browser window can be closed on the
             // next start. The session runs the user's system Chrome, so its processes are indistinguishable
             // from the user's own by name or path — only the recorded identity makes cleanup safe.
@@ -706,7 +707,9 @@ public sealed partial class BrowserSession : IAsyncDisposable
         }
     }
 
-    private BrowserTypeLaunchOptions CreateChromiumLaunchOptions(bool keepNativePopupBlocker)
+    private BrowserTypeLaunchOptions CreateChromiumLaunchOptions(
+        bool keepNativePopupBlocker,
+        bool startMinimized)
     {
         // The live session must always run with a visible window. Headless is forced off here so a
         // stale config value (or a missing browser window) can never start the bot headless.
@@ -752,12 +755,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
         // --disable-blink-features=AutomationControlled removes the `navigator.webdriver` automation
         // flag at the source (the single most common bot tell); an init-script below also clears it as
         // a belt-and-suspenders fallback for the real Chrome/Edge channel.
-        launchOptions.Args = new[]
-        {
-            "--disable-features=TrackingProtection3pcd",
-            "--disable-blink-features=AutomationControlled",
-            "--start-maximized",
-        };
+        launchOptions.Args = CreateChromiumLaunchArguments(startMinimized);
 
         // The bonus ad videos are H.264/AAC, which Playwright's bundled open-source Chromium
         // cannot decode ("format is not supported"). Use the system Google Chrome build, which
@@ -776,6 +774,13 @@ public sealed partial class BrowserSession : IAsyncDisposable
 
         return launchOptions;
     }
+
+    internal static string[] CreateChromiumLaunchArguments(bool startMinimized) =>
+        [
+            "--disable-features=TrackingProtection3pcd",
+            "--disable-blink-features=AutomationControlled",
+            startMinimized ? "--start-minimized" : "--start-maximized",
+        ];
 
     private Proxy? ResolveContextProxy()
         => _account.ProxyEnabled

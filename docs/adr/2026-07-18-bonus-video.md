@@ -8,6 +8,8 @@ Active decision, extracted from `ENGINEERING_NOTES.md` on 2026-07-18.
 
 - Bonus-video traffic uses the account's current route and proxy. Never bypass the proxy or change IP only
   for video.
+- Isolated bonus-video Chrome starts minimized and reasserts that window state before video work. The normal
+  Travian browser remains maximized, and a failed minimize confirmation must not abort the video attempt.
 - Isolated video has separate 60-second setup and 240-second action caps. Expected provider failure must not
   block construction, hero dispatch, or other automation.
 - Construct, resource, production, and hero bonus videos share one post-play policy: the protected 60-second

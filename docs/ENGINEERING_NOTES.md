@@ -834,8 +834,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   signal: poll for autoplay or a safe play control for at least 20 seconds after the player appears, then begin the
   normal protected completion wait and attempt optional muting instead of closing the isolated browser.
   Isolated video browsers keep Chrome's native popup blocker and suppress `window.open`, `_blank`, and external-protocol
-  escapes before their first page. Include every isolated launch in PID+start-time ownership tracking; cleanup may
-  terminate only recorded identities and must never kill Chrome by name or executable path alone.
+  escapes before their first page. They start minimized and reassert that state before video work so they do not take
+  foreground focus; the normal browser remains maximized. Include every isolated launch in PID+start-time ownership
+  tracking; cleanup may terminate only recorded identities and must never kill Chrome by name or executable path alone.
 - One `activate_production_bonus` run is a contiguous four-resource batch: after its initial cooldown gate,
   attempt every resource found activatable before returning control to other automation. A failure or newly
   created internal video cooldown for one resource must not stop the remaining resources in that same batch.

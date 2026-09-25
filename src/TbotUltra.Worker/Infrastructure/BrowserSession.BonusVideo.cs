@@ -48,7 +48,7 @@ public sealed partial class BrowserSession
             await ClearTransientExternalStorageOriginsAsync(force: true).WaitAsync(phaseTimeout.Token);
             var stateJson = FilterForeignSubdomainState(await _context.StorageStateAsync().WaitAsync(phaseTimeout.Token));
 
-            var launchOptions = CreateChromiumLaunchOptions(keepNativePopupBlocker: true);
+            var launchOptions = CreateChromiumLaunchOptions(keepNativePopupBlocker: true, startMinimized: true);
             videoBrowser = await LaunchedBrowserRegistry.TrackAsync(
                     _projectRoot,
                     launchOptions.Channel,
@@ -82,6 +82,7 @@ public sealed partial class BrowserSession
 
             var page = await videoContext.NewPageAsync().WaitAsync(phaseTimeout.Token);
             _browserTrace.AttachPage(page, "bonus-video-main");
+            await MinimizeBrowserWindowAsync(videoContext, page, phaseTimeout.Token);
             _log?.Invoke("[browser-video] isolated bonus-video browser opened.");
 
             phaseTimeout.Dispose();
@@ -181,6 +182,64 @@ public sealed partial class BrowserSession
 
     private string BuildBonusVideoCooldownKey()
         => $"{_account.Name}|{(_account.ProxyEnabled ? _account.ProxyServer.Trim() : "direct")}";
+
+    private async Task MinimizeBrowserWindowAsync(
+        IBrowserContext context,
+        IPage page,
+        CancellationToken cancellationToken)
+    {
+        ICDPSession? cdp = null;
+        try
+        {
+            cdp = await context.NewCDPSessionAsync(page).WaitAsync(cancellationToken);
+            var response = await cdp
+                .SendAsync("Browser.getWindowForTarget")
+                .WaitAsync(cancellationToken);
+            if (!response.HasValue
+                || !response.Value.TryGetProperty("windowId", out var windowIdElement)
+                || !windowIdElement.TryGetInt32(out var windowId))
+            {
+                _log?.Invoke("[browser-video] could not confirm the isolated browser window id; continuing with its minimized launch flag.");
+                return;
+            }
+
+            await cdp
+                .SendAsync(
+                    "Browser.setWindowBounds",
+                    new Dictionary<string, object>
+                    {
+                        ["windowId"] = windowId,
+                        ["bounds"] = new Dictionary<string, object>
+                        {
+                            ["windowState"] = "minimized",
+                        },
+                    })
+                .WaitAsync(cancellationToken);
+            _log?.Invoke("[browser-video] isolated bonus-video browser window minimized.");
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            _log?.Invoke($"[browser-video] could not reassert minimized window state; continuing with the launch flag: {ex.Message}");
+        }
+        finally
+        {
+            if (cdp is not null)
+            {
+                try
+                {
+                    await cdp.DetachAsync();
+                }
+                catch
+                {
+                    // The isolated browser may already be closing; detaching is best-effort only.
+                }
+            }
+        }
+    }
 
     private void SetBonusVideoCooldown(string key, BonusVideoFailureKind kind)
     {
