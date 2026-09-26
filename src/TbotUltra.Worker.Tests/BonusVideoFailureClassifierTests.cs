@@ -1,4 +1,5 @@
 using TbotUltra.Worker.Infrastructure;
+using TbotUltra.Worker.Services;
 using Xunit;
 
 namespace TbotUltra.Worker.Tests;
@@ -37,13 +38,17 @@ public sealed class BonusVideoFailureClassifierTests
     }
 
     [Fact]
-    public void BonusVideoCooldownException_ReportsRemainingSeconds()
+    public void IsolatedRunResult_ReportsRemainingCooldownSeconds()
     {
         var now = new DateTimeOffset(2026, 7, 15, 20, 17, 21, TimeSpan.Zero);
-        var exception = new BonusVideoCooldownException(now.AddSeconds(99.1), BonusVideoFailureKind.NoAdOrCookies);
+        var result = new IsolatedBonusVideoRunResult(
+            IsolatedBonusVideoRunStatus.CooldownActive,
+            "cooldown",
+            BonusVideoFailureKind.NoAdOrCookies,
+            now.AddSeconds(99.1));
 
-        Assert.Equal(BonusVideoFailureKind.NoAdOrCookies, exception.Kind);
-        Assert.Equal(100, exception.RemainingSeconds(now));
+        Assert.Equal(BonusVideoFailureKind.NoAdOrCookies, result.FailureKind);
+        Assert.Equal(100, result.RemainingRetrySeconds(now));
     }
 
     [Fact]

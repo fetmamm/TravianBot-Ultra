@@ -13,7 +13,9 @@ public sealed class ProductionBonusBatchSourceTests
         Assert.True(methodStart >= 0 && methodEnd > methodStart);
 
         var method = source[methodStart..methodEnd];
-        Assert.Contains("bypassExistingCooldown: resourceIndex > 0", method, StringComparison.Ordinal);
+        Assert.Contains("_isolatedBonusVideoRunner.BeginOperation()", method, StringComparison.Ordinal);
+        Assert.DoesNotContain("resourceIndex > 0 || attempt > 1", method, StringComparison.Ordinal);
+        Assert.DoesNotContain("bypassExistingCooldown", method, StringComparison.Ordinal);
         Assert.DoesNotContain("stopping remaining video attempts", method, StringComparison.Ordinal);
     }
 

@@ -6,16 +6,11 @@ using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Worker.Services;
 
-public delegate Task<string> IsolatedBonusVideoRunner(
-    Func<IPage, CancellationToken, Task<string>> action,
-    CancellationToken cancellationToken,
-    bool bypassExistingCooldown = false);
-
 /// <summary>
 /// Optional host callbacks a <see cref="TravianClient"/> calls back into. Bundled into one object so
 /// the client's constructor stays a short list of core dependencies instead of a long tail of nullable
 /// delegates. Every member is optional; an omitted callback simply disables the flow that needs it
-/// (e.g. no <see cref="RunInIsolatedBonusVideoBrowserAsync"/> means the bonus-video flow is skipped).
+/// (e.g. no isolated bonus-video runner means the bonus-video flow is skipped).
 /// </summary>
 public sealed record TravianClientCallbacks
 {
@@ -40,8 +35,9 @@ public sealed record TravianClientCallbacks
     /// <summary>Cleans up after a bonus-video run on the given page.</summary>
     public Func<IPage, CancellationToken, Task>? CleanupAfterBonusVideoAsync { get; init; }
 
-    /// <summary>Runs a bonus-video action inside an isolated browser and returns its result.</summary>
-    public IsolatedBonusVideoRunner? RunInIsolatedBonusVideoBrowserAsync { get; init; }
+    /// <summary>Runs a typed bonus-video operation inside the isolated browser module.</summary>
+    internal IIsolatedBonusVideoRunner IsolatedBonusVideoRunner { get; init; }
+        = UnavailableIsolatedBonusVideoRunner.Instance;
 
     /// <summary>Rotates to a fresh page/browser after a lobby login for the given account.</summary>
     public Func<string, CancellationToken, Task<IPage>>? RotateAfterLobbyLoginAsync { get; init; }

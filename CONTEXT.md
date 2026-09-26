@@ -148,6 +148,10 @@ _Avoid_: Map-owner filter, permanent target cache
 The shared verified ad lifecycle used by Official Travian bonus features from trusted playback start through optional muting, protected completion, and typed provider failure. Feature activation and reward verification remain owned by each bonus operation.
 _Avoid_: Video flow, ad wait loop
 
+**Isolated Bonus Video Run**:
+A contained execution of one Official Travian bonus operation in a disposable browser using the account's current session and route. It returns a typed outcome while browser containment, timeout, cooldown, and cleanup remain one lifecycle.
+_Avoid_: Video callback, isolated page action
+
 **Manual Farming**:
 The removed desktop-only manual farming UI and its saved preferences. It is not Send Troops, Farm Lists, Catapults, or Reinforcements.
 _Avoid_: Manual attack flow

@@ -823,6 +823,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
   `BonusVideoPlayback` owns trusted playback start, polling, optional muting, the protected completion interval,
   provider-failure confirmation, and timeout. Individual bonus operations own only activation and reward observation;
   do not add a feature-local playback loop.
+  `BrowserSession` owns each Isolated Bonus Video Run from state seeding and launch through typed classification,
+  cooldown, exact-process cleanup, and close. Feature callers submit typed requests; never expose `IPage`, action
+  callbacks, or a cooldown-bypass flag across that seam. A runner-created operation owns whether an existing
+  cooldown applies to its first request and automatically treats later requests as part of that same operation.
   Consentmanager may render after initial page readiness. Initial isolated-video flows observe it for a bounded
   window, wait for its overlay to stop intercepting input after acceptance, and retry a trusted trigger click once
   only when Playwright confirms that the CMP overlay blocked that click; never force-click through the overlay.

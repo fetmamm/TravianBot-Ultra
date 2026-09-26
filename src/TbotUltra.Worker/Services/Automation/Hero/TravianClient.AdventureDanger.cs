@@ -68,22 +68,20 @@ public sealed partial class TravianClient
         {
             await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
-            if (_runInIsolatedBonusVideoBrowserAsync is not null)
+            var isolatedRun = await _isolatedBonusVideoRunner
+                .BeginOperation()
+                .RunAsync(
+                    new AdventureBonusVideoRequest(boxClass, label),
+                    cancellationToken);
+            if (isolatedRun.Status != IsolatedBonusVideoRunStatus.Unavailable)
             {
                 // The disposable browser performs its own state check before playing. Keep the main browser
                 // on its current page so the following hero dispatch can reuse adventures without a
                 // duplicate main-page load or a dorf1 -> adventures bounce.
-                return await _runInIsolatedBonusVideoBrowserAsync(
-                    async (videoPage, videoCancellationToken) =>
-                    {
-                        var videoClient = CreateIsolatedBonusVideoClient(videoPage);
-                        return await videoClient.RunAdventureVideoBonusInCurrentBrowserAsync(
-                            boxClass,
-                            label,
-                            videoCancellationToken,
-                            isIsolated: true);
-                    },
-                    cancellationToken);
+                return isolatedRun.Status is IsolatedBonusVideoRunStatus.Completed
+                    or IsolatedBonusVideoRunStatus.Failed
+                        ? isolatedRun.Message
+                        : $"{label}: bonus video could not run and was skipped ({isolatedRun.Message}).";
             }
 
             // Fallback for tests/non-session callers. Normal Official runs use the isolated video browser
@@ -114,7 +112,7 @@ public sealed partial class TravianClient
         }
     }
 
-    private async Task<string> RunAdventureVideoBonusInCurrentBrowserAsync(
+    internal async Task<string> RunAdventureVideoBonusInCurrentBrowserAsync(
         string boxClass,
         string label,
         CancellationToken cancellationToken,
@@ -143,19 +141,6 @@ public sealed partial class TravianClient
 
         await EnsureLoggedInAsync();
         return await RunAdventureVideoBonusCoreAsync(boxClass, label, cancellationToken);
-    }
-
-    private TravianClient CreateIsolatedBonusVideoClient(IPage page)
-    {
-        return new TravianClient(
-            page,
-            _config,
-            _account,
-            interactive: _interactive,
-            browserVisible: true,
-            projectRoot: _projectRoot,
-            sessionCache: _session,
-            callbacks: new TravianClientCallbacks { StatusCallback = _statusCallback });
     }
 
     private async Task<bool> IsAdventureVideoPageRenderedAsync(CancellationToken cancellationToken)

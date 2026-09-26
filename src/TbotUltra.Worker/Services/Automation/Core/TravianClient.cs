@@ -36,7 +36,7 @@ public sealed partial class TravianClient
     private readonly Action<bool>? _setConsentDomainsAllowed;
     private readonly Action<bool>? _setManualAuthenticationPopupsAllowed;
     private readonly Func<IPage, CancellationToken, Task>? _cleanupAfterBonusVideoAsync;
-    private readonly IsolatedBonusVideoRunner? _runInIsolatedBonusVideoBrowserAsync;
+    private readonly IIsolatedBonusVideoRunner _isolatedBonusVideoRunner;
     private readonly Func<string, CancellationToken, Task<IPage>>? _rotateAfterLobbyLoginAsync;
     private readonly Func<LobbyWorldSelectionRequest, CancellationToken, Task<string?>>? _lobbyWorldSelectionRequested;
     private readonly Func<ManualLoginConfirmationRequest, CancellationToken, Task<bool>>? _manualLoginConfirmationRequested;
@@ -284,7 +284,7 @@ public sealed partial class TravianClient
         _setConsentDomainsAllowed = callbacks.SetConsentDomainsAllowed;
         _setManualAuthenticationPopupsAllowed = callbacks.SetManualAuthenticationPopupsAllowed;
         _cleanupAfterBonusVideoAsync = callbacks.CleanupAfterBonusVideoAsync;
-        _runInIsolatedBonusVideoBrowserAsync = callbacks.RunInIsolatedBonusVideoBrowserAsync;
+        _isolatedBonusVideoRunner = callbacks.IsolatedBonusVideoRunner;
         _rotateAfterLobbyLoginAsync = callbacks.RotateAfterLobbyLoginAsync;
         _lobbyWorldSelectionRequested = callbacks.LobbyWorldSelectionRequested;
         _manualLoginConfirmationRequested = callbacks.ManualLoginConfirmationRequested;

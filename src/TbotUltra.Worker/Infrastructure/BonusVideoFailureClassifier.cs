@@ -12,25 +12,6 @@ internal enum BonusVideoFailureKind
     Unknown,
 }
 
-internal sealed class BonusVideoCooldownException : InvalidOperationException
-{
-    internal BonusVideoCooldownException(DateTimeOffset untilUtc, BonusVideoFailureKind kind)
-        : base(
-            $"Bonus-video attempts are paused until {untilUtc.ToLocalTime():HH:mm} "
-            + $"for this account/proxy after {BonusVideoFailureClassifier.Format(kind)}.")
-    {
-        UntilUtc = untilUtc;
-        Kind = kind;
-    }
-
-    internal DateTimeOffset UntilUtc { get; }
-
-    internal BonusVideoFailureKind Kind { get; }
-
-    internal int RemainingSeconds(DateTimeOffset nowUtc)
-        => Math.Max(1, (int)Math.Ceiling((UntilUtc - nowUtc).TotalSeconds));
-}
-
 internal static class BonusVideoFailureClassifier
 {
     internal static string Format(BonusVideoFailureKind kind)

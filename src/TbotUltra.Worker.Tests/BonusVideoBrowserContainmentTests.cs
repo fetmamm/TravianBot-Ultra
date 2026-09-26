@@ -37,7 +37,7 @@ public sealed class BonusVideoBrowserContainmentTests
         var source = ReadBonusVideoSource();
         var pageCreated = source.IndexOf("videoContext.NewPageAsync", StringComparison.Ordinal);
         var minimized = source.IndexOf("MinimizeBrowserWindowAsync", pageCreated, StringComparison.Ordinal);
-        var actionStarted = source.IndexOf("action(page, phaseTimeout.Token)", pageCreated, StringComparison.Ordinal);
+        var actionStarted = source.IndexOf("RunIsolatedBonusVideoOperationAsync(", pageCreated, StringComparison.Ordinal);
 
         Assert.True(minimized > pageCreated, "The isolated browser must be minimized after its page is created.");
         Assert.True(actionStarted > minimized, "The browser must be minimized before the video action starts.");

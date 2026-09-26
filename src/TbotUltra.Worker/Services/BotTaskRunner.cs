@@ -731,8 +731,10 @@ public sealed partial class BotTaskRunner
             setConsentDomainsAllowed: allowed => GetRequiredSharedVisibleSession().ConsentDomainsAllowed = allowed,
             setManualAuthenticationPopupsAllowed: allowed => GetRequiredSharedVisibleSession().ManualAuthenticationPopupsAllowed = allowed,
             cleanupAfterBonusVideoAsync: (page, ct) => GetRequiredSharedVisibleSession().CleanupAfterBonusVideoAsync(page, ct),
-            runInIsolatedBonusVideoBrowserAsync: (action, ct, bypassExistingCooldown) =>
-                GetRequiredSharedVisibleSession().RunInIsolatedBonusVideoBrowserAsync(action, ct, bypassExistingCooldown),
+            isolatedBonusVideoRunner: new BrowserSessionBonusVideoRunner(
+                GetRequiredSharedVisibleSession(),
+                _sharedVisibleSessionCache,
+                interactive),
             rotateAfterLobbyLoginAsync: (serverUrl, ct) => RotateSharedVisibleContextAfterLobbyLoginAsync(serverUrl, log, leaseGeneration, ct),
             browserTrace: GetRequiredSharedVisibleSession().BrowserTrace);
         return new ClientLease(_sharedVisibleSession!, sharedClient, true);
@@ -837,7 +839,7 @@ public sealed partial class BotTaskRunner
         Action<bool>? setConsentDomainsAllowed = null,
         Action<bool>? setManualAuthenticationPopupsAllowed = null,
         Func<IPage, CancellationToken, Task>? cleanupAfterBonusVideoAsync = null,
-        IsolatedBonusVideoRunner? runInIsolatedBonusVideoBrowserAsync = null,
+        IIsolatedBonusVideoRunner? isolatedBonusVideoRunner = null,
         Func<string, CancellationToken, Task<IPage>>? rotateAfterLobbyLoginAsync = null,
         BrowserTraceLogger? browserTrace = null)
     {
@@ -857,7 +859,8 @@ public sealed partial class BotTaskRunner
                 SetConsentDomainsAllowed = setConsentDomainsAllowed,
                 SetManualAuthenticationPopupsAllowed = setManualAuthenticationPopupsAllowed,
                 CleanupAfterBonusVideoAsync = cleanupAfterBonusVideoAsync,
-                RunInIsolatedBonusVideoBrowserAsync = runInIsolatedBonusVideoBrowserAsync,
+                IsolatedBonusVideoRunner = isolatedBonusVideoRunner
+                    ?? UnavailableIsolatedBonusVideoRunner.Instance,
                 RotateAfterLobbyLoginAsync = rotateAfterLobbyLoginAsync,
                 LobbyWorldSelectionRequested = LobbyWorldSelectionRequested,
                 ManualLoginConfirmationRequested = ManualLoginConfirmationRequested,

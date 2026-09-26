@@ -9,26 +9,47 @@ namespace TbotUltra.Worker.Infrastructure;
 
 public sealed partial class BrowserSession
 {
-    public async Task<T> RunInIsolatedBonusVideoBrowserAsync<T>(
-        Func<IPage, CancellationToken, Task<T>> action,
-        CancellationToken cancellationToken = default,
-        bool bypassExistingCooldown = false)
+    internal IIsolatedBonusVideoOperation BeginIsolatedBonusVideoOperation(
+        TravianSessionCache sessionCache,
+        bool interactive)
+        => new IsolatedBonusVideoOperation(
+            (request, enforceExistingCooldown, cancellationToken) =>
+                RunIsolatedBonusVideoAsync(
+                    request,
+                    sessionCache,
+                    interactive,
+                    enforceExistingCooldown,
+                    cancellationToken));
+
+    private async Task<IsolatedBonusVideoRunResult> RunIsolatedBonusVideoAsync(
+        IsolatedBonusVideoRequest request,
+        TravianSessionCache sessionCache,
+        bool interactive,
+        bool enforceExistingCooldown,
+        CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (_playwright is null || _context is null)
         {
-            throw new InvalidOperationException("Browser session is not open.");
+            return new IsolatedBonusVideoRunResult(
+                IsolatedBonusVideoRunStatus.ExecutionFailed,
+                "Browser session is not open.",
+                BonusVideoFailureKind.Session);
         }
 
         var cooldownKey = BuildBonusVideoCooldownKey();
-        if (!bypassExistingCooldown
+        if (enforceExistingCooldown
             && BonusVideoCooldownByRoute.TryGetValue(cooldownKey, out var cooldown)
             && cooldown.UntilUtc > DateTimeOffset.UtcNow)
         {
-            throw new BonusVideoCooldownException(cooldown.UntilUtc, cooldown.Kind);
+            return new IsolatedBonusVideoRunResult(
+                IsolatedBonusVideoRunStatus.CooldownActive,
+                $"Bonus-video cooldown active after {BonusVideoFailureClassifier.Format(cooldown.Kind)}.",
+                cooldown.Kind,
+                cooldown.UntilUtc);
         }
 
-        if (bypassExistingCooldown)
+        if (!enforceExistingCooldown)
         {
             _log?.Invoke("[browser-video] continuing current production-bonus batch without applying an internal cooldown between resources.");
         }
@@ -37,147 +58,165 @@ public sealed partial class BrowserSession
 
         IBrowser? videoBrowser = null;
         IBrowserContext? videoContext = null;
-        Task<T>? actionTask = null;
+        Task<string>? actionTask = null;
         BonusVideoNetworkDiagnostics? networkDiagnostics = null;
         var closeReason = "setup did not complete";
         CancellationTokenSource? phaseTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         phaseTimeout.CancelAfter(IsolatedBonusVideoSetupMaxDuration);
-        try
-        {
-            ConsentDomainsAllowed = false;
-            await ClearTransientExternalStorageOriginsAsync(force: true).WaitAsync(phaseTimeout.Token);
-            var stateJson = FilterForeignSubdomainState(await _context.StorageStateAsync().WaitAsync(phaseTimeout.Token));
-
-            var launchOptions = CreateChromiumLaunchOptions(keepNativePopupBlocker: true, startMinimized: true);
-            videoBrowser = await LaunchedBrowserRegistry.TrackAsync(
-                    _projectRoot,
-                    launchOptions.Channel,
-                    () => _playwright.Chromium.LaunchAsync(launchOptions),
-                    _log)
-                .WaitAsync(phaseTimeout.Token);
-            videoContext = await videoBrowser.NewContextAsync(new BrowserNewContextOptions
-            {
-                BaseURL = _effectiveBaseUrl,
-                Proxy = ResolveContextProxy(),
-                ViewportSize = ViewportSize.NoViewport,
-                StorageState = stateJson,
-            }).WaitAsync(phaseTimeout.Token);
-            await videoContext
-                .AddInitScriptAsync(IsolatedBonusVideoPopupSuppressionScript)
-                .WaitAsync(phaseTimeout.Token);
-            _browserTrace.Event("PAGE_CONTEXT", "bonus-video-context-opened", detail: "isolatedBrowser=true");
-            videoContext.SetDefaultTimeout(_config.TimeoutMs);
-            networkDiagnostics = new BonusVideoNetworkDiagnostics(_log);
-            videoContext.RequestFailed += networkDiagnostics.OnRequestFailed;
-            videoContext.Response += networkDiagnostics.OnResponse;
-            videoContext.Page += (_, page) =>
-            {
-                _browserTrace.AttachPage(page, "bonus-video-context");
-                _log?.Invoke($"[browser-video] page event pages={videoContext.Pages.Count} initialUrl='{page.Url}'");
-                page.Close += (_, _) =>
-                {
-                    _log?.Invoke($"[browser-video] page closed pages={videoContext.Pages.Count} url='{page.Url}'");
-                };
-            };
-
-            var page = await videoContext.NewPageAsync().WaitAsync(phaseTimeout.Token);
-            _browserTrace.AttachPage(page, "bonus-video-main");
-            await MinimizeBrowserWindowAsync(videoContext, page, cancellationToken);
-            _log?.Invoke("[browser-video] isolated bonus-video browser opened.");
-
-            phaseTimeout.Dispose();
-            phaseTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            phaseTimeout.CancelAfter(IsolatedBonusVideoActionMaxDuration);
-            actionTask = action(page, phaseTimeout.Token);
-            var result = await actionTask.WaitAsync(phaseTimeout.Token);
-            var resultKind = result is string text
-                ? BonusVideoFailureClassifier.Classify(text)
-                : BonusVideoFailureKind.None;
-            if (resultKind == BonusVideoFailureKind.None)
-            {
-                BonusVideoCooldownByRoute.TryRemove(cooldownKey, out _);
-                _log?.Invoke("[browser-video] video route confirmed working for current account/proxy.");
-            }
-            else
-            {
-                if (resultKind == BonusVideoFailureKind.Unknown && networkDiagnostics.HasFailures)
-                {
-                    resultKind = BonusVideoFailureKind.Network;
-                }
-
-                SetBonusVideoCooldown(cooldownKey, resultKind);
-            }
-
-            closeReason = resultKind == BonusVideoFailureKind.None
-                ? "action completed successfully"
-                : $"action completed with {FormatBonusVideoFailureKind(resultKind)}";
-
-            return result;
-        }
-        catch (OperationCanceledException) when (phaseTimeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
-        {
-            var setupPhase = actionTask is null;
-            var limit = setupPhase ? IsolatedBonusVideoSetupMaxDuration : IsolatedBonusVideoActionMaxDuration;
-            closeReason = $"{(setupPhase ? "setup" : "action")} hard timeout after {limit.TotalSeconds:0}s";
-            SetBonusVideoCooldown(cooldownKey, BonusVideoFailureKind.Timeout);
-            _log?.Invoke($"[browser-video] video {(setupPhase ? "setup" : "action")} exceeded {limit.TotalSeconds:0}s hard cap — aborting.");
-            throw new TimeoutException($"Bonus-video {(setupPhase ? "setup" : "action")} exceeded {limit.TotalSeconds:0}s and was aborted.");
-        }
-        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
-        {
-            closeReason = "cancel or program shutdown";
-            throw;
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            var kind = BonusVideoFailureClassifier.Classify(ex.Message);
-            if (kind == BonusVideoFailureKind.Unknown && networkDiagnostics?.HasFailures == true)
-            {
-                kind = BonusVideoFailureKind.Network;
-            }
-
-            SetBonusVideoCooldown(cooldownKey, kind);
-            closeReason = BrowserFailureClassifier.IsTargetCrash(ex)
-                ? "browser closed or crashed"
-                : $"action failed with {FormatBonusVideoFailureKind(kind)}";
-            throw;
-        }
-        finally
-        {
-            phaseTimeout.Dispose();
-            networkDiagnostics?.LogSummary();
-            if (videoBrowser is not null)
+        return await IsolatedBonusVideoContainment.RunAsync(
+            async () =>
             {
                 try
                 {
-                    // Close the disposable browser directly — its context, pages and process go with it.
-                    // We deliberately skip the graceful videoContext.CloseAsync(): it tries to close pages
-                    // cleanly and hangs on a wedged ad/video renderer (that logged a benign "context cleanup
-                    // failed: timed out" and burned the close timeout), while the browser close tears the
-                    // same thing down in ~1s. Nothing reads state back from this browser, so there is
-                    // nothing to flush. The timeout stays as a safety net against a wedged browser close.
-                    // CancellationToken.None on purpose: this finally-block cleanup must run to completion
-                    // even when the surrounding operation was canceled; the timeout is the only bound.
-                    await videoBrowser.CloseAsync().WaitAsync(IsolatedBonusVideoCloseTimeout, CancellationToken.None);
-                    _browserTrace.Event("PAGE_CONTEXT", "bonus-video-context-closed", detail: $"reason={closeReason}");
+                    ConsentDomainsAllowed = false;
+                    await ClearTransientExternalStorageOriginsAsync(force: true).WaitAsync(phaseTimeout.Token);
+                    var stateJson = FilterForeignSubdomainState(await _context.StorageStateAsync().WaitAsync(phaseTimeout.Token));
+
+                    var launchOptions = CreateChromiumLaunchOptions(keepNativePopupBlocker: true, startMinimized: true);
+                    videoBrowser = await LaunchedBrowserRegistry.TrackAsync(
+                            _projectRoot,
+                            launchOptions.Channel,
+                            () => _playwright.Chromium.LaunchAsync(launchOptions),
+                            _log)
+                        .WaitAsync(phaseTimeout.Token);
+                    videoContext = await videoBrowser.NewContextAsync(new BrowserNewContextOptions
+                    {
+                        BaseURL = _effectiveBaseUrl,
+                        Proxy = ResolveContextProxy(),
+                        ViewportSize = ViewportSize.NoViewport,
+                        StorageState = stateJson,
+                    }).WaitAsync(phaseTimeout.Token);
+                    await videoContext
+                        .AddInitScriptAsync(IsolatedBonusVideoPopupSuppressionScript)
+                        .WaitAsync(phaseTimeout.Token);
+                    _browserTrace.Event("PAGE_CONTEXT", "bonus-video-context-opened", detail: "isolatedBrowser=true");
+                    videoContext.SetDefaultTimeout(_config.TimeoutMs);
+                    networkDiagnostics = new BonusVideoNetworkDiagnostics(_log);
+                    videoContext.RequestFailed += networkDiagnostics.OnRequestFailed;
+                    videoContext.Response += networkDiagnostics.OnResponse;
+                    videoContext.Page += (_, page) =>
+                    {
+                        _browserTrace.AttachPage(page, "bonus-video-context");
+                        _log?.Invoke($"[browser-video] page event pages={videoContext.Pages.Count} initialUrl='{page.Url}'");
+                        page.Close += (_, _) =>
+                        {
+                            _log?.Invoke($"[browser-video] page closed pages={videoContext.Pages.Count} url='{page.Url}'");
+                        };
+                    };
+
+                    var page = await videoContext.NewPageAsync().WaitAsync(phaseTimeout.Token);
+                    _browserTrace.AttachPage(page, "bonus-video-main");
+                    await MinimizeBrowserWindowAsync(videoContext, page, cancellationToken);
+                    _log?.Invoke("[browser-video] isolated bonus-video browser opened.");
+
+                    phaseTimeout.Dispose();
+                    phaseTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    phaseTimeout.CancelAfter(IsolatedBonusVideoActionMaxDuration);
+                    actionTask = RunIsolatedBonusVideoOperationAsync(
+                        page,
+                        request,
+                        sessionCache,
+                        interactive,
+                        phaseTimeout.Token);
+                    var message = await actionTask.WaitAsync(phaseTimeout.Token);
+                    var resultKind = BonusVideoFailureClassifier.Classify(message);
+                    if (resultKind == BonusVideoFailureKind.None)
+                    {
+                        BonusVideoCooldownByRoute.TryRemove(cooldownKey, out _);
+                        _log?.Invoke("[browser-video] video route confirmed working for current account/proxy.");
+                    }
+                    else
+                    {
+                        if (resultKind == BonusVideoFailureKind.Unknown && networkDiagnostics.HasFailures)
+                        {
+                            resultKind = BonusVideoFailureKind.Network;
+                        }
+
+                        SetBonusVideoCooldown(cooldownKey, resultKind);
+                    }
+
+                    closeReason = resultKind == BonusVideoFailureKind.None
+                        ? "action completed successfully"
+                        : $"action completed with {FormatBonusVideoFailureKind(resultKind)}";
+
+                    return new IsolatedBonusVideoRunResult(
+                        resultKind == BonusVideoFailureKind.None
+                            ? IsolatedBonusVideoRunStatus.Completed
+                            : IsolatedBonusVideoRunStatus.Failed,
+                        message,
+                        resultKind);
                 }
-                catch (Exception ex)
+                catch (OperationCanceledException) when (phaseTimeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
                 {
-                    _browserTrace.Event("ERROR", "bonus-video-context-close", "failed", ex.Message);
-                    _log?.Invoke($"[browser-video] browser cleanup failed: {ex.Message}");
+                    var setupPhase = actionTask is null;
+                    var limit = setupPhase ? IsolatedBonusVideoSetupMaxDuration : IsolatedBonusVideoActionMaxDuration;
+                    closeReason = $"{(setupPhase ? "setup" : "action")} hard timeout after {limit.TotalSeconds:0}s";
+                    SetBonusVideoCooldown(cooldownKey, BonusVideoFailureKind.Timeout);
+                    _log?.Invoke($"[browser-video] video {(setupPhase ? "setup" : "action")} exceeded {limit.TotalSeconds:0}s hard cap — aborting.");
+                    return new IsolatedBonusVideoRunResult(
+                        IsolatedBonusVideoRunStatus.TimedOut,
+                        $"Bonus-video {(setupPhase ? "setup" : "action")} exceeded {limit.TotalSeconds:0}s and was aborted.",
+                        BonusVideoFailureKind.Timeout);
                 }
-            }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    closeReason = "cancel or program shutdown";
+                    throw;
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    var kind = BonusVideoFailureClassifier.Classify(ex.Message);
+                    if (kind == BonusVideoFailureKind.Unknown && networkDiagnostics?.HasFailures == true)
+                    {
+                        kind = BonusVideoFailureKind.Network;
+                    }
 
-            // If we abandoned the action on the hard cap it may still be running; closing the browser
-            // above faults it with a target-closed error. Observe that so it is not an unobserved
-            // exception, without blocking cleanup on the hung call.
-            if (actionTask is not null)
+                    SetBonusVideoCooldown(cooldownKey, kind);
+                    closeReason = BrowserFailureClassifier.IsTargetCrash(ex)
+                        ? "browser closed or crashed"
+                        : $"action failed with {FormatBonusVideoFailureKind(kind)}";
+                    return new IsolatedBonusVideoRunResult(
+                        IsolatedBonusVideoRunStatus.ExecutionFailed,
+                        ex.Message,
+                        kind);
+                }
+            },
+            async () =>
             {
-                _ = actionTask.ContinueWith(static t => { _ = t.Exception; }, TaskScheduler.Default);
-            }
+                phaseTimeout.Dispose();
+                networkDiagnostics?.LogSummary();
+                if (videoBrowser is not null)
+                {
+                    try
+                    {
+                        // Close the disposable browser directly — its context, pages and process go with it.
+                        // We deliberately skip the graceful videoContext.CloseAsync(): it tries to close pages
+                        // cleanly and hangs on a wedged ad/video renderer (that logged a benign "context cleanup
+                        // failed: timed out" and burned the close timeout), while the browser close tears the
+                        // same thing down in ~1s. Nothing reads state back from this browser, so there is
+                        // nothing to flush. The timeout stays as a safety net against a wedged browser close.
+                        // CancellationToken.None on purpose: this finally-block cleanup must run to completion
+                        // even when the surrounding operation was canceled; the timeout is the only bound.
+                        await videoBrowser.CloseAsync().WaitAsync(IsolatedBonusVideoCloseTimeout, CancellationToken.None);
+                        _browserTrace.Event("PAGE_CONTEXT", "bonus-video-context-closed", detail: $"reason={closeReason}");
+                    }
+                    catch (Exception ex)
+                    {
+                        _browserTrace.Event("ERROR", "bonus-video-context-close", "failed", ex.Message);
+                        _log?.Invoke($"[browser-video] browser cleanup failed: {ex.Message}");
+                    }
+                }
 
-            _log?.Invoke($"[browser-video] isolated bonus-video browser closed reason='{closeReason}'.");
-        }
+                // If we abandoned the action on the hard cap it may still be running; closing the browser
+                // above faults it with a target-closed error. Observe that so it is not an unobserved
+                // exception, without blocking cleanup on the hung call.
+                if (actionTask is not null)
+                {
+                    _ = actionTask.ContinueWith(static t => { _ = t.Exception; }, TaskScheduler.Default);
+                }
+
+                _log?.Invoke($"[browser-video] isolated bonus-video browser closed reason='{closeReason}'.");
+            });
     }
 
     private string BuildBonusVideoCooldownKey()
@@ -250,6 +289,46 @@ public sealed partial class BrowserSession
                 }
             }
         }
+    }
+
+    private async Task<string> RunIsolatedBonusVideoOperationAsync(
+        IPage page,
+        IsolatedBonusVideoRequest request,
+        TravianSessionCache sessionCache,
+        bool interactive,
+        CancellationToken cancellationToken)
+    {
+        var client = new TravianClient(
+            page,
+            _config,
+            _account,
+            interactive: interactive,
+            browserVisible: true,
+            projectRoot: _projectRoot,
+            sessionCache: sessionCache,
+            callbacks: new TravianClientCallbacks { StatusCallback = _log });
+
+        return request switch
+        {
+            AdventureBonusVideoRequest adventure =>
+                await client.RunAdventureVideoBonusInCurrentBrowserAsync(
+                    adventure.BoxClass,
+                    adventure.Label,
+                    cancellationToken,
+                    isIsolated: true),
+            ConstructFasterBonusVideoRequest construct =>
+                await client.RunConstructFasterVideoInCurrentBrowserAsync(
+                    construct.SlotId,
+                    construct.Gid,
+                    construct.BuildingName,
+                    cancellationToken),
+            ProductionBonusVideoRequest production =>
+                await client.RunSingleProductionBonusVideoIsolatedAsync(
+                    production.Resource,
+                    cancellationToken),
+            _ => throw new InvalidOperationException(
+                $"Unsupported isolated bonus-video request '{request.GetType().Name}'."),
+        };
     }
 
     private void SetBonusVideoCooldown(string key, BonusVideoFailureKind kind)
@@ -834,4 +913,35 @@ public sealed partial class BrowserSession
         return failure[marker..end];
     }
 
+}
+
+internal sealed class IsolatedBonusVideoOperation(
+    Func<IsolatedBonusVideoRequest, bool, CancellationToken, Task<IsolatedBonusVideoRunResult>> runAsync)
+    : IIsolatedBonusVideoOperation
+{
+    private int _started;
+
+    public Task<IsolatedBonusVideoRunResult> RunAsync(
+        IsolatedBonusVideoRequest request,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var enforceExistingCooldown = Interlocked.Exchange(ref _started, 1) == 0;
+        return runAsync(request, enforceExistingCooldown, cancellationToken);
+    }
+}
+
+internal static class IsolatedBonusVideoContainment
+{
+    internal static async Task<T> RunAsync<T>(Func<Task<T>> runAsync, Func<Task> closeAsync)
+    {
+        try
+        {
+            return await runAsync();
+        }
+        finally
+        {
+            await closeAsync();
+        }
+    }
 }

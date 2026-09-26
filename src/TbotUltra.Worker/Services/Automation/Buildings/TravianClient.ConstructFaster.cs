@@ -110,6 +110,7 @@ public sealed partial class TravianClient
 
         string? lastVideoResult = null;
         string? lastEvidence = null;
+        var lastFailureKind = BonusVideoFailureKind.Unknown;
         var navigatedForVerification = false;
         for (var attempt = 1; attempt <= ConstructFasterMaxVideoAttempts; attempt++)
         {
@@ -117,24 +118,35 @@ public sealed partial class TravianClient
             try
             {
                 Notify($"[construct-faster] starting — kind={constructionKind}, slot={slotId}, gid={gid?.ToString(CultureInfo.InvariantCulture) ?? "unknown"}, duration={durationSeconds}s, attempt={attempt}/{ConstructFasterMaxVideoAttempts}, reason={decision.Reason}.");
-                lastVideoResult = await RunConstructFasterVideoAsync(slotId, gid, targetName, cancellationToken);
-                videoCompleted = true;
-                Notify($"[construct-faster] video flow completed: {lastVideoResult}");
+                var isolatedRun = await RunConstructFasterVideoAsync(
+                    slotId,
+                    gid,
+                    targetName,
+                    cancellationToken);
+                lastVideoResult = isolatedRun.Message;
+                lastFailureKind = isolatedRun.FailureKind;
+                if (isolatedRun.Status == IsolatedBonusVideoRunStatus.CooldownActive)
+                {
+                    Notify(
+                        "[construct-faster] skipped video — shared account/proxy cooldown active after "
+                        + $"{BonusVideoFailureClassifier.Format(isolatedRun.FailureKind)}; building normally.");
+                    return ConstructFasterAttemptResult.Skipped(
+                        $"video cooldown after {isolatedRun.FailureKind}");
+                }
+
+                videoCompleted = isolatedRun.Status == IsolatedBonusVideoRunStatus.Completed;
+                Notify(videoCompleted
+                    ? $"[construct-faster] video flow completed: {lastVideoResult}"
+                    : $"[construct-faster] video flow ended with {isolatedRun.Status}: {lastVideoResult}. Verifying on fresh dorf2 before fallback.");
             }
             catch (OperationCanceledException)
             {
                 throw;
             }
-            catch (BonusVideoCooldownException ex)
-            {
-                Notify(
-                    "[construct-faster] skipped video — shared account/proxy cooldown active after "
-                    + $"{BonusVideoFailureClassifier.Format(ex.Kind)}; building normally.");
-                return ConstructFasterAttemptResult.Skipped($"video cooldown after {ex.Kind}");
-            }
             catch (Exception ex)
             {
                 lastVideoResult = ex.Message;
+                lastFailureKind = BonusVideoFailureClassifier.Classify(ex.Message);
                 Notify($"[construct-faster] video attempt {attempt}/{ConstructFasterMaxVideoAttempts} ended before normal completion: {ex.Message}. Verifying on fresh dorf2 before fallback.");
             }
 
@@ -165,11 +177,10 @@ public sealed partial class TravianClient
 
             if (attempt < ConstructFasterMaxVideoAttempts)
             {
-                var failureKind = BonusVideoFailureClassifier.Classify(lastVideoResult);
-                if (!BonusVideoFailureClassifier.ShouldRetryImmediately(failureKind))
+                if (!BonusVideoFailureClassifier.ShouldRetryImmediately(lastFailureKind))
                 {
                     Notify(
-                        $"[construct-faster] skipping immediate video retry after {failureKind}; "
+                        $"[construct-faster] skipping immediate video retry after {lastFailureKind}; "
                         + "building normally without changing route.");
                     break;
                 }
@@ -325,31 +336,20 @@ public sealed partial class TravianClient
         }
     }
 
-    private async Task<string> RunConstructFasterVideoAsync(
+    private async Task<IsolatedBonusVideoRunResult> RunConstructFasterVideoAsync(
         int slotId,
         int? gid,
         string buildingName,
         CancellationToken cancellationToken)
     {
-        if (_runInIsolatedBonusVideoBrowserAsync is null)
-        {
-            throw new InvalidOperationException("isolated bonus-video browser is unavailable");
-        }
-
-        return await _runInIsolatedBonusVideoBrowserAsync(
-            async (videoPage, videoCancellationToken) =>
-            {
-                var videoClient = CreateIsolatedBonusVideoClient(videoPage);
-                return await videoClient.RunConstructFasterVideoInCurrentBrowserAsync(
-                    slotId,
-                    gid,
-                    buildingName,
-                    videoCancellationToken);
-            },
-            cancellationToken);
+        return await _isolatedBonusVideoRunner
+            .BeginOperation()
+            .RunAsync(
+                new ConstructFasterBonusVideoRequest(slotId, gid, buildingName),
+                cancellationToken);
     }
 
-    private async Task<string> RunConstructFasterVideoInCurrentBrowserAsync(
+    internal async Task<string> RunConstructFasterVideoInCurrentBrowserAsync(
         int slotId,
         int? gid,
         string buildingName,
