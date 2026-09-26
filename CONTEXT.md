@@ -144,6 +144,10 @@ _Avoid_: Send toggled lists, fallback interval
 The live pre-save validation used by Add Farms to skip the account owner, configured players, and configured alliances after Travian resolves a coordinate. Protection preferences are account- and world-specific; decisions are cached only for the current Add Farms run.
 _Avoid_: Map-owner filter, permanent target cache
 
+**Bonus Video Playback**:
+The shared verified ad lifecycle used by Official Travian bonus features from trusted playback start through optional muting, protected completion, and typed provider failure. Feature activation and reward verification remain owned by each bonus operation.
+_Avoid_: Video flow, ad wait loop
+
 **Manual Farming**:
 The removed desktop-only manual farming UI and its saved preferences. It is not Send Troops, Farm Lists, Catapults, or Reinforcements.
 _Avoid_: Manual attack flow

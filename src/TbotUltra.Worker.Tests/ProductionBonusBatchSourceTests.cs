@@ -37,8 +37,8 @@ public sealed class ProductionBonusBatchSourceTests
         var source = ReadProductionBonusSource();
         var method = ExtractMethod(
             source,
-            "private async Task<bool> WaitForProductionBonusVideoCompletionAsync",
-            "private static string ResourceBonusBoxClass");
+            "private async Task<BonusVideoPlaybackResult> RunProductionBonusVideoPlaybackAsync",
+            "private async Task<bool> OpenAdvantagesTabAsync");
 
         Assert.Contains("ReadProductionBonusBoxesRawAsync", method, StringComparison.Ordinal);
         Assert.DoesNotContain(".bonusDuration", method, StringComparison.Ordinal);

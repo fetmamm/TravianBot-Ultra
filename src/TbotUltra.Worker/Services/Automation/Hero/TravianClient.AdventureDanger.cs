@@ -350,8 +350,11 @@ public sealed partial class TravianClient
             return $"{label}: the video info dialog did not appear or its 'Watch video' button could not be clicked.";
         }
 
-        var playClickedAtUtc = await StartAdventureVideoAsync(label, cancellationToken);
-        if (playClickedAtUtc is null)
+        var playback = await RunAdventureVideoPlaybackAsync(
+            boxClass,
+            label,
+            cancellationToken);
+        if (playback.Status == BonusVideoPlaybackStatus.StartUnavailable)
         {
             // Distinguish a missing-codec machine from a transient "no ad" so the user gets an actionable
             // message instead of retrying forever on a browser that can never decode the H.264/AAC ad.
@@ -364,20 +367,17 @@ public sealed partial class TravianClient
             return $"{label}: the bonus video player did not open (likely no ad available or blocked). Try again later.";
         }
 
-        // The reward is granted once the video plays through; the box then shows its "Active for next
-        // ... adventure" state. Poll for that, using the timeout as the fail-safe. We deliberately do
-        // not try to detect the ad-blocker/"force reload" notice — it stays in the DOM behind the
-        // playing video and produced false failures even on successful runs.
-        var confirmed = await WaitForAdventureVideoActiveAsync(
-            boxClass,
-            label,
-            playClickedAtUtc.Value,
-            cancellationToken);
         await LogAdventureVideoBoxHtmlAsync(boxClass, label, "after waiting for reward", cancellationToken);
 
-        if (confirmed)
+        if (playback.Status == BonusVideoPlaybackStatus.Completed)
         {
             return $"{label} activated; the bonus is now active for the next adventure.";
+        }
+
+        if (playback.Status == BonusVideoPlaybackStatus.ProviderFailed
+            && !string.IsNullOrWhiteSpace(playback.ProviderFailure))
+        {
+            return $"{label}: {playback.ProviderFailure}.";
         }
 
         // Not confirmed: a missing-codec browser can still render an error iframe (so StartVideo "succeeded")
@@ -517,9 +517,6 @@ public sealed partial class TravianClient
     /// an incompletely rendered player may place an advertiser link at that point. Returns null when
     /// no safe play control appears (ad blocked, slow provider, or no inventory).
     /// </summary>
-    private async Task<DateTimeOffset?> StartAdventureVideoAsync(string label, CancellationToken cancellationToken)
-        => await StartBonusVideoPlayerAsync(label, "[adventure-video:verbose]", cancellationToken);
-
     private async Task<DateTimeOffset?> StartBonusVideoPlayerAsync(
         string label,
         string logPrefix,
@@ -1098,115 +1095,50 @@ public sealed partial class TravianClient
     /// Polls until the bonus box reports "active" (reward applied) or the shared post-play timeout
     /// elapses. No DOM/provider signal may finish the attempt during the first protected minute.
     /// </summary>
-    private async Task<bool> WaitForAdventureVideoActiveAsync(
+    private async Task<BonusVideoPlaybackResult> RunAdventureVideoPlaybackAsync(
         string boxClass,
         string label,
-        DateTimeOffset playClickedAtUtc,
         CancellationToken cancellationToken)
     {
-        var deadlineUtc = playClickedAtUtc.AddSeconds(BonusVideoPlaybackPolicy.PostPlayTimeoutSeconds);
         const int maxReloads = 2;
         var reloadCount = 0;
-        var lastReloadUtc = playClickedAtUtc;
-        var consecutiveProviderFailures = 0;
-        var earlyRewardLogged = false;
-        var ignoredProviderLogged = false;
-        var muteConfirmed = false;
-        while (DateTimeOffset.UtcNow < deadlineUtc)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await Task.Delay(AdventureVideoPollIntervalMs, cancellationToken);
-            await TryClickBonusVideoSkipAdAsync(label, "[adventure-video:verbose]", cancellationToken);
-            if (!muteConfirmed)
+        DateTimeOffset? lastReloadUtc = null;
+        var playback = CreateBonusVideoPlayback();
+        return await playback.RunAsync(
+            new BonusVideoPlaybackRequest(
+                label,
+                "[adventure-video:verbose]",
+                TimeSpan.FromMilliseconds(AdventureVideoPollIntervalMs)),
+            async (context, pollCancellationToken) =>
             {
-                muteConfirmed = await MuteBonusVideoAsync(
-                    label,
-                    "[adventure-video:verbose]",
-                    cancellationToken);
-            }
-
-            var now = DateTimeOffset.UtcNow;
-            var elapsedSeconds = (now - playClickedAtUtc).TotalSeconds;
-            var state = await ReadAdventureVideoStateAsync(boxClass, cancellationToken);
-            if (state == "active")
-            {
-                // Fast completion: Travian's own bonus box now shows its reward class (bonusReady /
-                // bonusReadyText / "active for next ..."), AND the video dialog has closed — the ad
-                // finished and the page returned to the adventures view. That is the server-confirmed
-                // grant and is definitive, so finish immediately instead of idling out the protected
-                // post-play minute (~33s of dead waiting after a short ad). Requiring the dialog to be
-                // gone mirrors the production-bonus path and guards against a box that momentarily reads
-                // active while the ad is still playing.
-                if (!await IsAdventureVideoDialogOpenAsync(cancellationToken))
+                lastReloadUtc ??= context.StartedAtUtc;
+                var state = await ReadAdventureVideoStateAsync(boxClass, pollCancellationToken);
+                if (state == "active")
                 {
-                    Notify($"[adventure-video] {label}: reward confirmed after {elapsedSeconds:F1}s post-play — box active and video dialog closed.");
-                    await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay before the flow continues
-                    return true;
+                    var dialogOpen = await IsAdventureVideoDialogOpenAsync(pollCancellationToken);
+                    return new BonusVideoPlaybackObservation(
+                        dialogOpen
+                            ? BonusVideoCompletionSignal.AfterProtectedInterval
+                            : BonusVideoCompletionSignal.Definitive);
                 }
 
-                // Box active but the video dialog is still open: keep the protected-minute completion as
-                // the fail-safe so a slow-closing overlay still finishes the attempt without idling forever.
-                if (BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds))
+                var sinceReload = context.NowUtc - lastReloadUtc.Value;
+                if (reloadCount < maxReloads
+                    && context.ProtectedIntervalElapsed
+                    && sinceReload >= TimeSpan.FromSeconds(15)
+                    && !await IsAdventureVideoDialogOpenAsync(pollCancellationToken))
                 {
-                    Notify($"[adventure-video] {label}: reward confirmed after {elapsedSeconds:F1}s post-play — the bonus is now active.");
-                    await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay before the flow continues
-                    return true;
-                }
-
-                if (!earlyRewardLogged)
-                {
-                    earlyRewardLogged = true;
+                    reloadCount++;
+                    lastReloadUtc = context.NowUtc;
                     Notify(
-                        $"[adventure-video:verbose] {label}: reward appeared after {elapsedSeconds:F1}s while the video dialog was still open; " +
-                        $"waiting for it to close (or the protected post-play minute, {BonusVideoPlaybackPolicy.RemainingGraceSeconds(elapsedSeconds)}s remaining).");
-                }
-            }
-
-            var visibleFailure = await TryReadVisibleBonusVideoFailureAsync(cancellationToken);
-            if (visibleFailure is not null)
-            {
-                consecutiveProviderFailures++;
-                var playerPresent = await IsBonusVideoPlayerPresentAsync(cancellationToken);
-                if (BonusVideoPlaybackPolicy.MayAcceptProviderFailure(
-                        elapsedSeconds,
-                        consecutiveProviderFailures,
-                        playerPresent))
-                {
-                    Notify(
-                        $"[adventure-video:verbose] {label}: provider failure confirmed after {elapsedSeconds:F1}s " +
-                        $"post-play confirmations={consecutiveProviderFailures} playerPresent={playerPresent}; closing attempt.");
-                    return false;
+                        $"[adventure-video:verbose] {label}: video dialog closed; reloading adventures page "
+                        + $"to read reward state (reload {reloadCount}/{maxReloads}).");
+                    await OpenHeroAdventuresPageAsync(pollCancellationToken);
                 }
 
-                if (!BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds) && !ignoredProviderLogged)
-                {
-                    ignoredProviderLogged = true;
-                    Notify(
-                        $"[adventure-video:verbose] {label}: ignored provider text during protected post-play minute " +
-                        $"({BonusVideoPlaybackPolicy.RemainingGraceSeconds(elapsedSeconds)}s remaining).");
-                }
-            }
-            else
-            {
-                consecutiveProviderFailures = 0;
-            }
-
-            // Once the player has closed, reload the adventures page so the box reflects the granted reward.
-            // Never reload during the protected minute because that could interrupt a slow-starting video.
-            var sinceReloadSeconds = (now - lastReloadUtc).TotalSeconds;
-            if (reloadCount < maxReloads
-                && BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds)
-                && sinceReloadSeconds >= 15
-                && !await IsAdventureVideoDialogOpenAsync(cancellationToken))
-            {
-                reloadCount++;
-                lastReloadUtc = now;
-                Notify($"[adventure-video:verbose] {label}: video dialog closed; reloading adventures page to read reward state (reload {reloadCount}/{maxReloads}).");
-                await OpenHeroAdventuresPageAsync(cancellationToken);
-            }
-        }
-
-        return false;
+                return new BonusVideoPlaybackObservation(BonusVideoCompletionSignal.None);
+            },
+            cancellationToken);
     }
 
     private async Task<bool> IsAdventureVideoDialogOpenAsync(CancellationToken cancellationToken)

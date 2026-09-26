@@ -491,8 +491,8 @@ public sealed partial class TravianClient
             return $"{resource}: the video info dialog did not confirm.";
         }
 
-        var playClickedAtUtc = await StartConstructFasterVideoAsync(cancellationToken);
-        if (playClickedAtUtc is null)
+        var playback = await RunProductionBonusVideoPlaybackAsync(resource, cancellationToken);
+        if (playback.Status == BonusVideoPlaybackStatus.StartUnavailable)
         {
             if (!await IsH264PlaybackSupportedAsync(cancellationToken))
             {
@@ -503,11 +503,13 @@ public sealed partial class TravianClient
             return $"{resource}: the bonus video player did not open (likely no ad available or blocked).";
         }
 
-        var completed = await WaitForProductionBonusVideoCompletionAsync(
-            resource,
-            playClickedAtUtc.Value,
-            cancellationToken);
-        return completed
+        if (playback.Status == BonusVideoPlaybackStatus.ProviderFailed
+            && !string.IsNullOrWhiteSpace(playback.ProviderFailure))
+        {
+            return $"{resource}: {playback.ProviderFailure}.";
+        }
+
+        return playback.Status == BonusVideoPlaybackStatus.Completed
             ? $"{resource}: +15% production video completed."
             : $"{resource}: bonus video ran but completion was not confirmed.";
     }
@@ -517,121 +519,55 @@ public sealed partial class TravianClient
     // dorf1 and that check fires instantly (the browser then closes before the ad even starts). Instead we
     // succeed only when the resource box turns active (+15% timer appears), after the shared protected
     // post-play minute has elapsed.
-    private async Task<bool> WaitForProductionBonusVideoCompletionAsync(
+    private async Task<BonusVideoPlaybackResult> RunProductionBonusVideoPlaybackAsync(
         string resource,
-        DateTimeOffset playClickedAtUtc,
         CancellationToken cancellationToken)
     {
-        var deadlineUtc = playClickedAtUtc.AddSeconds(BonusVideoPlaybackPolicy.PostPlayTimeoutSeconds);
-        var consecutiveProviderFailures = 0;
-        var earlyRewardLogged = false;
-        var ignoredProviderLogged = false;
-        var ignoredClosedPlayerLogged = false;
-        var muteConfirmed = false;
-        while (DateTimeOffset.UtcNow < deadlineUtc)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            await Task.Delay(ProductionBonusVideoPollIntervalMs, cancellationToken);
-            await TryClickBonusVideoSkipAdAsync("production bonus", "[production-bonus:verbose]", cancellationToken);
-            if (!muteConfirmed)
+        var playback = CreateBonusVideoPlayback();
+        return await playback.RunAsync(
+            new BonusVideoPlaybackRequest(
+                "production bonus",
+                "[production-bonus:verbose]",
+                TimeSpan.FromMilliseconds(ProductionBonusVideoPollIntervalMs)),
+            async (_, pollCancellationToken) =>
             {
-                muteConfirmed = await MuteBonusVideoAsync(
-                    "production bonus",
-                    "[production-bonus:verbose]",
-                    cancellationToken);
-            }
-
-            string overlayJson;
-            try
-            {
-                overlayJson = await _page.EvaluateAsync<string>(
-                    """
-                    () => {
-                      const dlg = document.querySelector('#videoFeature');
-                      const dialogOpen = !!dlg && !String(dlg.className || '').includes('hide');
-                      const hasPlayer = !!document.querySelector('#videoArea, #videoFeature iframe');
-                      return JSON.stringify({ dialogOpen, hasPlayer });
-                    }
-                    """);
-            }
-            catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
-            {
-                continue;
-            }
-
-            var boxes = ProductionBonusDomParser.ParseBoxesJson(await ReadProductionBonusBoxesRawAsync(cancellationToken));
-            var boxActive = ProductionBonusDomParser.FindUnconfirmedActivations(new[] { resource }, boxes).Count == 0;
-            using var doc = JsonDocument.Parse(overlayJson ?? "{}");
-            var root = doc.RootElement;
-            var elapsedSeconds = (DateTimeOffset.UtcNow - playClickedAtUtc).TotalSeconds;
-            var dialogOpen = GetBoolean(root, "dialogOpen");
-            var hasPlayer = GetBoolean(root, "hasPlayer");
-            // Fast completion: once the +15% box is active AND the ad overlay/player has closed (the page
-            // has returned to the Advantages wizard), the reward is granted and the video is genuinely done.
-            // This is definitive, so we do not hold the browser for the protected post-play minute — which
-            // otherwise adds up to ~40s of idle waiting after a short video. Requiring the overlay to be gone
-            // also guards against a box that reads active while the ad is still playing: we only complete once
-            // the player has actually closed. The minute still guards the provider-FAILURE path below.
-            if (boxActive && !hasPlayer && !dialogOpen)
-            {
-                Notify($"[production-bonus] video completion confirmed after {elapsedSeconds:F1}s — +15% box active and ad overlay closed.");
-                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay before the flow continues
-                return true;
-            }
-
-            if (boxActive && BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds))
-            {
-                Notify($"[production-bonus] video completion confirmed after {elapsedSeconds:F1}s post-play — box shows +15% active.");
-                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay before the flow continues
-                return true;
-            }
-
-            if (boxActive && !earlyRewardLogged)
-            {
-                earlyRewardLogged = true;
-                Notify(
-                    $"[production-bonus:verbose] +15% reward appeared after {elapsedSeconds:F1}s while the ad overlay was still open; " +
-                    $"waiting for it to close (or the protected post-play minute, {BonusVideoPlaybackPolicy.RemainingGraceSeconds(elapsedSeconds)}s remaining).");
-            }
-
-            if (!dialogOpen && !hasPlayer && !BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds) && !ignoredClosedPlayerLogged)
-            {
-                ignoredClosedPlayerLogged = true;
-                Notify(
-                    $"[production-bonus:verbose] closed/missing player ignored during protected post-play minute " +
-                    $"({BonusVideoPlaybackPolicy.RemainingGraceSeconds(elapsedSeconds)}s remaining).");
-            }
-
-            var visibleFailure = await TryReadVisibleBonusVideoFailureAsync(cancellationToken);
-            if (visibleFailure is not null)
-            {
-                consecutiveProviderFailures++;
-                if (BonusVideoPlaybackPolicy.MayAcceptProviderFailure(
-                        elapsedSeconds,
-                        consecutiveProviderFailures,
-                        hasPlayer))
+                string overlayJson;
+                try
                 {
-                    Notify(
-                        $"[production-bonus:verbose] provider failure confirmed after {elapsedSeconds:F1}s " +
-                        $"post-play confirmations={consecutiveProviderFailures} playerPresent={hasPlayer}.");
-                    return false;
+                    overlayJson = await _page.EvaluateAsync<string>(
+                        """
+                        () => {
+                          const dlg = document.querySelector('#videoFeature');
+                          const dialogOpen = !!dlg && !String(dlg.className || '').includes('hide');
+                          const hasPlayer = !!document.querySelector('#videoArea, #videoFeature iframe');
+                          return JSON.stringify({ dialogOpen, hasPlayer });
+                        }
+                        """);
+                }
+                catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
+                {
+                    return new BonusVideoPlaybackObservation(
+                        BonusVideoCompletionSignal.None,
+                        PlayerPresent: true);
                 }
 
-                if (!BonusVideoPlaybackPolicy.MayComplete(elapsedSeconds) && !ignoredProviderLogged)
-                {
-                    ignoredProviderLogged = true;
-                    Notify(
-                        $"[production-bonus:verbose] ignored provider text during protected post-play minute " +
-                        $"({BonusVideoPlaybackPolicy.RemainingGraceSeconds(elapsedSeconds)}s remaining).");
-                }
-            }
-            else
-            {
-                consecutiveProviderFailures = 0;
-            }
-        }
-
-        return false;
+                var boxes = ProductionBonusDomParser.ParseBoxesJson(
+                    await ReadProductionBonusBoxesRawAsync(pollCancellationToken));
+                var boxActive = ProductionBonusDomParser
+                    .FindUnconfirmedActivations(new[] { resource }, boxes)
+                    .Count == 0;
+                using var doc = JsonDocument.Parse(overlayJson ?? "{}");
+                var root = doc.RootElement;
+                var dialogOpen = GetBoolean(root, "dialogOpen");
+                var hasPlayer = GetBoolean(root, "hasPlayer");
+                var completionSignal = boxActive && !hasPlayer && !dialogOpen
+                    ? BonusVideoCompletionSignal.Definitive
+                    : boxActive
+                        ? BonusVideoCompletionSignal.AfterProtectedInterval
+                        : BonusVideoCompletionSignal.None;
+                return new BonusVideoPlaybackObservation(completionSignal, hasPlayer);
+            },
+            cancellationToken);
     }
 
     // Opens the payment wizard on the Advantages tab and waits for the bonus boxes to render. When the

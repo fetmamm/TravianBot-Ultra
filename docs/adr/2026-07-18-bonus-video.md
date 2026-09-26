@@ -56,4 +56,6 @@ Active decision, extracted from `ENGINEERING_NOTES.md` on 2026-07-18.
 ## Consequences
 
 Video failures are expected degraded states, normally warnings rather than alarms. Any new video feature must
-reuse the shared post-play policy, failure type, cooldown, routing, and sanitized diagnostics.
+reuse the shared `BonusVideoPlayback` module, failure type, cooldown, routing, and sanitized diagnostics. The module
+owns trusted start, polling, optional muting, protected completion, provider-failure confirmation, and timeout;
+each feature adapter owns only activation and authoritative reward observation.

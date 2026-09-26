@@ -85,20 +85,6 @@ public sealed class BonusVideoMuteSourceTests
         Assert.Contains("for autoplay or a safe play control", method, StringComparison.Ordinal);
     }
 
-    [Theory]
-    [InlineData("Buildings", "TravianClient.ConstructFaster.cs", "WaitForConstructFasterVideoCompletionAsync")]
-    [InlineData("Features", "TravianClient.ProductionBonus.cs", "WaitForProductionBonusVideoCompletionAsync")]
-    [InlineData("Hero", "TravianClient.AdventureDanger.cs", "WaitForAdventureVideoActiveAsync")]
-    public void PlaybackPolling_RetriesBestEffortMuteUntilControlAppears(
-        string area,
-        string fileName,
-        string methodName)
-    {
-        var method = ReadMethod(area, fileName, methodName);
-
-        Assert.Contains("MuteBonusVideoAsync(", method, StringComparison.Ordinal);
-    }
-
     private static string ReadMethod(
         string area,
         string fileName,
