@@ -52,6 +52,20 @@ public sealed class AlarmClassificationTests
     }
 
     [Fact]
+    public void ExhaustedProductionBonusActivation_IsAlarm()
+    {
+        Assert.True(MainWindow.IsAlarmMessage(
+            "[production-bonus] ALARM: activation was not confirmed for clay after at most 2 attempt(s) per resource; normal automation continues."));
+    }
+
+    [Fact]
+    public void IntermediateProductionBonusFailure_IsNotSeparateAlarm()
+    {
+        Assert.False(MainWindow.IsAlarmMessage(
+            "[production-bonus:verbose] clay: activation not confirmed after attempt 1/2 (video timeout); continuing the current batch."));
+    }
+
+    [Fact]
     public void ExplicitAccountHold_IsAlarm()
     {
         Assert.True(MainWindow.IsAlarmMessage(

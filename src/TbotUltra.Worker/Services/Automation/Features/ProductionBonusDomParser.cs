@@ -100,6 +100,23 @@ public static class ProductionBonusDomParser
     public static bool HasCompleteResourceSet(IReadOnlyList<ProductionBonusBox> boxes)
         => Resources.All(resource => boxes.Count(box => string.Equals(box.Resource, resource, StringComparison.OrdinalIgnoreCase)) == 1);
 
+    /// <summary>Returns requested resources whose +15%/+25% activation is not confirmed in a fresh read.</summary>
+    public static IReadOnlyList<string> FindUnconfirmedActivations(
+        IEnumerable<string> requestedResources,
+        IReadOnlyList<ProductionBonusBox> boxes)
+    {
+        var confirmed = boxes
+            .Where(box => box.Active && box.Percent is 15 or 25)
+            .Select(box => box.Resource)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return requestedResources
+            .Where(resource => Resources.Contains(resource, StringComparer.OrdinalIgnoreCase))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Where(resource => !confirmed.Contains(resource))
+            .ToList();
+    }
+
     /// <summary>
     /// Resolves the final state for every known resource (missing boxes count as "none").
     /// <paramref name="afterActivationAttempt"/> is true when called right after watching videos (a

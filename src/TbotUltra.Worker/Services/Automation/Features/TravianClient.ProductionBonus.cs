@@ -18,6 +18,7 @@ public sealed partial class TravianClient
     private const int AdvantagesRenderAttempts = 60;
     private const int AdvantagesRenderPollIntervalMs = 500;
     private const int AdvantagesOpenAttempts = 2;
+    private const int ProductionBonusVideoMaxAttemptsPerResource = 2;
 
     // Opens Travian's payment wizard on the Advantages tab and returns which tab/state is visible.
     private const string OpenAdvantagesWizardScript =
@@ -170,57 +171,87 @@ public sealed partial class TravianClient
                 for (var resourceIndex = 0; resourceIndex < activatable.Count; resourceIndex++)
                 {
                     var resource = activatable[resourceIndex];
-                    cancellationToken.ThrowIfCancellationRequested();
-                    try
+                    var activationConfirmed = false;
+                    for (var attempt = 1; attempt <= ProductionBonusVideoMaxAttemptsPerResource; attempt++)
                     {
-                        var videoResult = await _runInIsolatedBonusVideoBrowserAsync(
-                            async (videoPage, videoCancellationToken) =>
-                            {
-                                var videoClient = CreateIsolatedBonusVideoClient(videoPage);
-                                return await videoClient.RunSingleProductionBonusVideoIsolatedAsync(resource, videoCancellationToken);
-                            },
-                            cancellationToken,
-                            bypassExistingCooldown: resourceIndex > 0);
-                        var failureKind = BonusVideoFailureClassifier.Classify(videoResult);
-                        if (failureKind != BonusVideoFailureKind.None
-                            && !BonusVideoFailureClassifier.ShouldRetryImmediately(failureKind))
+                        cancellationToken.ThrowIfCancellationRequested();
+                        var failureKind = BonusVideoFailureKind.Unknown;
+                        try
                         {
-                            Notify(
-                                $"[production-bonus] {resource}: {failureKind}; continuing the current batch with remaining resources.");
+                            var videoResult = await _runInIsolatedBonusVideoBrowserAsync(
+                                async (videoPage, videoCancellationToken) =>
+                                {
+                                    var videoClient = CreateIsolatedBonusVideoClient(videoPage);
+                                    return await videoClient.RunSingleProductionBonusVideoIsolatedAsync(resource, videoCancellationToken);
+                                },
+                                cancellationToken,
+                                bypassExistingCooldown: resourceIndex > 0 || attempt > 1);
+                            failureKind = BonusVideoFailureClassifier.Classify(videoResult);
                         }
-                    }
-                    catch (OperationCanceledException)
-                    {
-                        throw;
-                    }
-                    catch (BonusVideoCooldownException ex)
-                    {
-                        var waitSeconds = ex.RemainingSeconds(DateTimeOffset.UtcNow) + 5;
-                        Notify(
-                            $"[production-bonus] video cooldown active after {BonusVideoFailureClassifier.Format(ex.Kind)}; "
-                            + $"deferring {waitSeconds}s without changing production timers.");
-                        if (resourceIndex == 0)
+                        catch (OperationCanceledException)
                         {
-                            return $"Production bonus: video cooldown active after {BonusVideoFailureClassifier.Format(ex.Kind)}. "
-                                + $"queue_wait_seconds={waitSeconds}";
+                            throw;
+                        }
+                        catch (BonusVideoCooldownException ex)
+                        {
+                            var waitSeconds = ex.RemainingSeconds(DateTimeOffset.UtcNow) + 5;
+                            Notify(
+                                $"[production-bonus:verbose] video cooldown active after {BonusVideoFailureClassifier.Format(ex.Kind)}; "
+                                + $"deferring {waitSeconds}s without changing production timers.");
+                            if (resourceIndex == 0 && attempt == 1)
+                            {
+                                return $"Production bonus: video cooldown active after {BonusVideoFailureClassifier.Format(ex.Kind)}. "
+                                    + $"queue_wait_seconds={waitSeconds}";
+                            }
+
+                            failureKind = ex.Kind;
+                            Notify($"[production-bonus:verbose] {resource}: cooldown did not stop the current batch; continuing verification.");
+                        }
+                        catch (Exception ex)
+                        {
+                            Notify($"[production-bonus:verbose] {resource}: isolated bonus video failed: {ex.GetType().Name}: {ex.Message}");
+                            failureKind = BonusVideoFailureClassifier.Classify(ex.Message);
+                        }
+                        finally
+                        {
+                            // Always bring the main browser back to dorf1 before the authoritative verification.
+                            await ReturnMainPageAfterIsolatedBonusVideoAsync();
                         }
 
-                        Notify($"[production-bonus] {resource}: cooldown did not stop the current batch; continuing remaining resources.");
-                    }
-                    catch (Exception ex)
-                    {
-                        Notify($"[production-bonus:verbose] {resource}: isolated bonus video failed and was skipped: {ex.GetType().Name}: {ex.Message}");
-                        var failureKind = BonusVideoFailureClassifier.Classify(ex.Message);
-                        if (!BonusVideoFailureClassifier.ShouldRetryImmediately(failureKind))
+                        try
                         {
-                            Notify(
-                                $"[production-bonus] {resource}: {failureKind}; continuing the current batch with remaining resources.");
+                            var verification = await ReadProductionBonusPageStateInMainBrowserAsync(cancellationToken);
+                            activationConfirmed = ProductionBonusDomParser
+                                .FindUnconfirmedActivations(new[] { resource }, verification.Boxes)
+                                .Count == 0;
                         }
-                    }
-                    finally
-                    {
-                        // Always bring the main browser back to dorf1 after each isolated video.
-                        await ReturnMainPageAfterIsolatedBonusVideoAsync();
+                        catch (OperationCanceledException)
+                        {
+                            throw;
+                        }
+                        catch (Exception ex)
+                        {
+                            failureKind = BonusVideoFailureKind.Unknown;
+                            Notify($"[production-bonus:verbose] {resource}: fresh activation verification failed: {ex.GetType().Name}: {ex.Message}");
+                        }
+
+                        if (activationConfirmed)
+                        {
+                            Notify($"[production-bonus] {resource}: activation verified after attempt {attempt}/{ProductionBonusVideoMaxAttemptsPerResource}.");
+                            break;
+                        }
+
+                        var mayRetry = failureKind is BonusVideoFailureKind.None or BonusVideoFailureKind.Unknown;
+                        if (attempt < ProductionBonusVideoMaxAttemptsPerResource && mayRetry)
+                        {
+                            Notify($"[production-bonus] {resource}: activation not confirmed after attempt {attempt}/{ProductionBonusVideoMaxAttemptsPerResource}; retrying once.");
+                            continue;
+                        }
+
+                        Notify(
+                            $"[production-bonus:verbose] {resource}: activation not confirmed after attempt {attempt}/{ProductionBonusVideoMaxAttemptsPerResource} "
+                            + $"({BonusVideoFailureClassifier.Format(failureKind)}); continuing the current batch.");
+                        break;
                     }
                 }
             }
@@ -228,6 +259,14 @@ public sealed partial class TravianClient
             // Verify and collect the resulting timers from the main browser.
             var finalPageState = await ReadProductionBonusPageStateInMainBrowserAsync(cancellationToken);
             var finalStates = ProductionBonusDomParser.Classify(finalPageState.Boxes);
+            var unconfirmed = ProductionBonusDomParser.FindUnconfirmedActivations(activatable, finalPageState.Boxes);
+            if (unconfirmed.Count > 0)
+            {
+                Notify(
+                    $"[production-bonus] ALARM: activation was not confirmed for {string.Join(", ", unconfirmed)} "
+                    + $"after at most {ProductionBonusVideoMaxAttemptsPerResource} attempt(s) per resource; normal automation continues.");
+            }
+
             var token = ProductionBonusDomParser.BuildResultToken(finalStates);
             Notify($"[production-bonus] done — {FormatProductionBonusLog(finalStates)}.");
             return $"Production bonus: processed {activatable.Count} resource(s). {token}{FormatProductionBonusOffsetToken(finalPageState.ServerUtcOffset)}{FormatProductionBonusFreeAvailableToken(activatable.Count > 0)}";
@@ -370,7 +409,8 @@ public sealed partial class TravianClient
         }
 
         var result = await RunProductionBonusVideoCoreAsync(resource, cancellationToken);
-        Notify($"[production-bonus] {result}");
+        var resultKind = BonusVideoFailureClassifier.Classify(result);
+        Notify($"[production-bonus{(resultKind == BonusVideoFailureKind.None ? string.Empty : ":verbose")}] {result}");
         return result;
     }
 
@@ -382,20 +422,31 @@ public sealed partial class TravianClient
         var activated = 0;
         foreach (var resource in resources)
         {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (!await OpenAdvantagesTabAsync(cancellationToken))
+            for (var attempt = 1; attempt <= ProductionBonusVideoMaxAttemptsPerResource; attempt++)
             {
-                continue;
-            }
+                cancellationToken.ThrowIfCancellationRequested();
+                if (!await OpenAdvantagesTabAsync(cancellationToken))
+                {
+                    break;
+                }
 
-            var result = await RunProductionBonusVideoCoreAsync(resource, cancellationToken);
-            Notify($"[production-bonus] {result}");
-            if (result.Contains("video completed", StringComparison.OrdinalIgnoreCase))
-            {
-                activated++;
-            }
+                var result = await RunProductionBonusVideoCoreAsync(resource, cancellationToken);
+                var resultKind = BonusVideoFailureClassifier.Classify(result);
+                Notify($"[production-bonus{(resultKind == BonusVideoFailureKind.None ? string.Empty : ":verbose")}] {result}");
+                var boxes = ProductionBonusDomParser.ParseBoxesJson(await ReadProductionBonusBoxesRawAsync(cancellationToken));
+                if (ProductionBonusDomParser.FindUnconfirmedActivations(new[] { resource }, boxes).Count == 0)
+                {
+                    activated++;
+                    break;
+                }
 
-            await GotoAsync(Paths.Resources, cancellationToken);
+                await GotoAsync(Paths.Resources, cancellationToken);
+                if (attempt >= ProductionBonusVideoMaxAttemptsPerResource
+                    || resultKind is not (BonusVideoFailureKind.None or BonusVideoFailureKind.Unknown))
+                {
+                    break;
+                }
+            }
         }
 
         return $"Production bonus: activated {activated} resource(s).";
@@ -453,7 +504,7 @@ public sealed partial class TravianClient
         }
 
         var completed = await WaitForProductionBonusVideoCompletionAsync(
-            cls,
+            resource,
             playClickedAtUtc.Value,
             cancellationToken);
         return completed
@@ -467,7 +518,7 @@ public sealed partial class TravianClient
     // succeed only when the resource box turns active (+15% timer appears), after the shared protected
     // post-play minute has elapsed.
     private async Task<bool> WaitForProductionBonusVideoCompletionAsync(
-        string cls,
+        string resource,
         DateTimeOffset playClickedAtUtc,
         CancellationToken cancellationToken)
     {
@@ -490,36 +541,29 @@ public sealed partial class TravianClient
                     cancellationToken);
             }
 
-            string rawJson;
+            string overlayJson;
             try
             {
-                rawJson = await _page.EvaluateAsync<string>(
+                overlayJson = await _page.EvaluateAsync<string>(
                     """
-                    (cls) => {
-                      const strip = (s) => String(s || '').replace(/[‪-‮⁦-⁩‎‏]/g, '');
-                      const box = document.querySelector('.advantagesBonusBox.' + cls);
-                      let boxActive = false;
-                      if (box && box.classList.contains('active')) {
-                        const dur = box.querySelector('.bonusDuration');
-                        boxActive = !!dur && /15\s*%/.test(strip(dur.textContent));
-                      }
+                    () => {
                       const dlg = document.querySelector('#videoFeature');
                       const dialogOpen = !!dlg && !String(dlg.className || '').includes('hide');
                       const hasPlayer = !!document.querySelector('#videoArea, #videoFeature iframe');
-                      return JSON.stringify({ boxActive, dialogOpen, hasPlayer });
+                      return JSON.stringify({ dialogOpen, hasPlayer });
                     }
-                    """,
-                    cls);
+                    """);
             }
             catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
             {
                 continue;
             }
 
-            using var doc = JsonDocument.Parse(rawJson ?? "{}");
+            var boxes = ProductionBonusDomParser.ParseBoxesJson(await ReadProductionBonusBoxesRawAsync(cancellationToken));
+            var boxActive = ProductionBonusDomParser.FindUnconfirmedActivations(new[] { resource }, boxes).Count == 0;
+            using var doc = JsonDocument.Parse(overlayJson ?? "{}");
             var root = doc.RootElement;
             var elapsedSeconds = (DateTimeOffset.UtcNow - playClickedAtUtc).TotalSeconds;
-            var boxActive = GetBoolean(root, "boxActive");
             var dialogOpen = GetBoolean(root, "dialogOpen");
             var hasPlayer = GetBoolean(root, "hasPlayer");
             // Fast completion: once the +15% box is active AND the ad overlay/player has closed (the page

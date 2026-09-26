@@ -6,6 +6,24 @@ namespace TbotUltra.Worker.Tests;
 public sealed class ProductionBonusDomParserTests
 {
     [Fact]
+    public void FindUnconfirmedActivations_RequiresExactResourceActivation()
+    {
+        var boxes = new[]
+        {
+            new ProductionBonusDomParser.ProductionBonusBox("lumber", true, 15, "07:59:53", false, false),
+            new ProductionBonusDomParser.ProductionBonusBox("clay", false, 0, "", true, true),
+            new ProductionBonusDomParser.ProductionBonusBox("iron", true, 25, "03:52:15", false, false),
+            new ProductionBonusDomParser.ProductionBonusBox("crop", true, 0, "", false, false),
+        };
+
+        var unconfirmed = ProductionBonusDomParser.FindUnconfirmedActivations(
+            new[] { "lumber", "clay", "iron", "crop" },
+            boxes);
+
+        Assert.Equal(new[] { "clay", "crop" }, unconfirmed);
+    }
+
+    [Fact]
     public void AccountDeletionPending_DetectsOfficialSidebarNotice()
     {
         var html = TestDomFixtures.Read("account_deletion_pending.txt");

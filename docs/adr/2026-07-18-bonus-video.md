@@ -45,6 +45,9 @@ Active decision, extracted from `ENGINEERING_NOTES.md` on 2026-07-18.
 - The initial shared cooldown gate still applies before a production-bonus run starts. Once started, the four
   resources form one contiguous batch: a resource-specific failure may set the route cooldown for later tasks,
   but it does not prevent the remaining initially activatable resources from being attempted in this batch.
+- Confirm every attempted production resource with a fresh read through the canonical bonus-box parser. Retry an
+  ambiguous unconfirmed result once, but do not override typed no-immediate-retry failures. After the batch, one
+  alarm lists every resource still unconfirmed; final observed states are retained and automation continues.
 - Production-bonus inspection is complete only when the Advantages tab contains lumber, clay, iron, and crop.
   Retry empty/partial React rendering; after two 30-second attempts, raise a task failure.
 - Diagnostics log only sanitized ad host, network error code, status, and aggregate counts—never paths,
