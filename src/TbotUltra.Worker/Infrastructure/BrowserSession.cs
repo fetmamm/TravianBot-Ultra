@@ -114,6 +114,8 @@ public sealed partial class BrowserSession : IAsyncDisposable
     private static readonly TimeSpan IsolatedBonusVideoSetupMaxDuration = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan IsolatedBonusVideoActionMaxDuration =
         TimeSpan.FromSeconds(BonusVideoPlaybackPolicy.IsolatedActionTimeoutSeconds);
+    // CDP window-state confirmation is best-effort because Chromium already starts minimized.
+    private static readonly TimeSpan IsolatedBonusVideoMinimizeTimeout = TimeSpan.FromSeconds(3);
     // Upper bound on tearing down the isolated bonus-video browser, so a wedged CloseAsync cannot itself
     // re-stall the calling task. A leaked browser process is recoverable; an infinite stall is not.
     private static readonly TimeSpan IsolatedBonusVideoCloseTimeout = TimeSpan.FromSeconds(10);

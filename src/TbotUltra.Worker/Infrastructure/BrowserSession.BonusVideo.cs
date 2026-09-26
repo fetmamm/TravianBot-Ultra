@@ -82,7 +82,7 @@ public sealed partial class BrowserSession
 
             var page = await videoContext.NewPageAsync().WaitAsync(phaseTimeout.Token);
             _browserTrace.AttachPage(page, "bonus-video-main");
-            await MinimizeBrowserWindowAsync(videoContext, page, phaseTimeout.Token);
+            await MinimizeBrowserWindowAsync(videoContext, page, cancellationToken);
             _log?.Invoke("[browser-video] isolated bonus-video browser opened.");
 
             phaseTimeout.Dispose();
@@ -189,12 +189,15 @@ public sealed partial class BrowserSession
         CancellationToken cancellationToken)
     {
         ICDPSession? cdp = null;
+        using var minimizeTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        minimizeTimeout.CancelAfter(IsolatedBonusVideoMinimizeTimeout);
+        var minimizeToken = minimizeTimeout.Token;
         try
         {
-            cdp = await context.NewCDPSessionAsync(page).WaitAsync(cancellationToken);
+            cdp = await context.NewCDPSessionAsync(page).WaitAsync(minimizeToken);
             var response = await cdp
                 .SendAsync("Browser.getWindowForTarget")
-                .WaitAsync(cancellationToken);
+                .WaitAsync(minimizeToken);
             if (!response.HasValue
                 || !response.Value.TryGetProperty("windowId", out var windowIdElement)
                 || !windowIdElement.TryGetInt32(out var windowId))
@@ -214,12 +217,18 @@ public sealed partial class BrowserSession
                             ["windowState"] = "minimized",
                         },
                     })
-                .WaitAsync(cancellationToken);
+                .WaitAsync(minimizeToken);
             _log?.Invoke("[browser-video] isolated bonus-video browser window minimized.");
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
+        }
+        catch (OperationCanceledException) when (minimizeTimeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            _log?.Invoke(
+                $"[browser-video] could not reassert minimized window state within "
+                + $"{IsolatedBonusVideoMinimizeTimeout.TotalSeconds:0}s; continuing with the launch flag.");
         }
         catch (Exception ex)
         {
@@ -231,7 +240,9 @@ public sealed partial class BrowserSession
             {
                 try
                 {
-                    await cdp.DetachAsync();
+                    await cdp
+                        .DetachAsync()
+                        .WaitAsync(IsolatedBonusVideoMinimizeTimeout, CancellationToken.None);
                 }
                 catch
                 {

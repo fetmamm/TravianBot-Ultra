@@ -43,6 +43,24 @@ public sealed class BonusVideoBrowserContainmentTests
         Assert.True(actionStarted > minimized, "The browser must be minimized before the video action starts.");
     }
 
+    [Fact]
+    public void IsolatedBonusBrowser_MinimizeTimeoutIsBestEffort()
+    {
+        var source = ReadBonusVideoSource();
+        var methodStart = source.IndexOf(
+            "private async Task MinimizeBrowserWindowAsync",
+            StringComparison.Ordinal);
+        var methodEnd = source.IndexOf("private void SetBonusVideoCooldown", methodStart, StringComparison.Ordinal);
+        var method = source[methodStart..methodEnd];
+
+        Assert.Contains(
+            "MinimizeBrowserWindowAsync(videoContext, page, cancellationToken)",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("IsolatedBonusVideoMinimizeTimeout", method, StringComparison.Ordinal);
+        Assert.Contains("!cancellationToken.IsCancellationRequested", method, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(false, "--start-maximized", "--start-minimized")]
     [InlineData(true, "--start-minimized", "--start-maximized")]
