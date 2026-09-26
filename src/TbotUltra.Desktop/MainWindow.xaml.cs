@@ -455,7 +455,6 @@ public partial class MainWindow : Window
         _sessionSleepLifecycle = new SessionSleepLifecycle(
             _sessionPacer,
             new MainWindowSessionSleepLifecyclePort(this));
-        InitializeSessionPacing();
         _accountAnalysisStore = new AccountAnalysisStore(_projectRoot);
         _heroAttributeSnapshotStore = new HeroAttributeSnapshotStore(_projectRoot);
         _heroInventorySnapshotStore = new HeroInventorySnapshotStore(_projectRoot);
@@ -476,6 +475,7 @@ public partial class MainWindow : Window
         _botService = new DesktopBotService(taskRunner, queueStore, queueScheduler, queueExecutor);
         _automationDesk = MainWindowAutomationAdapter.Create(this, _projectRoot, _loopController);
         _automationDesk.Updated += AutomationDesk_Updated;
+        InitializeSessionPacing();
         _heroPanelService = new HeroPanelService(new DesktopHeroPanelClient(_botService), _botConfigStore);
         _resourcesPanelService = new ResourcesPanelService(_botConfigStore, _villageSettingsStore);
         _farmListsWorkflow = new FarmListsWorkflow(
