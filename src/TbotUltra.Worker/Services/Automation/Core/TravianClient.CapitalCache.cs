@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using Microsoft.Playwright;
 using TbotUltra.Core.Accounts;
 using TbotUltra.Worker.Domain;
 
@@ -48,6 +49,23 @@ public sealed partial class TravianClient
         {
             await GotoAsync(Paths.PlayerProfile, cancellationToken);
             await EnsureLoggedInAsync(cancellationToken: cancellationToken);
+            try
+            {
+                await _page.WaitForSelectorAsync(
+                    "#playerProfile table.villages tbody tr",
+                    new PageWaitForSelectorOptions
+                    {
+                        State = WaitForSelectorState.Visible,
+                        Timeout = 5000,
+                    }).WaitAsync(cancellationToken);
+            }
+            catch (TimeoutException)
+            {
+                Notify("[capital:verbose] profile village table did not render within 5s.");
+                throw new InvalidOperationException(
+                    "Player profile village table did not finish rendering. No capital state was changed.");
+            }
+
             var capitals = await _page.EvaluateAsync<PlayerProfileVillageRowJs[]>(
                 """
                 () => {
@@ -87,7 +105,7 @@ public sealed partial class TravianClient
             if (capitals is not { Length: 1 })
             {
                 var count = capitals?.Length ?? 0;
-                Notify($"[capital] profile check failed: expected exactly one capital row, found {count}.");
+                Notify($"[capital:verbose] profile check incomplete: expected exactly one capital row, found {count}.");
                 throw new InvalidOperationException(
                     $"Player profile did not identify exactly one capital village (found {count}). No capital state was changed.");
             }

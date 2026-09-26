@@ -66,6 +66,15 @@ public sealed class AlarmClassificationTests
     }
 
     [Fact]
+    public void CapitalProfileDiagnostic_IsNotSeparateAlarm()
+    {
+        Assert.False(MainWindow.IsAlarmMessage(
+            "[capital:verbose] profile check incomplete: expected exactly one capital row, found 0."));
+        Assert.True(MainWindow.IsAlarmMessage(
+            "[OP0003] FAIL 6,7s | InvalidOperationException: Player profile did not identify exactly one capital village (found 0)."));
+    }
+
+    [Fact]
     public void ExplicitAccountHold_IsAlarm()
     {
         Assert.True(MainWindow.IsAlarmMessage(
