@@ -602,53 +602,31 @@ public sealed partial class TravianClient
     private async Task<BonusVideoPlaybackResult> RunConstructFasterPlaybackAsync(
         CancellationToken cancellationToken)
     {
-        var videoWasActive = false;
         var playback = CreateBonusVideoPlayback();
         return await playback.RunAsync(
             new BonusVideoPlaybackRequest(
                 "construct-faster",
                 "[construct-faster:verbose]",
-                TimeSpan.FromMilliseconds(ConstructFasterVideoPollIntervalMs)),
+                TimeSpan.FromMilliseconds(ConstructFasterVideoPollIntervalMs),
+                AcceptClosedPlaybackAfterProtectedInterval: true),
             async (_, pollCancellationToken) =>
             {
-                string rawJson;
+                bool onVillage;
                 try
                 {
-                    rawJson = await _page.EvaluateAsync<string>(
-                        """
-                        () => {
-                          const url = window.location.href;
-                          const dialog = document.querySelector('#videoFeature');
-                          const dialogOpen = !!dialog && !String(dialog.className || '').includes('hide');
-                          const hasPlayer = !!document.querySelector('#videoArea, #videoFeature iframe');
-                          const onVillage = /\/dorf[12]\.php/i.test(url);
-                          return JSON.stringify({ url, dialogOpen, hasPlayer, onVillage });
-                        }
-                        """);
+                    onVillage = await _page.EvaluateAsync<bool>(
+                        """() => /\/dorf[12]\.php/i.test(window.location.href)""");
                 }
                 catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
                 {
-                    return new BonusVideoPlaybackObservation(
-                        BonusVideoCompletionSignal.None,
-                        PlayerPresent: true);
+                    return new BonusVideoFeatureObservation(
+                        BonusVideoFeatureSignal.None);
                 }
 
-                using var doc = JsonDocument.Parse(rawJson ?? "{}");
-                var root = doc.RootElement;
-                var onVillage = GetBoolean(root, "onVillage");
-                var dialogOpen = GetBoolean(root, "dialogOpen");
-                var hasPlayer = GetBoolean(root, "hasPlayer");
-                if (hasPlayer || !onVillage)
-                {
-                    videoWasActive = true;
-                }
-
-                var completionSignal = onVillage && !hasPlayer && videoWasActive
-                    ? BonusVideoCompletionSignal.Definitive
-                    : !dialogOpen && !hasPlayer
-                        ? BonusVideoCompletionSignal.AfterProtectedInterval
-                        : BonusVideoCompletionSignal.None;
-                return new BonusVideoPlaybackObservation(completionSignal, hasPlayer);
+                return new BonusVideoFeatureObservation(
+                    onVillage
+                        ? BonusVideoFeatureSignal.ExpectedPageVisible
+                        : BonusVideoFeatureSignal.ExpectedPageMissing);
             },
             cancellationToken);
     }

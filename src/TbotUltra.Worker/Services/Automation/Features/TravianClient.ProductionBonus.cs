@@ -531,41 +531,15 @@ public sealed partial class TravianClient
                 TimeSpan.FromMilliseconds(ProductionBonusVideoPollIntervalMs)),
             async (_, pollCancellationToken) =>
             {
-                string overlayJson;
-                try
-                {
-                    overlayJson = await _page.EvaluateAsync<string>(
-                        """
-                        () => {
-                          const dlg = document.querySelector('#videoFeature');
-                          const dialogOpen = !!dlg && !String(dlg.className || '').includes('hide');
-                          const hasPlayer = !!document.querySelector('#videoArea, #videoFeature iframe');
-                          return JSON.stringify({ dialogOpen, hasPlayer });
-                        }
-                        """);
-                }
-                catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
-                {
-                    return new BonusVideoPlaybackObservation(
-                        BonusVideoCompletionSignal.None,
-                        PlayerPresent: true);
-                }
-
                 var boxes = ProductionBonusDomParser.ParseBoxesJson(
                     await ReadProductionBonusBoxesRawAsync(pollCancellationToken));
                 var boxActive = ProductionBonusDomParser
                     .FindUnconfirmedActivations(new[] { resource }, boxes)
                     .Count == 0;
-                using var doc = JsonDocument.Parse(overlayJson ?? "{}");
-                var root = doc.RootElement;
-                var dialogOpen = GetBoolean(root, "dialogOpen");
-                var hasPlayer = GetBoolean(root, "hasPlayer");
-                var completionSignal = boxActive && !hasPlayer && !dialogOpen
-                    ? BonusVideoCompletionSignal.Definitive
-                    : boxActive
-                        ? BonusVideoCompletionSignal.AfterProtectedInterval
-                        : BonusVideoCompletionSignal.None;
-                return new BonusVideoPlaybackObservation(completionSignal, hasPlayer);
+                return new BonusVideoFeatureObservation(
+                    boxActive
+                        ? BonusVideoFeatureSignal.RewardConfirmed
+                        : BonusVideoFeatureSignal.None);
             },
             cancellationToken);
     }

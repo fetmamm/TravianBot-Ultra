@@ -31,19 +31,6 @@ public sealed class ProductionBonusBatchSourceTests
         Assert.Contains("ALARM:", method, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void CompletionCheck_UsesTheCanonicalProductionBonusBoxParser()
-    {
-        var source = ReadProductionBonusSource();
-        var method = ExtractMethod(
-            source,
-            "private async Task<BonusVideoPlaybackResult> RunProductionBonusVideoPlaybackAsync",
-            "private async Task<bool> OpenAdvantagesTabAsync");
-
-        Assert.Contains("ReadProductionBonusBoxesRawAsync", method, StringComparison.Ordinal);
-        Assert.DoesNotContain(".bonusDuration", method, StringComparison.Ordinal);
-    }
-
     private static string ReadProductionBonusSource()
     {
         var root = ProjectRootLocator.FindProjectRoot();

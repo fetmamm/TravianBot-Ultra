@@ -13,7 +13,7 @@ public sealed class BonusVideoPlaybackTests
         var fixture = new PlaybackFixture();
 
         var result = await fixture.RunAsync((_, _) => Task.FromResult(
-            new BonusVideoPlaybackObservation(BonusVideoCompletionSignal.Definitive)));
+            new BonusVideoFeatureObservation(BonusVideoFeatureSignal.RewardConfirmed)));
 
         Assert.Equal(BonusVideoPlaybackStatus.Completed, result.Status);
         Assert.Equal(1, fixture.Adapter.CompletedCount);
@@ -24,13 +24,16 @@ public sealed class BonusVideoPlaybackTests
     public async Task WeakCompletion_WaitsForProtectedInterval()
     {
         var fixture = new PlaybackFixture(TimeSpan.FromSeconds(20));
+        fixture.Adapter.PlayerObservations.Enqueue(new BonusVideoPlayerObservation(true, true, true));
+        fixture.Adapter.PlayerObservations.Enqueue(new BonusVideoPlayerObservation(true, true, true));
+        fixture.Adapter.PlayerObservations.Enqueue(new BonusVideoPlayerObservation(true, true, true));
         var observations = 0;
 
         var result = await fixture.RunAsync((_, _) =>
         {
             observations++;
-            return Task.FromResult(new BonusVideoPlaybackObservation(
-                BonusVideoCompletionSignal.AfterProtectedInterval));
+            return Task.FromResult(new BonusVideoFeatureObservation(
+                BonusVideoFeatureSignal.RewardConfirmed));
         });
 
         Assert.Equal(BonusVideoPlaybackStatus.Completed, result.Status);
@@ -41,11 +44,12 @@ public sealed class BonusVideoPlaybackTests
     public async Task ProviderFailure_IsIgnoredDuringProtectionAndNeedsTwoConfirmationsWithPlayer()
     {
         var fixture = new PlaybackFixture(TimeSpan.FromSeconds(30));
+        fixture.Adapter.DefaultPlayerObservation = new BonusVideoPlayerObservation(true, true, true);
         fixture.Adapter.ProviderFailures.Enqueue("provider failed");
         fixture.Adapter.ProviderFailures.Enqueue("provider failed");
 
         var result = await fixture.RunAsync((_, _) => Task.FromResult(
-            new BonusVideoPlaybackObservation(BonusVideoCompletionSignal.None, PlayerPresent: true)));
+            new BonusVideoFeatureObservation(BonusVideoFeatureSignal.None)));
 
         Assert.Equal(BonusVideoPlaybackStatus.ProviderFailed, result.Status);
         Assert.Equal("provider failed", result.ProviderFailure);
@@ -56,10 +60,11 @@ public sealed class BonusVideoPlaybackTests
     public async Task MissingPlayer_AllowsOneProviderFailureAfterProtectedInterval()
     {
         var fixture = new PlaybackFixture(TimeSpan.FromSeconds(60));
+        fixture.Adapter.DefaultPlayerObservation = new BonusVideoPlayerObservation(false, false, false);
         fixture.Adapter.ProviderFailures.Enqueue("provider failed");
 
         var result = await fixture.RunAsync((_, _) => Task.FromResult(
-            new BonusVideoPlaybackObservation(BonusVideoCompletionSignal.None, PlayerPresent: false)));
+            new BonusVideoFeatureObservation(BonusVideoFeatureSignal.None)));
 
         Assert.Equal(BonusVideoPlaybackStatus.ProviderFailed, result.Status);
     }
@@ -75,8 +80,8 @@ public sealed class BonusVideoPlaybackTests
         var result = await fixture.RunAsync((_, _) =>
         {
             polls++;
-            return Task.FromResult(new BonusVideoPlaybackObservation(
-                polls >= 2 ? BonusVideoCompletionSignal.Definitive : BonusVideoCompletionSignal.None));
+            return Task.FromResult(new BonusVideoFeatureObservation(
+                polls >= 2 ? BonusVideoFeatureSignal.RewardConfirmed : BonusVideoFeatureSignal.None));
         });
 
         Assert.Equal(BonusVideoPlaybackStatus.Completed, result.Status);
@@ -102,27 +107,80 @@ public sealed class BonusVideoPlaybackTests
         var fixture = new PlaybackFixture(TimeSpan.FromSeconds(60));
 
         var result = await fixture.RunAsync((_, _) => Task.FromResult(
-            new BonusVideoPlaybackObservation(BonusVideoCompletionSignal.None)));
+            new BonusVideoFeatureObservation(BonusVideoFeatureSignal.None)));
 
         Assert.Equal(BonusVideoPlaybackStatus.TimedOut, result.Status);
         Assert.Equal(0, fixture.Adapter.CompletedCount);
+    }
+
+    [Fact]
+    public async Task ExpectedPage_CompletesOnlyAfterPlaybackWasObservedAndClosed()
+    {
+        var fixture = new PlaybackFixture();
+        fixture.Adapter.PlayerObservations.Enqueue(new BonusVideoPlayerObservation(true, true, true));
+        fixture.Adapter.PlayerObservations.Enqueue(new BonusVideoPlayerObservation(false, false, false));
+
+        var result = await fixture.RunAsync((_, _) => Task.FromResult(
+            new BonusVideoFeatureObservation(BonusVideoFeatureSignal.ExpectedPageVisible)));
+
+        Assert.Equal(BonusVideoPlaybackStatus.Completed, result.Status);
+        Assert.Equal(2, fixture.Adapter.ObservePlayerCount);
+    }
+
+    [Fact]
+    public async Task ClosedPlaybackFallback_WaitsForProtectedInterval()
+    {
+        var fixture = new PlaybackFixture(
+            TimeSpan.FromSeconds(20),
+            acceptClosedPlaybackAfterProtectedInterval: true);
+
+        var result = await fixture.RunAsync((_, _) => Task.FromResult(
+            new BonusVideoFeatureObservation(BonusVideoFeatureSignal.None)));
+
+        Assert.Equal(BonusVideoPlaybackStatus.Completed, result.Status);
+        Assert.Equal(3, fixture.Adapter.ObservePlayerCount);
+    }
+
+    [Fact]
+    public async Task StrictDialogAbsence_DoesNotAcceptHiddenDialogBeforeProtection()
+    {
+        var fixture = new PlaybackFixture(
+            TimeSpan.FromSeconds(20),
+            requireDialogAbsentForDefinitiveCompletion: true);
+        fixture.Adapter.DefaultPlayerObservation = new BonusVideoPlayerObservation(
+            DialogPresent: true,
+            DialogOpen: false,
+            PlayerPresent: false);
+
+        var result = await fixture.RunAsync((_, _) => Task.FromResult(
+            new BonusVideoFeatureObservation(BonusVideoFeatureSignal.RewardConfirmed)));
+
+        Assert.Equal(BonusVideoPlaybackStatus.Completed, result.Status);
+        Assert.Equal(3, fixture.Adapter.ObservePlayerCount);
     }
 
     private sealed class PlaybackFixture
     {
         private readonly MutableTimeProvider _time = new(Now);
         private readonly TimeSpan _pollInterval;
+        private readonly bool _acceptClosedPlaybackAfterProtectedInterval;
+        private readonly bool _requireDialogAbsentForDefinitiveCompletion;
 
-        internal PlaybackFixture(TimeSpan? pollInterval = null)
+        internal PlaybackFixture(
+            TimeSpan? pollInterval = null,
+            bool acceptClosedPlaybackAfterProtectedInterval = false,
+            bool requireDialogAbsentForDefinitiveCompletion = false)
         {
             _pollInterval = pollInterval ?? TimeSpan.FromSeconds(1);
+            _acceptClosedPlaybackAfterProtectedInterval = acceptClosedPlaybackAfterProtectedInterval;
+            _requireDialogAbsentForDefinitiveCompletion = requireDialogAbsentForDefinitiveCompletion;
             Adapter.StartedAtUtc = Now;
         }
 
         internal RecordingAdapter Adapter { get; } = new();
 
         internal Task<BonusVideoPlaybackResult> RunAsync(
-            Func<BonusVideoPlaybackPollContext, CancellationToken, Task<BonusVideoPlaybackObservation>> observeAsync)
+            Func<BonusVideoPlaybackPollContext, CancellationToken, Task<BonusVideoFeatureObservation>> observeAsync)
         {
             var playback = new BonusVideoPlayback(
                 Adapter,
@@ -133,7 +191,12 @@ public sealed class BonusVideoPlaybackTests
                     return Task.CompletedTask;
                 });
             return playback.RunAsync(
-                new BonusVideoPlaybackRequest("test", "[test]", _pollInterval),
+                new BonusVideoPlaybackRequest(
+                    "test",
+                    "[test]",
+                    _pollInterval,
+                    _acceptClosedPlaybackAfterProtectedInterval,
+                    _requireDialogAbsentForDefinitiveCompletion),
                 observeAsync,
                 CancellationToken.None);
         }
@@ -152,11 +215,14 @@ public sealed class BonusVideoPlaybackTests
     {
         internal Queue<string?> ProviderFailures { get; } = new();
         internal Queue<bool> MuteResults { get; } = new();
+        internal Queue<BonusVideoPlayerObservation> PlayerObservations { get; } = new();
         internal List<bool> ReceivedMuteStates { get; } = [];
         internal List<string> Logs { get; } = [];
+        internal BonusVideoPlayerObservation DefaultPlayerObservation { get; set; } = new(false, false, false);
         internal DateTimeOffset? StartedAtUtc { get; set; }
         internal int StartCount { get; private set; }
         internal int PrepareCount { get; private set; }
+        internal int ObservePlayerCount { get; private set; }
         internal int CompletedCount { get; private set; }
 
         public Task<DateTimeOffset?> StartAsync(string label, string logPrefix, CancellationToken cancellationToken)
@@ -165,7 +231,7 @@ public sealed class BonusVideoPlaybackTests
             return Task.FromResult(StartedAtUtc);
         }
 
-        public Task<bool> PreparePollAsync(
+        public Task<bool> MaintainPlaybackAsync(
             string label,
             string logPrefix,
             bool muteConfirmed,
@@ -176,11 +242,17 @@ public sealed class BonusVideoPlaybackTests
             return Task.FromResult(muteConfirmed || (MuteResults.Count > 0 && MuteResults.Dequeue()));
         }
 
+        public Task<BonusVideoPlayerObservation> ObservePlayerAsync(CancellationToken cancellationToken)
+        {
+            ObservePlayerCount++;
+            return Task.FromResult(
+                PlayerObservations.Count > 0
+                    ? PlayerObservations.Dequeue()
+                    : DefaultPlayerObservation);
+        }
+
         public Task<string?> ReadVisibleProviderFailureAsync(CancellationToken cancellationToken)
             => Task.FromResult(ProviderFailures.Count > 0 ? ProviderFailures.Dequeue() : null);
-
-        public Task<bool> IsPlayerPresentAsync(CancellationToken cancellationToken)
-            => Task.FromResult(true);
 
         public Task CompleteAsync(CancellationToken cancellationToken)
         {

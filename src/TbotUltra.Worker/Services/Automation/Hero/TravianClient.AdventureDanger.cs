@@ -1108,25 +1108,23 @@ public sealed partial class TravianClient
             new BonusVideoPlaybackRequest(
                 label,
                 "[adventure-video:verbose]",
-                TimeSpan.FromMilliseconds(AdventureVideoPollIntervalMs)),
+                TimeSpan.FromMilliseconds(AdventureVideoPollIntervalMs),
+                RequireDialogAbsentForDefinitiveCompletion: true),
             async (context, pollCancellationToken) =>
             {
                 lastReloadUtc ??= context.StartedAtUtc;
                 var state = await ReadAdventureVideoStateAsync(boxClass, pollCancellationToken);
                 if (state == "active")
                 {
-                    var dialogOpen = await IsAdventureVideoDialogOpenAsync(pollCancellationToken);
-                    return new BonusVideoPlaybackObservation(
-                        dialogOpen
-                            ? BonusVideoCompletionSignal.AfterProtectedInterval
-                            : BonusVideoCompletionSignal.Definitive);
+                    return new BonusVideoFeatureObservation(
+                        BonusVideoFeatureSignal.RewardConfirmed);
                 }
 
                 var sinceReload = context.NowUtc - lastReloadUtc.Value;
                 if (reloadCount < maxReloads
                     && context.ProtectedIntervalElapsed
                     && sinceReload >= TimeSpan.FromSeconds(15)
-                    && !await IsAdventureVideoDialogOpenAsync(pollCancellationToken))
+                    && context.PlaybackClosed)
                 {
                     reloadCount++;
                     lastReloadUtc = context.NowUtc;
@@ -1136,37 +1134,9 @@ public sealed partial class TravianClient
                     await OpenHeroAdventuresPageAsync(pollCancellationToken);
                 }
 
-                return new BonusVideoPlaybackObservation(BonusVideoCompletionSignal.None);
+                return new BonusVideoFeatureObservation(BonusVideoFeatureSignal.None);
             },
             cancellationToken);
-    }
-
-    private async Task<bool> IsAdventureVideoDialogOpenAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        try
-        {
-            return await _page.EvaluateAsync<bool>("() => !!document.querySelector('#videoFeature')");
-        }
-        catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
-        {
-            return false;
-        }
-    }
-
-    private async Task<bool> IsBonusVideoPlayerPresentAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        try
-        {
-            return await _page.EvaluateAsync<bool>(
-                "() => !!document.querySelector('#videoArea, #videoFeature iframe')");
-        }
-        catch (PlaywrightException ex) when (IsBonusVideoNavigationTransition(ex))
-        {
-            // Unknown presence must not turn a provider help-text false positive into an immediate failure.
-            return true;
-        }
     }
 
     /// <summary>
