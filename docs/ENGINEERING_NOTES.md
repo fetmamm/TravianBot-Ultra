@@ -97,7 +97,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - `Reset program` is an in-process restart boundary: cancel all automation/session work, close Chromium and
   auxiliary popups, reset pacing plus account-scoped in-memory/UI state, then reload the normal logged-out startup
   projection. Preserve account files, settings, queues, village caches, and saved login; only an explicit Login may
-  admit a new browser session.
+  admit a new browser session. Reusable controls keep their window-lifetime cancellation scopes across this reset;
+  only real application shutdown may permanently cancel those scopes.
 - Use the existing path provider. Never derive data paths from the executable working directory.
 - `ProjectRootLocator` uses the versioned solution file in source/CI and `config/bot.json` in deployed runtime;
   source tests must not depend on ignored runtime configuration.

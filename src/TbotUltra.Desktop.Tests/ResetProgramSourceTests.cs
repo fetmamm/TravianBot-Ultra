@@ -26,7 +26,7 @@ public sealed class ResetProgramSourceTests
         var methodBody = source[methodStart..methodEnd];
 
         Assert.Contains("await _botService.ShutdownAsync(AppendLog);", methodBody, StringComparison.Ordinal);
-        Assert.Contains("ClosePopupWindows();", methodBody, StringComparison.Ordinal);
+        Assert.Contains("ClosePopupWindows(stopTravcoTools: false);", methodBody, StringComparison.Ordinal);
         Assert.Contains("ResetSessionPacing();", methodBody, StringComparison.Ordinal);
         Assert.Contains("ClearAccountScopedUiState(clearQueue: false);", methodBody, StringComparison.Ordinal);
         Assert.Contains("LoadConfigToUi();", methodBody, StringComparison.Ordinal);
@@ -53,5 +53,28 @@ public sealed class ResetProgramSourceTests
         Assert.Contains("Foreground=\"{DynamicResource DangerTextBrush}\"", button, StringComparison.Ordinal);
         Assert.Contains("BorderBrush=\"{DynamicResource DangerBorderBrush}\"", button, StringComparison.Ordinal);
         Assert.DoesNotContain("WarningButtonBgBrush", button, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void ResetProgram_PreservesReusableTravcoControlLifetime()
+    {
+        var root = ProjectRootLocator.FindProjectRoot();
+        var sessionSource = File.ReadAllText(Path.Combine(
+            root,
+            "src",
+            "TbotUltra.Desktop",
+            "MainWindow.Session.cs"));
+        var toolbarSource = File.ReadAllText(Path.Combine(
+            root,
+            "src",
+            "TbotUltra.Desktop",
+            "MainWindow.Toolbar.cs"));
+        var resetStart = sessionSource.IndexOf("private async Task ResetProgramInternalAsync()", StringComparison.Ordinal);
+        var resetEnd = sessionSource.IndexOf("private async Task StopAllAutomationAndWaitAsync()", resetStart, StringComparison.Ordinal);
+        var reset = sessionSource[resetStart..resetEnd];
+
+        Assert.Contains("ClosePopupWindows(stopTravcoTools: false);", reset, StringComparison.Ordinal);
+        Assert.Contains("private void ClosePopupWindows(bool stopTravcoTools = true)", toolbarSource, StringComparison.Ordinal);
+        Assert.Contains("if (stopTravcoTools)", toolbarSource, StringComparison.Ordinal);
     }
 }

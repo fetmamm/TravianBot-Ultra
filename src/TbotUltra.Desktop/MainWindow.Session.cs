@@ -1019,7 +1019,7 @@ public partial class MainWindow
                 AppendLog($"Could not close browser during reset: {ex.Message}");
             }
 
-            ClosePopupWindows();
+            ClosePopupWindows(stopTravcoTools: false);
             ResetSessionPacing();
 
             var recovered = _botService.ResetOrphanedRunningQueueItems();

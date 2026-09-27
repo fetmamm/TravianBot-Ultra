@@ -410,12 +410,15 @@ public partial class MainWindow
         }
     }
 
-    private void ClosePopupWindows()
+    private void ClosePopupWindows(bool stopTravcoTools = true)
     {
         try
         {
             _travcoSuppressRestart = true;
-            _travcoToolsControl?.StopForShutdown();
+            if (stopTravcoTools)
+            {
+                _travcoToolsControl?.StopForShutdown();
+            }
             _logsPopupWindow?.Close();
             _queuePopupWindow?.Close();
             _resourceTestFunctionsWindow?.Close();
