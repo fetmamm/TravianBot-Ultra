@@ -91,6 +91,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   their defaults, compatibility normalization, payload overlay, and projection to the flat `BotOptions` record;
   do not duplicate a domain rule in either facade. Domain modules also declare their account-scoped keys, which
   `AccountConfigurationScope` composes for Desktop. `BotConfigStore` continues to own persistence and migrations.
+- The Settings dialog loads and creates drafts through `SettingsConfigurationProjection`. Configuration keys,
+  defaults, compatibility, and save normalization remain in Core domain option modules; WPF only projects typed
+  settings to controls and performs interaction-specific validation.
 - `Reset program` is an in-process restart boundary: cancel all automation/session work, close Chromium and
   auxiliary popups, reset pacing plus account-scoped in-memory/UI state, then reload the normal logged-out startup
   projection. Preserve account files, settings, queues, village caches, and saved login; only an explicit Login may

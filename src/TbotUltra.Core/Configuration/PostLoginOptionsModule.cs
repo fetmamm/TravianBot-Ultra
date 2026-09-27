@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Configuration;
 using static TbotUltra.Core.Configuration.PayloadValueReader;
 
@@ -19,6 +20,20 @@ internal sealed record PostLoginOptions(
 
 internal static class PostLoginOptionsModule
 {
+    internal static void WriteSettings(JsonObject target, BotOptions options)
+    {
+        target[BotOptionPayloadKeys.AutomaticallyCheckLanguage] = options.AutomaticallyCheckLanguage;
+        target[BotOptionPayloadKeys.DetailedBrowserLoggingEnabled] = options.DetailedBrowserLoggingEnabled;
+        target[BotOptionPayloadKeys.TurnOffVideoSound] = options.TurnOffVideoSound;
+        target[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists] = options.PostLoginAnalyzeFarmlists;
+        target[BotOptionPayloadKeys.PostLoginAnalyzeHero] = options.PostLoginAnalyzeHero;
+        target[BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue] = options.PostLoginReadTroopTrainingQueue;
+        target[BotOptionPayloadKeys.PostLoginAnalyzeBrewery] = options.PostLoginAnalyzeBrewery;
+        target[BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory] = options.PostLoginAnalyzeHeroInventory;
+        target[BotOptionPayloadKeys.PostLoginAnalyzeNewVillages] = options.PostLoginAnalyzeNewVillages;
+        target[BotOptionPayloadKeys.PostLoginAnalyzeNewAccount] = options.PostLoginAnalyzeNewAccount;
+    }
+
     internal static IReadOnlyList<string> AccountScopedKeys { get; } =
     [
         BotOptionPayloadKeys.TurnOffVideoSound,

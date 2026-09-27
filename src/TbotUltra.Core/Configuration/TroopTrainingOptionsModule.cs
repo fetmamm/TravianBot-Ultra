@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Configuration;
 using static TbotUltra.Core.Configuration.PayloadValueReader;
 
@@ -33,6 +34,14 @@ internal sealed record TroopTrainingOptions(
 
 internal static class TroopTrainingOptionsModule
 {
+    internal static void WriteSettings(JsonObject target, BotOptions options)
+    {
+        target[BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds] =
+            options.TroopTrainingFallbackCooldownSeconds is 10 or 30 or 60 or 120 or 300 or 600
+                ? options.TroopTrainingFallbackCooldownSeconds
+                : 30;
+    }
+
     internal static IReadOnlyList<string> AccountScopedKeys { get; } =
     [
         BotOptionPayloadKeys.TroopTrainingBarracksEnabled,

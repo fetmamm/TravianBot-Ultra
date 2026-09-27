@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Configuration;
 using static TbotUltra.Core.Configuration.PayloadValueReader;
 
@@ -45,6 +46,18 @@ internal sealed record FarmingOptions(
 
 internal static class FarmingOptionsModule
 {
+    internal static void WriteSettings(JsonObject target, BotOptions options)
+    {
+        target[BotOptionPayloadKeys.ShowFarmListLastSentTimer] = options.ShowFarmListLastSentTimer;
+        target[BotOptionPayloadKeys.FarmListLastSentLimitEnabled] = options.FarmListLastSentLimitEnabled;
+        target[BotOptionPayloadKeys.FarmListLastSentLimitHours] = FarmingDefaults.NormalizeLastSentLimitHours(options.FarmListLastSentLimitHours);
+        target[BotOptionPayloadKeys.TownHallCelebrationCount] = TownHallCelebrationDefaults.NormalizeCount(options.TownHallCelebrationCount);
+        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.TownHallCelebrationRestartDelayMinMinutes, BotOptionPayloadKeys.TownHallCelebrationRestartDelayMaxMinutes, options.TownHallCelebrationRestartDelayMinMinutes, options.TownHallCelebrationRestartDelayMaxMinutes, 0, double.MaxValue);
+        target[BotOptionPayloadKeys.TownHallCelebrationRestartDelayEnabled] = options.TownHallCelebrationRestartDelayEnabled;
+        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.BreweryCelebrationRestartDelayMinMinutes, BotOptionPayloadKeys.BreweryCelebrationRestartDelayMaxMinutes, options.BreweryCelebrationRestartDelayMinMinutes, options.BreweryCelebrationRestartDelayMaxMinutes, 0, double.MaxValue);
+        target[BotOptionPayloadKeys.BreweryCelebrationRestartDelayEnabled] = options.BreweryCelebrationRestartDelayEnabled;
+    }
+
     internal static IReadOnlyList<string> AccountScopedKeys { get; } =
     [
         BotOptionPayloadKeys.ContinuousFarmListNames,

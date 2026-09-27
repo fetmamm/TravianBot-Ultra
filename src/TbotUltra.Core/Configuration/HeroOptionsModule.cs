@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Configuration;
 using static TbotUltra.Core.Configuration.PayloadValueReader;
 
@@ -42,6 +43,19 @@ internal sealed record HeroOptions(
 
 internal static class HeroOptionsModule
 {
+    internal static void WriteSettings(JsonObject target, BotOptions options)
+    {
+        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.HeroAdventureRestartDelayMinMinutes, BotOptionPayloadKeys.HeroAdventureRestartDelayMaxMinutes, options.HeroAdventureRestartDelayMinMinutes, options.HeroAdventureRestartDelayMaxMinutes, 0, double.MaxValue);
+        target[BotOptionPayloadKeys.HeroAdventureRestartDelayEnabled] = options.HeroAdventureRestartDelayEnabled;
+        target[BotOptionPayloadKeys.HeroHpRegenPerDayPercent] = Math.Clamp(options.HeroHpRegenPerDayPercent, 20, 100);
+        target[BotOptionPayloadKeys.HeroCropAntiStarveEnabled] = options.HeroCropAntiStarveEnabled;
+        target[BotOptionPayloadKeys.HeroCropAntiStarveTriggerMinutes] = Math.Clamp(options.HeroCropAntiStarveTriggerMinutes, 1, 1440);
+        target[BotOptionPayloadKeys.HeroCropAntiStarveTargetMinutes] = Math.Clamp(options.HeroCropAntiStarveTargetMinutes, 1, 1440);
+        target[BotOptionPayloadKeys.HeroCropAntiStarveMaxCropPerTransfer] = Math.Max(1, options.HeroCropAntiStarveMaxCropPerTransfer);
+        target[BotOptionPayloadKeys.HeroCropAntiStarveMinHeroCropRemaining] = Math.Max(0, options.HeroCropAntiStarveMinHeroCropRemaining);
+        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.CollectStepDelayMinSeconds, BotOptionPayloadKeys.CollectStepDelayMaxSeconds, options.CollectStepDelayMinSeconds, options.CollectStepDelayMaxSeconds, 0, 3600);
+    }
+
     internal static IReadOnlyList<string> AccountScopedKeys { get; } =
     [
         BotOptionPayloadKeys.HeroMinHpForAdventure,

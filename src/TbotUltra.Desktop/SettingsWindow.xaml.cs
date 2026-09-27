@@ -29,10 +29,6 @@ public enum SettingsCategory
 
 public partial class SettingsWindow : Window
 {
-    private const int DefaultGoldLimit = 100;
-    private const int DefaultDailyGoldSpendingLimit = 20;
-    private const int DefaultSilverLimit = 100;
-    private const int DefaultDailySilverSpendingLimit = 10000;
     private readonly BotConfigStore _store;
     private readonly SettingsPersistenceService _settingsPersistence;
     private readonly SettingsExchangeService _settingsExchange = new();
@@ -237,67 +233,48 @@ public partial class SettingsWindow : Window
 
     private void ApplyConfigToUi(bool resetChangeTracking)
     {
+        var settings = SettingsConfigurationAdapter.Load(_config);
+        var options = settings.Options;
         using var suppressChanges = SettingsVm.SuppressChangeTracking();
-        SettingsVm.DontNotifyNewVersion = _config[BotOptionPayloadKeys.DontNotifyNewVersion]?.GetValue<bool>() ?? false;
-        SettingsVm.QuickReloginEnabled = _config[BotOptionPayloadKeys.PostLoginQuickReloginEnabled]?.GetValue<bool>() ?? true;
-        SettingsVm.AutomaticallyCheckLanguage = _config[BotOptionPayloadKeys.AutomaticallyCheckLanguage]?.GetValue<bool>() ?? true;
-        SettingsVm.TurnOffVideoSound = _config[BotOptionPayloadKeys.TurnOffVideoSound]?.GetValue<bool>() ?? true;
+        SettingsVm.DontNotifyNewVersion = settings.General.DontNotifyNewVersion;
+        SettingsVm.QuickReloginEnabled = settings.General.QuickReloginEnabled;
+        SettingsVm.AutomaticallyCheckLanguage = options.AutomaticallyCheckLanguage;
+        SettingsVm.TurnOffVideoSound = options.TurnOffVideoSound;
         _suppressDetailedBrowserLoggingConfirmation = true;
         try
         {
-            SettingsVm.DetailedBrowserLoggingEnabled =
-                _config[BotOptionPayloadKeys.DetailedBrowserLoggingEnabled]?.GetValue<bool>() ?? false;
+            SettingsVm.DetailedBrowserLoggingEnabled = options.DetailedBrowserLoggingEnabled;
         }
         finally
         {
             _suppressDetailedBrowserLoggingConfirmation = false;
         }
-        SettingsVm.AllowSilverSpending = _config["allow_silver_spending"]?.GetValue<bool>() ?? false;
-        SettingsVm.AllowGoldSpending = _config[BotOptionPayloadKeys.AllowGoldSpending]?.GetValue<bool>() ?? false;
-        SettingsVm.GoldLimitText = Math.Max(
-            0,
-            _config[BotOptionPayloadKeys.GoldLimit]?.GetValue<int>() ?? DefaultGoldLimit).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.DailyGoldSpendingLimitText = Math.Max(
-            0,
-            _config[BotOptionPayloadKeys.DailyGoldSpendingLimit]?.GetValue<int>() ?? DefaultDailyGoldSpendingLimit).ToString(CultureInfo.InvariantCulture);
-        LoadDailyServerResetToUi();
-        LoadPacingConfigToUi();
-        SettingsVm.Construction.MainBuildingRebuildEnabled = ReadBool(
-            BotOptionPayloadKeys.ConstructionMainBuildingRebuildEnabled,
-            ConstructionDefaults.MainBuildingRebuildEnabled);
-        SettingsVm.Construction.MainBuildingRebuildTargetLevel = ConstructionDefaults.NormalizeMainBuildingRebuildTargetLevel(
-            _config[BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel]?.GetValue<int>()
-            ?? ConstructionDefaults.MainBuildingRebuildTargetLevel);
-        SettingsVm.Construction.StorageUpgradeLevelsAhead = ConstructionDefaults.NormalizeStorageUpgradeLevelsAhead(
-            _config[BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead]?.GetValue<int>()
-            ?? ConstructionDefaults.StorageUpgradeLevelsAhead);
-        SettingsVm.Construction.CropShortageRecoveryEnabled = ReadBool(
-            BotOptionPayloadKeys.ConstructionCropShortageRecoveryEnabled,
-            ConstructionDefaults.CropShortageRecoveryEnabled);
-        LoadConstructionHumanizeConfigToUi();
-        SettingsVm.Farming.ShowFarmListLastSentTimer = ReadBool(BotOptionPayloadKeys.ShowFarmListLastSentTimer, FarmingDefaults.ShowLastSentTimer);
-        SettingsVm.Farming.FarmListLastSentLimitEnabled = ReadBool(BotOptionPayloadKeys.FarmListLastSentLimitEnabled, FarmingDefaults.LastSentLimitEnabled);
-        SettingsVm.Farming.FarmListLastSentLimitHours = FarmingDefaults.NormalizeLastSentLimitHours(ReadInt(
-            BotOptionPayloadKeys.FarmListLastSentLimitHours,
-            FarmingDefaults.DefaultLastSentLimitHours)).ToString(CultureInfo.InvariantCulture);
+        SettingsVm.AllowSilverSpending = options.AllowSilverSpending;
+        SettingsVm.AllowGoldSpending = options.AllowGoldSpending;
+        SettingsVm.GoldLimitText = options.GoldLimit.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.DailyGoldSpendingLimitText = options.DailyGoldSpendingLimit.ToString(CultureInfo.InvariantCulture);
+        LoadDailyServerResetToUi(settings.General);
+        LoadPacingConfigToUi(settings);
+        SettingsVm.Construction.MainBuildingRebuildEnabled = options.ConstructionMainBuildingRebuildEnabled;
+        SettingsVm.Construction.MainBuildingRebuildTargetLevel = options.ConstructionMainBuildingRebuildTargetLevel;
+        SettingsVm.Construction.StorageUpgradeLevelsAhead = options.ConstructionStorageUpgradeLevelsAhead;
+        SettingsVm.Construction.CropShortageRecoveryEnabled = options.ConstructionCropShortageRecoveryEnabled;
+        LoadConstructionHumanizeConfigToUi(options);
+        SettingsVm.Farming.ShowFarmListLastSentTimer = options.ShowFarmListLastSentTimer;
+        SettingsVm.Farming.FarmListLastSentLimitEnabled = options.FarmListLastSentLimitEnabled;
+        SettingsVm.Farming.FarmListLastSentLimitHours = options.FarmListLastSentLimitHours.ToString(CultureInfo.InvariantCulture);
         SynchronizeFarmingControls();
-        SettingsVm.PostLogin.AnalyzeFarmlists = _config[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists]?.GetValue<bool>() ?? false;
-        SettingsVm.PostLogin.AnalyzeHero = _config[BotOptionPayloadKeys.PostLoginAnalyzeHero]?.GetValue<bool>() ?? false;
-        SettingsVm.PostLogin.ReadTroopTrainingQueue = _config[BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue]?.GetValue<bool>() ?? false;
-        SettingsVm.PostLogin.AnalyzeBrewery = _config[BotOptionPayloadKeys.PostLoginAnalyzeBrewery]?.GetValue<bool>() ?? false;
-        SettingsVm.PostLogin.AnalyzeHeroInventory = _config[BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory]?.GetValue<bool>() ?? false;
-        SettingsVm.PostLogin.AnalyzeNewVillages = _config[BotOptionPayloadKeys.PostLoginAnalyzeNewVillages]?.GetValue<bool>() ?? true;
-        SettingsVm.PostLogin.AnalyzeNewAccount = _config[BotOptionPayloadKeys.PostLoginAnalyzeNewAccount]?.GetValue<bool>() ?? true;
+        SettingsVm.PostLogin.AnalyzeFarmlists = options.PostLoginAnalyzeFarmlists;
+        SettingsVm.PostLogin.AnalyzeHero = options.PostLoginAnalyzeHero;
+        SettingsVm.PostLogin.ReadTroopTrainingQueue = options.PostLoginReadTroopTrainingQueue;
+        SettingsVm.PostLogin.AnalyzeBrewery = options.PostLoginAnalyzeBrewery;
+        SettingsVm.PostLogin.AnalyzeHeroInventory = options.PostLoginAnalyzeHeroInventory;
+        SettingsVm.PostLogin.AnalyzeNewVillages = options.PostLoginAnalyzeNewVillages;
+        SettingsVm.PostLogin.AnalyzeNewAccount = options.PostLoginAnalyzeNewAccount;
         SynchronizePostLoginControls();
-        SettingsVm.SilverLimitText = Math.Max(
-            0,
-            _config[BotOptionPayloadKeys.SilverLimit]?.GetValue<int>() ?? DefaultSilverLimit).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.DailySilverSpendingLimitText = Math.Max(
-            0,
-            _config[BotOptionPayloadKeys.DailySilverSpendingLimit]?.GetValue<int>() ?? DefaultDailySilverSpendingLimit).ToString(CultureInfo.InvariantCulture);
-        if (TownHallCelebrationDefaults.NormalizeCount(
-                ReadInt(BotOptionPayloadKeys.TownHallCelebrationCount, TownHallCelebrationDefaults.DefaultCount))
-            >= TownHallCelebrationDefaults.MaxCount)
+        SettingsVm.SilverLimitText = options.SilverLimit.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.DailySilverSpendingLimitText = options.DailySilverSpendingLimit.ToString(CultureInfo.InvariantCulture);
+        if (options.TownHallCelebrationCount >= TownHallCelebrationDefaults.MaxCount)
         {
             SettingsVm.Celebrations.TownHallQueue.IsTwo = true;
         }
@@ -305,63 +282,27 @@ public partial class SettingsWindow : Window
         {
             SettingsVm.Celebrations.TownHallQueue.IsOne = true;
         }
-        SettingsVm.Celebrations.TownHallQueue.DelayMinMinutes = FormatDelay(ReadDouble(
-            BotOptionPayloadKeys.TownHallCelebrationRestartDelayMinMinutes,
-            TownHallCelebrationDefaults.DefaultRestartDelayMinMinutes));
-        SettingsVm.Celebrations.TownHallQueue.DelayMaxMinutes = FormatDelay(ReadDouble(
-            BotOptionPayloadKeys.TownHallCelebrationRestartDelayMaxMinutes,
-            TownHallCelebrationDefaults.DefaultRestartDelayMaxMinutes));
-        SettingsVm.Celebrations.TownHallQueue.IsRestartDelayEnabled =
-            _config[BotOptionPayloadKeys.TownHallCelebrationRestartDelayEnabled]?.GetValue<bool>()
-            ?? TownHallCelebrationDefaults.DefaultRestartDelayEnabled;
-        SettingsVm.Celebrations.BreweryRestartDelay.IsEnabled =
-            _config[BotOptionPayloadKeys.BreweryCelebrationRestartDelayEnabled]?.GetValue<bool>()
-            ?? BreweryCelebrationDefaults.DefaultRestartDelayEnabled;
-        SettingsVm.Celebrations.BreweryRestartDelay.DelayMinMinutes = FormatDelay(ReadDouble(
-            BotOptionPayloadKeys.BreweryCelebrationRestartDelayMinMinutes,
-            BreweryCelebrationDefaults.DefaultRestartDelayMinMinutes));
-        SettingsVm.Celebrations.BreweryRestartDelay.DelayMaxMinutes = FormatDelay(ReadDouble(
-            BotOptionPayloadKeys.BreweryCelebrationRestartDelayMaxMinutes,
-            BreweryCelebrationDefaults.DefaultRestartDelayMaxMinutes));
+        SettingsVm.Celebrations.TownHallQueue.DelayMinMinutes = FormatDelay(options.TownHallCelebrationRestartDelayMinMinutes);
+        SettingsVm.Celebrations.TownHallQueue.DelayMaxMinutes = FormatDelay(options.TownHallCelebrationRestartDelayMaxMinutes);
+        SettingsVm.Celebrations.TownHallQueue.IsRestartDelayEnabled = options.TownHallCelebrationRestartDelayEnabled;
+        SettingsVm.Celebrations.BreweryRestartDelay.IsEnabled = options.BreweryCelebrationRestartDelayEnabled;
+        SettingsVm.Celebrations.BreweryRestartDelay.DelayMinMinutes = FormatDelay(options.BreweryCelebrationRestartDelayMinMinutes);
+        SettingsVm.Celebrations.BreweryRestartDelay.DelayMaxMinutes = FormatDelay(options.BreweryCelebrationRestartDelayMaxMinutes);
         SynchronizeCelebrationControls();
-        SettingsVm.Hero.AdventureRestartDelay.IsEnabled =
-            _config[BotOptionPayloadKeys.HeroAdventureRestartDelayEnabled]?.GetValue<bool>()
-            ?? HeroAdventureRestartDelayDefaults.Enabled;
-        SettingsVm.Hero.AdventureRestartDelay.DelayMinMinutes = FormatDelay(ReadDouble(
-            BotOptionPayloadKeys.HeroAdventureRestartDelayMinMinutes,
-            HeroAdventureRestartDelayDefaults.MinMinutes));
-        SettingsVm.Hero.AdventureRestartDelay.DelayMaxMinutes = FormatDelay(ReadDouble(
-            BotOptionPayloadKeys.HeroAdventureRestartDelayMaxMinutes,
-            HeroAdventureRestartDelayDefaults.MaxMinutes));
-        var heroHpRegen = Math.Clamp(ReadInt(BotOptionPayloadKeys.HeroHpRegenPerDayPercent, 40), 20, 100);
+        SettingsVm.Hero.AdventureRestartDelay.IsEnabled = options.HeroAdventureRestartDelayEnabled;
+        SettingsVm.Hero.AdventureRestartDelay.DelayMinMinutes = FormatDelay(options.HeroAdventureRestartDelayMinMinutes);
+        SettingsVm.Hero.AdventureRestartDelay.DelayMaxMinutes = FormatDelay(options.HeroAdventureRestartDelayMaxMinutes);
+        var heroHpRegen = options.HeroHpRegenPerDayPercent;
         SettingsVm.Hero.HpRegenPerDayPercent = Math.Clamp(((heroHpRegen + 5) / 10) * 10, 20, 100);
-        SettingsVm.Hero.CropAntiStarveEnabled = ReadBool(
-            BotOptionPayloadKeys.HeroCropAntiStarveEnabled,
-            HeroCropAntiStarveDefaults.Enabled);
-        SettingsVm.Hero.CropAntiStarveTriggerMinutes = ReadInt(
-            BotOptionPayloadKeys.HeroCropAntiStarveTriggerMinutes,
-            HeroCropAntiStarveDefaults.TriggerMinutes).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Hero.CropAntiStarveTargetMinutes = ReadInt(
-            BotOptionPayloadKeys.HeroCropAntiStarveTargetMinutes,
-            HeroCropAntiStarveDefaults.TargetMinutes).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Hero.CropAntiStarveMaxCropPerTransfer = ReadInt(
-            BotOptionPayloadKeys.HeroCropAntiStarveMaxCropPerTransfer,
-            HeroCropAntiStarveDefaults.MaxCropPerTransfer).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Hero.CropAntiStarveMinHeroCropRemaining = ReadInt(
-            BotOptionPayloadKeys.HeroCropAntiStarveMinHeroCropRemaining,
-            HeroCropAntiStarveDefaults.MinHeroCropRemaining).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Hero.SmithyUpgradeRestartDelay.IsEnabled =
-            _config[BotOptionPayloadKeys.SmithyUpgradeRestartDelayEnabled]?.GetValue<bool>()
-            ?? SmithyUpgradeRestartDelayDefaults.Enabled;
-        SettingsVm.Hero.SmithyUpgradeRestartDelay.DelayMinMinutes = FormatDelay(ReadDouble(
-            BotOptionPayloadKeys.SmithyUpgradeRestartDelayMinMinutes,
-            SmithyUpgradeRestartDelayDefaults.MinMinutes));
-        SettingsVm.Hero.SmithyUpgradeRestartDelay.DelayMaxMinutes = FormatDelay(ReadDouble(
-            BotOptionPayloadKeys.SmithyUpgradeRestartDelayMaxMinutes,
-            SmithyUpgradeRestartDelayDefaults.MaxMinutes));
-        SettingsVm.TroopTrainingFallbackCooldownSeconds = ReadInt(
-            BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds,
-            120);
+        SettingsVm.Hero.CropAntiStarveEnabled = options.HeroCropAntiStarveEnabled;
+        SettingsVm.Hero.CropAntiStarveTriggerMinutes = options.HeroCropAntiStarveTriggerMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Hero.CropAntiStarveTargetMinutes = options.HeroCropAntiStarveTargetMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Hero.CropAntiStarveMaxCropPerTransfer = options.HeroCropAntiStarveMaxCropPerTransfer.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Hero.CropAntiStarveMinHeroCropRemaining = options.HeroCropAntiStarveMinHeroCropRemaining.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Hero.SmithyUpgradeRestartDelay.IsEnabled = options.SmithyUpgradeRestartDelayEnabled;
+        SettingsVm.Hero.SmithyUpgradeRestartDelay.DelayMinMinutes = FormatDelay(options.SmithyUpgradeRestartDelayMinMinutes);
+        SettingsVm.Hero.SmithyUpgradeRestartDelay.DelayMaxMinutes = FormatDelay(options.SmithyUpgradeRestartDelayMaxMinutes);
+        SettingsVm.TroopTrainingFallbackCooldownSeconds = options.TroopTrainingFallbackCooldownSeconds;
         SynchronizeHeroControls();
         SynchronizeSpendingLimitControls();
         if (resetChangeTracking)
@@ -421,73 +362,17 @@ public partial class SettingsWindow : Window
             ConstructionDefaults.StorageUpgradeLevelsAheadMax - ConstructionDefaults.StorageUpgradeLevelsAheadMin + 1);
     }
 
-    private void LoadConstructionHumanizeConfigToUi()
+    private void LoadConstructionHumanizeConfigToUi(BotOptions options)
     {
-        SettingsVm.Construction.HumanizeDelayEnabled = ReadBool(
-            BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled,
-            PacingDefaults.ConstructionHumanizeDelayEnabled);
-        SettingsVm.Construction.QueuePercentMin = FormatDelay(ReadDouble(
-            BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMin,
-            PacingDefaults.ConstructionHumanizeQueuePercentMin));
-        SettingsVm.Construction.QueuePercentMax = FormatDelay(ReadDouble(
-            BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMax,
-            PacingDefaults.ConstructionHumanizeQueuePercentMax));
-        SettingsVm.Construction.MaxDelayMinutes = FormatDelay(ReadDouble(
-            BotOptionPayloadKeys.ConstructionHumanizeMaxDelayMinutes,
-            PacingDefaults.ConstructionHumanizeMaxDelayMinutes));
-        SettingsVm.Construction.NoPlusDelayMinMinutes = FormatDelay(ReadDouble(
-            BotOptionPayloadKeys.ConstructionHumanizeNoPlusMinMinutes,
-            PacingDefaults.ConstructionHumanizeNoPlusMinMinutes));
-        SettingsVm.Construction.NoPlusDelayMaxMinutes = FormatDelay(ReadDouble(
-            BotOptionPayloadKeys.ConstructionHumanizeNoPlusMaxMinutes,
-            PacingDefaults.ConstructionHumanizeNoPlusMaxMinutes));
-        SettingsVm.Construction.DemolishDelayMinMinutes = ReadInt(
-            BotOptionPayloadKeys.DemolishDelayMinMinutes,
-            DemolishDefaults.DefaultDelayMinMinutes).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Construction.DemolishDelayMaxMinutes = ReadInt(
-            BotOptionPayloadKeys.DemolishDelayMaxMinutes,
-            DemolishDefaults.DefaultDelayMaxMinutes).ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Construction.HumanizeDelayEnabled = options.ConstructionHumanizeDelayEnabled;
+        SettingsVm.Construction.QueuePercentMin = FormatDelay(options.ConstructionHumanizeQueuePercentMin);
+        SettingsVm.Construction.QueuePercentMax = FormatDelay(options.ConstructionHumanizeQueuePercentMax);
+        SettingsVm.Construction.MaxDelayMinutes = FormatDelay(options.ConstructionHumanizeMaxDelayMinutes);
+        SettingsVm.Construction.NoPlusDelayMinMinutes = FormatDelay(options.ConstructionHumanizeNoPlusMinMinutes);
+        SettingsVm.Construction.NoPlusDelayMaxMinutes = FormatDelay(options.ConstructionHumanizeNoPlusMaxMinutes);
+        SettingsVm.Construction.DemolishDelayMinMinutes = options.DemolishDelayMinMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Construction.DemolishDelayMaxMinutes = options.DemolishDelayMaxMinutes.ToString(CultureInfo.InvariantCulture);
         SynchronizeConstructionControls();
-    }
-
-    private void SaveConstructionHumanizeConfigFromUi(JsonObject target)
-    {
-        var wasEnabled = ReadBool(
-            target,
-            BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled,
-            PacingDefaults.ConstructionHumanizeDelayEnabled);
-        var enabled = SettingsVm.Construction.HumanizeDelayEnabled;
-        var percentMin = Math.Clamp(ReadDoubleText(
-            SettingsVm.Construction.QueuePercentMin,
-            PacingDefaults.ConstructionHumanizeQueuePercentMin), 0, 99);
-        var percentMax = Math.Clamp(Math.Max(percentMin, ReadDoubleText(
-            SettingsVm.Construction.QueuePercentMax,
-            PacingDefaults.ConstructionHumanizeQueuePercentMax)), 0, 99);
-        var maxDelay = Math.Clamp(ReadDoubleText(
-            SettingsVm.Construction.MaxDelayMinutes,
-            PacingDefaults.ConstructionHumanizeMaxDelayMinutes), 0, 600);
-        var noPlusMin = Math.Clamp(ReadDoubleText(
-            SettingsVm.Construction.NoPlusDelayMinMinutes,
-            PacingDefaults.ConstructionHumanizeNoPlusMinMinutes), 0, 600);
-        var noPlusMax = Math.Clamp(Math.Max(noPlusMin, ReadDoubleText(
-            SettingsVm.Construction.NoPlusDelayMaxMinutes,
-            PacingDefaults.ConstructionHumanizeNoPlusMaxMinutes)), 0, 600);
-
-        target[BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled] = enabled;
-        target[BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMin] = percentMin;
-        target[BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMax] = percentMax;
-        target[BotOptionPayloadKeys.ConstructionHumanizeMaxDelayMinutes] = maxDelay;
-        target[BotOptionPayloadKeys.ConstructionHumanizeNoPlusMinMinutes] = noPlusMin;
-        target[BotOptionPayloadKeys.ConstructionHumanizeNoPlusMaxMinutes] = noPlusMax;
-        target[BotOptionPayloadKeys.DemolishDelayMinMinutes] = ReadIntText(SettingsVm.Construction.DemolishDelayMinMinutes, DemolishDefaults.DefaultDelayMinMinutes, 0, 1440);
-        target[BotOptionPayloadKeys.DemolishDelayMaxMinutes] = ReadIntText(SettingsVm.Construction.DemolishDelayMaxMinutes, DemolishDefaults.DefaultDelayMaxMinutes, 0, 1440);
-        if (wasEnabled != enabled)
-        {
-            var stateVersion = ReadInt(target, BotOptionPayloadKeys.ConstructionHumanizeStateVersion, 0);
-            target[BotOptionPayloadKeys.ConstructionHumanizeStateVersion] = stateVersion == int.MaxValue
-                ? 1
-                : stateVersion + 1;
-        }
     }
 
     private void SettingsCategoryTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -498,21 +383,13 @@ public partial class SettingsWindow : Window
         }
     }
 
-    private void LoadDailyServerResetToUi()
+    private void LoadDailyServerResetToUi(GeneralSettingsConfiguration settings)
     {
-        var overrideEnabled = _config[BotOptionPayloadKeys.DailyServerResetManualOverrideEnabled]?.GetValue<bool>() ?? false;
-        var manualHour = Math.Clamp(_config[BotOptionPayloadKeys.DailyServerResetManualHour]?.GetValue<int>() ?? 0, 0, 23);
-        SettingsVm.DailyServerResetOverrideEnabled = overrideEnabled;
-        SettingsVm.DailyServerResetHour = manualHour;
+        SettingsVm.DailyServerResetOverrideEnabled = settings.DailyServerResetOverrideEnabled;
+        SettingsVm.DailyServerResetHour = settings.DailyServerResetHour;
         DailyServerResetDetectedTextBlock.Text = _detectedDailyResetHour is int detected
             ? $"detected: {detected:00}:00"
             : "detected: —";
-    }
-
-    private void SaveDailyServerResetFromUi(JsonObject target)
-    {
-        target[BotOptionPayloadKeys.DailyServerResetManualOverrideEnabled] = SettingsVm.DailyServerResetOverrideEnabled;
-        target[BotOptionPayloadKeys.DailyServerResetManualHour] = SettingsVm.DailyServerResetHour;
     }
 
     private void SaveSettings()
@@ -751,78 +628,163 @@ public partial class SettingsWindow : Window
             return false;
         }
 
-        draft = (JsonObject)_config.DeepClone();
-        // The browser always runs visible; headless mode has been removed entirely.
-        draft.Remove("headless");
-        draft[BotOptionPayloadKeys.DontNotifyNewVersion] = SettingsVm.DontNotifyNewVersion;
-        draft[BotOptionPayloadKeys.PostLoginQuickReloginEnabled] = SettingsVm.QuickReloginEnabled;
-        draft[BotOptionPayloadKeys.AutomaticallyCheckLanguage] = SettingsVm.AutomaticallyCheckLanguage;
-        draft[BotOptionPayloadKeys.DetailedBrowserLoggingEnabled] = SettingsVm.DetailedBrowserLoggingEnabled;
-        draft[BotOptionPayloadKeys.TurnOffVideoSound] = SettingsVm.TurnOffVideoSound;
-        draft["allow_silver_spending"] = SettingsVm.AllowSilverSpending;
-        draft[BotOptionPayloadKeys.AllowGoldSpending] = SettingsVm.AllowGoldSpending;
-        draft[BotOptionPayloadKeys.GoldLimit] = goldLimit;
-        draft[BotOptionPayloadKeys.DailyGoldSpendingLimit] = dailyGoldSpendingLimit;
-        draft[BotOptionPayloadKeys.TownHallCelebrationCount] =
-            TownHallCelebrationDefaults.NormalizeCount(SettingsVm.Celebrations.TownHallQueue.Count);
-        draft[BotOptionPayloadKeys.TownHallCelebrationRestartDelayMinMinutes] =
-            SettingsVm.Celebrations.TownHallQueue.ResolvedDelayMinMinutes;
-        draft[BotOptionPayloadKeys.TownHallCelebrationRestartDelayMaxMinutes] =
-            SettingsVm.Celebrations.TownHallQueue.ResolvedDelayMaxMinutes;
-        draft[BotOptionPayloadKeys.TownHallCelebrationRestartDelayEnabled] =
-            SettingsVm.Celebrations.TownHallQueue.IsRestartDelayEnabled;
-        draft[BotOptionPayloadKeys.BreweryCelebrationRestartDelayEnabled] =
-            SettingsVm.Celebrations.BreweryRestartDelay.IsEnabled;
-        draft[BotOptionPayloadKeys.BreweryCelebrationRestartDelayMinMinutes] =
-            SettingsVm.Celebrations.BreweryRestartDelay.ResolvedDelayMinMinutes;
-        draft[BotOptionPayloadKeys.BreweryCelebrationRestartDelayMaxMinutes] =
-            SettingsVm.Celebrations.BreweryRestartDelay.ResolvedDelayMaxMinutes;
-        draft[BotOptionPayloadKeys.HeroAdventureRestartDelayEnabled] =
-            SettingsVm.Hero.AdventureRestartDelay.IsEnabled;
-        draft[BotOptionPayloadKeys.HeroAdventureRestartDelayMinMinutes] =
-            SettingsVm.Hero.AdventureRestartDelay.ResolvedDelayMinMinutes;
-        draft[BotOptionPayloadKeys.HeroAdventureRestartDelayMaxMinutes] =
-            SettingsVm.Hero.AdventureRestartDelay.ResolvedDelayMaxMinutes;
-        draft[BotOptionPayloadKeys.HeroHpRegenPerDayPercent] = SettingsVm.Hero.HpRegenPerDayPercent;
-        draft[BotOptionPayloadKeys.SmithyUpgradeRestartDelayEnabled] =
-            SettingsVm.Hero.SmithyUpgradeRestartDelay.IsEnabled;
-        draft[BotOptionPayloadKeys.SmithyUpgradeRestartDelayMinMinutes] =
-            SettingsVm.Hero.SmithyUpgradeRestartDelay.ResolvedDelayMinMinutes;
-        draft[BotOptionPayloadKeys.SmithyUpgradeRestartDelayMaxMinutes] =
-            SettingsVm.Hero.SmithyUpgradeRestartDelay.ResolvedDelayMaxMinutes;
-        draft[BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds] =
-            SettingsVm.TroopTrainingFallbackCooldownSeconds;
-        SaveDailyServerResetFromUi(draft);
-        SavePacingConfigFromUi(draft);
-        draft[BotOptionPayloadKeys.ConstructionMainBuildingRebuildEnabled] =
-            SettingsVm.Construction.MainBuildingRebuildEnabled;
-        draft[BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel] =
-            SettingsVm.Construction.MainBuildingRebuildTargetLevel;
-        draft[BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead] =
-            SettingsVm.Construction.StorageUpgradeLevelsAhead;
-        draft[BotOptionPayloadKeys.ConstructionCropShortageRecoveryEnabled] =
-            SettingsVm.Construction.CropShortageRecoveryEnabled;
-        draft[BotOptionPayloadKeys.HeroCropAntiStarveEnabled] = SettingsVm.Hero.CropAntiStarveEnabled;
-        draft[BotOptionPayloadKeys.HeroCropAntiStarveTriggerMinutes] = ReadIntText(SettingsVm.Hero.CropAntiStarveTriggerMinutes, HeroCropAntiStarveDefaults.TriggerMinutes, 1, 1440);
-        draft[BotOptionPayloadKeys.HeroCropAntiStarveTargetMinutes] = ReadIntText(SettingsVm.Hero.CropAntiStarveTargetMinutes, HeroCropAntiStarveDefaults.TargetMinutes, 1, 1440);
-        draft[BotOptionPayloadKeys.HeroCropAntiStarveMaxCropPerTransfer] = ReadIntText(SettingsVm.Hero.CropAntiStarveMaxCropPerTransfer, HeroCropAntiStarveDefaults.MaxCropPerTransfer, 1, int.MaxValue);
-        draft[BotOptionPayloadKeys.HeroCropAntiStarveMinHeroCropRemaining] = ReadIntText(SettingsVm.Hero.CropAntiStarveMinHeroCropRemaining, HeroCropAntiStarveDefaults.MinHeroCropRemaining, 0, int.MaxValue);
-        SaveConstructionHumanizeConfigFromUi(draft);
-        draft[BotOptionPayloadKeys.ShowFarmListLastSentTimer] = SettingsVm.Farming.ShowFarmListLastSentTimer;
-        draft[BotOptionPayloadKeys.FarmListLastSentLimitEnabled] = SettingsVm.Farming.FarmListLastSentLimitEnabled;
-        draft[BotOptionPayloadKeys.FarmListLastSentLimitHours] = ReadIntText(SettingsVm.Farming.FarmListLastSentLimitHours, FarmingDefaults.DefaultLastSentLimitHours, 1, FarmingDefaults.MaxLastSentLimitHours);
-        draft.Remove("queue_wait_threshold_mode");
-        draft[BotOptionPayloadKeys.PostLoginAnalyzeFarmlists] = SettingsVm.PostLogin.AnalyzeFarmlists;
-        draft[BotOptionPayloadKeys.PostLoginAnalyzeHero] = SettingsVm.PostLogin.AnalyzeHero;
-        draft[BotOptionPayloadKeys.PostLoginReadTroopTrainingQueue] = SettingsVm.PostLogin.ReadTroopTrainingQueue;
-        draft[BotOptionPayloadKeys.PostLoginAnalyzeBrewery] = SettingsVm.PostLogin.AnalyzeBrewery;
-        draft[BotOptionPayloadKeys.PostLoginAnalyzeHeroInventory] = SettingsVm.PostLogin.AnalyzeHeroInventory;
-        draft[BotOptionPayloadKeys.PostLoginAnalyzeNewVillages] = SettingsVm.PostLogin.AnalyzeNewVillages;
-        draft[BotOptionPayloadKeys.PostLoginAnalyzeNewAccount] = SettingsVm.PostLogin.AnalyzeNewAccount;
-        draft[BotOptionPayloadKeys.SilverLimit] = silverLimit;
-        draft[BotOptionPayloadKeys.DailySilverSpendingLimit] = dailySilverSpendingLimit;
+        var current = SettingsConfigurationAdapter.Load(_config);
+        var settings = current with
+        {
+            General = new GeneralSettingsConfiguration(
+                SettingsVm.DontNotifyNewVersion,
+                SettingsVm.QuickReloginEnabled,
+                SettingsVm.DailyServerResetOverrideEnabled,
+                SettingsVm.DailyServerResetHour),
+            SessionPacing = BuildSessionPacingSettings(),
+            Options = BuildBotOptionsDraft(
+                current.Options,
+                goldLimit,
+                dailyGoldSpendingLimit,
+                silverLimit,
+                dailySilverSpendingLimit),
+        };
+        draft = SettingsConfigurationAdapter.BuildDraft(_config, settings);
         return true;
     }
+
+    private BotOptions BuildBotOptionsDraft(
+        BotOptions current,
+        int goldLimit,
+        int dailyGoldSpendingLimit,
+        int silverLimit,
+        int dailySilverSpendingLimit)
+    {
+        var humanizeStateVersion = current.ConstructionHumanizeStateVersion;
+        if (current.ConstructionHumanizeDelayEnabled != SettingsVm.Construction.HumanizeDelayEnabled)
+        {
+            humanizeStateVersion = humanizeStateVersion == int.MaxValue ? 1 : humanizeStateVersion + 1;
+        }
+
+        var dorf2Enabled = SettingsVm.Pacing.VillageStatusSweepDorf2Enabled;
+        return current with
+        {
+            AutomaticallyCheckLanguage = SettingsVm.AutomaticallyCheckLanguage,
+            DetailedBrowserLoggingEnabled = SettingsVm.DetailedBrowserLoggingEnabled,
+            TurnOffVideoSound = SettingsVm.TurnOffVideoSound,
+            AllowSilverSpending = SettingsVm.AllowSilverSpending,
+            AllowGoldSpending = SettingsVm.AllowGoldSpending,
+            GoldLimit = goldLimit,
+            DailyGoldSpendingLimit = dailyGoldSpendingLimit,
+            SilverLimit = silverLimit,
+            DailySilverSpendingLimit = dailySilverSpendingLimit,
+            TownHallCelebrationCount = SettingsVm.Celebrations.TownHallQueue.Count,
+            TownHallCelebrationRestartDelayEnabled = SettingsVm.Celebrations.TownHallQueue.IsRestartDelayEnabled,
+            TownHallCelebrationRestartDelayMinMinutes = SettingsVm.Celebrations.TownHallQueue.ResolvedDelayMinMinutes,
+            TownHallCelebrationRestartDelayMaxMinutes = SettingsVm.Celebrations.TownHallQueue.ResolvedDelayMaxMinutes,
+            BreweryCelebrationRestartDelayEnabled = SettingsVm.Celebrations.BreweryRestartDelay.IsEnabled,
+            BreweryCelebrationRestartDelayMinMinutes = SettingsVm.Celebrations.BreweryRestartDelay.ResolvedDelayMinMinutes,
+            BreweryCelebrationRestartDelayMaxMinutes = SettingsVm.Celebrations.BreweryRestartDelay.ResolvedDelayMaxMinutes,
+            HeroAdventureRestartDelayEnabled = SettingsVm.Hero.AdventureRestartDelay.IsEnabled,
+            HeroAdventureRestartDelayMinMinutes = SettingsVm.Hero.AdventureRestartDelay.ResolvedDelayMinMinutes,
+            HeroAdventureRestartDelayMaxMinutes = SettingsVm.Hero.AdventureRestartDelay.ResolvedDelayMaxMinutes,
+            HeroHpRegenPerDayPercent = SettingsVm.Hero.HpRegenPerDayPercent,
+            SmithyUpgradeRestartDelayEnabled = SettingsVm.Hero.SmithyUpgradeRestartDelay.IsEnabled,
+            SmithyUpgradeRestartDelayMinMinutes = SettingsVm.Hero.SmithyUpgradeRestartDelay.ResolvedDelayMinMinutes,
+            SmithyUpgradeRestartDelayMaxMinutes = SettingsVm.Hero.SmithyUpgradeRestartDelay.ResolvedDelayMaxMinutes,
+            TroopTrainingFallbackCooldownSeconds = SettingsVm.TroopTrainingFallbackCooldownSeconds,
+            ConstructionMainBuildingRebuildEnabled = SettingsVm.Construction.MainBuildingRebuildEnabled,
+            ConstructionMainBuildingRebuildTargetLevel = SettingsVm.Construction.MainBuildingRebuildTargetLevel,
+            ConstructionStorageUpgradeLevelsAhead = SettingsVm.Construction.StorageUpgradeLevelsAhead,
+            ConstructionCropShortageRecoveryEnabled = SettingsVm.Construction.CropShortageRecoveryEnabled,
+            ConstructionHumanizeDelayEnabled = SettingsVm.Construction.HumanizeDelayEnabled,
+            ConstructionHumanizeStateVersion = humanizeStateVersion,
+            ConstructionHumanizeQueuePercentMin = ReadDoubleText(SettingsVm.Construction.QueuePercentMin, PacingDefaults.ConstructionHumanizeQueuePercentMin),
+            ConstructionHumanizeQueuePercentMax = ReadDoubleText(SettingsVm.Construction.QueuePercentMax, PacingDefaults.ConstructionHumanizeQueuePercentMax),
+            ConstructionHumanizeMaxDelayMinutes = ReadDoubleText(SettingsVm.Construction.MaxDelayMinutes, PacingDefaults.ConstructionHumanizeMaxDelayMinutes),
+            ConstructionHumanizeNoPlusMinMinutes = ReadDoubleText(SettingsVm.Construction.NoPlusDelayMinMinutes, PacingDefaults.ConstructionHumanizeNoPlusMinMinutes),
+            ConstructionHumanizeNoPlusMaxMinutes = ReadDoubleText(SettingsVm.Construction.NoPlusDelayMaxMinutes, PacingDefaults.ConstructionHumanizeNoPlusMaxMinutes),
+            DemolishDelayMinMinutes = ReadIntText(SettingsVm.Construction.DemolishDelayMinMinutes, DemolishDefaults.DefaultDelayMinMinutes, 0, 1440),
+            DemolishDelayMaxMinutes = ReadIntText(SettingsVm.Construction.DemolishDelayMaxMinutes, DemolishDefaults.DefaultDelayMaxMinutes, 0, 1440),
+            HeroCropAntiStarveEnabled = SettingsVm.Hero.CropAntiStarveEnabled,
+            HeroCropAntiStarveTriggerMinutes = ReadIntText(SettingsVm.Hero.CropAntiStarveTriggerMinutes, HeroCropAntiStarveDefaults.TriggerMinutes, 1, 1440),
+            HeroCropAntiStarveTargetMinutes = ReadIntText(SettingsVm.Hero.CropAntiStarveTargetMinutes, HeroCropAntiStarveDefaults.TargetMinutes, 1, 1440),
+            HeroCropAntiStarveMaxCropPerTransfer = ReadIntText(SettingsVm.Hero.CropAntiStarveMaxCropPerTransfer, HeroCropAntiStarveDefaults.MaxCropPerTransfer, 1, int.MaxValue),
+            HeroCropAntiStarveMinHeroCropRemaining = ReadIntText(SettingsVm.Hero.CropAntiStarveMinHeroCropRemaining, HeroCropAntiStarveDefaults.MinHeroCropRemaining, 0, int.MaxValue),
+            ShowFarmListLastSentTimer = SettingsVm.Farming.ShowFarmListLastSentTimer,
+            FarmListLastSentLimitEnabled = SettingsVm.Farming.FarmListLastSentLimitEnabled,
+            FarmListLastSentLimitHours = ReadIntText(SettingsVm.Farming.FarmListLastSentLimitHours, FarmingDefaults.DefaultLastSentLimitHours, 1, FarmingDefaults.MaxLastSentLimitHours),
+            PostLoginAnalyzeFarmlists = SettingsVm.PostLogin.AnalyzeFarmlists,
+            PostLoginAnalyzeHero = SettingsVm.PostLogin.AnalyzeHero,
+            PostLoginReadTroopTrainingQueue = SettingsVm.PostLogin.ReadTroopTrainingQueue,
+            PostLoginAnalyzeBrewery = SettingsVm.PostLogin.AnalyzeBrewery,
+            PostLoginAnalyzeHeroInventory = SettingsVm.PostLogin.AnalyzeHeroInventory,
+            PostLoginAnalyzeNewVillages = SettingsVm.PostLogin.AnalyzeNewVillages,
+            PostLoginAnalyzeNewAccount = SettingsVm.PostLogin.AnalyzeNewAccount,
+            ActionPacingEnabled = true,
+            ActionPacingTaskMinSeconds = ReadDoubleText(SettingsVm.Pacing.TaskMinSeconds, PacingDefaults.ActionPacingTaskMinSeconds),
+            ActionPacingTaskMaxSeconds = ReadDoubleText(SettingsVm.Pacing.TaskMaxSeconds, PacingDefaults.ActionPacingTaskMaxSeconds),
+            ActionPacingPageLoadMinSeconds = ReadDoubleText(SettingsVm.Pacing.PageLoadMinSeconds, PacingDefaults.ActionPacingPageLoadMinSeconds),
+            ActionPacingPageLoadMaxSeconds = ReadDoubleText(SettingsVm.Pacing.PageLoadMaxSeconds, PacingDefaults.ActionPacingPageLoadMaxSeconds),
+            ActionPacingClickMinSeconds = ReadDoubleText(SettingsVm.Pacing.ClickMinSeconds, PacingDefaults.ActionPacingClickMinSeconds),
+            ActionPacingClickMaxSeconds = ReadDoubleText(SettingsVm.Pacing.ClickMaxSeconds, PacingDefaults.ActionPacingClickMaxSeconds),
+            ActionPacingLoopMinSeconds = ReadDoubleText(SettingsVm.Pacing.LoopMinSeconds, PacingDefaults.ActionPacingLoopMinSeconds),
+            ActionPacingLoopMaxSeconds = ReadDoubleText(SettingsVm.Pacing.LoopMaxSeconds, PacingDefaults.ActionPacingLoopMaxSeconds),
+            ShortVillageDeferSeconds = SettingsVm.Pacing.ShortVillageDeferSeconds,
+            VillageRoundSleepExtensionMinutes = SettingsVm.Pacing.VillageRoundSleepExtensionMinutes,
+            ContinuousKeepAliveEnabled = SettingsVm.Pacing.ContinuousKeepAliveEnabled,
+            ContinuousKeepAliveMinMinutes = ReadIntText(SettingsVm.Pacing.ContinuousKeepAliveMinMinutes, PacingDefaults.ContinuousKeepAliveMinMinutes, 1, 1440),
+            ContinuousKeepAliveMaxMinutes = ReadIntText(SettingsVm.Pacing.ContinuousKeepAliveMaxMinutes, PacingDefaults.ContinuousKeepAliveMaxMinutes, 1, 1440),
+            FarmListStepDelayMinSeconds = ReadDoubleText(SettingsVm.Pacing.FarmListStepDelayMinSeconds, PacingDefaults.FarmListStepDelayMinSeconds),
+            FarmListStepDelayMaxSeconds = ReadDoubleText(SettingsVm.Pacing.FarmListStepDelayMaxSeconds, PacingDefaults.FarmListStepDelayMaxSeconds),
+            VillageStatusSweepEnabled = SettingsVm.Pacing.VillageStatusSweepEnabled,
+            VillageStatusSweepDorf1Enabled = SettingsVm.Pacing.VillageStatusSweepDorf1Enabled,
+            VillageStatusSweepDorf2Enabled = dorf2Enabled,
+            VillageStatusSweepSmithyEnabled = dorf2Enabled && SettingsVm.Pacing.VillageStatusSweepSmithyEnabled,
+            VillageStatusSweepBarracksEnabled = dorf2Enabled && SettingsVm.Pacing.VillageStatusSweepBarracksEnabled,
+            VillageStatusSweepStableEnabled = dorf2Enabled && SettingsVm.Pacing.VillageStatusSweepStableEnabled,
+            VillageStatusSweepWorkshopEnabled = dorf2Enabled && SettingsVm.Pacing.VillageStatusSweepWorkshopEnabled,
+            VillageStatusSweepTownHallEnabled = dorf2Enabled && SettingsVm.Pacing.VillageStatusSweepTownHallEnabled,
+            VillageStatusSweepBreweryEnabled = dorf2Enabled && SettingsVm.Pacing.VillageStatusSweepBreweryEnabled,
+            VillageStatusSweepRoundMinMinutes = ReadIntText(SettingsVm.Pacing.VillageStatusSweepRoundMinMinutes, PacingDefaults.VillageStatusSweepRoundMinMinutes, 1, 1440),
+            VillageStatusSweepRoundMaxMinutes = ReadIntText(SettingsVm.Pacing.VillageStatusSweepRoundMaxMinutes, PacingDefaults.VillageStatusSweepRoundMaxMinutes, 1, 1440),
+            VillageStatusSweepVillageMinSeconds = ReadDoubleText(SettingsVm.Pacing.VillageStatusSweepVillageMinSeconds, PacingDefaults.VillageStatusSweepVillageMinSeconds),
+            VillageStatusSweepVillageMaxSeconds = ReadDoubleText(SettingsVm.Pacing.VillageStatusSweepVillageMaxSeconds, PacingDefaults.VillageStatusSweepVillageMaxSeconds),
+            ActionPacingIdleBreakEnabled = SettingsVm.Pacing.IdleBreakEnabled,
+            ActionPacingIdleBreakIntervalMinMinutes = ReadDoubleText(SettingsVm.Pacing.IdleBreakIntervalMinMinutes, PacingDefaults.ActionPacingIdleBreakIntervalMinMinutes),
+            ActionPacingIdleBreakIntervalMaxMinutes = ReadDoubleText(SettingsVm.Pacing.IdleBreakIntervalMaxMinutes, PacingDefaults.ActionPacingIdleBreakIntervalMaxMinutes),
+            ActionPacingIdleBreakDurationMinMinutes = ReadDoubleText(SettingsVm.Pacing.IdleBreakDurationMinMinutes, PacingDefaults.ActionPacingIdleBreakDurationMinMinutes),
+            ActionPacingIdleBreakDurationMaxMinutes = ReadDoubleText(SettingsVm.Pacing.IdleBreakDurationMaxMinutes, PacingDefaults.ActionPacingIdleBreakDurationMaxMinutes),
+            ActionPacingIdleBrowseEnabled = SettingsVm.Pacing.IdleBrowseEnabled,
+            ActionPacingIdleBrowseIntervalMinMinutes = ReadDoubleText(SettingsVm.Pacing.IdleBrowseIntervalMinMinutes, PacingDefaults.ActionPacingIdleBrowseIntervalMinMinutes),
+            ActionPacingIdleBrowseIntervalMaxMinutes = ReadDoubleText(SettingsVm.Pacing.IdleBrowseIntervalMaxMinutes, PacingDefaults.ActionPacingIdleBrowseIntervalMaxMinutes),
+            ActionPacingIdleBrowsePageMap = SettingsVm.Pacing.IdleBrowsePageMap,
+            ActionPacingIdleBrowsePageStatistics = SettingsVm.Pacing.IdleBrowsePageStatistics,
+            ActionPacingIdleBrowsePageStatisticsHero = SettingsVm.Pacing.IdleBrowsePageStatisticsHero,
+            ActionPacingIdleBrowsePageStatisticsTop10 = SettingsVm.Pacing.IdleBrowsePageStatisticsTop10,
+            ActionPacingIdleBrowsePageStatisticsDefenders = SettingsVm.Pacing.IdleBrowsePageStatisticsDefenders,
+            ActionPacingIdleBrowsePageStatisticsAttackers = SettingsVm.Pacing.IdleBrowsePageStatisticsAttackers,
+            ActionPacingIdleBrowsePageReports = SettingsVm.Pacing.IdleBrowsePageReports,
+            ActionPacingIdleBrowsePageMessages = SettingsVm.Pacing.IdleBrowsePageMessages,
+            CollectStepDelayMinSeconds = ReadDoubleText(SettingsVm.Pacing.CollectStepDelayMinSeconds, PacingDefaults.CollectStepDelayMinSeconds),
+            CollectStepDelayMaxSeconds = ReadDoubleText(SettingsVm.Pacing.CollectStepDelayMaxSeconds, PacingDefaults.CollectStepDelayMaxSeconds),
+        };
+    }
+
+    private SessionPacingSettingsConfiguration BuildSessionPacingSettings()
+        => new(
+            SettingsVm.Pacing.SessionPacingEnabled,
+            SettingsVm.Pacing.SmartSleepEnabled,
+            SettingsVm.Pacing.SmartSleepWakeWhenConstructionQueueClears,
+            ReadIntText(SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes, PacingDefaults.SmartSleepMinimumOpportunityMinutes, 1, 1440),
+            ReadIntText(SettingsVm.Pacing.SmartSleepWakeBeforeMinutes, PacingDefaults.SmartSleepWakeBeforeMinutes, 0, 1440),
+            ReadIntText(SettingsVm.Pacing.SmartSleepWakeAfterMinutes, PacingDefaults.SmartSleepWakeAfterMinutes, 0, 1440),
+            ReadIntText(SettingsVm.Pacing.SmartSleepFallbackMinMinutes, PacingDefaults.SmartSleepFallbackMinMinutes, 1, 10080),
+            ReadIntText(SettingsVm.Pacing.SmartSleepFallbackMaxMinutes, PacingDefaults.SmartSleepFallbackMaxMinutes, 1, 10080),
+            SettingsVm.Pacing.GetSelectedSmartSleepDeadlineGroups(),
+            ReadIntText(SettingsVm.Pacing.SessionRunMinMinutes, PacingDefaults.SessionPacingRunMinMinutes, 1, 10080),
+            ReadIntText(SettingsVm.Pacing.SessionRunMaxMinutes, PacingDefaults.SessionPacingRunMaxMinutes, 1, 10080),
+            ReadIntText(SettingsVm.Pacing.SessionSleepMinMinutes, PacingDefaults.SessionPacingSleepMinMinutes, 5, 10080),
+            ReadIntText(SettingsVm.Pacing.SessionSleepMaxMinutes, PacingDefaults.SessionPacingSleepMaxMinutes, 5, 10080),
+            SettingsVm.Pacing.SessionDailyMaxHours,
+            SettingsVm.Pacing.SessionDailyMaxVariationPercent,
+            SettingsVm.Pacing.GetSelectedSessionHours().Order().ToArray(),
+            SettingsVm.Pacing.SessionHoursVariationPercent);
 
     private bool TryValidateNumericInputs()
     {
@@ -1560,210 +1522,80 @@ public partial class SettingsWindow : Window
         return panel;
     }
 
-    private void LoadPacingConfigToUi()
+    private void LoadPacingConfigToUi(SettingsConfiguration settings)
     {
-        SettingsVm.Pacing.SessionPacingEnabled = ReadBool(BotOptionPayloadKeys.SessionPacingEnabled, PacingDefaults.SessionPacingEnabled);
-        SettingsVm.Pacing.SmartSleepEnabled = ReadBool(BotOptionPayloadKeys.SmartSleepEnabled, PacingDefaults.SmartSleepEnabled);
-        SettingsVm.Pacing.SmartSleepWakeWhenConstructionQueueClears = ReadBool(
-            BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears,
-            PacingDefaults.SmartSleepWakeWhenConstructionQueueClears);
-        SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes = ReadInt(BotOptionPayloadKeys.SmartSleepMinimumOpportunityMinutes, PacingDefaults.SmartSleepMinimumOpportunityMinutes).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Pacing.SmartSleepWakeBeforeMinutes = ReadInt(BotOptionPayloadKeys.SmartSleepWakeBeforeMinutes, PacingDefaults.SmartSleepWakeBeforeMinutes).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Pacing.SmartSleepWakeAfterMinutes = ReadInt(BotOptionPayloadKeys.SmartSleepWakeAfterMinutes, PacingDefaults.SmartSleepWakeAfterMinutes).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Pacing.SmartSleepFallbackMinMinutes = ReadInt(BotOptionPayloadKeys.SmartSleepFallbackMinMinutes, PacingDefaults.SmartSleepFallbackMinMinutes).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Pacing.SmartSleepFallbackMaxMinutes = ReadInt(BotOptionPayloadKeys.SmartSleepFallbackMaxMinutes, PacingDefaults.SmartSleepFallbackMaxMinutes).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Pacing.SetSmartSleepDeadlineGroups(
-            SmartSleepDeadlinePolicy.ReadGroups(_config[BotOptionPayloadKeys.SmartSleepDeadlineGroups])
-                .Select(QueueGroupCatalog.GetKey));
-        SettingsVm.Pacing.SessionRunMinMinutes = ReadInt(BotOptionPayloadKeys.SessionPacingRunMinMinutes, PacingDefaults.SessionPacingRunMinMinutes).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Pacing.SessionRunMaxMinutes = ReadInt(BotOptionPayloadKeys.SessionPacingRunMaxMinutes, PacingDefaults.SessionPacingRunMaxMinutes).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Pacing.SessionSleepMinMinutes = ReadInt(BotOptionPayloadKeys.SessionPacingSleepMinMinutes, PacingDefaults.SessionPacingSleepMinMinutes).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Pacing.SessionSleepMaxMinutes = ReadInt(BotOptionPayloadKeys.SessionPacingSleepMaxMinutes, PacingDefaults.SessionPacingSleepMaxMinutes).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Pacing.SessionDailyMaxHours = ReadInt(BotOptionPayloadKeys.SessionPacingDailyMaxHours, PacingDefaults.SessionPacingDailyMaxHours);
-        SettingsVm.Pacing.SessionDailyMaxVariationPercent = ReadInt(BotOptionPayloadKeys.SessionPacingDailyMaxVariationPercent, PacingDefaults.SessionPacingDailyMaxVariationPercent);
-        SettingsVm.Pacing.SetSessionAllowedHours(ReadAllowedHours());
-
-        SettingsVm.Pacing.SessionHoursVariationPercent = ReadInt(BotOptionPayloadKeys.SessionPacingHoursVariationPercent, PacingDefaults.SessionPacingHoursVariationPercent);
-
-        SettingsVm.Pacing.TaskMinSeconds = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingTaskMinSeconds, PacingDefaults.ActionPacingTaskMinSeconds));
-        SettingsVm.Pacing.TaskMaxSeconds = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingTaskMaxSeconds, PacingDefaults.ActionPacingTaskMaxSeconds));
-        SettingsVm.Pacing.PageLoadMinSeconds = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds, PacingDefaults.ActionPacingPageLoadMinSeconds));
-        SettingsVm.Pacing.PageLoadMaxSeconds = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds, PacingDefaults.ActionPacingPageLoadMaxSeconds));
-        SettingsVm.Pacing.ClickMinSeconds = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingClickMinSeconds, PacingDefaults.ActionPacingClickMinSeconds));
-        SettingsVm.Pacing.ClickMaxSeconds = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingClickMaxSeconds, PacingDefaults.ActionPacingClickMaxSeconds));
-        SettingsVm.Pacing.LoopMinSeconds = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingLoopMinSeconds, PacingDefaults.ActionPacingLoopMinSeconds));
-        SettingsVm.Pacing.LoopMaxSeconds = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, PacingDefaults.ActionPacingLoopMaxSeconds));
-        SettingsVm.Pacing.ShortVillageDeferSeconds = PacingDefaults.NormalizeShortVillageDeferSeconds(
-            ReadInt(BotOptionPayloadKeys.ShortVillageDeferSeconds, PacingDefaults.ShortVillageDeferSeconds));
-        SettingsVm.Pacing.VillageRoundSleepExtensionMinutes = PacingDefaults.NormalizeVillageRoundSleepExtensionMinutes(
-            ReadInt(BotOptionPayloadKeys.VillageRoundSleepExtensionMinutes, PacingDefaults.VillageRoundSleepExtensionMinutes));
-        SettingsVm.Pacing.ContinuousKeepAliveEnabled = ReadBool(BotOptionPayloadKeys.ContinuousKeepAliveEnabled, PacingDefaults.ContinuousKeepAliveEnabled);
-        SettingsVm.Pacing.ContinuousKeepAliveMinMinutes = ReadInt(BotOptionPayloadKeys.ContinuousKeepAliveMinMinutes, PacingDefaults.ContinuousKeepAliveMinMinutes).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Pacing.ContinuousKeepAliveMaxMinutes = ReadInt(BotOptionPayloadKeys.ContinuousKeepAliveMaxMinutes, PacingDefaults.ContinuousKeepAliveMaxMinutes).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Pacing.FarmListStepDelayMinSeconds = FormatDelay(ReadDouble(BotOptionPayloadKeys.FarmListStepDelayMinSeconds, PacingDefaults.FarmListStepDelayMinSeconds));
-        SettingsVm.Pacing.FarmListStepDelayMaxSeconds = FormatDelay(ReadDouble(BotOptionPayloadKeys.FarmListStepDelayMaxSeconds, PacingDefaults.FarmListStepDelayMaxSeconds));
-        SettingsVm.Pacing.VillageStatusSweepEnabled = ReadBool(BotOptionPayloadKeys.VillageStatusSweepEnabled, PacingDefaults.VillageStatusSweepEnabled);
-        SettingsVm.Pacing.VillageStatusSweepDorf1Enabled = ReadBool(BotOptionPayloadKeys.VillageStatusSweepDorf1Enabled, true);
-        var villageStatusSweepDorf2Enabled = ReadBool(BotOptionPayloadKeys.VillageStatusSweepDorf2Enabled, false);
-        SettingsVm.Pacing.VillageStatusSweepDorf2Enabled = villageStatusSweepDorf2Enabled;
-        SettingsVm.Pacing.VillageStatusSweepSmithyEnabled = villageStatusSweepDorf2Enabled && ReadBool(BotOptionPayloadKeys.VillageStatusSweepSmithyEnabled, false);
-        SettingsVm.Pacing.VillageStatusSweepBarracksEnabled = villageStatusSweepDorf2Enabled && ReadBool(BotOptionPayloadKeys.VillageStatusSweepBarracksEnabled, false);
-        SettingsVm.Pacing.VillageStatusSweepStableEnabled = villageStatusSweepDorf2Enabled && ReadBool(BotOptionPayloadKeys.VillageStatusSweepStableEnabled, false);
-        SettingsVm.Pacing.VillageStatusSweepWorkshopEnabled = villageStatusSweepDorf2Enabled && ReadBool(BotOptionPayloadKeys.VillageStatusSweepWorkshopEnabled, false);
-        SettingsVm.Pacing.VillageStatusSweepTownHallEnabled = villageStatusSweepDorf2Enabled && ReadBool(BotOptionPayloadKeys.VillageStatusSweepTownHallEnabled, false);
-        SettingsVm.Pacing.VillageStatusSweepBreweryEnabled = villageStatusSweepDorf2Enabled && ReadBool(BotOptionPayloadKeys.VillageStatusSweepBreweryEnabled, false);
-        SettingsVm.Pacing.VillageStatusSweepRoundMinMinutes = ReadInt(BotOptionPayloadKeys.VillageStatusSweepRoundMinMinutes, PacingDefaults.VillageStatusSweepRoundMinMinutes).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Pacing.VillageStatusSweepRoundMaxMinutes = ReadInt(BotOptionPayloadKeys.VillageStatusSweepRoundMaxMinutes, PacingDefaults.VillageStatusSweepRoundMaxMinutes).ToString(CultureInfo.InvariantCulture);
-        SettingsVm.Pacing.VillageStatusSweepVillageMinSeconds = FormatDelay(ReadDouble(BotOptionPayloadKeys.VillageStatusSweepVillageMinSeconds, PacingDefaults.VillageStatusSweepVillageMinSeconds));
-        SettingsVm.Pacing.VillageStatusSweepVillageMaxSeconds = FormatDelay(ReadDouble(BotOptionPayloadKeys.VillageStatusSweepVillageMaxSeconds, PacingDefaults.VillageStatusSweepVillageMaxSeconds));
-
-        SettingsVm.Pacing.IdleBreakEnabled = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBreakEnabled, PacingDefaults.ActionPacingIdleBreakEnabled);
-        SettingsVm.Pacing.IdleBreakIntervalMinMinutes = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingIdleBreakIntervalMinMinutes, PacingDefaults.ActionPacingIdleBreakIntervalMinMinutes));
-        SettingsVm.Pacing.IdleBreakIntervalMaxMinutes = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingIdleBreakIntervalMaxMinutes, PacingDefaults.ActionPacingIdleBreakIntervalMaxMinutes));
-        SettingsVm.Pacing.IdleBreakDurationMinMinutes = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingIdleBreakDurationMinMinutes, PacingDefaults.ActionPacingIdleBreakDurationMinMinutes));
-        SettingsVm.Pacing.IdleBreakDurationMaxMinutes = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingIdleBreakDurationMaxMinutes, PacingDefaults.ActionPacingIdleBreakDurationMaxMinutes));
-
-        SettingsVm.Pacing.IdleBrowseEnabled = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowseEnabled, PacingDefaults.ActionPacingIdleBrowseEnabled);
-        SettingsVm.Pacing.IdleBrowseIntervalMinMinutes = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMinMinutes, PacingDefaults.ActionPacingIdleBrowseIntervalMinMinutes));
-        SettingsVm.Pacing.IdleBrowseIntervalMaxMinutes = FormatDelay(ReadDouble(BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMaxMinutes, PacingDefaults.ActionPacingIdleBrowseIntervalMaxMinutes));
-        SettingsVm.Pacing.IdleBrowsePageMap = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageMap, PacingDefaults.ActionPacingIdleBrowsePageMap);
-        SettingsVm.Pacing.IdleBrowsePageStatistics = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatistics, PacingDefaults.ActionPacingIdleBrowsePageStatistics);
-        SettingsVm.Pacing.IdleBrowsePageStatisticsHero = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsHero, PacingDefaults.ActionPacingIdleBrowsePageStatisticsHero);
-        SettingsVm.Pacing.IdleBrowsePageStatisticsTop10 = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsTop10, PacingDefaults.ActionPacingIdleBrowsePageStatisticsTop10);
-        SettingsVm.Pacing.IdleBrowsePageStatisticsDefenders = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsDefenders, PacingDefaults.ActionPacingIdleBrowsePageStatisticsDefenders);
-        SettingsVm.Pacing.IdleBrowsePageStatisticsAttackers = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsAttackers, PacingDefaults.ActionPacingIdleBrowsePageStatisticsAttackers);
-        SettingsVm.Pacing.IdleBrowsePageReports = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageReports, PacingDefaults.ActionPacingIdleBrowsePageReports);
-        SettingsVm.Pacing.IdleBrowsePageMessages = ReadBool(BotOptionPayloadKeys.ActionPacingIdleBrowsePageMessages, PacingDefaults.ActionPacingIdleBrowsePageMessages);
-
-        SettingsVm.Pacing.CollectStepDelayMinSeconds = FormatDelay(ReadDouble(BotOptionPayloadKeys.CollectStepDelayMinSeconds, PacingDefaults.CollectStepDelayMinSeconds));
-        SettingsVm.Pacing.CollectStepDelayMaxSeconds = FormatDelay(ReadDouble(BotOptionPayloadKeys.CollectStepDelayMaxSeconds, PacingDefaults.CollectStepDelayMaxSeconds));
+        var pacing = settings.SessionPacing;
+        var options = settings.Options;
+        SettingsVm.Pacing.SessionPacingEnabled = pacing.SessionPacingEnabled;
+        SettingsVm.Pacing.SmartSleepEnabled = pacing.SmartSleepEnabled;
+        SettingsVm.Pacing.SmartSleepWakeWhenConstructionQueueClears = pacing.SmartSleepWakeWhenConstructionQueueClears;
+        SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes = pacing.SmartSleepMinimumOpportunityMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.SmartSleepWakeBeforeMinutes = pacing.SmartSleepWakeBeforeMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.SmartSleepWakeAfterMinutes = pacing.SmartSleepWakeAfterMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.SmartSleepFallbackMinMinutes = pacing.SmartSleepFallbackMinMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.SmartSleepFallbackMaxMinutes = pacing.SmartSleepFallbackMaxMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.SetSmartSleepDeadlineGroups(pacing.SmartSleepDeadlineGroups);
+        SettingsVm.Pacing.SessionRunMinMinutes = pacing.SessionRunMinMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.SessionRunMaxMinutes = pacing.SessionRunMaxMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.SessionSleepMinMinutes = pacing.SessionSleepMinMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.SessionSleepMaxMinutes = pacing.SessionSleepMaxMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.SessionDailyMaxHours = pacing.SessionDailyMaxHours;
+        SettingsVm.Pacing.SessionDailyMaxVariationPercent = pacing.SessionDailyMaxVariationPercent;
+        SettingsVm.Pacing.SetSessionAllowedHours(pacing.SessionAllowedHours);
+        SettingsVm.Pacing.SessionHoursVariationPercent = pacing.SessionHoursVariationPercent;
+        SettingsVm.Pacing.TaskMinSeconds = FormatDelay(options.ActionPacingTaskMinSeconds);
+        SettingsVm.Pacing.TaskMaxSeconds = FormatDelay(options.ActionPacingTaskMaxSeconds);
+        SettingsVm.Pacing.PageLoadMinSeconds = FormatDelay(options.ActionPacingPageLoadMinSeconds);
+        SettingsVm.Pacing.PageLoadMaxSeconds = FormatDelay(options.ActionPacingPageLoadMaxSeconds);
+        SettingsVm.Pacing.ClickMinSeconds = FormatDelay(options.ActionPacingClickMinSeconds);
+        SettingsVm.Pacing.ClickMaxSeconds = FormatDelay(options.ActionPacingClickMaxSeconds);
+        SettingsVm.Pacing.LoopMinSeconds = FormatDelay(options.ActionPacingLoopMinSeconds);
+        SettingsVm.Pacing.LoopMaxSeconds = FormatDelay(options.ActionPacingLoopMaxSeconds);
+        SettingsVm.Pacing.ShortVillageDeferSeconds = options.ShortVillageDeferSeconds;
+        SettingsVm.Pacing.VillageRoundSleepExtensionMinutes = options.VillageRoundSleepExtensionMinutes;
+        SettingsVm.Pacing.ContinuousKeepAliveEnabled = options.ContinuousKeepAliveEnabled;
+        SettingsVm.Pacing.ContinuousKeepAliveMinMinutes = options.ContinuousKeepAliveMinMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.ContinuousKeepAliveMaxMinutes = options.ContinuousKeepAliveMaxMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.FarmListStepDelayMinSeconds = FormatDelay(options.FarmListStepDelayMinSeconds);
+        SettingsVm.Pacing.FarmListStepDelayMaxSeconds = FormatDelay(options.FarmListStepDelayMaxSeconds);
+        SettingsVm.Pacing.VillageStatusSweepEnabled = options.VillageStatusSweepEnabled;
+        SettingsVm.Pacing.VillageStatusSweepDorf1Enabled = options.VillageStatusSweepDorf1Enabled;
+        SettingsVm.Pacing.VillageStatusSweepDorf2Enabled = options.VillageStatusSweepDorf2Enabled;
+        SettingsVm.Pacing.VillageStatusSweepSmithyEnabled = options.VillageStatusSweepDorf2Enabled && options.VillageStatusSweepSmithyEnabled;
+        SettingsVm.Pacing.VillageStatusSweepBarracksEnabled = options.VillageStatusSweepDorf2Enabled && options.VillageStatusSweepBarracksEnabled;
+        SettingsVm.Pacing.VillageStatusSweepStableEnabled = options.VillageStatusSweepDorf2Enabled && options.VillageStatusSweepStableEnabled;
+        SettingsVm.Pacing.VillageStatusSweepWorkshopEnabled = options.VillageStatusSweepDorf2Enabled && options.VillageStatusSweepWorkshopEnabled;
+        SettingsVm.Pacing.VillageStatusSweepTownHallEnabled = options.VillageStatusSweepDorf2Enabled && options.VillageStatusSweepTownHallEnabled;
+        SettingsVm.Pacing.VillageStatusSweepBreweryEnabled = options.VillageStatusSweepDorf2Enabled && options.VillageStatusSweepBreweryEnabled;
+        SettingsVm.Pacing.VillageStatusSweepRoundMinMinutes = options.VillageStatusSweepRoundMinMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.VillageStatusSweepRoundMaxMinutes = options.VillageStatusSweepRoundMaxMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.VillageStatusSweepVillageMinSeconds = FormatDelay(options.VillageStatusSweepVillageMinSeconds);
+        SettingsVm.Pacing.VillageStatusSweepVillageMaxSeconds = FormatDelay(options.VillageStatusSweepVillageMaxSeconds);
+        SettingsVm.Pacing.IdleBreakEnabled = options.ActionPacingIdleBreakEnabled;
+        SettingsVm.Pacing.IdleBreakIntervalMinMinutes = FormatDelay(options.ActionPacingIdleBreakIntervalMinMinutes);
+        SettingsVm.Pacing.IdleBreakIntervalMaxMinutes = FormatDelay(options.ActionPacingIdleBreakIntervalMaxMinutes);
+        SettingsVm.Pacing.IdleBreakDurationMinMinutes = FormatDelay(options.ActionPacingIdleBreakDurationMinMinutes);
+        SettingsVm.Pacing.IdleBreakDurationMaxMinutes = FormatDelay(options.ActionPacingIdleBreakDurationMaxMinutes);
+        SettingsVm.Pacing.IdleBrowseEnabled = options.ActionPacingIdleBrowseEnabled;
+        SettingsVm.Pacing.IdleBrowseIntervalMinMinutes = FormatDelay(options.ActionPacingIdleBrowseIntervalMinMinutes);
+        SettingsVm.Pacing.IdleBrowseIntervalMaxMinutes = FormatDelay(options.ActionPacingIdleBrowseIntervalMaxMinutes);
+        SettingsVm.Pacing.IdleBrowsePageMap = options.ActionPacingIdleBrowsePageMap;
+        SettingsVm.Pacing.IdleBrowsePageStatistics = options.ActionPacingIdleBrowsePageStatistics;
+        SettingsVm.Pacing.IdleBrowsePageStatisticsHero = options.ActionPacingIdleBrowsePageStatisticsHero;
+        SettingsVm.Pacing.IdleBrowsePageStatisticsTop10 = options.ActionPacingIdleBrowsePageStatisticsTop10;
+        SettingsVm.Pacing.IdleBrowsePageStatisticsDefenders = options.ActionPacingIdleBrowsePageStatisticsDefenders;
+        SettingsVm.Pacing.IdleBrowsePageStatisticsAttackers = options.ActionPacingIdleBrowsePageStatisticsAttackers;
+        SettingsVm.Pacing.IdleBrowsePageReports = options.ActionPacingIdleBrowsePageReports;
+        SettingsVm.Pacing.IdleBrowsePageMessages = options.ActionPacingIdleBrowsePageMessages;
+        SettingsVm.Pacing.CollectStepDelayMinSeconds = FormatDelay(options.CollectStepDelayMinSeconds);
+        SettingsVm.Pacing.CollectStepDelayMaxSeconds = FormatDelay(options.CollectStepDelayMaxSeconds);
         SynchronizeActionPacingControls();
     }
-
-    private void SavePacingConfigFromUi(JsonObject target)
-    {
-        target[BotOptionPayloadKeys.SessionPacingEnabled] = SettingsVm.Pacing.SessionPacingEnabled;
-        target[BotOptionPayloadKeys.SmartSleepEnabled] = SettingsVm.Pacing.SmartSleepEnabled;
-        target[BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears] = SettingsVm.Pacing.SmartSleepWakeWhenConstructionQueueClears;
-        target[BotOptionPayloadKeys.SmartSleepMinimumOpportunityMinutes] = ReadIntText(SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes, PacingDefaults.SmartSleepMinimumOpportunityMinutes, 1, 1440);
-        target[BotOptionPayloadKeys.SmartSleepWakeBeforeMinutes] = ReadIntText(SettingsVm.Pacing.SmartSleepWakeBeforeMinutes, PacingDefaults.SmartSleepWakeBeforeMinutes, 0, 1440);
-        target[BotOptionPayloadKeys.SmartSleepWakeAfterMinutes] = ReadIntText(SettingsVm.Pacing.SmartSleepWakeAfterMinutes, PacingDefaults.SmartSleepWakeAfterMinutes, 0, 1440);
-        target[BotOptionPayloadKeys.SmartSleepFallbackMinMinutes] = ReadIntText(SettingsVm.Pacing.SmartSleepFallbackMinMinutes, PacingDefaults.SmartSleepFallbackMinMinutes, 1, 10080);
-        target[BotOptionPayloadKeys.SmartSleepFallbackMaxMinutes] = ReadIntText(SettingsVm.Pacing.SmartSleepFallbackMaxMinutes, PacingDefaults.SmartSleepFallbackMaxMinutes, 1, 10080);
-        target[BotOptionPayloadKeys.SmartSleepDeadlineGroups] = new JsonArray(
-            SettingsVm.Pacing.GetSelectedSmartSleepDeadlineGroups()
-                .Select(groupKey => JsonValue.Create(groupKey))
-                .ToArray());
-        target[BotOptionPayloadKeys.SessionPacingRunMinMinutes] = ReadIntText(SettingsVm.Pacing.SessionRunMinMinutes, PacingDefaults.SessionPacingRunMinMinutes, 1, 10080);
-        target[BotOptionPayloadKeys.SessionPacingRunMaxMinutes] = ReadIntText(SettingsVm.Pacing.SessionRunMaxMinutes, PacingDefaults.SessionPacingRunMaxMinutes, 1, 10080);
-        target[BotOptionPayloadKeys.SessionPacingSleepMinMinutes] = ReadIntText(SettingsVm.Pacing.SessionSleepMinMinutes, PacingDefaults.SessionPacingSleepMinMinutes, 5, 10080);
-        target[BotOptionPayloadKeys.SessionPacingSleepMaxMinutes] = ReadIntText(SettingsVm.Pacing.SessionSleepMaxMinutes, PacingDefaults.SessionPacingSleepMaxMinutes, 5, 10080);
-        target[BotOptionPayloadKeys.SessionPacingDailyMaxHours] = SettingsVm.Pacing.SessionDailyMaxHours;
-        target[BotOptionPayloadKeys.SessionPacingDailyMaxVariationPercent] = SettingsVm.Pacing.SessionDailyMaxVariationPercent;
-        target[BotOptionPayloadKeys.SessionPacingAllowedHours] = new JsonArray(
-            SettingsVm.Pacing.GetSelectedSessionHours()
-                .Select(hour => JsonValue.Create(hour))
-                .ToArray());
-        target[BotOptionPayloadKeys.SessionPacingHoursVariationPercent] = SettingsVm.Pacing.SessionHoursVariationPercent;
-
-        target[BotOptionPayloadKeys.ActionPacingEnabled] = true;
-        WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingTaskMinSeconds, BotOptionPayloadKeys.ActionPacingTaskMaxSeconds, SettingsVm.Pacing.TaskMinSeconds, SettingsVm.Pacing.TaskMaxSeconds, PacingDefaults.ActionPacingTaskMinSeconds, PacingDefaults.ActionPacingTaskMaxSeconds);
-        WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds, BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds, SettingsVm.Pacing.PageLoadMinSeconds, SettingsVm.Pacing.PageLoadMaxSeconds, PacingDefaults.ActionPacingPageLoadMinSeconds, PacingDefaults.ActionPacingPageLoadMaxSeconds);
-        WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingClickMinSeconds, BotOptionPayloadKeys.ActionPacingClickMaxSeconds, SettingsVm.Pacing.ClickMinSeconds, SettingsVm.Pacing.ClickMaxSeconds, PacingDefaults.ActionPacingClickMinSeconds, PacingDefaults.ActionPacingClickMaxSeconds);
-        WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingLoopMinSeconds, BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, SettingsVm.Pacing.LoopMinSeconds, SettingsVm.Pacing.LoopMaxSeconds, PacingDefaults.ActionPacingLoopMinSeconds, PacingDefaults.ActionPacingLoopMaxSeconds);
-        target[BotOptionPayloadKeys.ShortVillageDeferSeconds] = PacingDefaults.NormalizeShortVillageDeferSeconds(
-            SettingsVm.Pacing.ShortVillageDeferSeconds);
-        target[BotOptionPayloadKeys.VillageRoundSleepExtensionMinutes] = PacingDefaults.NormalizeVillageRoundSleepExtensionMinutes(
-            SettingsVm.Pacing.VillageRoundSleepExtensionMinutes);
-        target[BotOptionPayloadKeys.ContinuousKeepAliveEnabled] = SettingsVm.Pacing.ContinuousKeepAliveEnabled;
-        target[BotOptionPayloadKeys.ContinuousKeepAliveMinMinutes] = ReadIntText(SettingsVm.Pacing.ContinuousKeepAliveMinMinutes, PacingDefaults.ContinuousKeepAliveMinMinutes, 1, 1440);
-        target[BotOptionPayloadKeys.ContinuousKeepAliveMaxMinutes] = ReadIntText(SettingsVm.Pacing.ContinuousKeepAliveMaxMinutes, PacingDefaults.ContinuousKeepAliveMaxMinutes, 1, 1440);
-        WriteDelayRange(
-            target,
-            BotOptionPayloadKeys.FarmListStepDelayMinSeconds,
-            BotOptionPayloadKeys.FarmListStepDelayMaxSeconds,
-            SettingsVm.Pacing.FarmListStepDelayMinSeconds,
-            SettingsVm.Pacing.FarmListStepDelayMaxSeconds,
-            PacingDefaults.FarmListStepDelayMinSeconds,
-            PacingDefaults.FarmListStepDelayMaxSeconds);
-        target[BotOptionPayloadKeys.VillageStatusSweepEnabled] = SettingsVm.Pacing.VillageStatusSweepEnabled;
-        target[BotOptionPayloadKeys.VillageStatusSweepDorf1Enabled] = SettingsVm.Pacing.VillageStatusSweepDorf1Enabled;
-        var dorf2Enabled = SettingsVm.Pacing.VillageStatusSweepDorf2Enabled;
-        target[BotOptionPayloadKeys.VillageStatusSweepDorf2Enabled] = dorf2Enabled;
-        target[BotOptionPayloadKeys.VillageStatusSweepSmithyEnabled] = dorf2Enabled && SettingsVm.Pacing.VillageStatusSweepSmithyEnabled;
-        target[BotOptionPayloadKeys.VillageStatusSweepBarracksEnabled] = dorf2Enabled && SettingsVm.Pacing.VillageStatusSweepBarracksEnabled;
-        target[BotOptionPayloadKeys.VillageStatusSweepStableEnabled] = dorf2Enabled && SettingsVm.Pacing.VillageStatusSweepStableEnabled;
-        target[BotOptionPayloadKeys.VillageStatusSweepWorkshopEnabled] = dorf2Enabled && SettingsVm.Pacing.VillageStatusSweepWorkshopEnabled;
-        target[BotOptionPayloadKeys.VillageStatusSweepTownHallEnabled] = dorf2Enabled && SettingsVm.Pacing.VillageStatusSweepTownHallEnabled;
-        target[BotOptionPayloadKeys.VillageStatusSweepBreweryEnabled] = dorf2Enabled && SettingsVm.Pacing.VillageStatusSweepBreweryEnabled;
-        target[BotOptionPayloadKeys.VillageStatusSweepRoundMinMinutes] = ReadIntText(SettingsVm.Pacing.VillageStatusSweepRoundMinMinutes, PacingDefaults.VillageStatusSweepRoundMinMinutes, 1, 1440);
-        target[BotOptionPayloadKeys.VillageStatusSweepRoundMaxMinutes] = ReadIntText(SettingsVm.Pacing.VillageStatusSweepRoundMaxMinutes, PacingDefaults.VillageStatusSweepRoundMaxMinutes, 1, 1440);
-        WriteDelayRange(target, BotOptionPayloadKeys.VillageStatusSweepVillageMinSeconds, BotOptionPayloadKeys.VillageStatusSweepVillageMaxSeconds, SettingsVm.Pacing.VillageStatusSweepVillageMinSeconds, SettingsVm.Pacing.VillageStatusSweepVillageMaxSeconds, PacingDefaults.VillageStatusSweepVillageMinSeconds, PacingDefaults.VillageStatusSweepVillageMaxSeconds);
-
-        // Idle "step away" break (minutes). WriteDelayRange clamps and keeps max >= min.
-        target[BotOptionPayloadKeys.ActionPacingIdleBreakEnabled] = SettingsVm.Pacing.IdleBreakEnabled;
-        WriteDelayRange(
-            target,
-            BotOptionPayloadKeys.ActionPacingIdleBreakIntervalMinMinutes,
-            BotOptionPayloadKeys.ActionPacingIdleBreakIntervalMaxMinutes,
-            SettingsVm.Pacing.IdleBreakIntervalMinMinutes,
-            SettingsVm.Pacing.IdleBreakIntervalMaxMinutes,
-            PacingDefaults.ActionPacingIdleBreakIntervalMinMinutes,
-            PacingDefaults.ActionPacingIdleBreakIntervalMaxMinutes);
-        WriteDelayRange(
-            target,
-            BotOptionPayloadKeys.ActionPacingIdleBreakDurationMinMinutes,
-            BotOptionPayloadKeys.ActionPacingIdleBreakDurationMaxMinutes,
-            SettingsVm.Pacing.IdleBreakDurationMinMinutes,
-            SettingsVm.Pacing.IdleBreakDurationMaxMinutes,
-            PacingDefaults.ActionPacingIdleBreakDurationMinMinutes,
-            PacingDefaults.ActionPacingIdleBreakDurationMaxMinutes);
-
-        // Idle browse (interval minutes + per-page toggles). WriteDelayRange clamps and keeps max >= min.
-        target[BotOptionPayloadKeys.ActionPacingIdleBrowseEnabled] = SettingsVm.Pacing.IdleBrowseEnabled;
-        WriteDelayRange(
-            target,
-            BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMinMinutes,
-            BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMaxMinutes,
-            SettingsVm.Pacing.IdleBrowseIntervalMinMinutes,
-            SettingsVm.Pacing.IdleBrowseIntervalMaxMinutes,
-            PacingDefaults.ActionPacingIdleBrowseIntervalMinMinutes,
-            PacingDefaults.ActionPacingIdleBrowseIntervalMaxMinutes);
-        target[BotOptionPayloadKeys.ActionPacingIdleBrowsePageMap] = SettingsVm.Pacing.IdleBrowsePageMap;
-        target[BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatistics] = SettingsVm.Pacing.IdleBrowsePageStatistics;
-        target[BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsHero] = SettingsVm.Pacing.IdleBrowsePageStatisticsHero;
-        target[BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsTop10] = SettingsVm.Pacing.IdleBrowsePageStatisticsTop10;
-        target[BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsDefenders] = SettingsVm.Pacing.IdleBrowsePageStatisticsDefenders;
-        target[BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsAttackers] = SettingsVm.Pacing.IdleBrowsePageStatisticsAttackers;
-        target[BotOptionPayloadKeys.ActionPacingIdleBrowsePageReports] = SettingsVm.Pacing.IdleBrowsePageReports;
-        target[BotOptionPayloadKeys.ActionPacingIdleBrowsePageMessages] = SettingsVm.Pacing.IdleBrowsePageMessages;
-
-        // Collect step delay (seconds). WriteDelayRange clamps and keeps max >= min.
-        WriteDelayRange(
-            target,
-            BotOptionPayloadKeys.CollectStepDelayMinSeconds,
-            BotOptionPayloadKeys.CollectStepDelayMaxSeconds,
-            SettingsVm.Pacing.CollectStepDelayMinSeconds,
-            SettingsVm.Pacing.CollectStepDelayMaxSeconds,
-            PacingDefaults.CollectStepDelayMinSeconds,
-            PacingDefaults.CollectStepDelayMaxSeconds);
-    }
-
     private void ApplyPacingDefaultsToUi()
     {
         SettingsVm.Pacing.ResetDefaults();
         SynchronizeActionPacingControls();
     }
-
-    private bool ReadBool(string key, bool defaultValue) => _config[key]?.GetValue<bool>() ?? defaultValue;
-
-    private int ReadInt(string key, int defaultValue) => _config[key]?.GetValue<int>() ?? defaultValue;
-
-    private double ReadDouble(string key, double defaultValue) => _config[key]?.GetValue<double>() ?? defaultValue;
-
-    private static bool ReadBool(JsonObject config, string key, bool defaultValue) => config[key]?.GetValue<bool>() ?? defaultValue;
-
-    private static int ReadInt(JsonObject config, string key, int defaultValue) => config[key]?.GetValue<int>() ?? defaultValue;
 
     private void InitializeSessionPacingChoices()
     {
@@ -1797,19 +1629,6 @@ public partial class SettingsWindow : Window
             });
         }
 
-    }
-
-    private HashSet<int> ReadAllowedHours()
-    {
-        if (_config[BotOptionPayloadKeys.SessionPacingAllowedHours] is not JsonArray array)
-        {
-            return Enumerable.Range(0, 24).ToHashSet();
-        }
-
-        return array
-            .Select(node => node?.GetValue<int>() ?? -1)
-            .Where(hour => hour is >= 0 and <= 23)
-            .ToHashSet();
     }
 
     private void SessionDailyMaxHoursComboBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
@@ -1865,19 +1684,6 @@ public partial class SettingsWindow : Window
     private static string FormatDelay(double value)
     {
         return value.ToString("0.##", CultureInfo.InvariantCulture);
-    }
-
-    private static void WriteDelayRange(JsonObject target, string minKey, string maxKey, TextBox minTextBox, TextBox maxTextBox, double defaultMin, double defaultMax)
-    {
-        WriteDelayRange(target, minKey, maxKey, minTextBox.Text, maxTextBox.Text, defaultMin, defaultMax);
-    }
-
-    private static void WriteDelayRange(JsonObject target, string minKey, string maxKey, string minText, string maxText, double defaultMin, double defaultMax)
-    {
-        var min = ReadDoubleText(minText, defaultMin);
-        var max = Math.Max(min, ReadDoubleText(maxText, defaultMax));
-        target[minKey] = min;
-        target[maxKey] = max;
     }
 
     private bool TryReadSpendingLimits(
