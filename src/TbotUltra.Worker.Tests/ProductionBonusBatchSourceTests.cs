@@ -8,8 +8,8 @@ public sealed class ProductionBonusBatchSourceTests
     public void ActivationBatch_AttemptsEveryInitiallyActivatableResourceWithoutInternalCooldownStop()
     {
         var source = ReadProductionBonusSource();
-        var methodStart = source.IndexOf("public async Task<string> ActivateProductionBonusVideosAsync", StringComparison.Ordinal);
-        var methodEnd = source.IndexOf("public async Task<string> ScanProductionBonusTimersAsync", methodStart, StringComparison.Ordinal);
+        var methodStart = source.IndexOf("public async Task<ProductionBonusOutcome> ActivateProductionBonusVideosAsync", StringComparison.Ordinal);
+        var methodEnd = source.IndexOf("public async Task<ProductionBonusOutcome> ScanProductionBonusTimersAsync", methodStart, StringComparison.Ordinal);
         Assert.True(methodStart >= 0 && methodEnd > methodStart);
 
         var method = source[methodStart..methodEnd];
@@ -25,8 +25,8 @@ public sealed class ProductionBonusBatchSourceTests
         var source = ReadProductionBonusSource();
         var method = ExtractMethod(
             source,
-            "public async Task<string> ActivateProductionBonusVideosAsync",
-            "public async Task<string> ScanProductionBonusTimersAsync");
+            "public async Task<ProductionBonusOutcome> ActivateProductionBonusVideosAsync",
+            "public async Task<ProductionBonusOutcome> ScanProductionBonusTimersAsync");
 
         Assert.Contains("ProductionBonusVideoMaxAttemptsPerResource", method, StringComparison.Ordinal);
         Assert.Contains("FindUnconfirmedActivations", method, StringComparison.Ordinal);

@@ -152,6 +152,10 @@ _Avoid_: Video flow, ad wait loop
 A contained execution of one Official Travian bonus operation in a disposable browser using the account's current session and route. It returns a typed outcome while browser containment, timeout, cooldown, and cleanup remain one lifecycle.
 _Avoid_: Video callback, isolated page action
 
+**Production Bonus Operation**:
+The account-wide Official Travian scan/activation lifecycle that returns typed resource and batch observations, then calculates and persists the next absolute attempt deadline through one Desktop module.
+_Avoid_: Production bonus token, bonus result parser
+
 **Manual Farming**:
 The removed desktop-only manual farming UI and its saved preferences. It is not Send Troops, Farm Lists, Catapults, or Reinforcements.
 _Avoid_: Manual attack flow

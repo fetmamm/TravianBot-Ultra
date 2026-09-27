@@ -1,5 +1,6 @@
 using TbotUltra.Core.Configuration;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 using System.Text.RegularExpressions;
 
 namespace TbotUltra.Desktop.Services.Orchestration;
@@ -35,7 +36,7 @@ internal interface IAutomationQueueItemSuccessPort
         BotOptions options,
         CancellationToken cancellationToken);
     void ScheduleNextReinforcementSend(BotOptions options);
-    void ApplyProductionBonusResult(string? message);
+    void ApplyProductionBonusResult(ProductionBonusOutcome? outcome);
     void ApplyDailyResetResult(string? message);
     void Log(string message);
 }
@@ -141,7 +142,7 @@ internal sealed class AutomationQueueItemSuccess(IAutomationQueueItemSuccessPort
         }
         else if (IsTask(item, "activate_production_bonus"))
         {
-            port.ApplyProductionBonusResult(executionResult.LastTask?.Message);
+            port.ApplyProductionBonusResult(executionResult.LastTask?.ProductionBonus);
         }
         else if (IsTask(item, "read_daily_reset") || IsTask(item, "collect_daily_quests"))
         {

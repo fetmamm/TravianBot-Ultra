@@ -1,3 +1,4 @@
+using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
 using Xunit;
 
@@ -30,15 +31,6 @@ public sealed class ProductionBonusDomParserTests
 
         Assert.True(AccountDeletionDomParser.IsPending(html));
         Assert.False(AccountDeletionDomParser.IsPending(html.Replace("infoType_22", "infoType_21")));
-    }
-
-    [Fact]
-    public void AccountDeletionPendingToken_RoundTrips()
-    {
-        var token = ProductionBonusDomParser.BuildAccountDeletionPendingToken();
-
-        Assert.True(ProductionBonusDomParser.ParseAccountDeletionPendingToken($"Production bonus disabled. {token}"));
-        Assert.False(ProductionBonusDomParser.ParseAccountDeletionPendingToken("Production bonus: scanned."));
     }
 
     [Theory]
@@ -80,13 +72,14 @@ public sealed class ProductionBonusDomParserTests
         var lumber = states.Single(s => s.Resource == "lumber");
         Assert.Equal(25, lumber.Bonus);
         Assert.Equal(13935, lumber.RemainingSeconds);
-        Assert.Equal(13935 + ProductionBonusDomParser.NextAttemptAfter25BufferSeconds, lumber.NextAttemptSeconds);
+        Assert.Equal(ProductionBonusNextAttemptKind.RelativeDelay, lumber.NextAttemptKind);
+        Assert.Equal(13935 + ProductionBonusDomParser.NextAttemptAfter25BufferSeconds, lumber.RetryAfterSeconds);
         Assert.False(lumber.CanActivate);
 
         var clay = states.Single(s => s.Resource == "clay");
         Assert.Equal(15, clay.Bonus);
         Assert.Equal(28793, clay.RemainingSeconds);
-        Assert.Equal(ProductionBonusDomParser.NextAttemptAfterDailyResetSeconds, clay.NextAttemptSeconds);
+        Assert.Equal(ProductionBonusNextAttemptKind.DailyReset, clay.NextAttemptKind);
 
         var iron = states.Single(s => s.Resource == "iron");
         Assert.Equal(0, iron.Bonus);
@@ -95,7 +88,7 @@ public sealed class ProductionBonusDomParserTests
         var crop = states.Single(s => s.Resource == "crop");
         Assert.Equal(0, crop.Bonus);
         Assert.False(crop.CanActivate);
-        Assert.Equal(ProductionBonusDomParser.CooldownRetrySeconds, crop.NextAttemptSeconds);
+        Assert.Equal(ProductionBonusDomParser.CooldownRetrySeconds, crop.RetryAfterSeconds);
     }
 
     [Fact]
@@ -111,7 +104,7 @@ public sealed class ProductionBonusDomParserTests
         var iron = states.Single(s => s.Resource == "iron");
         Assert.Equal(0, iron.Bonus);
         Assert.False(iron.CanActivate);
-        Assert.Equal(ProductionBonusDomParser.NextAttemptAfterDailyResetSeconds, iron.NextAttemptSeconds);
+        Assert.Equal(ProductionBonusNextAttemptKind.DailyReset, iron.NextAttemptKind);
     }
 
     [Fact]
@@ -142,7 +135,7 @@ public sealed class ProductionBonusDomParserTests
     [Fact]
     public void HasCompleteResourceSet_RequiresAllFourUniqueResources()
     {
-        var complete = ProductionBonusDomParser.Resources
+        var complete = ProductionBonusResources.All
             .Select(resource => new ProductionBonusDomParser.ProductionBonusBox(resource, false, 0, "", true, true))
             .ToList();
 
@@ -152,42 +145,38 @@ public sealed class ProductionBonusDomParserTests
     }
 
     [Fact]
-    public void BuildAndParseResultToken_RoundTrips()
+    public void TypedOutcome_ExposesScanActivationDecisionWithoutTextParsing()
     {
         var states = new[]
         {
-            new ProductionBonusDomParser.ProductionBonusResourceState("lumber", 25, 13935, 14235, false),
-            new ProductionBonusDomParser.ProductionBonusResourceState("clay", 15, 28793, ProductionBonusDomParser.NextAttemptAfterDailyResetSeconds, false),
-            new ProductionBonusDomParser.ProductionBonusResourceState("iron", 0, 0, 14400, false),
-            new ProductionBonusDomParser.ProductionBonusResourceState("crop", 25, 9942, 10242, false),
+            new ProductionBonusResourceState(
+                "lumber", 0, 0, ProductionBonusNextAttemptKind.Immediate, 0, true),
+            new ProductionBonusResourceState(
+                "clay", 0, 0, ProductionBonusNextAttemptKind.Immediate, 0, true),
         };
 
-        var token = ProductionBonusDomParser.BuildResultToken(states);
-        Assert.StartsWith("production_bonus=", token);
+        var outcome = ProductionBonusOutcome.Observed(
+            "scan complete",
+            states,
+            TimeSpan.FromHours(1),
+            freeVideoAvailable: true);
 
-        // Embedded in a larger free-text result string, just like the worker emits.
-        var parsed = ProductionBonusDomParser.ParseResultToken($"Production bonus: processed 4 resource(s). {token}");
-
-        Assert.Equal(4, parsed.Count);
-        Assert.Equal(15, parsed.Single(s => s.Resource == "clay").Bonus);
-        Assert.Equal(28793, parsed.Single(s => s.Resource == "clay").RemainingSeconds);
-        Assert.Equal(ProductionBonusDomParser.NextAttemptAfterDailyResetSeconds, parsed.Single(s => s.Resource == "clay").NextAttemptSeconds);
-        Assert.Equal(0, parsed.Single(s => s.Resource == "iron").Bonus);
+        Assert.True(outcome.ShouldActivateAfterScan);
+        Assert.Equal(TimeSpan.FromHours(1), outcome.ServerUtcOffset);
     }
 
     [Fact]
-    public void BuildAndParseServerUtcOffsetToken_RoundTrips()
+    public void TypedOutcome_CarriesBatchAttemptsAndUnconfirmedResources()
     {
-        var token = ProductionBonusDomParser.BuildServerUtcOffsetToken(TimeSpan.FromHours(1));
+        var outcome = ProductionBonusOutcome.Observed(
+            "batch complete",
+            [],
+            TimeSpan.Zero,
+            freeVideoAvailable: true,
+            attemptedResources: ["lumber", "clay"],
+            unconfirmedResources: ["clay"]);
 
-        Assert.Equal(TimeSpan.FromHours(1), ProductionBonusDomParser.ParseServerUtcOffsetToken($"x {token}"));
-        Assert.Null(ProductionBonusDomParser.ParseServerUtcOffsetToken("x"));
-    }
-
-    [Fact]
-    public void ParseResultToken_ReturnsEmpty_WhenTokenAbsent()
-    {
-        Assert.Empty(ProductionBonusDomParser.ParseResultToken("Production bonus: nothing happened."));
-        Assert.Empty(ProductionBonusDomParser.ParseResultToken(null));
+        Assert.Equal(["lumber", "clay"], outcome.AttemptedResources);
+        Assert.Equal(["clay"], outcome.UnconfirmedResources);
     }
 }

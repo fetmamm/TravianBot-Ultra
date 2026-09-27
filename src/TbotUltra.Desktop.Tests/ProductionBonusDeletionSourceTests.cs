@@ -10,7 +10,8 @@ public sealed class ProductionBonusDeletionSourceTests
         var root = FindRepositoryRoot();
         var source = File.ReadAllText(Path.Combine(root, "src", "TbotUltra.Desktop", "MainWindow.ProductionBonus.cs"));
 
-        Assert.Contains("ParseAccountDeletionPendingToken(message)", source, StringComparison.Ordinal);
+        Assert.Contains("ProductionBonusApplicationStatus.AccountDeletionPending", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("ParseAccountDeletionPendingToken", source, StringComparison.Ordinal);
         Assert.Contains("config[BotOptionPayloadKeys.ProductionBonusVideoEnabled] = false;", source, StringComparison.Ordinal);
         Assert.Contains("_botConfigStore.SaveForAccount(account, config);", source, StringComparison.Ordinal);
         Assert.Contains("ProductionBonusVideoCheckBox.IsChecked = false;", source, StringComparison.Ordinal);

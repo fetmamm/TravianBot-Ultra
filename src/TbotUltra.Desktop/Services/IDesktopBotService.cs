@@ -1,6 +1,7 @@
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Travian;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop.Services;
 
@@ -80,8 +81,8 @@ public interface IDesktopBotService
     Task<string> RunReinforcementsTestAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<string> RunIncreaseAdventuresToHardAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<string> RunReduceAdventuresTimeAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
-    Task<string> RunScanProductionBonusTimersAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
-    Task<string> RunActivateProductionBonusVideosAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<ProductionBonusOutcome> RunScanProductionBonusTimersAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<ProductionBonusOutcome> RunActivateProductionBonusVideosAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<AccountSnapshot> ReadAccountSnapshotForScanAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<IReadOnlyList<Village>> ReadCurrentVillageMembershipAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<AccountSnapshot> VerifyVillageMembershipAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);

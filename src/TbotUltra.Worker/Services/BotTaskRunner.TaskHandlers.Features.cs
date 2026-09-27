@@ -1,3 +1,5 @@
+using TbotUltra.Worker.Domain;
+
 namespace TbotUltra.Worker.Services;
 
 public sealed partial class BotTaskRunner
@@ -25,8 +27,14 @@ public sealed partial class BotTaskRunner
     private static async Task ExecuteActivateProductionBonusAsync(TaskExecutionContext context)
     {
         var result = await context.Client.ActivateProductionBonusVideosAsync(context.CancellationToken);
-        context.Log(result);
+        context.Log(result.Message);
         context.RecordTaskResult("activate_production_bonus", result);
-        ThrowIfTaskBlocked("activate_production_bonus", result);
+        if (result.Status == ProductionBonusOutcomeStatus.Deferred && result.RetryAtUtc is { } retryAtUtc)
+        {
+            var waitSeconds = Math.Max(
+                1,
+                (int)Math.Ceiling((retryAtUtc - DateTimeOffset.UtcNow).TotalSeconds));
+            throw new TaskWaitException(waitSeconds, result.Message);
+        }
     }
 }

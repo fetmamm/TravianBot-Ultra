@@ -12,10 +12,6 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    // Backoff written when a run finished without a state token (e.g. the verify read failed) and nothing
-    // is remembered yet, so a persistent failure cannot re-queue on every ~20s tick.
-    private static readonly TimeSpan ProductionBonusFailureBackoff = TimeSpan.FromMinutes(30);
-
     // Backoff between read_daily_reset attempts (per account) so a repeatedly-failing dialog read cannot
     // re-queue on every ~20s refresh. Cleared as soon as a reset hour is successfully read.
     private static readonly TimeSpan DailyResetReadBackoff = TimeSpan.FromMinutes(30);
@@ -50,59 +46,36 @@ public partial class MainWindow
         AppendLog("Production bonus: queued activate_production_bonus (free +15% videos).");
     }
 
-    // Parses the worker's production_bonus=... token and persists absolute end/next-attempt times so the
-    // dashboard popup can restore and count down the timers.
-    private void ApplyProductionBonusResult(string? message)
+    private void ApplyProductionBonusResult(ProductionBonusOutcome? outcome)
     {
         var account = _accountStore.ActiveAccountName();
-        if (ProductionBonusDomParser.ParseAccountDeletionPendingToken(message))
-        {
-            DisableProductionBonusForPendingAccountDeletion(account);
-            return;
-        }
-
-        var states = ProductionBonusDomParser.ParseResultToken(message);
-        if (states.Count == 0)
-        {
-            if (message?.Contains("queue_wait_seconds=", StringComparison.OrdinalIgnoreCase) == true)
-            {
-                // Worker deferred to the shared video cooldown. Preserve existing timers; no production
-                // video was attempted, so this is not a failed activation and needs no extra backoff.
-                return;
-            }
-
-            // The run produced no state token (e.g. skipped, or the verify read failed). If nothing is
-            // remembered yet, stamp a short backoff so the loop does not re-queue on every tick.
-            StampProductionBonusBackoffIfEmpty(account);
-            return;
-        }
-
         var now = DateTimeOffset.UtcNow;
-        var serverUtcOffset = ProductionBonusDomParser.ParseServerUtcOffsetToken(message) ?? _queueServerTimeOffset;
-
-        // Human-like: never fire at the exact moment a cooldown/reset expires. For +15% the retry is
-        // scheduled at the daily reset (server-local hour, resolved below); for +25% and failed-video
-        // retries the reported relative wait is used. Bonus-end times are never jittered.
         var settings = ProductionBonusStateStore.LoadSettings(_projectRoot, account);
         var delay = ResolveProductionBonusRandomDelay(settings);
-
-        // Manual override (General settings) wins; otherwise the hour auto-detected from the daily quests
-        // dialog. Null => not known yet => the scheduler polls hourly until read_daily_reset lands it.
         var resetHour = GetEffectiveDailyResetHour(account);
+        var application = ProductionBonusOperation.Apply(
+            _projectRoot,
+            account,
+            outcome,
+            now,
+            _queueServerTimeOffset,
+            delay,
+            resetHour);
 
-        var timers = states
-            .Select(state =>
-            {
-                return new ProductionBonusResourceTimer(
-                    state.Resource,
-                    state.Bonus,
-                    now.AddSeconds(state.RemainingSeconds),
-                    ProductionBonusScheduleCalculator.ResolveNextAttemptUtc(state, now, serverUtcOffset, delay, resetHour));
-            })
-            .ToList();
-
-        ProductionBonusStateStore.Save(_projectRoot, account, timers);
-        AppendLog($"Production bonus: saved timers ({FormatProductionBonusStates(states)}); next-run delay +{delay.TotalMinutes:0} min.");
+        if (application.Status == ProductionBonusApplicationStatus.AccountDeletionPending)
+        {
+            DisableProductionBonusForPendingAccountDeletion(account);
+        }
+        else if (application.Status == ProductionBonusApplicationStatus.Applied && outcome is not null)
+        {
+            AppendLog($"Production bonus: saved timers ({FormatProductionBonusStates(outcome.Resources)}); next-run delay +{delay.TotalMinutes:0} min.");
+        }
+        else if (application.Status == ProductionBonusApplicationStatus.Failed
+                 && application.StateChanged
+                 && application.NextDeadlineUtc > now)
+        {
+            AppendLog($"Production bonus: run produced no state — retry scheduled at {application.NextDeadlineUtc:O}.");
+        }
     }
 
     private void DisableProductionBonusForPendingAccountDeletion(string? account)
@@ -134,16 +107,8 @@ public partial class MainWindow
 
     // True when a manual scan found no active bonus on any resource but the free +15% videos are
     // available to activate — the cue to press the purple buttons instead of only reading the timers.
-    private static bool ShouldActivateProductionBonusAfterScan(string? scanResult)
-    {
-        if (ProductionBonusDomParser.ParseFreeVideoAvailableToken(scanResult) != true)
-        {
-            return false;
-        }
-
-        var states = ProductionBonusDomParser.ParseResultToken(scanResult);
-        return !states.Any(state => state.RemainingSeconds > 0);
-    }
+    private static bool ShouldActivateProductionBonusAfterScan(ProductionBonusOutcome scanResult)
+        => scanResult.ShouldActivateAfterScan;
 
     // Resolves the effective daily reset hour (server-local, whole hour) used to schedule +15% retries: the
     // manual override from General settings when enabled, otherwise the per-account hour auto-detected from
@@ -323,38 +288,18 @@ public partial class MainWindow
         }
 
         var remainingSeconds = Math.Max(0, (int)Math.Ceiling((timer.BonusEndsAtUtc - now).TotalSeconds));
-        var state = new ProductionBonusDomParser.ProductionBonusResourceState(
+        var state = new ProductionBonusResourceState(
             timer.Resource,
             15,
             remainingSeconds,
-            ProductionBonusDomParser.NextAttemptAfterDailyResetSeconds,
+            ProductionBonusNextAttemptKind.DailyReset,
+            0,
             false);
         return ProductionBonusScheduleCalculator.ResolveNextAttemptUtc(state, now, serverUtcOffset, maxDelay, resetHour);
     }
 
     private static TimeSpan ResolveProductionBonusRandomDelay(ProductionBonusSettings settings)
         => TimeSpan.FromMinutes(Random.Shared.Next(settings.DelayMinMinutes, settings.DelayMaxMinutes + 1));
-
-    private void StampProductionBonusBackoffIfEmpty(string? account)
-    {
-        if (string.IsNullOrWhiteSpace(account))
-        {
-            return;
-        }
-
-        // Only stamp when nothing is remembered — an existing set of timers already gates the loop.
-        if (ProductionBonusStateStore.Load(_projectRoot, account).Count > 0)
-        {
-            return;
-        }
-
-        var next = DateTimeOffset.UtcNow.Add(ProductionBonusFailureBackoff);
-        var placeholder = ProductionBonusDomParser.Resources
-            .Select(resource => new ProductionBonusResourceTimer(resource, 0, DateTimeOffset.UtcNow, next))
-            .ToList();
-        ProductionBonusStateStore.Save(_projectRoot, account, placeholder);
-        AppendLog($"Production bonus: run produced no state — backing off {ProductionBonusFailureBackoff.TotalMinutes:0} min before retry.");
-    }
 
     private void ProductionBonusSettingsButton_Click(object sender, RoutedEventArgs e)
     {
@@ -416,11 +361,11 @@ public partial class MainWindow
                 AppendLog("Production bonus: no active timers and free +15% videos available — activating now.");
                 var activationResult = await _botService.RunActivateProductionBonusVideosAsync(options, AppendLog, operationToken);
                 ApplyProductionBonusResult(activationResult);
-                CompleteOperation(operationId, operationSw, activationResult);
+                CompleteOperation(operationId, operationSw, activationResult.Message);
             }
             else
             {
-                CompleteOperation(operationId, operationSw, result);
+                CompleteOperation(operationId, operationSw, result.Message);
             }
         }
         catch (OperationCanceledException)
@@ -475,7 +420,7 @@ public partial class MainWindow
     }
 
     private static string FormatProductionBonusStates(
-        IReadOnlyList<ProductionBonusDomParser.ProductionBonusResourceState> states)
+        IReadOnlyList<ProductionBonusResourceState> states)
     {
         return string.Join(
             ", ",

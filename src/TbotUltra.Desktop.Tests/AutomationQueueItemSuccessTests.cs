@@ -2,6 +2,7 @@ using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Services.Orchestration;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 using Xunit;
 
 namespace TbotUltra.Desktop.Tests;
@@ -60,6 +61,29 @@ public sealed class AutomationQueueItemSuccessTests
         Assert.Equal(["succeeded", "schedule-reinforcement"], port.Trace);
     }
 
+    [Fact]
+    public async Task ProductionBonusSuccess_ForwardsTypedOutcome()
+    {
+        var port = new InMemoryPort();
+        var item = Item("activate_production_bonus");
+        var outcome = ProductionBonusOutcome.Observed(
+            "complete",
+            [],
+            TimeSpan.Zero,
+            freeVideoAvailable: false);
+        var execution = new BotTaskExecutionResult(
+            [new BotTaskResult(item.TaskName, outcome.Message, ConstructionTaskOutcome.None, outcome)]);
+
+        await new AutomationQueueItemSuccess(port).HandleAsync(
+            item,
+            new BotOptions(),
+            execution,
+            default);
+
+        Assert.Same(outcome, port.ProductionBonusOutcome);
+        Assert.Equal(["succeeded", "production-bonus"], port.Trace);
+    }
+
     private static QueueItem Item(string taskName) => new()
     {
         Id = Guid.NewGuid(),
@@ -74,6 +98,7 @@ public sealed class AutomationQueueItemSuccessTests
         public List<string> Trace { get; } = [];
         public List<string> Logs { get; } = [];
         public QueueItemSuccessRefreshResult ConstructionRefresh { get; init; }
+        public ProductionBonusOutcome? ProductionBonusOutcome { get; private set; }
         public bool MarkSucceeded(Guid itemId)
         {
             Trace.Add("succeeded");
@@ -126,7 +151,11 @@ public sealed class AutomationQueueItemSuccessTests
             BotOptions options,
             CancellationToken cancellationToken) => ValueTask.CompletedTask;
         public void ScheduleNextReinforcementSend(BotOptions options) => Trace.Add("schedule-reinforcement");
-        public void ApplyProductionBonusResult(string? message) => Trace.Add("production-bonus");
+        public void ApplyProductionBonusResult(ProductionBonusOutcome? outcome)
+        {
+            ProductionBonusOutcome = outcome;
+            Trace.Add("production-bonus");
+        }
         public void ApplyDailyResetResult(string? message) => Trace.Add("daily-reset");
         public void Log(string message) => Logs.Add(message);
     }

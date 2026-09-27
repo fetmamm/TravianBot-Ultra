@@ -10,7 +10,8 @@ public sealed record BotTaskExecutionResult(IReadOnlyList<BotTaskResult> Tasks)
 public sealed record BotTaskResult(
     string TaskName,
     string? Message,
-    ConstructionTaskOutcome ConstructionOutcome);
+    ConstructionTaskOutcome ConstructionOutcome,
+    ProductionBonusOutcome? ProductionBonus = null);
 
 public enum ConstructionTaskOutcome
 {

@@ -14,6 +14,9 @@ Active decision, extracted from `ENGINEERING_NOTES.md` on 2026-07-18.
   owns state seeding, process identity, proxy, timeout, failure classification, cooldown and cleanup; its interface
   does not expose Playwright pages, action callbacks, or a cooldown-bypass flag. The runner creates an
   operation scope so the first-request cooldown check and continuation policy are not selected by feature callers.
+- Production Bonus scan and activation return a typed outcome containing resource observations, attempted and
+  unconfirmed batch resources, server offset, availability, and retry time. Desktop applies that outcome through
+  `ProductionBonusOperation`, which owns absolute deadline calculation and persistence; free-text logs carry no state.
 - Isolated video has separate 60-second setup and 240-second action caps. Expected provider failure must not
   block construction, hero dispatch, or other automation.
 - Construct, resource, production, and hero bonus videos share one post-play policy: the protected 60-second

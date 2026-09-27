@@ -1,3 +1,4 @@
+using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop.Services;
@@ -11,7 +12,7 @@ public static class ProductionBonusScheduleCalculator
     private static readonly TimeSpan DefaultUnknownResetPollInterval = TimeSpan.FromHours(1);
 
     public static DateTimeOffset ResolveNextAttemptUtc(
-        ProductionBonusDomParser.ProductionBonusResourceState state,
+        ProductionBonusResourceState state,
         DateTimeOffset nowUtc,
         TimeSpan serverUtcOffset,
         TimeSpan delay,
@@ -19,12 +20,12 @@ public static class ProductionBonusScheduleCalculator
         TimeSpan? unknownResetPollInterval = null)
     {
         var now = nowUtc.ToUniversalTime();
-        if (state.NextAttemptSeconds == 0)
+        if (state.NextAttemptKind == ProductionBonusNextAttemptKind.Immediate)
         {
             return now;
         }
 
-        if (state.NextAttemptSeconds == ProductionBonusDomParser.NextAttemptAfterDailyResetSeconds)
+        if (state.NextAttemptKind == ProductionBonusNextAttemptKind.DailyReset)
         {
             // Reset hour unknown (auto mode, still learning): poll hourly to catch when the video re-enables.
             if (dailyResetHour is null)
@@ -40,7 +41,7 @@ public static class ProductionBonusScheduleCalculator
             return eligibleUtc.Add(delay);
         }
 
-        return now.AddSeconds(Math.Max(0, state.NextAttemptSeconds)).Add(delay);
+        return now.AddSeconds(Math.Max(0, state.RetryAfterSeconds)).Add(delay);
     }
 
     public static DateTimeOffset ResolveNextDailyResetUtc(

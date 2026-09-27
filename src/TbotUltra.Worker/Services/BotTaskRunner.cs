@@ -1002,6 +1002,13 @@ public sealed partial class BotTaskRunner
                 taskName,
                 result,
                 ClassifyConstructionTaskResult(taskName, result)));
+
+        public void RecordTaskResult(string taskName, ProductionBonusOutcome result) =>
+            RecordResult(new BotTaskResult(
+                taskName,
+                result.Message,
+                ConstructionTaskOutcome.None,
+                result));
     }
 
     private sealed record ClientLease(

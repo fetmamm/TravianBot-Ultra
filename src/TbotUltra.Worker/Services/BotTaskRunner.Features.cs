@@ -181,13 +181,13 @@ public sealed partial class BotTaskRunner
 
     // Manual read-only scan of the Advantages timers, runnable on its own session even when the loop is
     // idle/paused (used by the popup's "Scan timers" button).
-    public async Task<string> RunScanProductionBonusTimersAsync(
+    public async Task<ProductionBonusOutcome> RunScanProductionBonusTimersAsync(
         BotOptions options,
         Action<string> log,
         string? accountName = null,
         CancellationToken cancellationToken = default)
     {
-        var result = "Production bonus scan: no result.";
+        var result = ProductionBonusOutcome.Failed("Production bonus scan: no result.");
         await ExecuteWithClientAsync(
             options,
             log,
@@ -200,7 +200,7 @@ public sealed partial class BotTaskRunner
                 result = await client.ScanProductionBonusTimersAsync(cancellationToken);
             });
 
-        log(result);
+        log(result.Message);
         return result;
     }
 
@@ -208,13 +208,13 @@ public sealed partial class BotTaskRunner
     // "Scan timers" button when the scan finds free videos available and no active bonus). Mirrors the
     // scan runner; the shared visible session wires the isolated bonus-video browser so each video runs
     // isolated exactly like the queued activate_production_bonus task.
-    public async Task<string> RunActivateProductionBonusVideosAsync(
+    public async Task<ProductionBonusOutcome> RunActivateProductionBonusVideosAsync(
         BotOptions options,
         Action<string> log,
         string? accountName = null,
         CancellationToken cancellationToken = default)
     {
-        var result = "Production bonus activation: no result.";
+        var result = ProductionBonusOutcome.Failed("Production bonus activation: no result.");
         await ExecuteWithClientAsync(
             options,
             log,
@@ -227,7 +227,7 @@ public sealed partial class BotTaskRunner
                 result = await client.ActivateProductionBonusVideosAsync(cancellationToken);
             });
 
-        log(result);
+        log(result.Message);
         return result;
     }
 

@@ -287,12 +287,12 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.RunReduceAdventuresTimeAsync(options, log, null, cancellationToken);
     }
 
-    public Task<string> RunScanProductionBonusTimersAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    public Task<ProductionBonusOutcome> RunScanProductionBonusTimersAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.RunScanProductionBonusTimersAsync(options, log, null, cancellationToken);
     }
 
-    public Task<string> RunActivateProductionBonusVideosAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    public Task<ProductionBonusOutcome> RunActivateProductionBonusVideosAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.RunActivateProductionBonusVideosAsync(options, log, null, cancellationToken);
     }

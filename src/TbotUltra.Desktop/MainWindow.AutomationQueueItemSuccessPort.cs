@@ -1,6 +1,7 @@
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Services.Orchestration;
 using TbotUltra.Worker.Domain;
+using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
 
@@ -62,7 +63,7 @@ public partial class MainWindow
                 cancellationToken));
         public void ScheduleNextReinforcementSend(BotOptions options) =>
             owner.ScheduleNextReinforcementSendAfterSuccess(options);
-        public void ApplyProductionBonusResult(string? message) => owner.ApplyProductionBonusResult(message);
+        public void ApplyProductionBonusResult(ProductionBonusOutcome? outcome) => owner.ApplyProductionBonusResult(outcome);
         public void ApplyDailyResetResult(string? message) => owner.ApplyDailyResetReadResult(message);
         public void Log(string message) => owner.AppendLog(message);
     }

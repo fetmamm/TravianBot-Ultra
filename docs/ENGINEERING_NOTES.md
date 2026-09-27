@@ -850,6 +850,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   Verify each attempted resource against a fresh canonical bonus-box read. An ambiguous unconfirmed result may
   retry once; known typed failures keep their no-immediate-retry policy. After the batch, raise one actionable alarm
   listing resources still unconfirmed, persist the final observed states, and let normal automation continue.
+  Worker returns a typed `ProductionBonusOutcome`; human messages are diagnostic only and must never carry private
+  state tokens. `ProductionBonusOperation` owns Desktop deadline calculation, failure backoff, and timer persistence.
 - Diagnostics use shared busy/cancel behavior and sanitize settings/logs/paths/URLs/auth/proxy data. An unreadable
   optional source file must be skipped and listed in the manifest instead of aborting the archive; archive creation
   failures are never presented as success. Screenshots may contain visible game data.

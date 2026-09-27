@@ -1,4 +1,5 @@
 using TbotUltra.Desktop.Services;
+using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
 using Xunit;
 
@@ -53,11 +54,12 @@ public sealed class ProductionBonusScheduleCalculatorTests
         Assert.Equal(new DateTimeOffset(2026, 7, 7, 7, 10, 0, TimeSpan.Zero), next);
     }
 
-    private static ProductionBonusDomParser.ProductionBonusResourceState DailyResetState(int bonus, int remainingSeconds)
+    private static ProductionBonusResourceState DailyResetState(int bonus, int remainingSeconds)
         => new(
             "lumber",
             bonus,
             remainingSeconds,
-            ProductionBonusDomParser.NextAttemptAfterDailyResetSeconds,
+            ProductionBonusNextAttemptKind.DailyReset,
+            0,
             false);
 }

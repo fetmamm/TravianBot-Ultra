@@ -5,6 +5,7 @@ using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
 using Microsoft.Playwright;
+using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Infrastructure;
 
 namespace TbotUltra.Worker.Services;
@@ -124,15 +125,15 @@ public sealed partial class TravianClient
 
     /// <summary>
     /// Activates the free +15% production bonus video for every resource that currently offers it, then
-    /// reads back the resulting per-resource state (25%/15%/none + remaining timers) into the result
-    /// string. Account-wide; Official Travian only.
+    /// reads back the resulting per-resource state (25%/15%/none + remaining timers) into a typed outcome.
+    /// Account-wide; Official Travian only.
     ///
     /// Each resource is watched in its OWN isolated bonus-video browser. All resources found activatable at
     /// the start are attempted contiguously in the same automation task; a failure for one resource is logged
     /// but does not hand control back to other automation before the remaining resources are tried. Never
     /// spends gold and never clicks the gold Activate/Extend/Upgrade buttons. Best-effort — only cancellation propagates.
     /// </summary>
-    public async Task<string> ActivateProductionBonusVideosAsync(CancellationToken cancellationToken = default)
+    public async Task<ProductionBonusOutcome> ActivateProductionBonusVideosAsync(CancellationToken cancellationToken = default)
     {
         Notify("[production-bonus] starting — activating free +15% production videos.");
         try
@@ -143,8 +144,8 @@ public sealed partial class TravianClient
             if (initialState.AccountDeletionPending)
             {
                 Notify("[production-bonus] disabled — the account is pending deletion and Shop is unavailable.");
-                return "Production bonus: disabled because the account is pending deletion. "
-                    + ProductionBonusDomParser.BuildAccountDeletionPendingToken();
+                return ProductionBonusOutcome.AccountDeletionPending(
+                    "Production bonus: disabled because the account is pending deletion.");
             }
 
             var activatable = initialState.Boxes
@@ -156,7 +157,11 @@ public sealed partial class TravianClient
             {
                 var stateOnly = ProductionBonusDomParser.Classify(initialState.Boxes);
                 Notify($"[production-bonus] nothing to activate — {FormatProductionBonusLog(stateOnly)}.");
-                return $"Production bonus: nothing to activate. {ProductionBonusDomParser.BuildResultToken(stateOnly)}{FormatProductionBonusOffsetToken(initialState.ServerUtcOffset)}{FormatProductionBonusFreeAvailableToken(false)}";
+                return ProductionBonusOutcome.Observed(
+                    "Production bonus: nothing to activate.",
+                    stateOnly,
+                    initialState.ServerUtcOffset,
+                    freeVideoAvailable: false);
             }
 
             Notify($"[production-bonus] activatable resources: {string.Join(", ", activatable)}.");
@@ -193,8 +198,9 @@ public sealed partial class TravianClient
                                 + $"deferring {waitSeconds}s without changing production timers.");
                             if (resourceIndex == 0 && attempt == 1)
                             {
-                                return $"Production bonus: video cooldown active after {BonusVideoFailureClassifier.Format(isolatedRun.FailureKind)}. "
-                                    + $"queue_wait_seconds={waitSeconds}";
+                                return ProductionBonusOutcome.Deferred(
+                                    $"Production bonus: video cooldown active after {BonusVideoFailureClassifier.Format(isolatedRun.FailureKind)}.",
+                                    DateTimeOffset.UtcNow.AddSeconds(waitSeconds));
                             }
 
                             Notify($"[production-bonus:verbose] {resource}: cooldown did not stop the current batch; continuing verification.");
@@ -282,9 +288,14 @@ public sealed partial class TravianClient
                     + $"after at most {ProductionBonusVideoMaxAttemptsPerResource} attempt(s) per resource; normal automation continues.");
             }
 
-            var token = ProductionBonusDomParser.BuildResultToken(finalStates);
             Notify($"[production-bonus] done — {FormatProductionBonusLog(finalStates)}.");
-            return $"Production bonus: processed {activatable.Count} resource(s). {token}{FormatProductionBonusOffsetToken(finalPageState.ServerUtcOffset)}{FormatProductionBonusFreeAvailableToken(activatable.Count > 0)}";
+            return ProductionBonusOutcome.Observed(
+                $"Production bonus: processed {activatable.Count} resource(s).",
+                finalStates,
+                finalPageState.ServerUtcOffset,
+                freeVideoAvailable: activatable.Count > 0,
+                attemptedResources: activatable,
+                unconfirmedResources: unconfirmed);
         }
         catch (OperationCanceledException)
         {
@@ -298,16 +309,17 @@ public sealed partial class TravianClient
         catch (Exception ex)
         {
             Notify($"[production-bonus:verbose] feature failed and was skipped: {ex.GetType().Name}: {ex.Message}");
-            return $"Production bonus: could not run and was skipped ({ex.Message}).";
+            return ProductionBonusOutcome.Failed(
+                $"Production bonus: could not run and was skipped ({ex.Message}).");
         }
     }
 
     /// <summary>
     /// Read-only: opens the Advantages tab, reads the current per-resource bonus state (25%/15%/none +
-    /// timers) and returns it as the production_bonus=... token. Watches no video and clicks nothing.
+    /// timers) and returns a typed observation. Watches no video and clicks nothing.
     /// Used by the manual "Scan timers" button. Best-effort — only cancellation propagates.
     /// </summary>
-    public async Task<string> ScanProductionBonusTimersAsync(CancellationToken cancellationToken = default)
+    public async Task<ProductionBonusOutcome> ScanProductionBonusTimersAsync(CancellationToken cancellationToken = default)
     {
         Notify("[production-bonus] scanning Advantages timers.");
         try
@@ -317,14 +329,18 @@ public sealed partial class TravianClient
             if (pageState.AccountDeletionPending)
             {
                 Notify("[production-bonus] disabled — the account is pending deletion and Shop is unavailable.");
-                return "Production bonus: disabled because the account is pending deletion. "
-                    + ProductionBonusDomParser.BuildAccountDeletionPendingToken();
+                return ProductionBonusOutcome.AccountDeletionPending(
+                    "Production bonus: disabled because the account is pending deletion.");
             }
 
             var states = ProductionBonusDomParser.Classify(pageState.Boxes, afterActivationAttempt: false);
             var freeAvailable = ProductionBonusDomParser.AnyActivatable(pageState.Boxes);
             Notify($"[production-bonus] scan done — {FormatProductionBonusLog(states)}.");
-            return $"Production bonus: scanned. {ProductionBonusDomParser.BuildResultToken(states)}{FormatProductionBonusOffsetToken(pageState.ServerUtcOffset)}{FormatProductionBonusFreeAvailableToken(freeAvailable)}";
+            return ProductionBonusOutcome.Observed(
+                "Production bonus: scanned.",
+                states,
+                pageState.ServerUtcOffset,
+                freeAvailable);
         }
         catch (OperationCanceledException)
         {
@@ -333,12 +349,14 @@ public sealed partial class TravianClient
         catch (TimeoutException ex)
         {
             Notify($"[production-bonus] WARNING: inspection unavailable: {ex.Message}");
-            return $"Production bonus: scan could not complete ({ex.Message}).";
+            return ProductionBonusOutcome.Failed(
+                $"Production bonus: scan could not complete ({ex.Message}).");
         }
         catch (Exception ex)
         {
             Notify($"[production-bonus:verbose] scan failed and was skipped: {ex.GetType().Name}: {ex.Message}");
-            return $"Production bonus: scan could not run and was skipped ({ex.Message}).";
+            return ProductionBonusOutcome.Failed(
+                $"Production bonus: scan could not run and was skipped ({ex.Message}).");
         }
     }
 
@@ -656,7 +674,7 @@ public sealed partial class TravianClient
         _ => resource + "ProductionBonus",
     };
 
-    private static string FormatProductionBonusLog(IReadOnlyList<ProductionBonusDomParser.ProductionBonusResourceState> states)
+    private static string FormatProductionBonusLog(IReadOnlyList<ProductionBonusResourceState> states)
     {
         return string.Join(
             ", ",
@@ -667,11 +685,4 @@ public sealed partial class TravianClient
             }));
     }
 
-    private static string FormatProductionBonusOffsetToken(TimeSpan? serverUtcOffset)
-        => serverUtcOffset.HasValue
-            ? " " + ProductionBonusDomParser.BuildServerUtcOffsetToken(serverUtcOffset.Value)
-            : string.Empty;
-
-    private static string FormatProductionBonusFreeAvailableToken(bool available)
-        => " " + ProductionBonusDomParser.BuildFreeVideoAvailableToken(available);
 }

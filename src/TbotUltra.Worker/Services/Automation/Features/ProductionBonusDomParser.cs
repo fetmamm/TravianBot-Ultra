@@ -4,6 +4,7 @@ using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
+using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Worker.Services;
 
@@ -12,26 +13,16 @@ namespace TbotUltra.Worker.Services;
 /// Advantages tab). No I/O — pure functions so it can be unit-tested without a browser.
 ///
 /// The Worker reads the four resource boxes in one <c>EvaluateAsync</c> call and hands the raw JSON
-/// here; the Desktop reads the compact machine-token result string the client emits. Both live here so
-/// the two sides never drift.
+/// here. The operation returns the classified resource states as a typed outcome.
 /// </summary>
 public static class ProductionBonusDomParser
 {
     // Ordered so the result string is deterministic (matches the on-screen Wood/Clay/Iron/Crop order).
-    public static readonly IReadOnlyList<string> Resources = new[] { "lumber", "clay", "iron", "crop" };
-
-    // +15% re-activates after Travian's daily 09:00 server-time reset, not 24h after activation.
-    // Desktop turns this marker into an absolute UTC next-attempt time because it owns server-time offset
-    // and user-configured delay settings.
-    public const int NextAttemptAfterDailyResetSeconds = -1;
-
     // While +25% (gold) runs there is no free video, so the next free attempt is when it expires (+buffer).
     public const int NextAttemptAfter25BufferSeconds = 5 * 60;
 
     // Nothing active and the video was not activatable (missing/disabled/no ad) → back off before retry.
     public const int CooldownRetrySeconds = 4 * 60 * 60;
-
-    private const string AccountDeletionPendingToken = "production_bonus_account_deletion_pending=1";
 
     /// <summary>One resource box as read from the Advantages tab DOM.</summary>
     public sealed record ProductionBonusBox(
@@ -41,14 +32,6 @@ public static class ProductionBonusDomParser
         string Timer,
         bool PurplePresent,
         bool PurpleEnabled);
-
-    /// <summary>Resolved per-resource state used to build the result tokens and drive the UI store.</summary>
-    public sealed record ProductionBonusResourceState(
-        string Resource,
-        int Bonus,
-        int RemainingSeconds,
-        int NextAttemptSeconds,
-        bool CanActivate);
 
     /// <summary>Parses the raw JSON array produced by the box-reading script. Never throws.</summary>
     public static IReadOnlyList<ProductionBonusBox> ParseBoxesJson(string? json)
@@ -70,7 +53,7 @@ public static class ProductionBonusDomParser
             foreach (var element in doc.RootElement.EnumerateArray())
             {
                 var resource = GetString(element, "resource").ToLowerInvariant();
-                if (!Resources.Contains(resource))
+                if (!ProductionBonusResources.All.Contains(resource))
                 {
                     continue;
                 }
@@ -98,7 +81,7 @@ public static class ProductionBonusDomParser
 
     /// <summary>True only after Travian has rendered one unique bonus box for every resource.</summary>
     public static bool HasCompleteResourceSet(IReadOnlyList<ProductionBonusBox> boxes)
-        => Resources.All(resource => boxes.Count(box => string.Equals(box.Resource, resource, StringComparison.OrdinalIgnoreCase)) == 1);
+        => ProductionBonusResources.All.All(resource => boxes.Count(box => string.Equals(box.Resource, resource, StringComparison.OrdinalIgnoreCase)) == 1);
 
     /// <summary>Returns requested resources whose +15%/+25% activation is not confirmed in a fresh read.</summary>
     public static IReadOnlyList<string> FindUnconfirmedActivations(
@@ -111,7 +94,7 @@ public static class ProductionBonusDomParser
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         return requestedResources
-            .Where(resource => Resources.Contains(resource, StringComparer.OrdinalIgnoreCase))
+            .Where(resource => ProductionBonusResources.All.Contains(resource, StringComparer.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Where(resource => !confirmed.Contains(resource))
             .ToList();
@@ -132,11 +115,17 @@ public static class ProductionBonusDomParser
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
         var states = new List<ProductionBonusResourceState>();
-        foreach (var resource in Resources)
+        foreach (var resource in ProductionBonusResources.All)
         {
             if (!byResource.TryGetValue(resource, out var box))
             {
-                states.Add(new ProductionBonusResourceState(resource, 0, 0, CooldownRetrySeconds, false));
+                states.Add(new ProductionBonusResourceState(
+                    resource,
+                    0,
+                    0,
+                    ProductionBonusNextAttemptKind.RelativeDelay,
+                    CooldownRetrySeconds,
+                    false));
                 continue;
             }
 
@@ -151,25 +140,46 @@ public static class ProductionBonusDomParser
         if (box.Active && box.Percent == 25)
         {
             var remaining = ParseTimerToSeconds(box.Timer);
-            return new ProductionBonusResourceState(box.Resource, 25, remaining, remaining + NextAttemptAfter25BufferSeconds, false);
+            return new ProductionBonusResourceState(
+                box.Resource,
+                25,
+                remaining,
+                ProductionBonusNextAttemptKind.RelativeDelay,
+                remaining + NextAttemptAfter25BufferSeconds,
+                false);
         }
 
         if (box.Active && box.Percent == 15)
         {
             var remaining = ParseTimerToSeconds(box.Timer);
-            return new ProductionBonusResourceState(box.Resource, 15, remaining, NextAttemptAfterDailyResetSeconds, false);
+            return new ProductionBonusResourceState(
+                box.Resource,
+                15,
+                remaining,
+                ProductionBonusNextAttemptKind.DailyReset,
+                0,
+                false);
         }
 
         // Nothing active. A video that is offered is due now on a scan, but after a just-failed activation
         // attempt we back off so the loop does not spin. A present but disabled free-video button means the
         // daily 09:00 server-time reset has not happened yet.
         var canActivate = box.PurplePresent && box.PurpleEnabled;
-        var nextAttempt = box.PurplePresent && !box.PurpleEnabled
-            ? NextAttemptAfterDailyResetSeconds
+        var nextAttemptKind = box.PurplePresent && !box.PurpleEnabled
+            ? ProductionBonusNextAttemptKind.DailyReset
             : canActivate && !afterActivationAttempt
-                ? 0
-                : CooldownRetrySeconds;
-        return new ProductionBonusResourceState(box.Resource, 0, 0, nextAttempt, canActivate);
+                ? ProductionBonusNextAttemptKind.Immediate
+                : ProductionBonusNextAttemptKind.RelativeDelay;
+        var retryAfterSeconds = nextAttemptKind == ProductionBonusNextAttemptKind.RelativeDelay
+            ? CooldownRetrySeconds
+            : 0;
+        return new ProductionBonusResourceState(
+            box.Resource,
+            0,
+            0,
+            nextAttemptKind,
+            retryAfterSeconds,
+            canActivate);
     }
 
     /// <summary>
@@ -232,143 +242,6 @@ public static class ProductionBonusDomParser
         }
 
         return total > int.MaxValue ? int.MaxValue : (int)total;
-    }
-
-    /// <summary>Builds the compact result token, e.g. <c>production_bonus=lumber:25:13935:14235;clay:15:...</c>.</summary>
-    public static string BuildResultToken(IReadOnlyList<ProductionBonusResourceState> states)
-    {
-        var builder = new StringBuilder("production_bonus=");
-        for (var i = 0; i < states.Count; i++)
-        {
-            var state = states[i];
-            if (i > 0)
-            {
-                builder.Append(';');
-            }
-
-            var bonus = state.Bonus == 0 ? "none" : state.Bonus.ToString(CultureInfo.InvariantCulture);
-            builder.Append(state.Resource)
-                .Append(':').Append(bonus)
-                .Append(':').Append(state.RemainingSeconds.ToString(CultureInfo.InvariantCulture))
-                .Append(':').Append(state.NextAttemptSeconds.ToString(CultureInfo.InvariantCulture));
-        }
-
-        return builder.ToString();
-    }
-
-    /// <summary>
-    /// Parses the <c>production_bonus=...</c> token out of a worker result string. Returns an empty list
-    /// when the token is absent or malformed. Used by the Desktop to update the timer store.
-    /// </summary>
-    public static IReadOnlyList<ProductionBonusResourceState> ParseResultToken(string? result)
-    {
-        var states = new List<ProductionBonusResourceState>();
-        if (string.IsNullOrWhiteSpace(result))
-        {
-            return states;
-        }
-
-        var marker = "production_bonus=";
-        var start = result.IndexOf(marker, StringComparison.Ordinal);
-        if (start < 0)
-        {
-            return states;
-        }
-
-        var payload = result[(start + marker.Length)..];
-        var end = payload.IndexOf(' ');
-        if (end >= 0)
-        {
-            payload = payload[..end];
-        }
-
-        foreach (var entry in payload.Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
-        {
-            var fields = entry.Split(':');
-            if (fields.Length != 4)
-            {
-                continue;
-            }
-
-            var resource = fields[0].ToLowerInvariant();
-            if (!Resources.Contains(resource))
-            {
-                continue;
-            }
-
-            var bonus = string.Equals(fields[1], "none", StringComparison.OrdinalIgnoreCase)
-                ? 0
-                : (int.TryParse(fields[1], NumberStyles.Integer, CultureInfo.InvariantCulture, out var b) ? b : 0);
-            int.TryParse(fields[2], NumberStyles.Integer, CultureInfo.InvariantCulture, out var remaining);
-            int.TryParse(fields[3], NumberStyles.Integer, CultureInfo.InvariantCulture, out var next);
-            states.Add(new ProductionBonusResourceState(resource, bonus, remaining, next, false));
-        }
-
-        return states;
-    }
-
-    // Whether at least one resource offered a clickable free +15% video during the run. The Desktop uses
-    // this to auto-learn the daily reset hour: the unavailable→available transition is the reset moment.
-    public static string BuildFreeVideoAvailableToken(bool available)
-        => "production_bonus_free_video_available=" + (available ? "1" : "0");
-
-    public static bool? ParseFreeVideoAvailableToken(string? result)
-    {
-        if (string.IsNullOrWhiteSpace(result))
-        {
-            return null;
-        }
-
-        var marker = "production_bonus_free_video_available=";
-        var start = result.IndexOf(marker, StringComparison.Ordinal);
-        if (start < 0)
-        {
-            return null;
-        }
-
-        var payload = result[(start + marker.Length)..];
-        var end = payload.IndexOf(' ');
-        if (end >= 0)
-        {
-            payload = payload[..end];
-        }
-
-        return payload.Trim() == "1";
-    }
-
-    public static string BuildAccountDeletionPendingToken() => AccountDeletionPendingToken;
-
-    public static bool ParseAccountDeletionPendingToken(string? result)
-        => result?.Contains(AccountDeletionPendingToken, StringComparison.Ordinal) == true;
-
-    public static string BuildServerUtcOffsetToken(TimeSpan serverUtcOffset)
-        => "production_bonus_server_utc_offset_seconds="
-           + ((int)serverUtcOffset.TotalSeconds).ToString(CultureInfo.InvariantCulture);
-
-    public static TimeSpan? ParseServerUtcOffsetToken(string? result)
-    {
-        if (string.IsNullOrWhiteSpace(result))
-        {
-            return null;
-        }
-
-        var marker = "production_bonus_server_utc_offset_seconds=";
-        var start = result.IndexOf(marker, StringComparison.Ordinal);
-        if (start < 0)
-        {
-            return null;
-        }
-
-        var payload = result[(start + marker.Length)..];
-        var end = payload.IndexOf(' ');
-        if (end >= 0)
-        {
-            payload = payload[..end];
-        }
-
-        return int.TryParse(payload, NumberStyles.Integer, CultureInfo.InvariantCulture, out var seconds)
-            ? TimeSpan.FromSeconds(seconds)
-            : null;
     }
 
     private static string StripBidi(string value)
