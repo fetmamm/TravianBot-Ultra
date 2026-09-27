@@ -1,3 +1,4 @@
+using TbotUltra.Core.Configuration;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop.Services;

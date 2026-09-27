@@ -42,4 +42,16 @@ public sealed class ConstructionSettingsViewModelTests
 
         Assert.Equal(ConstructionDefaults.StorageUpgradeLevelsAheadMax, vm.StorageUpgradeLevelsAhead);
     }
+
+    [Fact]
+    public void RomanPriority_ExposesOptionsAndNormalizesInvalidValue()
+    {
+        var vm = new ConstructionSettingsViewModel
+        {
+            RomanPriority = (RomanConstructionPriority)999,
+        };
+
+        Assert.Equal(ConstructionDefaults.RomanPriority, vm.RomanPriority);
+        Assert.Equal(Enum.GetValues<RomanConstructionPriority>(), vm.RomanPriorityOptions);
+    }
 }

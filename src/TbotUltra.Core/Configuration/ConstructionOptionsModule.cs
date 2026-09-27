@@ -45,6 +45,7 @@ internal sealed record ConstructionOptions(
     public int MainBuildingRebuildTargetLevel { get; init; }
     public int StorageUpgradeLevelsAhead { get; init; }
     public bool CropShortageRecoveryEnabled { get; init; }
+    public RomanConstructionPriority RomanPriority { get; init; }
     public int HumanizeStateVersion { get; init; }
     public double HumanizeQueuePercentMin { get; init; }
     public double HumanizeQueuePercentMax { get; init; }
@@ -71,6 +72,7 @@ internal static class ConstructionOptionsModule
         target[BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel] = ConstructionDefaults.NormalizeMainBuildingRebuildTargetLevel(options.ConstructionMainBuildingRebuildTargetLevel);
         target[BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead] = ConstructionDefaults.NormalizeStorageUpgradeLevelsAhead(options.ConstructionStorageUpgradeLevelsAhead);
         target[BotOptionPayloadKeys.ConstructionCropShortageRecoveryEnabled] = options.ConstructionCropShortageRecoveryEnabled;
+        target[BotOptionPayloadKeys.ConstructionRomanPriority] = ConstructionDefaults.NormalizeRomanPriority(options.ConstructionRomanPriority).ToString();
         target[BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled] = options.ConstructionHumanizeDelayEnabled;
         var humanizeStateVersion = Math.Max(0, previousHumanizeStateVersion);
         if (previousHumanizeEnabled != options.ConstructionHumanizeDelayEnabled)
@@ -118,6 +120,7 @@ internal static class ConstructionOptionsModule
         BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel,
         BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead,
         BotOptionPayloadKeys.ConstructionCropShortageRecoveryEnabled,
+        BotOptionPayloadKeys.ConstructionRomanPriority,
         BotOptionPayloadKeys.ConstructionHumanizeStateVersion,
         BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMin,
         BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMax,
@@ -185,6 +188,8 @@ internal static class ConstructionOptionsModule
             CropShortageRecoveryEnabled = configuration.GetValue(
                 BotOptionPayloadKeys.ConstructionCropShortageRecoveryEnabled,
                 ConstructionDefaults.CropShortageRecoveryEnabled),
+            RomanPriority = ConstructionDefaults.ParseRomanPriority(
+                configuration[BotOptionPayloadKeys.ConstructionRomanPriority]),
             HumanizeStateVersion = configuration.GetValue(BotOptionPayloadKeys.ConstructionHumanizeStateVersion, 0),
             HumanizeQueuePercentMin = configuration.GetValue(BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMin, PacingDefaults.ConstructionHumanizeQueuePercentMin),
             HumanizeQueuePercentMax = configuration.GetValue(BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMax, PacingDefaults.ConstructionHumanizeQueuePercentMax),
@@ -238,6 +243,7 @@ internal static class ConstructionOptionsModule
             MainBuildingRebuildTargetLevel = source.ConstructionMainBuildingRebuildTargetLevel,
             StorageUpgradeLevelsAhead = source.ConstructionStorageUpgradeLevelsAhead,
             CropShortageRecoveryEnabled = source.ConstructionCropShortageRecoveryEnabled,
+            RomanPriority = source.ConstructionRomanPriority,
             HumanizeStateVersion = source.ConstructionHumanizeStateVersion,
             HumanizeQueuePercentMin = source.ConstructionHumanizeQueuePercentMin,
             HumanizeQueuePercentMax = source.ConstructionHumanizeQueuePercentMax,
@@ -367,6 +373,7 @@ internal static class ConstructionOptionsModule
             ConstructionMainBuildingRebuildTargetLevel = values.MainBuildingRebuildTargetLevel,
             ConstructionStorageUpgradeLevelsAhead = values.StorageUpgradeLevelsAhead,
             ConstructionCropShortageRecoveryEnabled = values.CropShortageRecoveryEnabled,
+            ConstructionRomanPriority = values.RomanPriority,
             ConstructionHumanizeStateVersion = values.HumanizeStateVersion,
             ConstructionHumanizeQueuePercentMin = values.HumanizeQueuePercentMin,
             ConstructionHumanizeQueuePercentMax = values.HumanizeQueuePercentMax,

@@ -370,6 +370,7 @@ public static class BotOptionPayloadKeys
     public const string ConstructionMainBuildingRebuildTargetLevel = "construction_main_building_rebuild_target_level";
     public const string ConstructionStorageUpgradeLevelsAhead = "construction_storage_upgrade_levels_ahead";
     public const string ConstructionCropShortageRecoveryEnabled = "construction_crop_shortage_recovery_enabled";
+    public const string ConstructionRomanPriority = "construction_roman_priority";
     public const string UpgradeDeferReasonCropShortage = "crop_shortage";
     public const string CropShortageRecoveryParentId = "crop_shortage_recovery_parent_id";
     public const string CropShortageOriginalPriority = "crop_shortage_original_priority";

@@ -1,4 +1,4 @@
-namespace TbotUltra.Desktop.Services;
+namespace TbotUltra.Core.Configuration;
 
 public enum RomanConstructionPriority
 {

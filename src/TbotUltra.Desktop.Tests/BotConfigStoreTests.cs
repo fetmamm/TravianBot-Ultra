@@ -72,6 +72,7 @@ public sealed class BotConfigStoreTests : IDisposable
             BotOptionPayloadKeys.ConstructionMainBuildingRebuildEnabled,
             BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel,
             BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead,
+            BotOptionPayloadKeys.ConstructionRomanPriority,
             BotOptionPayloadKeys.HeroAdventureVideoChancePercent,
         };
 

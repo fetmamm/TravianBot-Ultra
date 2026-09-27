@@ -567,6 +567,9 @@ public sealed record BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionCropShortageRecoveryEnabled)]
     public bool ConstructionCropShortageRecoveryEnabled { get; init; } = ConstructionDefaults.CropShortageRecoveryEnabled;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionRomanPriority)]
+    public RomanConstructionPriority ConstructionRomanPriority { get; init; } = ConstructionDefaults.RomanPriority;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.ConstructionHumanizeStateVersion)]
     public int ConstructionHumanizeStateVersion { get; init; }
 

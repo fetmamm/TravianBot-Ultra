@@ -11,6 +11,7 @@ public sealed class ConstructionSettingsViewModel : BaseViewModel
     private int _mainBuildingRebuildTargetLevel = ConstructionDefaults.MainBuildingRebuildTargetLevel;
     private int _storageUpgradeLevelsAhead = ConstructionDefaults.StorageUpgradeLevelsAhead;
     private bool _cropShortageRecoveryEnabled = ConstructionDefaults.CropShortageRecoveryEnabled;
+    private RomanConstructionPriority _romanPriority = ConstructionDefaults.RomanPriority;
     private bool _humanizeDelayEnabled = PacingDefaults.ConstructionHumanizeDelayEnabled;
     private string _queuePercentMin = Format(PacingDefaults.ConstructionHumanizeQueuePercentMin);
     private string _queuePercentMax = Format(PacingDefaults.ConstructionHumanizeQueuePercentMax);
@@ -36,6 +37,13 @@ public sealed class ConstructionSettingsViewModel : BaseViewModel
 
     public bool HumanizeDelayEnabled { get => _humanizeDelayEnabled; set => SetProperty(ref _humanizeDelayEnabled, value); }
     public bool CropShortageRecoveryEnabled { get => _cropShortageRecoveryEnabled; set => SetProperty(ref _cropShortageRecoveryEnabled, value); }
+    public IReadOnlyList<RomanConstructionPriority> RomanPriorityOptions { get; } =
+        Enum.GetValues<RomanConstructionPriority>();
+    public RomanConstructionPriority RomanPriority
+    {
+        get => _romanPriority;
+        set => SetProperty(ref _romanPriority, ConstructionDefaults.NormalizeRomanPriority(value));
+    }
     public string QueuePercentMin { get => _queuePercentMin; set => SetProperty(ref _queuePercentMin, value); }
     public string QueuePercentMax { get => _queuePercentMax; set => SetProperty(ref _queuePercentMax, value); }
     public string MaxDelayMinutes { get => _maxDelayMinutes; set => SetProperty(ref _maxDelayMinutes, value); }

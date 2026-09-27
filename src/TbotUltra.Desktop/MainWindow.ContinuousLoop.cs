@@ -1322,7 +1322,7 @@ public partial class MainWindow
             allowIndependentCategoryLookAhead,
             firstItem is null
                 ? RomanConstructionPriority.Auto
-                : _villageSettingsStore.GetRomanConstructionPriority(GetQueueItemVillageKey(firstItem)));
+                : LoadBotOptions().ConstructionRomanPriority);
         skipReason = selection.SkipReason;
 
         if (selection.QueueFullBlocker is not null && !preview)
@@ -1359,7 +1359,7 @@ public partial class MainWindow
         else if (selection.UsedRomanPriority && !preview)
         {
             var villageName = NormalizeVillageName(GetQueueItemVillageName(selection.Item)) ?? "-";
-            var priority = _villageSettingsStore.GetRomanConstructionPriority(GetQueueItemVillageKey(selection.Item));
+            var priority = LoadBotOptions().ConstructionRomanPriority;
             AppendLog(
                 $"[construction-queue] Roman priority='{priority}' selected " +
                 $"task='{selection.Item.TaskName}' village='{villageName}'.");

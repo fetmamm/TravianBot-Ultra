@@ -131,6 +131,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   snapshots; unavailable targets remain unselected, existing active village queue work is projected first, storage
   additions are confirmed once across all selected villages, and the final cross-village insert is atomic.
 - New settings require the complete pipeline: model, defaults, load/save, ViewModel, UI, and tests.
+- Roman construction priority is an account-scoped Construction setting. It applies to every Roman village;
+  Village settings must not expose a separate per-village priority control.
 - Smart Sleep's account-scoped `Wake when construction queue clears` option changes only its wake deadline.
   With confirmed Plus overview data, a queued pair uses the final timer; Roman resource and building queues
   are evaluated separately. Normal online construction scheduling always keeps the earliest-slot behavior.

@@ -28,7 +28,6 @@ public partial class VillageSettingsPanel : UserControl, IDisposable
     private readonly Action<VillageSettingsRow>? _onTroopEvadeChanged;
     private readonly Action<VillageSettingsRow>? _onHeroResourcesChanged;
     private readonly Action<VillageSettingsRow>? _onConstructFasterChanged;
-    private readonly Action<VillageSettingsRow>? _onRomanConstructionPriorityChanged;
     private readonly Action<VillageSettingsRow>? _onGroupsChanged;
     private readonly Action<IReadOnlyList<VillageSettingsRow>>? _onTroopSettingsRequested;
     private readonly Action<VillageSettingsRow>? _onSmithyUpgradeSettingsRequested;
@@ -59,7 +58,6 @@ public partial class VillageSettingsPanel : UserControl, IDisposable
         Action<VillageSettingsRow>? onTroopEvadeChanged = null,
         Action<VillageSettingsRow>? onHeroResourcesChanged = null,
         Action<VillageSettingsRow>? onConstructFasterChanged = null,
-        Action<VillageSettingsRow>? onRomanConstructionPriorityChanged = null,
         Action<VillageSettingsRow>? onGroupsChanged = null,
         Action<IReadOnlyList<VillageSettingsRow>>? onTroopSettingsRequested = null,
         Action<VillageSettingsRow>? onSmithyUpgradeSettingsRequested = null,
@@ -86,7 +84,6 @@ public partial class VillageSettingsPanel : UserControl, IDisposable
         _onTroopEvadeChanged = onTroopEvadeChanged;
         _onHeroResourcesChanged = onHeroResourcesChanged;
         _onConstructFasterChanged = onConstructFasterChanged;
-        _onRomanConstructionPriorityChanged = onRomanConstructionPriorityChanged;
         _onGroupsChanged = onGroupsChanged;
         _onTroopSettingsRequested = onTroopSettingsRequested;
         _onSmithyUpgradeSettingsRequested = onSmithyUpgradeSettingsRequested;
@@ -187,9 +184,6 @@ public partial class VillageSettingsPanel : UserControl, IDisposable
                 break;
             case nameof(VillageSettingsRow.ConstructFasterEnabled):
                 _onConstructFasterChanged?.Invoke(row);
-                break;
-            case nameof(VillageSettingsRow.RomanConstructionPriority):
-                _onRomanConstructionPriorityChanged?.Invoke(row);
                 break;
             default:
                 return;
@@ -354,18 +348,6 @@ public partial class VillageSettingsPanel : UserControl, IDisposable
 
             if (string.Equals(toggle.GroupKey, QueueGroupCatalog.GetKey(QueueGroup.Construction), StringComparison.OrdinalIgnoreCase))
             {
-                if (rows.Any(row => string.Equals(row.TribeText, "Romans", StringComparison.OrdinalIgnoreCase)))
-                {
-                    VillageSettingsDataGrid.Columns.Add(new DataGridTemplateColumn
-                    {
-                        Header = BuildColumnHeader(
-                            "Roman priority",
-                            "Auto follows the earliest runnable construction category. Resources targets two resource fields and one building; Buildings targets two buildings and one resource field."),
-                        Width = DataGridLength.Auto,
-                        CellTemplate = BuildRomanConstructionPriorityCellTemplate(),
-                    });
-                }
-
                 VillageSettingsDataGrid.Columns.Add(new DataGridTemplateColumn
                 {
                     Header = BuildColumnHeader(
@@ -413,14 +395,9 @@ public partial class VillageSettingsPanel : UserControl, IDisposable
             string.Equals(toggle.GroupKey, QueueGroupCatalog.GetKey(QueueGroup.Construction), StringComparison.OrdinalIgnoreCase))
             ? 1
             : 0;
-        var romanPriorityColumnBeforeNpc = constructFasterColumnBeforeNpc == 1
-            && rows.Any(row => string.Equals(row.TribeText, "Romans", StringComparison.OrdinalIgnoreCase))
-                ? 1
-                : 0;
         NpcTradeColumn.DisplayIndex = 3
             + groupsBeforeNpc.Count()
-            + constructFasterColumnBeforeNpc
-            + romanPriorityColumnBeforeNpc;
+            + constructFasterColumnBeforeNpc;
     }
 
     private void BuildProtectionColumns()
@@ -637,27 +614,6 @@ public partial class VillageSettingsPanel : UserControl, IDisposable
         var checkAll = BuildCheckAllButton(checkAllClick, "CheckAll");
         grid.AppendChild(checkAll);
         template.VisualTree = grid;
-        template.Seal();
-        return template;
-    }
-
-    private static DataTemplate BuildRomanConstructionPriorityCellTemplate()
-    {
-        var template = new DataTemplate();
-        var comboBox = new FrameworkElementFactory(typeof(ComboBox));
-        comboBox.SetValue(FrameworkElement.MinWidthProperty, 92d);
-        comboBox.SetValue(FrameworkElement.MarginProperty, new Thickness(3, 0, 3, 0));
-        comboBox.SetBinding(UIElement.VisibilityProperty, new System.Windows.Data.Binding(
-            nameof(VillageSettingsRow.RomanConstructionPriorityVisibility)));
-        comboBox.SetBinding(ItemsControl.ItemsSourceProperty, new System.Windows.Data.Binding(
-            nameof(VillageSettingsRow.RomanConstructionPriorityOptions)));
-        comboBox.SetBinding(Selector.SelectedItemProperty, new System.Windows.Data.Binding(
-            nameof(VillageSettingsRow.RomanConstructionPriority))
-        {
-            Mode = System.Windows.Data.BindingMode.TwoWay,
-            UpdateSourceTrigger = System.Windows.Data.UpdateSourceTrigger.PropertyChanged,
-        });
-        template.VisualTree = comboBox;
         template.Seal();
         return template;
     }

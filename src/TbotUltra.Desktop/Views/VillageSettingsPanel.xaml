@@ -25,6 +25,7 @@
             <TabItem x:Name="SettingsTabItem" Header="Settings">
         <DataGrid x:Name="VillageSettingsDataGrid"
                   AutoGenerateColumns="False"
+                  FrozenColumnCount="2"
                   IsReadOnly="False"
                   CanUserAddRows="False"
                   CanUserDeleteRows="False"

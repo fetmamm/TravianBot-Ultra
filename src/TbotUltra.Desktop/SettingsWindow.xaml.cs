@@ -259,6 +259,7 @@ public partial class SettingsWindow : Window
         SettingsVm.Construction.MainBuildingRebuildTargetLevel = options.ConstructionMainBuildingRebuildTargetLevel;
         SettingsVm.Construction.StorageUpgradeLevelsAhead = options.ConstructionStorageUpgradeLevelsAhead;
         SettingsVm.Construction.CropShortageRecoveryEnabled = options.ConstructionCropShortageRecoveryEnabled;
+        SettingsVm.Construction.RomanPriority = options.ConstructionRomanPriority;
         LoadConstructionHumanizeConfigToUi(options);
         SettingsVm.Farming.ShowFarmListLastSentTimer = options.ShowFarmListLastSentTimer;
         SettingsVm.Farming.FarmListLastSentLimitEnabled = options.FarmListLastSentLimitEnabled;
@@ -686,6 +687,7 @@ public partial class SettingsWindow : Window
             ConstructionMainBuildingRebuildTargetLevel = SettingsVm.Construction.MainBuildingRebuildTargetLevel,
             ConstructionStorageUpgradeLevelsAhead = SettingsVm.Construction.StorageUpgradeLevelsAhead,
             ConstructionCropShortageRecoveryEnabled = SettingsVm.Construction.CropShortageRecoveryEnabled,
+            ConstructionRomanPriority = SettingsVm.Construction.RomanPriority,
             ConstructionHumanizeDelayEnabled = SettingsVm.Construction.HumanizeDelayEnabled,
             ConstructionHumanizeQueuePercentMin = ReadDoubleText(SettingsVm.Construction.QueuePercentMin, PacingDefaults.ConstructionHumanizeQueuePercentMin),
             ConstructionHumanizeQueuePercentMax = ReadDoubleText(SettingsVm.Construction.QueuePercentMax, PacingDefaults.ConstructionHumanizeQueuePercentMax),

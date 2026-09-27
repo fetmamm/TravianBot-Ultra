@@ -178,25 +178,20 @@ public sealed class VillageSettingsPanelTests
     }
 
     [Fact]
-    public void RomanConstructionPriority_IsShownForRomansAndPublishesChanges()
+    public void SettingsGrid_FreezesAutoAndVillageWithoutRomanPriorityColumn()
     {
         _wpf.Run(() =>
         {
             var roman = BuildRow("Rome", true, false, false, true, tribe: "Romans", includeConstruction: true);
             var gaul = BuildRow("Gaul", true, false, false, true, tribe: "Gauls", includeConstruction: true);
-            var changes = 0;
-            var panel = new VillageSettingsPanel(
-                [roman, gaul],
-                onRomanConstructionPriorityChanged: _ => changes++);
+            var panel = new VillageSettingsPanel([roman, gaul]);
             var grid = Assert.IsType<DataGrid>(panel.FindName("VillageSettingsDataGrid"));
 
-            Assert.Contains(grid.Columns, column => HeaderTitle(column) == "Roman priority");
-            Assert.Equal(Visibility.Visible, roman.RomanConstructionPriorityVisibility);
-            Assert.Equal(Visibility.Collapsed, gaul.RomanConstructionPriorityVisibility);
-
-            roman.RomanConstructionPriority = RomanConstructionPriority.Resources;
-
-            Assert.Equal(1, changes);
+            Assert.Equal(2, grid.FrozenColumnCount);
+            Assert.Equal(0, grid.Columns[0].DisplayIndex);
+            Assert.Equal(1, grid.Columns[1].DisplayIndex);
+            Assert.Equal("Village", HeaderTitle(grid.Columns[1]));
+            Assert.DoesNotContain(grid.Columns, column => HeaderTitle(column) == "Roman priority");
         });
     }
 

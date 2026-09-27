@@ -16,6 +16,7 @@ public sealed class SettingsConfigurationProjectionTests
         Assert.True(settings.Options.AutomaticallyCheckLanguage);
         Assert.Equal(PacingDefaults.ActionPacingTaskMinSeconds, settings.Options.ActionPacingTaskMinSeconds);
         Assert.Equal(ConstructionDefaults.MainBuildingRebuildTargetLevel, settings.Options.ConstructionMainBuildingRebuildTargetLevel);
+        Assert.Equal(ConstructionDefaults.RomanPriority, settings.Options.ConstructionRomanPriority);
         Assert.Equal(FarmingDefaults.DefaultLastSentLimitHours, settings.Options.FarmListLastSentLimitHours);
         Assert.Equal(["construction", "hero"], settings.SessionPacing.SmartSleepDeadlineGroups);
         Assert.Equal(Enumerable.Range(0, 24), settings.SessionPacing.SessionAllowedHours);
@@ -44,6 +45,7 @@ public sealed class SettingsConfigurationProjectionTests
                 ConstructionHumanizeDelayEnabled = !current.Options.ConstructionHumanizeDelayEnabled,
                 ConstructionHumanizeQueuePercentMin = 80,
                 ConstructionHumanizeQueuePercentMax = 20,
+                ConstructionRomanPriority = RomanConstructionPriority.Resources,
                 FarmListLastSentLimitHours = int.MaxValue,
                 HeroCropAntiStarveTriggerMinutes = 100,
                 HeroCropAntiStarveTargetMinutes = 50,
@@ -64,6 +66,7 @@ public sealed class SettingsConfigurationProjectionTests
         Assert.Equal(80, reloaded.Options.ConstructionHumanizeQueuePercentMin);
         Assert.Equal(80, reloaded.Options.ConstructionHumanizeQueuePercentMax);
         Assert.Equal(1, reloaded.Options.ConstructionHumanizeStateVersion);
+        Assert.Equal(RomanConstructionPriority.Resources, reloaded.Options.ConstructionRomanPriority);
         Assert.Equal(FarmingDefaults.MaxLastSentLimitHours, reloaded.Options.FarmListLastSentLimitHours);
         Assert.Equal(100, reloaded.Options.HeroCropAntiStarveTriggerMinutes);
         Assert.Equal(101, reloaded.Options.HeroCropAntiStarveTargetMinutes);
