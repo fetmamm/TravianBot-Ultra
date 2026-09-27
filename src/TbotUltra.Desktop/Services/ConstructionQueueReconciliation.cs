@@ -22,6 +22,25 @@ internal static class ConstructionQueueReconciliation
 
         foreach (var candidate in candidates.ToList())
         {
+            if (!string.Equals(candidate.TaskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
+                || !ResourceUpgradePayload.TryFromDictionary(candidate.Payload, out var resourceUpgrade, int.MaxValue)
+                || resourceUpgrade is null)
+            {
+                continue;
+            }
+
+            var liveField = status.ResourceFields.FirstOrDefault(field => field.SlotId == resourceUpgrade.SlotId);
+            if (liveField?.Level is not int liveLevel || liveLevel < resourceUpgrade.TargetLevel)
+            {
+                continue;
+            }
+
+            removals.Add(candidate.Id);
+            candidates.Remove(candidate);
+        }
+
+        foreach (var candidate in candidates.ToList())
+        {
             var construct = BuildingUpgradeSlotRebindPlanner.FindExistingConstruct(status, candidate);
             if (construct is null) continue;
             if (BuildingConstructPayload.TryFromDictionary(candidate.Payload, out var constructPayload)

@@ -185,12 +185,12 @@ public partial class MainWindow
                     $"{conflict.QueuedSlotId}, but live dorf2 shows {conflict.OccupyingBuildingName}; " +
                     $"rebound the construction chain to free slot {conflict.ReboundSlotId}.");
             }
-            AppendLog($"[building-reconcile] applied live dorf2 plan: removed {plan.Removals.Count} queue item(s), rebound {plan.Updates.Count} queue item(s).");
+            AppendLog($"[construction-reconcile] applied live village plan: removed {plan.Removals.Count} queue item(s), rebound {plan.Updates.Count} queue item(s).");
             RequestQueueUiRefresh();
         }
         else
         {
-            AppendLog("[building-reconcile] live dorf2 plan was not applied because a queue item changed state.");
+            AppendLog("[construction-reconcile] live village plan was not applied because a queue item changed state.");
         }
     }
 

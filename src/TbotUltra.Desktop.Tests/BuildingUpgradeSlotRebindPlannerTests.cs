@@ -9,6 +9,33 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class BuildingUpgradeSlotRebindPlannerTests
 {
     [Fact]
+    public void ConstructionQueueReconciliation_RemovesDeferredResourceUpgradeWhenTargetIsReached()
+    {
+        var upgrade = Item(
+            "upgrade_resource_to_level",
+            new ResourceUpgradePayload(4, 6, "Iron Mine").ToDictionary());
+        upgrade.NextAttemptAt = DateTimeOffset.UtcNow.AddHours(1);
+        var status = ResourceStatus(new ResourceField(4, "Iron Mine", "Iron Mine", 6, "/build.php?id=4"));
+
+        var plan = ConstructionQueueReconciliation.Plan(status, [upgrade]);
+
+        Assert.Contains(upgrade.Id, plan.Removals);
+    }
+
+    [Fact]
+    public void ConstructionQueueReconciliation_PreservesResourceUpgradeBelowTarget()
+    {
+        var upgrade = Item(
+            "upgrade_resource_to_level",
+            new ResourceUpgradePayload(4, 6, "Iron Mine").ToDictionary());
+        var status = ResourceStatus(new ResourceField(4, "Iron Mine", "Iron Mine", 5, "/build.php?id=4"));
+
+        var plan = ConstructionQueueReconciliation.Plan(status, [upgrade]);
+
+        Assert.DoesNotContain(upgrade.Id, plan.Removals);
+    }
+
+    [Fact]
     public void ConstructionQueueReconciliation_RemovesStaleConstructAndRebindsDependentUpgrade()
     {
         var construct = Item("construct_building", new BuildingConstructPayload(38, 22, "Academy").ToDictionary());
@@ -447,6 +474,14 @@ public sealed class BuildingUpgradeSlotRebindPlannerTests
         new Dictionary<string, string>(),
         [],
         buildings,
+        []);
+
+    private static VillageStatus ResourceStatus(params ResourceField[] fields) => new(
+        "G1",
+        [],
+        new Dictionary<string, string>(),
+        fields,
+        [],
         []);
 
     private static VillageStatus CompleteStatus(params Building[] occupiedBuildings)
