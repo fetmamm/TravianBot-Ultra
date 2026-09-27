@@ -851,7 +851,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   retry once; known typed failures keep their no-immediate-retry policy. After the batch, raise one actionable alarm
   listing resources still unconfirmed, persist the final observed states, and let normal automation continue.
   Worker returns a typed `ProductionBonusOutcome`; human messages are diagnostic only and must never carry private
-  state tokens. `ProductionBonusOperation` owns Desktop deadline calculation, failure backoff, and timer persistence.
+  state tokens. The Worker `ProductionBonusOperation` owns inspect/activate run intent and contiguous batch policy behind
+  `IProductionBonusBrowser`; the Desktop `ProductionBonusOperation` owns deadline calculation, failure backoff, and timer
+  persistence. A typed cooldown deferral must advance persisted next-attempt deadlines so it survives restart.
 - Diagnostics use shared busy/cancel behavior and sanitize settings/logs/paths/URLs/auth/proxy data. An unreadable
   optional source file must be skipped and listed in the manifest instead of aborting the archive; archive creation
   failures are never presented as success. Screenshots may contain visible game data.

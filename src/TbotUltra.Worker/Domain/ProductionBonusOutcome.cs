@@ -20,6 +20,23 @@ public sealed record ProductionBonusResourceState(
     int RetryAfterSeconds,
     bool CanActivate);
 
+public enum ProductionBonusRunIntent
+{
+    Inspect,
+    Activate,
+}
+
+public sealed record ProductionBonusObservation(
+    IReadOnlyList<ProductionBonusResourceState> Resources,
+    TimeSpan? ServerUtcOffset,
+    bool AccountDeletionPending = false)
+{
+    public IReadOnlyList<string> ActivatableResources => Resources
+        .Where(resource => resource.CanActivate)
+        .Select(resource => resource.Resource)
+        .ToList();
+}
+
 public enum ProductionBonusOutcomeStatus
 {
     Observed,

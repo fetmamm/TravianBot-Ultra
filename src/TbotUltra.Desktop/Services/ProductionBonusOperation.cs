@@ -31,12 +31,7 @@ internal static class ProductionBonusOperation
         TimeSpan delay,
         int? dailyResetHour)
     {
-        if (outcome is null)
-        {
-            return ApplyFailureBackoff(projectRoot, accountName, nowUtc, "Production bonus returned no outcome.");
-        }
-
-        if (outcome.Status == ProductionBonusOutcomeStatus.AccountDeletionPending)
+        if (outcome?.Status == ProductionBonusOutcomeStatus.AccountDeletionPending)
         {
             return new ProductionBonusApplicationResult(
                 ProductionBonusApplicationStatus.AccountDeletionPending,
@@ -44,13 +39,22 @@ internal static class ProductionBonusOperation
                 []);
         }
 
-        if (outcome.Status == ProductionBonusOutcomeStatus.Deferred)
+        if (string.IsNullOrWhiteSpace(accountName))
         {
             return new ProductionBonusApplicationResult(
-                ProductionBonusApplicationStatus.Deferred,
-                outcome.Message,
-                [],
-                outcome.RetryAtUtc);
+                ProductionBonusApplicationStatus.Failed,
+                "Production bonus state was not saved because no active account was available.",
+                []);
+        }
+
+        if (outcome is null)
+        {
+            return ApplyFailureBackoff(projectRoot, accountName, nowUtc, "Production bonus returned no outcome.");
+        }
+
+        if (outcome.Status == ProductionBonusOutcomeStatus.Deferred)
+        {
+            return ApplyDeferredDeadline(projectRoot, accountName, outcome, nowUtc);
         }
 
         if (!outcome.HasObservation)
@@ -78,6 +82,36 @@ internal static class ProductionBonusOperation
             outcome.Message,
             timers,
             timers.Count == 0 ? null : timers.Min(timer => timer.NextAttemptAtUtc),
+            StateChanged: true);
+    }
+
+    private static ProductionBonusApplicationResult ApplyDeferredDeadline(
+        string projectRoot,
+        string accountName,
+        ProductionBonusOutcome outcome,
+        DateTimeOffset nowUtc)
+    {
+        var retryAtUtc = outcome.RetryAtUtc?.ToUniversalTime() ?? nowUtc.Add(FailureBackoff);
+        var existing = ProductionBonusStateStore.Load(projectRoot, accountName);
+        var timers = existing.Count > 0
+            ? existing
+                .Select(timer => timer with
+                {
+                    NextAttemptAtUtc = timer.NextAttemptAtUtc > retryAtUtc
+                        ? timer.NextAttemptAtUtc
+                        : retryAtUtc,
+                })
+                .ToList()
+            : ProductionBonusResources.All
+                .Select(resource => new ProductionBonusResourceTimer(resource, 0, nowUtc, retryAtUtc))
+                .ToList();
+        ProductionBonusStateStore.Save(projectRoot, accountName, timers);
+        var nextDeadlineUtc = timers.Min(timer => timer.NextAttemptAtUtc);
+        return new ProductionBonusApplicationResult(
+            ProductionBonusApplicationStatus.Deferred,
+            outcome.Message,
+            timers,
+            nextDeadlineUtc,
             StateChanged: true);
     }
 

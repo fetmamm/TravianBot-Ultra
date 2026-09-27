@@ -56,7 +56,7 @@ public sealed class ProductionBonusOperationTests : IDisposable
     }
 
     [Fact]
-    public void Apply_DeferredOutcomePreservesPersistedTimers()
+    public void Apply_DeferredOutcomePersistsOperationDeadline()
     {
         var existing = new ProductionBonusResourceTimer(
             "iron",
@@ -76,9 +76,11 @@ public sealed class ProductionBonusOperationTests : IDisposable
             dailyResetHour: 9);
 
         Assert.Equal(ProductionBonusApplicationStatus.Deferred, result.Status);
-        Assert.False(result.StateChanged);
-        Assert.Equal(retryAt, result.NextDeadlineUtc);
-        Assert.Equal(existing, Assert.Single(ProductionBonusStateStore.Load(_root, "alice")));
+        Assert.True(result.StateChanged);
+        Assert.Equal(existing.NextAttemptAtUtc, result.NextDeadlineUtc);
+        var persisted = Assert.Single(ProductionBonusStateStore.Load(_root, "alice"));
+        Assert.Equal(existing.BonusEndsAtUtc, persisted.BonusEndsAtUtc);
+        Assert.Equal(existing.NextAttemptAtUtc, persisted.NextAttemptAtUtc);
     }
 
     [Fact]
@@ -99,6 +101,45 @@ public sealed class ProductionBonusOperationTests : IDisposable
         Assert.True(result.StateChanged);
         Assert.Equal(now.AddMinutes(30), result.NextDeadlineUtc);
         Assert.Equal(4, ProductionBonusStateStore.Load(_root, "alice").Count);
+    }
+
+    [Fact]
+    public void Apply_DeferredOutcomeWithoutStateSurvivesReload()
+    {
+        var now = new DateTimeOffset(2026, 9, 27, 12, 0, 0, TimeSpan.Zero);
+        var retryAt = now.AddMinutes(20);
+
+        ProductionBonusOperation.Apply(
+            _root,
+            "alice",
+            ProductionBonusOutcome.Deferred("cooldown", retryAt),
+            now,
+            TimeSpan.Zero,
+            TimeSpan.Zero,
+            dailyResetHour: 9);
+
+        var persisted = ProductionBonusStateStore.Load(_root, "alice");
+        Assert.Equal(4, persisted.Count);
+        Assert.All(persisted, timer => Assert.Equal(retryAt, timer.NextAttemptAtUtc));
+        Assert.False(ProductionBonusStateStore.ShouldAttemptNow(_root, "alice", now.AddMinutes(1)));
+    }
+
+    [Fact]
+    public void Apply_MissingAccountDoesNotReportPersistence()
+    {
+        var result = ProductionBonusOperation.Apply(
+            _root,
+            accountName: null,
+            ProductionBonusOutcome.Failed("inspection failed"),
+            DateTimeOffset.UtcNow,
+            TimeSpan.Zero,
+            TimeSpan.Zero,
+            dailyResetHour: 9);
+
+        Assert.Equal(ProductionBonusApplicationStatus.Failed, result.Status);
+        Assert.False(result.StateChanged);
+        Assert.Null(result.NextDeadlineUtc);
+        Assert.Empty(result.Timers);
     }
 
     public void Dispose()

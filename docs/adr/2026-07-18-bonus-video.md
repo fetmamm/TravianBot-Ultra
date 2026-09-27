@@ -17,6 +17,8 @@ Active decision, extracted from `ENGINEERING_NOTES.md` on 2026-07-18.
 - Production Bonus scan and activation return a typed outcome containing resource observations, attempted and
   unconfirmed batch resources, server offset, availability, and retry time. Desktop applies that outcome through
   `ProductionBonusOperation`, which owns absolute deadline calculation and persistence; free-text logs carry no state.
+  Worker batch policy is selected by a typed run intent and exercised through `IProductionBonusBrowser`, with the live
+  Travian client and an in-memory test adapter on the seam. Cooldown deadlines persist even when no prior timer exists.
 - Isolated video has separate 60-second setup and 240-second action caps. Expected provider failure must not
   block construction, hero dispatch, or other automation.
 - Construct, resource, production, and hero bonus videos share one post-play policy: the protected 60-second

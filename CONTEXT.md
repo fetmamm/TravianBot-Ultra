@@ -153,7 +153,7 @@ A contained execution of one Official Travian bonus operation in a disposable br
 _Avoid_: Video callback, isolated page action
 
 **Production Bonus Operation**:
-The account-wide Official Travian scan/activation lifecycle that returns typed resource and batch observations, then calculates and persists the next absolute attempt deadline through one Desktop module.
+The account-wide Official Travian scan/activation lifecycle. A run intent drives one Worker module through a browser adapter, returning typed resource and batch observations; the Desktop application module persists the resulting absolute attempt deadline, including cooldown deferrals.
 _Avoid_: Production bonus token, bonus result parser
 
 **Manual Farming**:

@@ -70,6 +70,12 @@ public partial class MainWindow
         {
             AppendLog($"Production bonus: saved timers ({FormatProductionBonusStates(outcome.Resources)}); next-run delay +{delay.TotalMinutes:0} min.");
         }
+        else if (application.Status == ProductionBonusApplicationStatus.Deferred
+                 && application.StateChanged
+                 && application.NextDeadlineUtc > now)
+        {
+            AppendLog($"Production bonus: cooldown persisted until {application.NextDeadlineUtc:O}.");
+        }
         else if (application.Status == ProductionBonusApplicationStatus.Failed
                  && application.StateChanged
                  && application.NextDeadlineUtc > now)
