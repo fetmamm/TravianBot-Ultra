@@ -358,8 +358,11 @@ internal sealed class ContinuousRuntimeItemPreparation(IContinuousRuntimeItemPre
             YellowLossDestinationBaseName: options.ContinuousFarmYellowLossDestinationBaseName).ToDictionary();
         foreach (var village in villages)
         {
+            var hasActiveDispatch = sendsAllListsAtOnce
+                ? runtimeItems.HasActive("send_farmlists")
+                : runtimeItems.HasActiveForVillage("send_farmlists", village.Key);
             if (!port.GetEnabledGroupsForVillage(village.Key).Contains(QueueGroup.Farming)
-                || runtimeItems.HasActiveForVillage("send_farmlists", village.Key))
+                || hasActiveDispatch)
             {
                 continue;
             }
@@ -376,7 +379,9 @@ internal sealed class ContinuousRuntimeItemPreparation(IContinuousRuntimeItemPre
                 -50,
                 0,
                 village.Key));
-            port.Log($"Continuous farming queued for village '{village.Name}'.");
+            port.Log(sendsAllListsAtOnce
+                ? $"Continuous farming Send all queued once for the account via village '{village.Name}'."
+                : $"Continuous farming queued for village '{village.Name}'.");
         }
     }
 

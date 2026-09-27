@@ -1,4 +1,5 @@
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Farming;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.Services.Orchestration;
 using TbotUltra.Worker.Domain;
@@ -78,6 +79,34 @@ public sealed class ContinuousRuntimeItemPreparationTests
         Assert.Empty(port.Queue.Items);
     }
 
+    [Fact]
+    public async Task SendAllFarming_QueuesOneAccountWideDispatchInsteadOfOnePerVillage()
+    {
+        var port = new InMemoryPort
+        {
+            EnabledGroups = [QueueGroup.Farming],
+            ConsideredGroups = [QueueGroup.Farming],
+            Villages =
+            [
+                new AutomationRuntimeVillage("1:2", "Alpha", "/dorf1.php?newdid=1", false, 1, 2),
+                new AutomationRuntimeVillage("3:4", "Beta", "/dorf1.php?newdid=2", false, 3, 4),
+                new AutomationRuntimeVillage("5:6", "Gamma", "/dorf1.php?newdid=3", false, 5, 6),
+            ],
+            FarmListSelection = new AutomationFarmListSelection([], [], 4),
+        };
+
+        await new ContinuousRuntimeItemPreparation(port).PrepareAsync(
+            new BotOptions { ContinuousFarmSendMode = FarmingDefaults.SendModeAllAtOnce },
+            default);
+        await new ContinuousRuntimeItemPreparation(port).PrepareAsync(
+            new BotOptions { ContinuousFarmSendMode = FarmingDefaults.SendModeAllAtOnce },
+            default);
+
+        var item = Assert.Single(port.Queue.Items);
+        Assert.Equal("send_farmlists", item.TaskName);
+        Assert.Equal("Send all farmlists", item.DisplayName);
+    }
+
     private sealed class InMemoryPort : IContinuousRuntimeItemPreparationPort
     {
         public IReadOnlyList<QueueGroup> EnabledGroups { get; init; } = [];
@@ -88,6 +117,7 @@ public sealed class ContinuousRuntimeItemPreparationTests
         public bool GoldClubEnabled { get; init; } = true;
         public bool MissingGoldClubBlocked { get; private set; }
         public bool ResourceTransferReady { get; init; }
+        public AutomationFarmListSelection FarmListSelection { get; init; } = new([], [], 0);
         public InMemoryQueuePort Queue { get; } = new();
         public IAutomationRuntimeQueuePort RuntimeQueue => Queue;
         public bool IsBreweryCelebrationAvailable => false;
@@ -138,7 +168,7 @@ public sealed class ContinuousRuntimeItemPreparationTests
         public ValueTask EnsureFarmListsReadyAsync(
             BotOptions options,
             CancellationToken cancellationToken) => ValueTask.CompletedTask;
-        public AutomationFarmListSelection GetFarmListSelection() => new([], [], 0);
+        public AutomationFarmListSelection GetFarmListSelection() => FarmListSelection;
         public void SetFarmingBlockedForMissingLists() { }
         public void ClearFarmingMissingListsBlock() { }
         public void SetFarmingBlockedForMissingGoldClub() => MissingGoldClubBlocked = true;

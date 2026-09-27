@@ -145,6 +145,7 @@ public sealed class ContinuousFarmingOperationTests
 
         Assert.Equal(["loss", "start-all", "read"], client.Calls);
         Assert.True(result.ScheduleNextRound);
+        Assert.Equal(600, result.WaitSeconds);
         Assert.Equal("Continuous farming cooldown active.", result.WaitMessage);
     }
 
