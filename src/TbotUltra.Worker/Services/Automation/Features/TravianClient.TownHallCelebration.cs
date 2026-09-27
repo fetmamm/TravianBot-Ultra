@@ -48,7 +48,7 @@ public sealed partial class TravianClient
             ? ResolveRestartDelaySeconds(restartDelayMinMinutes, restartDelayMaxMinutes)
             : 0;
 
-        await GotoAsync(Paths.BuildBySlot(townHallSlotId.Value), cancellationToken);
+        await GotoAsync(BuildTownHallCelebrationsPath(townHallSlotId.Value), cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var mode = TownHallCelebrationDefaults.NormalizeMode(requestedMode);
@@ -146,7 +146,7 @@ public sealed partial class TravianClient
                 await WaitForPageReadyAsync(cancellationToken);
             }
 
-            await GotoAsync(Paths.BuildBySlot(townHallSlotId.Value), cancellationToken);
+            await GotoAsync(BuildTownHallCelebrationsPath(townHallSlotId.Value), cancellationToken);
             await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
             var reread = await ReadTownHallCelebrationStatusFromCurrentPageAsync(cancellationToken);
@@ -213,6 +213,9 @@ public sealed partial class TravianClient
             item.Gid == 24
             || string.Equals(item.Name, "Town Hall", StringComparison.OrdinalIgnoreCase));
     }
+
+    internal static string BuildTownHallCelebrationsPath(int slotId) =>
+        Paths.BuildBySlotTab(slotId, 1);
 
     private async Task<int?> TryProbeTownHallSlotOnDorf2Async(CancellationToken cancellationToken)
     {

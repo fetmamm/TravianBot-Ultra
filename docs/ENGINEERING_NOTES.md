@@ -448,6 +448,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   account-wide Gold/Silver limits belong under NPC / Trade. Town Hall and Brewery restart delays include the
   configured random delay after the live celebration timer; a confirmed missing Town Hall disables that village's
   Town Hall group instead of deferring an impossible task.
+- Town Hall celebration automation must navigate explicitly to building tab `t=1`; some Official worlds open the
+  Management tab by default when only the building slot is supplied.
 - Every editable numeric Settings field is validated before any config mutation. Decimal input uses invariant
   culture and requires a period; invalid format, out-of-range values, and Max below Min block Save/Sleep now with
   a warning focused on the offending field instead of silently substituting or clamping a value.

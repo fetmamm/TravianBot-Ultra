@@ -6,6 +6,14 @@ namespace TbotUltra.Worker.Tests;
 public sealed class TownHallCelebrationSelectorTests
 {
     [Fact]
+    public void CelebrationsPath_ExplicitlySelectsCelebrationsTab()
+    {
+        var path = TravianClient.BuildTownHallCelebrationsPath(21);
+
+        Assert.Equal("/build.php?id=21&t=1", path);
+    }
+
+    [Fact]
     public void StartLinkSelector_ExcludesGenericResearchAndHeroTransferLinks()
     {
         var selector = TravianClient.TownHallCelebrationStartLinkSelector;
