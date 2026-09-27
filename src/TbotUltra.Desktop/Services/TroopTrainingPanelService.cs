@@ -36,7 +36,9 @@ public sealed class TroopTrainingPanelService(ITroopTrainingPanelClient client, 
     public void SaveGlobalSettings(TroopTrainingViewModel viewModel)
     {
         var config = configStore.Load();
-        viewModel.WriteToConfig(config);
-        configStore.Save(config);
+        var draft = SettingsConfigurationProjection.ApplyTroopTrainingPanel(
+            config,
+            viewModel.BuildGlobalSettings());
+        configStore.Save(draft);
     }
 }

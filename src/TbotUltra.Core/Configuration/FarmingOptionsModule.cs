@@ -52,9 +52,9 @@ internal static class FarmingOptionsModule
         target[BotOptionPayloadKeys.FarmListLastSentLimitEnabled] = options.FarmListLastSentLimitEnabled;
         target[BotOptionPayloadKeys.FarmListLastSentLimitHours] = FarmingDefaults.NormalizeLastSentLimitHours(options.FarmListLastSentLimitHours);
         target[BotOptionPayloadKeys.TownHallCelebrationCount] = TownHallCelebrationDefaults.NormalizeCount(options.TownHallCelebrationCount);
-        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.TownHallCelebrationRestartDelayMinMinutes, BotOptionPayloadKeys.TownHallCelebrationRestartDelayMaxMinutes, options.TownHallCelebrationRestartDelayMinMinutes, options.TownHallCelebrationRestartDelayMaxMinutes, 0, double.MaxValue);
+        SettingsDraftWriter.WriteDelayRange(target, BotOptionPayloadKeys.TownHallCelebrationRestartDelayMinMinutes, BotOptionPayloadKeys.TownHallCelebrationRestartDelayMaxMinutes, options.TownHallCelebrationRestartDelayMinMinutes, options.TownHallCelebrationRestartDelayMaxMinutes, 0, double.MaxValue);
         target[BotOptionPayloadKeys.TownHallCelebrationRestartDelayEnabled] = options.TownHallCelebrationRestartDelayEnabled;
-        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.BreweryCelebrationRestartDelayMinMinutes, BotOptionPayloadKeys.BreweryCelebrationRestartDelayMaxMinutes, options.BreweryCelebrationRestartDelayMinMinutes, options.BreweryCelebrationRestartDelayMaxMinutes, 0, double.MaxValue);
+        SettingsDraftWriter.WriteDelayRange(target, BotOptionPayloadKeys.BreweryCelebrationRestartDelayMinMinutes, BotOptionPayloadKeys.BreweryCelebrationRestartDelayMaxMinutes, options.BreweryCelebrationRestartDelayMinMinutes, options.BreweryCelebrationRestartDelayMaxMinutes, 0, double.MaxValue);
         target[BotOptionPayloadKeys.BreweryCelebrationRestartDelayEnabled] = options.BreweryCelebrationRestartDelayEnabled;
     }
 

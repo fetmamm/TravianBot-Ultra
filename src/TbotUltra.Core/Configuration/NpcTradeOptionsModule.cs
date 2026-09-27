@@ -1,9 +1,10 @@
+using System.Text.Json.Nodes;
 using Microsoft.Extensions.Configuration;
 using static TbotUltra.Core.Configuration.PayloadValueReader;
 
 namespace TbotUltra.Core.Configuration;
 
-internal sealed record NpcTradeOptions(
+public sealed record NpcTradeOptions(
     bool Enabled,
     bool ConstructionEnabled,
     int ThresholdPercent,
@@ -16,6 +17,19 @@ internal sealed record NpcTradeOptions(
 
 internal static class NpcTradeOptionsModule
 {
+    internal static void WriteSettings(JsonObject target, NpcTradeOptions options)
+    {
+        target[BotOptionPayloadKeys.NpcTradeEnabled] = options.Enabled;
+        target[BotOptionPayloadKeys.NpcTradeConstructionEnabled] = options.ConstructionEnabled;
+        target[BotOptionPayloadKeys.NpcTradeThresholdPercent] = Math.Clamp(options.ThresholdPercent, 1, 100);
+        target[BotOptionPayloadKeys.NpcTradeAnalyzeWood] = options.AnalyzeWood;
+        target[BotOptionPayloadKeys.NpcTradeAnalyzeClay] = options.AnalyzeClay;
+        target[BotOptionPayloadKeys.NpcTradeAnalyzeIron] = options.AnalyzeIron;
+        target[BotOptionPayloadKeys.NpcTradeAnalyzeCrop] = options.AnalyzeCrop;
+        target[BotOptionPayloadKeys.NpcTradeBuildTimeLimitEnabled] = options.BuildTimeLimitEnabled;
+        target[BotOptionPayloadKeys.NpcTradeBuildTimeLimitSeconds] = NormalizeBuildTimeLimit(options.BuildTimeLimitSeconds);
+    }
+
     internal static IReadOnlyList<string> AccountScopedKeys { get; } =
     [
         BotOptionPayloadKeys.NpcTradeEnabled,

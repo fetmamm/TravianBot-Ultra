@@ -108,10 +108,11 @@ public partial class MainWindow
                 // Fill the dashboard (resources, villages, adventure count) from the landing page
                 // BEFORE the busy overlay closes, so the UI is not half-empty when it appears. Cheap:
                 // current-page read on official, no extra navigation beyond the login landing.
+                VillageStatus? quickResourceStatus = null;
                 try
                 {
                     var quickOfficialServer = IsOfficialTravianServer(options);
-                    await RefreshResourceSnapshotForUiAsync(
+                    quickResourceStatus = await RefreshResourceSnapshotForUiAsync(
                         options,
                         operationToken,
                         forceCurrentVillage: !quickOfficialServer,
@@ -129,6 +130,28 @@ public partial class MainWindow
                 catch (Exception ex)
                 {
                     AppendLog($"Quick re-login UI refresh failed (continuing): {ex.Message}");
+                }
+
+                // Quick re-login may skip the repeated account analyzes, but a village founded since the
+                // previous full login has no cached layout yet. Analyze it immediately when the setting is
+                // enabled; otherwise this would wait indefinitely for Continuous Loop or Auto Queue to start.
+                if (options.PostLoginAnalyzeNewVillages && quickResourceStatus is not null)
+                {
+                    var villageAnalysis = await AnalyzeNewVillagesAfterLoginAsync(
+                        options,
+                        quickResourceStatus.Villages,
+                        operationToken);
+                    if (villageAnalysis.Navigated)
+                    {
+                        await _botService.NavigateToVillageResourceFieldsAsync(
+                            options,
+                            AppendLog,
+                            GetSelectedVillageName(),
+                            GetSelectedVillageUrl(),
+                            cancellationToken: operationToken);
+                        await ApplyCurrentVillageToUiAsync(options, operationToken);
+                        AppendLog("[post-login] Refreshed current village UI after quick re-login new-village analysis.");
+                    }
                 }
 
                 // Quick re-login skips the full analyze stack, so the overview cards render from the

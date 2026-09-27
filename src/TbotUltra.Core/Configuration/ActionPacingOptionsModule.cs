@@ -68,24 +68,29 @@ internal static class ActionPacingOptionsModule
     private static readonly string[] DefaultSmartSleepDeadlineGroups = ["construction", "hero"];
 
     internal static SessionPacingSettingsConfiguration ReadSettings(IConfiguration configuration)
-        => new(
+    {
+        var fallbackMin = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SmartSleepFallbackMinMinutes, PacingDefaults.SmartSleepFallbackMinMinutes), 1, 10080);
+        var runMin = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SessionPacingRunMinMinutes, PacingDefaults.SessionPacingRunMinMinutes), 1, 10080);
+        var sleepMin = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SessionPacingSleepMinMinutes, PacingDefaults.SessionPacingSleepMinMinutes), 5, 10080);
+        return new SessionPacingSettingsConfiguration(
             configuration.GetValue(BotOptionPayloadKeys.SessionPacingEnabled, PacingDefaults.SessionPacingEnabled),
             configuration.GetValue(BotOptionPayloadKeys.SmartSleepEnabled, PacingDefaults.SmartSleepEnabled),
             configuration.GetValue(BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears, PacingDefaults.SmartSleepWakeWhenConstructionQueueClears),
             Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SmartSleepMinimumOpportunityMinutes, PacingDefaults.SmartSleepMinimumOpportunityMinutes), 1, 1440),
             Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SmartSleepWakeBeforeMinutes, PacingDefaults.SmartSleepWakeBeforeMinutes), 0, 1440),
             Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SmartSleepWakeAfterMinutes, PacingDefaults.SmartSleepWakeAfterMinutes), 0, 1440),
-            Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SmartSleepFallbackMinMinutes, PacingDefaults.SmartSleepFallbackMinMinutes), 1, 10080),
-            Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SmartSleepFallbackMaxMinutes, PacingDefaults.SmartSleepFallbackMaxMinutes), 1, 10080),
+            fallbackMin,
+            Math.Max(fallbackMin, Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SmartSleepFallbackMaxMinutes, PacingDefaults.SmartSleepFallbackMaxMinutes), 1, 10080)),
             ReadStringList(configuration, BotOptionPayloadKeys.SmartSleepDeadlineGroups, DefaultSmartSleepDeadlineGroups),
-            Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SessionPacingRunMinMinutes, PacingDefaults.SessionPacingRunMinMinutes), 1, 10080),
-            Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SessionPacingRunMaxMinutes, PacingDefaults.SessionPacingRunMaxMinutes), 1, 10080),
-            Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SessionPacingSleepMinMinutes, PacingDefaults.SessionPacingSleepMinMinutes), 5, 10080),
-            Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SessionPacingSleepMaxMinutes, PacingDefaults.SessionPacingSleepMaxMinutes), 5, 10080),
+            runMin,
+            Math.Max(runMin, Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SessionPacingRunMaxMinutes, PacingDefaults.SessionPacingRunMaxMinutes), 1, 10080)),
+            sleepMin,
+            Math.Max(sleepMin, Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SessionPacingSleepMaxMinutes, PacingDefaults.SessionPacingSleepMaxMinutes), 5, 10080)),
             Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SessionPacingDailyMaxHours, PacingDefaults.SessionPacingDailyMaxHours), 0, 24),
             Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SessionPacingDailyMaxVariationPercent, PacingDefaults.SessionPacingDailyMaxVariationPercent), 0, 50),
             ReadHours(configuration),
             Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SessionPacingHoursVariationPercent, PacingDefaults.SessionPacingHoursVariationPercent), 0, 49));
+    }
 
     internal static void WriteSettings(
         JsonObject target,
@@ -103,8 +108,8 @@ internal static class ActionPacingOptionsModule
         target[BotOptionPayloadKeys.SmartSleepFallbackMaxMinutes] = Math.Max(fallbackMin, Math.Clamp(pacing.SmartSleepFallbackMaxMinutes, 1, 10080));
         target[BotOptionPayloadKeys.SmartSleepDeadlineGroups] = new JsonArray(
             pacing.SmartSleepDeadlineGroups.Where(value => !string.IsNullOrWhiteSpace(value)).Distinct(StringComparer.OrdinalIgnoreCase).Select(value => JsonValue.Create(value)).ToArray());
-        SettingsConfigurationProjection.WriteIntRange(target, BotOptionPayloadKeys.SessionPacingRunMinMinutes, BotOptionPayloadKeys.SessionPacingRunMaxMinutes, pacing.SessionRunMinMinutes, pacing.SessionRunMaxMinutes, 1, 10080);
-        SettingsConfigurationProjection.WriteIntRange(target, BotOptionPayloadKeys.SessionPacingSleepMinMinutes, BotOptionPayloadKeys.SessionPacingSleepMaxMinutes, pacing.SessionSleepMinMinutes, pacing.SessionSleepMaxMinutes, 5, 10080);
+        SettingsDraftWriter.WriteIntRange(target, BotOptionPayloadKeys.SessionPacingRunMinMinutes, BotOptionPayloadKeys.SessionPacingRunMaxMinutes, pacing.SessionRunMinMinutes, pacing.SessionRunMaxMinutes, 1, 10080);
+        SettingsDraftWriter.WriteIntRange(target, BotOptionPayloadKeys.SessionPacingSleepMinMinutes, BotOptionPayloadKeys.SessionPacingSleepMaxMinutes, pacing.SessionSleepMinMinutes, pacing.SessionSleepMaxMinutes, 5, 10080);
         target[BotOptionPayloadKeys.SessionPacingDailyMaxHours] = Math.Clamp(pacing.SessionDailyMaxHours, 0, 24);
         target[BotOptionPayloadKeys.SessionPacingDailyMaxVariationPercent] = Math.Clamp(pacing.SessionDailyMaxVariationPercent, 0, 50);
         target[BotOptionPayloadKeys.SessionPacingAllowedHours] = new JsonArray(
@@ -112,15 +117,15 @@ internal static class ActionPacingOptionsModule
         target[BotOptionPayloadKeys.SessionPacingHoursVariationPercent] = Math.Clamp(pacing.SessionHoursVariationPercent, 0, 49);
 
         target[BotOptionPayloadKeys.ActionPacingEnabled] = true;
-        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingTaskMinSeconds, BotOptionPayloadKeys.ActionPacingTaskMaxSeconds, options.ActionPacingTaskMinSeconds, options.ActionPacingTaskMaxSeconds, 0, 3600);
-        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds, BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds, options.ActionPacingPageLoadMinSeconds, options.ActionPacingPageLoadMaxSeconds, 0, 3600);
-        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingClickMinSeconds, BotOptionPayloadKeys.ActionPacingClickMaxSeconds, options.ActionPacingClickMinSeconds, options.ActionPacingClickMaxSeconds, 0, 3600);
-        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingLoopMinSeconds, BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, options.ActionPacingLoopMinSeconds, options.ActionPacingLoopMaxSeconds, 0, 3600);
+        SettingsDraftWriter.WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingTaskMinSeconds, BotOptionPayloadKeys.ActionPacingTaskMaxSeconds, options.ActionPacingTaskMinSeconds, options.ActionPacingTaskMaxSeconds, 0, 3600);
+        SettingsDraftWriter.WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingPageLoadMinSeconds, BotOptionPayloadKeys.ActionPacingPageLoadMaxSeconds, options.ActionPacingPageLoadMinSeconds, options.ActionPacingPageLoadMaxSeconds, 0, 3600);
+        SettingsDraftWriter.WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingClickMinSeconds, BotOptionPayloadKeys.ActionPacingClickMaxSeconds, options.ActionPacingClickMinSeconds, options.ActionPacingClickMaxSeconds, 0, 3600);
+        SettingsDraftWriter.WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingLoopMinSeconds, BotOptionPayloadKeys.ActionPacingLoopMaxSeconds, options.ActionPacingLoopMinSeconds, options.ActionPacingLoopMaxSeconds, 0, 3600);
         target[BotOptionPayloadKeys.ShortVillageDeferSeconds] = PacingDefaults.NormalizeShortVillageDeferSeconds(options.ShortVillageDeferSeconds);
         target[BotOptionPayloadKeys.VillageRoundSleepExtensionMinutes] = PacingDefaults.NormalizeVillageRoundSleepExtensionMinutes(options.VillageRoundSleepExtensionMinutes);
         target[BotOptionPayloadKeys.ContinuousKeepAliveEnabled] = options.ContinuousKeepAliveEnabled;
-        SettingsConfigurationProjection.WriteIntRange(target, BotOptionPayloadKeys.ContinuousKeepAliveMinMinutes, BotOptionPayloadKeys.ContinuousKeepAliveMaxMinutes, options.ContinuousKeepAliveMinMinutes, options.ContinuousKeepAliveMaxMinutes, 1, 1440);
-        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.FarmListStepDelayMinSeconds, BotOptionPayloadKeys.FarmListStepDelayMaxSeconds, options.FarmListStepDelayMinSeconds, options.FarmListStepDelayMaxSeconds, 0, 3600);
+        SettingsDraftWriter.WriteIntRange(target, BotOptionPayloadKeys.ContinuousKeepAliveMinMinutes, BotOptionPayloadKeys.ContinuousKeepAliveMaxMinutes, options.ContinuousKeepAliveMinMinutes, options.ContinuousKeepAliveMaxMinutes, 1, 1440);
+        SettingsDraftWriter.WriteDelayRange(target, BotOptionPayloadKeys.FarmListStepDelayMinSeconds, BotOptionPayloadKeys.FarmListStepDelayMaxSeconds, options.FarmListStepDelayMinSeconds, options.FarmListStepDelayMaxSeconds, 0, 3600);
         target[BotOptionPayloadKeys.VillageStatusSweepEnabled] = options.VillageStatusSweepEnabled;
         target[BotOptionPayloadKeys.VillageStatusSweepDorf1Enabled] = options.VillageStatusSweepDorf1Enabled;
         target[BotOptionPayloadKeys.VillageStatusSweepDorf2Enabled] = options.VillageStatusSweepDorf2Enabled;
@@ -130,13 +135,13 @@ internal static class ActionPacingOptionsModule
         target[BotOptionPayloadKeys.VillageStatusSweepWorkshopEnabled] = options.VillageStatusSweepDorf2Enabled && options.VillageStatusSweepWorkshopEnabled;
         target[BotOptionPayloadKeys.VillageStatusSweepTownHallEnabled] = options.VillageStatusSweepDorf2Enabled && options.VillageStatusSweepTownHallEnabled;
         target[BotOptionPayloadKeys.VillageStatusSweepBreweryEnabled] = options.VillageStatusSweepDorf2Enabled && options.VillageStatusSweepBreweryEnabled;
-        SettingsConfigurationProjection.WriteIntRange(target, BotOptionPayloadKeys.VillageStatusSweepRoundMinMinutes, BotOptionPayloadKeys.VillageStatusSweepRoundMaxMinutes, options.VillageStatusSweepRoundMinMinutes, options.VillageStatusSweepRoundMaxMinutes, 1, 1440);
-        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.VillageStatusSweepVillageMinSeconds, BotOptionPayloadKeys.VillageStatusSweepVillageMaxSeconds, options.VillageStatusSweepVillageMinSeconds, options.VillageStatusSweepVillageMaxSeconds, 0, 3600);
+        SettingsDraftWriter.WriteIntRange(target, BotOptionPayloadKeys.VillageStatusSweepRoundMinMinutes, BotOptionPayloadKeys.VillageStatusSweepRoundMaxMinutes, options.VillageStatusSweepRoundMinMinutes, options.VillageStatusSweepRoundMaxMinutes, 1, 1440);
+        SettingsDraftWriter.WriteDelayRange(target, BotOptionPayloadKeys.VillageStatusSweepVillageMinSeconds, BotOptionPayloadKeys.VillageStatusSweepVillageMaxSeconds, options.VillageStatusSweepVillageMinSeconds, options.VillageStatusSweepVillageMaxSeconds, 0, 3600);
         target[BotOptionPayloadKeys.ActionPacingIdleBreakEnabled] = options.ActionPacingIdleBreakEnabled;
-        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingIdleBreakIntervalMinMinutes, BotOptionPayloadKeys.ActionPacingIdleBreakIntervalMaxMinutes, options.ActionPacingIdleBreakIntervalMinMinutes, options.ActionPacingIdleBreakIntervalMaxMinutes, 0, 3600);
-        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingIdleBreakDurationMinMinutes, BotOptionPayloadKeys.ActionPacingIdleBreakDurationMaxMinutes, options.ActionPacingIdleBreakDurationMinMinutes, options.ActionPacingIdleBreakDurationMaxMinutes, 0, 3600);
+        SettingsDraftWriter.WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingIdleBreakIntervalMinMinutes, BotOptionPayloadKeys.ActionPacingIdleBreakIntervalMaxMinutes, options.ActionPacingIdleBreakIntervalMinMinutes, options.ActionPacingIdleBreakIntervalMaxMinutes, 0, 3600);
+        SettingsDraftWriter.WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingIdleBreakDurationMinMinutes, BotOptionPayloadKeys.ActionPacingIdleBreakDurationMaxMinutes, options.ActionPacingIdleBreakDurationMinMinutes, options.ActionPacingIdleBreakDurationMaxMinutes, 0, 3600);
         target[BotOptionPayloadKeys.ActionPacingIdleBrowseEnabled] = options.ActionPacingIdleBrowseEnabled;
-        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMinMinutes, BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMaxMinutes, options.ActionPacingIdleBrowseIntervalMinMinutes, options.ActionPacingIdleBrowseIntervalMaxMinutes, 0, 3600);
+        SettingsDraftWriter.WriteDelayRange(target, BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMinMinutes, BotOptionPayloadKeys.ActionPacingIdleBrowseIntervalMaxMinutes, options.ActionPacingIdleBrowseIntervalMinMinutes, options.ActionPacingIdleBrowseIntervalMaxMinutes, 0, 3600);
         target[BotOptionPayloadKeys.ActionPacingIdleBrowsePageMap] = options.ActionPacingIdleBrowsePageMap;
         target[BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatistics] = options.ActionPacingIdleBrowsePageStatistics;
         target[BotOptionPayloadKeys.ActionPacingIdleBrowsePageStatisticsHero] = options.ActionPacingIdleBrowsePageStatisticsHero;

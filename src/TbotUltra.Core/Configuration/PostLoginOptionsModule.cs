@@ -20,8 +20,12 @@ internal sealed record PostLoginOptions(
 
 internal static class PostLoginOptionsModule
 {
-    internal static void WriteSettings(JsonObject target, BotOptions options)
+    internal static bool ReadQuickRelogin(IConfiguration configuration)
+        => configuration.GetValue(BotOptionPayloadKeys.PostLoginQuickReloginEnabled, true);
+
+    internal static void WriteSettings(JsonObject target, BotOptions options, bool quickReloginEnabled)
     {
+        target[BotOptionPayloadKeys.PostLoginQuickReloginEnabled] = quickReloginEnabled;
         target[BotOptionPayloadKeys.AutomaticallyCheckLanguage] = options.AutomaticallyCheckLanguage;
         target[BotOptionPayloadKeys.DetailedBrowserLoggingEnabled] = options.DetailedBrowserLoggingEnabled;
         target[BotOptionPayloadKeys.TurnOffVideoSound] = options.TurnOffVideoSound;

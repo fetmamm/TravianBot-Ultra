@@ -42,6 +42,9 @@ internal static class TroopTrainingOptionsModule
                 : 30;
     }
 
+    internal static void WriteBrewerySettings(JsonObject target, bool autoCelebrationEnabled)
+        => target[BotOptionPayloadKeys.BreweryAutoCelebrationEnabled] = autoCelebrationEnabled;
+
     internal static IReadOnlyList<string> AccountScopedKeys { get; } =
     [
         BotOptionPayloadKeys.TroopTrainingBarracksEnabled,

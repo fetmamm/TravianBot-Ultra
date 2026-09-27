@@ -45,15 +45,18 @@ internal static class HeroOptionsModule
 {
     internal static void WriteSettings(JsonObject target, BotOptions options)
     {
-        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.HeroAdventureRestartDelayMinMinutes, BotOptionPayloadKeys.HeroAdventureRestartDelayMaxMinutes, options.HeroAdventureRestartDelayMinMinutes, options.HeroAdventureRestartDelayMaxMinutes, 0, double.MaxValue);
+        var (antiStarveTrigger, antiStarveTarget) = NormalizeAntiStarveRange(
+            options.HeroCropAntiStarveTriggerMinutes,
+            options.HeroCropAntiStarveTargetMinutes);
+        SettingsDraftWriter.WriteDelayRange(target, BotOptionPayloadKeys.HeroAdventureRestartDelayMinMinutes, BotOptionPayloadKeys.HeroAdventureRestartDelayMaxMinutes, options.HeroAdventureRestartDelayMinMinutes, options.HeroAdventureRestartDelayMaxMinutes, 0, double.MaxValue);
         target[BotOptionPayloadKeys.HeroAdventureRestartDelayEnabled] = options.HeroAdventureRestartDelayEnabled;
         target[BotOptionPayloadKeys.HeroHpRegenPerDayPercent] = Math.Clamp(options.HeroHpRegenPerDayPercent, 20, 100);
         target[BotOptionPayloadKeys.HeroCropAntiStarveEnabled] = options.HeroCropAntiStarveEnabled;
-        target[BotOptionPayloadKeys.HeroCropAntiStarveTriggerMinutes] = Math.Clamp(options.HeroCropAntiStarveTriggerMinutes, 1, 1440);
-        target[BotOptionPayloadKeys.HeroCropAntiStarveTargetMinutes] = Math.Clamp(options.HeroCropAntiStarveTargetMinutes, 1, 1440);
+        target[BotOptionPayloadKeys.HeroCropAntiStarveTriggerMinutes] = antiStarveTrigger;
+        target[BotOptionPayloadKeys.HeroCropAntiStarveTargetMinutes] = antiStarveTarget;
         target[BotOptionPayloadKeys.HeroCropAntiStarveMaxCropPerTransfer] = Math.Max(1, options.HeroCropAntiStarveMaxCropPerTransfer);
         target[BotOptionPayloadKeys.HeroCropAntiStarveMinHeroCropRemaining] = Math.Max(0, options.HeroCropAntiStarveMinHeroCropRemaining);
-        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.CollectStepDelayMinSeconds, BotOptionPayloadKeys.CollectStepDelayMaxSeconds, options.CollectStepDelayMinSeconds, options.CollectStepDelayMaxSeconds, 0, 3600);
+        SettingsDraftWriter.WriteDelayRange(target, BotOptionPayloadKeys.CollectStepDelayMinSeconds, BotOptionPayloadKeys.CollectStepDelayMaxSeconds, options.CollectStepDelayMinSeconds, options.CollectStepDelayMaxSeconds, 0, 3600);
     }
 
     internal static IReadOnlyList<string> AccountScopedKeys { get; } =
@@ -92,6 +95,9 @@ internal static class HeroOptionsModule
         var statPriority = string.IsNullOrWhiteSpace(configuration[BotOptionPayloadKeys.HeroStatPriority])
             ? DefaultStatPriority
             : configuration[BotOptionPayloadKeys.HeroStatPriority]!;
+        var (antiStarveTrigger, antiStarveTarget) = NormalizeAntiStarveRange(
+            configuration.GetValue(BotOptionPayloadKeys.HeroCropAntiStarveTriggerMinutes, HeroCropAntiStarveDefaults.TriggerMinutes),
+            configuration.GetValue(BotOptionPayloadKeys.HeroCropAntiStarveTargetMinutes, HeroCropAntiStarveDefaults.TargetMinutes));
 
         return new HeroOptions(
             configuration.GetValue(BotOptionPayloadKeys.HeroMinHpForAdventure, 50),
@@ -130,8 +136,8 @@ internal static class HeroOptionsModule
                 HeroAdventureRestartDelayDefaults.MaxMinutes),
             HpRegenPerDayPercent = Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.HeroHpRegenPerDayPercent, 40), 20, 100),
             CropAntiStarveEnabled = configuration.GetValue(BotOptionPayloadKeys.HeroCropAntiStarveEnabled, HeroCropAntiStarveDefaults.Enabled),
-            CropAntiStarveTriggerMinutes = configuration.GetValue(BotOptionPayloadKeys.HeroCropAntiStarveTriggerMinutes, HeroCropAntiStarveDefaults.TriggerMinutes),
-            CropAntiStarveTargetMinutes = configuration.GetValue(BotOptionPayloadKeys.HeroCropAntiStarveTargetMinutes, HeroCropAntiStarveDefaults.TargetMinutes),
+            CropAntiStarveTriggerMinutes = antiStarveTrigger,
+            CropAntiStarveTargetMinutes = antiStarveTarget,
             CropAntiStarveMaxCropPerTransfer = configuration.GetValue(BotOptionPayloadKeys.HeroCropAntiStarveMaxCropPerTransfer, HeroCropAntiStarveDefaults.MaxCropPerTransfer),
             CropAntiStarveMinHeroCropRemaining = configuration.GetValue(BotOptionPayloadKeys.HeroCropAntiStarveMinHeroCropRemaining, HeroCropAntiStarveDefaults.MinHeroCropRemaining),
         };
@@ -242,7 +248,11 @@ internal static class HeroOptionsModule
     }
 
     internal static BotOptions ApplyTo(this HeroOptions values, BotOptions source)
-        => source with
+    {
+        var (antiStarveTrigger, antiStarveTarget) = NormalizeAntiStarveRange(
+            values.CropAntiStarveTriggerMinutes,
+            values.CropAntiStarveTargetMinutes);
+        return source with
         {
             HeroMinHpForAdventure = values.MinHpForAdventure,
             HeroAutoRevive = values.AutoRevive,
@@ -273,11 +283,21 @@ internal static class HeroOptionsModule
             HeroAdventureRestartDelayMaxMinutes = values.AdventureRestartDelayMaxMinutes,
             HeroHpRegenPerDayPercent = values.HpRegenPerDayPercent,
             HeroCropAntiStarveEnabled = values.CropAntiStarveEnabled,
-            HeroCropAntiStarveTriggerMinutes = values.CropAntiStarveTriggerMinutes,
-            HeroCropAntiStarveTargetMinutes = values.CropAntiStarveTargetMinutes,
+            HeroCropAntiStarveTriggerMinutes = antiStarveTrigger,
+            HeroCropAntiStarveTargetMinutes = antiStarveTarget,
             HeroCropAntiStarveMaxCropPerTransfer = values.CropAntiStarveMaxCropPerTransfer,
             HeroCropAntiStarveMinHeroCropRemaining = values.CropAntiStarveMinHeroCropRemaining,
         };
+    }
+
+    private static (int TriggerMinutes, int TargetMinutes) NormalizeAntiStarveRange(int triggerMinutes, int targetMinutes)
+    {
+        var normalizedTrigger = Math.Clamp(triggerMinutes, 1, 1439);
+        var normalizedTarget = Math.Max(
+            normalizedTrigger + 1,
+            Math.Clamp(targetMinutes, 1, 1440));
+        return (normalizedTrigger, normalizedTarget);
+    }
 
     private static double ClampDelaySeconds(double value)
         => double.IsNaN(value) || double.IsInfinity(value) ? 0 : Math.Clamp(value, 0, 3600);

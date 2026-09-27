@@ -3,7 +3,6 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Linq;
-using System.Text.Json.Nodes;
 using System.Windows.Input;
 using System.Windows.Media;
 using TbotUltra.Core.Configuration;
@@ -462,26 +461,21 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
         return true;
     }
 
-    /// <summary>
-    /// Writes the account-wide troop-related settings (NPC trade, gold, brewery celebration) into a freshly
-    /// loaded config <see cref="JsonObject"/>. Per-village building rules are stored separately via
-    /// <see cref="BuildVillageTrainingPayload"/>. Caller persists (e.g. <c>BotConfigStore.Save</c>).
-    /// </summary>
-    public void WriteToConfig(JsonObject config)
-    {
-        config[BotOptionPayloadKeys.BreweryAutoCelebrationEnabled] = AutoCelebrationEnabled;
-        config[BotOptionPayloadKeys.NpcTradeEnabled] = NpcTradeEnabled;
-        config[BotOptionPayloadKeys.NpcTradeConstructionEnabled] = NpcTradeConstructionEnabled;
-        config[BotOptionPayloadKeys.NpcTradeThresholdPercent] = NpcTradeThresholdPercent;
-        config[BotOptionPayloadKeys.NpcTradeAnalyzeWood] = NpcTradeAnalyzeWood;
-        config[BotOptionPayloadKeys.NpcTradeAnalyzeClay] = NpcTradeAnalyzeClay;
-        config[BotOptionPayloadKeys.NpcTradeAnalyzeIron] = NpcTradeAnalyzeIron;
-        config[BotOptionPayloadKeys.NpcTradeAnalyzeCrop] = NpcTradeAnalyzeCrop;
-        config[BotOptionPayloadKeys.NpcTradeBuildTimeLimitEnabled] = NpcTradeBuildTimeLimitEnabled;
-        config[BotOptionPayloadKeys.NpcTradeBuildTimeLimitSeconds] = NpcTradeBuildTimeLimitSeconds;
-        config[BotOptionPayloadKeys.AllowGoldSpending] = AllowGoldSpending;
-        config[BotOptionPayloadKeys.GoldLimit] = GoldLimit;
-    }
+    public TroopTrainingPanelSettingsConfiguration BuildGlobalSettings()
+        => new(
+            new NpcTradeOptions(
+                NpcTradeEnabled,
+                NpcTradeConstructionEnabled,
+                NpcTradeThresholdPercent,
+                NpcTradeAnalyzeWood,
+                NpcTradeAnalyzeClay,
+                NpcTradeAnalyzeIron,
+                NpcTradeAnalyzeCrop,
+                NpcTradeBuildTimeLimitEnabled,
+                NpcTradeBuildTimeLimitSeconds),
+            AutoCelebrationEnabled,
+            AllowGoldSpending,
+            GoldLimit);
 
     /// <summary>
     /// Refreshes each row's <c>TroopOptions</c> dropdown based on the

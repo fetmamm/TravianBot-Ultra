@@ -59,19 +59,38 @@ internal static class ConstructionOptionsModule
 {
     internal static void WriteSettings(JsonObject target, BotOptions options)
     {
+        var previousHumanizeEnabled = ReadJsonValue(
+            target,
+            BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled,
+            PacingDefaults.ConstructionHumanizeDelayEnabled);
+        var previousHumanizeStateVersion = ReadJsonValue(
+            target,
+            BotOptionPayloadKeys.ConstructionHumanizeStateVersion,
+            0);
         target[BotOptionPayloadKeys.ConstructionMainBuildingRebuildEnabled] = options.ConstructionMainBuildingRebuildEnabled;
         target[BotOptionPayloadKeys.ConstructionMainBuildingRebuildTargetLevel] = ConstructionDefaults.NormalizeMainBuildingRebuildTargetLevel(options.ConstructionMainBuildingRebuildTargetLevel);
         target[BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead] = ConstructionDefaults.NormalizeStorageUpgradeLevelsAhead(options.ConstructionStorageUpgradeLevelsAhead);
         target[BotOptionPayloadKeys.ConstructionCropShortageRecoveryEnabled] = options.ConstructionCropShortageRecoveryEnabled;
         target[BotOptionPayloadKeys.ConstructionHumanizeDelayEnabled] = options.ConstructionHumanizeDelayEnabled;
-        target[BotOptionPayloadKeys.ConstructionHumanizeStateVersion] = Math.Max(0, options.ConstructionHumanizeStateVersion);
-        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMin, BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMax, options.ConstructionHumanizeQueuePercentMin, options.ConstructionHumanizeQueuePercentMax, 0, 99);
-        target[BotOptionPayloadKeys.ConstructionHumanizeMaxDelayMinutes] = SettingsConfigurationProjection.ClampFinite(options.ConstructionHumanizeMaxDelayMinutes, 0, 600);
-        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.ConstructionHumanizeNoPlusMinMinutes, BotOptionPayloadKeys.ConstructionHumanizeNoPlusMaxMinutes, options.ConstructionHumanizeNoPlusMinMinutes, options.ConstructionHumanizeNoPlusMaxMinutes, 0, 600);
-        SettingsConfigurationProjection.WriteIntRange(target, BotOptionPayloadKeys.DemolishDelayMinMinutes, BotOptionPayloadKeys.DemolishDelayMaxMinutes, options.DemolishDelayMinMinutes, options.DemolishDelayMaxMinutes, 0, 1440);
-        SettingsConfigurationProjection.WriteDelayRange(target, BotOptionPayloadKeys.SmithyUpgradeRestartDelayMinMinutes, BotOptionPayloadKeys.SmithyUpgradeRestartDelayMaxMinutes, options.SmithyUpgradeRestartDelayMinMinutes, options.SmithyUpgradeRestartDelayMaxMinutes, 0, double.MaxValue);
+        var humanizeStateVersion = Math.Max(0, previousHumanizeStateVersion);
+        if (previousHumanizeEnabled != options.ConstructionHumanizeDelayEnabled)
+        {
+            humanizeStateVersion = humanizeStateVersion == int.MaxValue ? 1 : humanizeStateVersion + 1;
+        }
+        target[BotOptionPayloadKeys.ConstructionHumanizeStateVersion] = humanizeStateVersion;
+        SettingsDraftWriter.WriteDelayRange(target, BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMin, BotOptionPayloadKeys.ConstructionHumanizeQueuePercentMax, options.ConstructionHumanizeQueuePercentMin, options.ConstructionHumanizeQueuePercentMax, 0, 99);
+        target[BotOptionPayloadKeys.ConstructionHumanizeMaxDelayMinutes] = SettingsDraftWriter.ClampFinite(options.ConstructionHumanizeMaxDelayMinutes, 0, 600);
+        SettingsDraftWriter.WriteDelayRange(target, BotOptionPayloadKeys.ConstructionHumanizeNoPlusMinMinutes, BotOptionPayloadKeys.ConstructionHumanizeNoPlusMaxMinutes, options.ConstructionHumanizeNoPlusMinMinutes, options.ConstructionHumanizeNoPlusMaxMinutes, 0, 600);
+        SettingsDraftWriter.WriteIntRange(target, BotOptionPayloadKeys.DemolishDelayMinMinutes, BotOptionPayloadKeys.DemolishDelayMaxMinutes, options.DemolishDelayMinMinutes, options.DemolishDelayMaxMinutes, 0, 1440);
+        SettingsDraftWriter.WriteDelayRange(target, BotOptionPayloadKeys.SmithyUpgradeRestartDelayMinMinutes, BotOptionPayloadKeys.SmithyUpgradeRestartDelayMaxMinutes, options.SmithyUpgradeRestartDelayMinMinutes, options.SmithyUpgradeRestartDelayMaxMinutes, 0, double.MaxValue);
         target[BotOptionPayloadKeys.SmithyUpgradeRestartDelayEnabled] = options.SmithyUpgradeRestartDelayEnabled;
     }
+
+    private static T ReadJsonValue<T>(JsonObject source, string key, T fallback)
+        where T : struct
+        => source[key] is JsonValue value && value.TryGetValue<T>(out var parsed)
+            ? parsed
+            : fallback;
 
     internal static IReadOnlyList<string> AccountScopedKeys { get; } =
     [

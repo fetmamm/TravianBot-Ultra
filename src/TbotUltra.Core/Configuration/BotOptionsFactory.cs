@@ -18,6 +18,7 @@ public static class BotOptionsFactory
         var npcTrade = NpcTradeOptionsModule.FromConfiguration(configuration);
         var resourceTransfer = ResourceTransferOptionsModule.FromConfiguration(configuration);
         var reinforcements = ReinforcementOptionsModule.FromConfiguration(configuration);
+        var spending = SpendingOptionsModule.FromConfiguration(configuration);
 
         var options = new BotOptions
         {
@@ -29,14 +30,9 @@ public static class BotOptionsFactory
             LoopTasks = tasks,
             ContinuousLoopGroups = continuousLoopGroups,
             GithubReleasesUrl = configuration["github_releases_url"] ?? string.Empty,
-            AllowGoldSpending = GetValueOrDefault(configuration, BotOptionPayloadKeys.AllowGoldSpending, defaultValue: false),
-            AllowSilverSpending = configuration.GetValue("allow_silver_spending", false),
-            GoldLimit = Math.Max(0, configuration.GetValue(BotOptionPayloadKeys.GoldLimit, 100)),
-            DailyGoldSpendingLimit = Math.Max(0, configuration.GetValue(BotOptionPayloadKeys.DailyGoldSpendingLimit, 20)),
-            SilverLimit = Math.Max(0, configuration.GetValue(BotOptionPayloadKeys.SilverLimit, 100)),
-            DailySilverSpendingLimit = Math.Max(0, configuration.GetValue(BotOptionPayloadKeys.DailySilverSpendingLimit, 10000)),
         };
 
+        options = spending.ApplyTo(options);
         options = farming.ApplyTo(options);
         options = postLogin.ApplyTo(options);
         options = troopTraining.ApplyTo(options);
@@ -64,13 +60,6 @@ public static class BotOptionsFactory
             TargetVillageUrl = targetVillageUrlOverride ?? source.TargetVillageUrl,
             ResourceUpgradeTargetLevel = resourceUpgradeTargetLevelOverride ?? source.ResourceUpgradeTargetLevel,
         };
-    }
-
-    private static bool GetValueOrDefault(IConfiguration configuration, string key, bool defaultValue)
-    {
-        return configuration[key] is null
-            ? defaultValue
-            : configuration.GetValue(key, defaultValue);
     }
 
 }

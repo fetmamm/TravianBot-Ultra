@@ -655,12 +655,6 @@ public partial class SettingsWindow : Window
         int silverLimit,
         int dailySilverSpendingLimit)
     {
-        var humanizeStateVersion = current.ConstructionHumanizeStateVersion;
-        if (current.ConstructionHumanizeDelayEnabled != SettingsVm.Construction.HumanizeDelayEnabled)
-        {
-            humanizeStateVersion = humanizeStateVersion == int.MaxValue ? 1 : humanizeStateVersion + 1;
-        }
-
         var dorf2Enabled = SettingsVm.Pacing.VillageStatusSweepDorf2Enabled;
         return current with
         {
@@ -693,7 +687,6 @@ public partial class SettingsWindow : Window
             ConstructionStorageUpgradeLevelsAhead = SettingsVm.Construction.StorageUpgradeLevelsAhead,
             ConstructionCropShortageRecoveryEnabled = SettingsVm.Construction.CropShortageRecoveryEnabled,
             ConstructionHumanizeDelayEnabled = SettingsVm.Construction.HumanizeDelayEnabled,
-            ConstructionHumanizeStateVersion = humanizeStateVersion,
             ConstructionHumanizeQueuePercentMin = ReadDoubleText(SettingsVm.Construction.QueuePercentMin, PacingDefaults.ConstructionHumanizeQueuePercentMin),
             ConstructionHumanizeQueuePercentMax = ReadDoubleText(SettingsVm.Construction.QueuePercentMax, PacingDefaults.ConstructionHumanizeQueuePercentMax),
             ConstructionHumanizeMaxDelayMinutes = ReadDoubleText(SettingsVm.Construction.MaxDelayMinutes, PacingDefaults.ConstructionHumanizeMaxDelayMinutes),

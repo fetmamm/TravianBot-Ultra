@@ -462,6 +462,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   HP read is authoritative and releases the deferred Hero task immediately once the threshold is met. That release
   is centralized in the shared UI HP-read helper, so login, quick re-login, browser restart, the manual refresh
   button, and the periodic tick all clear a stale regen-estimate countdown, not just the background tick.
+- Quick re-login may skip repeated account analyzes, but when `Analyze new village startup` is enabled it must
+  immediately analyze any village discovered by the live landing-page refresh that lacks cached dorf1/dorf2 status;
+  this must not depend on Continuous Loop or Auto Queue being started.
 - Hero crop anti-starve is account-configured but selected per coordinate-keyed village and runs only while the
   continuous bot is Running. A missing per-village entry defaults enabled; the account master defaults disabled.
   It is observation-driven: trusted resource snapshots from the existing jitter read and village scan cancel the
