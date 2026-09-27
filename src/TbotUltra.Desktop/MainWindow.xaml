@@ -242,7 +242,7 @@
                             <Style TargetType="Button" BasedOn="{StaticResource SidebarNavButtonStyle}">
                                 <Style.Triggers>
                                     <DataTrigger Binding="{Binding InboxVm.HasUnreadMessages, ElementName=RootWindow}" Value="True">
-                                        <Setter Property="Background" Value="{DynamicResource UnreadBrush}" />
+                                        <Setter Property="Background" Value="{DynamicResource InfoBrush}" />
                                         <Setter Property="Foreground" Value="White" />
                                     </DataTrigger>
                                 </Style.Triggers>

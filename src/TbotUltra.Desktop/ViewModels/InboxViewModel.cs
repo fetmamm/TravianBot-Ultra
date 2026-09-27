@@ -60,7 +60,7 @@ public sealed class InboxViewModel : BaseViewModel
 
     /// <summary>
     /// True when there are unread messages. The sidebar nav button uses this
-    /// via a Style.DataTrigger to swap to the red-on-white badge look.
+    /// via a Style.DataTrigger to swap to the blue-on-white badge look.
     /// </summary>
     public bool HasUnreadMessages => _unreadMessages > 0;
 
