@@ -225,8 +225,14 @@ public sealed class PanelSmokeTests
             Assert.Equal(
                 "Collect targets, review saved lists and calculate travel distance in one workspace.",
                 workspaceInfo.ToolTip);
-            Assert.IsType<DataGrid>(control.FindName("SavedListsListBox"));
-            Assert.IsType<DataGrid>(control.FindName("ResultsDataGrid"));
+            var savedListsGrid = Assert.IsType<DataGrid>(control.FindName("SavedListsListBox"));
+            var resultsGrid = Assert.IsType<DataGrid>(control.FindName("ResultsDataGrid"));
+            Assert.False(savedListsGrid.CanUserResizeColumns);
+            Assert.False(resultsGrid.CanUserResizeColumns);
+            Assert.All(savedListsGrid.Columns, column => Assert.True(column.MinWidth > 0));
+            Assert.All(resultsGrid.Columns, column => Assert.True(column.MinWidth > 0));
+            Assert.Equal(ScrollBarVisibility.Auto, ScrollViewer.GetHorizontalScrollBarVisibility(savedListsGrid));
+            Assert.Equal(ScrollBarVisibility.Auto, ScrollViewer.GetHorizontalScrollBarVisibility(resultsGrid));
             var finishButton = Assert.IsType<Button>(control.FindName("CloseTravcoTabButton"));
             var finishAttention = Assert.IsType<Border>(control.FindName("CloseTravcoTabAttentionBorder"));
             Assert.False(finishButton.IsEnabled);
