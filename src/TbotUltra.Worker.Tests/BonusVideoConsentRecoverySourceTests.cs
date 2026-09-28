@@ -10,6 +10,8 @@ public sealed class BonusVideoConsentRecoverySourceTests
     {
         Assert.True(TravianClient.IsConsentOverlayInterception(
             new Exception("<div id=\"cmpwrapper\"> intercepts pointer events")));
+        Assert.True(TravianClient.IsConsentOverlayInterception(
+            new TimeoutException("Timeout 20000ms exceeded. <div id=\"cmpwrapper\"> intercepts pointer events")));
         Assert.False(TravianClient.IsConsentOverlayInterception(
             new TimeoutException("Timeout 20000ms exceeded while waiting for a video button.")));
     }
@@ -28,6 +30,7 @@ public sealed class BonusVideoConsentRecoverySourceTests
             "TravianClient.ConstructFaster.cs"));
 
         Assert.Contains("observeLateOverlay: true", source, StringComparison.Ordinal);
+        Assert.Contains("ex is PlaywrightException or TimeoutException", source, StringComparison.Ordinal);
         Assert.Contains("IsConsentOverlayInterception(ex)", source, StringComparison.Ordinal);
         Assert.Contains("consent overlay blocked the video feature button", source, StringComparison.Ordinal);
     }

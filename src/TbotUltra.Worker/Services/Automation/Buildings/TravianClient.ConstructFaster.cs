@@ -486,7 +486,10 @@ public sealed partial class TravianClient
                 Notify("[construct-faster] clicked video feature button.");
                 return true;
             }
-            catch (PlaywrightException ex) when (attempt == 1 && IsConsentOverlayInterception(ex))
+            catch (Exception ex) when (
+                attempt == 1
+                && ex is PlaywrightException or TimeoutException
+                && IsConsentOverlayInterception(ex))
             {
                 Notify(
                     "[construct-faster:verbose] consent overlay blocked the video feature button; "
@@ -502,7 +505,7 @@ public sealed partial class TravianClient
                 Notify("[construct-faster:verbose] consent overlay remained unresolved; video button was not force-clicked.");
                 return false;
             }
-            catch (PlaywrightException ex)
+            catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
             {
                 Notify($"[construct-faster:verbose] click video feature button failed: {ex.Message}");
                 return false;
