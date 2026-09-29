@@ -441,19 +441,27 @@ public sealed partial class TravianClient : IHeroClient
         if (!inVillage && !status.IsDead && heroReturnWaitSeconds is not > 0)
         {
             var isReinforcing = string.Equals(status.MovementState, "Reinforcing", StringComparison.OrdinalIgnoreCase);
-            var returnEtaSeconds = await ReadHeroReturnFromAttributesAsync(cancellationToken);
-            heroReturnWaitSeconds = HeroStatusDecision.ResolveAwayRetrySeconds(returnEtaSeconds, isReinforcing);
-            if (returnEtaSeconds is > 0)
+            if (HeroStatusDecision.ShouldReadReturnEtaFromAttributes(
+                inVillage,
+                status.IsDead,
+                heroReturnWaitSeconds,
+                status.MovementState))
             {
-                Notify($"[hero] away — return ETA read from Hero Attributes: {TravianParsing.FormatDuration(heroReturnWaitSeconds.Value)}");
+                var returnEtaSeconds = await ReadHeroReturnFromAttributesAsync(cancellationToken);
+                heroReturnWaitSeconds = HeroStatusDecision.ResolveAwayRetrySeconds(returnEtaSeconds, isReinforcing);
+                if (returnEtaSeconds is > 0)
+                {
+                    Notify($"[hero] away — return ETA read from Hero Attributes: {TravianParsing.FormatDuration(heroReturnWaitSeconds.Value)}");
+                }
+                else
+                {
+                    Notify("[hero] away — no return ETA was exposed; using the 15m safety re-check.");
+                }
             }
             else if (isReinforcing)
             {
-                Notify("[hero] reinforcing another village — no return ETA was exposed; using the 30m re-check.");
-            }
-            else
-            {
-                Notify("[hero] away — no return ETA was exposed; using the 15m safety re-check.");
+                heroReturnWaitSeconds = HeroStatusDecision.ResolveAwayRetrySeconds(null, isReinforcing: true);
+                Notify("[hero] reinforcing another village — skipping Hero Attributes return-ETA lookup and using the 30m re-check.");
             }
         }
 

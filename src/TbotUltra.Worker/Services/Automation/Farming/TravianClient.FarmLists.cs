@@ -146,6 +146,7 @@ public sealed partial class TravianClient : IFarmingClient
         Notify(
             $"[farm-list] '{farmListName}' marked sent (response={confirmation.Description}) — "
             + $"next ready in {(remaining is > 0 ? TravianParsing.FormatDuration(remaining.Value) : "now")}");
+        await DelayBeforeClickAsync(cancellationToken, "after final confirmed farm list");
         return remaining;
     }
 
@@ -250,6 +251,11 @@ public sealed partial class TravianClient : IFarmingClient
             }
         }
 
+        if (sent.Count > 0)
+        {
+            await DelayBeforeClickAsync(cancellationToken, "after final confirmed farm list");
+        }
+
         Notify($"[farm-list] send completed: {sent.Count}/{sendable.Count} list(s) confirmed dispatched.");
         return new FarmListSendBatchResult(attempted, sent);
     }
@@ -323,6 +329,11 @@ public sealed partial class TravianClient : IFarmingClient
                     $"[farm-list] start-all: '{entry.Name}' (lid {entry.Lid}) showed no success/error response "
                     + "within 15 seconds; not marking it sent.");
             }
+        }
+
+        if (confirmedCount > 0)
+        {
+            await DelayBeforeClickAsync(cancellationToken, "after final confirmed farm list");
         }
 
         Notify($"[farm-list] start-all completed: {confirmedCount}/{sendable.Count} list(s) confirmed attempted.");

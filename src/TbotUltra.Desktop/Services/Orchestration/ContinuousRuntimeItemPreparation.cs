@@ -324,13 +324,42 @@ internal sealed class ContinuousRuntimeItemPreparation(IContinuousRuntimeItemPre
             return;
         }
 
-        await port.EnsureFarmListsReadyAsync(options, cancellationToken);
-        var selection = port.GetFarmListSelection();
         var sendMode = FarmingDefaults.NormalizeSendMode(options.ContinuousFarmSendMode);
         var sendsAllListsAtOnce = string.Equals(
             sendMode,
             FarmingDefaults.SendModeAllAtOnce,
             StringComparison.Ordinal);
+        var enabledFarmingVillages = villages
+            .Where(village => port.GetEnabledGroupsForVillage(village.Key).Contains(QueueGroup.Farming))
+            .ToList();
+        var dispatchMissing = sendsAllListsAtOnce
+            ? enabledFarmingVillages.Count > 0 && !runtimeItems.HasActive("send_farmlists")
+            : enabledFarmingVillages.Any(village =>
+                !runtimeItems.HasActiveForVillage("send_farmlists", village.Key));
+        if (!dispatchMissing)
+        {
+            port.LogVerbose(
+                "[farm-list] skipping runtime analysis because every enabled farming scope already has an active dispatch.",
+                "farm-list-runtime-analysis-active-dispatch");
+            return;
+        }
+
+        var selection = port.GetFarmListSelection();
+        var selectionKnown = sendsAllListsAtOnce
+            ? selection.AvailableCount > 0
+            : selection.Names.Count > 0;
+        if (!selectionKnown)
+        {
+            await port.EnsureFarmListsReadyAsync(options, cancellationToken);
+            selection = port.GetFarmListSelection();
+        }
+        else
+        {
+            port.LogVerbose(
+                "[farm-list] reusing the known selection while creating a missing runtime dispatch; the send task will refresh live state.",
+                "farm-list-runtime-known-selection");
+        }
+
         if (selection.AvailableCount <= 0)
         {
             port.SetFarmingBlockedForMissingLists();

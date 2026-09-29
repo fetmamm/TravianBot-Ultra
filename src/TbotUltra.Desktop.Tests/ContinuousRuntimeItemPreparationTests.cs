@@ -107,6 +107,85 @@ public sealed class ContinuousRuntimeItemPreparationTests
         Assert.Equal("Send all farmlists", item.DisplayName);
     }
 
+    [Fact]
+    public async Task ExistingScheduledFarmingDispatch_DoesNotAnalyzeFarmlistsAgain()
+    {
+        var port = new InMemoryPort
+        {
+            EnabledGroups = [QueueGroup.Farming],
+            ConsideredGroups = [QueueGroup.Farming],
+            Villages = [new AutomationRuntimeVillage("1:2", "Alpha", "/dorf1.php?newdid=1", false, 1, 2)],
+            FarmListSelection = new AutomationFarmListSelection(["List A"], ["7"], 1),
+        };
+        port.Queue.Items.Add(new QueueItem
+        {
+            Id = Guid.NewGuid(),
+            TaskName = "send_farmlists",
+            DisplayName = "Send selected farmlists",
+            Payload = new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.TargetVillageKey] = "1:2",
+            },
+            Status = QueueStatus.Pending,
+            NextAttemptAt = DateTimeOffset.UtcNow.AddMinutes(20),
+        });
+
+        await new ContinuousRuntimeItemPreparation(port).PrepareAsync(new BotOptions(), default);
+
+        Assert.Equal(0, port.EnsureFarmListsReadyCalls);
+        Assert.Single(port.Queue.Items);
+    }
+
+    [Fact]
+    public async Task MissingVillageFarmingDispatch_ReusesKnownSelectionWithoutAnalysis()
+    {
+        var port = new InMemoryPort
+        {
+            EnabledGroups = [QueueGroup.Farming],
+            ConsideredGroups = [QueueGroup.Farming],
+            Villages =
+            [
+                new AutomationRuntimeVillage("1:2", "Alpha", "/dorf1.php?newdid=1", false, 1, 2),
+                new AutomationRuntimeVillage("3:4", "Beta", "/dorf1.php?newdid=2", false, 3, 4),
+            ],
+            FarmListSelection = new AutomationFarmListSelection(["List A"], ["7"], 1),
+        };
+        port.Queue.Items.Add(new QueueItem
+        {
+            Id = Guid.NewGuid(),
+            TaskName = "send_farmlists",
+            DisplayName = "Send selected farmlists",
+            Payload = new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.TargetVillageKey] = "1:2",
+            },
+            Status = QueueStatus.Pending,
+        });
+
+        await new ContinuousRuntimeItemPreparation(port).PrepareAsync(new BotOptions(), default);
+
+        Assert.Equal(0, port.EnsureFarmListsReadyCalls);
+        Assert.Equal(2, port.Queue.Items.Count);
+        Assert.Contains(port.Queue.Items, item =>
+            item.Payload.GetValueOrDefault(BotOptionPayloadKeys.TargetVillageKey) == "3:4");
+    }
+
+    [Fact]
+    public async Task MissingFarmingSelection_AnalyzesBeforeCreatingDispatch()
+    {
+        var port = new InMemoryPort
+        {
+            EnabledGroups = [QueueGroup.Farming],
+            ConsideredGroups = [QueueGroup.Farming],
+            Villages = [new AutomationRuntimeVillage("1:2", "Alpha", "/dorf1.php?newdid=1", false, 1, 2)],
+        };
+
+        await new ContinuousRuntimeItemPreparation(port).PrepareAsync(new BotOptions(), default);
+
+        Assert.Equal(1, port.EnsureFarmListsReadyCalls);
+        Assert.Empty(port.Queue.Items);
+    }
+
     private sealed class InMemoryPort : IContinuousRuntimeItemPreparationPort
     {
         public IReadOnlyList<QueueGroup> EnabledGroups { get; init; } = [];
@@ -117,6 +196,7 @@ public sealed class ContinuousRuntimeItemPreparationTests
         public bool GoldClubEnabled { get; init; } = true;
         public bool MissingGoldClubBlocked { get; private set; }
         public bool ResourceTransferReady { get; init; }
+        public int EnsureFarmListsReadyCalls { get; private set; }
         public AutomationFarmListSelection FarmListSelection { get; init; } = new([], [], 0);
         public InMemoryQueuePort Queue { get; } = new();
         public IAutomationRuntimeQueuePort RuntimeQueue => Queue;
@@ -167,7 +247,11 @@ public sealed class ContinuousRuntimeItemPreparationTests
         public void UpdateGoldClubInfo(bool enabled) { }
         public ValueTask EnsureFarmListsReadyAsync(
             BotOptions options,
-            CancellationToken cancellationToken) => ValueTask.CompletedTask;
+            CancellationToken cancellationToken)
+        {
+            EnsureFarmListsReadyCalls++;
+            return ValueTask.CompletedTask;
+        }
         public AutomationFarmListSelection GetFarmListSelection() => FarmListSelection;
         public void SetFarmingBlockedForMissingLists() { }
         public void ClearFarmingMissingListsBlock() { }

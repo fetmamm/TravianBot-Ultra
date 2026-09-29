@@ -64,6 +64,28 @@ public sealed class HeroStatusDecisionTests
     }
 
     [Theory]
+    [InlineData(false, false, null, "Reinforcing", false)]
+    [InlineData(false, false, null, null, true)]
+    [InlineData(false, false, 420, null, false)]
+    [InlineData(true, false, null, null, false)]
+    [InlineData(false, true, null, null, false)]
+    public void ReturnEtaLookup_SkipsAttributesForStationaryReinforcement(
+        bool inVillage,
+        bool isDead,
+        int? returnSeconds,
+        string? movementState,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            HeroStatusDecision.ShouldReadReturnEtaFromAttributes(
+                inVillage,
+                isDead,
+                returnSeconds,
+                movementState));
+    }
+
+    [Theory]
     [InlineData(40, 60, 40, 43200)]
     [InlineData(59, 60, 40, 2160)]
     [InlineData(0, 100, 20, 432000)]

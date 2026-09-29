@@ -69,4 +69,34 @@ public sealed class FarmListDispatchConfirmationTests
             method,
             StringComparison.Ordinal);
     }
+
+    [Theory]
+    [InlineData(
+        "private async Task<FarmListSendBatchResult> SendFarmListsSequentiallyAsync",
+        "/// <summary>")]
+    [InlineData(
+        "public async Task<int> SendAllFarmListsViaStartAllButtonAsync",
+        "// Synthetic-dispatch fallback")]
+    public void CompletedSendBatch_AppliesClickDelayAfterFinalConfirmation(
+        string methodSignature,
+        string nextMember)
+    {
+        var source = File.ReadAllText(Path.Combine(
+            ProjectRootLocator.FindProjectRoot(),
+            "src",
+            "TbotUltra.Worker",
+            "Services",
+            "Automation",
+            "Farming",
+            "TravianClient.FarmLists.cs"));
+        var methodStart = source.IndexOf(methodSignature, StringComparison.Ordinal);
+        var methodEnd = source.IndexOf(nextMember, methodStart, StringComparison.Ordinal);
+
+        Assert.True(methodStart >= 0 && methodEnd > methodStart);
+        var method = source[methodStart..methodEnd];
+        Assert.Contains(
+            "DelayBeforeClickAsync(cancellationToken, \"after final confirmed farm list\")",
+            method,
+            StringComparison.Ordinal);
+    }
 }

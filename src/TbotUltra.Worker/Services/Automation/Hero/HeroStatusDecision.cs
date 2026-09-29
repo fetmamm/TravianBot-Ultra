@@ -54,6 +54,22 @@ internal static class HeroStatusDecision
         return isReinforcing ? 30 * 60 : 15 * 60;
     }
 
+    internal static bool ShouldReadReturnEtaFromAttributes(
+        bool inVillage,
+        bool isDead,
+        int? returnSeconds,
+        string? movementState)
+    {
+        var isReinforcing = string.Equals(
+            movementState,
+            "Reinforcing",
+            StringComparison.OrdinalIgnoreCase);
+        return !inVillage
+            && !isDead
+            && returnSeconds is not > 0
+            && !isReinforcing;
+    }
+
     internal static bool ResolveIsInVillage(
         bool reinforcing,
         bool running,
