@@ -4,6 +4,21 @@ namespace TbotUltra.Desktop.Tests;
 
 public sealed class AlarmClassificationTests
 {
+    [Theory]
+    [InlineData("[farm-list] send: 'Rainbow' marked sent (response=success+error; Travian processed the Start request).")]
+    [InlineData("[farm-list] start-all: 'Steppes' marked sent (response=error; Travian processed the Start request).")]
+    public void ConfirmedFarmListResponse_IsNotAlarm(string message)
+    {
+        Assert.False(MainWindow.IsAlarmMessage(message));
+    }
+
+    [Fact]
+    public void MissingFarmListResponse_RemainsAlarm()
+    {
+        Assert.True(MainWindow.IsAlarmMessage(
+            "[farm-list] send: 'Rainbow' (lid 3639) showed no success/error response within 15 seconds after Start; not marking it sent."));
+    }
+
     [Fact]
     public void LobbyWorldResolutionPendingSave_IsNotAlarm()
     {

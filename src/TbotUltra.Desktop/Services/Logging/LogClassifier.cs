@@ -240,7 +240,10 @@ public static class LogClassifier
                 && value.Contains(" invalid coordinate(s)", StringComparison.Ordinal)
                 && value.Contains("travco list", StringComparison.Ordinal))
             || (value.StartsWith("[travco] removed ", StringComparison.Ordinal)
-                && value.Contains(" invalid coordinate(s)", StringComparison.Ordinal));
+                && value.Contains(" invalid coordinate(s)", StringComparison.Ordinal))
+            || (value.Contains("[farm-list]", StringComparison.Ordinal)
+                && value.Contains("marked sent", StringComparison.Ordinal)
+                && value.Contains("travian processed the start request", StringComparison.Ordinal));
     }
 
     public static bool IsSafeTransientRetry(string message)
