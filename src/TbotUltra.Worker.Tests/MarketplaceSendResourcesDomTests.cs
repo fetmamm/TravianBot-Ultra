@@ -14,6 +14,9 @@ public sealed class MarketplaceSendResourcesDomTests
         Assert.Equal(
             "/build.php?id=31&gid=17&t=5",
             MarketplaceSendResourcesDom.FindSendResourcesTabHref(html));
+        Assert.Equal(
+            "root=false send_tab=true send_tab_active=false missing_inputs=lumber,clay,iron,crop",
+            MarketplaceSendResourcesDom.DescribeState(html));
     }
 
     [Fact]
@@ -25,6 +28,9 @@ public sealed class MarketplaceSendResourcesDomTests
         Assert.Equal(
             "/build.php?id=31&gid=17&t=5",
             MarketplaceSendResourcesDom.FindSendResourcesTabHref(html));
+        Assert.Equal(
+            "root=true send_tab=true send_tab_active=true missing_inputs=none",
+            MarketplaceSendResourcesDom.DescribeState(html));
     }
 
     private static string ReadFixture(string fileName) =>

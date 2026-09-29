@@ -30,7 +30,41 @@ internal static partial class MarketplaceSendResourcesDom
             Regex.IsMatch(
                 html,
                 $"""<input\b[^>]*\bname\s*=\s*["']{Regex.Escape(name)}["'][^>]*>""",
-                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
+            RegexOptions.IgnoreCase | RegexOptions.CultureInvariant));
+    }
+
+    internal static string DescribeState(string? html)
+    {
+        if (string.IsNullOrWhiteSpace(html))
+        {
+            return "html=empty";
+        }
+
+        var rootPresent = html.Contains("id=\"marketplaceSendResources\"", StringComparison.OrdinalIgnoreCase);
+        var sendTabPresent = false;
+        var sendTabActive = false;
+        foreach (Match match in AnchorTagRegex().Matches(html))
+        {
+            var tag = match.Value;
+            if (!HasClass(tag, "tabItem") || !IsSendResourcesHref(ReadAttribute(tag, "href")))
+            {
+                continue;
+            }
+
+            sendTabPresent = true;
+            sendTabActive |= HasClass(tag, "active");
+        }
+
+        var missingInputs = ResourceInputNames
+            .Where(name => !Regex.IsMatch(
+                html,
+                $"""<input\b[^>]*\bname\s*=\s*["']{Regex.Escape(name)}["'][^>]*>""",
+                RegexOptions.IgnoreCase | RegexOptions.CultureInvariant))
+            .ToArray();
+        return $"root={rootPresent.ToString().ToLowerInvariant()} "
+            + $"send_tab={sendTabPresent.ToString().ToLowerInvariant()} "
+            + $"send_tab_active={sendTabActive.ToString().ToLowerInvariant()} "
+            + $"missing_inputs={(missingInputs.Length == 0 ? "none" : string.Join(',', missingInputs))}";
     }
 
     internal static string? FindSendResourcesTabHref(string? html)

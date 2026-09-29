@@ -293,43 +293,57 @@ public sealed partial class TravianClient
         var html = await _page.ContentAsync();
         if (MarketplaceSendResourcesDom.IsReady(html))
         {
-            Notify($"[resource-transfer] Send resources tab ready for source '{sourceVillageName}'.");
+            Notify($"[resource-transfer] Send resources tab ready for source '{sourceVillageName}' url='{_page.Url}'.");
             return;
         }
 
+        var initialDomState = MarketplaceSendResourcesDom.DescribeState(html);
         var sendResourcesHref = MarketplaceSendResourcesDom.FindSendResourcesTabHref(html);
         if (string.IsNullOrWhiteSpace(sendResourcesHref))
         {
             throw new InvalidOperationException(
-                $"Resource transfer could not find the Send resources tab for source '{sourceVillageName}'.");
+                $"Resource transfer could not find the Send resources tab for source '{sourceVillageName}'. "
+                + $"url='{_page.Url}' dom='{initialDomState}'.");
         }
 
         Notify(
             $"[resource-transfer] Marketplace opened outside Send resources for source '{sourceVillageName}'; "
-            + "switching to the Send resources tab.");
+            + $"switching tab_href='{sendResourcesHref}' url='{_page.Url}' dom='{initialDomState}'.");
         var sendResourcesTab = _page.Locator(MarketplaceSendResourcesDom.SendTabSelector).First;
         if (await sendResourcesTab.CountAsync() <= 0)
         {
             throw new InvalidOperationException(
-                $"Resource transfer could not locate the Send resources tab control for source '{sourceVillageName}'.");
+                $"Resource transfer could not locate the Send resources tab control for source '{sourceVillageName}'. "
+                + $"selector=\"{MarketplaceSendResourcesDom.SendTabSelector}\" url='{_page.Url}' dom='{initialDomState}'.");
         }
 
-        await DelayBeforeClickAsync(cancellationToken);
-        await sendResourcesTab.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
-        await _page.Locator(MarketplaceSendResourcesDom.RootSelector).WaitForAsync(new LocatorWaitForOptions
+        try
         {
-            State = WaitForSelectorState.Visible,
-            Timeout = _config.TimeoutMs,
-        });
+            await DelayBeforeClickAsync(cancellationToken);
+            await sendResourcesTab.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
+            await _page.Locator(MarketplaceSendResourcesDom.RootSelector).WaitForAsync(new LocatorWaitForOptions
+            {
+                State = WaitForSelectorState.Visible,
+                Timeout = _config.TimeoutMs,
+            });
+        }
+        catch (PlaywrightException ex)
+        {
+            throw new InvalidOperationException(
+                $"Resource transfer failed while switching to Send resources for source '{sourceVillageName}'. "
+                + $"tab_href='{sendResourcesHref}' url='{_page.Url}' timeout_ms={_config.TimeoutMs} dom='{initialDomState}'.",
+                ex);
+        }
 
         html = await _page.ContentAsync();
         if (!MarketplaceSendResourcesDom.IsReady(html))
         {
             throw new InvalidOperationException(
-                $"Resource transfer switched tabs but the Send resources form did not become ready for source '{sourceVillageName}'.");
+                $"Resource transfer switched tabs but the Send resources form did not become ready for source '{sourceVillageName}'. "
+                + $"url='{_page.Url}' dom='{MarketplaceSendResourcesDom.DescribeState(html)}'.");
         }
 
-        Notify($"[resource-transfer] Send resources tab selected for source '{sourceVillageName}'.");
+        Notify($"[resource-transfer] Send resources tab selected for source '{sourceVillageName}' url='{_page.Url}'.");
     }
 
     private async Task<ResourceTransferMerchantState> ReadMarketplaceMerchantStateAsync(CancellationToken cancellationToken)
@@ -389,6 +403,9 @@ public sealed partial class TravianClient
 
         var available = Math.Max(0, state.Available ?? 0);
         var perMerchant = Math.Max(0, state.CapacityPerMerchant ?? 0);
+        Notify(
+            $"[resource-transfer] Merchant state available={available} capacity_per_merchant={perMerchant} "
+            + $"next_return_seconds={state.NextReturnSeconds?.ToString() ?? "unknown"} url='{_page.Url}'.");
         return new ResourceTransferMerchantState(available, perMerchant, available * perMerchant, state.NextReturnSeconds);
     }
 
@@ -396,28 +413,40 @@ public sealed partial class TravianClient
     {
         if (!await FillMarketplaceResourceTransferFormAsync(targetVillage, shipment, cancellationToken))
         {
+            Notify($"[resource-transfer] Shipment form could not be filled for target '{targetVillage.Name}' url='{_page.Url}'.");
             return false;
         }
 
         if (!await ClickMarketplaceSendButtonAsync(cancellationToken))
         {
+            Notify($"[resource-transfer] Send button was not found after filling target '{targetVillage.Name}' url='{_page.Url}'.");
             return false;
         }
 
         await Task.Delay(300, cancellationToken);
-        return await ClickMarketplaceConfirmButtonAsync(cancellationToken);
+        var confirmed = await ClickMarketplaceConfirmButtonAsync(cancellationToken);
+        if (!confirmed)
+        {
+            Notify($"[resource-transfer] Confirmation button did not appear for target '{targetVillage.Name}' url='{_page.Url}'.");
+        }
+        return confirmed;
     }
 
     private async Task<bool> FillMarketplaceResourceTransferFormAsync(Village targetVillage, ResourceTransferShipment shipment, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var resourcesFilled =
-            await TryTypeHumanlyIntoFirstMatchingInputAsync(["#marketplaceSendResources form input[name='lumber']", "input[name*='wood' i]", "input[aria-label*='wood' i]"], shipment.Wood.ToString(), cancellationToken)
-            && await TryTypeHumanlyIntoFirstMatchingInputAsync(["#marketplaceSendResources form input[name='clay']", "input[name*='clay' i]", "input[aria-label*='clay' i]"], shipment.Clay.ToString(), cancellationToken)
-            && await TryTypeHumanlyIntoFirstMatchingInputAsync(["#marketplaceSendResources form input[name='iron']", "input[name*='iron' i]", "input[aria-label*='iron' i]"], shipment.Iron.ToString(), cancellationToken)
-            && await TryTypeHumanlyIntoFirstMatchingInputAsync(["#marketplaceSendResources form input[name='crop']", "input[name*='crop' i]", "input[aria-label*='crop' i]"], shipment.Crop.ToString(), cancellationToken);
-        if (!resourcesFilled)
+        var woodFilled = await TryTypeHumanlyIntoFirstMatchingInputAsync(["#marketplaceSendResources form input[name='lumber']", "input[name*='wood' i]", "input[aria-label*='wood' i]"], shipment.Wood.ToString(), cancellationToken);
+        var clayFilled = await TryTypeHumanlyIntoFirstMatchingInputAsync(["#marketplaceSendResources form input[name='clay']", "input[name*='clay' i]", "input[aria-label*='clay' i]"], shipment.Clay.ToString(), cancellationToken);
+        var ironFilled = await TryTypeHumanlyIntoFirstMatchingInputAsync(["#marketplaceSendResources form input[name='iron']", "input[name*='iron' i]", "input[aria-label*='iron' i]"], shipment.Iron.ToString(), cancellationToken);
+        var cropFilled = await TryTypeHumanlyIntoFirstMatchingInputAsync(["#marketplaceSendResources form input[name='crop']", "input[name*='crop' i]", "input[aria-label*='crop' i]"], shipment.Crop.ToString(), cancellationToken);
+        if (!woodFilled || !clayFilled || !ironFilled || !cropFilled)
         {
+            var missingInputs = new List<string>();
+            if (!woodFilled) missingInputs.Add("lumber");
+            if (!clayFilled) missingInputs.Add("clay");
+            if (!ironFilled) missingInputs.Add("iron");
+            if (!cropFilled) missingInputs.Add("crop");
+            Notify($"[resource-transfer] Resource inputs unavailable: {string.Join(',', missingInputs)} url='{_page.Url}'.");
             return false;
         }
 
@@ -431,13 +460,22 @@ public sealed partial class TravianClient
             {
                 return true;
             }
+
+            Notify(
+                $"[resource-transfer] Coordinate target fields incomplete x_field={xFilled.ToString().ToLowerInvariant()} "
+                + $"y_field={yFilled.ToString().ToLowerInvariant()} target='{targetVillage.Name}' url='{_page.Url}'; trying village name.");
         }
 
-        return !string.IsNullOrWhiteSpace(targetVillage.Name)
+        var nameFilled = !string.IsNullOrWhiteSpace(targetVillage.Name)
             && await TryTypeHumanlyIntoFirstMatchingInputAsync(
                 ["#marketplaceSendResources form .targetSelection label.search input[type='text']", "input[name='dname']", "input[name='villageName']", "input[name*='village' i]", "input[name*='name' i]"],
                 targetVillage.Name,
                 cancellationToken);
+        if (!nameFilled)
+        {
+            Notify($"[resource-transfer] Village-name target field unavailable for target '{targetVillage.Name}' url='{_page.Url}'.");
+        }
+        return nameFilled;
     }
 
     private async Task<bool> ClickMarketplaceSendButtonAsync(CancellationToken cancellationToken)
