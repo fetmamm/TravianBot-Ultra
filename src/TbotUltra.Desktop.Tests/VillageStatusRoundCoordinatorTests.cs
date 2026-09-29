@@ -24,6 +24,7 @@ public sealed class VillageStatusRoundCoordinatorTests
         Assert.Equal(1, port.PrepareCount);
         Assert.Equal(2, port.DelayCount);
         Assert.Equal(["B", "C", "A"], port.VisitedNames);
+        Assert.Equal([(1, 3), (2, 3), (3, 3)], port.Progress);
     }
 
     [Fact]
@@ -68,6 +69,11 @@ public sealed class VillageStatusRoundCoordinatorTests
         internal List<string> VisitedNames { get; } = [];
 
         internal List<bool> InboxWasAlreadyChecked { get; } = [];
+
+        internal List<(int Current, int Total)> Progress { get; } = [];
+
+        public void UpdateRoundActivity(int villageNumber, int villageCount) =>
+            Progress.Add((villageNumber, villageCount));
 
         public ValueTask PrepareAsync(CancellationToken cancellationToken)
         {

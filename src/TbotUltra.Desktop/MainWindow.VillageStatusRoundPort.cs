@@ -1,5 +1,6 @@
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.Services.Orchestration;
 
 namespace TbotUltra.Desktop;
@@ -12,6 +13,7 @@ public partial class MainWindow
         private BotOptions _options = new();
         private IReadOnlyDictionary<string, VillageSelectionItem> _villagesByKey =
             new Dictionary<string, VillageSelectionItem>();
+        private DashboardActivityTracker.ActivityScope? _roundActivity;
 
         public string? ActiveAccountName => owner._accountStore.ActiveAccountName();
         public string? ActiveVillageKey => owner._activeWorkingVillageKey;
@@ -44,11 +46,21 @@ public partial class MainWindow
                     village.Url))
                 .ToList();
         }
-        public IDisposable BeginRoundActivity(int villageCount) =>
-            owner._dashboardActivityTracker.Begin(
+        public IDisposable BeginRoundActivity(int villageCount)
+        {
+            _roundActivity = owner._dashboardActivityTracker.Begin(
                 owner._automationDesk.LoginVillageStatusRoundPending
-                    ? $"Village round (0/{villageCount})"
-                    : $"Village scan (0/{villageCount})");
+                    ? $"Village round: starting ({villageCount} villages)"
+                    : $"Village scan: starting ({villageCount} villages)");
+            return _roundActivity;
+        }
+        public void UpdateRoundActivity(int villageNumber, int villageCount)
+        {
+            _roundActivity?.Update(
+                owner._automationDesk.LoginVillageStatusRoundPending
+                    ? $"Village round ({villageNumber}/{villageCount})"
+                    : $"Village scan ({villageNumber}/{villageCount})");
+        }
         public VillageStatusRoundScheduleResult ScheduleNext(
             string? expectedAccountName,
             int minMinutes,

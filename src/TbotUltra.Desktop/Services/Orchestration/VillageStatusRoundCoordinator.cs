@@ -21,6 +21,8 @@ internal interface IVillageStatusRoundPort
         bool inboxStatusChecked,
         CancellationToken cancellationToken);
 
+    void UpdateRoundActivity(int villageNumber, int villageCount);
+
     ValueTask DelayBeforeNextVillageAsync(CancellationToken cancellationToken);
 }
 
@@ -48,6 +50,7 @@ internal sealed class VillageStatusRoundCoordinator(Func<int, int, int>? nextRan
         for (var index = 0; index < ordered.Count; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            port.UpdateRoundActivity(startIndex + index + 1, totalCount ?? ordered.Count);
             var visit = await port.VisitAsync(
                     ordered[index],
                     startIndex + index + 1,

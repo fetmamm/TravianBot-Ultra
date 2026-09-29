@@ -120,9 +120,43 @@ public partial class MainWindow
             groups.RemoveAll(group => string.Equals(group, groupKey, StringComparison.OrdinalIgnoreCase));
         }
 
+        PersistAutomationGroupsForVillage(village, groups);
+    }
+
+    private void PersistAutomationGroupsForVillage(
+        VillageSettingsStore.VillageKeyInfo village,
+        IReadOnlyCollection<string> enabledGroups)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.Invoke(() => PersistAutomationGroupsForVillage(village, enabledGroups));
+            return;
+        }
+
+        var groups = enabledGroups
+            .Where(group => !string.IsNullOrWhiteSpace(group))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
         _villageSettingsStore.SetEnabledGroups(village, groups);
 
-        if (string.Equals(GetSelectedVillageKey(), village.Key, StringComparison.OrdinalIgnoreCase))
+        _syncingVillageGroupSettings = true;
+        var villageSettingsSynced = false;
+        try
+        {
+            villageSettingsSynced = VillageGroupToggleSynchronizer.Apply(
+                _dashboardVillageSettingsRows,
+                village,
+                groups);
+        }
+        finally
+        {
+            _syncingVillageGroupSettings = false;
+        }
+
+        var selectedVillage = GetSelectedVillageKeyInfoOrNull();
+        if (selectedVillage is not null
+            && (string.Equals(selectedVillage.Key, village.Key, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(selectedVillage.Name, village.Name, StringComparison.OrdinalIgnoreCase)))
         {
             ApplyAutomationLoopGroupsForSelectedVillage();
         }
@@ -130,6 +164,10 @@ public partial class MainWindow
         {
             RefreshAutomationLoopDashboardUi();
         }
+
+        AppendLog(
+            $"[village-groups] synchronized '{village.Name}' enabled={string.Join(',', groups)} "
+            + $"village_settings={(villageSettingsSynced ? "updated" : "not-loaded")}.");
     }
 
     private static void UpdateVillageSettingsGroupRow(

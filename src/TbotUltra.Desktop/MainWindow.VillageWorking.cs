@@ -762,7 +762,7 @@ public partial class MainWindow
                 && AutomationGroupAvailability.CanToggle(group, info.IsCapital, CurrentGoldClubAvailability))
             .Select(item => item.TaskName)
             .ToList();
-        _villageSettingsStore.SetEnabledGroups(info, enabled);
+        PersistAutomationGroupsForVillage(info, enabled);
     }
 
     private string? GetSelectedVillageKey()

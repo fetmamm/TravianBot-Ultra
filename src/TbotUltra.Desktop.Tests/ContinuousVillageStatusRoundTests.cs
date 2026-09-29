@@ -32,7 +32,7 @@ public sealed class ContinuousVillageStatusRoundTests
             default);
 
         Assert.Equal(
-            ["membership", "load", "activity", "prepare", "visit:1:2", "schedule:10-20", "dispose"],
+            ["membership", "load", "activity", "prepare", "progress:1/1", "visit:1:2", "schedule:10-20", "dispose"],
             port.Trace);
     }
 
@@ -79,6 +79,8 @@ public sealed class ContinuousVillageStatusRoundTests
             Trace.Add("activity");
             return new CallbackDisposable(() => Trace.Add("dispose"));
         }
+        public void UpdateRoundActivity(int villageNumber, int villageCount) =>
+            Trace.Add($"progress:{villageNumber}/{villageCount}");
         public VillageStatusRoundScheduleResult ScheduleNext(
             string? expectedAccountName,
             int minMinutes,

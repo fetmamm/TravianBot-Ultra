@@ -226,8 +226,14 @@ public partial class MainWindow
             if (!current.TryGetValue(key, out var status)) continue;
             var groups = (_villageSettingsStore.GetEnabledGroups(key) ?? []).ToList();
             if (!groups.Contains(constructionKey, StringComparer.OrdinalIgnoreCase)) groups.Add(constructionKey);
-            _villageSettingsStore.SetEnabledGroups(new VillageSettingsStore.VillageKeyInfo(
-                key, status.ActiveVillage, status.ActiveVillageCoordX, status.ActiveVillageCoordY, status.IsCapital == true), groups);
+            PersistAutomationGroupsForVillage(
+                new VillageSettingsStore.VillageKeyInfo(
+                    key,
+                    status.ActiveVillage,
+                    status.ActiveVillageCoordX,
+                    status.ActiveVillageCoordY,
+                    status.IsCapital == true),
+                groups);
         }
         return true;
     }

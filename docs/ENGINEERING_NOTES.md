@@ -90,6 +90,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
 
 - `bot.json` is application-wide; account settings are account-scoped; village settings and queue state are
   village-scoped; runtime snapshots are Worker-owned observations, not user configuration.
+- Per-village automation-group toggles have one persisted authority. Every write must immediately synchronize
+  the matching Dashboard card and Village settings row; neither view may retain a private toggle state.
 - `BotOptionsFactory` and `BotOptionsPayloadApplier` are public orchestration facades. Domain option modules own
   their defaults, compatibility normalization, payload overlay, and projection to the flat `BotOptions` record;
   do not duplicate a domain rule in either facade. Domain modules also declare their account-scoped keys, which

@@ -779,6 +779,7 @@ public partial class MainWindow
     private string? _dashboardVillagePanelsKey;
     private IReadOnlyList<VillageSettingsRow>? _dashboardVillageSettingsRows;
     private bool _syncingVillageProtectionSettings;
+    private bool _syncingVillageGroupSettings;
 
     private void ClearDashboardVillagePanels()
     {
@@ -1248,7 +1249,7 @@ public partial class MainWindow
     // dashboard cards in sync when the changed village is the one currently selected.
     private void PersistVillageGroupsFromSettingsRow(VillageSettingsRow row)
     {
-        if (row?.KeyInfo is null)
+        if (row?.KeyInfo is null || _syncingVillageGroupSettings)
         {
             return;
         }
@@ -1265,7 +1266,7 @@ public partial class MainWindow
                         CurrentGoldClubAvailability)))
             .Select(toggle => toggle.GroupKey)
             .ToList();
-        _villageSettingsStore.SetEnabledGroups(row.KeyInfo, enabled);
+        PersistAutomationGroupsForVillage(row.KeyInfo, enabled);
 
         var constructionKey = QueueGroupCatalog.GetKey(QueueGroup.Construction);
         if (!previouslyEnabled.Contains(constructionKey, StringComparer.OrdinalIgnoreCase)
@@ -1275,10 +1276,6 @@ public partial class MainWindow
             ResetDeferredConstructionWaitsNow("construction group enabled in village settings");
         }
 
-        if (string.Equals(GetSelectedVillageKey(), row.KeyInfo.Key, StringComparison.OrdinalIgnoreCase))
-        {
-            ApplyAutomationLoopGroupsForSelectedVillage();
-        }
     }
 
     private void OnVillageSettingsSaved()

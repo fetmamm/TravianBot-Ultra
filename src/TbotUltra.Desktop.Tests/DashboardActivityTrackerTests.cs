@@ -35,4 +35,19 @@ public sealed class DashboardActivityTrackerTests
 
         Assert.Equal("Village scan", tracker.Current);
     }
+
+    [Fact]
+    public void UpdatedOuterScope_RetainsLatestProgressAfterNestedScopeEnds()
+    {
+        var tracker = new DashboardActivityTracker();
+        using var round = tracker.Begin("Village scan: starting");
+
+        round.Update("Village scan (3/6): GAZ");
+        using (tracker.Begin("Running Town Hall celebration"))
+        {
+            Assert.Equal("Running Town Hall celebration", tracker.Current);
+        }
+
+        Assert.Equal("Village scan (3/6): GAZ", tracker.Current);
+    }
 }

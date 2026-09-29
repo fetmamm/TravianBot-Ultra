@@ -22,7 +22,7 @@ internal sealed class DashboardActivityTracker
         }
     }
 
-    public IDisposable Begin(string displayName)
+    public ActivityScope Begin(string displayName)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
         var entry = new ActivityEntry(Guid.NewGuid(), displayName.Trim());
@@ -32,7 +32,27 @@ internal sealed class DashboardActivityTracker
         }
 
         Changed?.Invoke();
-        return new Scope(this, entry.Id);
+        return new ActivityScope(this, entry.Id);
+    }
+
+    private void Update(Guid id, string displayName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(displayName);
+        var changed = false;
+        lock (_gate)
+        {
+            var index = _entries.FindIndex(entry => entry.Id == id);
+            if (index >= 0 && !string.Equals(_entries[index].DisplayName, displayName.Trim(), StringComparison.Ordinal))
+            {
+                _entries[index] = _entries[index] with { DisplayName = displayName.Trim() };
+                changed = index == _entries.Count - 1;
+            }
+        }
+
+        if (changed)
+        {
+            Changed?.Invoke();
+        }
     }
 
     private void End(Guid id)
@@ -56,9 +76,17 @@ internal sealed class DashboardActivityTracker
 
     private sealed record ActivityEntry(Guid Id, string DisplayName);
 
-    private sealed class Scope(DashboardActivityTracker owner, Guid id) : IDisposable
+    internal sealed class ActivityScope(DashboardActivityTracker owner, Guid id) : IDisposable
     {
         private int _disposed;
+
+        internal void Update(string displayName)
+        {
+            if (Volatile.Read(ref _disposed) == 0)
+            {
+                owner.Update(id, displayName);
+            }
+        }
 
         public void Dispose()
         {
