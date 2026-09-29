@@ -1,6 +1,6 @@
 # Engineering Notes
 
-Last updated: 2026-09-24
+Last updated: 2026-09-29
 
 Read this file before changing architecture, selectors, paths, browser behavior, persisted state, queueing,
 or server logic. Keep it short and current: durable rules belong here; detailed decisions belong in ADRs;
@@ -65,6 +65,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   replace a verified selector without evidence.
 - Verify selector changes against live Official HTML or a captured fixture. React elements must be visible and
   actionable, and dialog actions must be scoped to the open dialog.
+- `docs/DOM/` is disposable, ignored development reference material. Runtime code, builds, and tests must never
+  read from it; preserve any required regression case as a minimal, version-controlled fixture in its test project.
 - State-changing clicks must be exact. Navigation retry does not permit repeating an action.
 - A timed-out read-only navigation may be accepted only when the current URL still matches the exact
   requested Official page and the rendered DOM exposes a known authenticated Travian shell without a
@@ -752,11 +754,13 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - "Shared schedule" is the default farm-list send mode and appears before "Individual schedule" in the UI.
   Both modes send only UI-enabled farm lists ONE AT A TIME via
   `SendFarmListsSequentiallyAsync`: click each list's Start,
-  then wait for that list's `.farmListStatus` "N/M being raided" numerator to rise (or its Start to disable)
-  before the next individual click so a failed list is detected before advancing.
+  then wait for that exact list's `.farmListStatus svg.success` or `svg.error` response before advancing.
+  Either marker means Travian processed the Start request and the list is marked sent; the "being raided"
+  counter and disabled Start state are not dispatch confirmation.
   The wait between clicks is the "Send farmlists" action pacing (`FarmListStepDelayMin/MaxSeconds`, default
   1-4s, on the Settings pacing tab). "Send all" instead performs one click on Travian's
   `button.startAllFarmLists` control, using the established real-click-with-JS-fallback flow, and ignores UI toggles.
+  It must wait for the same per-list success/error response for every list that was sendable before the click.
   In "Individual schedule", every list requires an account-scoped Min/Max interval keyed by stable `lid`.
   When a list has no valid saved pair, copy and persist `ContinuousFarmDispatchDelay` as its initial values;
   those values are then independent and empty/partial edits are invalid rather than a runtime fallback.

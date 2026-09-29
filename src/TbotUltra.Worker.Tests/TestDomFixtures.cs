@@ -18,6 +18,8 @@ internal static class TestDomFixtures
             "daily_quests_1.txt" => DailyQuestsAlternative,
             "account_deletion_pending.txt" => AccountDeletionPending,
             "no_farmlists.txt" => NoFarmLists,
+            "marketplace_management.txt" => MarketplaceManagement,
+            "marketplace_sendResources.txt" => MarketplaceSendResources,
             _ => throw new FileNotFoundException($"Could not find DOM fixture '{fileName}'."),
         };
     }
@@ -163,6 +165,27 @@ internal static class TestDomFixtures
             <span class="nominator">0</span>
             <span class="denominator">0</span>
           </div>
+        </div>
+        """;
+
+    private const string MarketplaceManagement = """
+        <div class="contentNavi subNavi">
+          <a class="tabItem" href="/build.php?id=31&amp;gid=17&amp;t=5">Send resources</a>
+          <a class="tabItem active" href="/build.php?id=31&amp;gid=17&amp;t=3">Manage</a>
+        </div>
+        <div id="marketplaceManagement"></div>
+        """;
+
+    private const string MarketplaceSendResources = """
+        <div class="contentNavi subNavi">
+          <a class="tabItem active" href="/build.php?id=31&amp;gid=17&amp;t=5">Send resources</a>
+          <a class="tabItem" href="/build.php?id=31&amp;gid=17&amp;t=3">Manage</a>
+        </div>
+        <div id="marketplaceSendResources">
+          <input name="lumber" />
+          <input name="clay" />
+          <input name="iron" />
+          <input name="crop" />
         </div>
         """;
 }

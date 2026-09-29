@@ -34,9 +34,5 @@ public sealed class MarketplaceSendResourcesDomTests
     }
 
     private static string ReadFixture(string fileName) =>
-        File.ReadAllText(Path.Combine(
-            ProjectRootLocator.FindProjectRoot(),
-            "docs",
-            "DOM",
-            fileName));
+        TestDomFixtures.Read(fileName);
 }

@@ -118,19 +118,34 @@ public sealed partial class TravianClient : IFarmingClient
             throw new InvalidOperationException("Gold Club is not enabled for this account.");
         }
 
-        await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+        await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken, refreshCurrentPage: true);
         await DismissDeactivatedTargetsNoticeAsync(cancellationToken);
         await WaitForDispatchLimitToClearAsync(cancellationToken);
 
-        var clicked = await TryClickFarmListSendNowAsync(farmListName, cancellationToken);
+        var lid = await ResolveOfficialFarmListStartIdAsync(farmListName);
+        if (string.IsNullOrWhiteSpace(lid))
+        {
+            throw new InvalidOperationException($"Could not find enabled Official farm list '{farmListName}'.");
+        }
+
+        var clicked = await TryClickFarmListStartByLidAsync(lid, farmListName, cancellationToken);
         if (!clicked)
         {
             throw new InvalidOperationException($"Could not find clickable Start Raid button for farm list '{farmListName}'.");
         }
 
+        var confirmation = await WaitForFarmListDispatchConfirmationAsync(lid, cancellationToken);
+        if (!confirmation.IsConfirmed)
+        {
+            throw new TimeoutException(
+                $"Farm list '{farmListName}' (lid {lid}) showed no success/error response within 15 seconds after Start.");
+        }
+
         await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
         var remaining = await ReadFarmListTimerSecondsByNameAsync(farmListName, cancellationToken);
-        Notify($"[farm-list] '{farmListName}' sent — next ready in {(remaining is > 0 ? TravianParsing.FormatDuration(remaining.Value) : "now")}");
+        Notify(
+            $"[farm-list] '{farmListName}' marked sent (response={confirmation.Description}) — "
+            + $"next ready in {(remaining is > 0 ? TravianParsing.FormatDuration(remaining.Value) : "now")}");
         return remaining;
     }
 
@@ -149,7 +164,7 @@ public sealed partial class TravianClient : IFarmingClient
 
     // Core sequential send: opens the farm page, resolves every list with an enabled Start button (optionally
     // filtered to the toggled/selected lists), then clicks each Start ONE AT A TIME and waits for that list's
-    // "being raided" counter to rise (Travian's live confirmation the raids were dispatched) before the next
+    // Official success/error response marker before the next
     // click. Clicking every list at once — or the single "start all" button — is unsafe: a list can silently
     // fail to send with no per-list feedback. The wait between each click is the "Send farmlists" pacing.
     private async Task<FarmListSendBatchResult> SendFarmListsSequentiallyAsync(
@@ -165,7 +180,7 @@ public sealed partial class TravianClient : IFarmingClient
             throw new InvalidOperationException("Gold Club is not enabled for this account.");
         }
 
-        await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+        await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken, refreshCurrentPage: true);
         await DismissDeactivatedTargetsNoticeAsync(cancellationToken);
         await WaitForPageReadyAsync(cancellationToken);
         await WaitForFarmListsRenderedAsync(cancellationToken);
@@ -211,7 +226,6 @@ public sealed partial class TravianClient : IFarmingClient
                     cancellationToken);
             }
 
-            var beingRaidedBefore = await ReadFarmListBeingRaidedCountAsync(entry.Lid, cancellationToken);
             var clicked = await TryClickFarmListStartByLidAsync(entry.Lid, entry.Name, cancellationToken);
             if (!clicked)
             {
@@ -219,14 +233,20 @@ public sealed partial class TravianClient : IFarmingClient
                 continue;
             }
 
-            if (await WaitForFarmListRaidConfirmedAsync(entry.Lid, beingRaidedBefore, cancellationToken))
+            var confirmation = await WaitForFarmListDispatchConfirmationAsync(entry.Lid, cancellationToken);
+            if (confirmation.IsConfirmed)
             {
                 sent.Add(new FarmListSendEntry(entry.Name, entry.Lid));
-                Notify($"[farm-list] send: '{entry.Name}' dispatched (confirmed — being raided rose from {beingRaidedBefore}).");
+                Notify(
+                    $"[farm-list] send: '{entry.Name}' marked sent "
+                    + $"(response={confirmation.Description}; Travian processed the Start request).");
             }
             else
             {
-                Notify($"[farm-list] send: '{entry.Name}' Start click not confirmed as raided within timeout; continuing.");
+                Notify(
+                    $"[farm-list] send: '{entry.Name}' (lid {entry.Lid}) showed no success/error response "
+                    + "within 15 seconds after Start; not marking it sent and stopping this send batch.");
+                break;
             }
         }
 
@@ -266,7 +286,7 @@ public sealed partial class TravianClient : IFarmingClient
             throw new InvalidOperationException("Gold Club is not enabled for this account.");
         }
 
-        await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken);
+        await EnsureRallyPointAndOpenFarmListPageAsync(cancellationToken, refreshCurrentPage: true);
         await DismissDeactivatedTargetsNoticeAsync(cancellationToken);
         await WaitForPageReadyAsync(cancellationToken);
         await WaitForFarmListsRenderedAsync(cancellationToken);
@@ -283,8 +303,30 @@ public sealed partial class TravianClient : IFarmingClient
             throw new InvalidOperationException("Could not click Travian's 'Start all farm lists' button.");
         }
 
-        Notify($"[farm-list] clicked 'Start all farm lists' ({sendable.Count} list(s) had an enabled Start button).");
-        return sendable.Count;
+        var confirmations = await WaitForFarmListDispatchConfirmationsAsync(
+            sendable.Select(entry => entry.Lid).ToArray(),
+            cancellationToken);
+        var confirmedCount = 0;
+        foreach (var entry in sendable)
+        {
+            var confirmation = confirmations[entry.Lid];
+            if (confirmation.IsConfirmed)
+            {
+                confirmedCount++;
+                Notify(
+                    $"[farm-list] start-all: '{entry.Name}' marked sent "
+                    + $"(response={confirmation.Description}; Travian processed the Start request).");
+            }
+            else
+            {
+                Notify(
+                    $"[farm-list] start-all: '{entry.Name}' (lid {entry.Lid}) showed no success/error response "
+                    + "within 15 seconds; not marking it sent.");
+            }
+        }
+
+        Notify($"[farm-list] start-all completed: {confirmedCount}/{sendable.Count} list(s) confirmed attempted.");
+        return confirmedCount;
     }
 
     // Synthetic-dispatch fallback for the start-all button, used only when the real Playwright click is not
@@ -338,26 +380,6 @@ public sealed partial class TravianClient : IFarmingClient
             .ToList();
     }
 
-    // Reads the "being raided" numerator ("N/M being raided") from a list's status, used as the before/after
-    // signal that its Start click actually dispatched raids. Returns 0 when the list/status is not present.
-    private async Task<int> ReadFarmListBeingRaidedCountAsync(string lid, CancellationToken cancellationToken)
-    {
-        return await _page.EvaluateAsync<int>(
-            """
-            (listId) => {
-              const clean = (value) => (value || '')
-                .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
-                .replace(/\s+/g, ' ')
-                .trim();
-              const wrapper = Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper'))
-                .find(node => node.querySelector('.dragAndDrop[data-list]')?.getAttribute('data-list') === String(listId));
-              const match = clean(wrapper?.querySelector('.farmListStatus')?.textContent).match(/(\d+)\s*\/\s*(\d+)/);
-              return match ? Number(match[1]) : 0;
-            }
-            """,
-            lid).WaitAsync(cancellationToken);
-    }
-
     // Real, trusted click of a single list's Start button, resolved by its stable lid. Falls back to the
     // name-based synthetic-dispatch path only when the real click is not actionable, matching the other sends.
     private async Task<bool> TryClickFarmListStartByLidAsync(string lid, string name, CancellationToken cancellationToken)
@@ -372,34 +394,36 @@ public sealed partial class TravianClient : IFarmingClient
             cancellationToken);
     }
 
-    // Waits for Travian's live confirmation that a list's raids were dispatched: its "being raided" count
-    // rises above the pre-click value, or its Start button becomes disabled (nothing left ready to send).
-    // Bounded so a list that shows no visible change never blocks the rest of the sequential send.
-    private async Task<bool> WaitForFarmListRaidConfirmedAsync(string lid, int beingRaidedBefore, CancellationToken cancellationToken)
+    private async Task<FarmListDispatchConfirmation> WaitForFarmListDispatchConfirmationAsync(
+        string lid,
+        CancellationToken cancellationToken)
     {
+        var confirmations = await WaitForFarmListDispatchConfirmationsAsync([lid], cancellationToken);
+        return confirmations[lid];
+    }
+
+    // Travian adds success when at least one target was started and error when one or more targets could not
+    // start. Either marker proves that Travian processed the Start request, so both outcomes mark the list sent.
+    private async Task<IReadOnlyDictionary<string, FarmListDispatchConfirmation>> WaitForFarmListDispatchConfirmationsAsync(
+        IReadOnlyCollection<string> listIds,
+        CancellationToken cancellationToken)
+    {
+        var ids = listIds
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         try
         {
             await _page.WaitForFunctionAsync(
                 """
-                ([listId, before]) => {
-                  const clean = (value) => (value || '')
-                    .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, '')
-                    .replace(/\s+/g, ' ')
-                    .trim();
+                (ids) => ids.every(listId => {
                   const wrapper = Array.from(document.querySelectorAll('#rallyPointFarmList .farmListWrapper'))
                     .find(node => node.querySelector('.dragAndDrop[data-list]')?.getAttribute('data-list') === String(listId));
-                  if (!wrapper) return false;
-                  const match = clean(wrapper.querySelector('.farmListStatus')?.textContent).match(/(\d+)\s*\/\s*(\d+)/);
-                  const nowRaided = match ? Number(match[1]) : 0;
-                  if (nowRaided > before) return true;
-                  const button = wrapper.querySelector('button.startFarmList');
-                  const cls = (button?.getAttribute('class') || '').toLowerCase();
-                  return !button || button.disabled || button.getAttribute('disabled') !== null || cls.includes('disabled');
-                }
+                  return !!wrapper?.querySelector('.farmListStatus svg.success, .farmListStatus svg.error');
+                })
                 """,
-                new object[] { lid, beingRaidedBefore },
-                new PageWaitForFunctionOptions { Timeout = 5000 }).WaitAsync(cancellationToken);
-            return true;
+                ids,
+                new PageWaitForFunctionOptions { Timeout = 15000 }).WaitAsync(cancellationToken);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
@@ -407,12 +431,29 @@ public sealed partial class TravianClient : IFarmingClient
         }
         catch (TimeoutException)
         {
-            return false;
         }
         catch (PlaywrightException)
         {
-            return false;
         }
+
+        var confirmations = new Dictionary<string, FarmListDispatchConfirmation>(StringComparer.OrdinalIgnoreCase);
+        foreach (var lid in ids)
+        {
+            var wrapper = _page
+                .Locator($"#rallyPointFarmList .farmListWrapper:has(.dragAndDrop[data-list='{lid}'])")
+                .First;
+            var hasSuccess = await wrapper
+                .Locator(".farmListStatus svg.success")
+                .CountAsync()
+                .WaitAsync(cancellationToken) > 0;
+            var hasError = await wrapper
+                .Locator(".farmListStatus svg.error")
+                .CountAsync()
+                .WaitAsync(cancellationToken) > 0;
+            confirmations[lid] = new FarmListDispatchConfirmation(hasSuccess, hasError);
+        }
+
+        return confirmations;
     }
 
     public async Task<FarmListLossDeactivationResult> DeactivateFarmListLossTargetsAsync(
@@ -1892,30 +1933,8 @@ public sealed partial class TravianClient : IFarmingClient
             """);
     }
 
-    private async Task<bool> TryClickFarmListSendNowAsync(string farmListName, CancellationToken cancellationToken)
-    {
-        // Fast path: resolve the Official wrapper's stable list id, then click its Start button for real
-        // (isTrusted). If the list is missing/disabled or the layout is not the Official one, fall back to
-        // the name-based synthetic-dispatch resolver, which also handles the legacy raid-button layout.
-        var lid = await ResolveOfficialFarmListStartIdAsync(farmListName);
-        if (!string.IsNullOrEmpty(lid))
-        {
-            var button = _page
-                .Locator($"#rallyPointFarmList .farmListWrapper:has(.dragAndDrop[data-list='{lid}']) button.startFarmList")
-                .First;
-            return await TryRealClickFarmButtonAsync(
-                button,
-                () => JsDispatchFarmListSendNowAsync(farmListName),
-                $"start farm list '{farmListName}'",
-                cancellationToken);
-        }
-
-        return await JsDispatchFarmListSendNowAsync(farmListName);
-    }
-
     // Resolves the stable data-list id of the Official farm-list wrapper whose name matches, but only when
-    // its Start button exists and is enabled. Returns null for a missing/disabled list or a non-Official
-    // layout, which routes the caller to the synthetic-dispatch fallback.
+    // its Start button exists and is enabled. The stable id scopes both the click and its response marker.
     private async Task<string?> ResolveOfficialFarmListStartIdAsync(string farmListName)
     {
         return await _page.EvaluateAsync<string?>(
