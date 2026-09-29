@@ -92,8 +92,7 @@ public sealed partial class TravianClient
                 continue;
             }
 
-            await GotoAsync(Paths.BuildBySlotTab(marketplace.SlotId.Value, 5), cancellationToken);
-            await EnsureLoggedInAsync(cancellationToken: cancellationToken);
+            await EnsureMarketplaceSendResourcesPageAsync(marketplace.SlotId.Value, sourceVillage.Name, cancellationToken);
 
             var merchantState = await ReadMarketplaceMerchantStateAsync(cancellationToken);
             if (merchantState.Available <= 0 || merchantState.TotalCapacity <= 0)
@@ -283,6 +282,56 @@ public sealed partial class TravianClient
                     || string.Equals(building.Name, "Market", StringComparison.OrdinalIgnoreCase)));
     }
 
+    private async Task EnsureMarketplaceSendResourcesPageAsync(
+        int marketplaceSlotId,
+        string sourceVillageName,
+        CancellationToken cancellationToken)
+    {
+        await GotoAsync(Paths.BuildBySlotTab(marketplaceSlotId, 5), cancellationToken);
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
+
+        var html = await _page.ContentAsync();
+        if (MarketplaceSendResourcesDom.IsReady(html))
+        {
+            Notify($"[resource-transfer] Send resources tab ready for source '{sourceVillageName}'.");
+            return;
+        }
+
+        var sendResourcesHref = MarketplaceSendResourcesDom.FindSendResourcesTabHref(html);
+        if (string.IsNullOrWhiteSpace(sendResourcesHref))
+        {
+            throw new InvalidOperationException(
+                $"Resource transfer could not find the Send resources tab for source '{sourceVillageName}'.");
+        }
+
+        Notify(
+            $"[resource-transfer] Marketplace opened outside Send resources for source '{sourceVillageName}'; "
+            + "switching to the Send resources tab.");
+        var sendResourcesTab = _page.Locator(MarketplaceSendResourcesDom.SendTabSelector).First;
+        if (await sendResourcesTab.CountAsync() <= 0)
+        {
+            throw new InvalidOperationException(
+                $"Resource transfer could not locate the Send resources tab control for source '{sourceVillageName}'.");
+        }
+
+        await DelayBeforeClickAsync(cancellationToken);
+        await sendResourcesTab.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs });
+        await _page.Locator(MarketplaceSendResourcesDom.RootSelector).WaitForAsync(new LocatorWaitForOptions
+        {
+            State = WaitForSelectorState.Visible,
+            Timeout = _config.TimeoutMs,
+        });
+
+        html = await _page.ContentAsync();
+        if (!MarketplaceSendResourcesDom.IsReady(html))
+        {
+            throw new InvalidOperationException(
+                $"Resource transfer switched tabs but the Send resources form did not become ready for source '{sourceVillageName}'.");
+        }
+
+        Notify($"[resource-transfer] Send resources tab selected for source '{sourceVillageName}'.");
+    }
+
     private async Task<ResourceTransferMerchantState> ReadMarketplaceMerchantStateAsync(CancellationToken cancellationToken)
     {
         var state = await _page.EvaluateAsync<ResourceTransferMerchantStateJs>(
@@ -310,7 +359,7 @@ public sealed partial class TravianClient
               };
 
               const bodyText = clean(document.body?.innerText || document.body?.textContent || '');
-              const availableNode = document.querySelector('#merchantsAvailable, .merchantsAvailable, [id*="merchant"][id*="Available" i], [class*="merchant"][class*="available" i]');
+              const availableNode = document.querySelector('#marketplaceSendResources .merchantsInformation .available .value, #merchantsAvailable, .merchantsAvailable, [id*="merchant"][id*="Available" i], [class*="merchant"][class*="available" i]');
               let available = parseNumber(availableNode?.textContent || '');
               if (available === null) {
                 const match = bodyText.match(/(?:merchants?|traders?)[^\d]*(\d+)\s*\/\s*(\d+)/i) || bodyText.match(/(\d+)\s*\/\s*(\d+)[^\n]{0,40}(?:merchants?|traders?)/i);
@@ -318,7 +367,7 @@ public sealed partial class TravianClient
               }
 
               let capacity = null;
-              for (const selector of ['#merchantCapacity', '.merchantCapacity', '[id*="merchantCapacity" i]', '[class*="merchantCapacity" i]']) {
+              for (const selector of ['#marketplaceSendResources .merchantsInformation .capacity .value', '#merchantCapacity', '.merchantCapacity', '[id*="merchantCapacity" i]', '[class*="merchantCapacity" i]']) {
                 const node = document.querySelector(selector);
                 capacity = parseNumber(node?.textContent || node?.getAttribute('title') || '');
                 if (capacity !== null) break;
@@ -363,10 +412,10 @@ public sealed partial class TravianClient
     {
         cancellationToken.ThrowIfCancellationRequested();
         var resourcesFilled =
-            await TryTypeHumanlyIntoFirstMatchingInputAsync(["input[name='lumber']", "input[name*='wood' i]", "input[aria-label*='wood' i]"], shipment.Wood.ToString(), cancellationToken)
-            && await TryTypeHumanlyIntoFirstMatchingInputAsync(["input[name='clay']", "input[name*='clay' i]", "input[aria-label*='clay' i]"], shipment.Clay.ToString(), cancellationToken)
-            && await TryTypeHumanlyIntoFirstMatchingInputAsync(["input[name='iron']", "input[name*='iron' i]", "input[aria-label*='iron' i]"], shipment.Iron.ToString(), cancellationToken)
-            && await TryTypeHumanlyIntoFirstMatchingInputAsync(["input[name='crop']", "input[name*='crop' i]", "input[aria-label*='crop' i]"], shipment.Crop.ToString(), cancellationToken);
+            await TryTypeHumanlyIntoFirstMatchingInputAsync(["#marketplaceSendResources form input[name='lumber']", "input[name*='wood' i]", "input[aria-label*='wood' i]"], shipment.Wood.ToString(), cancellationToken)
+            && await TryTypeHumanlyIntoFirstMatchingInputAsync(["#marketplaceSendResources form input[name='clay']", "input[name*='clay' i]", "input[aria-label*='clay' i]"], shipment.Clay.ToString(), cancellationToken)
+            && await TryTypeHumanlyIntoFirstMatchingInputAsync(["#marketplaceSendResources form input[name='iron']", "input[name*='iron' i]", "input[aria-label*='iron' i]"], shipment.Iron.ToString(), cancellationToken)
+            && await TryTypeHumanlyIntoFirstMatchingInputAsync(["#marketplaceSendResources form input[name='crop']", "input[name*='crop' i]", "input[aria-label*='crop' i]"], shipment.Crop.ToString(), cancellationToken);
         if (!resourcesFilled)
         {
             return false;
@@ -375,9 +424,9 @@ public sealed partial class TravianClient
         if (targetVillage.CoordX is int x && targetVillage.CoordY is int y)
         {
             var xFilled = await TryTypeHumanlyIntoFirstMatchingInputAsync(
-                ["input[name='x']", "input#xCoordInput", "input[name*='x' i][type='text']"], x.ToString(), cancellationToken);
+                ["#marketplaceSendResources form input[name='x']", "input#xCoordInput", "input[name*='x' i][type='text']"], x.ToString(), cancellationToken);
             var yFilled = await TryTypeHumanlyIntoFirstMatchingInputAsync(
-                ["input[name='y']", "input#yCoordInput", "input[name*='y' i][type='text']"], y.ToString(), cancellationToken);
+                ["#marketplaceSendResources form input[name='y']", "input#yCoordInput", "input[name*='y' i][type='text']"], y.ToString(), cancellationToken);
             if (xFilled && yFilled)
             {
                 return true;
@@ -386,7 +435,7 @@ public sealed partial class TravianClient
 
         return !string.IsNullOrWhiteSpace(targetVillage.Name)
             && await TryTypeHumanlyIntoFirstMatchingInputAsync(
-                ["input[name='dname']", "input[name='villageName']", "input[name*='village' i]", "input[name*='name' i]"],
+                ["#marketplaceSendResources form .targetSelection label.search input[type='text']", "input[name='dname']", "input[name='villageName']", "input[name*='village' i]", "input[name*='name' i]"],
                 targetVillage.Name,
                 cancellationToken);
     }
@@ -395,12 +444,11 @@ public sealed partial class TravianClient
     {
         var selectors = new[]
         {
-            "button[type='submit']",
-            "input[type='submit']",
-            "button:has-text('Send')",
-            "button:has-text('Transport')",
-            "a:has-text('Send')",
-            ".button-container:has-text('Send')",
+            "#marketplaceSendResources form button.send[type='submit']",
+            "#marketplaceSendResources form button[type='submit']",
+            "#marketplaceSendResources form input[type='submit']",
+            "#marketplaceSendResources form button:has-text('Send')",
+            "#marketplaceSendResources form button:has-text('Transport')",
         };
 
         foreach (var selector in selectors)

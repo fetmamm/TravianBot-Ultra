@@ -72,6 +72,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Prefer trusted Playwright clicks for visible classic buttons. Synthetic dispatch is an actionability fallback
   or a tool for genuine React/hidden controls. Preserve the farm-list real-click-with-JS-fallback pattern.
 - React inputs may require native value assignment plus `input`/`change` events.
+- Marketplace resource transfer must verify the active `Send resources` tab (`t=5`) and the
+  `#marketplaceSendResources` form after opening the building. If a world defaults to Management, click the
+  scoped Official Marketplace tab before reading merchants or filling the form.
 - Numeric parsing must handle locale separators, Unicode minus, and bidirectional markers.
 - On Official Travian, a sidebar `li.infoType_22` containing a countdown timer marks an avatar pending
   deletion. Shop-backed flows must detect it before opening Shop; +15% production videos are then disabled
