@@ -699,6 +699,13 @@ Published artifacts belong under `artifacts/`, never beside source files.
   Desktop's known villages. A mismatch must be verified once on the player profile; its authoritative result removes
   lost villages from the live UI and pauses their pending work. Failed verification blocks mutation and retries with
   bounded backoff; repeated identical sidebar evidence must not spam profile navigation.
+- A verified player profile with no coordinate-key overlap with the configured account is a different-avatar hold
+  (for example a manual sitter-account switch), not evidence that every configured village was lost. Keep Continuous
+  Loop active but block mutations, preserve village Auto settings and queue states, show one actionable alarm telling
+  the user to switch back, and recheck every normal membership-preflight interval. Resume automatically and log the
+  recovery when the configured avatar is verified again; intentional avatar changes require a separate account scope.
+- Re-enabling a village's `Auto` toggle is an explicit restart action: resume that village's paused queue items and
+  wake Continuous Loop immediately. Do not require a separate queue-resume control for this recovery path.
 - New-account analysis is account+server scoped. A pending first-login analysis forces hero inventory, hero
   attributes, and new-village startup until all three succeed; legacy account snapshots are already initialized.
   When its post-login snapshot already contains complete village status and startup did not navigate between villages,

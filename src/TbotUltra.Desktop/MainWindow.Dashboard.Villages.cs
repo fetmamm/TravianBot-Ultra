@@ -667,7 +667,23 @@ public partial class MainWindow
             return;
         }
 
+        var wasEnabled = _villageSettingsStore.GetEnabled(row.KeyInfo);
         _villageSettingsStore.SetEnabled(row.KeyInfo, row.IsEnabledForAutomation);
+
+        if (!wasEnabled && row.IsEnabledForAutomation)
+        {
+            var resumed = ConfirmedVillageQueueReconciler.ResumePausedItemsForVillage(
+                _queuePanelService.GetItems(),
+                row.KeyInfo.Key,
+                GetQueueItemVillageKey,
+                id => _queuePanelService.Resume(id));
+            AppendLog(
+                $"[village-auto] Enabled '{row.KeyInfo.Name}'. " +
+                $"Resumed {resumed} paused queue item(s); automation wake requested.");
+            RefreshQueueUi();
+            RequestContinuousAutomationWake();
+        }
+
         // Repaint the dashboard enabled indicator (green/grey dot) right away.
         RefreshVillageEnabledStateOnDashboard();
         RequestDashboardVillageProjectionRefresh();

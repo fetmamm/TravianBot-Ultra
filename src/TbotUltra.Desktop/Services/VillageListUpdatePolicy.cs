@@ -24,6 +24,30 @@ internal static class VillageListUpdatePolicy
         return liveKeys.Count != knownKeys.Count || !liveKeys.SetEquals(knownKeys);
     }
 
+    internal static bool IsDifferentAvatar<T>(
+        IReadOnlyList<T> confirmedVillages,
+        IReadOnlyList<T> knownVillages,
+        Func<T, string> keySelector)
+    {
+        if (confirmedVillages.Count == 0 || knownVillages.Count == 0)
+        {
+            return false;
+        }
+
+        var confirmedKeys = confirmedVillages
+            .Select(keySelector)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var knownKeys = knownVillages
+            .Select(keySelector)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        return confirmedKeys.Count > 0
+            && knownKeys.Count > 0
+            && !confirmedKeys.Overlaps(knownKeys);
+    }
+
     internal static IReadOnlyList<T> PreserveKnownVillages<T>(
         IReadOnlyList<T> incoming,
         IReadOnlyList<T> existing,

@@ -62,6 +62,28 @@ public sealed class ConfirmedVillageQueueReconcilerTests
         Assert.DoesNotContain(liveVillage.Id, removedIds);
     }
 
+    [Fact]
+    public void ResumePausedItemsForVillage_ResumesOnlyPausedItemsOfEnabledVillage()
+    {
+        var targetPaused = Item("xy:1|1", QueueStatus.Paused);
+        var targetPending = Item("xy:1|1", QueueStatus.Pending);
+        var otherPaused = Item("xy:2|2", QueueStatus.Paused);
+        var resumedIds = new List<Guid>();
+
+        var resumed = ConfirmedVillageQueueReconciler.ResumePausedItemsForVillage(
+            new[] { targetPaused, targetPending, otherPaused },
+            "xy:1|1",
+            item => item.Payload.TryGetValue("villageKey", out var key) ? key : null,
+            id =>
+            {
+                resumedIds.Add(id);
+                return true;
+            });
+
+        Assert.Equal(1, resumed);
+        Assert.Equal(targetPaused.Id, Assert.Single(resumedIds));
+    }
+
     private static QueueItem Item(string villageKey, QueueStatus status)
     {
         return new QueueItem

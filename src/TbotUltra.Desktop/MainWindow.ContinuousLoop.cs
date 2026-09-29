@@ -26,6 +26,7 @@ public partial class MainWindow
     private string? _failedVillageMembershipSignature;
     private string? _confirmedVillageMembershipSignature;
     private DateTimeOffset _confirmedVillageMembershipAtUtc = DateTimeOffset.MinValue;
+    private bool _differentAvatarHoldActive;
 
     private DateTimeOffset GetContinuousKeepAliveNextReloadUtc()
         => _automationDesk.NextKeepAliveAtUtc;
@@ -559,6 +560,7 @@ public partial class MainWindow
             _failedVillageMembershipSignature = null;
             _confirmedVillageMembershipSignature = null;
             _confirmedVillageMembershipAtUtc = DateTimeOffset.MinValue;
+            _differentAvatarHoldActive = false;
         }
 
         if (_failedVillageMembershipSignature is not null
@@ -621,6 +623,7 @@ public partial class MainWindow
             _failedVillageMembershipSignature = null;
             _confirmedVillageMembershipSignature = null;
             _villageMembershipVerificationNotBeforeUtc = DateTimeOffset.MinValue;
+            ClearDifferentAvatarHoldIfRecovered();
             return true;
         }
 
@@ -654,6 +657,32 @@ public partial class MainWindow
                 throw new InvalidOperationException("The player profile returned no villages.");
             }
 
+            var confirmedKeys = snapshot.Villages
+                .Select(village => GetVillageKey(village.Url, village.CoordX, village.CoordY, village.Name))
+                .ToList();
+            if (VillageListUpdatePolicy.IsDifferentAvatar(confirmedKeys, knownKeys, key => key))
+            {
+                _failedVillageMembershipSignature = mismatchSignature;
+                _confirmedVillageMembershipSignature = null;
+                _confirmedVillageMembershipAtUtc = DateTimeOffset.MinValue;
+                _villageMembershipVerificationNotBeforeUtc = DateTimeOffset.UtcNow
+                    + VillageMembershipPreflightInterval;
+
+                if (!_differentAvatarHoldActive)
+                {
+                    _differentAvatarHoldActive = true;
+                    AppendLog(
+                        "ALARM: A different Travian avatar was detected (possibly a sitter account): "
+                        + $"none of its {snapshot.Villages.Count} verified village(s) match the "
+                        + $"{knownVillages.Count} village(s) saved for this account. Automation is safely paused; "
+                        + "village Auto settings and queue items were not changed. Switch the open Travian browser "
+                        + "back to the configured avatar; Continuous Loop will verify it and resume automatically. "
+                        + "If this avatar change is intentional, stop automation and configure it as a separate account.");
+                }
+
+                return false;
+            }
+
             await Dispatcher.InvokeAsync(() =>
             {
                 SyncDashboardVillageUiFromVillages(
@@ -669,6 +698,7 @@ public partial class MainWindow
             _villageMembershipVerificationNotBeforeUtc = DateTimeOffset.MinValue;
             _confirmedVillageMembershipSignature = mismatchSignature;
             _confirmedVillageMembershipAtUtc = DateTimeOffset.UtcNow;
+            ClearDifferentAvatarHoldIfRecovered();
             AppendLog(
                 $"[village-membership] ownership verified; automation may resume with "
                 + $"{snapshot.Villages.Count} confirmed village(s).");
@@ -688,6 +718,19 @@ public partial class MainWindow
                 + $"until {_villageMembershipVerificationNotBeforeUtc:HH:mm}: {FormatExceptionForLog(ex)}");
             return false;
         }
+    }
+
+    private void ClearDifferentAvatarHoldIfRecovered()
+    {
+        if (!_differentAvatarHoldActive)
+        {
+            return;
+        }
+
+        _differentAvatarHoldActive = false;
+        AppendLog(
+            "[village-membership] The configured Travian avatar was verified again. "
+            + "Continuous Loop is resuming automatically; village settings and queue items were preserved.");
     }
 
     private void AutomationDesk_Updated(object? sender, AutomationUpdate update)

@@ -6,6 +6,28 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class VillageListUpdatePolicyTests
 {
     [Fact]
+    public void DifferentAvatarGuard_BlocksReconciliationAndExplainsAutomaticRecovery()
+    {
+        var projectRoot = TbotUltra.Worker.ProjectRootLocator.FindProjectRoot();
+        var source = File.ReadAllText(Path.Combine(
+            projectRoot,
+            "src",
+            "TbotUltra.Desktop",
+            "MainWindow.ContinuousLoop.cs"));
+        var guardIndex = source.IndexOf(
+            "VillageListUpdatePolicy.IsDifferentAvatar",
+            StringComparison.Ordinal);
+        var reconcileIndex = source.IndexOf(
+            "ReconcileConfirmedVillageList(snapshot.Villages",
+            StringComparison.Ordinal);
+
+        Assert.True(guardIndex >= 0);
+        Assert.True(reconcileIndex > guardIndex);
+        Assert.Contains("village Auto settings and queue items were not changed", source, StringComparison.Ordinal);
+        Assert.Contains("Continuous Loop will verify it and resume automatically", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void HasPotentialMembershipMismatch_DetectsLostVillagesBeforeMutation()
     {
         var known = Enumerable.Range(1, 8)
@@ -34,6 +56,50 @@ public sealed class VillageListUpdatePolicyTests
             village => village.Key);
 
         Assert.False(mismatch);
+    }
+
+    [Fact]
+    public void IsDifferentAvatar_DetectsVerifiedProfileWithoutAnyKnownVillage()
+    {
+        var known = new[]
+        {
+            new TestVillage("xy:101|114", 1),
+            new TestVillage("xy:164|110", 2),
+        };
+        var sitterProfile = new[]
+        {
+            new TestVillage("xy:62|-50", 10),
+            new TestVillage("xy:33|-75", 20),
+        };
+
+        var differentAvatar = VillageListUpdatePolicy.IsDifferentAvatar(
+            sitterProfile,
+            known,
+            village => village.Key);
+
+        Assert.True(differentAvatar);
+    }
+
+    [Fact]
+    public void IsDifferentAvatar_AllowsPartialConfirmedListFromSameAvatar()
+    {
+        var known = new[]
+        {
+            new TestVillage("xy:101|114", 1),
+            new TestVillage("xy:164|110", 2),
+        };
+        var sameAvatar = new[]
+        {
+            new TestVillage("xy:164|110", 20),
+            new TestVillage("xy:69|85", 30),
+        };
+
+        var differentAvatar = VillageListUpdatePolicy.IsDifferentAvatar(
+            sameAvatar,
+            known,
+            village => village.Key);
+
+        Assert.False(differentAvatar);
     }
 
     [Fact]

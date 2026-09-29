@@ -4,6 +4,35 @@ namespace TbotUltra.Desktop.Services;
 
 public static class ConfirmedVillageQueueReconciler
 {
+    public static int ResumePausedItemsForVillage(
+        IReadOnlyList<QueueItem> items,
+        string villageKey,
+        Func<QueueItem, string?> villageKeyOf,
+        Func<Guid, bool> resumeItem)
+    {
+        if (items.Count == 0 || string.IsNullOrWhiteSpace(villageKey))
+        {
+            return 0;
+        }
+
+        var resumed = 0;
+        foreach (var item in items)
+        {
+            if (item.Status != QueueStatus.Paused
+                || !string.Equals(villageKeyOf(item), villageKey, StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            if (resumeItem(item.Id))
+            {
+                resumed++;
+            }
+        }
+
+        return resumed;
+    }
+
     public static int PausePendingItemsForMissingVillages(
         IReadOnlyList<QueueItem> items,
         IReadOnlySet<string> confirmedLiveVillageKeys,
