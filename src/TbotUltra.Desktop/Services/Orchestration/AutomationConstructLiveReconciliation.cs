@@ -139,6 +139,9 @@ internal sealed class AutomationConstructLiveReconciliation(
             var unknownSlotText = unknownSlots.Count == 0
                 ? "none"
                 : string.Join(", ", unknownSlots);
+            var blockingReservationText = conflict.BlockingReservedSlotIds.Count == 0
+                ? "none"
+                : string.Join(", ", conflict.BlockingReservedSlotIds);
 
             if (unknownSlots.Count == 0 && conflict.ConfirmedEmptySlotIds.Count == 0)
             {
@@ -168,7 +171,8 @@ internal sealed class AutomationConstructLiveReconciliation(
                 $"ALARM: construction task '{item.TaskName}' in village '{villageName}' could not continue: "
                 + $"queued slot {conflict.QueuedSlotId} shows '{conflict.OccupyingBuildingName}', and no safe free "
                 + $"ordinary slot was confirmed for {conflict.BuildingName}. Unknown ordinary slots: "
-                + $"{unknownSlotText}; no construction click was attempted. The task was deferred for a fresh scan.");
+                + $"{unknownSlotText}; hard-reserved empty slots: {blockingReservationText}; no construction "
+                + "click was attempted. The task was deferred for a fresh scan.");
             port.Log(
                 $"{logPrefix} DEFER {timer.Elapsed.TotalSeconds:F1}s task={item.TaskName} | "
                 + $"slot {conflict.QueuedSlotId} now contains {conflict.OccupyingBuildingName}, "
@@ -200,7 +204,9 @@ internal sealed class AutomationConstructLiveReconciliation(
         port.Log(
             $"[building-reconcile] slot conflict: queued {conflict.BuildingName} in slot "
             + $"{conflict.QueuedSlotId}, but live dorf2 shows {conflict.OccupyingBuildingName}; "
-            + $"rebound the construction chain to free slot {reboundSlotId}. It will continue on the next pass.");
+            + $"rebound the construction chain to free slot {reboundSlotId} and reassigned "
+            + $"{conflict.ReassignedPendingConstructCount} displaced pending construct reservation(s). "
+            + "It will continue on the next pass.");
         return true;
     }
 

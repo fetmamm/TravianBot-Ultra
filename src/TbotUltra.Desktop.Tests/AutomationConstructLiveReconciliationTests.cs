@@ -73,6 +73,35 @@ public sealed class AutomationConstructLiveReconciliationTests
     }
 
     [Fact]
+    public void OccupiedSlot_TakesEmptySlotReservedByLaterPendingConstruct()
+    {
+        var item = Construct(new BuildingConstructPayload(38, 14, "Bakery"));
+        var later = Construct(new BuildingConstructPayload(19, 13, "Smithy"));
+        later.Status = QueueStatus.Pending;
+        later.Priority = item.Priority - 1;
+        var buildings = Enumerable.Range(19, 22)
+            .Select(slot => slot switch
+            {
+                19 => new Building(slot, "Empty", 0, $"/build.php?id={slot}", 0),
+                38 => new Building(slot, "Workshop", 1, $"/build.php?id={slot}", 21),
+                _ => new Building(slot, "Cranny", 1, $"/build.php?id={slot}", 23),
+            })
+            .ToList();
+        var port = new InMemoryPort { QueueItems = [item, later] };
+
+        var handled = new AutomationConstructLiveReconciliation(port).TryHandleOccupiedSlot(
+            item,
+            Status(buildings),
+            "[LOOP 1]",
+            Stopwatch.StartNew());
+
+        Assert.True(handled);
+        Assert.Equal("19", item.Payload[BotOptionPayloadKeys.BuildingConstructSlotId]);
+        Assert.Equal(["defer", "apply", "refresh"], port.Trace);
+        Assert.DoesNotContain(port.Logs, log => log.Contains("deferred for a fresh scan", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void OccupiedSlot_WithCompleteFullVillage_FailsPermanentlyWithoutDeferring()
     {
         var item = Construct(new BuildingConstructPayload(38, 22, "Academy"));

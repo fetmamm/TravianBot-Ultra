@@ -31,6 +31,8 @@ internal sealed record BuildingConstructSlotConflictReconciliation(
     string OccupyingBuildingName,
     int? ReboundSlotId,
     IReadOnlyList<int> ConfirmedEmptySlotIds,
+    IReadOnlyList<int> BlockingReservedSlotIds,
+    int ReassignedPendingConstructCount,
     IReadOnlyList<QueuePayloadUpdate> Updates);
 
 internal static class BuildingUpgradeSlotRebindPlanner
@@ -225,10 +227,18 @@ internal static class BuildingUpgradeSlotRebindPlanner
             return null;
         }
 
-        var reservedSlots = sameVillageItems
+        // The item currently being executed is the construction queue head. Pending constructs
+        // behind it are soft reservations and must not deadlock the head when they own the only
+        // confirmed empty slot. Running/paused constructs remain hard reservations. The broader
+        // background reconciliation still preserves every pending reservation because it has no
+        // selected queue head.
+        var sourceIsRunning = sourceConstruct.Status == QueueStatus.Running;
+        var hardReservedSlots = sameVillageItems
             .Where(item => item.Id != sourceConstruct.Id
                 && string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
-                && item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused)
+                && (sourceIsRunning
+                    ? item.Status is QueueStatus.Running or QueueStatus.Paused
+                    : item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused))
             .Select(item => BuildingConstructPayload.TryFromDictionary(item.Payload, out var payload)
                 ? payload?.SlotId
                 : null)
@@ -237,19 +247,21 @@ internal static class BuildingUpgradeSlotRebindPlanner
             .ToHashSet();
         if (additionallyReservedSlots is not null)
         {
-            reservedSlots.UnionWith(additionallyReservedSlots);
+            hardReservedSlots.UnionWith(additionallyReservedSlots);
         }
+
+        var unavailableSourceSlots = new HashSet<int>(hardReservedSlots);
 
         if (sourceConstruct.Payload.TryGetValue(
                 BotOptionPayloadKeys.BuildingConstructFallbackExcludedSlots,
                 out var excludedSlotsRaw))
         {
-            reservedSlots.UnionWith(ParseOrdinarySlotIds(excludedSlotsRaw));
+            unavailableSourceSlots.UnionWith(ParseOrdinarySlotIds(excludedSlotsRaw));
         }
 
         var confirmedEmptySlotIds = GetConfirmedEmptyOrdinarySlotIds(status);
         var reboundSlotId = confirmedEmptySlotIds
-            .Where(slot => !reservedSlots.Contains(slot))
+            .Where(slot => !unavailableSourceSlots.Contains(slot))
             .Cast<int?>()
             .FirstOrDefault();
         if (reboundSlotId is null)
@@ -261,6 +273,8 @@ internal static class BuildingUpgradeSlotRebindPlanner
                 targetSlot.Name,
                 null,
                 confirmedEmptySlotIds,
+                confirmedEmptySlotIds.Where(hardReservedSlots.Contains).ToList(),
+                0,
                 []);
         }
 
@@ -275,6 +289,19 @@ internal static class BuildingUpgradeSlotRebindPlanner
         updates.AddRange(Plan(sourceConstruct, reboundSlotId.Value, sameVillageItems)
             .Select(rebind => new QueuePayloadUpdate(rebind.QueueItemId, rebind.Payload)));
 
+        var reassignedPendingConstructCount = 0;
+        if (sourceIsRunning)
+        {
+            var pendingReassignments = PlanDisplacedPendingConstructReservations(
+                status,
+                sourceConstruct,
+                reboundSlotId.Value,
+                sameVillageItems,
+                hardReservedSlots);
+            reassignedPendingConstructCount = pendingReassignments.ReassignedConstructCount;
+            updates.AddRange(pendingReassignments.Updates);
+        }
+
         return new BuildingConstructSlotConflictReconciliation(
             sourceConstruct.Id,
             construct.Name ?? $"gid {construct.Gid}",
@@ -282,7 +309,82 @@ internal static class BuildingUpgradeSlotRebindPlanner
             targetSlot.Name,
             reboundSlotId,
             confirmedEmptySlotIds,
+            [],
+            reassignedPendingConstructCount,
             updates);
+    }
+
+    private static (int ReassignedConstructCount, IReadOnlyList<QueuePayloadUpdate> Updates)
+        PlanDisplacedPendingConstructReservations(
+            VillageStatus status,
+            QueueItem sourceConstruct,
+            int sourceSlotId,
+            IReadOnlyList<QueueItem> sameVillageItems,
+            IReadOnlySet<int> hardReservedSlots)
+    {
+        var confirmedEmptySlots = GetConfirmedEmptyOrdinarySlotIds(status).ToHashSet();
+        var assignedSlots = hardReservedSlots.Where(confirmedEmptySlots.Contains).ToHashSet();
+        assignedSlots.Add(sourceSlotId);
+        var updates = new List<QueuePayloadUpdate>();
+        var reassignedConstructCount = 0;
+
+        foreach (var candidate in sameVillageItems
+                     .Where(item => item.Id != sourceConstruct.Id
+                         && item.Status == QueueStatus.Pending
+                         && string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase))
+                     .OrderByDescending(item => item.Priority)
+                     .ThenBy(item => item.CreatedAt))
+        {
+            if (!BuildingConstructPayload.TryFromDictionary(candidate.Payload, out var construct)
+                || construct is null
+                || construct.SlotId is < 19 or > 38
+                || FindExistingConstruct(status, candidate) is not null)
+            {
+                continue;
+            }
+
+            if (confirmedEmptySlots.Contains(construct.SlotId)
+                && assignedSlots.Add(construct.SlotId))
+            {
+                continue;
+            }
+
+            // Only a displaced reservation is moved here. Other occupied-slot conflicts retain
+            // their normal live-reconciliation path, which applies the single-instance safeguards.
+            if (!assignedSlots.Contains(construct.SlotId))
+            {
+                continue;
+            }
+
+            var excludedSlots = candidate.Payload.TryGetValue(
+                    BotOptionPayloadKeys.BuildingConstructFallbackExcludedSlots,
+                    out var excludedSlotsRaw)
+                ? ParseOrdinarySlotIds(excludedSlotsRaw).ToHashSet()
+                : new HashSet<int>();
+            var replacementSlot = confirmedEmptySlots
+                .Where(slot => !assignedSlots.Contains(slot) && !excludedSlots.Contains(slot))
+                .OrderBy(slot => slot)
+                .Cast<int?>()
+                .FirstOrDefault();
+            if (replacementSlot is null)
+            {
+                // Keep the overflow row queued. Once the preceding construct has consumed the
+                // last slot, its own complete live scan will move it to History instead of looping.
+                continue;
+            }
+
+            assignedSlots.Add(replacementSlot.Value);
+            var payload = new Dictionary<string, string>(candidate.Payload, StringComparer.OrdinalIgnoreCase)
+            {
+                [BotOptionPayloadKeys.BuildingConstructSlotId] = replacementSlot.Value.ToString(),
+            };
+            updates.Add(new QueuePayloadUpdate(candidate.Id, payload));
+            updates.AddRange(Plan(candidate, replacementSlot.Value, sameVillageItems)
+                .Select(rebind => new QueuePayloadUpdate(rebind.QueueItemId, rebind.Payload)));
+            reassignedConstructCount++;
+        }
+
+        return (reassignedConstructCount, updates);
     }
 
     public static IReadOnlyList<BuildingUpgradeSlotRebind> Plan(

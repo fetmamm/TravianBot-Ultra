@@ -973,7 +973,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   read with full Dorf1+Dorf2 fallback as backup.
 - A complete live Dorf2 overview may reconcile a pending ordinary-slot construct whose requested slot was manually
   occupied by another building. Rebind the construct and its dependent upgrades atomically to the lowest confirmed
-  empty slot 19-38, without stealing slots reserved by other queued constructs. Incomplete or unknown slot state never
+  empty slot 19-38. The selected construction queue head takes precedence over soft reservations from later pending
+  constructs; atomically move displaced pending construct/upgrade chains to the remaining confirmed empty slots in
+  queue order. Never steal a slot owned by another running or paused construct. Incomplete or unknown slot state never
   authorizes a move. If a complete overview confirms that all ordinary slots are occupied, fail the construct into
   History with one actionable alarm so later queue work can continue; if empty/unknown slots still exist but none is
   safely assignable, keep and defer the item without clicking or consuming failure retries. A stale upgrade for a

@@ -383,6 +383,82 @@ public sealed class BuildingUpgradeSlotRebindPlannerTests
     }
 
     [Fact]
+    public void PlanConstructSlotConflict_ReassignsDisplacedPendingReservationAndUpgradeChain()
+    {
+        var current = Item(
+            "construct_building",
+            new BuildingConstructPayload(38, 14, "Bakery").ToDictionary());
+        current.Status = QueueStatus.Running;
+        current.Priority = 10;
+        var laterConstruct = Item(
+            "construct_building",
+            new BuildingConstructPayload(19, 13, "Smithy").ToDictionary());
+        laterConstruct.Priority = 5;
+        var laterUpgrade = Item(
+            "upgrade_building_to_level",
+            new BuildingUpgradePayload(19, 5, "Smithy").ToDictionary());
+        var occupied = Enumerable.Range(21, 18)
+            .Select(slot => slot == 38
+                ? new Building(slot, "Workshop", 1, $"/build.php?id={slot}", 21)
+                : new Building(slot, "Cranny", 1, $"/build.php?id={slot}", 23))
+            .ToArray();
+        var status = Status(
+            [
+                new Building(19, "Empty", 0, "/build.php?id=19", 0),
+                new Building(20, "Empty", 0, "/build.php?id=20", 0),
+                .. occupied,
+                new Building(39, "Rally Point", 1, "/build.php?id=39", 16),
+                new Building(40, "Wall", 1, "/build.php?id=40", 31),
+            ]);
+
+        var conflict = Assert.IsType<BuildingConstructSlotConflictReconciliation>(
+            BuildingUpgradeSlotRebindPlanner.PlanConstructSlotConflict(
+                status,
+                current,
+                [current, laterConstruct, laterUpgrade]));
+
+        Assert.Equal(19, conflict.ReboundSlotId);
+        Assert.Equal(1, conflict.ReassignedPendingConstructCount);
+        Assert.Equal("19", Assert.Single(conflict.Updates, update => update.QueueItemId == current.Id)
+            .Payload[BotOptionPayloadKeys.BuildingConstructSlotId]);
+        Assert.Equal("20", Assert.Single(conflict.Updates, update => update.QueueItemId == laterConstruct.Id)
+            .Payload[BotOptionPayloadKeys.BuildingConstructSlotId]);
+        Assert.Equal("20", Assert.Single(conflict.Updates, update => update.QueueItemId == laterUpgrade.Id)
+            .Payload[BotOptionPayloadKeys.BuildingUpgradeSlotId]);
+    }
+
+    [Fact]
+    public void PlanConstructSlotConflict_DoesNotStealHardReservation()
+    {
+        var current = Item(
+            "construct_building",
+            new BuildingConstructPayload(38, 14, "Bakery").ToDictionary());
+        current.Status = QueueStatus.Running;
+        var paused = Item(
+            "construct_building",
+            new BuildingConstructPayload(19, 13, "Smithy").ToDictionary());
+        paused.Status = QueueStatus.Paused;
+        var buildings = Enumerable.Range(19, 22)
+            .Select(slot => slot switch
+            {
+                19 => new Building(slot, "Empty", 0, $"/build.php?id={slot}", 0),
+                38 => new Building(slot, "Workshop", 1, $"/build.php?id={slot}", 21),
+                _ => new Building(slot, "Cranny", 1, $"/build.php?id={slot}", 23),
+            })
+            .ToArray();
+
+        var conflict = Assert.IsType<BuildingConstructSlotConflictReconciliation>(
+            BuildingUpgradeSlotRebindPlanner.PlanConstructSlotConflict(
+                Status(buildings),
+                current,
+                [current, paused]));
+
+        Assert.Null(conflict.ReboundSlotId);
+        Assert.Equal([19], conflict.BlockingReservedSlotIds);
+        Assert.Empty(conflict.Updates);
+    }
+
+    [Fact]
     public void PlanConstructSlotConflict_KeepsItemWhenNoSafeFreeSlotExists()
     {
         var construct = Item(
