@@ -236,7 +236,8 @@ public sealed partial class TravianClient : ITrainingClient
         var minimumEligibleRequests = new List<TroopTrainingRequest>();
         foreach (var request in requestsToScan)
         {
-            if (!request.MinimumTroopsEnabled)
+            if (!request.MinimumTroopsEnabled
+                && !string.Equals(request.AmountMode, "random_range", StringComparison.OrdinalIgnoreCase))
             {
                 minimumEligibleRequests.Add(request);
                 continue;
@@ -570,13 +571,14 @@ public sealed partial class TravianClient : ITrainingClient
         }
 
         var buildInfo = await ReadTroopUnitBuildInfoFromCurrentPageAsync(inputName, cancellationToken);
-        Notify($"[troops:verbose]build info found={buildInfo.Found}, canTrain={buildInfo.CanTrain}, troopType='{buildInfo.TroopType}', costs=({buildInfo.WoodCost},{buildInfo.ClayCost},{buildInfo.IronCost},{buildInfo.CropCost}).");
+        Notify($"[troops:verbose]build info found={buildInfo.Found}, canTrain={buildInfo.CanTrain}, troopType='{buildInfo.TroopType}', costs=({buildInfo.WoodCost},{buildInfo.ClayCost},{buildInfo.IronCost},{buildInfo.CropCost}), trainingSeconds={buildInfo.TrainingSeconds?.ToString() ?? "unknown"}.");
         if (!buildInfo.Found || !buildInfo.CanTrain)
         {
             return new TroopTrainingAttemptOutcome(false, $"Skip {candidate.Request.BuildingName}: '{candidate.Request.TroopType}' is not trainable right now.");
         }
 
-        if (candidate.Request.MinimumTroopsEnabled)
+        var useRandomRange = string.Equals(candidate.Request.AmountMode, "random_range", StringComparison.OrdinalIgnoreCase);
+        if (candidate.Request.MinimumTroopsEnabled || useRandomRange)
         {
             if (!TroopCatalog.TryResolveTrainingCost(status.Tribe, candidate.Request.TroopType, out var catalogCost))
             {
@@ -637,7 +639,8 @@ public sealed partial class TravianClient : ITrainingClient
             }
         }
 
-        var useMaxShortcut = string.Equals(candidate.Request.AmountMode, "maximum", StringComparison.OrdinalIgnoreCase);
+        var useMaxShortcut = string.Equals(candidate.Request.AmountMode, "maximum", StringComparison.OrdinalIgnoreCase)
+            && candidate.QueueLimitSeconds is null;
         var actualTrainableAmount = TroopTrainingCalculator.CalculateTroopTrainingAmount(
             parsedResources,
             buildInfo.WoodCost,
@@ -656,7 +659,7 @@ public sealed partial class TravianClient : ITrainingClient
             0);
         Notify($"[troops:verbose]live trainable amount actual={actualTrainableAmount}, maximum={maximumTrainableAmount}, mode={candidate.Request.AmountMode}, keep={candidate.Request.KeepResourcesPercent}%.");
 
-        if (candidate.Request.MinimumTroopsEnabled
+        if ((candidate.Request.MinimumTroopsEnabled || useRandomRange)
             && actualTrainableAmount < candidate.Request.SelectedMinimumTroops)
         {
             Notify($"[troops] {candidate.Request.BuildingName} final minimum check blocked training: randomized threshold={candidate.Request.SelectedMinimumTroops}, trainable={actualTrainableAmount}.");
@@ -724,10 +727,50 @@ public sealed partial class TravianClient : ITrainingClient
         }
         else
         {
-            amount = actualTrainableAmount;
-            Notify($"[troops:verbose]calculated amount={amount} using mode={candidate.Request.AmountMode}, keep={candidate.Request.KeepResourcesPercent}%.");
+            var requestedAmount = useRandomRange
+                ? candidate.Request.SelectedMinimumTroops
+                : actualTrainableAmount;
+            amount = TroopTrainingCalculator.LimitTroopTrainingAmountByQueue(
+                requestedAmount,
+                candidate.QueueRemainingSeconds,
+                candidate.QueueLimitSeconds,
+                buildInfo.TrainingSeconds);
+            Notify($"[troops] amount decision: mode={candidate.Request.AmountMode}, requested={requestedAmount}, selected={amount}, trainable={actualTrainableAmount}, existingQueue={candidate.QueueRemainingSeconds}s, queueLimit={candidate.QueueLimitSeconds?.ToString() ?? "none"}s, troopTime={buildInfo.TrainingSeconds?.ToString() ?? "unknown"}s.");
+            if (candidate.QueueLimitSeconds is > 0 && buildInfo.TrainingSeconds is not > 0)
+            {
+                return new TroopTrainingAttemptOutcome(
+                    false,
+                    $"Build troops: {candidate.Request.BuildingName} could not verify training time, so the max queue limit was not risked. queue_wait_seconds={fallbackCooldownSeconds}",
+                    fallbackCooldownSeconds);
+            }
+            if (useRandomRange && amount < requestedAmount)
+            {
+                var requiredQueueSeconds = candidate.QueueLimitSeconds is > 0 && buildInfo.TrainingSeconds is > 0
+                    ? Math.Max(
+                        1L,
+                        (long)candidate.QueueRemainingSeconds
+                        + ((long)requestedAmount * buildInfo.TrainingSeconds.Value)
+                        - candidate.QueueLimitSeconds.Value)
+                    : fallbackCooldownSeconds;
+                var queueWaitSeconds = (int)Math.Min(int.MaxValue, requiredQueueSeconds);
+                return new TroopTrainingAttemptOutcome(
+                    false,
+                    $"Build troops: {candidate.Request.BuildingName} waiting for queue capacity for random batch {requestedAmount}. queue_wait_seconds={queueWaitSeconds}",
+                    queueWaitSeconds);
+            }
             if (amount <= 0)
             {
+                if (candidate.QueueLimitSeconds is > 0 && buildInfo.TrainingSeconds is > 0)
+                {
+                    var queueWaitSeconds = Math.Max(
+                        1,
+                        candidate.QueueRemainingSeconds + buildInfo.TrainingSeconds.Value - candidate.QueueLimitSeconds.Value);
+                    return new TroopTrainingAttemptOutcome(
+                        false,
+                        $"Build troops: {candidate.Request.BuildingName} max queue has no room for another troop. queue_wait_seconds={queueWaitSeconds}",
+                        queueWaitSeconds);
+                }
+
                 return BuildTroopTrainingWaitOutcome(
                     candidate,
                     buildInfo,
@@ -1254,6 +1297,8 @@ public sealed partial class TravianClient : ITrainingClient
 
               const nameNode = row.querySelector('.tit a:last-of-type, .title, h1, h2, h3, h4, .name, .desc, .unitName');
               const name = nameNode ? (nameNode.textContent || '').replace(/\s+/g, ' ').trim() : `Troop ${inputName}`;
+              const trainingTimeNode = row.querySelector('.inlineIcon.duration .value, .duration .value');
+              const trainingTime = (trainingTimeNode?.textContent || '').replace(/\s+/g, ' ').trim();
               const disabled = input.disabled || input.getAttribute('aria-disabled') === 'true' || input.closest('.disabled');
               const submitButton = (input.form || row.closest('form') || document).querySelector('button[type="submit"], input[type="submit"], .green, .button-container');
 
@@ -1264,7 +1309,8 @@ public sealed partial class TravianClient : ITrainingClient
                 woodCost: readCost('r1'),
                 clayCost: readCost('r2'),
                 ironCost: readCost('r3'),
-                cropCost: readCost('r4')
+                cropCost: readCost('r4'),
+                trainingTime
               });
             }
             """,

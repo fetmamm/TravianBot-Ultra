@@ -505,10 +505,33 @@ public sealed class TravianClientHelperTests
     [InlineData("maximum", "maximum")]
     [InlineData("keep_resources", "keep_resources")]
     [InlineData("KEEP_RESOURCES", "keep_resources")]
+    [InlineData("random_range", "random_range")]
     [InlineData("", "maximum")]
     public void NormalizeTroopTrainingAmountMode_NormalizesExpectedValues(string value, string expected)
     {
         Assert.Equal(expected, TroopTrainingCalculator.NormalizeTroopTrainingAmountMode(value));
+    }
+
+    [Theory]
+    [InlineData(24, 0, null, null, 24)]
+    [InlineData(24, 3600, 7200, 300, 12)]
+    [InlineData(24, 6900, 7200, 300, 1)]
+    [InlineData(24, 7200, 7200, 300, 0)]
+    [InlineData(24, 0, 7200, null, 0)]
+    public void LimitTroopTrainingAmountByQueue_DoesNotExceedRemainingQueueCapacity(
+        int requested,
+        int currentQueueSeconds,
+        int? queueLimitSeconds,
+        int? secondsPerTroop,
+        int expected)
+    {
+        Assert.Equal(
+            expected,
+            TroopTrainingCalculator.LimitTroopTrainingAmountByQueue(
+                requested,
+                currentQueueSeconds,
+                queueLimitSeconds,
+                secondsPerTroop));
     }
 
     [Fact]

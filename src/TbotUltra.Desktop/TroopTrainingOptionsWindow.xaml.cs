@@ -97,7 +97,7 @@ public partial class TroopTrainingOptionsWindow : Window
     {
         var invalid = Rows
             .SelectMany(row => row.BuildingCells.Select(building => (row, building)))
-            .FirstOrDefault(item => item.building.MinimumTroopsEnabled && !item.building.HasValidMinimumTroopRange);
+            .FirstOrDefault(item => item.building.UsesTroopRange && !item.building.HasValidMinimumTroopRange);
         if (invalid.building is not null)
         {
             AppDialog.Show(

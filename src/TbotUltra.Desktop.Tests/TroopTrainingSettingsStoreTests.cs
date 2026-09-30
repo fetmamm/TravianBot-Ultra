@@ -70,10 +70,30 @@ public sealed class TroopTrainingSettingsStoreTests : IDisposable
         Assert.Equal("Swordsman", TroopTrainingSettingsStore.Load(_root, "acc", "xy:2-2")!.Barracks.TroopType);
     }
 
-    private static TroopTrainingPayload Make(bool barracksEnabled = false, string troop = "", int fallback = 120)
+    [Fact]
+    public void RandomRange_IsPersistedPerAccountAndVillage()
+    {
+        TroopTrainingSettingsStore.Save(
+            _root,
+            "account-a__server-a",
+            "xy:1-2",
+            Make(amountMode: "random_range"));
+
+        var loaded = TroopTrainingSettingsStore.Load(_root, "account-a__server-a", "xy:1-2");
+
+        Assert.Equal("random_range", loaded!.Barracks.AmountMode);
+        Assert.Null(TroopTrainingSettingsStore.Load(_root, "account-b__server-b", "xy:1-2"));
+        Assert.Null(TroopTrainingSettingsStore.Load(_root, "account-a__server-a", "xy:9-9"));
+    }
+
+    private static TroopTrainingPayload Make(
+        bool barracksEnabled = false,
+        string troop = "",
+        int fallback = 120,
+        string amountMode = "maximum")
     {
         var building = new TroopTrainingBuildingPayload(
-            barracksEnabled, troop, "no_limit", "maximum", 0, "timed", 20, 0, 30, 180, true, true, true, true)
+            barracksEnabled, troop, "no_limit", amountMode, 0, "timed", 20, 0, 30, 180, true, true, true, true)
         {
             MinimumTroopsEnabled = true,
             MaximumMinimumTroops = 100,

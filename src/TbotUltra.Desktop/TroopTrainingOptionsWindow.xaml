@@ -395,6 +395,7 @@
                                                                           SelectedValue="{Binding AmountMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
                                                                     <ComboBoxItem Content="Maximum" Tag="maximum" />
                                                                     <ComboBoxItem Content="Keep resources" Tag="keep_resources" />
+                                                                    <ComboBoxItem Content="Random range" Tag="random_range" />
                                                                 </ComboBox>
 
                                                                 <ComboBox Grid.Column="3"
@@ -497,7 +498,7 @@
                                                                             Orientation="Horizontal"
                                                                             Margin="86,8,0,2"
                                                                             VerticalAlignment="Center">
-                                                                    <CheckBox Content="Min troops to build"
+                                                                    <CheckBox Content="Minimum threshold"
                                                                               IsChecked="{Binding MinimumTroopsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                                     <Border Width="14"
                                                                             Height="14"
@@ -507,7 +508,7 @@
                                                                             BorderBrush="{DynamicResource BorderBrush}"
                                                                             BorderThickness="1"
                                                                             VerticalAlignment="Center"
-                                                                            ToolTip="Random threshold; Amount still controls how many are built."
+                                                                            ToolTip="For Maximum and Keep resources this is a random start threshold. In Random range mode these values are the amount to build."
                                                                             ToolTipService.InitialShowDelay="0">
                                                                         <TextBlock Text="i"
                                                                                    FontSize="10"
@@ -518,12 +519,12 @@
                                                                                    TextAlignment="Center" />
                                                                     </Border>
                                                                     <TextBox Width="58" Height="26" TextAlignment="Center" VerticalContentAlignment="Center"
-                                                                             IsEnabled="{Binding MinimumTroopsEnabled}"
-                                                                             Text="{Binding MinimumTroopsText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                                                             IsEnabled="{Binding UsesTroopRange}"
+                                                                             Text="{Binding MinimumTroopsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                                     <TextBlock Text="-" Margin="8,0" VerticalAlignment="Center" Foreground="{DynamicResource TextSubtleBrush}" />
                                                                     <TextBox Width="58" Height="26" TextAlignment="Center" VerticalContentAlignment="Center"
-                                                                             IsEnabled="{Binding MinimumTroopsEnabled}"
-                                                                             Text="{Binding MaximumMinimumTroopsText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                                                             IsEnabled="{Binding UsesTroopRange}"
+                                                                             Text="{Binding MaximumMinimumTroopsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                                 </StackPanel>
                                                             </Grid>
                                                         </DataTemplate>

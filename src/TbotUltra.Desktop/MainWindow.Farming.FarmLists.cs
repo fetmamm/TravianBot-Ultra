@@ -253,10 +253,6 @@ public partial class MainWindow
                         attemptedKeys,
                         options);
                     await ApplyFarmListsViewToUiAsync(dispatch.View);
-                    if (dispatch.SuccessfulDispatch)
-                    {
-                        WakeContinuousFarmScheduling();
-                    }
                 }
                 return;
             }
@@ -705,10 +701,7 @@ public partial class MainWindow
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
             await EnsureChromiumInstalledAsync();
-            if (await _farmListsWorkflow.DispatchOneAsync(options, list, operationToken))
-            {
-                WakeContinuousFarmScheduling();
-            }
+            await _farmListsWorkflow.DispatchOneAsync(options, list, operationToken);
             UpdateFarmingUiState();
             CompleteOperation(operationId, operationSw, $"Sent '{list.Name}'.");
         }
@@ -778,10 +771,6 @@ public partial class MainWindow
                 operationToken);
             UpdateGoldClubInfo(dispatch.View.IsAvailable);
             await ApplyFarmListsViewToUiAsync(dispatch.View);
-            if (dispatch.SuccessfulDispatch)
-            {
-                WakeContinuousFarmScheduling();
-            }
             CompleteOperation(operationId, operationSw, $"Sent {(sendToggled ? "toggled" : "all")} farmlists ({dispatch.SentCount} list(s)).");
         }
         catch (OperationCanceledException)

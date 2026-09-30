@@ -11,7 +11,8 @@ internal sealed record TroopUnitBuildInfo(
     int WoodCost,
     int ClayCost,
     int IronCost,
-    int CropCost);
+    int CropCost,
+    int? TrainingSeconds);
 
 /// <summary>
 /// Pure parsers for the JSON payloads produced by the troop-training page scripts.
@@ -34,11 +35,14 @@ internal static class TroopTrainingPageParser
                 root.TryGetProperty("woodCost", out var woodCost) ? woodCost.GetInt32() : 0,
                 root.TryGetProperty("clayCost", out var clayCost) ? clayCost.GetInt32() : 0,
                 root.TryGetProperty("ironCost", out var ironCost) ? ironCost.GetInt32() : 0,
-                root.TryGetProperty("cropCost", out var cropCost) ? cropCost.GetInt32() : 0);
+                root.TryGetProperty("cropCost", out var cropCost) ? cropCost.GetInt32() : 0,
+                root.TryGetProperty("trainingTime", out var trainingTime)
+                    ? TravianParsing.ParseDurationToSeconds(trainingTime.GetString())
+                    : null);
         }
         catch
         {
-            return new TroopUnitBuildInfo(false, false, string.Empty, 0, 0, 0, 0);
+            return new TroopUnitBuildInfo(false, false, string.Empty, 0, 0, 0, 0, null);
         }
     }
 

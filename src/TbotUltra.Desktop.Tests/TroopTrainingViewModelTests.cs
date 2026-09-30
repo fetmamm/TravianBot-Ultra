@@ -129,6 +129,26 @@ public sealed class TroopTrainingViewModelTests
     }
 
     [Fact]
+    public void RandomRange_UsesAndValidatesConfiguredRangeWithoutThresholdToggle()
+    {
+        var vm = new TroopTrainingViewModel();
+        vm.Initialize();
+        var barracks = vm.Buildings[0];
+        barracks.AmountMode = "random_range";
+        barracks.MinimumTroopsEnabled = false;
+        barracks.MinimumTroops = 6;
+        barracks.MaximumMinimumTroops = 5;
+
+        Assert.True(barracks.UsesRandomRangeMode);
+        Assert.True(barracks.UsesTroopRange);
+        Assert.False(vm.TryValidateMinimumTroopRanges(out _));
+
+        barracks.MaximumMinimumTroops = 6;
+        Assert.True(vm.TryValidateMinimumTroopRanges(out _));
+        Assert.Equal("random_range", vm.BuildVillageTrainingPayload().Barracks.AmountMode);
+    }
+
+    [Fact]
     public void TryValidateMinimumTroopRanges_RequiresAResourceForPercentMode()
     {
         var vm = new TroopTrainingViewModel();

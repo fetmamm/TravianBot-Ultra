@@ -203,6 +203,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   "Check all" changes persist each affected row and publish one consolidated settings-changed notification.
 - Farming requires confirmed active Gold Club. Dashboard and Village settings must project Farming as OFF and
   non-clickable when Gold Club is false or unknown, and execution gating must enforce the same rule.
+- Troop training has three amount modes: Maximum, Keep resources, and Random range. A finite max-queue setting
+  limits the total queue after the new order; never use Travian's maximum shortcut when that would bypass the cap.
 - `FarmListsWorkflow` owns Farm Lists analysis plus projection, snapshot restore, create/add completion refresh,
   dispatch reconciliation, and the complete pause/analyze/choose/create-or-select/resume transaction used by
   loss-destination setup. WPF may gather dialog input and render returned views, but must not order or recreate

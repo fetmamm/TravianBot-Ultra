@@ -443,7 +443,7 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
 
     public bool TryValidateMinimumTroopRanges(out string error)
     {
-        var invalid = Buildings.FirstOrDefault(option => option.MinimumTroopsEnabled && !option.HasValidMinimumTroopRange);
+        var invalid = Buildings.FirstOrDefault(option => option.UsesTroopRange && !option.HasValidMinimumTroopRange);
         if (invalid is not null)
         {
             error = $"{invalid.Title}: minimum troops must use whole numbers from 1 to 10,000 and Max must be at least Min.";

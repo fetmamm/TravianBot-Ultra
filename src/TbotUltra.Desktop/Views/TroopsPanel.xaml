@@ -415,7 +415,7 @@
                                                                            Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                            Margin="0,0,0,6" />
                                                                 <TextBlock TextWrapping="Wrap"
-                                                                           Text="Limits how much training time may already be queued for this troop building before the bot skips adding more troops." />
+                                                                           Text="Limits total training time after the new order. The bot reduces the amount or waits so the queue does not exceed this limit." />
                                                             </StackPanel>
                                                         </ToolTip>
                                                     </Border.ToolTip>
@@ -453,7 +453,7 @@
                                                                            Foreground="{DynamicResource TooltipForegroundBrush}"
                                                                            Margin="0,0,0,6" />
                                                                 <TextBlock TextWrapping="Wrap"
-                                                                           Text="Maximum spends available resources on as many troops as possible. Keep resources reserves the selected percent before training." />
+                                                                           Text="Maximum spends available resources on as many troops as possible. Keep resources reserves the selected percent. Random range builds a random amount between the configured minimum and maximum." />
                                                             </StackPanel>
                                                         </ToolTip>
                                                     </Border.ToolTip>
@@ -558,6 +558,7 @@
                                                       SelectedValue="{Binding AmountMode, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
                                                 <ComboBoxItem Content="Maximum" Tag="maximum" />
                                                 <ComboBoxItem Content="Keep resources" Tag="keep_resources" />
+                                                <ComboBoxItem Content="Random range" Tag="random_range" />
                                             </ComboBox>
 
                                             <ComboBox Grid.Column="4"
@@ -586,7 +587,7 @@
                                         <StackPanel Orientation="Horizontal"
                                                     Margin="0,0,0,8"
                                                     VerticalAlignment="Center">
-                                            <CheckBox Content="Min troops to build"
+                                            <CheckBox Content="Minimum threshold"
                                                       IsChecked="{Binding MinimumTroopsEnabled, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             <Border Width="14"
                                                     Height="14"
@@ -596,7 +597,7 @@
                                                     BorderBrush="{DynamicResource BorderBrush}"
                                                     BorderThickness="1"
                                                     VerticalAlignment="Center"
-                                                    ToolTip="Random threshold; Amount still controls how many are built."
+                                                    ToolTip="For Maximum and Keep resources this is a random start threshold. In Random range mode these values are the amount to build."
                                                     ToolTipService.InitialShowDelay="0">
                                                 <TextBlock Text="i"
                                                            FontSize="10"
@@ -610,8 +611,8 @@
                                                      Height="26"
                                                      TextAlignment="Center"
                                                      VerticalContentAlignment="Center"
-                                                     IsEnabled="{Binding MinimumTroopsEnabled}"
-                                                     Text="{Binding MinimumTroopsText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                                     IsEnabled="{Binding UsesTroopRange}"
+                                                     Text="{Binding MinimumTroopsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                             <TextBlock Text="-"
                                                        Margin="8,0"
                                                        VerticalAlignment="Center"
@@ -620,8 +621,8 @@
                                                      Height="26"
                                                      TextAlignment="Center"
                                                      VerticalContentAlignment="Center"
-                                                     IsEnabled="{Binding MinimumTroopsEnabled}"
-                                                     Text="{Binding MaximumMinimumTroopsText, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                                                     IsEnabled="{Binding UsesTroopRange}"
+                                                     Text="{Binding MaximumMinimumTroopsText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                         </StackPanel>
 
                                         <Grid Margin="0,0,0,4">

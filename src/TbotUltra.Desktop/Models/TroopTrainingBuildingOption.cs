@@ -88,9 +88,12 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
         get => _amountMode;
         set
         {
-            var normalized = string.Equals(value, "keep_resources", StringComparison.OrdinalIgnoreCase)
-                ? "keep_resources"
-                : "maximum";
+            var normalized = value?.Trim().ToLowerInvariant() switch
+            {
+                "keep_resources" => "keep_resources",
+                "random_range" => "random_range",
+                _ => "maximum",
+            };
             if (string.Equals(_amountMode, normalized, StringComparison.OrdinalIgnoreCase))
             {
                 return;
@@ -99,6 +102,8 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
             _amountMode = normalized;
             OnPropertyChanged();
             OnPropertyChanged(nameof(UsesKeepResourcesMode));
+            OnPropertyChanged(nameof(UsesRandomRangeMode));
+            OnPropertyChanged(nameof(UsesTroopRange));
         }
     }
 
@@ -449,6 +454,8 @@ public sealed class TroopTrainingBuildingOption : INotifyPropertyChanged
     }
 
     public bool UsesKeepResourcesMode => string.Equals(AmountMode, "keep_resources", StringComparison.OrdinalIgnoreCase);
+    public bool UsesRandomRangeMode => string.Equals(AmountMode, "random_range", StringComparison.OrdinalIgnoreCase);
+    public bool UsesTroopRange => MinimumTroopsEnabled || UsesRandomRangeMode;
     public bool UsesTimedMode => string.Equals(RunMode, "timed", StringComparison.OrdinalIgnoreCase);
     public bool UsesResourcePercentMode => string.Equals(RunMode, "resource_percent", StringComparison.OrdinalIgnoreCase);
 

@@ -92,9 +92,38 @@ internal static class TroopTrainingCalculator
 
     internal static string NormalizeTroopTrainingAmountMode(string? amountMode)
     {
-        return string.Equals(amountMode, "keep_resources", StringComparison.OrdinalIgnoreCase)
-            ? "keep_resources"
-            : "maximum";
+        return amountMode?.Trim().ToLowerInvariant() switch
+        {
+            "keep_resources" => "keep_resources",
+            "random_range" => "random_range",
+            _ => "maximum",
+        };
+    }
+
+    internal static int LimitTroopTrainingAmountByQueue(
+        int requestedAmount,
+        int currentQueueSeconds,
+        int? queueLimitSeconds,
+        int? trainingSecondsPerTroop)
+    {
+        if (requestedAmount <= 0)
+        {
+            return 0;
+        }
+
+        if (queueLimitSeconds is not > 0)
+        {
+            return requestedAmount;
+        }
+
+        if (trainingSecondsPerTroop is not > 0)
+        {
+            return 0;
+        }
+
+        var remainingCapacitySeconds = Math.Max(0, queueLimitSeconds.Value - Math.Max(0, currentQueueSeconds));
+        var queueCapacity = remainingCapacitySeconds / trainingSecondsPerTroop.Value;
+        return Math.Min(requestedAmount, queueCapacity);
     }
 
     internal static IReadOnlyDictionary<string, long> CalculateTroopTrainingRequiredResources(

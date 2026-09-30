@@ -9,7 +9,7 @@ public sealed class TroopTrainingPageParserTests
     public void ParseTroopUnitBuildInfo_ParsesFullPayload()
     {
         var info = TroopTrainingPageParser.ParseTroopUnitBuildInfo(
-            """{"found":true,"canTrain":true,"troopType":"Clubswinger","woodCost":95,"clayCost":75,"ironCost":40,"cropCost":40}""");
+            """{"found":true,"canTrain":true,"troopType":"Clubswinger","woodCost":95,"clayCost":75,"ironCost":40,"cropCost":40,"trainingTime":"00:02:15"}""");
 
         Assert.True(info.Found);
         Assert.True(info.CanTrain);
@@ -18,6 +18,7 @@ public sealed class TroopTrainingPageParserTests
         Assert.Equal(75, info.ClayCost);
         Assert.Equal(40, info.IronCost);
         Assert.Equal(40, info.CropCost);
+        Assert.Equal(135, info.TrainingSeconds);
     }
 
     [Fact]
