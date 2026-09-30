@@ -8,6 +8,23 @@ namespace TbotUltra.Desktop.Tests;
 
 public sealed class CropShortageRecoveryPlannerTests
 {
+    [Theory]
+    [InlineData(-10, 2, 10, false)]
+    [InlineData(1, 2, 10, false)]
+    [InlineData(2, 2, 1, true)]
+    [InlineData(-10, null, 1, false)]
+    [InlineData(-10, null, 2, true)]
+    public void ShouldResumeParent_UsesRequiredUpkeepOrCompletedFallbackBatch(
+        double cropProduction,
+        int? requiredFreeCrop,
+        int completedSteps,
+        bool expected)
+    {
+        Assert.Equal(
+            expected,
+            CropShortageRecoveryPlanner.ShouldResumeParent(cropProduction, requiredFreeCrop, completedSteps));
+    }
+
     [Fact]
     public void Plan_SelectsTwoLowestCroplandsByLevelThenSlot()
     {

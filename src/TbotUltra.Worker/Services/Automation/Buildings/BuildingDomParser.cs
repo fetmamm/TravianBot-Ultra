@@ -189,7 +189,7 @@ internal static class BuildingDomParser
         var source = html ?? string.Empty;
         return Regex.IsMatch(
             source,
-            @"class=[""'][^""']*upgradeBlocked[^""']*[""'][\s\S]*?class=[""'][^""']*errorMessage[^""']*[""'][\s\S]*?lack\s+of\s+food\s*:\s*extend\s+cropland\s+first!?",
+            @"class=[""'][^""']*upgradeBlocked[^""']*[""'][\s\S]*?class=[""'][^""']*errorMessage[^""']*[""'][\s\S]*?(?:lack\s+of\s+food\s*:\s*extend\s+cropland\s+first!?|increase\s+crop\s+production\.?)",
             RegexOptions.IgnoreCase);
     }
 

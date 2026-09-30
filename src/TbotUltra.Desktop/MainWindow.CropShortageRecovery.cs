@@ -162,11 +162,27 @@ public partial class MainWindow
             return;
         }
 
+        var completedSteps = parent.Payload.TryGetValue(BotOptionPayloadKeys.CropShortageCompletedSteps, out var completedRaw)
+            && int.TryParse(completedRaw, out var parsedCompleted)
+                ? parsedCompleted + 1
+                : 1;
+        var progressPayload = new Dictionary<string, string>(parent.Payload, StringComparer.OrdinalIgnoreCase)
+        {
+            [BotOptionPayloadKeys.CropShortageCompletedSteps] = completedSteps.ToString(),
+        };
+        _botService.UpdateDeferredQueueItem(parent.Id, progressPayload, TimeSpan.FromMinutes(30));
+        parent.Payload = progressPayload;
+
         var status = ResolveBuildingStatusForQueueItem(recoveryItem);
         var cropProduction = status?.ResourceStorageForecasts?
             .FirstOrDefault(forecast => string.Equals(forecast.ResourceKey, "crop", StringComparison.OrdinalIgnoreCase))
             ?.ProductionPerHour;
-        if (cropProduction > 0)
+        var requiredFreeCrop = parent.Payload.TryGetValue(BotOptionPayloadKeys.CropShortageRequiredFreeCrop, out var requiredRaw)
+            && int.TryParse(requiredRaw, out var parsedRequired)
+                ? parsedRequired
+                : (int?)null;
+        if (cropProduction is double liveProduction
+            && CropShortageRecoveryPlanner.ShouldResumeParent(liveProduction, requiredFreeCrop, completedSteps))
         {
             foreach (var candidate in allItems.Where(item =>
                          item.Status == QueueStatus.Pending
@@ -201,8 +217,12 @@ public partial class MainWindow
             var releasedPayload = new Dictionary<string, string>(parent.Payload, StringComparer.OrdinalIgnoreCase);
             releasedPayload.Remove(BotOptionPayloadKeys.UpgradeDeferReason);
             releasedPayload.Remove(BotOptionPayloadKeys.UpgradeDeferClassificationVersion);
+            releasedPayload.Remove(BotOptionPayloadKeys.CropShortageCompletedSteps);
             _botService.UpdateDeferredQueueItem(parent.Id, releasedPayload, TimeSpan.Zero);
-            AppendLog($"[crop-shortage] crop production is positive again ({cropProduction:0.##}/h); original Construction queue resumed.");
+            var threshold = requiredFreeCrop is int required
+                ? $"required free crop {required}/h reached"
+                : $"required upkeep unknown; completed recovery batch of {completedSteps} step(s)";
+            AppendLog($"[crop-shortage] {threshold} (live crop {liveProduction:0.##}/h); original Construction queue resumed for one live retry.");
             RequestQueueUiRefresh(parent.Id);
             return;
         }
@@ -210,6 +230,16 @@ public partial class MainWindow
         if (status is null)
         {
             AppendLog("ALARM: Cropland recovery completed a step, but crop production could not be read; the parent remains deferred.");
+            return;
+        }
+
+        if (requiredFreeCrop is null && allItems.Any(item =>
+                item.Status == QueueStatus.Pending
+                && item.Id != recoveryItem.Id
+                && item.Payload.TryGetValue(BotOptionPayloadKeys.CropShortageRecoveryParentId, out var raw)
+                && string.Equals(raw, parentIdRaw, StringComparison.OrdinalIgnoreCase)))
+        {
+            AppendLog($"[crop-shortage] recovery step {completedSteps}/{CropShortageRecoveryPlanner.DesiredConcurrentSteps} completed; waiting for the active batch before retrying the parent.");
             return;
         }
 

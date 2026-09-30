@@ -207,7 +207,12 @@ public sealed partial class TravianClient : IBuildingClient
             var populationDelta = pageAnalysis.PopulationDelta;
             if (await CurrentPageHasCropShortageBlockAsync(cancellationToken))
             {
-                return WithEffectiveSlot(BuildCropShortageBlockedResult(slotId, buildingName));
+                return WithEffectiveSlot(BuildCropShortageBlockedResult(slotId, buildingName, 0, 1, gid));
+            }
+            if (pageAnalysis.UpgradeActionability is { } constructActionability
+                && IsUnrecognizedUpgradeBlock(constructActionability))
+            {
+                return WithEffectiveSlot(BuildUnrecognizedUpgradeBlockedResult(slotId, buildingName, constructActionability.Reason));
             }
             if (!pageAnalysis.LooksBlockedByResources)
             {
@@ -246,7 +251,12 @@ public sealed partial class TravianClient : IBuildingClient
                     constructGid: gid);
                 if (await CurrentPageHasCropShortageBlockAsync(cancellationToken))
                 {
-                    return WithEffectiveSlot(BuildCropShortageBlockedResult(slotId, buildingName));
+                    return WithEffectiveSlot(BuildCropShortageBlockedResult(slotId, buildingName, 0, 1, gid));
+                }
+                if (pageAnalysis.UpgradeActionability is { } noClickActionability
+                    && IsUnrecognizedUpgradeBlock(noClickActionability))
+                {
+                    return WithEffectiveSlot(BuildUnrecognizedUpgradeBlockedResult(slotId, buildingName, noClickActionability.Reason));
                 }
                 var blockedByResources = pageAnalysis.LooksBlockedByResources;
                 var missingRequirements = pageAnalysis.ConstructRequirementError;

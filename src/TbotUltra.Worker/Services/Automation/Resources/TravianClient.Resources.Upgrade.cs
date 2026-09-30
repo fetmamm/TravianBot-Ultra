@@ -123,6 +123,21 @@ public sealed partial class TravianClient
                     return $"Resource slot {slotId} appears maxed at level {resolvedMax}. No upgrade performed.";
                 }
 
+                var offeredTargetLevel = actionability.DetectedTargetLevel
+                    ?? Math.Min(effectiveTarget, highestKnownLevel + 1);
+                if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByCropShortage)
+                {
+                    return BuildCropShortageBlockedResult(
+                        slotId,
+                        resourceName,
+                        currentLevel.Value,
+                        offeredTargetLevel);
+                }
+                if (IsUnrecognizedUpgradeBlock(actionability))
+                {
+                    return BuildUnrecognizedUpgradeBlockedResult(slotId, resourceName, actionability.Reason);
+                }
+
                 var blockedByResources = actionability.Outcome == UpgradeAttemptOutcome.BlockedByResources;
                 var pageLooksBlockedByResources = blockedByResources || await CurrentPageLooksBlockedByResourcesAsync(cancellationToken);
                 if (pageLooksBlockedByResources)
@@ -196,7 +211,7 @@ public sealed partial class TravianClient
                 if (!clickSafety.IsSafe)
                 {
                     return $"Resource slot {slotId}: pre-click safety stopped upgrade ({clickSafety.Reason}). "
-                           + "Re-reading live levels before retry. queue_wait_seconds=1";
+                           + "Fresh live levels were re-read; retrying after backoff. queue_wait_seconds=120";
                 }
                 var constructFaster = await TryUseConstructFasterForResourceAsync(
                     slotId,
@@ -600,6 +615,22 @@ public sealed partial class TravianClient
                         continue;
                     }
 
+                    var offeredTargetLevel = actionability.DetectedTargetLevel
+                        ?? Math.Min(effectiveTarget, highestQueuedLevel + 1);
+                    if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByCropShortage)
+                    {
+                        return WithQueuedLevelProjections(BuildCropShortageBlockedResult(
+                            slot,
+                            resourceName,
+                            level,
+                            offeredTargetLevel));
+                    }
+                    if (IsUnrecognizedUpgradeBlock(actionability))
+                    {
+                        return WithQueuedLevelProjections(
+                            BuildUnrecognizedUpgradeBlockedResult(slot, resourceName, actionability.Reason));
+                    }
+
                     if (actionability.Outcome == UpgradeAttemptOutcome.CanUpgrade)
                     {
                         attemptedAny = true;
@@ -636,7 +667,7 @@ public sealed partial class TravianClient
                         {
                             return WithQueuedLevelProjections(
                                 $"Resource slot {slot}: pre-click safety stopped upgrade ({clickSafety.Reason}). "
-                                + "Re-reading live levels before retry. queue_wait_seconds=1");
+                                + "Fresh live levels were re-read; retrying after backoff. queue_wait_seconds=120");
                         }
                         var constructFaster = await TryUseConstructFasterForResourceAsync(
                             slot,

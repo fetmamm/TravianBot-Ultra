@@ -310,6 +310,18 @@ public static class BuildingCatalogService
         return entry.Levels[level - 1];
     }
 
+    public static int? AdditionalUpkeepForUpgrade(int gid, int currentLevel, int targetLevel)
+    {
+        var target = CostFor(gid, targetLevel);
+        if (target is null || currentLevel < 0 || targetLevel <= currentLevel)
+        {
+            return null;
+        }
+
+        var currentUpkeep = currentLevel == 0 ? 0 : CostFor(gid, currentLevel)?.Upkeep;
+        return currentUpkeep is null ? null : Math.Max(0, target.Upkeep - currentUpkeep.Value);
+    }
+
     // Build time scaled by server speed and reduced by the village Main Building level. Travian's Main
     // Building speeds up construction by 0.964^(level-1) (level 1 = no reduction, ~50% at level 20).
     public static double BuildSecondsFor(int gid, int level, double serverSpeed = 1.0, int mainBuildingLevel = 1)

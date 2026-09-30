@@ -348,6 +348,54 @@ internal sealed class AutomationQueueItemFailure(
                     }
                 }
 
+                var isCropShortageDefer = (IsConstructionQueueTask(item.TaskName) || IsResourceUpgradeTask(item.TaskName))
+                    && ConstructionQueueState.IsCropShortageDeferMessage(ex.Message);
+                if (isCropShortageDefer)
+                {
+                    var wasAlreadyRecovering = string.Equals(
+                        item.Payload.GetValueOrDefault(BotOptionPayloadKeys.UpgradeDeferReason),
+                        BotOptionPayloadKeys.UpgradeDeferReasonCropShortage,
+                        StringComparison.OrdinalIgnoreCase);
+                    updatedPayload[BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonCropShortage;
+                    updatedPayload[BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
+                        ConstructionQueueState.CurrentDeferClassificationVersion;
+                    if (TryExtractPayloadInt(
+                            ex.Message,
+                            BotOptionPayloadKeys.CropShortageRequiredFreeCrop,
+                            out var requiredFreeCrop))
+                    {
+                        updatedPayload[BotOptionPayloadKeys.CropShortageRequiredFreeCrop] = requiredFreeCrop.ToString();
+                    }
+                    else
+                    {
+                        updatedPayload.Remove(BotOptionPayloadKeys.CropShortageRequiredFreeCrop);
+                    }
+                    if (!wasAlreadyRecovering)
+                    {
+                        updatedPayload[BotOptionPayloadKeys.CropShortageCompletedSteps] = "0";
+                    }
+                    updatedPayload.Remove(BotOptionPayloadKeys.UnknownUpgradeBlockSignature);
+                    payloadChanged = true;
+                }
+
+                if ((IsConstructionQueueTask(item.TaskName) || IsResourceUpgradeTask(item.TaskName))
+                    && TryExtractPayloadValue(
+                        ex.Message,
+                        BotOptionPayloadKeys.UnknownUpgradeBlockSignature,
+                        out var unknownBlockSignature))
+                {
+                    var previousSignature = item.Payload.GetValueOrDefault(BotOptionPayloadKeys.UnknownUpgradeBlockSignature);
+                    updatedPayload[BotOptionPayloadKeys.UnknownUpgradeBlockSignature] = unknownBlockSignature;
+                    payloadChanged = true;
+                    if (!string.Equals(previousSignature, unknownBlockSignature, StringComparison.OrdinalIgnoreCase))
+                    {
+                        port.Log(
+                            $"ALARM: Unknown Travian upgrade block for task '{item.TaskName}' in village "
+                            + $"'{port.GetVillageName(item) ?? "-"}'. No click was attempted; retrying in 30 minutes. "
+                            + $"signature={unknownBlockSignature}");
+                    }
+                }
+
                 if (payloadChanged)
                 {
                     var payloadPersisted = port.PatchDeferredPayload(item, updatedPayload);
@@ -426,8 +474,7 @@ internal sealed class AutomationQueueItemFailure(
                     }
                 }
 
-                if (IsConstructionQueueTask(item.TaskName)
-                    && ConstructionQueueState.IsCropShortageDeferMessage(ex.Message))
+                if (isCropShortageDefer)
                 {
                     await port.HandleCropShortageDeferAsync(item);
                 }
@@ -655,6 +702,27 @@ internal sealed class AutomationQueueItemFailure(
             $@"(?<!\S){Regex.Escape(key)}=(?<value>\d+)",
             RegexOptions.IgnoreCase);
         return match.Success && int.TryParse(match.Groups["value"].Value, out value);
+    }
+
+    private static bool TryExtractPayloadValue(string? message, string key, out string value)
+    {
+        value = string.Empty;
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            return false;
+        }
+
+        var match = Regex.Match(
+            message,
+            $@"(?<!\S){Regex.Escape(key)}=(?<value>[^\s]+)",
+            RegexOptions.IgnoreCase);
+        if (!match.Success)
+        {
+            return false;
+        }
+
+        value = match.Groups["value"].Value;
+        return true;
     }
 
     private static int? GetIntPayload(IReadOnlyDictionary<string, string> payload, string key) =>

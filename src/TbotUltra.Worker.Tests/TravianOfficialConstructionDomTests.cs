@@ -184,6 +184,14 @@ public sealed class TravianOfficialConstructionDomTests
     }
 
     [Fact]
+    public void OfficialUpgradeDom_DetectsIncreaseCropProductionVariant()
+    {
+        var html = ReadDomFixture("upgrade_blocked_increase_crop.txt");
+
+        Assert.True(BuildingDomParser.HasCropShortageBlockFromHtmlForTests(html));
+    }
+
+    [Fact]
     public void OfficialDorf2Dom_ParsesOfficialDataAttributes()
     {
         var html = ReadDomFixture("TS50_Village - Buildings.txt");

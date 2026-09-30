@@ -599,6 +599,11 @@ Published artifacts belong under `artifacts/`, never beside source files.
   complete live overview; never terminal-fail the dependent construct during that intermediate state.
 - After a successful hero resource transfer reloads the same verified build.php slot, retry its exact construct or
   upgrade action directly; do not restart through queue and dorf2 probes unless the direct action remains unavailable.
+- Negative crop production on dorf1 does not reorder Construction by itself. Start cropland recovery only from an
+  explicit Official `.upgradeBlocked` crop-production error, keep up to two lowest-level cropland steps active, and
+  resume the blocked parent when live free crop covers that upgrade's catalog upkeep delta. If the delta is unknown,
+  retry the parent once after each two-step recovery batch. Unrecognized `.upgradeBlocked` variants are never clicked;
+  alarm once per persisted DOM signature and defer 30 minutes.
 - An upgrade that confirms its planned slot is empty is not a successful no-op. Reconstruct the expected building in
   that exact slot without slot fallback, keep the upgrade pending, then continue its original target level.
 - Fresh full dorf2 reads reconcile single-instance building upgrades by gid across the whole village, not only the

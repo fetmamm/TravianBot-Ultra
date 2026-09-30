@@ -19,6 +19,14 @@ public static class CropShortageRecoveryPlanner
 {
     public const int DesiredConcurrentSteps = 2;
 
+    public static bool ShouldResumeParent(
+        double cropProductionPerHour,
+        int? requiredFreeCrop,
+        int completedSteps) =>
+        requiredFreeCrop is int required
+            ? cropProductionPerHour >= required
+            : completedSteps >= DesiredConcurrentSteps;
+
     public static CropShortageRecoveryPlan Plan(
         VillageStatus status,
         IReadOnlyList<QueueItem> sameVillageQueueItems,

@@ -8,6 +8,7 @@ internal static class TestDomFixtures
         {
             "upgrade_resourcefield.txt" => UpgradeResourceField,
             "upgrade_building.txt" => UpgradeBuilding,
+            "upgrade_blocked_increase_crop.txt" => UpgradeBlockedIncreaseCrop,
             "construct_new_building_infrastructure.txt" => InfrastructureChoices,
             "buildingpage_infrastructure.txt" => InfrastructureChoices,
             "buildingpage_military.txt" => MilitaryChoices,
@@ -166,6 +167,15 @@ internal static class TestDomFixtures
             <span class="denominator">0</span>
           </div>
         </div>
+        """;
+
+    private const string UpgradeBlockedIncreaseCrop = """
+        <div id="contract" class="contractWrapper">
+          <div class="upgradeBlocked">
+            <div class="errorMessage"><span class="none">Increase crop production.</span></div>
+          </div>
+        </div>
+        <aside><a class="green" href="/build.php?gid=16&amp;tt=99"><span>Farmlist</span></a></aside>
         """;
 
     private const string MarketplaceManagement = """

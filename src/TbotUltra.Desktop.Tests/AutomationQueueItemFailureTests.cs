@@ -146,6 +146,44 @@ public sealed class AutomationQueueItemFailureTests
         Assert.Contains("verify-main-building", port.Trace);
     }
 
+    [Fact]
+    public async Task ResourceCropShortage_PersistsThresholdAndStartsRecovery()
+    {
+        var port = new InMemoryPort();
+        var item = Item("upgrade_all_resources_to_level");
+
+        await new AutomationQueueItemFailure(port).HandleAsync(
+            item,
+            new TaskWaitException(
+                1,
+                "blocked by crop shortage wait_reason=crop_shortage crop_shortage_required_free_crop=2 queue_wait_seconds=1"),
+            "[LOOP 1]",
+            Stopwatch.StartNew(),
+            AutomationRunMode.ContinuousLoop);
+
+        Assert.Equal(BotOptionPayloadKeys.UpgradeDeferReasonCropShortage, item.Payload[BotOptionPayloadKeys.UpgradeDeferReason]);
+        Assert.Equal("2", item.Payload[BotOptionPayloadKeys.CropShortageRequiredFreeCrop]);
+        Assert.Equal("0", item.Payload[BotOptionPayloadKeys.CropShortageCompletedSteps]);
+        Assert.Contains("crop-defer", port.Trace);
+    }
+
+    [Fact]
+    public async Task UnknownUpgradeBlock_AlarmsOnlyOncePerPersistedSignature()
+    {
+        var port = new InMemoryPort();
+        var item = Item("upgrade_all_resources_to_level");
+        var wait = new TaskWaitException(
+            1800,
+            "unknown_upgrade_block_signature=abc123 queue_wait_seconds=1800");
+        var handler = new AutomationQueueItemFailure(port);
+
+        await handler.HandleAsync(item, wait, "[LOOP 1]", Stopwatch.StartNew(), AutomationRunMode.ContinuousLoop);
+        await handler.HandleAsync(item, wait, "[LOOP 2]", Stopwatch.StartNew(), AutomationRunMode.ContinuousLoop);
+
+        Assert.Equal("abc123", item.Payload[BotOptionPayloadKeys.UnknownUpgradeBlockSignature]);
+        Assert.Single(port.Logs, log => log.StartsWith("ALARM: Unknown Travian upgrade block", StringComparison.Ordinal));
+    }
+
     private static QueueItem Item(string taskName) => new()
     {
         Id = Guid.NewGuid(),
@@ -239,7 +277,11 @@ public sealed class AutomationQueueItemFailureTests
             Trace.Add("verify-main-building");
             return ValueTask.CompletedTask;
         }
-        public ValueTask HandleCropShortageDeferAsync(QueueItem item) => ValueTask.CompletedTask;
+        public ValueTask HandleCropShortageDeferAsync(QueueItem item)
+        {
+            Trace.Add("crop-defer");
+            return ValueTask.CompletedTask;
+        }
         public ValueTask RefreshTroopTrainingAfterBuildAsync(QueueItem item) => ValueTask.CompletedTask;
         public bool UpdateDeferredPayload(Guid itemId, Dictionary<string, string> payload)
         {

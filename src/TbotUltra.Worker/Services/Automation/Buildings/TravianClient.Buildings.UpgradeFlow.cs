@@ -206,7 +206,11 @@ public sealed partial class TravianClient : IBuildingClient
 
                 if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByCropShortage)
                 {
-                    return BuildCropShortageBlockedResult(slotId, buildingName);
+                    return BuildCropShortageBlockedResult(slotId, buildingName, currentLevel, nextLevel, gid);
+                }
+                if (IsUnrecognizedUpgradeBlock(actionability))
+                {
+                    return BuildUnrecognizedUpgradeBlockedResult(slotId, buildingName, actionability.Reason);
                 }
 
                 // The current build page already has the exact resource block and hero-transfer control.
@@ -1122,7 +1126,11 @@ public sealed partial class TravianClient : IBuildingClient
 
                 if (actionability.Outcome == UpgradeAttemptOutcome.BlockedByCropShortage)
                 {
-                    return BuildCropShortageBlockedResult(slotId, buildingName);
+                    return BuildCropShortageBlockedResult(slotId, buildingName, currentLevel, nextLevel, gid);
+                }
+                if (IsUnrecognizedUpgradeBlock(actionability))
+                {
+                    return BuildUnrecognizedUpgradeBlockedResult(slotId, buildingName, actionability.Reason);
                 }
 
                 // The current build page already has the exact resource block and hero-transfer control.

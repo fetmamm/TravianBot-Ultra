@@ -375,6 +375,8 @@ public static class BotOptionPayloadKeys
     public const string CropShortageRecoveryParentId = "crop_shortage_recovery_parent_id";
     public const string CropShortageOriginalPriority = "crop_shortage_original_priority";
     public const string CropShortageCompletedSteps = "crop_shortage_completed_steps";
+    public const string CropShortageRequiredFreeCrop = "crop_shortage_required_free_crop";
+    public const string UnknownUpgradeBlockSignature = "unknown_upgrade_block_signature";
     public const string AutoAddedByCropShortageRecovery = "crop_shortage_recovery";
     public const string AutoAddedByMainBuildingRebuild = "main_building_rebuild";
     public const string AutoAddedByHeroRallyPointRepair = "hero_rally_point_repair";

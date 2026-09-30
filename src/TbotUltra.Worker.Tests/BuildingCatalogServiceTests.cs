@@ -5,6 +5,17 @@ namespace TbotUltra.Worker.Tests;
 
 public sealed class BuildingCatalogServiceTests
 {
+    [Fact]
+    public void AdditionalUpkeepForUpgrade_ReturnsOnlyTheNewLevelsDemand()
+    {
+        var level7 = BuildingCatalogService.CostFor(3, 7)!;
+        var level8 = BuildingCatalogService.CostFor(3, 8)!;
+
+        Assert.Equal(level8.Upkeep - level7.Upkeep, BuildingCatalogService.AdditionalUpkeepForUpgrade(3, 7, 8));
+        Assert.Equal(BuildingCatalogService.CostFor(15, 1)!.Upkeep, BuildingCatalogService.AdditionalUpkeepForUpgrade(15, 0, 1));
+        Assert.Null(BuildingCatalogService.AdditionalUpkeepForUpgrade(3, 8, 7));
+    }
+
     private static readonly int[] CatalogGids =
     [
         1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11,

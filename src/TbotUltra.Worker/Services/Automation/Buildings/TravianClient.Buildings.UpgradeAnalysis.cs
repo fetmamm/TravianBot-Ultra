@@ -1,5 +1,7 @@
 using Microsoft.Playwright;
 using System.Globalization;
+using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Worker.Domain;
@@ -9,13 +11,36 @@ namespace TbotUltra.Worker.Services;
 // Upgrade button analysis and resource/actionability decisions.
 public sealed partial class TravianClient
 {
-    private string BuildCropShortageBlockedResult(int slotId, string buildingName)
+    private string BuildCropShortageBlockedResult(
+        int slotId,
+        string buildingName,
+        int currentLevel,
+        int targetLevel,
+        int? gid = null)
     {
         var waitSeconds = _config.ConstructionCropShortageRecoveryEnabled ? 1 : 1800;
         var disabledToken = _config.ConstructionCropShortageRecoveryEnabled
             ? string.Empty
             : " crop_shortage_recovery=disabled";
-        return $"Slot {slotId} ({buildingName}) blocked by crop shortage. wait_reason=crop_shortage{disabledToken} queue_wait_seconds={waitSeconds}";
+        var resolvedGid = gid ?? BuildingCatalogService.GidForName(buildingName);
+        var requiredFreeCrop = resolvedGid is int knownGid
+            ? BuildingCatalogService.AdditionalUpkeepForUpgrade(knownGid, currentLevel, targetLevel)
+            : null;
+        var requiredToken = requiredFreeCrop is int required
+            ? $" {BotOptionPayloadKeys.CropShortageRequiredFreeCrop}={required}"
+            : string.Empty;
+        return $"Slot {slotId} ({buildingName}) blocked by crop shortage. wait_reason=crop_shortage{requiredToken}{disabledToken} queue_wait_seconds={waitSeconds}";
+    }
+
+    private static bool IsUnrecognizedUpgradeBlock(UpgradeAttemptResult result) =>
+        result.Outcome == UpgradeAttemptOutcome.BlockedUnknown
+        && result.Reason.StartsWith("Unrecognized upgradeBlocked panel:", StringComparison.Ordinal);
+
+    private static string BuildUnrecognizedUpgradeBlockedResult(int slotId, string buildingName, string reason)
+    {
+        var signature = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(reason)))[..12].ToLowerInvariant();
+        return $"Slot {slotId} ({buildingName}) has an unrecognized upgrade block; no click was attempted. "
+            + $"unknown_upgrade_block_signature={signature} queue_wait_seconds=1800 Detail: {reason}";
     }
 
     private async Task<bool> CurrentPageHasCropShortageBlockAsync(CancellationToken cancellationToken)
@@ -26,7 +51,7 @@ public sealed partial class TravianClient
             () => {
               const node = document.querySelector('.upgradeBlocked > .errorMessage');
               const text = String(node?.textContent || '').replace(/\s+/g, ' ').trim();
-              return /lack\s+of\s+food\s*:\s*extend\s+cropland\s+first!?/i.test(text);
+              return /lack\s+of\s+food\s*:\s*extend\s+cropland\s+first!?|increase\s+crop\s+production\.?/i.test(text);
             }
             """);
     }
@@ -300,7 +325,7 @@ public sealed partial class TravianClient
                           && !href.includes('action=build')
                           && !formAction.includes('build.php');
 
-                        if (!hasUpgradeSignals || isGold || isPaymentShop || isConstruct || isLevelBadge || isAdventure || isSpeedup || looksLikePrimaryNoise || displayText.length === 0) {
+                        if ((!inOfficialPrimarySection && !inUpgradeContainer) || !hasUpgradeSignals || isGold || isPaymentShop || isConstruct || isLevelBadge || isAdventure || isSpeedup || looksLikePrimaryNoise || displayText.length === 0) {
                           continue;
                         }
 
@@ -329,7 +354,7 @@ public sealed partial class TravianClient
                       if (upgradeBlockedEl) {
                         const blockText = clean(upgradeBlockedEl.textContent || '').toLowerCase();
                         const errorText = clean(upgradeBlockedEl.querySelector('.errorMessage')?.textContent || '').toLowerCase();
-                        const isCropShortageBlock = /lack\s+of\s+food\s*:\s*extend\s+cropland\s+first!?/i.test(errorText);
+                        const isCropShortageBlock = /lack\s+of\s+food\s*:\s*extend\s+cropland\s+first!?|increase\s+crop\s+production\.?/i.test(errorText);
                         if (isCropShortageBlock) {
                           return JSON.stringify({
                             outcome: 'BlockedByCropShortage',
@@ -365,6 +390,13 @@ public sealed partial class TravianClient
                             summary: picked.slice(0, 8)
                           });
                         }
+                        return JSON.stringify({
+                          outcome: 'BlockedUnknown',
+                          reason: `Unrecognized upgradeBlocked panel: '${(errorText || blockText).slice(0, 180)}'`,
+                          detectedMaxLevel: detectMaxLevel(),
+                          queueWaitSeconds: 1800,
+                          summary: picked.slice(0, 8)
+                        });
                       }
 
                       if (clickOrder.length > 0) {
