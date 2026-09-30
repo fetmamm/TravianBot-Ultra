@@ -351,7 +351,7 @@ public sealed partial class TravianClient
                       // produced an endless click/navigate spam loop. Take the precise wait from the
                       // panel's embedded countdown timer (value=<seconds>) so the task defers cleanly.
                       const upgradeBlockedEl = document.querySelector('.upgradeBlocked');
-                      if (upgradeBlockedEl) {
+                      if (upgradeBlockedEl && clean(upgradeBlockedEl.textContent || '').length > 0) {
                         const blockText = clean(upgradeBlockedEl.textContent || '').toLowerCase();
                         const errorText = clean(upgradeBlockedEl.querySelector('.errorMessage')?.textContent || '').toLowerCase();
                         const isCropShortageBlock = /lack\s+of\s+food\s*:\s*extend\s+cropland\s+first!?|increase\s+crop\s+production\.?/i.test(errorText);

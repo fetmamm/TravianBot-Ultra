@@ -127,6 +127,18 @@ public sealed class TravianOfficialConstructionDomTests
     }
 
     [Fact]
+    public void OfficialUpgradeDom_EmptyBlockedPlaceholderKeepsUpgradeActionable()
+    {
+        var html = ReadDomFixture("upgrade_empty_block_placeholder.txt");
+
+        var button = BuildingDomParser.SelectUpgradeButtonCandidateFromHtmlForTests(html, nextLevel: 8);
+
+        Assert.NotNull(button);
+        Assert.Equal("Upgrade to level 8", button.Text);
+        Assert.True(button.InOfficialPrimarySection);
+    }
+
+    [Fact]
     public void OfficialConstructDom_SelectsConstructButtonScopedToRequestedGid()
     {
         var html = ReadDomFixture("construct_new_building_infrastructure.txt");

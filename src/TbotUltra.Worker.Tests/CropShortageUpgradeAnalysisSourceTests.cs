@@ -14,6 +14,17 @@ public sealed class CropShortageUpgradeAnalysisSourceTests
         Assert.Contains("Unrecognized upgradeBlocked panel:", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void UpgradeAnalysis_IgnoresEmptyUpgradeBlockedPlaceholder()
+    {
+        var source = ReadSource("TravianClient.Buildings.UpgradeAnalysis.cs");
+
+        Assert.Contains(
+            "if (upgradeBlockedEl && clean(upgradeBlockedEl.textContent || '').length > 0)",
+            source,
+            StringComparison.Ordinal);
+    }
+
     private static string ReadSource(string fileName)
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);

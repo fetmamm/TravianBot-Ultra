@@ -8,6 +8,7 @@ internal static class TestDomFixtures
         {
             "upgrade_resourcefield.txt" => UpgradeResourceField,
             "upgrade_building.txt" => UpgradeBuilding,
+            "upgrade_empty_block_placeholder.txt" => UpgradeEmptyBlockPlaceholder,
             "upgrade_blocked_increase_crop.txt" => UpgradeBlockedIncreaseCrop,
             "construct_new_building_infrastructure.txt" => InfrastructureChoices,
             "buildingpage_infrastructure.txt" => InfrastructureChoices,
@@ -165,6 +166,20 @@ internal static class TestDomFixtures
           <div class="farmListCount">
             <span class="nominator">0</span>
             <span class="denominator">0</span>
+          </div>
+        </div>
+        """;
+
+    private const string UpgradeEmptyBlockPlaceholder = """
+        <div id="build" class="gid3 level7">
+          <div class="upgradeBlocked"></div>
+          <div class="upgradeButtonsContainer section2Enabled">
+            <div class="section1">
+              <button type="button" value="Upgrade to level 8" class="textButtonV1 green build"
+                      onclick="window.location.href='/dorf1.php?id=10&amp;gid=3&amp;action=build&amp;checksum=safe'">
+                Upgrade to level 8
+              </button>
+            </div>
           </div>
         </div>
         """;

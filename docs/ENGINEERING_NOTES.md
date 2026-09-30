@@ -990,6 +990,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   construction-slot waits remain non-alarm status.
   Official empty slots still contain a clickable `a.emptyBuildingSlot`; that link is explicit empty evidence, not
   occupancy. Treat `emptyBuildingSlot`, `g0`, and `data-gid=0` as empty before applying generic link evidence.
+- Official build pages may render an empty `.upgradeBlocked` placeholder beside a valid green upgrade button. Treat
+  the panel as a blocker only when it contains a non-empty message; an empty placeholder must not override the
+  actionable primary upgrade control.
 - Main Building auto-rebuild is authorized only by a complete 22-slot Dorf2 overview that confirms gid 15 is absent;
   partial/unknown reads never enqueue it. Normal Dorf2 reads perform this check without dedicated navigation. Before
   any resource-field or building start, a duration above the healthy level-1 Main Building catalog baseline by at
