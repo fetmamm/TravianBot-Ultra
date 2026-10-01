@@ -33,11 +33,11 @@ public sealed class AutomationQueueItemPreExecutionTests
             Item(), new BotOptions(), "[LOOP 1]", Stopwatch.StartNew(), default);
 
         Assert.Equal(new QueueItemGuardResult(true, true), result);
-        Assert.Equal(["upgrade-wait", "refresh", "existing"], policies.Trace);
+        Assert.Equal(["upgrade-wait", "requirements", "refresh", "existing"], policies.Trace);
     }
 
     [Fact]
-    public async Task CachedStatus_RunsQueueFullBeforeRequirementGuard()
+    public async Task KnownMissingRequirement_ShortCircuitsBeforeLivePreflight()
     {
         var policies = new InMemoryPolicies
         {
@@ -48,8 +48,8 @@ public sealed class AutomationQueueItemPreExecutionTests
         var result = await CreateSubject(policies).RunAsync(
             Item(), new BotOptions(), "[LOOP 1]", Stopwatch.StartNew(), default);
 
-        Assert.Equal(new QueueItemGuardResult(true, true), result);
-        Assert.Equal(["upgrade-wait", "refresh", "queue-full", "requirements"], policies.Trace);
+        Assert.Equal(new QueueItemGuardResult(true, false), result);
+        Assert.Equal(["upgrade-wait", "requirements"], policies.Trace);
     }
 
     private static AutomationQueueItemPreExecution CreateSubject(InMemoryPolicies policies) =>
@@ -90,7 +90,11 @@ public sealed class AutomationQueueItemPreExecutionTests
             return UpgradeWaitHandled;
         }
 
-        public ValueTask<bool> TryHandleAsync(QueueItem item, string logPrefix, Stopwatch timer)
+        public ValueTask<bool> TryHandleAsync(
+            QueueItem item,
+            string logPrefix,
+            Stopwatch timer,
+            bool requireCompleteSnapshot = false)
         {
             Trace.Add("requirements");
             return ValueTask.FromResult(RequirementHandled);

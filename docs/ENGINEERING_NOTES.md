@@ -601,6 +601,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - A matching active prerequisite below the required level defers its dependent construct until the active step
   finishes, even when Official omits the active slot id. Re-plan the remaining prerequisite levels from the next
   complete live overview; never terminal-fail the dependent construct during that intermediate state.
+- A complete cached village snapshot may block a construct with a known missing prerequisite before browser
+  navigation. Automatic repair must queue or reuse the exact required resource type, never an aggregate all-resource
+  task, and the parent preserves the repair task's real retry deadline instead of polling every minute. Once cached
+  prerequisites are satisfied, retain the complete live Dorf2 verification immediately before construction.
 - After a successful hero resource transfer reloads the same verified build.php slot, retry its exact construct or
   upgrade action directly; do not restart through queue and dorf2 probes unless the direct action remains unavailable.
 - Negative crop production on dorf1 does not reorder Construction by itself. Start cropland recovery only from an

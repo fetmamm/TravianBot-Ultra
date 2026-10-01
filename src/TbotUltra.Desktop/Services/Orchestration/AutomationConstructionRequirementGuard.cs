@@ -35,7 +35,11 @@ internal interface IAutomationConstructionRequirementGuardPort
 internal interface IAutomationConstructionRequirementGuard
 {
     bool TryHandleUpgradeWaitingForConstruct(QueueItem item, string logPrefix, Stopwatch timer);
-    ValueTask<bool> TryHandleAsync(QueueItem item, string logPrefix, Stopwatch timer);
+    ValueTask<bool> TryHandleAsync(
+        QueueItem item,
+        string logPrefix,
+        Stopwatch timer,
+        bool requireCompleteSnapshot = false);
 }
 
 internal sealed class AutomationConstructionRequirementGuard(
@@ -86,10 +90,19 @@ internal sealed class AutomationConstructionRequirementGuard(
     public async ValueTask<bool> TryHandleAsync(
         QueueItem item,
         string logPrefix,
-        Stopwatch timer)
+        Stopwatch timer,
+        bool requireCompleteSnapshot = false)
     {
         var context = port.GetContext(item);
         if (context.Status is null)
+        {
+            return false;
+        }
+
+        if (requireCompleteSnapshot
+            && !ConstructionDependencyGate.CanEvaluateConstructRequirementsFromSnapshot(
+                item,
+                context.Status))
         {
             return false;
         }
@@ -243,6 +256,14 @@ internal sealed class AutomationConstructionRequirementGuard(
                     port.Log(
                         $"[construction-repair] skipped promote id={existingId}: "
                         + $"item is {existing?.Status.ToString() ?? "missing"}.");
+                    continue;
+                }
+
+                if (existing.Priority > item.Priority)
+                {
+                    port.Log(
+                        $"[construction-repair] queued repair id={existingId} is already ahead of "
+                        + $"parent id={item.Id}; preserving its priority and retry deadline.");
                     continue;
                 }
 

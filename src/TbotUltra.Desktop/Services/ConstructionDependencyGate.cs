@@ -30,6 +30,41 @@ public static class ConstructionDependencyGate
     private static readonly TimeSpan UnknownActivePrerequisiteRetry = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan QueuedPrerequisiteRetry = TimeSpan.FromSeconds(60);
 
+    public static bool CanEvaluateConstructRequirementsFromSnapshot(
+        QueueItem item,
+        VillageStatus status)
+    {
+        if (!string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+            || !BuildingConstructPayload.TryFromDictionary(item.Payload, out var payload)
+            || payload is null
+            || !status.ActiveConstructionsFromOverview)
+        {
+            return false;
+        }
+
+        var requirements = BuildingCatalogService.RequirementsFor(payload.Gid);
+        var needsResourceFields = requirements.Any(requirement =>
+            BuildingCatalogService.GidForName(requirement.Name) is >= 1 and <= 4);
+        if (needsResourceFields
+            && status.ResourceFields
+                .Where(field => field.SlotId is >= 1 and <= 18 && field.Level is not null)
+                .Select(field => field.SlotId!.Value)
+                .Distinct()
+                .Count() != 18)
+        {
+            return false;
+        }
+
+        var needsBuildings = requirements.Any(requirement =>
+            BuildingCatalogService.GidForName(requirement.Name) is not (>= 1 and <= 4));
+        return !needsBuildings
+            || status.Buildings
+                .Where(building => building.SlotId is >= 19 and <= 40 && building.Level is not null)
+                .Select(building => building.SlotId!.Value)
+                .Distinct()
+                .Count() == 22;
+    }
+
     public static ConstructionDependencyDelay? ResolveUpgradeWaitingForConstruct(
         QueueItem item,
         IReadOnlyList<QueueItem> sameVillageQueueItems,
@@ -179,8 +214,86 @@ public static class ConstructionDependencyGate
 
         return new ConstructionRequirementGuardResult(
             ConstructionRequirementGuardAction.DeferForQueuedPrerequisite,
-            QueuedPrerequisiteRetry,
+            ResolveQueuedPrerequisiteRetry(missing, sameVillageQueueItems, now),
             FormatRequirements(missing));
+    }
+
+    private static TimeSpan ResolveQueuedPrerequisiteRetry(
+        IReadOnlyList<BuildingRequirementEntry> missing,
+        IReadOnlyList<QueueItem> queueItems,
+        DateTimeOffset now)
+    {
+        var matching = queueItems
+            .Where(item => ConstructionQueueState.IsActiveQueueStatus(item.Status))
+            .Where(item => missing.Any(requirement => QueuedItemProvidesRequirement(item, requirement)))
+            .ToList();
+        var specific = matching
+            .Where(item => !string.Equals(
+                item.TaskName,
+                "upgrade_all_resources_to_level",
+                StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        var candidates = specific.Count > 0 ? specific : matching;
+        var retryAt = candidates
+            .Where(item => item.NextAttemptAt > now)
+            .Select(item => item.NextAttemptAt)
+            .DefaultIfEmpty()
+            .Max();
+        return retryAt > now ? retryAt - now : QueuedPrerequisiteRetry;
+    }
+
+    private static bool QueuedItemProvidesRequirement(
+        QueueItem item,
+        BuildingRequirementEntry requirement)
+    {
+        if (string.Equals(item.TaskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
+            && ResourceUpgradePayload.TryFromDictionary(item.Payload, out var resource)
+            && resource is not null)
+        {
+            return string.Equals(
+                    ResourceCategory(resource.Name),
+                    ResourceCategory(requirement.Name),
+                    StringComparison.Ordinal)
+                && resource.TargetLevel >= requirement.Level;
+        }
+
+        if (string.Equals(item.TaskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase))
+        {
+            var category = ResourceCategory(requirement.Name);
+            var target = TryGetIntPayloadValue(item.Payload, BotOptionPayloadKeys.ResourceUpgradeTargetLevel)
+                ?? TryGetIntPayloadValue(item.Payload, BotOptionPayloadKeys.TargetLevel);
+            return category is not null
+                && target >= requirement.Level
+                && ResourceUpgradeSelection.Parse(
+                    item.Payload.GetValueOrDefault(BotOptionPayloadKeys.ResourceUpgradeTypes))
+                    .Contains(category);
+        }
+
+        if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+            && BuildingConstructPayload.TryFromDictionary(item.Payload, out var construct)
+            && construct is not null)
+        {
+            return construct.TargetLevel >= requirement.Level
+                && !string.IsNullOrWhiteSpace(construct.Name)
+                && construct.Name.Contains(requirement.Name, StringComparison.OrdinalIgnoreCase);
+        }
+
+        if ((string.Equals(item.TaskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase))
+            && BuildingUpgradePayload.TryFromDictionary(item.Payload, out var upgrade)
+            && upgrade is not null
+            && !string.IsNullOrWhiteSpace(upgrade.Name)
+            && upgrade.Name.Contains(requirement.Name, StringComparison.OrdinalIgnoreCase))
+        {
+            var gid = BuildingCatalogService.GidForName(upgrade.Name);
+            var target = string.Equals(item.TaskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase)
+                && gid is int resolvedGid
+                    ? BuildingCatalogService.MaxLevelFor(resolvedGid)
+                    : upgrade.TargetLevel ?? 0;
+            return target >= requirement.Level;
+        }
+
+        return false;
     }
 
     internal static IReadOnlyList<BuildingRequirementEntry> ResolveMissingFinishedRequirements(

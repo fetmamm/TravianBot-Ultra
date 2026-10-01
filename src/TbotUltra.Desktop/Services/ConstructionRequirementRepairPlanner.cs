@@ -370,13 +370,6 @@ internal static class ConstructionRequirementRepairPlanner
             .Where(item => item.Status == QueueStatus.Pending)
             .FirstOrDefault(item =>
             {
-                if (string.Equals(item.TaskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase))
-                {
-                    var queuedTarget = TryGetIntPayloadValue(item.Payload, BotOptionPayloadKeys.ResourceUpgradeTargetLevel)
-                        ?? TryGetIntPayloadValue(item.Payload, BotOptionPayloadKeys.TargetLevel);
-                    return queuedTarget.HasValue && queuedTarget.Value >= targetLevel;
-                }
-
                 if (!string.Equals(item.TaskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
                     || !ResourceUpgradePayload.TryFromDictionary(item.Payload, out var payload)
                     || payload is null)
@@ -469,11 +462,6 @@ internal static class ConstructionRequirementRepairPlanner
         var entry = BuildingCatalogService.GetFullCatalog(tribe)
             .FirstOrDefault(item => item.Gid == gid);
         return string.IsNullOrWhiteSpace(entry?.Name) ? fallback : entry.Name;
-    }
-
-    private static int? TryGetIntPayloadValue(IReadOnlyDictionary<string, string> payload, string key)
-    {
-        return payload.TryGetValue(key, out var raw) && int.TryParse(raw, out var value) ? value : null;
     }
 
     private static string FormatRequirement(BuildingRequirementEntry requirement)

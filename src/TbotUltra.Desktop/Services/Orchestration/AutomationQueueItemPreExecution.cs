@@ -31,6 +31,15 @@ internal sealed class AutomationQueueItemPreExecution(
             return new QueueItemGuardResult(true, false);
         }
 
+        if (await constructionRequirementGuard.TryHandleAsync(
+                item,
+                logPrefix,
+                timer,
+                requireCompleteSnapshot: true))
+        {
+            return new QueueItemGuardResult(true, false);
+        }
+
         var constructRefresh = await constructPreflight.RefreshTargetStatusAsync(
             item,
             options,
@@ -62,7 +71,11 @@ internal sealed class AutomationQueueItemPreExecution(
         }
 
         if (constructRefresh.CanUseCache
-            && await constructionRequirementGuard.TryHandleAsync(item, logPrefix, timer))
+            && await constructionRequirementGuard.TryHandleAsync(
+                item,
+                logPrefix,
+                timer,
+                requireCompleteSnapshot: false))
         {
             return new QueueItemGuardResult(true, true);
         }

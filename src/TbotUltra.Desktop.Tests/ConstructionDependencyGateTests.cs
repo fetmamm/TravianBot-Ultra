@@ -141,12 +141,14 @@ public sealed class ConstructionDependencyGateTests
         {
             TaskName = "construct_building",
             Status = QueueStatus.Pending,
+            NextAttemptAt = Now,
             Payload = new BuildingConstructPayload(30, 22, "Academy").ToDictionary(),
         };
         var academyUpgrade = new QueueItem
         {
             TaskName = "upgrade_building_to_level",
             Status = QueueStatus.Pending,
+            NextAttemptAt = Now,
             Payload = new BuildingUpgradePayload(30, 5, "Academy").ToDictionary(),
         };
 
@@ -159,6 +161,36 @@ public sealed class ConstructionDependencyGateTests
         Assert.Equal(ConstructionRequirementGuardAction.DeferForQueuedPrerequisite, result.Action);
         Assert.Equal(TimeSpan.FromSeconds(60), result.Delay);
         Assert.Contains("Academy 5+", result.Detail);
+    }
+
+    [Fact]
+    public void ResolveConstructRequirementGuard_UsesSpecificPrerequisiteRetryDeadline()
+    {
+        var item = new QueueItem
+        {
+            TaskName = "construct_building",
+            Status = QueueStatus.Pending,
+            Payload = new BuildingConstructPayload(30, 7, "Iron Foundry").ToDictionary(),
+        };
+        var status = CreateStatus(
+            buildings: [new Building(26, "Main Building", 15, "build.php?id=26", 15)],
+            activeConstructions: []) with
+        {
+            Tribe = "Romans",
+            ResourceFields = [new ResourceField(7, "Iron Mine", "iron", 9, null)],
+        };
+        var repair = new QueueItem
+        {
+            TaskName = "upgrade_resource_to_level",
+            Status = QueueStatus.Pending,
+            NextAttemptAt = Now.AddMinutes(12),
+            Payload = new ResourceUpgradePayload(7, 10, "Iron Mine").ToDictionary(),
+        };
+
+        var result = ConstructionDependencyGate.ResolveConstructRequirementGuard(item, status, [repair], Now);
+
+        Assert.Equal(ConstructionRequirementGuardAction.DeferForQueuedPrerequisite, result.Action);
+        Assert.Equal(TimeSpan.FromMinutes(12), result.Delay);
     }
 
     [Fact]

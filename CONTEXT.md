@@ -104,6 +104,26 @@ _Avoid_: First wait, strategy wait
 The first resource field at one exact resource type and level that is checked during a bulk upgrade. If it remains resource-blocked after permitted recovery, equivalent fields do not require separate checks in that pass.
 _Avoid_: Every identical field, repeated resource check
 
+**Construction Affordability Preflight**:
+A pre-navigation decision using complete local construction inputs for resource fields, existing-building upgrades, and new construction. It classifies only affordability and recovery as Affordable, Recoverable, Blocked, or Unknown; only Blocked suppresses build-page navigation, while every action that proceeds retains its live queue, requirement, identity, and pre-click safety checks.
+_Avoid_: Cached resource guess, unconditional navigation skip
+
+**Live Construction Resource Snapshot**:
+A complete Dorf1 storage, stock, and production observation captured during the current village run. It may be reused across that run and is the only village-resource snapshot allowed to produce a Blocked Construction Affordability Preflight result.
+_Avoid_: Restored resource cache, stale blocking snapshot
+
+**Construction Affordability Deadline**:
+The earliest credible time a Blocked affordability result can change: calculated village production, the shared Hero Inventory Revalidation deadline, or a 15-minute fallback when neither is knowable. Only an actual resource increase may bring it forward; unchanged observations preserve it.
+_Avoid_: Fixed rapid retry, scan-reset wait
+
+**Hero Inventory Revalidation**:
+An account-and-world-wide refresh permitted when the last observed Hero resources cannot cover a construction shortfall and their shared cooldown has expired. Repeated unchanged insufficient observations back off from 15–30 to 30–45 and then 45–60 minutes across all villages.
+_Avoid_: Per-village Hero probe, permanent cached shortage
+
+**NPC Construction Recovery**:
+A Recoverable preflight result when every locally knowable NPC gate passes, including Gold policy and budget, build-time policy, and enough total village resources to redistribute. Gold is reserved and the exchange is attempted only after the exact build page confirms the live NPC action.
+_Avoid_: Assumed NPC availability, preflight Gold reservation
+
 **Construction Card Waiting Color**:
 Amber/yellow is used for `Res:`, `Req:`, `Waiting:`, and `Retry:` Construction card messages. Blue is reserved for `Empty queue`.
 _Avoid_: Green waiting state, mixed status colors

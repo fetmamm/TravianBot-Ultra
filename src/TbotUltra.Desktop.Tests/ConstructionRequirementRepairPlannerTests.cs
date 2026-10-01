@@ -170,6 +170,36 @@ public sealed class ConstructionRequirementRepairPlannerTests
         Assert.Contains(plan.Blockers, item => item.Contains("no free building slot", StringComparison.OrdinalIgnoreCase));
     }
 
+    [Fact]
+    public void Plan_IronFoundry_DoesNotReuseGenericBulkResourceTaskAsIronMineRepair()
+    {
+        var parent = QueueItem(
+            "construct_building",
+            new BuildingConstructPayload(30, 7, "Iron Foundry").ToDictionary());
+        var bulk = QueueItem(
+            "upgrade_all_resources_to_level",
+            new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.ResourceUpgradeTargetLevel] = "10",
+            });
+        var status = CreateStatus([new Building(26, "Main Building", 15, null, 15)]) with
+        {
+            Tribe = "Romans",
+            ResourceFields =
+            [
+                new ResourceField(7, "Iron Mine", "iron", 9, null),
+                new ResourceField(10, "Iron Mine", "iron", 9, null),
+            ],
+        };
+
+        var plan = ConstructionRequirementRepairPlanner.Plan(parent, status, [bulk], Now);
+
+        var step = Assert.Single(plan.Steps);
+        Assert.Equal(ConstructionRequirementRepairStepKind.Enqueue, step.Kind);
+        Assert.Equal("upgrade_resource_to_level", step.TaskName);
+        Assert.Equal("7", step.Payload[BotOptionPayloadKeys.ResourceUpgradeSlotId]);
+    }
+
     private static QueueItem StableConstruct()
         => QueueItem(
             "construct_building",
