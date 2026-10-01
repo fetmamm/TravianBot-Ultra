@@ -238,6 +238,7 @@ public partial class SettingsWindow : Window
         using var suppressChanges = SettingsVm.SuppressChangeTracking();
         SettingsVm.DontNotifyNewVersion = settings.General.DontNotifyNewVersion;
         SettingsVm.QuickReloginEnabled = settings.General.QuickReloginEnabled;
+        SettingsVm.StartBrowserMinimized = settings.General.StartBrowserMinimized;
         SettingsVm.AutomaticallyCheckLanguage = options.AutomaticallyCheckLanguage;
         SettingsVm.TurnOffVideoSound = options.TurnOffVideoSound;
         _suppressDetailedBrowserLoggingConfirmation = true;
@@ -635,6 +636,7 @@ public partial class SettingsWindow : Window
             General = new GeneralSettingsConfiguration(
                 SettingsVm.DontNotifyNewVersion,
                 SettingsVm.QuickReloginEnabled,
+                SettingsVm.StartBrowserMinimized,
                 SettingsVm.DailyServerResetOverrideEnabled,
                 SettingsVm.DailyServerResetHour),
             SessionPacing = BuildSessionPacingSettings(),

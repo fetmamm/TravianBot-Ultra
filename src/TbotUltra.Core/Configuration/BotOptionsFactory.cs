@@ -30,6 +30,7 @@ public static class BotOptionsFactory
             LoopTasks = tasks,
             ContinuousLoopGroups = continuousLoopGroups,
             GithubReleasesUrl = configuration["github_releases_url"] ?? string.Empty,
+            StartBrowserMinimized = GeneralSettingsOptionsModule.ReadStartBrowserMinimized(configuration),
         };
 
         options = spending.ApplyTo(options);

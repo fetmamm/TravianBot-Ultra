@@ -112,6 +112,7 @@ public static class BotOptionPayloadKeys
     public const string LastAcknowledgedUpdateVersion = "last_acknowledged_update_version";
     public const string AutomaticallyCheckLanguage = "automatically_check_language";
     public const string DetailedBrowserLoggingEnabled = "detailed_browser_logging_enabled";
+    public const string StartBrowserMinimized = "start_browser_minimized";
     public const string TurnOffVideoSound = "turn_off_video_sound";
     public const string HeroMinHpForAdventure = "hero_min_hp_for_adventure";
     public const string HeroHpRegenPerDayPercent = "hero_hp_regen_per_day_percent";

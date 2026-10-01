@@ -300,6 +300,7 @@ internal sealed class SettingsExchangeService
         {
             BotOptionPayloadKeys.PostLoginQuickReloginEnabled,
             BotOptionPayloadKeys.AutomaticallyCheckLanguage,
+            BotOptionPayloadKeys.StartBrowserMinimized,
             BotOptionPayloadKeys.TurnOffVideoSound,
             BotOptionPayloadKeys.PostLoginAnalyzeFarmlists,
             BotOptionPayloadKeys.PostLoginAnalyzeHero,

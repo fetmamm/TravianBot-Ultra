@@ -1,6 +1,6 @@
 # Engineering Notes
 
-Last updated: 2026-09-29
+Last updated: 2026-10-01
 
 Read this file before changing architecture, selectors, paths, browser behavior, persisted state, queueing,
 or server logic. Keep it short and current: durable rules belong here; detailed decisions belong in ADRs;
@@ -138,6 +138,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   snapshots; unavailable targets remain unselected, existing active village queue work is projected first, storage
   additions are confirmed once across all selected villages, and the final cross-village insert is atomic.
 - New settings require the complete pipeline: model, defaults, load/save, ViewModel, UI, and tests.
+- `Always start Chrome minimized` is a global General setting. Apply it to the main visible browser at
+  launch with both Chromium's minimized flag and a best-effort CDP window-state confirmation.
 - Roman construction priority is an account-scoped Construction setting. It applies to every Roman village;
   Village settings must not expose a separate per-village priority control.
 - Smart Sleep's account-scoped `Wake when construction queue clears` option changes only its wake deadline.

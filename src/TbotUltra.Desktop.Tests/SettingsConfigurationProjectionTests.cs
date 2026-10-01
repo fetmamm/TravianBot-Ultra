@@ -13,6 +13,8 @@ public sealed class SettingsConfigurationProjectionTests
         var settings = SettingsConfigurationAdapter.Load([]);
 
         Assert.True(settings.General.QuickReloginEnabled);
+        Assert.False(settings.General.StartBrowserMinimized);
+        Assert.False(settings.Options.StartBrowserMinimized);
         Assert.True(settings.Options.AutomaticallyCheckLanguage);
         Assert.Equal(PacingDefaults.ActionPacingTaskMinSeconds, settings.Options.ActionPacingTaskMinSeconds);
         Assert.Equal(ConstructionDefaults.MainBuildingRebuildTargetLevel, settings.Options.ConstructionMainBuildingRebuildTargetLevel);
@@ -32,6 +34,7 @@ public sealed class SettingsConfigurationProjectionTests
             General = current.General with
             {
                 DontNotifyNewVersion = true,
+                StartBrowserMinimized = true,
                 DailyServerResetHour = 99,
             },
             SessionPacing = current.SessionPacing with
@@ -59,6 +62,8 @@ public sealed class SettingsConfigurationProjectionTests
 
         Assert.Equal("keep", draft["future_setting"]!.GetValue<string>());
         Assert.True(reloaded.General.DontNotifyNewVersion);
+        Assert.True(reloaded.General.StartBrowserMinimized);
+        Assert.True(reloaded.Options.StartBrowserMinimized);
         Assert.Equal(23, reloaded.General.DailyServerResetHour);
         Assert.Equal(60, reloaded.SessionPacing.SmartSleepFallbackMinMinutes);
         Assert.Equal(60, reloaded.SessionPacing.SmartSleepFallbackMaxMinutes);

@@ -237,6 +237,13 @@
                                 <ContentControl Style="{StaticResource SettingInfoIconStyle}"
                                                 ToolTip="Development only. Records detailed browser actions, navigation, reloads, refreshes, reads, waits, retries, and cache decisions. This can create large log files and slightly affect performance. Keep this OFF during normal use." />
                             </StackPanel>
+                            <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                                <CheckBox x:Name="StartBrowserMinimizedCheckBox"
+                                          Content="Always start Chrome minimized"
+                                          IsChecked="{Binding SettingsVm.StartBrowserMinimized, Mode=TwoWay}" />
+                                <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                ToolTip="Starts the bot's main Chrome window minimized. This applies the next time the browser starts." />
+                            </StackPanel>
                             <StackPanel Orientation="Horizontal" Margin="0,0,0,8" VerticalAlignment="Center">
                                 <CheckBox x:Name="DailyServerResetOverrideCheckBox"
                                           Content="Daily server reset (manual)"

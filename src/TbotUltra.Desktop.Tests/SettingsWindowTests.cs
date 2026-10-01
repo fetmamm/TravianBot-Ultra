@@ -128,6 +128,33 @@ public sealed class SettingsWindowTests : IDisposable
     }
 
     [Fact]
+    public void GeneralCategory_LoadsStartBrowserMinimizedSettingAndControl()
+    {
+        _wpf.Run(() =>
+        {
+            var store = CreateStore(new JsonObject
+            {
+                [BotOptionPayloadKeys.StartBrowserMinimized] = true,
+            });
+            var window = new SettingsWindow(store, initialCategory: SettingsCategory.General);
+            try
+            {
+                var checkBox = Assert.IsType<CheckBox>(window.FindName("StartBrowserMinimizedCheckBox"));
+
+                Assert.Equal("Always start Chrome minimized", checkBox.Content);
+                Assert.True(window.SettingsVm.StartBrowserMinimized);
+                Assert.Equal(
+                    "SettingsVm.StartBrowserMinimized",
+                    checkBox.GetBindingExpression(CheckBox.IsCheckedProperty)?.ParentBinding.Path.Path);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void Footer_PlacesImportAndExportTogetherBeforeOtherActions()
     {
         _wpf.Run(() =>

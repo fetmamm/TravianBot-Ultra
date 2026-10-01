@@ -6,6 +6,7 @@ namespace TbotUltra.Core.Configuration;
 public sealed record GeneralSettingsConfiguration(
     bool DontNotifyNewVersion,
     bool QuickReloginEnabled,
+    bool StartBrowserMinimized,
     bool DailyServerResetOverrideEnabled,
     int DailyServerResetHour);
 

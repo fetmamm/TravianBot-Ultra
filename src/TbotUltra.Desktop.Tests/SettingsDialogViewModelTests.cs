@@ -64,6 +64,7 @@ public sealed class SettingsDialogViewModelTests
         Assert.True(vm.QuickReloginEnabled);
         Assert.True(vm.AutomaticallyCheckLanguage);
         Assert.False(vm.DetailedBrowserLoggingEnabled);
+        Assert.False(vm.StartBrowserMinimized);
         Assert.True(vm.TurnOffVideoSound);
     }
 

@@ -114,8 +114,8 @@ public sealed partial class BrowserSession : IAsyncDisposable
     private static readonly TimeSpan IsolatedBonusVideoSetupMaxDuration = TimeSpan.FromSeconds(60);
     private static readonly TimeSpan IsolatedBonusVideoActionMaxDuration =
         TimeSpan.FromSeconds(BonusVideoPlaybackPolicy.IsolatedActionTimeoutSeconds);
-    // CDP window-state confirmation is best-effort because Chromium already starts minimized.
-    private static readonly TimeSpan IsolatedBonusVideoMinimizeTimeout = TimeSpan.FromSeconds(3);
+    // CDP window-state confirmation is best-effort because Chromium also receives a launch-state flag.
+    private static readonly TimeSpan BrowserWindowMinimizeTimeout = TimeSpan.FromSeconds(3);
     // Upper bound on tearing down the isolated bonus-video browser, so a wedged CloseAsync cannot itself
     // re-stall the calling task. A leaked browser process is recoverable; an infinite stall is not.
     private static readonly TimeSpan IsolatedBonusVideoCloseTimeout = TimeSpan.FromSeconds(10);
@@ -238,7 +238,9 @@ public sealed partial class BrowserSession : IAsyncDisposable
             }
             var launchOptions = CreateChromiumLaunchOptions(
                 keepNativePopupBlocker: ShouldKeepNativePopupBlocker(_account.ManualLogin),
-                startMinimized: false);
+                startMinimized: _config.StartBrowserMinimized);
+            _log?.Invoke(
+                $"[browser] launching main browser windowState={(_config.StartBrowserMinimized ? "minimized" : "maximized")}.");
             // Record the process this launch creates so a crashed run's browser window can be closed on the
             // next start. The session runs the user's system Chrome, so its processes are indistinguishable
             // from the user's own by name or path — only the recorded identity makes cleanup safe.
@@ -250,7 +252,18 @@ public sealed partial class BrowserSession : IAsyncDisposable
                     _log),
                 _log,
                 cancellationToken: cancellationToken);
-            return await OpenMainContextPageAsync(cancellationToken);
+            var page = await OpenMainContextPageAsync(cancellationToken);
+            if (_config.StartBrowserMinimized)
+            {
+                await MinimizeBrowserWindowAsync(
+                    page.Context,
+                    page,
+                    logCategory: "browser",
+                    browserDescription: "main browser",
+                    cancellationToken: cancellationToken);
+            }
+
+            return page;
         }
         catch
         {

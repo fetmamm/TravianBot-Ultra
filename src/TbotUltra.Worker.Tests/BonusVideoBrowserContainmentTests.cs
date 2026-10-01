@@ -54,10 +54,10 @@ public sealed class BonusVideoBrowserContainmentTests
         var method = source[methodStart..methodEnd];
 
         Assert.Contains(
-            "MinimizeBrowserWindowAsync(videoContext, page, cancellationToken)",
+            "browserDescription: \"isolated bonus-video browser\"",
             source,
             StringComparison.Ordinal);
-        Assert.Contains("IsolatedBonusVideoMinimizeTimeout", method, StringComparison.Ordinal);
+        Assert.Contains("BrowserWindowMinimizeTimeout", method, StringComparison.Ordinal);
         Assert.Contains("!cancellationToken.IsCancellationRequested", method, StringComparison.Ordinal);
     }
 
@@ -76,12 +76,13 @@ public sealed class BonusVideoBrowserContainmentTests
     }
 
     [Fact]
-    public void MainBrowser_RemainsMaximized()
+    public void MainBrowser_UsesConfiguredWindowStateAndReassertsMinimizedState()
     {
-        Assert.Contains(
-            "startMinimized: false",
-            ReadBrowserSessionSource(),
-            StringComparison.Ordinal);
+        var source = ReadBrowserSessionSource();
+
+        Assert.Contains("startMinimized: _config.StartBrowserMinimized", source, StringComparison.Ordinal);
+        Assert.Contains("if (_config.StartBrowserMinimized)", source, StringComparison.Ordinal);
+        Assert.Contains("browserDescription: \"main browser\"", source, StringComparison.Ordinal);
     }
 
     private static string ReadBonusVideoSource()

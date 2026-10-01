@@ -18,6 +18,7 @@ public sealed class SettingsExchangeServiceTests : IDisposable
         var draft = new JsonObject
         {
             [BotOptionPayloadKeys.AutomaticallyCheckLanguage] = false,
+            [BotOptionPayloadKeys.StartBrowserMinimized] = true,
             [BotOptionPayloadKeys.SessionPacingEnabled] = true,
             [BotOptionPayloadKeys.SessionPacingDailyMaxHours] = 10,
             [BotOptionPayloadKeys.SessionPacingAllowedHours] = new JsonArray(2, 3, 4, 18),
