@@ -978,6 +978,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   that authoritative overview snapshot to Desktop immediately. Update the coordinate-owned village cache and green
   construction-slot icons before the enclosing Worker task finishes; retain the validated current-Dorf2 post-task
   read with full Dorf1+Dorf2 fallback as backup.
+- A buildings snapshot passed from Worker to Desktop retains the authoritative active-construction list. A newly
+  identified building at live level 0 with target level 1 renders as `Level 0 (1)`, like an ordinary upgrade.
 - A complete live Dorf2 overview may reconcile a pending ordinary-slot construct whose requested slot was manually
   occupied by another building. Rebind the construct and its dependent upgrades atomically to the lowest confirmed
   empty slot 19-38. The selected construction queue head takes precedence over soft reservations from later pending

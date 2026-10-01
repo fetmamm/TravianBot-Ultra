@@ -40,11 +40,11 @@ public static class PacingDefaults
     public const int VillageRoundSleepExtensionMinutes = 15;
     public static IReadOnlyList<int> VillageRoundSleepExtensionChoicesMinutes { get; } = [5, 10, 15, 30];
     public const bool ContinuousKeepAliveEnabled = true;
-    public const int ContinuousKeepAliveMinMinutes = 4;
-    public const int ContinuousKeepAliveMaxMinutes = 15;
+    public const int ContinuousKeepAliveMinMinutes = 10;
+    public const int ContinuousKeepAliveMaxMinutes = 30;
     public const bool VillageStatusSweepEnabled = true;
-    public const int VillageStatusSweepRoundMinMinutes = 10;
-    public const int VillageStatusSweepRoundMaxMinutes = 30;
+    public const int VillageStatusSweepRoundMinMinutes = 40;
+    public const int VillageStatusSweepRoundMaxMinutes = 60;
     public const double VillageStatusSweepVillageMinSeconds = 2.0;
     public const double VillageStatusSweepVillageMaxSeconds = 5.0;
     // "Send farmlists" pacing: the small wait between clicking each farm list's Start button during a

@@ -82,23 +82,23 @@ public sealed class BotOptionsFromConfigurationCoverageTests
     }
 
     [Fact]
-    public void FromConfiguration_defaults_village_scan_to_enabled_every_10_to_30_minutes()
+    public void FromConfiguration_defaults_village_scan_to_enabled_every_40_to_60_minutes()
     {
         var options = BotOptionsFactory.FromConfiguration(new AccessRecordingConfiguration());
 
         Assert.True(options.VillageStatusSweepEnabled);
-        Assert.Equal(10, options.VillageStatusSweepRoundMinMinutes);
-        Assert.Equal(30, options.VillageStatusSweepRoundMaxMinutes);
+        Assert.Equal(40, options.VillageStatusSweepRoundMinMinutes);
+        Assert.Equal(60, options.VillageStatusSweepRoundMaxMinutes);
     }
 
     [Fact]
-    public void FromConfiguration_defaults_keep_alive_to_enabled_every_4_to_15_minutes()
+    public void FromConfiguration_defaults_keep_alive_to_enabled_every_10_to_30_minutes()
     {
         var options = BotOptionsFactory.FromConfiguration(new AccessRecordingConfiguration());
 
         Assert.True(options.ContinuousKeepAliveEnabled);
-        Assert.Equal(4, options.ContinuousKeepAliveMinMinutes);
-        Assert.Equal(15, options.ContinuousKeepAliveMaxMinutes);
+        Assert.Equal(10, options.ContinuousKeepAliveMinMinutes);
+        Assert.Equal(30, options.ContinuousKeepAliveMaxMinutes);
     }
 
     /// <summary>

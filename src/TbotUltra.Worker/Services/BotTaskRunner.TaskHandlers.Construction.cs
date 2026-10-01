@@ -42,7 +42,9 @@ public sealed partial class BotTaskRunner
     {
         var status = await context.Client.ReadVillageStatusAsync(context.CancellationToken);
         await WriteBuildingsSnapshotAsync(context, status);
-        context.Log($"Loaded {status.Buildings.Count} building slots.");
+        context.Log(
+            $"Loaded {status.Buildings.Count} building slots with "
+            + $"{status.ActiveConstructions?.Count ?? 0} active construction(s).");
     }
 
     private static async Task WriteBuildingsSnapshotAsync(TaskExecutionContext context, TbotUltra.Worker.Domain.VillageStatus status)
@@ -52,12 +54,7 @@ public sealed partial class BotTaskRunner
         var outputDir = Path.Combine(context.Runner._projectContext.RootPath, "temp_build_out", "buildings-snapshots");
         Directory.CreateDirectory(outputDir);
         var outputPath = Path.Combine(outputDir, $"{safeAccount}.json");
-        var payload = new
-        {
-            account = activeAccount, status.ActiveVillage, status.Tribe, status.IsCapital, status.WarehouseCapacity, status.GranaryCapacity,
-            buildings = status.Buildings.Select(building => new { building.SlotId, building.Name, building.Level, building.Url, building.Gid }).ToList(),
-            resourceFields = status.ResourceFields.Select(field => new { field.SlotId, field.FieldType, field.Name, field.Level, field.Url }).ToList(),
-        };
+        var payload = TbotUltra.Worker.Domain.BuildingSnapshot.FromVillageStatus(activeAccount, status);
         await File.WriteAllTextAsync(outputPath, JsonSerializer.Serialize(payload), context.CancellationToken);
     }
 

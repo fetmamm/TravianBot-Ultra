@@ -1132,7 +1132,7 @@ public partial class MainWindow
         }
 
         var json = await File.ReadAllTextAsync(snapshotPath, cancellationToken);
-        var snapshot = JsonSerializer.Deserialize<BuildingSnapshotDto>(
+        var snapshot = JsonSerializer.Deserialize<BuildingSnapshot>(
             json,
             new JsonSerializerOptions
             {
@@ -1196,6 +1196,10 @@ public partial class MainWindow
             IsCapital: snapshot.IsCapital,
             WarehouseCapacity: snapshot.WarehouseCapacity,
             GranaryCapacity: snapshot.GranaryCapacity,
+            IsBuildingInProgress: snapshot.ActiveConstructions is { Count: > 0 },
+            ActiveBuildCount: snapshot.ActiveConstructions?.Count ?? 0,
+            ActiveConstructions: snapshot.ActiveConstructions ?? [],
+            ActiveConstructionsFromOverview: snapshot.ActiveConstructionsFromOverview,
             ActiveVillageCoordX: snapshotVillage.CoordX,
             ActiveVillageCoordY: snapshotVillage.CoordY);
 
@@ -1220,35 +1224,11 @@ public partial class MainWindow
         });
     }
 
-    private sealed record BuildingSnapshotDto(
-        string? Account,
-        string? ActiveVillage,
-        string? Tribe,
-        bool? IsCapital,
-        long? WarehouseCapacity,
-        long? GranaryCapacity,
-        List<BuildingSnapshotItemDto>? Buildings,
-        List<ResourceFieldSnapshotItemDto>? ResourceFields);
-
-    private sealed record BuildingSnapshotItemDto(
-        int? SlotId,
-        string? Name,
-        int? Level,
-        string? Url,
-        int? Gid);
-
-    private sealed record ResourceFieldSnapshotItemDto(
-        int? SlotId,
-        string? FieldType,
-        string? Name,
-        int? Level,
-        string? Url);
-
-    // Matches Travian's in-progress construction list (upgrades started outside the program) to known
+    // Matches Travian's in-progress construction list to known
     // slots by normalized name + (target level - 1), returning slot -> target level. Only UNAMBIGUOUS
     // matches are returned: if a construction could map to more than one slot (e.g. several croplands at
-    // the same level), it is dropped rather than guessing the wrong field. Construct (new building)
-    // entries are ignored — only upgrades of an existing slot are surfaced.
+    // the same level), it is dropped rather than guessing the wrong field. Brand-new buildings are included
+    // so a live level-0 slot with target level 1 is rendered as "Level 0 (1)" like any other upgrade.
     private static Dictionary<int, int> BuildExternalUpgradeTargetsBySlot(
         IReadOnlyList<ActiveConstruction>? activeConstructions,
         ConstructionKind kind,

@@ -145,6 +145,21 @@ public sealed class BuildingsViewModelTests
     }
 
     [Fact]
+    public void LevelStatusLabel_NewBuildingInProgress_ShowsTargetLevelLikeAnUpgrade()
+    {
+        var row = new BuildingSlotRow
+        {
+            SlotId = 34,
+            Name = "Warehouse",
+            Level = 0,
+            Gid = 10,
+            PendingTargetLevel = 1,
+        };
+
+        Assert.Equal("Level 0 (1)", row.LevelStatusLabel);
+    }
+
+    [Fact]
     public void ResolveSlotIdentity_NamedButGidlessLevelZeroSlotStaysEmpty()
     {
         var building = new Building(25, "Cranny", 0, null, null);
