@@ -33,6 +33,27 @@ public sealed class FarmListsGlobalUiSourceTests
             StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void NextSendBadge_UsesTheAccountWideFarmQueueInsteadOfTheSelectedVillageCard()
+    {
+        var projectRoot = ProjectRootLocator.FindProjectRoot();
+        var source = File.ReadAllText(Path.Combine(
+            projectRoot,
+            "src",
+            "TbotUltra.Desktop",
+            "MainWindow.Farming.FarmLists.cs"));
+
+        var body = MethodBody(
+            source,
+            "private void UpdateNextFarmListSendDisplay",
+            "private void WakeContinuousFarmScheduling");
+
+        Assert.Contains("GetQueueSnapshotForUi()", body, StringComparison.Ordinal);
+        Assert.Contains("send_farmlists", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("_automationLoopTasks", body, StringComparison.Ordinal);
+        Assert.DoesNotContain("IsQueueItemForSelectedVillageOrGlobal", body, StringComparison.Ordinal);
+    }
+
     private static string MethodBody(string source, string startMarker, string endMarker)
     {
         var start = source.IndexOf(startMarker, StringComparison.Ordinal);

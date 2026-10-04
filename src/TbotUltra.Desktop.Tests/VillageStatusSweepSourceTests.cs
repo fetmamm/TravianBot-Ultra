@@ -6,6 +6,24 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class VillageStatusSweepSourceTests
 {
     [Fact]
+    public void CompletedVillageVisit_RepaintsSelectedVillageResourceAndBuildingDetails()
+    {
+        var projectRoot = ProjectRootLocator.FindProjectRoot();
+        var source = File.ReadAllText(Path.Combine(
+            projectRoot,
+            "src",
+            "TbotUltra.Desktop",
+            "MainWindow.ContinuousLoop.cs"));
+
+        Assert.Contains("ApplyVillageStatusSweepToUi(status);", source, StringComparison.Ordinal);
+        Assert.Contains(
+            "ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);",
+            source,
+            StringComparison.Ordinal);
+        Assert.Contains("PopulateBuildingsTab(status", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ScanNowButton_IsBoundToTheVillageStatusRoundCommand()
     {
         var projectRoot = ProjectRootLocator.FindProjectRoot();

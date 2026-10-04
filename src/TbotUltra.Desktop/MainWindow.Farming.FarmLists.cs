@@ -959,11 +959,22 @@ public partial class MainWindow
 
     private void UpdateNextFarmListSendDisplay()
     {
-        var farmingCard = _automationLoopTasks.FirstOrDefault(item =>
-            string.Equals(item.TaskName, QueueGroupCatalog.GetKey(QueueGroup.Farming), StringComparison.OrdinalIgnoreCase));
-        var hasScheduledSend = farmingCard?.HasTimer == true;
-        FarmingPanelControl.SetNextSendDisplay(hasScheduledSend
-            ? $"Next send: {farmingCard!.TimerText}"
+        if (!_isLoggedIn)
+        {
+            FarmingPanelControl.SetNextSendDisplay("Next send: --");
+            return;
+        }
+
+        var now = DateTimeOffset.UtcNow;
+        var nextSendAtUtc = GetQueueSnapshotForUi()
+            .Where(item => string.Equals(item.TaskName, "send_farmlists", StringComparison.OrdinalIgnoreCase)
+                && item.Status == QueueStatus.Pending
+                && item.NextAttemptAt > now)
+            .OrderBy(item => item.NextAttemptAt)
+            .Select(item => (DateTimeOffset?)item.NextAttemptAt)
+            .FirstOrDefault();
+        FarmingPanelControl.SetNextSendDisplay(nextSendAtUtc.HasValue
+            ? $"Next send: {FormatNextTaskCountdown(nextSendAtUtc.Value - now)}"
             : "Next send: --");
     }
 

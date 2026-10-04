@@ -123,6 +123,23 @@ public partial class MainWindow
                 village.Url,
                 cancellationToken);
 
+    private void ApplyVillageStatusSweepToUi(VillageStatus status)
+    {
+        ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
+        if (status.Buildings is { Count: > 0 })
+        {
+            _lastBuildingStatus = status;
+            PopulateBuildingsTab(status);
+            BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots(
+                $"Village scan for '{status.ActiveVillage}'");
+        }
+
+        ApplyConstructionTimerFromStatus(status);
+        AppendLog(
+            $"[village-scan:verbose] refreshed selected village UI: "
+            + $"village='{status.ActiveVillage}', fields={status.ResourceFields.Count}, buildings={status.Buildings.Count}.");
+    }
+
     private async Task<(VillageStatus Status, bool ShouldContinue, int Attempts)> CollectVillageStatusSweepRewardsAsync(
         BotOptions options,
         VillageSelectionItem village,
@@ -203,7 +220,7 @@ public partial class MainWindow
                 activeVillageCoordY: status.ActiveVillageCoordY);
             if (IsStatusForSelectedVillage(status))
             {
-                ApplyVillageStatusToUi(status);
+                ApplyVillageStatusSweepToUi(status);
             }
         });
 
@@ -244,7 +261,7 @@ public partial class MainWindow
                     CacheVillageStatus(status, village.Name, triggerDeferredWaitRefresh: false);
                     if (IsStatusForSelectedVillage(status))
                     {
-                        ApplyVillageStatusToUi(status);
+                        ApplyVillageStatusSweepToUi(status);
                     }
                 });
             }
@@ -279,7 +296,7 @@ public partial class MainWindow
                     CacheVillageStatus(status, village.Name, triggerDeferredWaitRefresh: false);
                     if (IsStatusForSelectedVillage(status))
                     {
-                        ApplyVillageStatusToUi(status);
+                        ApplyVillageStatusSweepToUi(status);
                     }
                 });
             }
@@ -454,7 +471,7 @@ public partial class MainWindow
                             activeVillageCoordY: status.ActiveVillageCoordY);
                         if (IsStatusForSelectedVillage(status))
                         {
-                            ApplyVillageStatusToUi(status);
+                            ApplyVillageStatusSweepToUi(status);
                         }
                     });
                 },
