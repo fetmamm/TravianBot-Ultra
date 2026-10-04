@@ -61,7 +61,8 @@ internal interface IAutomationQueueItemFailure
 
 internal sealed class AutomationQueueItemFailure(
     IAutomationQueueItemFailurePort port,
-    TimeProvider? timeProvider = null) : IAutomationQueueItemFailure
+    TimeProvider? timeProvider = null,
+    Func<int, int, int>? randomInt = null) : IAutomationQueueItemFailure
 {
     private const int MaxConsecutiveRequirementDefers = 12;
     private const string HeroDeferReasonKey = "hero_defer_reason";
@@ -71,6 +72,7 @@ internal sealed class AutomationQueueItemFailure(
     private const string TroopsBlockedReasonSmithyMissing = "smithy_missing";
     private const string TroopsBlockedReasonAllDone = "all_done";
     private readonly TimeProvider _timeProvider = timeProvider ?? TimeProvider.System;
+    private readonly Func<int, int, int> _randomInt = randomInt ?? Random.Shared.Next;
 
     public async ValueTask<bool> HandleAsync(
         QueueItem item,
@@ -105,6 +107,24 @@ internal sealed class AutomationQueueItemFailure(
 
         if (hasQueueWait)
         {
+            var payloadChanged = DeferredWaitCalculator.TryMergeDeferredUpgradePayload(
+                ex.Message,
+                item.Payload,
+                out var updatedPayload);
+            ConstructionRepeatedWaitBackoff? repeatedWaitBackoff = null;
+            if (IsConstructionQueueTask(item.TaskName) || IsResourceUpgradeTask(item.TaskName))
+            {
+                repeatedWaitBackoff = ConstructionRepeatedWaitBackoffPolicy.Evaluate(
+                    item,
+                    updatedPayload,
+                    queueWaitDelay,
+                    _randomInt);
+                if (repeatedWaitBackoff is not null)
+                {
+                    queueWaitDelay = repeatedWaitBackoff.Delay;
+                }
+            }
+
             var mainBuildingDurationAnomaly = (IsConstructionQueueTask(item.TaskName) || IsResourceUpgradeTask(item.TaskName))
                 && ex.Message.Contains("main_building_duration_anomaly=true", StringComparison.OrdinalIgnoreCase);
             if (IsConstructionQueueTask(item.TaskName)
@@ -197,7 +217,6 @@ internal sealed class AutomationQueueItemFailure(
                 var constructionSuffix = IsConstructionQueueTask(item.TaskName)
                     ? FormatQueueDeferredConstructionSuffix(mode)
                     : string.Empty;
-                var payloadChanged = DeferredWaitCalculator.TryMergeDeferredUpgradePayload(ex.Message, item.Payload, out var updatedPayload);
                 if (IsDemolition(item)
                     && TryExtractPayloadInt(ex.Message, "demolish_server_wait_seconds", out var serverWaitSeconds)
                     && TryExtractPayloadInt(ex.Message, BotOptionPayloadKeys.DemolishDelaySeconds, out var demolishDelaySeconds))
@@ -345,6 +364,36 @@ internal sealed class AutomationQueueItemFailure(
                             $"[construction-queue:verbose] in-progress defer classified " +
                             $"id={item.Id} task='{item.TaskName}' village='{villageName}' mode={mode} " +
                             $"retryAt='{port.FormatServerTime(retryAt)}'; later construction is held in queue order.");
+                    }
+                }
+
+                if (IsConstructionQueueTask(item.TaskName) || IsResourceUpgradeTask(item.TaskName))
+                {
+                    if (repeatedWaitBackoff is not null)
+                    {
+                        updatedPayload[BotOptionPayloadKeys.ConstructionDeferBackoffSignature] = repeatedWaitBackoff.Signature;
+                        updatedPayload[BotOptionPayloadKeys.ConstructionDeferBackoffCount] = repeatedWaitBackoff.Count.ToString();
+                        updatedPayload[BotOptionPayloadKeys.ConstructionDeferBackoffResourceFingerprint] =
+                            ConstructionRepeatedWaitBackoffPolicy.CreateResourceObservationFingerprint(updatedPayload);
+                        updatedPayload[BotOptionPayloadKeys.ConfirmedEmptyResourceValidationFingerprint] =
+                            ConstructionQueueState.CreateConfirmedEmptyResourceValidationFingerprint(
+                                item.TaskName,
+                                updatedPayload);
+                        payloadChanged = true;
+                        if (repeatedWaitBackoff.Count > 1)
+                        {
+                            port.Log(
+                                $"[construction-backoff] repeated identical resource wait "
+                                + $"id={item.Id} task='{item.TaskName}' count={repeatedWaitBackoff.Count} "
+                                + $"nextTrySeconds={queueWaitDelay.TotalSeconds:F0}; browser navigation is suppressed until then.");
+                        }
+                    }
+                    else
+                    {
+                        payloadChanged |= updatedPayload.Remove(BotOptionPayloadKeys.ConstructionDeferBackoffSignature);
+                        payloadChanged |= updatedPayload.Remove(BotOptionPayloadKeys.ConstructionDeferBackoffCount);
+                        payloadChanged |= updatedPayload.Remove(BotOptionPayloadKeys.ConstructionDeferBackoffResourceFingerprint);
+                        payloadChanged |= updatedPayload.Remove(BotOptionPayloadKeys.ConfirmedEmptyResourceValidationFingerprint);
                     }
                 }
 

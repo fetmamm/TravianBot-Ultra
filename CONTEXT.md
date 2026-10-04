@@ -37,7 +37,7 @@ A Warehouse or Granary that does not exist in a village. Its construction is a s
 _Avoid_: Automatic storage construction, missing capacity
 
 **Stale Resource Wait Validation**:
-One immediate live resource check for a resource-deferred Construction Queue Head after a confirmed empty construction overview. It may release a stale `page_timer`; it never polls Hero inventory.
+One immediate live resource check per changed blocker/resource observation for a resource-deferred Construction Queue Head after an independent confirmed-empty or newly-full construction observation. It may release a stale `page_timer`, but its own post-defer observation and unchanged full resources cannot release the resulting deadline; it never polls Hero inventory.
 _Avoid_: Timer bypass, resource refresh loop
 
 **Live-verified Free Construction Slot**:

@@ -557,9 +557,13 @@ Published artifacts belong under `artifacts/`, never beside source files.
   A login-fill burst remains on the village until live status is 3/3 or the complementary lane is explicitly blocked.
   Other tribes preserve one strict construction order. An in-progress aggregate such as
   `upgrade_all_resources_to_level` remains the head of the Roman resource category until it is complete.
-- A confirmed empty overview gives the first stale resource `page_timer` head one immediate live validation so a
-  free slot cannot idle behind an obsolete timer. Hero inventory is never polled for this: only an observed inventory
-  increase wakes the first resource-deferred construction head per village; identical reads and transfer deductions do not.
+- A confirmed empty overview gives the first stale resource `page_timer` head one immediate live validation per
+  unchanged blocker snapshot so a free slot cannot idle behind an obsolete timer. The failed validation's return to
+  empty Dorf2 must never release its own new deadline. Repeated identical construction `page_timer` resource waits use
+  a persisted, jittered 1/2/5/10/20/30-minute backoff floor; it never shortens a longer authoritative server wait.
+  An unchanged full-resource snapshot must not bypass that deadline. A changed blocker/resource observation or explicit
+  user reset clears it. Hero inventory is never polled for this: only an observed inventory increase wakes the first
+  resource-deferred construction head per village; identical reads and transfer deductions do not.
 - A new resource-defer snapshot replaces the previous snapshot's costs, current stock, production and capacity fields.
   If the live page cannot expose new costs, never reuse old requirements to wake that `page_timer` early.
 - Construction follows visible per-village queue order subject to the Roman category rule above. A deferred head

@@ -93,6 +93,31 @@ public sealed class ConstructionLoginFillSourceTests
     }
 
     [Fact]
+    public void PostDeferRefresh_CannotReleaseItsOwnConstructionWait()
+    {
+        var projectRoot = ProjectRootLocator.FindProjectRoot();
+        var deferredRefreshSource = File.ReadAllText(Path.Combine(
+            projectRoot,
+            "src",
+            "TbotUltra.Desktop",
+            "MainWindow.DeferredRefresh.cs"));
+        var villageWorkingSource = File.ReadAllText(Path.Combine(
+            projectRoot,
+            "src",
+            "TbotUltra.Desktop",
+            "MainWindow.VillageWorking.cs"));
+
+        Assert.Contains(
+            "ConstructionStatusObservationOrigin.PostDeferredAttempt",
+            deferredRefreshSource,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ConstructionQueueState.CanRefreshDeferredWaits(observationOrigin)",
+            villageWorkingSource,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void QueueFullCard_ShowsWaitingInsteadOfRetry()
     {
         var projectRoot = ProjectRootLocator.FindProjectRoot();

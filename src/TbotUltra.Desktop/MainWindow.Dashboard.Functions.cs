@@ -178,7 +178,14 @@ public partial class MainWindow
         var reset = 0;
         foreach (var item in deferred)
         {
-            if (_botService.UpdateDeferredQueueItem(item.Id, null, TimeSpan.Zero))
+            var updated = IsConstructionQueueTask(item.TaskName)
+                ? _botService.PatchDeferredQueueItem(
+                    item.Id,
+                    null,
+                    ConstructionRepeatedWaitBackoffPolicy.RuntimePayloadKeys,
+                    TimeSpan.Zero)
+                : _botService.UpdateDeferredQueueItem(item.Id, null, TimeSpan.Zero);
+            if (updated)
             {
                 reset += 1;
             }
@@ -201,7 +208,14 @@ public partial class MainWindow
         var reset = 0;
         foreach (var item in deferred)
         {
-            if (_botService.UpdateDeferredQueueItem(item.Id, null, TimeSpan.Zero))
+            var updated = IsConstructionQueueTask(item.TaskName)
+                ? _botService.PatchDeferredQueueItem(
+                    item.Id,
+                    null,
+                    ConstructionRepeatedWaitBackoffPolicy.RuntimePayloadKeys,
+                    TimeSpan.Zero)
+                : _botService.UpdateDeferredQueueItem(item.Id, null, TimeSpan.Zero);
+            if (updated)
             {
                 reset += 1;
             }

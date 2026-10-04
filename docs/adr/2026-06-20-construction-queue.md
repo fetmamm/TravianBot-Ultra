@@ -51,10 +51,12 @@ Aktivt beslut, 2026-06-20. Detaljerna bakom de korta reglerna i
 - Resource upgrade-all ska returnera `queue_wait_seconds` direkt vid resursbrist.
 - En resursdefer som bara bär Travians sid-timer (`wait_reason=page_timer`, inga `upgrade_required_*`
   i payloaden) kan inte räknas om mot en resurssnapshot. Den återupptas (retry nu) när byns lager är
-  fulla, när en aktuell tom byggöversikt ger första köhuvudet en livevalidering eller när en befintlig
-  Hero-inventarieavläsning observerar ökade resurser. Hero-inventariet får inte pollas för detta;
-  första avläsningen, identiska avläsningar och avdrag efter transfer väcker inte kön. Ett fullt men
-  ändå för dyrt bygge omklassas till `storage_capacity` (annan reason), så återupptagningen kan inte loopa.
+  fulla och den fulla resurssnapshoten har ändrats sedan blockeringen, när en oberoende aktuell tom
+  byggöversikt ger första köhuvudet en livevalidering eller när en befintlig Hero-inventarieavläsning
+  observerar ökade resurser. Post-defer-läsningen får aldrig väcka sin egen deadline. Hero-inventariet
+  får inte pollas för detta; första avläsningen, identiska avläsningar och avdrag efter transfer väcker
+  inte kön. Upprepade identiska försök använder en beständig backoff-floor upp till 30 minuter utan att
+  förkorta en längre serverangiven väntan.
 
 ## Construct/upgrade-klick och verifiering
 

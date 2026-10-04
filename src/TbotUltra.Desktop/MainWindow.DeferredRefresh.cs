@@ -228,11 +228,18 @@ public partial class MainWindow
                 // the village's resources are now FULL (a hero/farm/NPC drop topped it off after the timer
                 // was captured), the build is almost certainly affordable now and the cached wait is stale,
                 // so the village would idle out a countdown that no longer applies. Resume so the worker
-                // re-checks the live build page instead. A full village that still cannot afford the upgrade
-                // reclassifies as storage_capacity (different reason), so this cannot spin in a retry loop.
+                // re-checks the live build page instead. The persisted resource fingerprint permits this
+                // only once per changed full snapshot, so a repeated unknown-cost page timer cannot spin.
                 if (DeferredWaitCalculator.IsVillageResourcesFull(status, currentResources)
+                    && ConstructionRepeatedWaitBackoffPolicy.ShouldReleaseForChangedFullResourceObservation(
+                        item.Payload,
+                        currentResources)
                     && (item.NextAttemptAt - DateTimeOffset.UtcNow) > TimeSpan.FromSeconds(5)
-                    && _botService.PatchDeferredQueueItem(item.Id, null, null, TimeSpan.Zero))
+                    && _botService.PatchDeferredQueueItem(
+                        item.Id,
+                        null,
+                        ConstructionRepeatedWaitBackoffPolicy.RuntimePayloadKeys,
+                        TimeSpan.Zero))
                 {
                     AppendLog(
                         $"Deferred upgrade resumed from {source}: {DeferredWaitCalculator.DescribeDeferredUpgrade(item.Payload)} — "
@@ -292,8 +299,16 @@ public partial class MainWindow
         var resetCount = 0;
         foreach (var item in items)
         {
-            if (_botService.PatchDeferredQueueItem(item.Id, null, null, TimeSpan.Zero))
+            if (_botService.PatchDeferredQueueItem(
+                    item.Id,
+                    null,
+                    ConstructionRepeatedWaitBackoffPolicy.RuntimePayloadKeys,
+                    TimeSpan.Zero))
             {
+                foreach (var key in ConstructionRepeatedWaitBackoffPolicy.RuntimePayloadKeys)
+                {
+                    item.Payload.Remove(key);
+                }
                 resetCount++;
             }
         }
@@ -364,7 +379,8 @@ public partial class MainWindow
         string? villageName = null,
         string? villageKey = null,
         bool releaseResourceHeadForConfirmedEmptyQueue = false,
-        VillageStatus? verifiedStatus = null)
+        VillageStatus? verifiedStatus = null,
+        ConstructionStatusObservationOrigin observationOrigin = ConstructionStatusObservationOrigin.Independent)
     {
         var now = DateTimeOffset.UtcNow;
         var pendingItems = _botService.GetQueueItemsForDisplay()
@@ -386,20 +402,37 @@ public partial class MainWindow
         {
             ApplyConstructionHumanizeToggleTransition(enabled: false);
             var released = 0;
-            foreach (var item in pendingItems.Where(item =>
-                         ConstructionQueueState.IsQueueOccupancyDeferred(item)
-                         || (item.Id == confirmedEmptyQueueHead?.Id
-                             && ConstructionQueueState.ShouldPrepareConfirmedEmptyQueueHead(item, now))))
+            foreach (var item in pendingItems)
             {
+                var releaseConfirmedEmptyQueueHead = item.Id == confirmedEmptyQueueHead?.Id
+                    && ConstructionQueueState.ShouldPrepareConfirmedEmptyQueueHead(item, now, observationOrigin);
+                if (!ConstructionQueueState.IsQueueOccupancyDeferred(item)
+                    && !releaseConfirmedEmptyQueueHead)
+                {
+                    continue;
+                }
+
+                var valuesToSet = releaseConfirmedEmptyQueueHead
+                    ? new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                    {
+                        [BotOptionPayloadKeys.ConfirmedEmptyResourceValidationFingerprint] =
+                            ConstructionQueueState.CreateConfirmedEmptyResourceValidationFingerprint(item),
+                    }
+                    : null;
                 if (_botService.PatchDeferredQueueItem(
                         item.Id,
-                        null,
+                        valuesToSet,
                         [
                             BotOptionPayloadKeys.ConstructionLoginFill,
                             BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds,
                         ],
                         TimeSpan.Zero))
                 {
+                    if (valuesToSet is not null)
+                    {
+                        item.Payload[BotOptionPayloadKeys.ConfirmedEmptyResourceValidationFingerprint] =
+                            valuesToSet[BotOptionPayloadKeys.ConfirmedEmptyResourceValidationFingerprint];
+                    }
                     released++;
                 }
             }
@@ -420,7 +453,7 @@ public partial class MainWindow
             var isHumanizeWait = ConstructionQueueState.IsConstructionHumanizeDeferred(item);
             var isQueueWait = ConstructionQueueState.IsQueueOccupancyDeferred(item);
             var releaseConfirmedEmptyQueueHead = item.Id == confirmedEmptyQueueHead?.Id
-                && ConstructionQueueState.ShouldPrepareConfirmedEmptyQueueHead(item, now);
+                && ConstructionQueueState.ShouldPrepareConfirmedEmptyQueueHead(item, now, observationOrigin);
             if (!ConstructionQueueState.ShouldPrepareLoginFill(item, now)
                 && !releaseConfirmedEmptyQueueHead)
             {
@@ -439,6 +472,12 @@ public partial class MainWindow
                 [BotOptionPayloadKeys.ConstructionLoginFill] = "true",
                 [BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds] = expiresAt.ToString(),
             };
+            if (releaseConfirmedEmptyQueueHead)
+            {
+                var fingerprint = ConstructionQueueState.CreateConfirmedEmptyResourceValidationFingerprint(item);
+                payload[BotOptionPayloadKeys.ConfirmedEmptyResourceValidationFingerprint] = fingerprint;
+                valuesToSet[BotOptionPayloadKeys.ConfirmedEmptyResourceValidationFingerprint] = fingerprint;
+            }
             string[] keysToRemove =
             [
                 BotOptionPayloadKeys.ConstructionPreSleepFill,
@@ -801,11 +840,15 @@ public partial class MainWindow
         catch (Exception ex)
         {
             AppendLog($"[construction-refresh] current-page defer refresh failed ({ex.Message}); falling back to full construction status.");
-            await RefreshConstructionStatusAsync(cancellationToken);
+            await RefreshConstructionStatusAsync(
+                cancellationToken,
+                ConstructionStatusObservationOrigin.PostDeferredAttempt);
         }
     }
 
-    private async Task RefreshConstructionStatusAsync(CancellationToken cancellationToken)
+    private async Task RefreshConstructionStatusAsync(
+        CancellationToken cancellationToken,
+        ConstructionStatusObservationOrigin observationOrigin = ConstructionStatusObservationOrigin.Independent)
     {
         var options = AutomationExecutionOptions.WithoutImplicitVillageTarget(LoadBotOptions());
         var status = await ReadVillageStatusWithRetryAsync(
@@ -816,7 +859,7 @@ public partial class MainWindow
         await Dispatcher.InvokeAsync(() =>
         {
             SetActiveWorkingVillageFromStatus(status);
-            CacheVillageStatus(status);
+            CacheVillageStatus(status, observationOrigin: observationOrigin);
             ReconcilePendingBuildingQueueWithLiveStatus(status);
             if (!IsStatusForSelectedVillage(status))
             {

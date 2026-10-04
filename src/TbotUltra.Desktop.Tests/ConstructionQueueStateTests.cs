@@ -723,7 +723,7 @@ public sealed class ConstructionQueueStateTests
     }
 
     [Fact]
-    public void ShouldPrepareConfirmedEmptyQueueHead_ReleasesFuturePageTimerResourceWait()
+    public void ShouldPrepareConfirmedEmptyQueueHead_ReleasesPageTimerResourceWaitOnlyOncePerSnapshot()
     {
         var now = new DateTimeOffset(2026, 8, 1, 8, 55, 28, TimeSpan.Zero);
         var resourceWait = new QueueItem
@@ -737,6 +737,11 @@ public sealed class ConstructionQueueStateTests
         };
 
         Assert.True(ConstructionQueueState.ShouldPrepareConfirmedEmptyQueueHead(resourceWait, now));
+
+        resourceWait.Payload[BotOptionPayloadKeys.ConfirmedEmptyResourceValidationFingerprint] =
+            ConstructionQueueState.CreateConfirmedEmptyResourceValidationFingerprint(resourceWait);
+
+        Assert.False(ConstructionQueueState.ShouldPrepareConfirmedEmptyQueueHead(resourceWait, now));
     }
 
     [Fact]

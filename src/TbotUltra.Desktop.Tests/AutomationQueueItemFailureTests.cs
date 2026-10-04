@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.Services.Orchestration;
 using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
@@ -182,6 +183,119 @@ public sealed class AutomationQueueItemFailureTests
 
         Assert.Equal("abc123", item.Payload[BotOptionPayloadKeys.UnknownUpgradeBlockSignature]);
         Assert.Single(port.Logs, log => log.StartsWith("ALARM: Unknown Travian upgrade block", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task RepeatedConstructionPageTimerWait_UsesBoundedBackoff()
+    {
+        var port = new InMemoryPort();
+        var item = Item("construct_building");
+        var wait = new TaskWaitException(
+            60,
+            "Building slot 20 (Granary) construct: blocked by resources. "
+            + "queue_wait_seconds=60 upgrade_blocked_label=Building_slot_20_(Granary)_construct "
+            + "upgrade_wait_reason=page_timer upgrade_wait_seconds=60");
+        var handler = new AutomationQueueItemFailure(port, randomInt: (minimum, _) => minimum);
+
+        await handler.HandleAsync(item, wait, "[LOOP 1]", Stopwatch.StartNew(), AutomationRunMode.ContinuousLoop);
+        Assert.Equal(TimeSpan.FromMinutes(1), port.DeferredDelay);
+
+        await handler.HandleAsync(item, wait, "[LOOP 2]", Stopwatch.StartNew(), AutomationRunMode.ContinuousLoop);
+        Assert.Equal(TimeSpan.FromMinutes(2), port.DeferredDelay);
+
+        await handler.HandleAsync(item, wait, "[LOOP 3]", Stopwatch.StartNew(), AutomationRunMode.ContinuousLoop);
+        Assert.Equal(TimeSpan.FromMinutes(5), port.DeferredDelay);
+        Assert.Contains(port.Logs, log => log.Contains("repeated identical resource wait", StringComparison.OrdinalIgnoreCase));
+
+        for (var attempt = 4; attempt <= 7; attempt++)
+        {
+            await handler.HandleAsync(item, wait, $"[LOOP {attempt}]", Stopwatch.StartNew(), AutomationRunMode.ContinuousLoop);
+        }
+        Assert.Equal(TimeSpan.FromMinutes(30), port.DeferredDelay);
+
+        var changedBlocker = new TaskWaitException(
+            60,
+            "Building slot 21 (Warehouse) construct: blocked by resources. "
+            + "queue_wait_seconds=60 upgrade_blocked_label=Building_slot_21_(Warehouse)_construct "
+            + "upgrade_wait_reason=page_timer upgrade_wait_seconds=60");
+        await handler.HandleAsync(item, changedBlocker, "[LOOP 8]", Stopwatch.StartNew(), AutomationRunMode.ContinuousLoop);
+        Assert.Equal(TimeSpan.FromMinutes(1), port.DeferredDelay);
+
+        var authoritativeLongWait = new TaskWaitException(
+            3600,
+            "Building slot 22 (Granary) construct: blocked by resources. "
+            + "queue_wait_seconds=3600 upgrade_blocked_label=Building_slot_22_(Granary)_construct "
+            + "upgrade_wait_reason=page_timer upgrade_wait_seconds=3600");
+        await handler.HandleAsync(item, authoritativeLongWait, "[LOOP 9]", Stopwatch.StartNew(), AutomationRunMode.ContinuousLoop);
+        Assert.Equal(TimeSpan.FromHours(1), port.DeferredDelay);
+    }
+
+    [Fact]
+    public async Task DeferredConstructionPageTimer_CannotWakeFromItsOwnEmptyOrUnchangedFullSnapshot()
+    {
+        var port = new InMemoryPort();
+        var item = Item("construct_building");
+        var wait = new TaskWaitException(
+            60,
+            "Building slot 20 (Granary) construct: blocked by resources. "
+            + "queue_wait_seconds=60 upgrade_blocked_label=Building_slot_20_(Granary)_construct "
+            + "upgrade_wait_reason=page_timer upgrade_wait_seconds=60 "
+            + "upgrade_current_wood=800 upgrade_current_clay=800 "
+            + "upgrade_current_iron=800 upgrade_current_crop=1200");
+        var handler = new AutomationQueueItemFailure(port, randomInt: (minimum, _) => minimum);
+
+        await handler.HandleAsync(item, wait, "[LOOP 1]", Stopwatch.StartNew(), AutomationRunMode.ContinuousLoop);
+
+        var now = new DateTimeOffset(2026, 10, 4, 12, 0, 0, TimeSpan.Zero);
+        item.Status = QueueStatus.Pending;
+        item.NextAttemptAt = now + Assert.IsType<TimeSpan>(port.DeferredDelay);
+        var unchangedFullResources = new Dictionary<string, long>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["wood"] = 800,
+            ["clay"] = 800,
+            ["iron"] = 800,
+            ["crop"] = 1200,
+        };
+
+        Assert.False(ConstructionQueueState.ShouldPrepareConfirmedEmptyQueueHead(
+            item,
+            now,
+            ConstructionStatusObservationOrigin.PostDeferredAttempt));
+        Assert.False(ConstructionQueueState.ShouldPrepareConfirmedEmptyQueueHead(
+            item,
+            now,
+            ConstructionStatusObservationOrigin.Independent));
+        Assert.False(ConstructionRepeatedWaitBackoffPolicy.ShouldReleaseForChangedFullResourceObservation(
+            item.Payload,
+            unchangedFullResources));
+        Assert.True(item.NextAttemptAt > now);
+
+        var changedFullResources = new Dictionary<string, long>(unchangedFullResources, StringComparer.OrdinalIgnoreCase)
+        {
+            ["wood"] = 801,
+        };
+        Assert.True(ConstructionRepeatedWaitBackoffPolicy.ShouldReleaseForChangedFullResourceObservation(
+            item.Payload,
+            changedFullResources));
+    }
+
+    [Fact]
+    public async Task RepeatedResourceUpgradePageTimer_UsesTheSameBackoffGuard()
+    {
+        var port = new InMemoryPort();
+        var item = Item("upgrade_all_resources_to_level");
+        var wait = new TaskWaitException(
+            60,
+            "Resource slot 1 (Woodcutter) upgrade: blocked by resources. "
+            + "queue_wait_seconds=60 upgrade_blocked_label=Resource_slot_1_(Woodcutter)_upgrade "
+            + "upgrade_wait_reason=page_timer upgrade_wait_seconds=60");
+        var handler = new AutomationQueueItemFailure(port, randomInt: (minimum, _) => minimum);
+
+        await handler.HandleAsync(item, wait, "[LOOP 1]", Stopwatch.StartNew(), AutomationRunMode.ContinuousLoop);
+        await handler.HandleAsync(item, wait, "[LOOP 2]", Stopwatch.StartNew(), AutomationRunMode.ContinuousLoop);
+
+        Assert.Equal(TimeSpan.FromMinutes(2), port.DeferredDelay);
+        Assert.Equal("2", item.Payload[BotOptionPayloadKeys.ConstructionDeferBackoffCount]);
     }
 
     private static QueueItem Item(string taskName) => new()

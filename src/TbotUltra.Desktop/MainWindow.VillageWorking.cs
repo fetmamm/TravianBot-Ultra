@@ -780,7 +780,8 @@ public partial class MainWindow
         VillageStatus status,
         string? villageNameOverride = null,
         bool triggerDeferredWaitRefresh = true,
-        bool readOnlyObservation = false)
+        bool readOnlyObservation = false,
+        ConstructionStatusObservationOrigin observationOrigin = ConstructionStatusObservationOrigin.Independent)
     {
         var name = NormalizeVillageName(villageNameOverride) ?? NormalizeVillageName(status.ActiveVillage);
         if (name is null)
@@ -884,12 +885,14 @@ public partial class MainWindow
                 "empty-queue",
                 name,
                 statusKey,
-                releaseResourceHeadForConfirmedEmptyQueue: true);
+                releaseResourceHeadForConfirmedEmptyQueue: true,
+                observationOrigin: observationOrigin);
         }
 
         // Prepare the immediate-fill override before the async refresh reads deferred rows. Otherwise the
         // refresh can capture the old queue-full deadline and restore it after the empty-queue path released it.
-        if (triggerDeferredWaitRefresh)
+        if (triggerDeferredWaitRefresh
+            && ConstructionQueueState.CanRefreshDeferredWaits(observationOrigin))
         {
             TriggerDeferredConstructionWaitRefresh(liveStatus, "village_status");
         }
