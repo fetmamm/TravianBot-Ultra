@@ -210,8 +210,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - `FarmListsWorkflow` owns Farm Lists analysis plus projection, snapshot restore, create/add completion refresh,
   dispatch reconciliation, and the complete pause/analyze/choose/create-or-select/resume transaction used by
   loss-destination setup. WPF may gather dialog input and render returned views, but must not order or recreate
-  those multi-step operations. Travian's `Send all` action is account-global and must have at most one active
-  runtime queue item regardless of village count; its normal configured dispatch interval still controls retries.
+  those multi-step operations. The Farming panel is account-global: changing the selected village must never replace
+  its rows, enabled state, or timers from a village-status cache; only the workflow's account snapshot/projection may
+  replace that view. Travian's `Send all` action is account-global and must have at most one active runtime queue item
+  regardless of village count; its normal configured dispatch interval still controls retries.
 - Hero attribute automation uses account-scoped absolute maximums (0-100) keyed by attribute; missing or invalid
   values default to 100. Read the four live Official attribute inputs before every plus click, never cross a maximum,
   and do not requeue point spending when the latest complete snapshot shows every configured maximum is reached.

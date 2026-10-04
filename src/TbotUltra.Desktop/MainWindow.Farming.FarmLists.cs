@@ -113,8 +113,6 @@ public partial class MainWindow
         }
 
         await ApplyFarmListsViewToUiAsync(result);
-        await Dispatcher.InvokeAsync(() =>
-            UpdateSelectedCachedTimerStatus(status => status with { FarmLists = result.Lists }));
         return true;
     }
 
@@ -193,13 +191,6 @@ public partial class MainWindow
             SyncFarmListSelectionHandlers();
             RefreshFarmListsItemsControl();
         });
-    }
-
-    private async Task ApplyCachedFarmListsToUiAsync(IReadOnlyList<FarmListOverview> lists)
-    {
-        var options = ApplySelectedVillageToOptions(LoadBotOptions());
-        var request = await CreateFarmListsViewRequestAsync(options);
-        await ApplyFarmListsViewToUiAsync(_farmListsWorkflow.ProjectCached(request, lists));
     }
 
     // After the auto-loop send_farmlists task actually dispatches a list it defers with a

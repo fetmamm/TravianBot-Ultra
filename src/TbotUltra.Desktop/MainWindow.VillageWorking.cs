@@ -1400,11 +1400,6 @@ public partial class MainWindow
                 _troopTrainingViewModel.ApplyBreweryCelebrationStatus(cached.BreweryCelebrationStatus);
             }
 
-            if (cached.FarmLists is { Count: > 0 })
-            {
-                _ = ApplyCachedFarmListsToUiAsync(cached.FarmLists);
-            }
-
             BuildingsInfoTextBlock.Text = _buildingsViewModel.DescribeLoadedSlots($"selected village '{selected.Name}'");
         }
         else
