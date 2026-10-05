@@ -344,13 +344,21 @@
 
                                         <Border Grid.Column="2" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="6" Padding="12">
                                             <StackPanel>
-                                                <StackPanel Orientation="Horizontal">
-                                                    <CheckBox x:Name="SmartSleepEnabledCheckBox" Content="Smart sleep" FontWeight="SemiBold" IsChecked="{Binding SettingsVm.Pacing.SmartSleepEnabled, Mode=TwoWay}" />
-                                                    <ContentControl Style="{StaticResource SettingInfoIconStyle}" ToolTip="Sleeps only when the scheduler knows that no task is needed soon, then wakes near the next task." />
+                                                <Grid>
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="*" />
+                                                        <ColumnDefinition Width="Auto" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <StackPanel Orientation="Horizontal">
+                                                        <CheckBox x:Name="SmartSleepEnabledCheckBox" Content="Smart sleep" FontWeight="SemiBold" IsChecked="{Binding SettingsVm.Pacing.SmartSleepEnabled, Mode=TwoWay}" />
+                                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}" ToolTip="Sleeps only when the scheduler knows that no task is needed soon, then wakes near the next task." />
+                                                    </StackPanel>
                                                     <Border x:Name="SmartSleepRecommendedBadge"
-                                                            Margin="9,0,0,0"
+                                                            Grid.Column="1"
+                                                            Margin="8,-2,-2,0"
                                                             Padding="6,1"
-                                                            VerticalAlignment="Center"
+                                                            HorizontalAlignment="Right"
+                                                            VerticalAlignment="Top"
                                                             Background="{DynamicResource SuccessBgBrush}"
                                                             BorderBrush="{DynamicResource SuccessBorderBrush}"
                                                             BorderThickness="1"
@@ -360,7 +368,7 @@
                                                                    FontWeight="SemiBold"
                                                                    Foreground="{DynamicResource SuccessTextBrush}" />
                                                     </Border>
-                                                </StackPanel>
+                                                </Grid>
                                                 <TextBlock Text="Sleep between known task deadlines." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="20,3,0,10" />
                                                 <Grid Margin="20,0,0,0">
                                                     <Grid.ColumnDefinitions>

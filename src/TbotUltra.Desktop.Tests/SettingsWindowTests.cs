@@ -169,6 +169,8 @@ public sealed class SettingsWindowTests : IDisposable
                 var label = Assert.IsType<TextBlock>(badge.Child);
 
                 Assert.Equal("Recommended", label.Text);
+                Assert.Equal(HorizontalAlignment.Right, badge.HorizontalAlignment);
+                Assert.Equal(VerticalAlignment.Top, badge.VerticalAlignment);
                 Assert.True(window.SettingsVm.Pacing.SmartSleepEnabled);
                 Assert.False(window.SettingsVm.Pacing.SessionPacingEnabled);
             }
