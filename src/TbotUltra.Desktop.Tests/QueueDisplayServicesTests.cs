@@ -7,6 +7,40 @@ namespace TbotUltra.Desktop.Tests;
 
 public sealed class QueueDisplayServicesTests
 {
+    [Theory]
+    [InlineData("clay", "Upgrade all clay fields to level 10")]
+    [InlineData("crop,clay", "Upgrade all clay + crop fields to level 10")]
+    [InlineData("wood,clay,iron,crop", "Upgrade all resource fields to level 10")]
+    public void Format_BulkResourceUpgrade_DescribesSelectedFieldTypes(string selectedTypes, string expected)
+    {
+        var item = Item(
+            "upgrade_all_resources_to_level",
+            new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.ResourceUpgradeTargetLevel] = "10",
+                [BotOptionPayloadKeys.ResourceUpgradeTypes] = selectedTypes,
+            });
+
+        var displayName = QueueDisplayNameFormatter.Format(item, _ => null, _ => null, resourceFieldMaxLevel: 18);
+
+        Assert.Equal(expected, displayName);
+    }
+
+    [Fact]
+    public void Format_LegacyBulkResourceUpgradeWithoutTypes_DescribesAllFields()
+    {
+        var item = Item(
+            "upgrade_all_resources_to_level",
+            new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.ResourceUpgradeTargetLevel] = "10",
+            });
+
+        var displayName = QueueDisplayNameFormatter.Format(item, _ => null, _ => null, resourceFieldMaxLevel: 18);
+
+        Assert.Equal("Upgrade all resource fields to level 10", displayName);
+    }
+
     [Fact]
     public void Format_ResourceUpgrade_UsesPayloadNameAndSlot()
     {

@@ -31,7 +31,19 @@ public static class QueueDisplayNameFormatter
         if (string.Equals(item.TaskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase)
             && targetLevel.HasValue)
         {
-            return $"Upgrade all resources to level {targetLevel.Value}";
+            var selectedTypes = ResourceUpgradeSelection.Parse(
+                GetPayloadValue(payload, BotOptionPayloadKeys.ResourceUpgradeTypes));
+            var orderedTypes = ResourceUpgradeSelection.AllTypes
+                .Where(selectedTypes.Contains)
+                .ToList();
+            if (orderedTypes.Count == ResourceUpgradeSelection.AllTypes.Count)
+            {
+                return $"Upgrade all resource fields to level {targetLevel.Value}";
+            }
+
+            return orderedTypes.Count > 0
+                ? $"Upgrade all {string.Join(" + ", orderedTypes)} fields to level {targetLevel.Value}"
+                : $"Upgrade selected resource fields to level {targetLevel.Value}";
         }
 
         if (string.Equals(item.TaskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
