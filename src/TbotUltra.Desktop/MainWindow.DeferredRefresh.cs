@@ -228,8 +228,8 @@ public partial class MainWindow
                 // the village's resources are now FULL (a hero/farm/NPC drop topped it off after the timer
                 // was captured), the build is almost certainly affordable now and the cached wait is stale,
                 // so the village would idle out a countdown that no longer applies. Resume so the worker
-                // re-checks the live build page instead. The persisted resource fingerprint permits this
-                // only once per changed full snapshot, so a repeated unknown-cost page timer cannot spin.
+                // re-checks the live build page instead. Keep the persisted backoff state across this
+                // early validation so another identical page timer reaches the repeated-wait guard.
                 if (DeferredWaitCalculator.IsVillageResourcesFull(status, currentResources)
                     && ConstructionRepeatedWaitBackoffPolicy.ShouldReleaseForChangedFullResourceObservation(
                         item.Payload,
@@ -238,7 +238,7 @@ public partial class MainWindow
                     && _botService.PatchDeferredQueueItem(
                         item.Id,
                         null,
-                        ConstructionRepeatedWaitBackoffPolicy.RuntimePayloadKeys,
+                        null,
                         TimeSpan.Zero))
                 {
                     AppendLog(

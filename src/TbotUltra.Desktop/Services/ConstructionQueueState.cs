@@ -320,7 +320,8 @@ public static class ConstructionQueueState
             .Select(village => SelectFirstUnstartedHead(village.Select(entry => entry.Item)))
             .Where(head => head is not null
                 && head.NextAttemptAt > now
-                && ResolveDeferReason(head) == ConstructionDeferReason.Resources)
+                && ResolveDeferReason(head) == ConstructionDeferReason.Resources
+                && ConstructionRepeatedWaitBackoffPolicy.AllowsEarlyResourceObservationRelease(head.Payload))
             .Cast<QueueItem>()
             .ToList();
     }

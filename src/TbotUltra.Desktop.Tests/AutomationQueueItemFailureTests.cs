@@ -277,6 +277,11 @@ public sealed class AutomationQueueItemFailureTests
         Assert.True(ConstructionRepeatedWaitBackoffPolicy.ShouldReleaseForChangedFullResourceObservation(
             item.Payload,
             changedFullResources));
+
+        item.Payload[BotOptionPayloadKeys.ConstructionDeferBackoffCount] = "2";
+        Assert.False(ConstructionRepeatedWaitBackoffPolicy.ShouldReleaseForChangedFullResourceObservation(
+            item.Payload,
+            changedFullResources));
     }
 
     [Fact]

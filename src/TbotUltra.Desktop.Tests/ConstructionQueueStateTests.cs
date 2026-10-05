@@ -795,6 +795,30 @@ public sealed class ConstructionQueueStateTests
     }
 
     [Fact]
+    public void SelectResourceDeferredHeadsToRelease_DoesNotBypassRepeatedPageTimerBackoff()
+    {
+        var firstWaitHead = DeferredItem(
+            BotOptionPayloadKeys.UpgradeDeferReasonResources,
+            Now.AddMinutes(1));
+        firstWaitHead.Payload[BotOptionPayloadKeys.ConstructionDeferBackoffSignature] =
+            "construct_building|resources|page_timer|building_slot_20_construct_granary";
+        firstWaitHead.Payload[BotOptionPayloadKeys.ConstructionDeferBackoffCount] = "1";
+        var guardedHead = DeferredItem(
+            BotOptionPayloadKeys.UpgradeDeferReasonResources,
+            Now.AddMinutes(30));
+        guardedHead.Payload[BotOptionPayloadKeys.ConstructionDeferBackoffSignature] =
+            "construct_building|resources|page_timer|building_slot_20_construct_granary";
+        guardedHead.Payload[BotOptionPayloadKeys.ConstructionDeferBackoffCount] = "2";
+
+        var result = ConstructionQueueState.SelectResourceDeferredHeadsToRelease(
+            [(firstWaitHead, "first"), (guardedHead, "ramp")],
+            Now);
+
+        Assert.Contains(firstWaitHead, result);
+        Assert.DoesNotContain(guardedHead, result);
+    }
+
+    [Fact]
     public void HasHeroInventoryIncreased_RequiresObservedIncrease()
     {
         var baseline = new HeroInventoryResources(100, 200, 300, 400);

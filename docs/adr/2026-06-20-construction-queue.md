@@ -56,7 +56,9 @@ Aktivt beslut, 2026-06-20. Detaljerna bakom de korta reglerna i
   observerar ökade resurser. Post-defer-läsningen får aldrig väcka sin egen deadline. Hero-inventariet
   får inte pollas för detta; första avläsningen, identiska avläsningar och avdrag efter transfer väcker
   inte kön. Upprepade identiska försök använder en beständig backoff-floor upp till 30 minuter utan att
-  förkorta en längre serverangiven väntan.
+  förkorta en längre serverangiven väntan. När samma sid-timer har upprepats får generella Hero-ökningar
+  och fulla resurssnapshots inte kringgå deadline; användarreset eller ändrad blockerare öppnar en ny
+  valideringscykel.
 
 ## Construct/upgrade-klick och verifiering
 

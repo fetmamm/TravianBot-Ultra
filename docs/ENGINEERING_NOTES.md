@@ -561,9 +561,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
   unchanged blocker snapshot so a free slot cannot idle behind an obsolete timer. The failed validation's return to
   empty Dorf2 must never release its own new deadline. Repeated identical construction `page_timer` resource waits use
   a persisted, jittered 1/2/5/10/20/30-minute backoff floor; it never shortens a longer authoritative server wait.
-  An unchanged full-resource snapshot must not bypass that deadline. A changed blocker/resource observation or explicit
-  user reset clears it. Hero inventory is never polled for this: only an observed inventory increase wakes the first
-  resource-deferred construction head per village; identical reads and transfer deductions do not.
+  After the same wait repeats, generic Hero-inventory increases and full-resource observations must not bypass that
+  deadline. An explicit user reset or changed blocker starts a new validation cycle. Hero inventory is never polled:
+  before the repeated-wait guard activates, only an observed increase may wake the first resource-deferred construction
+  head per village; identical reads and transfer deductions do not.
 - A new resource-defer snapshot replaces the previous snapshot's costs, current stock, production and capacity fields.
   If the live page cannot expose new costs, never reuse old requirements to wake that `page_timer` early.
 - Construction follows visible per-village queue order subject to the Roman category rule above. A deferred head

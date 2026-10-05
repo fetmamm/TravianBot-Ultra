@@ -77,6 +77,11 @@ public static class ConstructionRepeatedWaitBackoffPolicy
         IReadOnlyDictionary<string, string> deferredPayload,
         IReadOnlyDictionary<string, long> currentResources)
     {
+        if (!AllowsEarlyResourceObservationRelease(deferredPayload))
+        {
+            return false;
+        }
+
         if (!deferredPayload.ContainsKey(BotOptionPayloadKeys.ConstructionDeferBackoffSignature)
             || !deferredPayload.TryGetValue(
                 BotOptionPayloadKeys.ConstructionDeferBackoffResourceFingerprint,
@@ -100,5 +105,20 @@ public static class ConstructionRepeatedWaitBackoffPolicy
             deferredFingerprint,
             CreateResourceObservationFingerprint(currentPayload),
             StringComparison.Ordinal);
+    }
+
+    public static bool AllowsEarlyResourceObservationRelease(
+        IReadOnlyDictionary<string, string> deferredPayload)
+    {
+        if (!deferredPayload.ContainsKey(BotOptionPayloadKeys.ConstructionDeferBackoffSignature))
+        {
+            return true;
+        }
+
+        return deferredPayload.TryGetValue(
+                BotOptionPayloadKeys.ConstructionDeferBackoffCount,
+                out var rawCount)
+            && int.TryParse(rawCount, out var count)
+            && count <= 1;
     }
 }
