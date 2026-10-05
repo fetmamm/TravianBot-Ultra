@@ -469,6 +469,7 @@ public sealed partial class TravianClient
         Notify($"[village-switch:verbose] sidebar lookup for '{villageName}'");
         try
         {
+            await EnsureVillageGroupsExpandedAsync(cancellationToken);
             var href = await _page.EvaluateAsync<string?>(
                 """
                 (name) => {

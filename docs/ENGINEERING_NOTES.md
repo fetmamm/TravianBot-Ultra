@@ -60,6 +60,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Common paths are `/dorf1.php`, `/dorf2.php`, `/build.php?id={slot}`, `/karte.php`, `/berichte.php`, and
   `/messages.php`.
 - Scope selectors to the relevant Official page, widget, dialog, row, or building contract.
+- Before treating the Official sidebar village list as complete or resolving a village switch target from it,
+  expand every collapsed village group with its scoped group action and verify the rendered expanded state.
+  A failed expansion must never produce an authoritative partial village list.
 - Prefer stable attributes and semantic structure over generated class names.
 - Selector changes are additive only for verified Official DOM variants. Do not add broad legacy fallbacks or
   replace a verified selector without evidence.

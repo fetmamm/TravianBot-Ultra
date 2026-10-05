@@ -269,6 +269,7 @@ public sealed partial class TravianClient
 
     private async Task<IReadOnlyList<Village>> ReadVillagesFromCurrentPageAsync(CancellationToken cancellationToken)
     {
+        await EnsureVillageGroupsExpandedAsync(cancellationToken);
 
         var raw = await _page.EvaluateAsync<SidebarVillageJs[]>(
             """
@@ -417,6 +418,75 @@ public sealed partial class TravianClient
                     Population: sidebarPopulation);
             })
             .ToList();
+    }
+
+    private async Task EnsureVillageGroupsExpandedAsync(CancellationToken cancellationToken)
+    {
+        const string collapsedGroupSelector =
+            "#sidebarBoxVillageList .listEntry.group.collapsed";
+        var collapsedGroups = _page.Locator(collapsedGroupSelector);
+        var collapsedCount = await collapsedGroups.CountAsync();
+        if (collapsedCount == 0)
+        {
+            return;
+        }
+
+        Notify($"[village-list] expanding {collapsedCount} collapsed village group(s) before reading the sidebar.");
+        var expandedCount = 0;
+        while (expandedCount < collapsedCount)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var group = collapsedGroups.First;
+            var groupId = await group.GetAttributeAsync("data-groupid");
+            if (string.IsNullOrWhiteSpace(groupId))
+            {
+                throw new InvalidOperationException(
+                    "A collapsed Official Travian village group has no data-groupid; the sidebar list cannot be read safely.");
+            }
+
+            var expandButton = group.Locator(".actions > button.secondaryIconButton.expand");
+            if (await expandButton.CountAsync() != 1)
+            {
+                throw new InvalidOperationException(
+                    $"Village group '{groupId}' is collapsed but has no unique expand button; the sidebar list cannot be read safely.");
+            }
+
+            try
+            {
+                await ClickLocatorAsync(
+                    expandButton,
+                    $"expand village group {groupId}",
+                    cancellationToken);
+                await _page.WaitForFunctionAsync(
+                    """
+                    groupId => {
+                      const group = Array.from(document.querySelectorAll(
+                        '#sidebarBoxVillageList .listEntry.group[data-groupid]'))
+                        .find(candidate => candidate.getAttribute('data-groupid') === groupId);
+                      const wrapper = group?.closest('.dropContainer')?.nextElementSibling;
+                      return !!group
+                        && group.classList.contains('expanded')
+                        && !group.classList.contains('collapsed')
+                        && !!wrapper
+                        && wrapper.classList.contains('groupWrapper')
+                        && !wrapper.classList.contains('collapsed');
+                    }
+                    """,
+                    groupId,
+                    new PageWaitForFunctionOptions { Timeout = _config.TimeoutMs })
+                    .WaitAsync(cancellationToken);
+            }
+            catch (PlaywrightException ex)
+            {
+                throw new InvalidOperationException(
+                    $"Could not expand Official Travian village group '{groupId}'; the sidebar list was not read because it may be incomplete.",
+                    ex);
+            }
+
+            expandedCount++;
+        }
+
+        Notify($"[village-list] expanded {expandedCount} village group(s); sidebar villages are visible for reading.");
     }
 
     private void UpdateCachedVillages(IReadOnlyList<Village> villages)
