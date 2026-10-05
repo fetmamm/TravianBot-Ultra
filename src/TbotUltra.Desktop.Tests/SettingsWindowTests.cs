@@ -128,6 +128,34 @@ public sealed class SettingsWindowTests : IDisposable
     }
 
     [Fact]
+    public void PacingCategory_LoadsIdleDorf2ParkingSettingAndTooltip()
+    {
+        _wpf.Run(() =>
+        {
+            var store = CreateStore(new JsonObject
+            {
+                [BotOptionPayloadKeys.ParkOnDorf2WhileIdle] = true,
+            });
+            var window = new SettingsWindow(store, initialCategory: SettingsCategory.Pacing);
+            try
+            {
+                var checkBox = Assert.IsType<CheckBox>(window.FindName("ParkOnDorf2WhileIdleCheckBox"));
+                var infoIcon = Assert.IsType<ContentControl>(window.FindName("ParkOnDorf2WhileIdleInfoIcon"));
+
+                Assert.True(window.SettingsVm.Pacing.ParkOnDorf2WhileIdle);
+                Assert.Equal("Park on Dorf2 while idle", checkBox.Content);
+                Assert.Equal(
+                    "When enabled, active automation parks the current village on Dorf2 instead of Dorf1 when no work is due for at least 60 seconds. It does not move from other pages, interfere with manual browsing, or act while automation is stopped. Incoming attack monitoring and Troop Evasion may temporarily keep or return to Dorf1.",
+                    infoIcon.ToolTip);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void GeneralCategory_LoadsStartBrowserMinimizedSettingAndControl()
     {
         _wpf.Run(() =>

@@ -43,6 +43,7 @@ public sealed class PacingSettingsViewModel : BaseViewModel
     private bool _continuousKeepAliveEnabled = PacingDefaults.ContinuousKeepAliveEnabled;
     private string _continuousKeepAliveMinMinutes = PacingDefaults.ContinuousKeepAliveMinMinutes.ToString(CultureInfo.InvariantCulture);
     private string _continuousKeepAliveMaxMinutes = PacingDefaults.ContinuousKeepAliveMaxMinutes.ToString(CultureInfo.InvariantCulture);
+    private bool _parkOnDorf2WhileIdle = PacingDefaults.ParkOnDorf2WhileIdle;
     private bool _sessionPacingEnabled = PacingDefaults.SessionPacingEnabled;
     private bool _smartSleepEnabled = PacingDefaults.SmartSleepEnabled;
     private bool _smartSleepWakeWhenConstructionQueueClears = PacingDefaults.SmartSleepWakeWhenConstructionQueueClears;
@@ -133,6 +134,7 @@ public sealed class PacingSettingsViewModel : BaseViewModel
     public bool ContinuousKeepAliveEnabled { get => _continuousKeepAliveEnabled; set => SetProperty(ref _continuousKeepAliveEnabled, value); }
     public string ContinuousKeepAliveMinMinutes { get => _continuousKeepAliveMinMinutes; set => SetProperty(ref _continuousKeepAliveMinMinutes, value); }
     public string ContinuousKeepAliveMaxMinutes { get => _continuousKeepAliveMaxMinutes; set => SetProperty(ref _continuousKeepAliveMaxMinutes, value); }
+    public bool ParkOnDorf2WhileIdle { get => _parkOnDorf2WhileIdle; set => SetProperty(ref _parkOnDorf2WhileIdle, value); }
     public bool SessionPacingEnabled
     {
         get => _sessionPacingEnabled;
@@ -242,6 +244,7 @@ public sealed class PacingSettingsViewModel : BaseViewModel
         ContinuousKeepAliveEnabled = PacingDefaults.ContinuousKeepAliveEnabled;
         ContinuousKeepAliveMinMinutes = PacingDefaults.ContinuousKeepAliveMinMinutes.ToString(CultureInfo.InvariantCulture);
         ContinuousKeepAliveMaxMinutes = PacingDefaults.ContinuousKeepAliveMaxMinutes.ToString(CultureInfo.InvariantCulture);
+        ParkOnDorf2WhileIdle = PacingDefaults.ParkOnDorf2WhileIdle;
         SessionPacingEnabled = PacingDefaults.SessionPacingEnabled;
         SmartSleepEnabled = PacingDefaults.SmartSleepEnabled;
         SmartSleepWakeWhenConstructionQueueClears = PacingDefaults.SmartSleepWakeWhenConstructionQueueClears;

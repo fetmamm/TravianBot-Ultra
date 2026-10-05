@@ -702,6 +702,7 @@
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
                                         <RowDefinition Height="Auto" />
+                                        <RowDefinition Height="Auto" />
                                     </Grid.RowDefinitions>
                                     <StackPanel Grid.Row="0" Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,0,6">
                                         <CheckBox x:Name="ContinuousKeepAliveEnabledCheckBox"
@@ -734,6 +735,14 @@
                                     <TextBlock Grid.Row="1" Grid.Column="2" Text="Max min" FontWeight="SemiBold" />
                                     <TextBox x:Name="ContinuousKeepAliveMinMinutesTextBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2,6,2" Text="{Binding SettingsVm.Pacing.ContinuousKeepAliveMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                     <TextBox x:Name="ContinuousKeepAliveMaxMinutesTextBox" Grid.Row="2" Grid.Column="2" Height="24" Margin="0,2,0,2" Text="{Binding SettingsVm.Pacing.ContinuousKeepAliveMaxMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                    <StackPanel Grid.Row="3" Grid.Column="0" Grid.ColumnSpan="3" Orientation="Horizontal" Margin="0,8,0,0">
+                                        <CheckBox x:Name="ParkOnDorf2WhileIdleCheckBox"
+                                                  Content="Park on Dorf2 while idle"
+                                                  IsChecked="{Binding SettingsVm.Pacing.ParkOnDorf2WhileIdle, Mode=TwoWay}" />
+                                        <ContentControl x:Name="ParkOnDorf2WhileIdleInfoIcon"
+                                                        Style="{StaticResource SettingInfoIconStyle}"
+                                                        ToolTip="When enabled, active automation parks the current village on Dorf2 instead of Dorf1 when no work is due for at least 60 seconds. It does not move from other pages, interfere with manual browsing, or act while automation is stopped. Incoming attack monitoring and Troop Evasion may temporarily keep or return to Dorf1." />
+                                    </StackPanel>
                                 </Grid>
                             </Border>
                             <Border Style="{StaticResource SettingsGroupBox}" BorderThickness="0" Padding="0" Margin="0">

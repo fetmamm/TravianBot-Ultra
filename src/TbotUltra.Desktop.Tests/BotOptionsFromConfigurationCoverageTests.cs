@@ -99,6 +99,7 @@ public sealed class BotOptionsFromConfigurationCoverageTests
         Assert.True(options.ContinuousKeepAliveEnabled);
         Assert.Equal(10, options.ContinuousKeepAliveMinMinutes);
         Assert.Equal(30, options.ContinuousKeepAliveMaxMinutes);
+        Assert.False(options.ParkOnDorf2WhileIdle);
     }
 
     /// <summary>

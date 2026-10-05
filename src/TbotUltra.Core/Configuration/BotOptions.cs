@@ -474,6 +474,9 @@ public sealed record BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.ContinuousKeepAliveMaxMinutes)]
     public int ContinuousKeepAliveMaxMinutes { get; init; } = PacingDefaults.ContinuousKeepAliveMaxMinutes;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.ParkOnDorf2WhileIdle)]
+    public bool ParkOnDorf2WhileIdle { get; init; } = PacingDefaults.ParkOnDorf2WhileIdle;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.VillageStatusSweepEnabled)]
     public bool VillageStatusSweepEnabled { get; init; } = PacingDefaults.VillageStatusSweepEnabled;
     [ConfigurationKeyName(BotOptionPayloadKeys.VillageStatusSweepDorf1Enabled)]

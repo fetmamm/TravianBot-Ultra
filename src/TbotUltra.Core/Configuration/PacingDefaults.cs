@@ -42,6 +42,7 @@ public static class PacingDefaults
     public const bool ContinuousKeepAliveEnabled = true;
     public const int ContinuousKeepAliveMinMinutes = 10;
     public const int ContinuousKeepAliveMaxMinutes = 30;
+    public const bool ParkOnDorf2WhileIdle = false;
     public const bool VillageStatusSweepEnabled = true;
     public const int VillageStatusSweepRoundMinMinutes = 40;
     public const int VillageStatusSweepRoundMaxMinutes = 60;

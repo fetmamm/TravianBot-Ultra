@@ -32,6 +32,7 @@ internal sealed class AutomationSessionRuntime(
     private int _constructionStatusNeedsSync = 1;
     private string? _lastWarningSignature;
     private DateTimeOffset _lastIdleHeartbeatUtc = DateTimeOffset.MinValue;
+    private bool _idleDorf2ParkingEvaluated;
     private readonly object _diagnosticGate = new();
     private readonly Dictionary<string, DateTimeOffset> _verboseLogAtByKey = new(StringComparer.Ordinal);
     private readonly Dictionary<string, string> _constructionSummaryByVillage = new(StringComparer.OrdinalIgnoreCase);
@@ -200,7 +201,26 @@ internal sealed class AutomationSessionRuntime(
         return true;
     }
 
-    internal void MarkActivePass() => _lastIdleHeartbeatUtc = _timeProvider.GetUtcNow();
+    internal void MarkActivePass()
+    {
+        _lastIdleHeartbeatUtc = _timeProvider.GetUtcNow();
+        _idleDorf2ParkingEvaluated = false;
+    }
+
+    internal bool TryBeginIdleDorf2ParkingEvaluation(bool enabled, TimeSpan remainingIdle)
+    {
+        if (!enabled
+            || remainingIdle < TimeSpan.FromSeconds(60)
+            || _idleDorf2ParkingEvaluated)
+        {
+            return false;
+        }
+
+        _idleDorf2ParkingEvaluated = true;
+        return true;
+    }
+
+    internal void BeginAutomationRun() => _idleDorf2ParkingEvaluated = false;
 
     internal bool ShouldPublishVerbose(string key, TimeSpan interval)
     {
@@ -253,6 +273,7 @@ internal sealed class AutomationSessionRuntime(
         _lastGoldClubCheckUtc = DateTimeOffset.MinValue;
         _lastWarningSignature = null;
         _lastIdleHeartbeatUtc = DateTimeOffset.MinValue;
+        _idleDorf2ParkingEvaluated = false;
         lock (_diagnosticGate)
         {
             _verboseLogAtByKey.Clear();

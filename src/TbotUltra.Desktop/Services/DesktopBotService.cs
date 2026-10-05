@@ -457,6 +457,18 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.RefreshCurrentPageAsync(options, log, accountName: null, cancellationToken: cancellationToken);
     }
 
+    public Task<bool> TryParkOnDorf2IfOnDorf1Async(
+        BotOptions options,
+        Action<string> log,
+        CancellationToken cancellationToken)
+    {
+        return _taskRunner.TryParkOnDorf2IfOnDorf1Async(
+            options,
+            log,
+            accountName: null,
+            cancellationToken: cancellationToken);
+    }
+
     public Task<InboxStatus> ReadInboxStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.ReadInboxStatusAsync(options, log, null, cancellationToken);

@@ -61,6 +61,7 @@ public sealed class BotConfigStoreTests : IDisposable
             BotOptionPayloadKeys.ActionPacingClickMaxSeconds,
             BotOptionPayloadKeys.ActionPacingLoopMinSeconds,
             BotOptionPayloadKeys.ActionPacingLoopMaxSeconds,
+            BotOptionPayloadKeys.ParkOnDorf2WhileIdle,
             BotOptionPayloadKeys.ShortVillageDeferSeconds,
             BotOptionPayloadKeys.FarmListStepDelayMinSeconds,
             BotOptionPayloadKeys.FarmListStepDelayMaxSeconds,

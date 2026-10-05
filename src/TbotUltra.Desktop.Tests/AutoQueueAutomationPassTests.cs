@@ -101,6 +101,30 @@ public sealed class AutoQueueAutomationPassTests
     }
 
     [Fact]
+    public async Task DeferredWork_ParksOnDorf2WhenIdleParkingIsEnabled()
+    {
+        var deferred = new QueueItem
+        {
+            TaskName = "upgrade_building",
+            Group = QueueGroup.Construction,
+            Status = QueueStatus.Pending,
+            NextAttemptAt = Now.AddMinutes(3),
+        };
+        var preparation = new InMemoryAutoQueueAutomationPassPort
+        {
+            Options = new BotOptions { ParkOnDorf2WhileIdle = true },
+            QueueItems = [deferred],
+        };
+        var pass = new AutoQueueAutomationPass(preparation, new FixedTimeProvider(Now));
+
+        await pass.ReadAsync(
+            new AutomationRunContext("account-1", new Uri("https://ts1.x1.example/"), 7),
+            CancellationToken.None);
+
+        Assert.Equal(1, preparation.IdleDorf2ParkingCount);
+    }
+
+    [Fact]
     public async Task DeferredConstruction_UsesQueueClearOnlyForSmartSleepDeadline()
     {
         var deferred = new QueueItem
@@ -162,10 +186,13 @@ public sealed class AutoQueueAutomationPassTests
         public IReadOnlyDictionary<Guid, DateTimeOffset> SmartSleepQueueDeadlineOverrides { get; init; } =
             new Dictionary<Guid, DateTimeOffset>();
         public bool PrioritizeDeadlineWorkOnWake { get; set; } = true;
+        public BotOptions Options { get; init; } = new();
+        public int IdleDorf2ParkingCount { get; private set; }
+        private bool _idleDorf2ParkingEvaluated;
         public long RunLogId => 7;
         public IReadOnlySet<QueueGroup> SmartSleepDeadlineGroups { get; } =
             SmartSleepDeadlinePolicy.AllGroups.ToHashSet();
-        public BotOptions LoadOptionsWithSelectedVillage() => new();
+        public BotOptions LoadOptionsWithSelectedVillage() => Options;
         public ValueTask HonorPendingVillageSwitchAsync(BotOptions options, CancellationToken cancellationToken) =>
             ValueTask.CompletedTask;
         public QueueItem? SelectNextQueueItem() => SelectedItems.Count == 0 ? null : SelectedItems.Dequeue();
@@ -180,6 +207,19 @@ public sealed class AutoQueueAutomationPassTests
         {
             RequestedSmartSleepDeadline = trustedDeadlineUtc;
             return false;
+        }
+        public ValueTask MaybeParkOnDorf2WhileIdleAsync(BotOptions options, CancellationToken cancellationToken)
+        {
+            IdleDorf2ParkingCount++;
+            return ValueTask.CompletedTask;
+        }
+        public void MarkActivePass() => _idleDorf2ParkingEvaluated = false;
+        public bool TryBeginIdleDorf2ParkingEvaluation(bool enabled, TimeSpan remainingIdle)
+        {
+            if (!enabled || remainingIdle < TimeSpan.FromSeconds(60) || _idleDorf2ParkingEvaluated)
+                return false;
+            _idleDorf2ParkingEvaluated = true;
+            return true;
         }
         public void Log(string message) => LogMessages.Add(message);
         public ValueTask<AutomationActionOutcome> ExecuteAsync(

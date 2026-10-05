@@ -144,6 +144,19 @@ public sealed partial class TravianClient
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
     }
 
+    public async Task<bool> ParkOnBuildingsPageIfOnResourcesAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!IsCurrentUrlForPath(Paths.Resources))
+        {
+            return false;
+        }
+
+        await GotoAsync(Paths.Buildings, cancellationToken);
+        return true;
+    }
+
     public async Task<IReadOnlyDictionary<string, double?>> ReadCurrentPageResourceProductionPerHourAsync(CancellationToken cancellationToken = default)
     {
         Notify("[ReadCurrentPageResourceProductionPerHourAsync] started");

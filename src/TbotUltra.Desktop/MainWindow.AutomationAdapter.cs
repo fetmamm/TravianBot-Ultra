@@ -89,7 +89,8 @@ public partial class MainWindow
                 passRuntime,
                 queueSelection,
                 deadlines,
-                villageStatusRound);
+                villageStatusRound,
+                sessionRuntime);
 
             var runtime = new AutomationRuntime(
                 passRuntime,

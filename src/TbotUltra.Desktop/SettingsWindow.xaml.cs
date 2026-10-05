@@ -727,6 +727,7 @@ public partial class SettingsWindow : Window
             ContinuousKeepAliveEnabled = SettingsVm.Pacing.ContinuousKeepAliveEnabled,
             ContinuousKeepAliveMinMinutes = ReadIntText(SettingsVm.Pacing.ContinuousKeepAliveMinMinutes, PacingDefaults.ContinuousKeepAliveMinMinutes, 1, 1440),
             ContinuousKeepAliveMaxMinutes = ReadIntText(SettingsVm.Pacing.ContinuousKeepAliveMaxMinutes, PacingDefaults.ContinuousKeepAliveMaxMinutes, 1, 1440),
+            ParkOnDorf2WhileIdle = SettingsVm.Pacing.ParkOnDorf2WhileIdle,
             FarmListStepDelayMinSeconds = ReadDoubleText(SettingsVm.Pacing.FarmListStepDelayMinSeconds, PacingDefaults.FarmListStepDelayMinSeconds),
             FarmListStepDelayMaxSeconds = ReadDoubleText(SettingsVm.Pacing.FarmListStepDelayMaxSeconds, PacingDefaults.FarmListStepDelayMaxSeconds),
             VillageStatusSweepEnabled = SettingsVm.Pacing.VillageStatusSweepEnabled,
@@ -1317,6 +1318,7 @@ public partial class SettingsWindow : Window
         IdleBrowsePageReportsCheckBox.SetCurrentValue(ToggleButton.IsCheckedProperty, SettingsVm.Pacing.IdleBrowsePageReports);
         IdleBrowsePageMessagesCheckBox.SetCurrentValue(ToggleButton.IsCheckedProperty, SettingsVm.Pacing.IdleBrowsePageMessages);
         ContinuousKeepAliveEnabledCheckBox.SetCurrentValue(ToggleButton.IsCheckedProperty, SettingsVm.Pacing.ContinuousKeepAliveEnabled);
+        ParkOnDorf2WhileIdleCheckBox.SetCurrentValue(ToggleButton.IsCheckedProperty, SettingsVm.Pacing.ParkOnDorf2WhileIdle);
         ContinuousKeepAliveMinMinutesTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.ContinuousKeepAliveMinMinutes);
         ContinuousKeepAliveMaxMinutesTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.ContinuousKeepAliveMaxMinutes);
         SessionPacingEnabledCheckBox.SetCurrentValue(ToggleButton.IsCheckedProperty, SettingsVm.Pacing.SessionPacingEnabled);
@@ -1553,6 +1555,7 @@ public partial class SettingsWindow : Window
         SettingsVm.Pacing.ContinuousKeepAliveEnabled = options.ContinuousKeepAliveEnabled;
         SettingsVm.Pacing.ContinuousKeepAliveMinMinutes = options.ContinuousKeepAliveMinMinutes.ToString(CultureInfo.InvariantCulture);
         SettingsVm.Pacing.ContinuousKeepAliveMaxMinutes = options.ContinuousKeepAliveMaxMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.ParkOnDorf2WhileIdle = options.ParkOnDorf2WhileIdle;
         SettingsVm.Pacing.FarmListStepDelayMinSeconds = FormatDelay(options.FarmListStepDelayMinSeconds);
         SettingsVm.Pacing.FarmListStepDelayMaxSeconds = FormatDelay(options.FarmListStepDelayMaxSeconds);
         SettingsVm.Pacing.VillageStatusSweepEnabled = options.VillageStatusSweepEnabled;

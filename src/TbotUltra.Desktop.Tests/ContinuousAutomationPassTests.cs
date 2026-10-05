@@ -99,6 +99,24 @@ public sealed class ContinuousAutomationPassTests
     }
 
     [Fact]
+    public async Task LongIdle_ParksOnDorf2OnlyOnceWhenEnabled()
+    {
+        var preparation = new InMemoryContinuousAutomationPassPort
+        {
+            Options = new BotOptions { LoopIntervalSeconds = 60, ParkOnDorf2WhileIdle = true },
+            Deadlines = new ContinuousAutomationDeadlineSnapshot(
+                Now.AddMinutes(5), null, null, [], SmartSleepDeadlinePolicy.AllGroups.ToHashSet()),
+        };
+        var pass = new ContinuousAutomationPass(preparation, new FixedTimeProvider(Now));
+        var context = new AutomationRunContext("account-1", new Uri("https://ts1.x1.example/"), 7);
+
+        await pass.ReadAsync(context, CancellationToken.None);
+        await pass.ReadAsync(context, CancellationToken.None);
+
+        Assert.Equal(1, preparation.IdleDorf2ParkingCount);
+    }
+
+    [Fact]
     public async Task DeferredTroopTrainingDeadline_DrivesSmartSleepWhileVillageScanOnlyDrivesOnlineWake()
     {
         var troopDeadline = Now.AddHours(2);
@@ -308,6 +326,8 @@ public sealed class ContinuousAutomationPassTests
         public int RuntimeItemsCount { get; private set; }
         public int ChromiumPreparationCount { get; private set; }
         public int AccountHoldCount { get; private set; }
+        public int IdleDorf2ParkingCount { get; private set; }
+        private bool _idleDorf2ParkingEvaluated;
         public List<Guid> SmartSleepBlockers { get; } = [];
         public DateTimeOffset? RequestedSmartSleepDeadline { get; private set; }
         public BotOptions Options { get; init; } = new() { LoopIntervalSeconds = 60 };
@@ -377,9 +397,25 @@ public sealed class ContinuousAutomationPassTests
             Trace.Add("select");
             return SelectedItems.Count == 0 ? null : SelectedItems.Dequeue();
         }
-        public void MarkActivePass() => ActivePassCount++;
+        public void MarkActivePass()
+        {
+            ActivePassCount++;
+            _idleDorf2ParkingEvaluated = false;
+        }
+        public bool TryBeginIdleDorf2ParkingEvaluation(bool enabled, TimeSpan remainingIdle)
+        {
+            if (!enabled || remainingIdle < TimeSpan.FromSeconds(60) || _idleDorf2ParkingEvaluated)
+                return false;
+            _idleDorf2ParkingEvaluated = true;
+            return true;
+        }
         public void LogSmartSleepBlockedByReadyTask(QueueItem item) => SmartSleepBlockers.Add(item.Id);
         public ValueTask MaybeKeepBrowserFreshAsync(BotOptions options, CancellationToken cancellationToken) => ValueTask.CompletedTask;
+        public ValueTask MaybeParkOnDorf2WhileIdleAsync(BotOptions options, CancellationToken cancellationToken)
+        {
+            IdleDorf2ParkingCount++;
+            return ValueTask.CompletedTask;
+        }
         public ContinuousAutomationDeadlineSnapshot ReadDeadlines(BotOptions options) => Deadlines;
         public bool TryRequestSmartSleep(DateTimeOffset? trustedDeadlineUtc)
         {

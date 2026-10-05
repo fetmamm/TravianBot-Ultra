@@ -8,6 +8,7 @@ internal interface IAutoQueueAutomationPassPort
     BotOptions LoadOptionsWithSelectedVillage();
     ValueTask HonorPendingVillageSwitchAsync(BotOptions options, CancellationToken cancellationToken);
     bool TryRequestSmartSleep(DateTimeOffset? trustedDeadlineUtc);
+    ValueTask MaybeParkOnDorf2WhileIdleAsync(BotOptions options, CancellationToken cancellationToken);
     void Log(string message);
     ValueTask<AutomationActionOutcome> ExecuteAsync(
         AutomationCandidate action,
@@ -51,7 +52,10 @@ internal sealed class AutoQueueAutomationPass : IAutomationModePassPort
         {
             var priority = _runtime.SelectReadyPriorityQueueItem(options);
             if (priority is not null)
+            {
+                _runtime.MarkActivePass();
                 return new AutomationStateSnapshot([AutomationCandidate.FromQueueItem(priority)]);
+            }
             await _runtime.RunPendingLoginRoundAsync(options, cancellationToken);
             if (_runtime.HasPendingLoginRound)
                 return new AutomationStateSnapshot([], NextWakeAt: _timeProvider.GetUtcNow().AddSeconds(10));
@@ -61,6 +65,7 @@ internal sealed class AutoQueueAutomationPass : IAutomationModePassPort
         if (selected is not null)
         {
             _runtime.PrioritizeDeadlineWorkOnWake = false;
+            _runtime.MarkActivePass();
             return new AutomationStateSnapshot([AutomationCandidate.FromQueueItem(selected)]);
         }
 
@@ -90,7 +95,14 @@ internal sealed class AutoQueueAutomationPass : IAutomationModePassPort
             _runtime.SmartSleepDeadlineGroups,
             nextConstructionAvailabilityUtc: null,
             queueDeadlineOverrides: _runtime.GetSmartSleepQueueDeadlineOverrides(eligibleItems, now));
-        _ = _port.TryRequestSmartSleep(smartSleepDelay is { } delay ? now.Add(delay) : null);
+        var smartSleepRequested = _port.TryRequestSmartSleep(
+            smartSleepDelay is { } delay ? now.Add(delay) : null);
+        var remainingIdle = nextDeferredItem.NextAttemptAt - now;
+        if (!smartSleepRequested
+            && _runtime.TryBeginIdleDorf2ParkingEvaluation(options.ParkOnDorf2WhileIdle, remainingIdle))
+        {
+            await _port.MaybeParkOnDorf2WhileIdleAsync(options, cancellationToken);
+        }
         return new AutomationStateSnapshot([AutomationCandidate.FromQueueItem(nextDeferredItem)]);
     }
 

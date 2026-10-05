@@ -332,6 +332,7 @@ public static class BotOptionPayloadKeys
     public const string ContinuousKeepAliveEnabled = "continuous_keep_alive_enabled";
     public const string ContinuousKeepAliveMinMinutes = "continuous_keep_alive_min_minutes";
     public const string ContinuousKeepAliveMaxMinutes = "continuous_keep_alive_max_minutes";
+    public const string ParkOnDorf2WhileIdle = "park_on_dorf2_while_idle";
     public const string FarmListStepDelayMinSeconds = "farm_list_step_delay_min_seconds";
     public const string FarmListStepDelayMaxSeconds = "farm_list_step_delay_max_seconds";
     public const string VillageStatusSweepEnabled = "village_status_sweep_enabled";

@@ -323,6 +323,7 @@ internal sealed class SettingsExchangeService
             BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears,
             BotOptionPayloadKeys.ActionPacingEnabled,
             BotOptionPayloadKeys.ContinuousKeepAliveEnabled,
+            BotOptionPayloadKeys.ParkOnDorf2WhileIdle,
             BotOptionPayloadKeys.VillageStatusSweepEnabled,
             BotOptionPayloadKeys.VillageStatusSweepDorf1Enabled,
             BotOptionPayloadKeys.VillageStatusSweepDorf2Enabled,

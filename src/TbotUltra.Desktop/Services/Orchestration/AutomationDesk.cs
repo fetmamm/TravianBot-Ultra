@@ -341,6 +341,7 @@ public sealed class AutomationDesk : IAutomationDesk, IAsyncDisposable
                 runId = new AutomationRunId(Interlocked.Increment(ref _nextRunId));
                 Current = new AutomationSnapshot(runId, request.Mode, request.Context, AutomationPhase.Running);
                 _networkBackoff.MarkHealthy();
+                _runtime?.Session.BeginAutomationRun();
                 var automationEvent = new AutomationEvent.RunStarted(
                     runId,
                     _timeProvider.GetUtcNow(),

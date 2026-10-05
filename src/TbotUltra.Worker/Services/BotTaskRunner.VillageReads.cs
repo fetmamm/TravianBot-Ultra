@@ -527,6 +527,27 @@ public sealed partial class BotTaskRunner
             });
     }
 
+    public async Task<bool> TryParkOnDorf2IfOnDorf1Async(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        var parked = false;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                parked = await client.ParkOnBuildingsPageIfOnResourcesAsync(cancellationToken);
+            });
+        return parked;
+    }
+
     // Reloads the page the browser is currently on (no navigation), used by the continuous loop's
     // idle keep-alive to stop the Travian page from going stale and showing wrong values.
     public async Task RefreshCurrentPageAsync(

@@ -3,7 +3,7 @@ using Microsoft.Extensions.Configuration;
 
 namespace TbotUltra.Core.Configuration;
 
-internal sealed record KeepAliveOptions(bool Enabled, int MinMinutes, int MaxMinutes);
+internal sealed record KeepAliveOptions(bool Enabled, int MinMinutes, int MaxMinutes, bool ParkOnDorf2WhileIdle);
 
 internal sealed record VillageStatusSweepOptions(
     bool Enabled,
@@ -124,6 +124,7 @@ internal static class ActionPacingOptionsModule
         target[BotOptionPayloadKeys.ShortVillageDeferSeconds] = PacingDefaults.NormalizeShortVillageDeferSeconds(options.ShortVillageDeferSeconds);
         target[BotOptionPayloadKeys.VillageRoundSleepExtensionMinutes] = PacingDefaults.NormalizeVillageRoundSleepExtensionMinutes(options.VillageRoundSleepExtensionMinutes);
         target[BotOptionPayloadKeys.ContinuousKeepAliveEnabled] = options.ContinuousKeepAliveEnabled;
+        target[BotOptionPayloadKeys.ParkOnDorf2WhileIdle] = options.ParkOnDorf2WhileIdle;
         SettingsDraftWriter.WriteIntRange(target, BotOptionPayloadKeys.ContinuousKeepAliveMinMinutes, BotOptionPayloadKeys.ContinuousKeepAliveMaxMinutes, options.ContinuousKeepAliveMinMinutes, options.ContinuousKeepAliveMaxMinutes, 1, 1440);
         SettingsDraftWriter.WriteDelayRange(target, BotOptionPayloadKeys.FarmListStepDelayMinSeconds, BotOptionPayloadKeys.FarmListStepDelayMaxSeconds, options.FarmListStepDelayMinSeconds, options.FarmListStepDelayMaxSeconds, 0, 3600);
         target[BotOptionPayloadKeys.VillageStatusSweepEnabled] = options.VillageStatusSweepEnabled;
@@ -206,6 +207,7 @@ internal static class ActionPacingOptionsModule
         BotOptionPayloadKeys.ContinuousKeepAliveEnabled,
         BotOptionPayloadKeys.ContinuousKeepAliveMinMinutes,
         BotOptionPayloadKeys.ContinuousKeepAliveMaxMinutes,
+        BotOptionPayloadKeys.ParkOnDorf2WhileIdle,
         BotOptionPayloadKeys.FarmListStepDelayMinSeconds,
         BotOptionPayloadKeys.FarmListStepDelayMaxSeconds,
         BotOptionPayloadKeys.ActionPacingIdleBreakEnabled,
@@ -258,7 +260,8 @@ internal static class ActionPacingOptionsModule
             KeepAlive = new KeepAliveOptions(
                 configuration.GetValue(BotOptionPayloadKeys.ContinuousKeepAliveEnabled, PacingDefaults.ContinuousKeepAliveEnabled),
                 Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ContinuousKeepAliveMinMinutes, PacingDefaults.ContinuousKeepAliveMinMinutes), 1, 1440),
-                Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ContinuousKeepAliveMaxMinutes, PacingDefaults.ContinuousKeepAliveMaxMinutes), 1, 1440)),
+                Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.ContinuousKeepAliveMaxMinutes, PacingDefaults.ContinuousKeepAliveMaxMinutes), 1, 1440),
+                configuration.GetValue(BotOptionPayloadKeys.ParkOnDorf2WhileIdle, PacingDefaults.ParkOnDorf2WhileIdle)),
             VillageStatusSweep = new VillageStatusSweepOptions(
                 configuration.GetValue(BotOptionPayloadKeys.VillageStatusSweepEnabled, PacingDefaults.VillageStatusSweepEnabled),
                 configuration.GetValue(BotOptionPayloadKeys.VillageStatusSweepDorf1Enabled, true),
@@ -317,7 +320,8 @@ internal static class ActionPacingOptionsModule
             KeepAlive = new KeepAliveOptions(
                 source.ContinuousKeepAliveEnabled,
                 source.ContinuousKeepAliveMinMinutes,
-                source.ContinuousKeepAliveMaxMinutes),
+                source.ContinuousKeepAliveMaxMinutes,
+                source.ParkOnDorf2WhileIdle),
             VillageStatusSweep = new VillageStatusSweepOptions(
                 source.VillageStatusSweepEnabled,
                 source.VillageStatusSweepDorf1Enabled,
@@ -451,6 +455,7 @@ internal static class ActionPacingOptionsModule
             ContinuousKeepAliveEnabled = values.KeepAlive.Enabled,
             ContinuousKeepAliveMinMinutes = values.KeepAlive.MinMinutes,
             ContinuousKeepAliveMaxMinutes = values.KeepAlive.MaxMinutes,
+            ParkOnDorf2WhileIdle = values.KeepAlive.ParkOnDorf2WhileIdle,
             VillageStatusSweepEnabled = values.VillageStatusSweep.Enabled,
             VillageStatusSweepDorf1Enabled = values.VillageStatusSweep.Dorf1Enabled,
             VillageStatusSweepDorf2Enabled = values.VillageStatusSweep.Dorf2Enabled,

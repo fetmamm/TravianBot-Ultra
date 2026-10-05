@@ -19,6 +19,7 @@ internal interface IContinuousAutomationPassRuntime
     ValueTask EnsureRuntimeItemsAsync(BotOptions options, CancellationToken cancellationToken);
     QueueItem? SelectNextQueueItem();
     void MarkActivePass();
+    bool TryBeginIdleDorf2ParkingEvaluation(bool enabled, TimeSpan remainingIdle);
     ContinuousAutomationDeadlineSnapshot ReadDeadlines(BotOptions options);
     bool ShouldPublishIdleHeartbeat(TimeSpan interval);
 }
@@ -59,6 +60,8 @@ internal sealed class ContinuousAutomationPassRuntime(
         runtimeItemPreparation.PrepareAsync(options, cancellationToken);
     public QueueItem? SelectNextQueueItem() => queueSelection.Select();
     public void MarkActivePass() => session.MarkActivePass();
+    public bool TryBeginIdleDorf2ParkingEvaluation(bool enabled, TimeSpan remainingIdle) =>
+        session.TryBeginIdleDorf2ParkingEvaluation(enabled, remainingIdle);
     public ContinuousAutomationDeadlineSnapshot ReadDeadlines(BotOptions options) => deadlines.Read(options);
     public bool ShouldPublishIdleHeartbeat(TimeSpan interval) => session.ShouldPublishIdleHeartbeat(interval);
 }
@@ -76,13 +79,16 @@ internal interface IAutoQueueAutomationPassRuntime
     IReadOnlyDictionary<Guid, DateTimeOffset> GetSmartSleepQueueDeadlineOverrides(
         IReadOnlyList<QueueItem> items,
         DateTimeOffset now);
+    void MarkActivePass();
+    bool TryBeginIdleDorf2ParkingEvaluation(bool enabled, TimeSpan remainingIdle);
 }
 
 internal sealed class AutoQueueAutomationPassRuntime(
     AutomationPassRuntime pass,
     AutomationQueueSelectionCoordinator queueSelection,
     ContinuousAutomationDeadlineCoordinator deadlines,
-    ContinuousVillageStatusRound villageStatusRound) : IAutoQueueAutomationPassRuntime
+    ContinuousVillageStatusRound villageStatusRound,
+    AutomationSessionRuntime session) : IAutoQueueAutomationPassRuntime
 {
     public long RunLogId => pass.AutoQueueRunLogId;
     public bool PrioritizeDeadlineWorkOnWake
@@ -103,4 +109,7 @@ internal sealed class AutoQueueAutomationPassRuntime(
     public IReadOnlyDictionary<Guid, DateTimeOffset> GetSmartSleepQueueDeadlineOverrides(
         IReadOnlyList<QueueItem> items,
         DateTimeOffset now) => deadlines.ResolveQueueDeadlineOverrides(items, now);
+    public void MarkActivePass() => session.MarkActivePass();
+    public bool TryBeginIdleDorf2ParkingEvaluation(bool enabled, TimeSpan remainingIdle) =>
+        session.TryBeginIdleDorf2ParkingEvaluation(enabled, remainingIdle);
 }

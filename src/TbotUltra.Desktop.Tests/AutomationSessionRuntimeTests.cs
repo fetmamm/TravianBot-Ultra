@@ -78,6 +78,21 @@ public sealed class AutomationSessionRuntimeTests
         Assert.True(runtime.ShouldPublishVerbose(key, TimeSpan.FromMinutes(5)));
     }
 
+    [Fact]
+    public void IdleDorf2Parking_IsAttemptedOncePerIdlePeriodAndResetsAfterWork()
+    {
+        var runtime = new AutomationSessionRuntime();
+
+        Assert.False(runtime.TryBeginIdleDorf2ParkingEvaluation(false, TimeSpan.FromMinutes(5)));
+        Assert.False(runtime.TryBeginIdleDorf2ParkingEvaluation(true, TimeSpan.FromSeconds(59)));
+        Assert.True(runtime.TryBeginIdleDorf2ParkingEvaluation(true, TimeSpan.FromSeconds(60)));
+        Assert.False(runtime.TryBeginIdleDorf2ParkingEvaluation(true, TimeSpan.FromMinutes(5)));
+
+        runtime.MarkActivePass();
+
+        Assert.True(runtime.TryBeginIdleDorf2ParkingEvaluation(true, TimeSpan.FromMinutes(5)));
+    }
+
     private sealed class MutableTimeProvider(DateTimeOffset now) : TimeProvider
     {
         private DateTimeOffset _now = now;
