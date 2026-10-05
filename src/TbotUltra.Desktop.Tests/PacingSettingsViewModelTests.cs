@@ -10,7 +10,7 @@ public sealed class PacingSettingsViewModelTests
     {
         var vm = new PacingSettingsViewModel();
 
-        vm.SmartSleepEnabled = true;
+        Assert.True(vm.SmartSleepEnabled);
         Assert.False(vm.SessionPacingEnabled);
         vm.SmartSleepEnabled = false;
 
@@ -68,7 +68,7 @@ public sealed class PacingSettingsViewModelTests
         Assert.Equal("4", vm.FarmListStepDelayMaxSeconds);
         Assert.Equal(60, vm.ShortVillageDeferSeconds);
         Assert.Equal("10", vm.SmartSleepWakeBeforeMinutes);
-        Assert.Equal("20", vm.SmartSleepWakeAfterMinutes);
+        Assert.Equal("15", vm.SmartSleepWakeAfterMinutes);
         Assert.True(vm.SmartSleepWakeWhenConstructionQueueClears);
         Assert.Equal(["construction", "hero"], vm.GetSelectedSmartSleepDeadlineGroups());
     }

@@ -20,6 +20,18 @@ public sealed class SettingsConfigurationProjectionTests
         Assert.Equal(ConstructionDefaults.MainBuildingRebuildTargetLevel, settings.Options.ConstructionMainBuildingRebuildTargetLevel);
         Assert.Equal(ConstructionDefaults.RomanPriority, settings.Options.ConstructionRomanPriority);
         Assert.Equal(FarmingDefaults.DefaultLastSentLimitHours, settings.Options.FarmListLastSentLimitHours);
+        Assert.False(settings.SessionPacing.SessionPacingEnabled);
+        Assert.True(settings.SessionPacing.SmartSleepEnabled);
+        Assert.Equal(10, settings.SessionPacing.SessionRunMinMinutes);
+        Assert.Equal(40, settings.SessionPacing.SessionRunMaxMinutes);
+        Assert.Equal(30, settings.SessionPacing.SessionSleepMinMinutes);
+        Assert.Equal(60, settings.SessionPacing.SessionSleepMaxMinutes);
+        Assert.Equal(20, settings.SessionPacing.SmartSleepMinimumOpportunityMinutes);
+        Assert.Equal(10, settings.SessionPacing.SmartSleepWakeBeforeMinutes);
+        Assert.Equal(15, settings.SessionPacing.SmartSleepWakeAfterMinutes);
+        Assert.Equal(90, settings.SessionPacing.SmartSleepFallbackMinMinutes);
+        Assert.Equal(180, settings.SessionPacing.SmartSleepFallbackMaxMinutes);
+        Assert.True(settings.SessionPacing.SmartSleepWakeWhenConstructionQueueClears);
         Assert.Equal(["construction", "hero"], settings.SessionPacing.SmartSleepDeadlineGroups);
         Assert.Equal(Enumerable.Range(0, 24), settings.SessionPacing.SessionAllowedHours);
     }

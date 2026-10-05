@@ -202,11 +202,12 @@ public sealed class SessionPacerTests
     [Fact]
     public void PacingDefaults_UseConservativeSessionDefaults()
     {
-        Assert.True(PacingDefaults.SessionPacingEnabled);
-        Assert.Equal(15, PacingDefaults.SessionPacingRunMinMinutes);
-        Assert.Equal(50, PacingDefaults.SessionPacingRunMaxMinutes);
-        Assert.Equal(10, PacingDefaults.SessionPacingSleepMinMinutes);
-        Assert.Equal(40, PacingDefaults.SessionPacingSleepMaxMinutes);
+        Assert.False(PacingDefaults.SessionPacingEnabled);
+        Assert.True(PacingDefaults.SmartSleepEnabled);
+        Assert.Equal(10, PacingDefaults.SessionPacingRunMinMinutes);
+        Assert.Equal(40, PacingDefaults.SessionPacingRunMaxMinutes);
+        Assert.Equal(30, PacingDefaults.SessionPacingSleepMinMinutes);
+        Assert.Equal(60, PacingDefaults.SessionPacingSleepMaxMinutes);
         Assert.Equal(12, PacingDefaults.SessionPacingDailyMaxHours);
         Assert.Equal(10, PacingDefaults.SessionPacingDailyMaxVariationPercent);
     }

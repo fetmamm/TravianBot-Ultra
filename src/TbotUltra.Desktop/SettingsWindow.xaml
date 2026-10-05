@@ -347,6 +347,19 @@
                                                 <StackPanel Orientation="Horizontal">
                                                     <CheckBox x:Name="SmartSleepEnabledCheckBox" Content="Smart sleep" FontWeight="SemiBold" IsChecked="{Binding SettingsVm.Pacing.SmartSleepEnabled, Mode=TwoWay}" />
                                                     <ContentControl Style="{StaticResource SettingInfoIconStyle}" ToolTip="Sleeps only when the scheduler knows that no task is needed soon, then wakes near the next task." />
+                                                    <Border x:Name="SmartSleepRecommendedBadge"
+                                                            Margin="9,0,0,0"
+                                                            Padding="6,1"
+                                                            VerticalAlignment="Center"
+                                                            Background="{DynamicResource SuccessBgBrush}"
+                                                            BorderBrush="{DynamicResource SuccessBorderBrush}"
+                                                            BorderThickness="1"
+                                                            CornerRadius="4">
+                                                        <TextBlock Text="Recommended"
+                                                                   FontSize="10"
+                                                                   FontWeight="SemiBold"
+                                                                   Foreground="{DynamicResource SuccessTextBrush}" />
+                                                    </Border>
                                                 </StackPanel>
                                                 <TextBlock Text="Sleep between known task deadlines." Foreground="{DynamicResource TextSecondaryBrush}" FontSize="11" Margin="20,3,0,10" />
                                                 <Grid Margin="20,0,0,0">

@@ -156,6 +156,30 @@ public sealed class SettingsWindowTests : IDisposable
     }
 
     [Fact]
+    public void PacingCategory_ShowsSmartSleepRecommendation()
+    {
+        _wpf.Run(() =>
+        {
+            var window = new SettingsWindow(
+                CreateStore(new JsonObject()),
+                initialCategory: SettingsCategory.Pacing);
+            try
+            {
+                var badge = Assert.IsType<Border>(window.FindName("SmartSleepRecommendedBadge"));
+                var label = Assert.IsType<TextBlock>(badge.Child);
+
+                Assert.Equal("Recommended", label.Text);
+                Assert.True(window.SettingsVm.Pacing.SmartSleepEnabled);
+                Assert.False(window.SettingsVm.Pacing.SessionPacingEnabled);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void GeneralCategory_LoadsStartBrowserMinimizedSettingAndControl()
     {
         _wpf.Run(() =>

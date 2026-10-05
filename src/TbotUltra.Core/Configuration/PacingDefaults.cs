@@ -2,12 +2,12 @@ namespace TbotUltra.Core.Configuration;
 
 public static class PacingDefaults
 {
-    public const bool SessionPacingEnabled = true;
+    public const bool SessionPacingEnabled = false;
     // Run and sleep durations are random picks in [min, max] minutes.
-    public const int SessionPacingRunMinMinutes = 15;
-    public const int SessionPacingRunMaxMinutes = 50;
-    public const int SessionPacingSleepMinMinutes = 10;
-    public const int SessionPacingSleepMaxMinutes = 40;
+    public const int SessionPacingRunMinMinutes = 10;
+    public const int SessionPacingRunMaxMinutes = 40;
+    public const int SessionPacingSleepMinMinutes = 30;
+    public const int SessionPacingSleepMaxMinutes = 60;
     public const int SessionPacingDailyMaxHours = 12;
     // Daily-max has its own variation, independent of the run/sleep/schedule "Variation" above.
     public const int SessionPacingDailyMaxVariationPercent = 10;
@@ -16,10 +16,10 @@ public static class PacingDefaults
     // 0 disables (exact boundaries). Capped at 49% so adjacent boundaries never reorder.
     public const int SessionPacingHoursVariationPercent = 30;
 
-    public const bool SmartSleepEnabled = false;
+    public const bool SmartSleepEnabled = true;
     public const int SmartSleepMinimumOpportunityMinutes = 20;
     public const int SmartSleepWakeBeforeMinutes = 10;
-    public const int SmartSleepWakeAfterMinutes = 20;
+    public const int SmartSleepWakeAfterMinutes = 15;
     public const int SmartSleepFallbackMinMinutes = 90;
     public const int SmartSleepFallbackMaxMinutes = 180;
     public const int SmartSleepDeadlineCoalescingMinMinutes = 10;

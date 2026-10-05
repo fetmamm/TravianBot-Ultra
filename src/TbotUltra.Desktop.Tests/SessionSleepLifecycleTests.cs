@@ -195,6 +195,13 @@ public sealed class SessionSleepLifecycleTests
     public async Task ActiveOperation_DefersTheWholeTransactionUntilTheOperationEnds()
     {
         var pacer = new SessionPacer(() => Now);
+        pacer.Configure(new SessionPacerSettings(
+            true,
+            60,
+            60,
+            30,
+            30,
+            RunTimerEnabled: false));
         var port = new InMemorySleepPort
         {
             State = DefaultState() with { LoggedIn = true, ActiveOperation = true },
