@@ -331,6 +331,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   activates the first prepared tab
   and requires explicit `Send now` confirmation. Only the final confirmation burst uses the explicitly selected
   50–500 ms delay without general action pacing; cancel sends nothing and temporary wave tabs are closed.
+- Read-only actionability and final-safety analysis must not apply click pacing. The method that performs the
+  state-changing click owns the single click-pacing delay; repeated safety reads remain unpaced.
 - Proxy settings are account-scoped. Browser, HTTP client, tests, and bonus video use the same effective route.
   Never log credentials or place them in user-visible URLs.
   Proxy library/finder entries carry username and password separately; migrate legacy inline Host credentials

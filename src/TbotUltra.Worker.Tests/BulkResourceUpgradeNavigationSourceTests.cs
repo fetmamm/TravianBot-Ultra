@@ -80,6 +80,39 @@ public sealed class BulkResourceUpgradeNavigationSourceTests
         Assert.DoesNotContain("Fallback: any element matching the broader", source, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void UpgradeActionabilityAnalysis_DoesNotApplyClickPacingBeforeReadOnlyChecks()
+    {
+        var analysisSource = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "TbotUltra.Worker",
+            "Services",
+            "Automation",
+            "Buildings",
+            "TravianClient.Buildings.UpgradeAnalysis.cs"));
+        var methodStart = analysisSource.IndexOf("private async Task<UpgradeAttemptResult> AnalyzeUpgradeActionabilityAsync", StringComparison.Ordinal);
+
+        Assert.True(methodStart >= 0, "Could not locate the upgrade actionability analysis.");
+        var analysisMethod = analysisSource[methodStart..];
+        Assert.DoesNotContain("DelayBeforeClickAsync", analysisMethod, StringComparison.Ordinal);
+
+        var clickSource = File.ReadAllText(Path.Combine(
+            FindRepositoryRoot(),
+            "src",
+            "TbotUltra.Worker",
+            "Services",
+            "Automation",
+            "Buildings",
+            "TravianClient.Upgrade.cs"));
+        var clickStart = clickSource.IndexOf("private async Task ClickDetectedUpgradeCandidateAsync", StringComparison.Ordinal);
+        var clickEnd = clickSource.IndexOf("private async Task<int?> ReadUpgradeDurationSecondsOnCurrentPageAsync", clickStart, StringComparison.Ordinal);
+
+        Assert.True(clickStart >= 0 && clickEnd > clickStart, "Could not locate the upgrade click methods.");
+        var clickMethods = clickSource[clickStart..clickEnd];
+        Assert.Contains("DelayBeforeClickAsync", clickMethods, StringComparison.Ordinal);
+    }
+
     private static string FindRepositoryRoot()
     {
         for (var directory = new DirectoryInfo(AppContext.BaseDirectory); directory is not null; directory = directory.Parent)

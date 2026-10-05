@@ -72,7 +72,6 @@ public sealed partial class TravianClient
                 }
                 await EnsureLoggedInAsync();
                 await EnsureExpectedBuildSlotPageAsync(slotId, "analyze upgrade", cancellationToken);
-                await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
 
                 var rawJson = await _page.EvaluateAsync<string>(
                     """
