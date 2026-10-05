@@ -869,7 +869,7 @@ public sealed partial class TravianClient
                 return true;
             }
 
-            await _page.Keyboard.PressAsync("Escape");
+            await PressKeyAsync("Escape", "dismiss-resource-transfer-dialog", cancellationToken);
 
             await _page.WaitForFunctionAsync(
                 dialogGoneScript,

@@ -18,10 +18,12 @@ internal sealed record ProductionBonusActivationResult(
 
 internal interface IProductionBonusBrowser
 {
-    Task<ProductionBonusObservation> InspectAsync(bool afterActivationAttempt, CancellationToken cancellationToken);
+    Task<ProductionBonusObservation> InspectAsync(
+        bool afterActivationAttempt,
+        bool refreshPage,
+        CancellationToken cancellationToken);
     IProductionBonusActivationBatch BeginActivationBatch();
     Task ActivateInCurrentBrowserAsync(IReadOnlyList<string> resources, CancellationToken cancellationToken);
-    Task RestoreMainPageAsync();
 }
 
 internal interface IProductionBonusActivationBatch
@@ -47,6 +49,7 @@ internal sealed class ProductionBonusOperation
     {
         var initial = await _browser.InspectAsync(
             afterActivationAttempt: intent == ProductionBonusRunIntent.Activate,
+            refreshPage: false,
             cancellationToken);
         if (initial.AccountDeletionPending)
         {
@@ -126,40 +129,39 @@ internal sealed class ProductionBonusOperation
                 {
                     _log($"[production-bonus:verbose] {resource}: isolated bonus video failed: {ex.GetType().Name}: {ex.Message}");
                 }
-                finally
-                {
-                    if (!usedCurrentBrowserFallback)
-                    {
-                        await _browser.RestoreMainPageAsync();
-                    }
-                }
-
                 if (usedCurrentBrowserFallback)
                 {
                     break;
                 }
 
-                var confirmed = false;
-                try
+                // Completed means the isolated browser's canonical bonus-box observation saw the reward.
+                // Only ambiguous failures need a separate main-browser read before an immediate retry.
+                var confirmed = activation.Status == ProductionBonusActivationStatus.Completed;
+                if (!confirmed && activation.MayRetry)
                 {
-                    var verification = await _browser.InspectAsync(afterActivationAttempt: true, cancellationToken);
-                    if (verification.AccountDeletionPending)
+                    try
                     {
-                        return AccountDeletionPending();
-                    }
+                        var verification = await _browser.InspectAsync(
+                            afterActivationAttempt: true,
+                            refreshPage: true,
+                            cancellationToken);
+                        if (verification.AccountDeletionPending)
+                        {
+                            return AccountDeletionPending();
+                        }
 
-                    confirmed = verification.Resources.Any(state =>
-                        string.Equals(state.Resource, resource, StringComparison.OrdinalIgnoreCase)
-                        && state.Bonus is 15 or 25);
-                }
-                catch (OperationCanceledException)
-                {
-                    throw;
-                }
-                catch (Exception ex)
-                {
-                    activation = activation with { MayRetry = true };
-                    _log($"[production-bonus:verbose] {resource}: fresh activation verification failed: {ex.GetType().Name}: {ex.Message}");
+                        confirmed = verification.Resources.Any(state =>
+                            string.Equals(state.Resource, resource, StringComparison.OrdinalIgnoreCase)
+                            && state.Bonus is 15 or 25);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        throw;
+                    }
+                    catch (Exception ex)
+                    {
+                        _log($"[production-bonus:verbose] {resource}: fresh activation verification failed: {ex.GetType().Name}: {ex.Message}");
+                    }
                 }
 
                 if (confirmed)
@@ -184,7 +186,10 @@ internal sealed class ProductionBonusOperation
             }
         }
 
-        var finalObservation = await _browser.InspectAsync(afterActivationAttempt: true, cancellationToken);
+        var finalObservation = await _browser.InspectAsync(
+            afterActivationAttempt: true,
+            refreshPage: true,
+            cancellationToken);
         if (finalObservation.AccountDeletionPending)
         {
             return AccountDeletionPending();

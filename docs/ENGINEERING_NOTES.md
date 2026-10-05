@@ -1,6 +1,6 @@
 # Engineering Notes
 
-Last updated: 2026-10-01
+Last updated: 2026-10-05
 
 Read this file before changing architecture, selectors, paths, browser behavior, persisted state, queueing,
 or server logic. Keep it short and current: durable rules belong here; detailed decisions belong in ADRs;
@@ -898,9 +898,13 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - One `activate_production_bonus` run is a contiguous four-resource batch: after its initial cooldown gate,
   attempt every resource found activatable before returning control to other automation. A failure or newly
   created internal video cooldown for one resource must not stop the remaining resources in that same batch.
-  Verify each attempted resource against a fresh canonical bonus-box read. An ambiguous unconfirmed result may
-  retry once; known typed failures keep their no-immediate-retry policy. After the batch, raise one actionable alarm
-  listing resources still unconfirmed, persist the final observed states, and let normal automation continue.
+  A completed isolated video already includes a canonical bonus-box reward observation and must not trigger a
+  redundant main-browser refresh. Verify only ambiguous results before their one permitted retry, then perform one
+  fresh canonical main-browser read after the complete batch. Known typed failures keep their no-immediate-retry
+  policy. After the batch, raise one actionable alarm listing resources still unconfirmed, persist the final
+  observed states, and let normal automation continue.
+  Initial production-bonus inspection reuses a healthy current Dorf1 page, dismisses the Advantages wizard locally,
+  and reloads only for the final post-batch observation or genuine incomplete-render recovery.
   Worker returns a typed `ProductionBonusOutcome`; human messages are diagnostic only and must never carry private
   state tokens. The Worker `ProductionBonusOperation` owns inspect/activate run intent and contiguous batch policy behind
   `IProductionBonusBrowser`; the Desktop `ProductionBonusOperation` owns deadline calculation, failure backoff, and timer

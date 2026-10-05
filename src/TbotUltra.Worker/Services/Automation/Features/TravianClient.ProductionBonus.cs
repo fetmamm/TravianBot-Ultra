@@ -207,9 +207,12 @@ public sealed partial class TravianClient
 
         public async Task<ProductionBonusObservation> InspectAsync(
             bool afterActivationAttempt,
+            bool refreshPage,
             CancellationToken cancellationToken)
         {
-            var pageState = await _client.ReadProductionBonusPageStateInMainBrowserAsync(cancellationToken);
+            var pageState = await _client.ReadProductionBonusPageStateInMainBrowserAsync(
+                refreshPage,
+                cancellationToken);
             return pageState.AccountDeletionPending
                 ? new ProductionBonusObservation([], null, AccountDeletionPending: true)
                 : new ProductionBonusObservation(
@@ -224,9 +227,6 @@ public sealed partial class TravianClient
             IReadOnlyList<string> resources,
             CancellationToken cancellationToken)
             => _ = await _client.RunProductionBonusVideosInCurrentBrowserAsync(resources, cancellationToken);
-
-        public Task RestoreMainPageAsync()
-            => _client.ReturnMainPageAfterIsolatedBonusVideoAsync();
 
         private sealed class ActivationBatchAdapter : IProductionBonusActivationBatch
         {
@@ -268,14 +268,27 @@ public sealed partial class TravianClient
         bool AccountDeletionPending = false);
 
     private async Task<ProductionBonusPageState> ReadProductionBonusPageStateInMainBrowserAsync(
+        bool refreshPage,
         CancellationToken cancellationToken)
     {
         try
         {
             for (var openAttempt = 1; openAttempt <= AdvantagesOpenAttempts; openAttempt++)
             {
-                // A fresh dorf1 load gives a slow or stalled React wizard one clean retry.
-                await ReloadOrGotoAsync(Paths.Resources, cancellationToken);
+                // Reuse a healthy dorf1 page for the initial read. A post-activation read must refresh once
+                // to observe server state written by the isolated browser. Later attempts are true recovery.
+                if (openAttempt == 1 && !refreshPage)
+                {
+                    await EnsurePageForReadAsync(
+                        Paths.Resources,
+                        "production bonus inspection",
+                        cancellationToken);
+                }
+                else
+                {
+                    await ReloadOrGotoAsync(Paths.Resources, cancellationToken);
+                }
+
                 var pageHtml = await _page.ContentAsync();
                 if (AccountDeletionDomParser.IsPending(pageHtml))
                 {
@@ -310,8 +323,43 @@ public sealed partial class TravianClient
         }
         finally
         {
-            // Close the wizard/iframes before normal automation continues, including after a failed read.
-            await ReloadOrGotoAsync(Paths.Resources, cancellationToken);
+            // The payment wizard contains no running ad at inspection time. Dismiss it locally instead of
+            // reloading dorf1, so a successful read does not create a second page load.
+            await TryDismissAdvantagesTabAsync(cancellationToken);
+        }
+    }
+
+    private async Task TryDismissAdvantagesTabAsync(CancellationToken cancellationToken)
+    {
+        const string wizardGoneScript =
+            """
+            () => {
+              const nodes = document.querySelectorAll('#paymentWizardContent, #paymentWizard, .paymentWizard, .advantagesBonusBox');
+              return !Array.from(nodes).some(node => node.getClientRects().length > 0);
+            }
+            """;
+
+        try
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (await _page.EvaluateAsync<bool>(wizardGoneScript))
+            {
+                return;
+            }
+
+            await PressKeyAsync("Escape", "dismiss-production-bonus-wizard", cancellationToken);
+            await _page.WaitForFunctionAsync(
+                wizardGoneScript,
+                null,
+                new PageWaitForFunctionOptions { Timeout = 3000 });
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
+        {
+            Notify($"[production-bonus:verbose] Advantages wizard could not be dismissed without navigation: {ex.Message}");
         }
     }
 

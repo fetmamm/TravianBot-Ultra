@@ -41,6 +41,30 @@ public sealed partial class TravianClient
         }
     }
 
+    private async Task PressKeyAsync(
+        string key,
+        string actionName,
+        CancellationToken cancellationToken)
+    {
+        await EnsureAccountAccessAllowedAsync(cancellationToken);
+        using var trace = _browserTrace.BeginOperation("KEY", actionName, $"key={key}");
+        try
+        {
+            await _page.Keyboard.PressAsync(key).WaitAsync(cancellationToken);
+            trace.Complete("success");
+        }
+        catch (OperationCanceledException)
+        {
+            trace.Complete("canceled");
+            throw;
+        }
+        catch (Exception ex)
+        {
+            trace.Complete("failed", $"{ex.GetType().Name}: {ex.Message}");
+            throw;
+        }
+    }
+
 // Helper för action pacing klick
     private async Task DelayBeforeClickAsync(
         CancellationToken cancellationToken,

@@ -157,13 +157,6 @@ public sealed partial class TravianClient
         }
     }
 
-    // Shared by production-bonus video cleanup. Adventure videos intentionally keep the main page
-    // in place because their following action is another adventures-page interaction.
-    private async Task ReturnMainPageAfterIsolatedBonusVideoAsync()
-    {
-        await RestoreMainPageAfterBonusVideoAsync("[bonus-video]");
-    }
-
     /// <summary>
     /// ROOT FIX for the stray ad tabs: the bonus video makes consentmanager write first-party consent
     /// (__cmp* cookies + localStorage on travian.com). If that persists, Travian's own JS sees stored

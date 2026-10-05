@@ -12,8 +12,6 @@ public sealed class ProductionBonusOperationTests
         var browser = new FakeBrowser(
             [
                 Observation(("lumber", 0, true), ("clay", 0, true)),
-                Observation(("lumber", 15, false), ("clay", 0, true)),
-                Observation(("lumber", 15, false), ("clay", 15, false)),
                 Observation(("lumber", 15, false), ("clay", 15, false)),
             ],
             [Completed(), Completed()]);
@@ -25,6 +23,8 @@ public sealed class ProductionBonusOperationTests
         Assert.Equal(["lumber", "clay"], outcome.AttemptedResources);
         Assert.Empty(outcome.UnconfirmedResources);
         Assert.Equal(["lumber", "clay"], browser.ActivatedResources);
+        Assert.Equal(2, browser.InspectionCount);
+        Assert.Equal([false, true], browser.RefreshRequests);
     }
 
     [Fact]
@@ -34,8 +34,6 @@ public sealed class ProductionBonusOperationTests
             [
                 Observation(("lumber", 0, true), ("clay", 0, true)),
                 Observation(("lumber", 15, false), ("clay", 0, true)),
-                Observation(("lumber", 15, false), ("clay", 0, true)),
-                Observation(("lumber", 15, false), ("clay", 0, true)),
             ],
             [Completed(), Failed()]);
 
@@ -44,6 +42,7 @@ public sealed class ProductionBonusOperationTests
 
         Assert.Equal(["lumber", "clay"], browser.ActivatedResources);
         Assert.Equal(["clay"], outcome.UnconfirmedResources);
+        Assert.Equal([false, true], browser.RefreshRequests);
     }
 
     [Fact]
@@ -64,8 +63,6 @@ public sealed class ProductionBonusOperationTests
             [
                 Observation(("lumber", 0, true), ("clay", 0, true)),
                 Observation(("lumber", 15, false), ("clay", 0, true)),
-                Observation(("lumber", 15, false), ("clay", 0, true)),
-                Observation(("lumber", 15, false), ("clay", 0, true)),
             ],
             [Completed(), Cooldown(retryAt)]);
 
@@ -75,6 +72,26 @@ public sealed class ProductionBonusOperationTests
         Assert.Equal(ProductionBonusOutcomeStatus.Observed, completedBatch.Status);
         Assert.Equal(["lumber", "clay"], duringBatch.ActivatedResources);
         Assert.Equal(["clay"], completedBatch.UnconfirmedResources);
+        Assert.Equal([false, true], duringBatch.RefreshRequests);
+    }
+
+    [Fact]
+    public async Task RunAsync_VerifiesAmbiguousFailureBeforeRetrying()
+    {
+        var browser = new FakeBrowser(
+            [
+                Observation(("iron", 0, true)),
+                Observation(("iron", 0, true)),
+                Observation(("iron", 15, false)),
+            ],
+            [Failed(mayRetry: true), Completed()]);
+
+        var outcome = await new ProductionBonusOperation(browser, _ => { })
+            .RunAsync(ProductionBonusRunIntent.Activate, CancellationToken.None);
+
+        Assert.Empty(outcome.UnconfirmedResources);
+        Assert.Equal(["iron", "iron"], browser.ActivatedResources);
+        Assert.Equal([false, true, true], browser.RefreshRequests);
     }
 
     private static ProductionBonusObservation Observation(
@@ -96,8 +113,8 @@ public sealed class ProductionBonusOperationTests
     private static ProductionBonusActivationResult Completed()
         => new(ProductionBonusActivationStatus.Completed, "completed");
 
-    private static ProductionBonusActivationResult Failed()
-        => new(ProductionBonusActivationStatus.Failed, "failed");
+    private static ProductionBonusActivationResult Failed(bool mayRetry = false)
+        => new(ProductionBonusActivationStatus.Failed, "failed", mayRetry);
 
     private static ProductionBonusActivationResult Cooldown(DateTimeOffset retryAtUtc)
         => new(ProductionBonusActivationStatus.CooldownActive, "cooldown", RetryAtUtc: retryAtUtc);
@@ -116,12 +133,17 @@ public sealed class ProductionBonusOperationTests
         }
 
         internal List<string> ActivatedResources { get; } = [];
+        internal int InspectionCount { get; private set; }
+        internal List<bool> RefreshRequests { get; } = [];
 
         public Task<ProductionBonusObservation> InspectAsync(
             bool afterActivationAttempt,
+            bool refreshPage,
             CancellationToken cancellationToken)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            InspectionCount++;
+            RefreshRequests.Add(refreshPage);
             return Task.FromResult(_observations.Dequeue());
         }
 
@@ -140,7 +162,5 @@ public sealed class ProductionBonusOperationTests
             IReadOnlyList<string> resources,
             CancellationToken cancellationToken)
             => Task.CompletedTask;
-
-        public Task RestoreMainPageAsync() => Task.CompletedTask;
     }
 }
