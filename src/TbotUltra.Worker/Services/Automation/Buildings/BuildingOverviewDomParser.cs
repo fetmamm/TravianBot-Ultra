@@ -53,6 +53,7 @@ internal static class BuildingOverviewDomParser
         ["g42"] = "Stone Wall",
         ["g43"] = "Makeshift Wall",
         ["g44"] = "Command Center",
+        ["g45"] = "Waterworks",
         ["g46"] = "Hospital",
     };
 

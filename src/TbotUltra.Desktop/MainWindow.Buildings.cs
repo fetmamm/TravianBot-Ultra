@@ -1283,12 +1283,12 @@ public partial class MainWindow
         });
     }
 
-    // Matches Travian's in-progress construction list to known
-    // slots by normalized name + (target level - 1), returning slot -> target level. Only UNAMBIGUOUS
-    // matches are returned: if a construction could map to more than one slot (e.g. several croplands at
-    // the same level), it is dropped rather than guessing the wrong field. Brand-new buildings are included
-    // so a live level-0 slot with target level 1 is rendered as "Level 0 (1)" like any other upgrade.
-    private static Dictionary<int, int> BuildExternalUpgradeTargetsBySlot(
+    // Matches Travian's in-progress construction list to known slots by normalized name and level,
+    // returning slot -> highest contiguous target level. A unique building may have multiple levels queued;
+    // duplicate-name slots still require an unambiguous current-level match rather than guessing the target.
+    // Brand-new buildings are included so a live level-0 slot with target level 1 is rendered as
+    // "Level 0 (1)" like any other upgrade.
+    internal static Dictionary<int, int> BuildExternalUpgradeTargetsBySlot(
         IReadOnlyList<ActiveConstruction>? activeConstructions,
         ConstructionKind kind,
         IEnumerable<(int Slot, string? Name, int? Level)> slots)
@@ -1301,40 +1301,70 @@ public partial class MainWindow
 
         var slotList = slots.ToList();
         var ambiguousSlots = new HashSet<int>();
-        foreach (var construction in activeConstructions)
+        var constructionsByName = activeConstructions
+            .Where(construction => construction.Kind == kind && construction.Level is >= 1)
+            .Select(construction => new
+            {
+                Construction = construction,
+                Name = NormalizeConstructionName(construction.Name),
+            })
+            .Where(item => item.Name.Length > 0)
+            .GroupBy(item => item.Name, StringComparer.Ordinal);
+
+        foreach (var constructionGroup in constructionsByName)
         {
-            if (construction.Kind != kind || construction.Level is not int target || target < 1)
-            {
-                continue;
-            }
-
-            var name = NormalizeConstructionName(construction.Name);
-            if (name.Length == 0)
-            {
-                continue;
-            }
-
-            var candidateSlots = slotList
-                .Where(slot => (slot.Level ?? 0) == target - 1
-                    && string.Equals(NormalizeConstructionName(slot.Name), name, StringComparison.Ordinal))
-                .Select(slot => slot.Slot)
+            var matchingSlots = slotList
+                .Where(slot => string.Equals(
+                    NormalizeConstructionName(slot.Name),
+                    constructionGroup.Key,
+                    StringComparison.Ordinal))
                 .ToList();
 
-            // Skip when we cannot tell exactly which field/building is being upgraded.
-            if (candidateSlots.Count != 1)
+            if (matchingSlots.Count == 1)
             {
+                var slot = matchingSlots[0];
+                var projectedLevel = slot.Level ?? 0;
+                var queuedLevels = constructionGroup
+                    .Select(item => item.Construction.Level!.Value)
+                    .ToHashSet();
+
+                while (queuedLevels.Contains(projectedLevel + 1))
+                {
+                    projectedLevel += 1;
+                }
+
+                if (projectedLevel > (slot.Level ?? 0))
+                {
+                    result[slot.Slot] = projectedLevel;
+                }
+
                 continue;
             }
 
-            var slotId = candidateSlots[0];
-            if (result.ContainsKey(slotId))
+            foreach (var item in constructionGroup)
             {
-                // Two constructions resolve to the same slot — ambiguous, drop it.
-                ambiguousSlots.Add(slotId);
-                continue;
-            }
+                var target = item.Construction.Level!.Value;
+                var candidateSlots = matchingSlots
+                    .Where(slot => (slot.Level ?? 0) == target - 1)
+                    .Select(slot => slot.Slot)
+                    .ToList();
 
-            result[slotId] = target;
+                // Skip when we cannot tell exactly which field/building is being upgraded.
+                if (candidateSlots.Count != 1)
+                {
+                    continue;
+                }
+
+                var slotId = candidateSlots[0];
+                if (result.ContainsKey(slotId))
+                {
+                    // Two constructions resolve to the same duplicate-name slot — ambiguous, drop it.
+                    ambiguousSlots.Add(slotId);
+                    continue;
+                }
+
+                result[slotId] = target;
+            }
         }
 
         foreach (var slotId in ambiguousSlots)
