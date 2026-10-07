@@ -21,7 +21,8 @@ public sealed partial class TravianClient
         int? CoordX,
         int? CoordY,
         int? Population,
-        int? CropFields);
+        int? CropFields,
+        CityStatus CityStatus);
     private sealed record UiSyncSnapshot(
         int? Gold,
         int? Silver,
@@ -29,7 +30,8 @@ public sealed partial class TravianClient
         int? ActiveVillageCoordX,
         int? ActiveVillageCoordY,
         IReadOnlyList<UiSyncVillage> Villages,
-        bool VillagesAreAuthoritative);
+        bool VillagesAreAuthoritative,
+        CityCapability CityCapability);
 
     private async Task TryEmitUiSyncSnapshotAsync(CancellationToken cancellationToken, bool force = false)
     {
@@ -80,9 +82,10 @@ public sealed partial class TravianClient
             ActiveVillageCoordX: activeCoordinates.X,
             ActiveVillageCoordY: activeCoordinates.Y,
             Villages: villages
-                .Select(v => new UiSyncVillage(v.Name, v.Url, v.IsCapital, v.CoordX, v.CoordY, v.Population, v.CropFields))
+                .Select(v => new UiSyncVillage(v.Name, v.Url, v.IsCapital, v.CoordX, v.CoordY, v.Population, v.CropFields, v.CityStatus))
                 .ToList(),
-            VillagesAreAuthoritative: _villageListRequiresAuthoritativeUiSync);
+            VillagesAreAuthoritative: _villageListRequiresAuthoritativeUiSync,
+            CityCapability: KnownCityCapability);
     }
 
 }

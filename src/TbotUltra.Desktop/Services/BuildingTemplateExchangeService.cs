@@ -259,15 +259,21 @@ public sealed class BuildingTemplateExchangeService
             }
 
             if (row.TargetLevel is null or < 1 or > 20) errors.Add($"{prefix}: target level must be between 1 and 20.");
-            if (row.PreferredSlotId is not null and (< 19 or > 40)) errors.Add($"{prefix}: slot must be between 19 and 40.");
+            if (row.PreferredSlotId is not null and (< 19 or > 43)) errors.Add($"{prefix}: slot must be between 19 and 43.");
             if (kind == BuildingTemplateRowKind.Building)
             {
                 if (row.Gid is null or <= 0) errors.Add($"{prefix}: building ID is required.");
                 if (string.IsNullOrWhiteSpace(row.BuildingName)) errors.Add($"{prefix}: building name is required.");
             }
-            else if (!IsValidResourceScope(row.ResourceScope))
+            else if (kind == BuildingTemplateRowKind.AllResources && !IsValidResourceScope(row.ResourceScope))
             {
                 errors.Add($"{prefix}: resource scope is invalid.");
+            }
+            else if (kind == BuildingTemplateRowKind.Watchtowers
+                && (!string.Equals(row.BuildingName, "Watchtowers", StringComparison.OrdinalIgnoreCase)
+                    || row.PreferredSlotId != 40))
+            {
+                errors.Add($"{prefix}: Watchtowers must target wall slot 40.");
             }
         }
 

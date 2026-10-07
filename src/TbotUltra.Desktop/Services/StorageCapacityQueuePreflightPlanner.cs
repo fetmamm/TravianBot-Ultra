@@ -306,6 +306,7 @@ public static class StorageCapacityQueuePreflightPlanner
             ref projectedWarehouse,
             projection.StorageBySlot,
             projection.OccupiedBuildingSlots,
+            projection.ValidOrdinarySlots,
             upgrades,
             excludedStorageSlot,
             storageUpgradeLevelsAhead);
@@ -315,6 +316,7 @@ public static class StorageCapacityQueuePreflightPlanner
             ref projectedGranary,
             projection.StorageBySlot,
             projection.OccupiedBuildingSlots,
+            projection.ValidOrdinarySlots,
             upgrades,
             excludedStorageSlot,
             storageUpgradeLevelsAhead);
@@ -594,6 +596,7 @@ public static class StorageCapacityQueuePreflightPlanner
             ref projectedWarehouse,
             storageBySlot,
             projection.OccupiedBuildingSlots,
+            projection.ValidOrdinarySlots,
             upgrades,
             storageUpgradeLevelsAhead: storageUpgradeLevelsAhead);
         failure ??= AddRequiredUpgrade(
@@ -602,6 +605,7 @@ public static class StorageCapacityQueuePreflightPlanner
             ref projectedGranary,
             storageBySlot,
             projection.OccupiedBuildingSlots,
+            projection.ValidOrdinarySlots,
             upgrades,
             storageUpgradeLevelsAhead: storageUpgradeLevelsAhead);
 
@@ -708,6 +712,7 @@ public static class StorageCapacityQueuePreflightPlanner
                 ref projectedWarehouse,
                 projection.StorageBySlot,
                 projection.OccupiedBuildingSlots,
+                projection.ValidOrdinarySlots,
                 pendingUpgrades,
                 storageUpgradeLevelsAhead: storageUpgradeLevelsAhead);
             failure ??= AddRequiredUpgrade(
@@ -716,6 +721,7 @@ public static class StorageCapacityQueuePreflightPlanner
                 ref projectedGranary,
                 projection.StorageBySlot,
                 projection.OccupiedBuildingSlots,
+                projection.ValidOrdinarySlots,
                 pendingUpgrades,
                 storageUpgradeLevelsAhead: storageUpgradeLevelsAhead);
             if (failure is not null)
@@ -733,14 +739,14 @@ public static class StorageCapacityQueuePreflightPlanner
         IReadOnlyList<QueueItem> precedingQueueItems)
     {
         var storageBySlot = status.Buildings
-            .Where(building => building.SlotId is >= 19 and <= 38)
+            .Where(building => building.SlotId is int slot && BuildingSlotPolicy.IsOrdinarySlot(slot, status.CityStatus))
             .Select(building => (Building: building, Gid: ResolveStorageGid(building)))
             .Where(item => item.Gid is 10 or 11)
             .ToDictionary(
                 item => item.Building.SlotId!.Value,
                 item => item.Building with { Gid = item.Gid });
         var occupiedBuildingSlots = status.Buildings
-            .Where(building => building.SlotId is >= 19 and <= 38)
+            .Where(building => building.SlotId is int slot && BuildingSlotPolicy.IsOrdinarySlot(slot, status.CityStatus))
             .Where(IsOccupiedBuildingSlot)
             .Select(building => building.SlotId!.Value)
             .ToHashSet();
@@ -808,6 +814,7 @@ public static class StorageCapacityQueuePreflightPlanner
         return new StorageProjection(
             storageBySlot,
             occupiedBuildingSlots,
+            BuildingSlotPolicy.OrdinarySlots(status.CityStatus),
             projectedWarehouse,
             projectedGranary);
     }
@@ -818,6 +825,7 @@ public static class StorageCapacityQueuePreflightPlanner
         ref long projectedCapacity,
         IDictionary<int, Building> storageBySlot,
         ISet<int> occupiedBuildingSlots,
+        IReadOnlyList<int> validOrdinarySlots,
         ICollection<StoragePreflightUpgrade> upgrades,
         int? excludedSlotId = null,
         int storageUpgradeLevelsAhead = ConstructionDefaults.StorageUpgradeLevelsAhead)
@@ -835,7 +843,7 @@ public static class StorageCapacityQueuePreflightPlanner
             .FirstOrDefault();
         if (candidate?.SlotId is not int slotId || candidate.Level is not int currentLevel)
         {
-            slotId = Enumerable.Range(19, 20).FirstOrDefault(slot => !occupiedBuildingSlots.Contains(slot));
+            slotId = validOrdinarySlots.FirstOrDefault(slot => !occupiedBuildingSlots.Contains(slot));
             if (slotId == 0)
             {
                 return $"No upgradeable {BuildingCatalogService.NameForGid(gid)} or free building slot is known in the village snapshot.";
@@ -878,6 +886,7 @@ public static class StorageCapacityQueuePreflightPlanner
     private sealed record StorageProjection(
         Dictionary<int, Building> StorageBySlot,
         HashSet<int> OccupiedBuildingSlots,
+        IReadOnlyList<int> ValidOrdinarySlots,
         long WarehouseCapacity,
         long GranaryCapacity);
 

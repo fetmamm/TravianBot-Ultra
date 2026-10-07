@@ -88,8 +88,8 @@ public sealed class BuildingsViewModelTests
     {
         var layout = BuildingsViewModel.CreateBuildingSlotLayout();
 
-        Assert.Equal(22, layout.Count);
-        Assert.Equal(Enumerable.Range(19, 22), layout.Keys.OrderBy(id => id));
+        Assert.Equal(25, layout.Count);
+        Assert.Equal(Enumerable.Range(19, 25), layout.Keys.OrderBy(id => id));
         foreach (var (left, top) in layout.Values)
         {
             Assert.Equal(left, Math.Round(left, 1));

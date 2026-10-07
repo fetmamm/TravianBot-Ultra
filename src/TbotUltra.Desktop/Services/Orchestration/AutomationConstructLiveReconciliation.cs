@@ -127,7 +127,7 @@ internal sealed class AutomationConstructLiveReconciliation(
         if (conflict.ReboundSlotId is not int reboundSlotId)
         {
             var unknownSlots = freshStatus.Buildings
-                .Where(building => building.SlotId is >= 19 and <= 38
+                .Where(building => building.SlotId is int slot && BuildingSlotPolicy.IsOrdinarySlot(slot, freshStatus.CityStatus)
                     && string.Equals(building.Name, "Unknown", StringComparison.OrdinalIgnoreCase))
                 .Select(building => building.SlotId!.Value)
                 .Distinct()

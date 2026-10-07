@@ -405,7 +405,7 @@ internal static class ConstructionRequirementRepairPlanner
             return state.IsSlotFreeForNewConstruct(WallSlotId, gid) ? WallSlotId : null;
         }
 
-        return Enumerable.Range(19, 20)
+        return BuildingSlotPolicy.OrdinarySlots(state.CityStatus)
             .FirstOrDefault(slotId => state.IsSlotFreeForNewConstruct(slotId, gid)) is int slot && slot > 0
                 ? slot
                 : null;
@@ -419,7 +419,8 @@ internal static class ConstructionRequirementRepairPlanner
         out string reason)
     {
         reason = string.Empty;
-        if (!BuildingCatalogService.CanConstructInVillage(gid, status.IsCapital, out reason))
+        if (!BuildingCatalogService.CanConstructInVillage(
+                gid, status.IsCapital, status.Tribe, status.CityCapability, status.CityStatus, out reason))
         {
             return false;
         }
@@ -508,17 +509,22 @@ internal static class ConstructionRequirementRepairPlanner
         private readonly List<ActiveConstruction> _activeConstructions;
         private readonly List<PlannedResourceField> _resourceFields = [];
 
-        private RepairState(IReadOnlyList<ActiveConstruction> activeConstructions)
+        private RepairState(IReadOnlyList<ActiveConstruction> activeConstructions, CityStatus cityStatus)
         {
             _activeConstructions = activeConstructions.ToList();
+            CityStatus = cityStatus;
         }
+
+        public CityStatus CityStatus { get; }
 
         public static RepairState From(
             VillageStatus status,
             IReadOnlyList<QueueItem> queueItems,
             DateTimeOffset now)
         {
-            var state = new RepairState(ConstructionQueueState.ResolveCurrentActiveConstructions(status, now));
+            var state = new RepairState(
+                ConstructionQueueState.ResolveCurrentActiveConstructions(status, now),
+                status.CityStatus);
             foreach (var building in status.Buildings)
             {
                 if (building.SlotId is not int slotId)

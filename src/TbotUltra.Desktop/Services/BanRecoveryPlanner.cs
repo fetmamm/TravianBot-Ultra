@@ -59,7 +59,7 @@ internal static class BanRecoveryPlanner
                     $"The pre-ban snapshot contains {baselineFieldCount}/18 resource fields; only known fields can be restored."));
             }
             var baselineBuildingCount = before.Buildings
-                .Where(building => building.SlotId is >= 19 and <= 40)
+                .Where(building => building.SlotId is >= 19 and <= 43)
                 .Select(building => building.SlotId)
                 .Distinct()
                 .Count();

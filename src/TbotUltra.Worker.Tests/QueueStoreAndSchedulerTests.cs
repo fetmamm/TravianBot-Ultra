@@ -335,6 +335,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
                 "upgrade_resource_to_level",
                 "upgrade_all_resources_to_level",
                 "upgrade_building_to_level",
+                "upgrade_watchtowers_to_level",
                 "upgrade_building_to_max",
                 "construct_building",
                 "load_buildings_snapshot",

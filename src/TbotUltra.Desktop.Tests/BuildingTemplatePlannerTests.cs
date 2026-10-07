@@ -645,7 +645,51 @@ public sealed class BuildingTemplatePlannerTests
         Assert.Equal("Auto", row.SlotText);
         Assert.DoesNotContain("39", row.SlotOptions);
         Assert.DoesNotContain("40", row.SlotOptions);
+        Assert.Contains("41", row.SlotOptions);
+        Assert.Contains("43", row.SlotOptions);
         Assert.True(row.IsSlotSelectable);
+    }
+
+    [Fact]
+    public void Plan_Watchtowers_UsesSeparateTaskForConfirmedCity()
+    {
+        var status = Status("Egyptians", Building(40, "Stone Wall", 20, 42)) with
+        {
+            CityCapability = CityCapability.Enabled,
+            CityStatus = CityStatus.City,
+            WatchtowerStatus = new WatchtowerStatus(2, [], DateTimeOffset.UtcNow),
+        };
+
+        var result = _planner.Plan(
+            [new BuildingTemplateRow { Kind = BuildingTemplateRowKind.Watchtowers, BuildingName = "Watchtowers", PreferredSlotId = 40, TargetLevel = 4 }],
+            status,
+            5,
+            20);
+
+        var action = Assert.Single(result.Actions);
+        Assert.Equal("upgrade_watchtowers_to_level", action.TaskName);
+        Assert.Equal(40, action.SlotId);
+        Assert.Equal(4, action.TargetLevel);
+        Assert.Empty(result.Errors);
+    }
+
+    [Fact]
+    public void Plan_Watchtowers_BlocksWithoutConfirmedCityBeforeNavigation()
+    {
+        var status = Status("Egyptians", Building(40, "Stone Wall", 20, 42)) with
+        {
+            CityCapability = CityCapability.Enabled,
+            CityStatus = CityStatus.Village,
+        };
+
+        var result = _planner.Plan(
+            [new BuildingTemplateRow { Kind = BuildingTemplateRowKind.Watchtowers, TargetLevel = 4 }],
+            status,
+            5,
+            20);
+
+        Assert.Empty(result.Actions);
+        Assert.Contains(result.Errors, error => error.Contains("confirmed City", StringComparison.OrdinalIgnoreCase));
     }
 
     private static BuildingTemplateRow Row(int gid, string name, int level, int? preferredSlot = null)

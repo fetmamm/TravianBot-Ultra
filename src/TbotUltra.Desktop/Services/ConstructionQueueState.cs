@@ -282,6 +282,9 @@ public static class ConstructionQueueState
             || !string.Equals(validatedFingerprint, currentFingerprint, StringComparison.Ordinal);
     }
 
+    public static bool IsWatchtowerTask(string? taskName) =>
+        string.Equals(taskName, "upgrade_watchtowers_to_level", StringComparison.OrdinalIgnoreCase);
+
     public static string CreateConfirmedEmptyResourceValidationFingerprint(QueueItem item) =>
         CreateConfirmedEmptyResourceValidationFingerprint(item.TaskName, item.Payload);
 

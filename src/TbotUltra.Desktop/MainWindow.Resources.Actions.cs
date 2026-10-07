@@ -1087,7 +1087,11 @@ public partial class MainWindow
     {
         if (VillageComboBox.SelectedItem is VillageSelectionItem selectedVillage)
         {
-            return selectedVillage.IsCapital ? ResourceFieldMaxLevel : NonCapitalResourceMaxLevel;
+            return selectedVillage.IsCapital
+                ? ResourceFieldMaxLevel
+                : selectedVillage.CityStatus == CityStatus.City
+                    ? CityResourceMaxLevel
+                    : NonCapitalResourceMaxLevel;
         }
 
         return Math.Clamp(_activeVillageResourceMaxLevel, NonCapitalResourceMaxLevel, ResourceFieldMaxLevel);

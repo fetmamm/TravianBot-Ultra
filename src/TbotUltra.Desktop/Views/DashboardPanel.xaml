@@ -546,6 +546,22 @@
                                                 </TextBlock.Style>
                                             </TextBlock>
                                             </Border>
+                                            <TextBlock Text="🏙"
+                                                       FontSize="12"
+                                                       Margin="5,0,0,0"
+                                                       VerticalAlignment="Center"
+                                                       ToolTip="City">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding IsCity}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
                                         </StackPanel>
                                         <TextBlock Grid.Column="6" Text="{Binding PopText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center" />
                                         <TextBlock Grid.Column="7" Text="{Binding CoordsText}" Foreground="{DynamicResource TextSecondaryBrush}" FontSize="13" Margin="8,0,0,0" VerticalAlignment="Center" />

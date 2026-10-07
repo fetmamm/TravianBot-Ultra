@@ -25,7 +25,7 @@ public sealed partial class TravianClient : IBuildingClient
     {
         using var navDiagnostics = BeginConstructionNavigationDiagnostics($"construct_building slot={slotId} gid={gid}");
         Notify($"[construct] starting — slot={slotId}, gid={gid}");
-        if (slotId < 19)
+        if (!BuildingSlotPolicy.IsPotentialOrdinarySlot(slotId) && slotId is not (39 or 40))
         {
             throw new InvalidOperationException($"Building slot {slotId} is outside the building range.");
         }
@@ -51,6 +51,12 @@ public sealed partial class TravianClient : IBuildingClient
             // possibly in a different slot. Run this village-wide identity check before queue and pacing
             // defers so an already-completed task is removed immediately instead of waiting another cycle.
             var liveBuildings = await ReadBuildingsAsync(cancellationToken, reuseFreshCurrentOverview: true);
+            if (slotId is >= BuildingSlotPolicy.FirstCityExtraSlot and <= BuildingSlotPolicy.LastCityExtraSlot
+                && _lastBuildingOverviewCityStatus != CityStatus.City)
+            {
+                throw new InvalidOperationException(
+                    $"Building slot {slotId} is a City-only slot, but the live dorf2 overview did not confirm this village as a City.");
+            }
             var existingVillageBuilding = FindExistingBuildingThatMakesConstructRedundant(
                 liveBuildings,
                 slotId,
@@ -103,7 +109,7 @@ public sealed partial class TravianClient : IBuildingClient
                 var builtGid = BuildingCatalogService.GidForName(built.Name);
                 if (!BuildingIdentityMatches(gid, buildingName, builtGid, built.Name))
                 {
-                    if (!allowSlotFallback || slotId is < 19 or > 38)
+                    if (!allowSlotFallback || !BuildingSlotPolicy.IsOrdinarySlot(slotId, _lastBuildingOverviewCityStatus))
                     {
                         throw new InvalidOperationException(
                             $"Building identity mismatch for slot {slotId}: queued '{buildingName}' (gid {gid}), "
@@ -111,7 +117,7 @@ public sealed partial class TravianClient : IBuildingClient
                     }
                 }
 
-                if (allowSlotFallback && slotId is >= 19 and <= 38)
+                if (allowSlotFallback && BuildingSlotPolicy.IsOrdinarySlot(slotId, _lastBuildingOverviewCityStatus))
                 {
                     var excludedSlots = ParseBuildingSlotIds(fallbackExcludedSlots);
                     var fallbackSlot = await FindFreeOrdinaryBuildingSlotAsync(excludedSlots, cancellationToken);
@@ -169,7 +175,7 @@ public sealed partial class TravianClient : IBuildingClient
                     return WithEffectiveSlot($"Slot {slotId}: {buildingName} construction already in progress (slot already holds gid {gid}). queue_wait_seconds={waitSeconds}");
                 }
 
-                if (occupiedGid > 0 && allowSlotFallback && slotId is >= 19 and <= 38)
+                if (occupiedGid > 0 && allowSlotFallback && BuildingSlotPolicy.IsOrdinarySlot(slotId, _lastBuildingOverviewCityStatus))
                 {
                     var excludedSlots = ParseBuildingSlotIds(fallbackExcludedSlots);
                     var fallbackSlot = await FindFreeOrdinaryBuildingSlotAsync(excludedSlots, cancellationToken);
@@ -461,7 +467,7 @@ public sealed partial class TravianClient : IBuildingClient
             }
 
             await GotoAsync(Paths.Buildings, cancellationToken);
-            var slots = await ReadBuildingInfosAsync(cancellationToken);
+            var slots = (await ReadBuildingInfosAsync(cancellationToken)).Buildings;
             if (slots.TryGetValue(slotId, out var slotInfo))
             {
                 var slotGid = ParseGidFromBuildingCode(slotInfo.BuildingCode);
@@ -655,14 +661,14 @@ public sealed partial class TravianClient : IBuildingClient
     {
         var buildings = await ReadBuildingsAsync(cancellationToken, reuseFreshCurrentOverview: true);
         var occupiedSlots = buildings
-            .Where(item => item.SlotId is >= 19 and <= 38)
+            .Where(item => item.SlotId is int slot && BuildingSlotPolicy.IsOrdinarySlot(slot, _lastBuildingOverviewCityStatus))
             .Where(item => (item.Gid ?? 0) > 0
                 || (item.Level ?? 0) > 0
                 || (!string.IsNullOrWhiteSpace(item.Name)
                     && !string.Equals(item.Name, "Empty", StringComparison.OrdinalIgnoreCase)))
             .Select(item => item.SlotId!.Value)
             .ToHashSet();
-        return Enumerable.Range(19, 20)
+        return BuildingSlotPolicy.OrdinarySlots(_lastBuildingOverviewCityStatus)
             .FirstOrDefault(slot => !occupiedSlots.Contains(slot) && !excludedSlots.Contains(slot)) is int match && match > 0
                 ? match
                 : null;
@@ -673,7 +679,7 @@ public sealed partial class TravianClient : IBuildingClient
             ? []
             : value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Select(item => int.TryParse(item, out var slot) ? slot : 0)
-                .Where(slot => slot is >= 19 and <= 38)
+                .Where(BuildingSlotPolicy.IsPotentialOrdinarySlot)
                 .ToHashSet();
 
     private static Building? FindExistingBuildingThatMakesConstructRedundant(
@@ -780,7 +786,8 @@ public sealed partial class TravianClient : IBuildingClient
             .ToList();
         var duplicateAllowed = BuildingCatalogService.AllowsMultipleInstances(gid);
         var wallGid = gid is 31 or 32 or 33 or 42 or 43;
-        if (!BuildingCatalogService.CanConstructInVillage(gid, status.IsCapital, out var locationReason))
+        if (!BuildingCatalogService.CanConstructInVillage(
+                gid, status.IsCapital, status.Tribe, status.CityCapability, status.CityStatus, out var locationReason))
         {
             throw new InvalidOperationException(locationReason);
         }

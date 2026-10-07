@@ -34,6 +34,7 @@ public sealed partial class TravianClient : ISessionClient
             {
                 MarkSessionLoggedIn();
                 Notify($"[login] already logged in as '{_account.Name}'");
+                await RefreshCityCapabilityAsync(cancellationToken);
                 await ConfirmExpectedLanguageIfEnabledAndRefreshAccountSignalsAsync(cancellationToken);
                 return;
             }
@@ -117,6 +118,7 @@ public sealed partial class TravianClient : ISessionClient
 
                 MarkSessionLoggedIn();
                 Notify($"[login] success ({_account.Name}) — entered through the Travian lobby");
+                await RefreshCityCapabilityAsync(cancellationToken);
                 await ConfirmExpectedLanguageIfEnabledAndRefreshAccountSignalsAsync(cancellationToken);
                 return;
             }
@@ -385,6 +387,29 @@ public sealed partial class TravianClient : ISessionClient
     private async Task<bool> IsLoggedInAsync(CancellationToken cancellationToken = default)
     {
         return (await LoginStateAsync(cancellationToken)) == AccountAccessState.LoggedIn;
+    }
+
+    private async Task RefreshCityCapabilityAsync(CancellationToken cancellationToken)
+    {
+        var previous = _session.CityCapability;
+        var current = CityCapability.Unknown;
+        try
+        {
+            var html = await _page.EvaluateAsync<string>(
+                "async url => { const response = await fetch(url, { credentials: 'same-origin' }); return response.ok ? await response.text() : ''; }",
+                ResolveUrl("/login.php"));
+            current = CityCapabilityParser.Parse(html);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            Notify($"[city] capability read failed: {ex.Message}");
+        }
+
+        _session.CityCapability = current;
+        if (previous != current || _session.LogValueChanged("city-capability", current.ToString()))
+        {
+            Notify($"[city] capability={current} source=login-feature-flags");
+        }
     }
 
     private async Task<AccountAccessState> LoginStateAsync(CancellationToken cancellationToken = default)

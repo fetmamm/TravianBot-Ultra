@@ -140,6 +140,9 @@ public sealed partial class TravianClient
         var buildings = knownBuildings is { Count: > 0 }
             ? knownBuildings
             : await ReadBuildingsAsync(cancellationToken);
+        var watchtowerStatus = _lastBuildingOverviewCityStatus == CityStatus.City
+            ? await ReadWatchtowerStatusAsync(forceRefresh: false, cancellationToken)
+            : null;
         // Read Travian's own in-progress construction list so the UI can show upgrades that were
         // started outside the program (e.g. manually before login) with the target level in
         // parentheses. We are on dorf1/dorf2 after the reads above, both of which carry the list,
@@ -192,7 +195,10 @@ public sealed partial class TravianClient
             IncomingAttackActiveVillageReadWasAuthoritative: incomingAttackActiveVillageReadWasAuthoritative,
             IncomingAttackPlusOverviewWasRead: incomingAttackSignalRead?.PlusOverviewWasRead == true,
             HasTroopsAtHome: hasTroopsAtHome,
-            TroopPresenceObservedAtUtc: hasTroopsAtHome.HasValue ? CurrentTravianServerTimeUtc() : null);
+            TroopPresenceObservedAtUtc: hasTroopsAtHome.HasValue ? CurrentTravianServerTimeUtc() : null,
+            CityCapability: KnownCityCapability,
+            CityStatus: _lastBuildingOverviewCityStatus,
+            WatchtowerStatus: watchtowerStatus);
         trace.Complete(
             "success",
             $"village={result.ActiveVillage} resources={result.Resources.Count} fields={result.ResourceFields.Count} buildings={result.Buildings.Count} queue={result.BuildQueue.Count} activeConstructions={result.ActiveConstructions?.Count ?? 0}");

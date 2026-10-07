@@ -655,13 +655,13 @@ public sealed partial class TravianClient : IBuildingClient
         if (IsCurrentUrlForPath(Paths.Buildings) && !await IsPageMarkedStaleAsync())
         {
             Notify($"[build:verbose] slot {slotId}: reading current fresh dorf2 overview without reload.");
-            var currentSlots = await ReadBuildingInfosAsync(cancellationToken);
+            var currentSlots = (await ReadBuildingInfosAsync(cancellationToken)).Buildings;
             return currentSlots.TryGetValue(slotId, out var currentInfo) ? currentInfo : null;
         }
 
         Notify($"[build:verbose] slot {slotId}: current page snapshot unavailable; reading dorf2 overview.");
         await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
-        var slots = await ReadBuildingInfosAsync(cancellationToken);
+        var slots = (await ReadBuildingInfosAsync(cancellationToken)).Buildings;
         return slots.TryGetValue(slotId, out var info) ? info : null;
     }
 

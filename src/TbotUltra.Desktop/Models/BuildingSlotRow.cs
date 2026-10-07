@@ -20,6 +20,15 @@ public sealed class BuildingSlotRow
 
     public bool IsWallSlot { get; init; }
     public bool IsRallyPointSlot { get; init; }
+    public int? WatchtowerLevel { get; init; }
+    public int? WatchtowerProjectedLevel { get; init; }
+    public bool CanQueueWatchtowers { get; init; }
+    public bool HasWatchtowerStatus => WatchtowerLevel.HasValue;
+    public string WatchtowerStatusLabel => WatchtowerLevel is not int level
+        ? string.Empty
+        : WatchtowerProjectedLevel is int projected && projected > level
+            ? $"Watchtowers {level} ({projected})"
+            : $"Watchtowers {level}";
 
     public string LevelLabel => Level is int value ? value.ToString() : "unknown";
     // A slot is occupied when it carries a real building identity. Level can be 0 while a brand-new

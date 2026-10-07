@@ -1575,7 +1575,7 @@ public partial class MainWindow
 
         if (status.IsCapital == false)
         {
-            return NonCapitalResourceMaxLevel;
+            return status.CityStatus == CityStatus.City ? CityResourceMaxLevel : NonCapitalResourceMaxLevel;
         }
 
         return _activeVillageResourceMaxLevel;
@@ -1591,7 +1591,9 @@ public partial class MainWindow
 
         if (status.IsCapital == false)
         {
-            _activeVillageResourceMaxLevel = NonCapitalResourceMaxLevel;
+            _activeVillageResourceMaxLevel = status.CityStatus == CityStatus.City
+                ? CityResourceMaxLevel
+                : NonCapitalResourceMaxLevel;
         }
     }
 

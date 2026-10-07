@@ -128,6 +128,49 @@ public partial class MainWindow
             ? loadedVillageMainBuildingLevel
             : ResolveMainBuildingLevel(cachedStatus);
 
+        if (string.Equals(taskName, "upgrade_watchtowers_to_level", StringComparison.OrdinalIgnoreCase))
+        {
+            var target = TryGetIntPayloadValue(payload, BotOptionPayloadKeys.BuildingUpgradeTargetLevel);
+            var watchtower = villageLoaded
+                ? ResolveSelectedVillageBuildingStatus()?.WatchtowerStatus
+                : cachedStatus?.WatchtowerStatus;
+            if (target is null || watchtower is null)
+            {
+                return QueueItemEstimate.None;
+            }
+
+            var fromLevel = watchtower.ProjectedLevel + 1;
+            if (target.Value < fromLevel)
+            {
+                return new QueueItemEstimate(true, 0, 0, 0, 0, 0);
+            }
+
+            double watchtowerSeconds = 0;
+            long watchtowerWood = 0, watchtowerClay = 0, watchtowerIron = 0, watchtowerCrop = 0;
+            for (var level = fromLevel; level <= target.Value; level++)
+            {
+                var stats = WatchtowerCatalogService.Level(level);
+                if (stats is null)
+                {
+                    return QueueItemEstimate.None;
+                }
+
+                watchtowerSeconds += WatchtowerCatalogService.BuildSecondsFor(level, serverSpeed, mainBuildingLevel);
+                watchtowerWood += stats.Wood;
+                watchtowerClay += stats.Clay;
+                watchtowerIron += stats.Iron;
+                watchtowerCrop += stats.Crop;
+            }
+
+            return new QueueItemEstimate(
+                true,
+                watchtowerSeconds,
+                watchtowerWood,
+                watchtowerClay,
+                watchtowerIron,
+                watchtowerCrop);
+        }
+
         if (string.Equals(taskName, "construct_building", StringComparison.OrdinalIgnoreCase))
         {
             var gid = TryGetIntPayloadValue(payload, BotOptionPayloadKeys.BuildingConstructGid)
@@ -426,6 +469,40 @@ public partial class MainWindow
         return slot.UpgradeGid is int gid
             ? BuildRangeEstimate(gid, slot.UpgradeBaseLevel + 1, targetLevel)
             : null;
+    }
+
+    private BuildingNextLevelEstimate? BuildWatchtowerRangeEstimate(int fromLevel, int toLevel)
+    {
+        if (toLevel < fromLevel)
+        {
+            return null;
+        }
+
+        double seconds = 0;
+        long wood = 0, clay = 0, iron = 0, crop = 0;
+        for (var level = fromLevel; level <= toLevel; level++)
+        {
+            var stats = WatchtowerCatalogService.Level(level);
+            if (stats is null)
+            {
+                return null;
+            }
+
+            seconds += WatchtowerCatalogService.BuildSecondsFor(level, ResolveServerSpeed(), ResolveMainBuildingLevel());
+            wood += stats.Wood;
+            clay += stats.Clay;
+            iron += stats.Iron;
+            crop += stats.Crop;
+        }
+
+        return new BuildingNextLevelEstimate(
+            toLevel,
+            seconds,
+            FormatBuildDuration(seconds),
+            FormatResourceAmount(wood),
+            FormatResourceAmount(clay),
+            FormatResourceAmount(iron),
+            FormatResourceAmount(crop));
     }
 
     // Cumulative cost + time for constructing a new building from level 1 up to targetLevel, shown live

@@ -169,7 +169,8 @@ public sealed partial class TravianClient
                 Villages: villages,
                 ServerTimeUtc: _serverTimeUtc,
                 ActiveVillageCoordX: activeCoordinates.X,
-                ActiveVillageCoordY: activeCoordinates.Y);
+                ActiveVillageCoordY: activeCoordinates.Y,
+                CityCapability: KnownCityCapability);
             trace.Complete("success", $"villageCount={result.VillageCount} activeVillage={result.ActiveVillage}");
             return result;
         }

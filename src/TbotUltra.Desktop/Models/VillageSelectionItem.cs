@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop.Models;
 
@@ -14,6 +15,9 @@ public sealed class VillageSelectionItem : INotifyPropertyChanged
     public int? Population { get; init; }
     public int? CropFields { get; init; }
     public string Tribe { get; init; } = "Unknown";
+    public CityStatus CityStatus { get; init; } = CityStatus.Unknown;
+    public bool IsCity => CityStatus == CityStatus.City;
+    public string CityTooltip => IsCity ? "City" : string.Empty;
 
     private bool _hasIncomingAttack;
     public bool HasIncomingAttack

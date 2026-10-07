@@ -122,7 +122,7 @@ public partial class MainWindow
         _buildingsViewModel.ClearQueueInteractionState();
 
         var candidateRows = _buildingRows
-            .Where(row => row.SlotId is >= 19 and <= 40)
+            .Where(row => row.SlotId is >= 19 and <= 43)
             .Where(row => (row.IsOccupied && !row.IsMaxLevel) || row.HasPendingConstruct)
             .GroupBy(row => row.SlotId)
             .Select(group => group.First())
@@ -493,6 +493,9 @@ public partial class MainWindow
             case BuildingSlotAction.UpgradeToMax:
                 TryQueueBuildingUpgradeToMax(row.SlotId);
                 break;
+            case BuildingSlotAction.UpgradeWatchtowers:
+                ShowWatchtowerTarget(row);
+                break;
             case BuildingSlotAction.Demolish:
                 ShowDemolishTargetForSlot(row);
                 break;
@@ -581,6 +584,55 @@ public partial class MainWindow
         }
 
         _ = TryQueueBuildingUpgradeToLevel(liveRow.SlotId, targetWindow.SelectedTargetLevel);
+    }
+
+    private void ShowWatchtowerTarget(BuildingSlotRow wallRow)
+    {
+        var status = ResolveSelectedVillageBuildingStatus();
+        var watchtower = status?.WatchtowerStatus;
+        if (status is null
+            || status.CityCapability != CityCapability.Enabled
+            || status.CityStatus != CityStatus.City
+            || watchtower is null)
+        {
+            BuildingsInfoTextBlock.Text = "Watchtowers require a confirmed Cities server, City and existing wall. Load buildings to refresh the status.";
+            return;
+        }
+
+        var currentLevel = watchtower.ProjectedLevel;
+        if (currentLevel >= 20)
+        {
+            BuildingsInfoTextBlock.Text = "Watchtowers are already max level (20).";
+            return;
+        }
+
+        var targetRow = new BuildingSlotRow
+        {
+            SlotId = 40,
+            Name = "Watchtowers",
+            Level = currentLevel,
+            Gid = null,
+        };
+        var targetWindow = new BuildingUpgradeTargetWindow(
+            targetRow,
+            20,
+            targetLevel => BuildWatchtowerRangeEstimate(currentLevel + 1, targetLevel))
+        {
+            Owner = this,
+        };
+        if (targetWindow.ShowDialog() != true)
+        {
+            return;
+        }
+
+        var payload = new BuildingUpgradePayload(40, targetWindow.SelectedTargetLevel, "Watchtowers").ToDictionary();
+        ApplySelectedVillageToPayload(payload);
+        var created = _buildingsPanelService.EnqueueBatch(
+            [new QueueItemCreateRequest("upgrade_watchtowers_to_level", payload, 0, 3)]);
+        RequestQueueUiRefresh(selectId: created.LastOrDefault()?.Id);
+        TriggerQueueAutoRunFromEnqueue();
+        BuildingsInfoTextBlock.Text = $"Queued Watchtowers to level {targetWindow.SelectedTargetLevel} (separate 2-slot Watchtower queue).";
+        AppendLog($"Queued Watchtowers upgrade: level {currentLevel} -> {targetWindow.SelectedTargetLevel}.");
     }
 
     private void QueueSingleBuildingUpgradeFromSlot(int slotId)
@@ -753,7 +805,8 @@ public partial class MainWindow
                 continue;
             }
 
-            if (!BuildingCatalogService.CanConstructInVillage(entry.Gid, status.IsCapital, out var locationReason))
+            if (!BuildingCatalogService.CanConstructInVillage(
+                    entry.Gid, status.IsCapital, status.Tribe, status.CityCapability, status.CityStatus, out var locationReason))
             {
                 option.Availability = BuildingConstructAvailability.Unavailable;
                 option.UnavailableReason = locationReason;
@@ -863,7 +916,13 @@ public partial class MainWindow
     {
         reason = string.Empty;
         var projectedStatus = BuildProjectedBuildingStatus(sourceStatus);
-        if (!BuildingCatalogService.CanConstructInVillage(selectedBuilding.Gid, projectedStatus.IsCapital, out reason))
+        if (!BuildingCatalogService.CanConstructInVillage(
+                selectedBuilding.Gid,
+                projectedStatus.IsCapital,
+                projectedStatus.Tribe,
+                projectedStatus.CityCapability,
+                projectedStatus.CityStatus,
+                out reason))
         {
             return false;
         }
@@ -1343,7 +1402,8 @@ public partial class MainWindow
             buildingBySlot.Select(kv => (kv.Key, (string?)kv.Value.Name, kv.Value.Level)));
 
         var occupiedCount = 0;
-        foreach (var slotId in Enumerable.Range(19, 22))
+        var overviewSlots = BuildingSlotPolicy.OverviewSlots(status.CityStatus);
+        foreach (var slotId in overviewSlots)
         {
             buildingBySlot.TryGetValue(slotId, out var building);
             var (occupied, slotName, slotLevel, slotGid) =
@@ -1418,6 +1478,13 @@ public partial class MainWindow
                 MapTop = layout.Top,
                 IsWallSlot = isWallSlot,
                 IsRallyPointSlot = isRallyPointSlot,
+                WatchtowerLevel = isWallSlot ? status.WatchtowerStatus?.Level : null,
+                WatchtowerProjectedLevel = isWallSlot ? status.WatchtowerStatus?.ProjectedLevel : null,
+                CanQueueWatchtowers = isWallSlot
+                    && occupied
+                    && status.CityCapability == CityCapability.Enabled
+                    && status.CityStatus == CityStatus.City
+                    && status.WatchtowerStatus is not null,
             };
             _buildingRows.Add(row);
 
@@ -1428,7 +1495,7 @@ public partial class MainWindow
         }
 
         PopulateBuildingCatalogOptions(status);
-        BuildingsInfoTextBlock.Text = $"Buildings loaded. Occupied slots: {occupiedCount}, free slots: {22 - occupiedCount}.";
+        BuildingsInfoTextBlock.Text = $"Buildings loaded. Occupied slots: {occupiedCount}, free slots: {overviewSlots.Count - occupiedCount}.";
 
         // The Main Building level just became available for this village. Recompute the queue estimates
         // so already-queued items reflect the build-time discount. Skipped when this call came from

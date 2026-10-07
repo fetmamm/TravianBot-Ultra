@@ -1382,7 +1382,8 @@ public partial class MainWindow
             allowIndependentCategoryLookAhead,
             firstItem is null
                 ? RomanConstructionPriority.Auto
-                : LoadBotOptions().ConstructionRomanPriority);
+                : LoadBotOptions().ConstructionRomanPriority,
+            index => ResolveWatchtowerBlockReason(orderedGroupItems[index]));
         skipReason = selection.SkipReason;
 
         if (selection.QueueFullBlocker is not null && !preview)
@@ -1412,8 +1413,12 @@ public partial class MainWindow
         if (selection.UsedIndependentCategoryLookAhead && !preview)
         {
             var villageName = NormalizeVillageName(GetQueueItemVillageName(selection.Item)) ?? "-";
+            var lane = ConstructionQueueState.IsWatchtowerTask(selection.Item.TaskName)
+                || (firstItem is not null && ConstructionQueueState.IsWatchtowerTask(firstItem.TaskName))
+                ? "Watchtower lane"
+                : "Roman category";
             AppendLog(
-                $"[construction-queue] Roman category look-ahead selected " +
+                $"[construction-queue] {lane} look-ahead selected " +
                 $"task='{selection.Item.TaskName}' village='{villageName}' because the earlier category is blocked.");
         }
         else if (selection.UsedRomanPriority && !preview)
@@ -1431,7 +1436,9 @@ public partial class MainWindow
             return null;
         }
 
-        if (!preview && TryPrepareConstructionStartDelay(selection.Item, now, out var humanizeSkipReason))
+        if (!preview
+            && !ConstructionQueueState.IsWatchtowerTask(selection.Item.TaskName)
+            && TryPrepareConstructionStartDelay(selection.Item, now, out var humanizeSkipReason))
         {
             skipReason = humanizeSkipReason;
             return null;
@@ -1636,9 +1643,56 @@ public partial class MainWindow
         var status = item is null
             ? ResolveSelectedVillageBuildingStatus()
             : ResolveBuildingStatusForQueueItem(item);
+        if (item is not null && ConstructionQueueState.IsWatchtowerTask(item.TaskName))
+        {
+            var watchtower = status?.WatchtowerStatus;
+            return watchtower is null
+                ? ConstructionQueueAvailability.Unknown
+                : watchtower.QueueFull
+                    ? ConstructionQueueAvailability.Full
+                    : ConstructionQueueAvailability.Available;
+        }
+
         return item is null
             ? ConstructionQueueState.ResolveAvailability(status, _travianPlusActive, now)
             : ConstructionQueueState.ResolveAvailabilityForItem(status, _travianPlusActive, item, now);
+    }
+
+    private string? ResolveWatchtowerBlockReason(QueueItem item)
+    {
+        if (!ConstructionQueueState.IsWatchtowerTask(item.TaskName))
+        {
+            return null;
+        }
+
+        var status = ResolveBuildingStatusForQueueItem(item);
+        if (status is null)
+        {
+            return "waiting for a village building scan; no navigation will be attempted";
+        }
+
+        if (status.CityCapability != CityCapability.Enabled)
+        {
+            return $"Cities capability is {status.CityCapability}; Watchtowers require a confirmed Cities server";
+        }
+
+        if (status.CityStatus != CityStatus.City)
+        {
+            return $"village status is {status.CityStatus}; Watchtowers require a confirmed City";
+        }
+
+        var wall = status.Buildings.FirstOrDefault(building => building.SlotId == 40);
+        if (wall is null || (wall.Level ?? 0) < 1)
+        {
+            return "the village has no constructed wall";
+        }
+
+        if (status.WatchtowerStatus is null)
+        {
+            return "Watchtower status is unknown; use Load buildings once to inspect the wall";
+        }
+
+        return null;
     }
 
     private void LogConstructionQueueFullSummary(QueueItem blocker, int blockedItems, DateTimeOffset now)

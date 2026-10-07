@@ -33,6 +33,7 @@ public sealed partial class BotTaskRunner
             ["upgrade_all_resources_to_level"] = ExecuteUpgradeAllResourcesToLevelAsync,
             // Upgrades a specific building (by slot ID) to a target level.
             ["upgrade_building_to_level"] = ExecuteUpgradeBuildingToLevelAsync,
+            ["upgrade_watchtowers_to_level"] = ExecuteUpgradeWatchtowersToLevelAsync,
             // Upgrades a specific building (by slot ID) to its maximum possible level.
             ["upgrade_building_to_max"] = ExecuteUpgradeBuildingToMaxAsync,
             // Constructs a new building in a specified slot using its GID.

@@ -39,11 +39,11 @@ public static class MainBuildingRebuildPlanner
         var reportedMainBuildingSlot = liveStatus.Buildings
             .Where(building => IsMainBuilding(building) && (building.Level ?? 0) == 0)
             .Select(building => building.SlotId)
-            .FirstOrDefault(slot => slot is >= 19 and <= 38);
+            .FirstOrDefault(slot => slot is int value && BuildingSlotPolicy.IsOrdinarySlot(value, liveStatus.CityStatus));
         var previousMainBuildingSlot = previousStatus?.Buildings
             .Where(IsMainBuilding)
             .Select(building => building.SlotId)
-            .FirstOrDefault(slot => slot is >= 19 and <= 38);
+            .FirstOrDefault(slot => slot is int value && BuildingSlotPolicy.IsOrdinarySlot(value, liveStatus.CityStatus));
         var slotId = new[] { reportedMainBuildingSlot, previousMainBuildingSlot }
             .Where(slot => slot.HasValue && emptySlots.Contains(slot.Value) && !reservedSlots.Contains(slot.Value))
             .Select(slot => slot!.Value)

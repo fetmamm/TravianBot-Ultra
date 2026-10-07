@@ -56,6 +56,8 @@ public sealed partial class TravianClient
     private int? _cachedSilver { get => _session.CachedSilver; set => _session.CachedSilver = value; }
     private DateTimeOffset _cachedCurrencyAt { get => _session.CachedCurrencyAt; set => _session.CachedCurrencyAt = value; }
     private string? _accountTribe { get => _session.AccountTribe; set => _session.AccountTribe = value; }
+    private CityStatus _lastBuildingOverviewCityStatus = CityStatus.Unknown;
+    private CityCapability KnownCityCapability => _session.CityCapability;
 
     // Short-lived cache for ReadActiveConstructionsAsync. One upgrade-to-max iteration makes
     // several pre-click reads of the SAME dorf2 page state (e.g. ReadHighestKnownQueuedBuildingLevel
@@ -607,6 +609,9 @@ public sealed partial class TravianClient
 
         [JsonPropertyName("isCapital")]
         public bool IsCapital { get; init; }
+
+        [JsonPropertyName("isCity")]
+        public bool IsCity { get; init; }
 
         [JsonPropertyName("x")]
         public int? X { get; init; }

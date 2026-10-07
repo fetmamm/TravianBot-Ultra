@@ -169,6 +169,44 @@ public static class BuildingCatalogService
         return true;
     }
 
+    public static bool CanConstructInVillage(
+        int gid,
+        bool? isCapital,
+        string? tribe,
+        CityCapability cityCapability,
+        CityStatus cityStatus,
+        out string reason)
+    {
+        if (!CanConstructInVillage(gid, isCapital, out reason))
+        {
+            return false;
+        }
+
+        if (gid != 45)
+        {
+            return true;
+        }
+
+        if (!string.Equals(NormalizeTribe(tribe ?? string.Empty), "Egyptians", StringComparison.OrdinalIgnoreCase))
+        {
+            reason = "Waterworks can only be built by Egyptians.";
+            return false;
+        }
+
+        if (cityCapability == CityCapability.Enabled && cityStatus != CityStatus.City)
+        {
+            reason = cityStatus == CityStatus.Unknown
+                ? "Waterworks requires a confirmed City on this Cities server; load buildings to verify the village."
+                : "Waterworks can only be built in a City on this Cities server.";
+            return false;
+        }
+
+        // Unknown capability deliberately does not pre-block Waterworks. The live Travian build page
+        // remains authoritative when the server feature flag could not be read.
+        reason = string.Empty;
+        return true;
+    }
+
     private static IReadOnlyDictionary<string, int> BuildNameToGid()
     {
         var map = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);

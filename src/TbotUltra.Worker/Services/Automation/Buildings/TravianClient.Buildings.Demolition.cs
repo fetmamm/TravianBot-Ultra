@@ -35,7 +35,7 @@ public sealed partial class TravianClient : IBuildingClient
         // One-shot: read dorf2 to get the live target level and Main Building slot.
         await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
 
-        var initialSlots = await ReadBuildingInfosAsync(cancellationToken);
+        var initialSlots = (await ReadBuildingInfosAsync(cancellationToken)).Buildings;
         if (!initialSlots.TryGetValue(slotId, out var initialInfo) || initialInfo.Level <= 0)
         {
             return $"Slot {slotId}: nothing to demolish (already empty).";

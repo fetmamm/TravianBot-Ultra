@@ -76,6 +76,7 @@ internal static class VillageIdentityReconciler
             : fresh with
             {
                 IsCapital = fresh.IsCapital ?? match.IsCapital,
+                CityStatus = fresh.CityStatus != CityStatus.Unknown ? fresh.CityStatus : match.CityStatus,
                 CoordX = fresh.CoordX ?? match.CoordX,
                 CoordY = fresh.CoordY ?? match.CoordY,
                 Population = fresh.Population ?? match.Population,

@@ -154,6 +154,21 @@ public sealed partial class BotTaskRunner
         ThrowIfTaskBlocked("upgrade_building_to_level", result);
     }
 
+    private static async Task ExecuteUpgradeWatchtowersToLevelAsync(TaskExecutionContext context)
+    {
+        if (context.Options.BuildingUpgradeTargetLevel is null)
+        {
+            context.Log("Task 'upgrade_watchtowers_to_level' requires config value building_upgrade_target_level.");
+            return;
+        }
+
+        var result = await context.Client.UpgradeWatchtowersToLevelAsync(
+            context.Options.BuildingUpgradeTargetLevel.Value,
+            context.CancellationToken);
+        context.Log(result);
+        context.RecordTaskResult("upgrade_watchtowers_to_level", result);
+    }
+
     private static async Task ExecuteUpgradeBuildingToMaxAsync(TaskExecutionContext context)
     {
         if (context.Options.BuildingUpgradeSlotId is null)

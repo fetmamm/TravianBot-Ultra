@@ -128,6 +128,46 @@ _Avoid_: Assumed NPC availability, preflight Gold reservation
 Amber/yellow is used for `Res:`, `Req:`, `Waiting:`, and `Retry:` Construction card messages. Blue is reserved for `Empty queue`.
 _Avoid_: Green waiting state, mixed status colors
 
+**City Capability**:
+The automatically detected account-world property `Enabled`, `Disabled`, or `Unknown`, obtained from Travian's published server feature flags rather than inferred from one village. It is read after successful login, cached per account/server, and refreshed for a new session, account switch, or reconnect. Failure produces `Unknown` without stopping unrelated automation. It has no user-controlled setting; status is exposed only through relevant diagnostics and tooltips.
+_Avoid_: City server guess, profile-derived server type
+
+**City Status**:
+The per-village classification `City`, `Village`, or `Unknown`, derived from live owned-village evidence. A successful current-village Dorf2 read is authoritative over profile data; explicit City markers or slots 41–43 mean `City`, while a complete normal Dorf2 means `Village`. Failed or incomplete reads produce `Unknown` and must not erase a previously confirmed classification. Profile rows may discover other Cities without extra village navigation. Conflicts are logged without stopping unrelated automation.
+_Avoid_: City Capability, extra-slot guess
+
+**Watchtower Extension**:
+A City-only extension attached to the village wall in slot 40, with its own level and independent two-place Official construction queue.
+_Avoid_: Watchtower building, wall level, ordinary construction slot
+
+**Watchtower Eligibility**:
+A Watchtower Extension may be queued only when City Capability and the target village's City Status are both confirmed and a wall exists.
+_Avoid_: City-looking wall, ordinary wall upgrade eligibility
+
+**City-Gated Queue Item**:
+A persisted Watchtower or Waterworks task whose current verified City rules do not permit execution. It remains saved but is marked blocked with an exact reason, skipped without navigation or retry backoff, and becomes runnable again automatically if later verified state satisfies its eligibility.
+_Avoid_: Deleted invalid task, retrying invalid task, program-wide block
+
+**Watchtower Status Refresh**:
+A per-village, demand-driven read of the wall page used to cache Watchtower level and its independent queue. Refresh when Watchtower work is queued or due, its cached deadline expires, the user explicitly loads building details, or a City is discovered for the first time; Cities without Watchtower work must not cause repeated wall-page navigation.
+_Avoid_: Every-scan wall visit, Dorf2-derived Watchtower timer
+
+**Watchtower Target**:
+An explicit Watchtower level selected from the wall card or a building template and executed through the separate Watchtower queue lane. It is excluded from the general Upgrade all to max action.
+_Avoid_: Wall target, implicit max upgrade, ordinary building target
+
+**Waterworks Eligibility**:
+An Egyptian village with Hero's Mansion level 10 may build Waterworks on a regular world; on a world with City Capability it must additionally have confirmed City Status.
+_Avoid_: Capital-only Waterworks, Egyptian-building-only check
+
+**City Resource Field Ceiling**:
+The level-12 resource-field limit for a confirmed non-capital City; capitals retain their existing higher resource-field ceiling.
+_Avoid_: Universal level 12, City building level
+
+**City Building Slots**:
+The three additional ordinary building slots 41–43 available only to a village with confirmed City Status; fixed Rally Point slot 39 and wall slot 40 remain unchanged.
+_Avoid_: Watchtower slots, assumed extra slots
+
 **Demolition Sequence**:
 A village-scoped queued target that lowers one building level at a time. Each confirmed Travian demolition stores an absolute next-attempt deadline made from the server timer plus the configured human delay.
 _Avoid_: Blocking demolish loop, demolition sleep

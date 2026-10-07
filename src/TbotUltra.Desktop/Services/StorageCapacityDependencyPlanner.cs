@@ -101,7 +101,7 @@ public static class StorageCapacityDependencyPlanner
         }
 
         var matchingBuildings = status.Buildings
-            .Where(building => building.SlotId is >= 19 and <= 38)
+            .Where(building => building.SlotId is int slot && BuildingSlotPolicy.IsOrdinarySlot(slot, status.CityStatus))
             .Where(building => building.Gid == gid || IsStorageName(building.Name, kind))
             .Where(building => (building.Level ?? 0) > 0)
             .ToList();
@@ -135,7 +135,7 @@ public static class StorageCapacityDependencyPlanner
             .Select(building => building.SlotId!.Value)
             .Concat(queuedConstructSlots)
             .ToHashSet();
-        var emptySlot = Enumerable.Range(19, 20)
+        var emptySlot = BuildingSlotPolicy.OrdinarySlots(status.CityStatus)
             .FirstOrDefault(slotId => !occupiedSlots.Contains(slotId));
         if (emptySlot > 0)
         {
@@ -225,7 +225,7 @@ public static class StorageCapacityDependencyPlanner
 
     private static bool IsOccupiedBuildingSlot(Building building)
     {
-        if (building.SlotId is not (>= 19 and <= 38))
+        if (building.SlotId is not int slotId || !BuildingSlotPolicy.IsPotentialOrdinarySlot(slotId))
         {
             return false;
         }

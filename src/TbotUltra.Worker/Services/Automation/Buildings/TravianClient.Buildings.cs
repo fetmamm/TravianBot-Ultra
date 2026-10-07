@@ -22,6 +22,9 @@ public sealed partial class TravianClient : IBuildingClient
         var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
         var tribe = await ReadActiveVillageTribeAsync(cancellationToken);
         var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+        var watchtowerStatus = _lastBuildingOverviewCityStatus == CityStatus.City
+            ? await ReadWatchtowerStatusAsync(forceRefresh: true, cancellationToken)
+            : null;
 
         return new VillageStatus(
             ActiveVillage: activeVillage,
@@ -35,7 +38,10 @@ public sealed partial class TravianClient : IBuildingClient
             IsCapital: TryGetCachedCapitalState(activeVillage, activeCoords.X, activeCoords.Y),
             ServerTimeUtc: _serverTimeUtc,
             ActiveVillageCoordX: activeCoords.X,
-            ActiveVillageCoordY: activeCoords.Y);
+            ActiveVillageCoordY: activeCoords.Y,
+            CityCapability: KnownCityCapability,
+            CityStatus: _lastBuildingOverviewCityStatus,
+            WatchtowerStatus: watchtowerStatus);
     }
 
     public async Task<VillageStatus> ReadCurrentBuildingOverviewStatusAsync(CancellationToken cancellationToken = default)
@@ -48,7 +54,16 @@ public sealed partial class TravianClient : IBuildingClient
 
         var buildings = await ReadBuildingsAsync(cancellationToken, reuseFreshCurrentOverview: true);
         var currentStatus = await ReadCurrentPageStorageStatusAsync(cancellationToken);
-        return currentStatus with { Buildings = buildings };
+        return currentStatus with
+        {
+            Buildings = buildings,
+            CityCapability = KnownCityCapability,
+            CityStatus = _lastBuildingOverviewCityStatus,
+            WatchtowerStatus = TryGetCachedWatchtowerStatus(
+                currentStatus.ActiveVillage,
+                currentStatus.ActiveVillageCoordX,
+                currentStatus.ActiveVillageCoordY),
+        };
     }
 
     internal static IReadOnlyList<Building> ParseBuildingOverviewHtmlForTests(string html)

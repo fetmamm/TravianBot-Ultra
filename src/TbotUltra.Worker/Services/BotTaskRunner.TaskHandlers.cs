@@ -48,6 +48,7 @@ public sealed partial class BotTaskRunner
         string.Equals(taskName, "upgrade_resource_to_level", StringComparison.OrdinalIgnoreCase)
         || string.Equals(taskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase)
         || string.Equals(taskName, "upgrade_building_to_level", StringComparison.OrdinalIgnoreCase)
+        || string.Equals(taskName, "upgrade_watchtowers_to_level", StringComparison.OrdinalIgnoreCase)
         || string.Equals(taskName, "upgrade_building_to_max", StringComparison.OrdinalIgnoreCase)
         || string.Equals(taskName, "construct_building", StringComparison.OrdinalIgnoreCase)
         || string.Equals(taskName, "demolish_building_to_level", StringComparison.OrdinalIgnoreCase);

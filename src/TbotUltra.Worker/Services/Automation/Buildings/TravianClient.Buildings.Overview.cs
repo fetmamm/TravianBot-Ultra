@@ -24,13 +24,16 @@ public sealed partial class TravianClient
 
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
-        Dictionary<int, BuildingInfo> buildingsBySlot = new();
+        BuildingOverviewScanResult scan = new();
         await RetryAsync("read building slots snapshot", async () =>
         {
-            buildingsBySlot = await ReadBuildingInfosAsync(cancellationToken);
+            scan = await ReadBuildingInfosAsync(cancellationToken);
         }, cancellationToken: cancellationToken);
 
-        var result = buildingsBySlot.Values
+        _lastBuildingOverviewCityStatus = scan.CityStatus;
+        await ApplyLiveCityStatusAsync(scan.CityStatus, cancellationToken);
+
+        var result = scan.Buildings.Values
             .OrderBy(item => item.SlotId)
             .Select(item => new Building(
                 item.SlotId,
@@ -43,12 +46,12 @@ public sealed partial class TravianClient
         return result;
     }
 
-    private async Task<Dictionary<int, BuildingInfo>> ReadBuildingInfosAsync(CancellationToken cancellationToken)
+    private async Task<BuildingOverviewScanResult> ReadBuildingInfosAsync(CancellationToken cancellationToken)
     {
         var firstScan = await ScanBuildingOverviewAsync(cancellationToken);
         if (!BuildingOverviewScanPolicy.ShouldRetry(firstScan.Metrics))
         {
-            return firstScan.Buildings;
+            return firstScan;
         }
 
         Notify($"Building overview scan looked incomplete ({BuildingOverviewScanPolicy.Describe(firstScan.Metrics)}). Reloading once.");
@@ -59,8 +62,45 @@ public sealed partial class TravianClient
 
         var secondScan = await ScanBuildingOverviewAsync(cancellationToken);
         return BuildingOverviewScanPolicy.PreferSecond(firstScan.Metrics, secondScan.Metrics)
-            ? secondScan.Buildings
-            : firstScan.Buildings;
+            ? secondScan
+            : firstScan;
+    }
+
+    private async Task ApplyLiveCityStatusAsync(CityStatus cityStatus, CancellationToken cancellationToken)
+    {
+        if (cityStatus == CityStatus.Unknown)
+        {
+            return;
+        }
+
+        var activeVillage = await TryReadActiveVillageNameSafeAsync(cancellationToken);
+        var coordinates = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+        var key = coordinates.X.HasValue && coordinates.Y.HasValue
+            ? $"xy:{coordinates.X.Value}|{coordinates.Y.Value}"
+            : string.IsNullOrWhiteSpace(activeVillage)
+                ? null
+                : $"name:{activeVillage.Trim().ToLowerInvariant()}";
+        if (!string.IsNullOrWhiteSpace(key))
+        {
+            _session.VillageCityStatuses[key] = cityStatus;
+        }
+
+        if (_cachedVillages is { Count: > 0 })
+        {
+            _cachedVillages = _cachedVillages
+                .Select(village =>
+                    (coordinates.X.HasValue && coordinates.Y.HasValue
+                        ? village.CoordX == coordinates.X && village.CoordY == coordinates.Y
+                        : VillageIdentityReconciler.IsSameName(village.Name, activeVillage))
+                        ? village with { CityStatus = cityStatus }
+                        : village)
+                .ToList();
+        }
+
+        if (_session.LogValueChanged($"city-status:{key ?? "unknown"}", cityStatus.ToString()))
+        {
+            Notify($"[city] village='{activeVillage ?? "unknown"}' status={cityStatus} source=dorf2");
+        }
     }
 
     private async Task<BuildingOverviewScanResult> ScanBuildingOverviewAsync(CancellationToken cancellationToken)

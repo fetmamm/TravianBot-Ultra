@@ -10,7 +10,10 @@ public sealed record BuildingSnapshot(
     IReadOnlyList<Building>? Buildings,
     IReadOnlyList<ResourceField>? ResourceFields,
     IReadOnlyList<ActiveConstruction>? ActiveConstructions = null,
-    bool ActiveConstructionsFromOverview = false)
+    bool ActiveConstructionsFromOverview = false,
+    CityCapability CityCapability = CityCapability.Unknown,
+    CityStatus CityStatus = CityStatus.Unknown,
+    WatchtowerStatus? WatchtowerStatus = null)
 {
     public static BuildingSnapshot FromVillageStatus(string? account, VillageStatus status)
         => new(
@@ -23,5 +26,8 @@ public sealed record BuildingSnapshot(
             status.Buildings,
             status.ResourceFields,
             status.ActiveConstructions,
-            status.ActiveConstructionsFromOverview);
+            status.ActiveConstructionsFromOverview,
+            status.CityCapability,
+            status.CityStatus,
+            status.WatchtowerStatus);
 }

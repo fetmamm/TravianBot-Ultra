@@ -7,6 +7,7 @@ public enum BuildingTemplateRowKind
 {
     Building = 0,
     AllResources = 1,
+    Watchtowers = 2,
 }
 
 public sealed class BuildingTemplate : INotifyPropertyChanged

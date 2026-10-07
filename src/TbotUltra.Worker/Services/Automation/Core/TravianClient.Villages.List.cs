@@ -733,6 +733,7 @@ public sealed partial class TravianClient
                     const cropFields = cropMatch ? Number.parseInt(cropMatch[1], 10) : null;
 
                     const isCapital = Array.from(row.querySelectorAll('span.additionalInfo')).some(node => /\bcapital\b/i.test(node.textContent || ''));
+                    const isCity = Array.from(row.querySelectorAll('span.additionalInfo')).some(node => /\bcity\b/i.test(node.textContent || ''));
 
                     // Special servers that allow one tribe per village render a per-row tribe icon
                     // (<td class="tribe"><i class="tribe8_medium"></i></td>). Normal servers have no
@@ -748,6 +749,7 @@ public sealed partial class TravianClient
                       name,
                       url: villageHref || '',
                       isCapital,
+                      isCity,
                       x: Number.isFinite(coord.x) ? coord.x : null,
                       y: Number.isFinite(coord.y) ? coord.y : null,
                       population: Number.isFinite(population) ? population : null,
@@ -811,7 +813,8 @@ public sealed partial class TravianClient
                         CoordY: resolvedY,
                         Population: v.Population,
                         CropFields: v.CropFields,
-                        Tribe: rowTribe);
+                        Tribe: rowTribe,
+                        CityStatus: v.IsCity ? CityStatus.City : CityStatus.Village);
                 })
                 .ToList();
 

@@ -28,6 +28,12 @@ public static class QueueDisplayNameFormatter
         var buildingName = GetPayloadValue(payload, BotOptionPayloadKeys.BuildingUpgradeName)
             ?? GetPayloadValue(payload, BotOptionPayloadKeys.BuildingConstructName);
 
+        if (string.Equals(item.TaskName, "upgrade_watchtowers_to_level", StringComparison.OrdinalIgnoreCase)
+            && targetLevel.HasValue)
+        {
+            return $"Upgrade Watchtowers to level {targetLevel.Value} (separate queue)";
+        }
+
         if (string.Equals(item.TaskName, "upgrade_all_resources_to_level", StringComparison.OrdinalIgnoreCase)
             && targetLevel.HasValue)
         {

@@ -46,6 +46,9 @@ public partial class BuildingSlotActionsWindow : Window
         UpgradeButton.IsEnabled = canUpgrade;
         UpgradeOneLevelButton.IsEnabled = canUpgrade;
         UpgradeToMaxButton.IsEnabled = canUpgrade;
+        WatchtowerButton.Visibility = slot.CanQueueWatchtowers ? Visibility.Visible : Visibility.Collapsed;
+        WatchtowerButton.IsEnabled = slot.CanQueueWatchtowers
+            && (slot.WatchtowerProjectedLevel ?? slot.WatchtowerLevel ?? 0) < 20;
 
         if (nextLevel is not null)
         {
@@ -91,6 +94,13 @@ public partial class BuildingSlotActionsWindow : Window
         Close();
     }
 
+    private void WatchtowerButton_Click(object sender, RoutedEventArgs e)
+    {
+        SelectedAction = BuildingSlotAction.UpgradeWatchtowers;
+        DialogResult = true;
+        Close();
+    }
+
     private void DemolishButton_Click(object sender, RoutedEventArgs e)
     {
         SelectedAction = BuildingSlotAction.Demolish;
@@ -123,4 +133,5 @@ public enum BuildingSlotAction
     Upgrade = 2,
     UpgradeToMax = 3,
     Demolish = 4,
+    UpgradeWatchtowers = 5,
 }

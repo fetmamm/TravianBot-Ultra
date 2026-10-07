@@ -924,7 +924,7 @@ public sealed partial class TravianClient
 
             await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
-            var slots = await ReadBuildingInfosAsync(cancellationToken);
+            var slots = (await ReadBuildingInfosAsync(cancellationToken)).Buildings;
             // Smithy is gid 13 (see ENGINEERING_NOTES §5: no separate Armoury on gid 12). Accept 12 as a
             // defensive fallback so a mislabeled overview entry still resolves the slot.
             var smithyEntry = slots.FirstOrDefault(kvp =>

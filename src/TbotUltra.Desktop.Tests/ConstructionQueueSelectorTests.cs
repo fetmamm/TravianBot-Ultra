@@ -437,6 +437,43 @@ public sealed class ConstructionQueueSelectorTests
         Assert.Same(current, currentResult.QueueFullBlocker);
     }
 
+    [Fact]
+    public void SelectNext_DormantWatchtower_DoesNotBlockOrdinaryConstruction()
+    {
+        var watchtower = CreateReadyItem("upgrade_watchtowers_to_level");
+        var building = CreateReadyItem();
+
+        var result = ConstructionQueueSelector.SelectNext(
+            [watchtower, building],
+            Now,
+            ConstructionQueueAvailability.Unknown,
+            availabilityForIndex: _ => ConstructionQueueAvailability.Available,
+            allowIndependentCategoryLookAhead: false,
+            blockedReasonForIndex: index => index == 0 ? "village is not a confirmed City" : null);
+
+        Assert.Same(building, result.Item);
+        Assert.True(result.UsedIndependentCategoryLookAhead);
+    }
+
+    [Fact]
+    public void SelectNext_FullWatchtowerQueue_DoesNotBlockOrdinaryConstruction()
+    {
+        var watchtower = CreateReadyItem("upgrade_watchtowers_to_level");
+        var building = CreateReadyItem();
+
+        var result = ConstructionQueueSelector.SelectNext(
+            [watchtower, building],
+            Now,
+            ConstructionQueueAvailability.Full,
+            availabilityForIndex: index => index == 0
+                ? ConstructionQueueAvailability.Full
+                : ConstructionQueueAvailability.Available,
+            allowIndependentCategoryLookAhead: false);
+
+        Assert.Same(building, result.Item);
+        Assert.True(result.UsedIndependentCategoryLookAhead);
+    }
+
     private static QueueItem CreateDeferredItem(string reason)
     {
         return new QueueItem

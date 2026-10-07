@@ -197,6 +197,7 @@ public partial class MainWindow
             var goldText = payload.Gold?.ToString() ?? "-";
             var silverText = payload.Silver?.ToString() ?? "-";
             SetGoldSilverStatusText(ServerResourcesTextBlock, SilverInfoTextBlock, goldText, silverText);
+            _cityCapability = payload.CityCapability;
 
             if (payload.Villages is { Count: > 0 })
             {
@@ -218,7 +219,8 @@ public partial class MainWindow
                             village.CoordX,
                             village.CoordY,
                             village.Population,
-                            village.CropFields))
+                            village.CropFields,
+                            CityStatus: village.CityStatus))
                         .ToList();
                     ReconcileConfirmedVillageList(confirmedVillages, "profile_membership_verification");
                 }

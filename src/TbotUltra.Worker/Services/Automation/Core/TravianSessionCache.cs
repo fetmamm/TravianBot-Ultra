@@ -8,6 +8,13 @@ namespace TbotUltra.Worker.Services;
 /// </summary>
 public sealed class TravianSessionCache
 {
+    public Domain.CityCapability CityCapability { get; set; } = Domain.CityCapability.Unknown;
+    public System.Collections.Concurrent.ConcurrentDictionary<string, Domain.CityStatus> VillageCityStatuses { get; } =
+        new(System.StringComparer.OrdinalIgnoreCase);
+    public System.Collections.Concurrent.ConcurrentDictionary<string, Domain.WatchtowerStatus> WatchtowerStatuses { get; } =
+        new(System.StringComparer.OrdinalIgnoreCase);
+    public System.Collections.Concurrent.ConcurrentDictionary<string, System.DateTimeOffset> WatchtowerStatusReadAt { get; } =
+        new(System.StringComparer.OrdinalIgnoreCase);
     public bool? CachedTravianPlusActive { get; set; }
     public bool? CachedGoldClubEnabled { get; set; }
     public int? CachedGold { get; set; }

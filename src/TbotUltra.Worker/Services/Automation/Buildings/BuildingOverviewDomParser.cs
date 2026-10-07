@@ -1,4 +1,5 @@
 using System.Text.RegularExpressions;
+using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Worker.Services;
 
@@ -131,10 +132,20 @@ internal static class BuildingOverviewDomParser
             hasMainBuilding,
             hasRallyPoint);
 
+        var hasCityMarker = slotSnapshots.Any(snapshot =>
+            snapshot.OuterHtml?.Contains("isCity", StringComparison.OrdinalIgnoreCase) == true);
+        var hasExtraCitySlots = buildings.Keys.Any(slotId => slotId is >= 41 and <= 43);
+        var cityStatus = hasCityMarker || hasExtraCitySlots
+            ? CityStatus.City
+            : metrics.SlotCount >= 22 && !metrics.MissingMainBuilding && !metrics.MissingRallyPoint
+                ? CityStatus.Village
+                : CityStatus.Unknown;
+
         return new BuildingOverviewScanResult
         {
             Buildings = buildings,
             Metrics = metrics,
+            CityStatus = cityStatus,
         };
     }
 
@@ -145,7 +156,7 @@ internal static class BuildingOverviewDomParser
 
         var slotId = TryExtractSlotId(classes)
             ?? TryExtractSlotIdFromText(slotSnapshot.OuterHtml);
-        if (slotId is null || slotId < 19 || slotId > 40)
+        if (slotId is null || slotId < 19 || slotId > 43)
         {
             return null;
         }
@@ -435,6 +446,7 @@ internal sealed class BuildingOverviewScanResult
 {
     public Dictionary<int, BuildingInfo> Buildings { get; init; } = new();
     public BuildingOverviewScanMetrics Metrics { get; init; } = BuildingOverviewScanPolicy.Evaluate(0, 0, 0, false, false);
+    public CityStatus CityStatus { get; init; } = CityStatus.Unknown;
 }
 
 internal sealed class BuildingInfo

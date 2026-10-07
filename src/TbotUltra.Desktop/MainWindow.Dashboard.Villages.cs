@@ -76,7 +76,8 @@ public partial class MainWindow
                     item.CoordY,
                     item.Population,
                     item.CropFields,
-                    item.Tribe)).ToList(),
+                    item.Tribe,
+                    item.CityStatus)).ToList(),
                 activeVillageName);
         SyncDashboardVillageUi(
             items,
@@ -567,7 +568,8 @@ public partial class MainWindow
                     village.CropFields,
                     existing,
                     preferExistingPopulation: !isActiveVillage,
-                    tribe: village.Tribe);
+                    tribe: village.Tribe,
+                    cityStatus: village.CityStatus);
             })
             .ToList();
 
@@ -596,7 +598,8 @@ public partial class MainWindow
                     village.CoordY,
                     village.Population,
                     village.CropFields,
-                    existing);
+                    existing,
+                    cityStatus: village.CityStatus);
             })
             .ToList();
 
@@ -752,7 +755,8 @@ public partial class MainWindow
         int? cropFields,
         VillageSelectionItem? existing,
         bool preferExistingPopulation = false,
-        string? tribe = null)
+        string? tribe = null,
+        CityStatus cityStatus = CityStatus.Unknown)
     {
         // Population is driven by the live [ui-sync] path (incremental upgrades + real spieler reads).
         // Status/resource-refresh updates carry a frozen/stale population, so for those we keep the
@@ -771,6 +775,7 @@ public partial class MainWindow
             Population = resolvedPopulation,
             CropFields = cropFields ?? existing?.CropFields,
             Tribe = TroopCatalog.IsKnownTribe(tribe) ? tribe! : existing?.Tribe ?? "Unknown",
+            CityStatus = cityStatus != CityStatus.Unknown ? cityStatus : existing?.CityStatus ?? CityStatus.Unknown,
             HasIncomingAttack = existing?.HasIncomingAttack ?? false,
             IncomingAttackTooltip = existing?.IncomingAttackTooltip ?? "No incoming attacks",
         };
@@ -1016,6 +1021,7 @@ public partial class MainWindow
                 Population = village.Population,
                 CropFields = village.CropFields,
                 Tribe = village.Tribe,
+                CityStatus = village.CityStatus,
             })
             .ToList();
         var orderedGroups = GetContinuousLoopConsideredGroupsInOrder().ToList();

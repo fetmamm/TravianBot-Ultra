@@ -91,6 +91,7 @@ public sealed class BuildingTemplatePlanner
 
         double totalSeconds = 0;
         long totalWood = 0, totalClay = 0, totalIron = 0, totalCrop = 0;
+        var projectedWatchtowerLevel = status.WatchtowerStatus?.ProjectedLevel ?? 0;
 
         var planRows = rows ?? [];
         for (var rowIndex = 0; rowIndex < planRows.Count; rowIndex++)
@@ -109,6 +110,70 @@ public sealed class BuildingTemplatePlanner
                 {
                     AddTotals(resourceAction);
                 }
+                continue;
+            }
+
+            if (row.Kind == BuildingTemplateRowKind.Watchtowers)
+            {
+                if (status.CityCapability != CityCapability.Enabled)
+                {
+                    errors.Add($"Row {RowLabel(row)} requires a confirmed Cities-enabled server.");
+                    continue;
+                }
+
+                if (status.CityStatus != CityStatus.City)
+                {
+                    errors.Add($"Row {RowLabel(row)} requires a confirmed City.");
+                    continue;
+                }
+
+                var wall = status.Buildings.FirstOrDefault(building => building.SlotId == WallSlotId);
+                if (wall is null || (wall.Level ?? 0) < 1)
+                {
+                    errors.Add($"Row {RowLabel(row)} requires an existing wall.");
+                    continue;
+                }
+
+                if (status.WatchtowerStatus is null)
+                {
+                    errors.Add($"Row {RowLabel(row)} requires known Watchtower status; use Load buildings first.");
+                    continue;
+                }
+
+                var target = Math.Clamp(row.TargetLevel, 1, 20);
+                if (target <= projectedWatchtowerLevel)
+                {
+                    warnings.Add($"Skipped Watchtowers level {target}: projected level is already {projectedWatchtowerLevel}.");
+                    continue;
+                }
+
+                double seconds = 0;
+                long wood = 0, clay = 0, iron = 0, crop = 0;
+                for (var level = projectedWatchtowerLevel + 1; level <= target; level++)
+                {
+                    var stats = WatchtowerCatalogService.Level(level)!;
+                    seconds += WatchtowerCatalogService.BuildSecondsFor(level, serverSpeed, mainBuildingLevel);
+                    wood += stats.Wood;
+                    clay += stats.Clay;
+                    iron += stats.Iron;
+                    crop += stats.Crop;
+                }
+
+                var watchtowerAction = new BuildingTemplatePlanAction(
+                    "upgrade_watchtowers_to_level",
+                    new BuildingUpgradePayload(WallSlotId, target, "Watchtowers").ToDictionary(),
+                    $"Watchtowers to level {target}",
+                    WallSlotId,
+                    null,
+                    target,
+                    seconds,
+                    wood,
+                    clay,
+                    iron,
+                    crop);
+                actions.Add(watchtowerAction);
+                AddTotals(watchtowerAction);
+                projectedWatchtowerLevel = target;
                 continue;
             }
 
@@ -148,7 +213,8 @@ public sealed class BuildingTemplatePlanner
                 : state.FindExistingBuilding(gid, name, excludedExistingSlots);
             if (enforceVillageLocationRules
                 && existing is null
-                && !BuildingCatalogService.CanConstructInVillage(gid, status.IsCapital, out var locationReason))
+                && !BuildingCatalogService.CanConstructInVillage(
+                    gid, status.IsCapital, status.Tribe, status.CityCapability, status.CityStatus, out var locationReason))
             {
                 errors.Add(locationReason);
                 continue;
@@ -202,9 +268,9 @@ public sealed class BuildingTemplatePlanner
                 .Where(item => item.Kind == BuildingTemplateRowKind.Building)
                 .Select(item => item.PreferredSlotId)
                 .OfType<int>()
-                .Where(slot => slot is >= 19 and <= 38)
+                .Where(slot => BuildingSlotPolicy.IsOrdinarySlot(slot, status.CityStatus))
                 .ToHashSet();
-            var slotId = ResolveSlot(row.PreferredSlotId, gid, state, futureReservedSlots);
+            var slotId = ResolveSlot(row.PreferredSlotId, gid, state, futureReservedSlots, status.CityStatus);
             if (slotId is null)
             {
                 warnings.Add($"Skipped {name}: no valid free building slot is available.");
@@ -376,7 +442,7 @@ public sealed class BuildingTemplatePlanner
         {
             var action = actions[index];
             if (!string.Equals(action.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
-                || action.SlotId is < 19 or > 38)
+                || !BuildingSlotPolicy.IsPotentialOrdinarySlot(action.SlotId))
             {
                 continue;
             }
@@ -385,7 +451,7 @@ public sealed class BuildingTemplatePlanner
                 .Skip(index + 1)
                 .Where(item => string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase))
                 .Select(item => item.SlotId)
-                .Where(slot => slot is >= 19 and <= 38)
+                .Where(BuildingSlotPolicy.IsPotentialOrdinarySlot)
                 .Distinct()
                 .OrderBy(slot => slot);
             action.Payload[BotOptionPayloadKeys.BuildingConstructAllowSlotFallback] = bool.TrueString;
@@ -417,7 +483,8 @@ public sealed class BuildingTemplatePlanner
         var state = BuildProjectedState(precedingRows, status, serverSpeed, mainBuildingLevel, enforceVillageLocationRules);
         if (enforceVillageLocationRules
             && state.FindExistingBuilding(gid, entry.Name) is null
-            && !BuildingCatalogService.CanConstructInVillage(gid, status.IsCapital, out var locationReason))
+            && !BuildingCatalogService.CanConstructInVillage(
+                gid, status.IsCapital, status.Tribe, status.CityCapability, status.CityStatus, out var locationReason))
         {
             return new(BuildingTemplateAvailability.Unavailable, locationReason);
         }
@@ -440,7 +507,7 @@ public sealed class BuildingTemplatePlanner
             return new(BuildingTemplateAvailability.Unavailable, reason);
         }
 
-        if (ResolveSlot(null, gid, state, reservedSlots: null) is null)
+        if (ResolveSlot(null, gid, state, reservedSlots: null, status.CityStatus) is null)
         {
             return new(BuildingTemplateAvailability.Unavailable, "No valid free building slot is available.");
         }
@@ -523,7 +590,7 @@ public sealed class BuildingTemplatePlanner
         var blockers = new List<string>();
         var stack = new HashSet<int>();
         var state = BuildProjectedState(precedingRows, status, serverSpeed, mainBuildingLevel, enforceVillageLocationRules);
-        var reservedSlots = reservedSlotId is >= 19 and <= 38
+        var reservedSlots = reservedSlotId is int slot && BuildingSlotPolicy.IsOrdinarySlot(slot, status.CityStatus)
             ? new HashSet<int> { reservedSlotId.Value }
             : [];
 
@@ -613,7 +680,7 @@ public sealed class BuildingTemplatePlanner
                     return;
                 }
 
-                projectedSlot = ResolveSlot(null, requirementGid, state, reservedSlots);
+                projectedSlot = ResolveSlot(null, requirementGid, state, reservedSlots, status.CityStatus);
                 if (projectedSlot is null)
                 {
                     blockers.Add($"No free building slot is available for prerequisite {entry.Name}.");
@@ -970,7 +1037,8 @@ public sealed class BuildingTemplatePlanner
         int? preferredSlotId,
         int gid,
         ProjectedVillageState state,
-        IReadOnlySet<int>? reservedSlots)
+        IReadOnlySet<int>? reservedSlots,
+        CityStatus cityStatus)
     {
         if (gid == 16)
         {
@@ -982,7 +1050,7 @@ public sealed class BuildingTemplatePlanner
             return state.IsSlotFree(WallSlotId, gid) ? WallSlotId : null;
         }
 
-        var validSlots = Enumerable.Range(19, 20).ToList(); // 19-38, excluding fixed special slots.
+        var validSlots = BuildingSlotPolicy.OrdinarySlots(cityStatus).ToList();
         if (preferredSlotId is int preferred && validSlots.Contains(preferred))
         {
             var ordered = validSlots.Where(slot => slot >= preferred)
@@ -1009,7 +1077,8 @@ public sealed class BuildingTemplatePlanner
     {
         reason = string.Empty;
         if (enforceVillageLocationRules
-            && !BuildingCatalogService.CanConstructInVillage(gid, status.IsCapital, out reason))
+            && !BuildingCatalogService.CanConstructInVillage(
+                gid, status.IsCapital, status.Tribe, status.CityCapability, status.CityStatus, out reason))
         {
             return false;
         }

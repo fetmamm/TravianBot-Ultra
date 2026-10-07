@@ -59,7 +59,7 @@ public static class ConstructionDependencyGate
             BuildingCatalogService.GidForName(requirement.Name) is not (>= 1 and <= 4));
         return !needsBuildings
             || status.Buildings
-                .Where(building => building.SlotId is >= 19 and <= 40 && building.Level is not null)
+                .Where(building => building.SlotId is >= 19 and <= 43 && building.Level is not null)
                 .Select(building => building.SlotId!.Value)
                 .Distinct()
                 .Count() == 22;

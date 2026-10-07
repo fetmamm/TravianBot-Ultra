@@ -38,6 +38,7 @@ public partial class MainWindow : Window
     private const string DashboardVisibleGroupsConfigKey = "dashboard_visible_groups";
     private const int ResourceFieldMaxLevel = 40;
     private const int NonCapitalResourceMaxLevel = 10;
+    private const int CityResourceMaxLevel = 12;
     private const int MaxLogLinesPerFlush = 24;
     private static readonly TimeSpan LogUiFlushBudget = TimeSpan.FromMilliseconds(12);
     private const int MaxSessionLogFiles = 5;
@@ -64,7 +65,8 @@ public partial class MainWindow : Window
         int? CoordX,
         int? CoordY,
         int? Population,
-        int? CropFields);
+        int? CropFields,
+        CityStatus CityStatus = CityStatus.Unknown);
 
     private sealed record UiSyncPayload(
         int? Gold,
@@ -73,7 +75,10 @@ public partial class MainWindow : Window
         int? ActiveVillageCoordX,
         int? ActiveVillageCoordY,
         IReadOnlyList<UiSyncVillagePayload>? Villages,
-        bool VillagesAreAuthoritative = false);
+        bool VillagesAreAuthoritative = false,
+        CityCapability CityCapability = CityCapability.Unknown);
+
+    private CityCapability _cityCapability = CityCapability.Unknown;
 
     private enum ManualExecutionOutcome
     {
@@ -362,7 +367,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        foreach (var slotId in Enumerable.Range(19, 22))
+        foreach (var slotId in BuildingSlotPolicy.OverviewSlots(CityStatus.Village))
         {
             BuildingSlotLayoutById.TryGetValue(slotId, out var layout);
             var isWallSlot = slotId == 40;
@@ -1671,6 +1676,13 @@ public partial class MainWindow : Window
             ServerTimeUtc = status.ServerTimeUtc ?? _lastBuildingStatus.ServerTimeUtc,
             ActiveVillageCoordX = status.ActiveVillageCoordX,
             ActiveVillageCoordY = status.ActiveVillageCoordY,
+            CityCapability = status.CityCapability != CityCapability.Unknown
+                ? status.CityCapability
+                : _lastBuildingStatus.CityCapability,
+            CityStatus = status.CityStatus != CityStatus.Unknown
+                ? status.CityStatus
+                : _lastBuildingStatus.CityStatus,
+            WatchtowerStatus = status.WatchtowerStatus ?? _lastBuildingStatus.WatchtowerStatus,
         };
     }
 

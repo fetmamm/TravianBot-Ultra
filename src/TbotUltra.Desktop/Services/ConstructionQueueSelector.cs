@@ -20,7 +20,8 @@ public static class ConstructionQueueSelector
         Func<int, bool>? isBlockedByEarlierDependency = null,
         Func<int, ConstructionQueueAvailability>? availabilityForIndex = null,
         bool allowIndependentCategoryLookAhead = false,
-        RomanConstructionPriority romanPriority = RomanConstructionPriority.Auto)
+        RomanConstructionPriority romanPriority = RomanConstructionPriority.Auto,
+        Func<int, string?>? blockedReasonForIndex = null)
     {
         if (orderedItems.Count == 0)
         {
@@ -48,6 +49,23 @@ public static class ConstructionQueueSelector
             return new ConstructionQueueSelection(
                 null,
                 "group=Construction has only in-progress single-level tasks; waiting for the next queue refresh",
+                null,
+                false);
+        }
+        var dormantReason = blockedReasonForIndex?.Invoke(itemIndex);
+        if (!string.IsNullOrWhiteSpace(dormantReason))
+        {
+            var lookAhead = TrySelectIndependentCategoryLane(
+                orderedItems,
+                itemIndex,
+                now,
+                allowIndependentCategoryLookAhead,
+                isBlockedByEarlierDependency,
+                availabilityForIndex,
+                blockedReasonForIndex);
+            return lookAhead ?? new ConstructionQueueSelection(
+                null,
+                $"group=Construction task='{orderedItems[itemIndex].TaskName}' blocked: {dormantReason}",
                 null,
                 false);
         }
@@ -97,7 +115,8 @@ public static class ConstructionQueueSelector
                     now,
                     allowIndependentCategoryLookAhead,
                     isBlockedByEarlierDependency,
-                    availabilityForIndex);
+                    availabilityForIndex,
+                    blockedReasonForIndex);
                 if (lookAhead is not null)
                 {
                     return lookAhead;
@@ -117,7 +136,8 @@ public static class ConstructionQueueSelector
                 now,
                 allowIndependentCategoryLookAhead,
                 isBlockedByEarlierDependency,
-                availabilityForIndex);
+                availabilityForIndex,
+                blockedReasonForIndex);
             if (independentLane is not null)
             {
                 return independentLane;
@@ -140,7 +160,8 @@ public static class ConstructionQueueSelector
                 now,
                 allowIndependentCategoryLookAhead,
                 isBlockedByEarlierDependency,
-                availabilityForIndex);
+                availabilityForIndex,
+                blockedReasonForIndex);
             if (lookAhead is not null)
             {
                 return lookAhead;
@@ -192,6 +213,11 @@ public static class ConstructionQueueSelector
                 continue;
             }
 
+            if (ConstructionQueueState.IsWatchtowerTask(candidate.TaskName))
+            {
+                continue;
+            }
+
             var isResource = ConstructionQueueState.IsResourceConstructionTask(candidate.TaskName);
             if (isResource == preferResources)
             {
@@ -238,19 +264,26 @@ public static class ConstructionQueueSelector
         DateTimeOffset now,
         bool allowIndependentCategoryLookAhead,
         Func<int, bool>? isBlockedByEarlierDependency,
-        Func<int, ConstructionQueueAvailability>? availabilityForIndex)
+        Func<int, ConstructionQueueAvailability>? availabilityForIndex,
+        Func<int, string?>? blockedReasonForIndex = null)
     {
-        if (!allowIndependentCategoryLookAhead || availabilityForIndex is null)
+        if (availabilityForIndex is null)
         {
             return null;
         }
 
-        var blockedIsResource = ConstructionQueueState.IsResourceConstructionTask(
-            orderedItems[blockedIndex].TaskName);
+        var blockedTask = orderedItems[blockedIndex].TaskName;
         for (var index = blockedIndex + 1; index < orderedItems.Count; index++)
         {
             var candidate = orderedItems[index];
-            if (ConstructionQueueState.IsResourceConstructionTask(candidate.TaskName) == blockedIsResource)
+            var watchtowerLane = ConstructionQueueState.IsWatchtowerTask(blockedTask)
+                || ConstructionQueueState.IsWatchtowerTask(candidate.TaskName);
+            var ordinaryRomanLanes = allowIndependentCategoryLookAhead
+                && ConstructionQueueState.IsResourceConstructionTask(candidate.TaskName)
+                    != ConstructionQueueState.IsResourceConstructionTask(blockedTask);
+            if ((!watchtowerLane && !ordinaryRomanLanes)
+                || (ConstructionQueueState.IsWatchtowerTask(blockedTask)
+                    && ConstructionQueueState.IsWatchtowerTask(candidate.TaskName)))
             {
                 continue;
             }
@@ -265,6 +298,7 @@ public static class ConstructionQueueSelector
             if (candidate.Status != QueueStatus.Pending
                 || candidate.NextAttemptAt > now
                 || availabilityForIndex(index) != ConstructionQueueAvailability.Available
+                || !string.IsNullOrWhiteSpace(blockedReasonForIndex?.Invoke(index))
                 || isBlockedByEarlierDependency?.Invoke(index) == true)
             {
                 return null;

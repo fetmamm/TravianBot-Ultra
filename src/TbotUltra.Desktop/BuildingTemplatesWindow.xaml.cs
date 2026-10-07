@@ -54,7 +54,7 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
     public ObservableCollection<BuildingTemplateRowView> Rows { get; } = [];
     public ObservableCollection<BuildingTemplateTargetOption> BuildingOptions { get; } = [];
     public ObservableCollection<BuildingTemplateTargetOption> ResourceOptions { get; } = [];
-    public IReadOnlyList<string> RowKinds { get; } = ["Building", "Add resources"];
+    public IReadOnlyList<string> RowKinds { get; } = ["Building", "Add resources", "Watchtowers"];
     public IReadOnlyList<string> LevelOptions { get; } =
         Enumerable.Range(1, 20).Select(item => item.ToString()).ToList();
 
@@ -1359,6 +1359,7 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
             if (SetProperty(ref _kind, value))
             {
                 OnPropertyChanged(nameof(IsBuildingRow));
+                OnPropertyChanged(nameof(IsWatchtowerRow));
                 OnPropertyChanged(nameof(IsSlotSelectable));
                 RefreshTargetOptionsView();
                 EnsureTargetMatchesKind();
@@ -1416,10 +1417,11 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
     }
 
     public bool IsBuildingRow => string.Equals(Kind, "Building", StringComparison.OrdinalIgnoreCase);
+    public bool IsWatchtowerRow => string.Equals(Kind, "Watchtowers", StringComparison.OrdinalIgnoreCase);
     public bool IsSlotSelectable => IsBuildingRow && Target?.FixedSlotId is null;
     public IReadOnlyList<string> SlotOptions => Target?.FixedSlotId is int fixedSlot
         ? [fixedSlot.ToString()]
-        : ["Auto", .. Enumerable.Range(19, 20).Select(item => item.ToString())];
+        : ["Auto", .. BuildingSlotPolicy.OrdinarySlots(CityStatus.City).Select(item => item.ToString())];
 
     public event PropertyChangedEventHandler? PropertyChanged;
 
@@ -1433,7 +1435,7 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
         _resourceOptions = resourceOptions;
         RefreshTargetOptionsView();
 
-        var options = IsBuildingRow ? _buildingOptions : _resourceOptions;
+        var options = ResolveOptions();
         var matchingTarget = IsBuildingRow
             ? options.FirstOrDefault(item => item.Gid == currentGid)
             : options.FirstOrDefault(item => string.Equals(item.ResourceScope, currentResourceScope, StringComparison.OrdinalIgnoreCase));
@@ -1469,7 +1471,12 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
 
         return new BuildingTemplateRowView
         {
-            Kind = row.Kind == BuildingTemplateRowKind.AllResources ? "Add resources" : "Building",
+            Kind = row.Kind switch
+            {
+                BuildingTemplateRowKind.AllResources => "Add resources",
+                BuildingTemplateRowKind.Watchtowers => "Watchtowers",
+                _ => "Building",
+            },
             Target = target,
             SlotText = target?.FixedSlotId?.ToString() ?? row.PreferredSlotId?.ToString() ?? "Auto",
             TargetLevel = Math.Max(1, row.TargetLevel).ToString(),
@@ -1479,18 +1486,20 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
 
     public BuildingTemplateRow ToTemplateRow()
     {
-        var isAllResources = !IsBuildingRow;
+        var isAllResources = !IsBuildingRow && !IsWatchtowerRow;
         _ = int.TryParse(TargetLevel, out var targetLevel);
-        int? slotId = int.TryParse(SlotText, out var parsedSlot) && parsedSlot is >= 19 and <= 40
+        int? slotId = int.TryParse(SlotText, out var parsedSlot) && parsedSlot is >= 19 and <= 43
             ? parsedSlot
             : null;
         return new BuildingTemplateRow
         {
             Id = Id,
-            Kind = isAllResources ? BuildingTemplateRowKind.AllResources : BuildingTemplateRowKind.Building,
-            Gid = isAllResources ? null : Target?.Gid,
-            BuildingName = isAllResources ? Target?.Name ?? string.Empty : Target?.Name ?? string.Empty,
-            PreferredSlotId = isAllResources ? null : slotId,
+            Kind = IsWatchtowerRow
+                ? BuildingTemplateRowKind.Watchtowers
+                : isAllResources ? BuildingTemplateRowKind.AllResources : BuildingTemplateRowKind.Building,
+            Gid = isAllResources || IsWatchtowerRow ? null : Target?.Gid,
+            BuildingName = IsWatchtowerRow ? "Watchtowers" : Target?.Name ?? string.Empty,
+            PreferredSlotId = IsWatchtowerRow ? 40 : isAllResources ? null : slotId,
             TargetLevel = Math.Clamp(targetLevel, 1, 20),
             ResourceScope = isAllResources ? Target?.ResourceScope ?? "all" : "all",
             ResourceStrategy = ResourceStrategy,
@@ -1499,7 +1508,7 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
 
     private void RefreshTargetOptionsView()
     {
-        var options = IsBuildingRow ? _buildingOptions : _resourceOptions;
+        var options = ResolveOptions();
         var view = new ListCollectionView(options.ToList());
         view.GroupDescriptions.Add(new PropertyGroupDescription(nameof(BuildingTemplateTargetOption.Category)));
         TargetOptionsView = view;
@@ -1507,12 +1516,16 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
 
     private void EnsureTargetMatchesKind()
     {
-        var options = IsBuildingRow ? _buildingOptions : _resourceOptions;
+        var options = ResolveOptions();
         if (Target is null || !options.Any(item => Equals(item, Target)))
         {
             Target = options.FirstOrDefault(item => item.IsSelectable) ?? options.FirstOrDefault();
         }
     }
+
+    private IReadOnlyList<BuildingTemplateTargetOption> ResolveOptions() => IsWatchtowerRow
+        ? [new BuildingTemplateTargetOption(0, "Watchtowers", "City", "Separate two-slot City wall extension queue", 40)]
+        : IsBuildingRow ? _buildingOptions : _resourceOptions;
 
     private void ApplyTargetSlotSelection(BuildingTemplateTargetOption? target)
     {
@@ -1523,7 +1536,7 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
         }
 
         if (!string.Equals(SlotText, "Auto", StringComparison.OrdinalIgnoreCase)
-            && (!int.TryParse(SlotText, out var slotId) || slotId is < 19 or > 38))
+            && (!int.TryParse(SlotText, out var slotId) || !BuildingSlotPolicy.IsPotentialOrdinarySlot(slotId)))
         {
             SlotText = "Auto";
         }

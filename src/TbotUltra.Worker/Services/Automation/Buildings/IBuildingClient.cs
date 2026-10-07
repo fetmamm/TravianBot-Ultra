@@ -17,6 +17,16 @@ public interface IBuildingClient
     Task<VillageStatus> ReadBuildingsStatusAsync(CancellationToken cancellationToken = default);
     Task<VillageStatus> ReadCurrentBuildingOverviewStatusAsync(CancellationToken cancellationToken = default);
 
+    Task<WatchtowerStatus?> ReadWatchtowerStatusAsync(
+        bool forceRefresh = false,
+        CancellationToken cancellationToken = default)
+        => Task.FromResult<WatchtowerStatus?>(null);
+
+    Task<string> UpgradeWatchtowersToLevelAsync(
+        int targetLevel,
+        CancellationToken cancellationToken = default)
+        => throw new NotSupportedException("Watchtower upgrades are not supported by this building client.");
+
     Task<string> DemolishBuildingToLevelAsync(
         string targetBuildingSlotOrName,
         int targetLevel,

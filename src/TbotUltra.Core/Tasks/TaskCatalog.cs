@@ -10,6 +10,7 @@ public static class TaskCatalog
         new("upgrade_resource_to_level", TaskGroup.Construction, "Upgrade resource to level", false, TaskPayloadKind.ResourceUpgrade),
         new("upgrade_all_resources_to_level", TaskGroup.Construction, "Upgrade all resources to level", false, TaskPayloadKind.ResourceUpgrade),
         new("upgrade_building_to_level", TaskGroup.Construction, "Upgrade building to level", false, TaskPayloadKind.BuildingUpgrade),
+        new("upgrade_watchtowers_to_level", TaskGroup.Construction, "Upgrade Watchtowers to level", false, TaskPayloadKind.BuildingUpgrade),
         new("upgrade_building_to_max", TaskGroup.Construction, "Upgrade building to max", false, TaskPayloadKind.BuildingUpgrade),
         new("construct_building", TaskGroup.Construction, "Construct building", false, TaskPayloadKind.BuildingConstruct),
         new("load_buildings_snapshot", TaskGroup.Account, "Load buildings snapshot", false, TaskPayloadKind.None),

@@ -277,8 +277,8 @@ public sealed class BuildingsViewModel : BaseViewModel
     }
 
     /// <summary>
-    /// Computes the circular canvas layout (Left/Top per slot id) for the 22
-    /// village building slots (ids 19–40). Pure geometry: no UI or service state.
+    /// Computes the circular canvas layout (Left/Top per slot id) for every possible
+    /// village/City building slot (ids 19–43). Pure geometry: no UI or service state.
     /// </summary>
     public static IReadOnlyDictionary<int, (double Left, double Top)> CreateBuildingSlotLayout()
     {
@@ -291,7 +291,7 @@ public sealed class BuildingsViewModel : BaseViewModel
         const double radiusY = 155d;
 
         var map = new Dictionary<int, (double Left, double Top)>();
-        var slots = Enumerable.Range(19, 22).ToArray();
+        var slots = Enumerable.Range(19, 25).ToArray();
         for (var index = 0; index < slots.Length; index++)
         {
             var angle = (-Math.PI / 2d) + (2d * Math.PI * index / slots.Length);

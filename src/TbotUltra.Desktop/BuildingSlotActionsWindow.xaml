@@ -95,6 +95,12 @@
                     Foreground="{DynamicResource OnWarningBrush}"
                     BorderBrush="{DynamicResource WarningBorderBrush}"
                     Click="UpgradeToMaxButton_Click" />
+            <Button x:Name="WatchtowerButton"
+                    Content="Upgrade Watchtowers..."
+                    Height="28"
+                    Margin="0,0,0,6"
+                    Visibility="Collapsed"
+                    Click="WatchtowerButton_Click" />
             <Button x:Name="DemolishButton"
                     Content="Demolish"
                     Height="28"

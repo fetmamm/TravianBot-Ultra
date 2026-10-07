@@ -181,12 +181,12 @@ internal static class BuildingUpgradeSlotRebindPlanner
     }
 
     public static bool HasLiveBuildingIdentity(VillageStatus status, int gid)
-        => status.Buildings.Any(building => building.SlotId is >= 19 and <= 40
+        => status.Buildings.Any(building => building.SlotId is >= 19 and <= 43
             && (building.Gid ?? BuildingCatalogService.GidForName(building.Name)) == gid);
 
     public static bool HasCompleteBuildingOverview(VillageStatus status)
         => status.Buildings
-            .Where(building => building.SlotId is >= 19 and <= 40)
+            .Where(building => building.SlotId is >= 19 and <= 43)
             .Select(building => building.SlotId)
             .Distinct()
             .Count() == 22;
@@ -201,13 +201,13 @@ internal static class BuildingUpgradeSlotRebindPlanner
             || !string.Equals(sourceConstruct.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
             || !BuildingConstructPayload.TryFromDictionary(sourceConstruct.Payload, out var construct)
             || construct is null
-            || construct.SlotId is < 19 or > 38)
+            || !BuildingSlotPolicy.IsOrdinarySlot(construct.SlotId, status.CityStatus))
         {
             return null;
         }
 
         var targetSlot = status.Buildings.FirstOrDefault(building => building.SlotId == construct.SlotId);
-        if (targetSlot is null || IsConfirmedEmptyOrdinarySlot(targetSlot))
+        if (targetSlot is null || IsConfirmedEmptyOrdinarySlot(targetSlot, status.CityStatus))
         {
             return null;
         }
@@ -242,7 +242,7 @@ internal static class BuildingUpgradeSlotRebindPlanner
             .Select(item => BuildingConstructPayload.TryFromDictionary(item.Payload, out var payload)
                 ? payload?.SlotId
                 : null)
-            .Where(slot => slot is >= 19 and <= 38)
+            .Where(slot => slot is int value && BuildingSlotPolicy.IsPotentialOrdinarySlot(value))
             .Select(slot => slot!.Value)
             .ToHashSet();
         if (additionallyReservedSlots is not null)
@@ -437,15 +437,16 @@ internal static class BuildingUpgradeSlotRebindPlanner
             && string.Equals(upgradeName.Trim(), construct.Name.Trim(), StringComparison.OrdinalIgnoreCase);
     }
 
-    private static bool IsConfirmedEmptyOrdinarySlot(Building building)
-        => building.SlotId is >= 19 and <= 38
+    private static bool IsConfirmedEmptyOrdinarySlot(Building building, CityStatus cityStatus)
+        => building.SlotId is int slotId
+            && BuildingSlotPolicy.IsOrdinarySlot(slotId, cityStatus)
             && (building.Level ?? 0) == 0
             && (building.Gid ?? 0) == 0
             && string.Equals(building.Name, "Empty", StringComparison.OrdinalIgnoreCase);
 
     public static IReadOnlyList<int> GetConfirmedEmptyOrdinarySlotIds(VillageStatus status)
         => status.Buildings
-            .Where(IsConfirmedEmptyOrdinarySlot)
+            .Where(building => IsConfirmedEmptyOrdinarySlot(building, status.CityStatus))
             .Select(building => building.SlotId!.Value)
             .OrderBy(slot => slot)
             .ToList();
@@ -455,11 +456,11 @@ internal static class BuildingUpgradeSlotRebindPlanner
             ? []
             : value.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                 .Select(item => int.TryParse(item, out var slot) ? slot : 0)
-                .Where(slot => slot is >= 19 and <= 38);
+                .Where(slot => slot is int value && BuildingSlotPolicy.IsPotentialOrdinarySlot(value));
 
     private static List<Building> FindLiveMatches(VillageStatus status, int gid)
         => status.Buildings
-            .Where(building => building.SlotId is >= 19 and <= 40
+            .Where(building => building.SlotId is >= 19 and <= 43
                 && (building.Level ?? 0) >= 1
                 && (building.Gid ?? BuildingCatalogService.GidForName(building.Name)) == gid)
             .ToList();

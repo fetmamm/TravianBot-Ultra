@@ -266,7 +266,7 @@ public sealed class BuildingTemplateStore
                         Kind = row.Kind,
                         Gid = row.Gid,
                         BuildingName = row.BuildingName?.Trim() ?? string.Empty,
-                        PreferredSlotId = row.PreferredSlotId is >= 19 and <= 40 ? row.PreferredSlotId : null,
+                        PreferredSlotId = row.PreferredSlotId is >= 19 and <= 43 ? row.PreferredSlotId : null,
                         TargetLevel = Math.Clamp(row.TargetLevel, 1, 20),
                         ResourceScope = NormalizeResourceScope(row.ResourceScope),
                         ResourceStrategy = string.IsNullOrWhiteSpace(row.ResourceStrategy)
