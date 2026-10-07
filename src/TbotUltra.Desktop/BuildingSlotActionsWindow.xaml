@@ -96,7 +96,7 @@
                     BorderBrush="{DynamicResource WarningBorderBrush}"
                     Click="UpgradeToMaxButton_Click" />
             <Button x:Name="WatchtowerButton"
-                    Content="Upgrade Watchtowers..."
+                    Content="Upgrade watchtowers..."
                     Height="28"
                     Margin="0,0,0,6"
                     Visibility="Collapsed"

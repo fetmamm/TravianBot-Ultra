@@ -134,6 +134,17 @@ public sealed class PanelSmokeTests
         });
     }
 
+    [Theory]
+    [InlineData(CityStatus.City, "ROMA (city)")]
+    [InlineData(CityStatus.Village, "ROMA")]
+    [InlineData(CityStatus.Unknown, "ROMA")]
+    public void VillageOverviewName_MarksOnlyConfirmedCities(CityStatus cityStatus, string expected)
+    {
+        var village = new VillageSelectionItem { Name = "ROMA", CityStatus = cityStatus };
+
+        Assert.Equal(expected, village.VillageOverviewName);
+    }
+
     [Fact]
     public void DashboardPanel_QueueShortcutExistsForFullAndEmptyVillageQueues()
     {

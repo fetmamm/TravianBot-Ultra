@@ -9,6 +9,8 @@ public sealed class CitySupportTests
     [Theory]
     [InlineData("<script>T4_feature_flags = {\"cities\":true};</script>", CityCapability.Enabled)]
     [InlineData("<script>T4_feature_flags = {\"cities\":false};</script>", CityCapability.Disabled)]
+    [InlineData("<script>window.T4_feature_flags = {'cities':true}</script>", CityCapability.Enabled)]
+    [InlineData("<script>const T4_feature_flags = {cities:false}</script>", CityCapability.Disabled)]
     [InlineData("<html></html>", CityCapability.Unknown)]
     public void CityCapabilityParser_UsesCitiesFeatureFlag(string html, CityCapability expected)
     {

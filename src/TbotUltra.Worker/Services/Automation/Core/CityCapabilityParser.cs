@@ -19,9 +19,10 @@ internal static partial class CityCapabilityParser
             return CityCapability.Unknown;
         }
 
+        var featureFlags = match.Groups["json"].Value;
         try
         {
-            using var document = JsonDocument.Parse(match.Groups["json"].Value);
+            using var document = JsonDocument.Parse(featureFlags);
             if (!document.RootElement.TryGetProperty("cities", out var cities)
                 || cities.ValueKind is not (JsonValueKind.True or JsonValueKind.False))
             {
@@ -32,10 +33,18 @@ internal static partial class CityCapabilityParser
         }
         catch (JsonException)
         {
-            return CityCapability.Unknown;
+            var cities = CitiesFlagRegex().Match(featureFlags);
+            return !cities.Success
+                ? CityCapability.Unknown
+                : bool.Parse(cities.Groups["value"].Value)
+                    ? CityCapability.Enabled
+                    : CityCapability.Disabled;
         }
     }
 
-    [GeneratedRegex(@"\bT4_feature_flags\s*=\s*(?<json>\{[^;]+\})\s*;", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    [GeneratedRegex(@"\bT4_feature_flags\s*=\s*(?<json>\{[^;]+\})", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex FeatureFlagsRegex();
+
+    [GeneratedRegex(@"[\""']?cities[\""']?\s*:\s*(?<value>true|false)\b", RegexOptions.IgnoreCase)]
+    private static partial Regex CitiesFlagRegex();
 }

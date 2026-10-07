@@ -17,7 +17,7 @@ public sealed class VillageSelectionItem : INotifyPropertyChanged
     public string Tribe { get; init; } = "Unknown";
     public CityStatus CityStatus { get; init; } = CityStatus.Unknown;
     public bool IsCity => CityStatus == CityStatus.City;
-    public string CityTooltip => IsCity ? "City" : string.Empty;
+    public string VillageOverviewName => IsCity ? $"{Name} (city)" : Name;
 
     private bool _hasIncomingAttack;
     public bool HasIncomingAttack

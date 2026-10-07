@@ -644,7 +644,7 @@ Published artifacts belong under `artifacts/`, never beside source files.
   rebinding. Tribe-incompatible choices remain disabled.
 - Catalog coverage is required for Romans, Teutons, Gauls, Egyptians, and Huns. Vikings are unsupported.
 - Detailed queue, storage, click, and estimate rules: [construction ADR](adr/2026-06-20-construction-queue.md).
-- Cities use explicit tri-state server/village knowledge; never allocate slots 41–43 or queue City-only work from `Unknown`.
+- Cities use explicit tri-state server/village knowledge; never allocate slots 41–43 or queue City-only work from `Unknown`. Probe the authenticated page's runtime feature flag first, then anonymous login HTML; a complete live dorf2 overview that confirms a City is also affirmative proof that the server supports Cities.
 - Watchtowers are a wall extension with an independent two-place queue and demand-driven wall navigation; they must not block ordinary construction. See [City/Watchtower ADR](adr/2026-10-07-city-capability-and-watchtower-queue.md).
 
 ## Current pitfalls

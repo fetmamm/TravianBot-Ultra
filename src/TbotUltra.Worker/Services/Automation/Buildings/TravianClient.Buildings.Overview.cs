@@ -73,6 +73,11 @@ public sealed partial class TravianClient
             return;
         }
 
+        if (cityStatus == CityStatus.City && _session.ConfirmCitiesCapabilityFromCity())
+        {
+            Notify("[city] capability=Enabled source=confirmed-dorf2-city");
+        }
+
         var activeVillage = await TryReadActiveVillageNameSafeAsync(cancellationToken);
         var coordinates = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
         var key = coordinates.X.HasValue && coordinates.Y.HasValue

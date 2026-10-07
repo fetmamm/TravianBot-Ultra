@@ -9,6 +9,18 @@ namespace TbotUltra.Worker.Services;
 public sealed class TravianSessionCache
 {
     public Domain.CityCapability CityCapability { get; set; } = Domain.CityCapability.Unknown;
+
+    internal bool ConfirmCitiesCapabilityFromCity()
+    {
+        if (CityCapability == Domain.CityCapability.Enabled)
+        {
+            return false;
+        }
+
+        CityCapability = Domain.CityCapability.Enabled;
+        return true;
+    }
+
     public System.Collections.Concurrent.ConcurrentDictionary<string, Domain.CityStatus> VillageCityStatuses { get; } =
         new(System.StringComparer.OrdinalIgnoreCase);
     public System.Collections.Concurrent.ConcurrentDictionary<string, Domain.WatchtowerStatus> WatchtowerStatuses { get; } =

@@ -26,6 +26,39 @@ public sealed class WindowSmokeTests
     }
 
     [Fact]
+    public void BuildingSlotActionsWindow_ShowsWatchtowerTargetActionForEligibleWall()
+    {
+        _wpf.Run(() =>
+        {
+            var window = new BuildingSlotActionsWindow(
+                new BuildingSlotRow
+                {
+                    SlotId = 40,
+                    Name = "Stone Wall",
+                    Level = 20,
+                    Gid = 31,
+                    IsWallSlot = true,
+                    WatchtowerLevel = 6,
+                    WatchtowerProjectedLevel = 6,
+                    CanQueueWatchtowers = true,
+                },
+                canDemolish: false,
+                demolishRequirementText: string.Empty);
+            try
+            {
+                var button = Assert.IsType<Button>(window.FindName("WatchtowerButton"));
+                Assert.Equal(Visibility.Visible, button.Visibility);
+                Assert.True(button.IsEnabled);
+                Assert.Equal("Upgrade watchtowers...", button.Content);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void AccountsWindow_EnablesSaveWhenExistingAccountDisplayNameChanges()
     {
         var root = Path.Combine(Path.GetTempPath(), $"tbot-accounts-window-{Guid.NewGuid():N}");

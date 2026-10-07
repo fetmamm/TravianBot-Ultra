@@ -3,7 +3,7 @@
 ## Decision
 
 - Model server support as `CityCapability` (`Enabled`, `Disabled`, `Unknown`) and each village as `CityStatus` (`City`, `Village`, `Unknown`). Unknown is never treated as affirmative eligibility.
-- Read `T4_feature_flags.cities` after login. Profile rows may identify Cities globally; a complete live Dorf2 overview is authoritative for the active village. Incomplete overviews remain `Unknown`.
+- Read `T4_feature_flags.cities` from the authenticated page runtime after login, then fall back to anonymous login HTML because an authenticated `/login.php` request may redirect to a page without the flag. Profile rows may identify Cities globally; a complete live Dorf2 overview is authoritative for the active village and a confirmed City also proves that Cities are enabled on the server. Incomplete overviews remain `Unknown`.
 - Ordinary villages use slots 19–38. Only a confirmed City may use slots 41–43. Slots 39 and 40 remain Rally Point and wall.
 - Watchtowers are a wall extension with their own two-place queue. They do not consume or block the ordinary resource/building construction lanes.
 - A Watchtower task requires confirmed Cities capability, confirmed City status, an existing wall, and known wall-extension status. Invalid saved tasks stay pending and dormant without navigation; a later verified status automatically makes them runnable.

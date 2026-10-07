@@ -1,10 +1,23 @@
 using TbotUltra.Worker.Services;
+using TbotUltra.Worker.Domain;
 using Xunit;
 
 namespace TbotUltra.Worker.Tests;
 
 public sealed class TravianSessionCacheTests
 {
+    [Theory]
+    [InlineData(CityCapability.Unknown)]
+    [InlineData(CityCapability.Disabled)]
+    public void ConfirmCitiesCapabilityFromCity_UsesConfirmedCityAsPositiveEvidence(CityCapability initial)
+    {
+        var cache = new TravianSessionCache { CityCapability = initial };
+
+        Assert.True(cache.ConfirmCitiesCapabilityFromCity());
+        Assert.Equal(CityCapability.Enabled, cache.CityCapability);
+        Assert.False(cache.ConfirmCitiesCapabilityFromCity());
+    }
+
     [Fact]
     public void RecentVillageStatus_IsOneShotAndRequiresMatchingStableVillageKey()
     {
