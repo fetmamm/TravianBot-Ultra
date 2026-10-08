@@ -5,6 +5,14 @@ namespace TbotUltra.Worker.Tests;
 
 public sealed class BuildingCatalogServiceTests
 {
+    [Theory]
+    [InlineData("g45", 45)]
+    [InlineData("G45", 45)]
+    public void GidForName_ResolvesPersistedRawTravianGidNames(string name, int expectedGid)
+    {
+        Assert.Equal(expectedGid, BuildingCatalogService.GidForName(name));
+    }
+
     [Fact]
     public void AdditionalUpkeepForUpgrade_ReturnsOnlyTheNewLevelsDemand()
     {

@@ -75,7 +75,7 @@ public sealed class AtomicFileTests : IDisposable
         {
             using var stream = new FileStream(path, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
             gate.Set();
-            Thread.Sleep(80);
+            Thread.Sleep(900);
         });
 
         gate.Wait();

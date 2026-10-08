@@ -66,6 +66,10 @@ public partial class MainWindow
         try
         {
             var ordered = _queuePanelService.GetItems().ToList();
+            if (PruneCompletedConstructionQueueItems(ordered))
+            {
+                ordered = _queuePanelService.GetItems().ToList();
+            }
             _queueItemsForUiProjection = ordered;
             ClearStaleBuildingPendingCaches(ordered);
 

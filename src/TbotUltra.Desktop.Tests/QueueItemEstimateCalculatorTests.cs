@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Worker;
 using Xunit;
 
 namespace TbotUltra.Desktop.Tests;
@@ -7,6 +8,19 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class QueueItemEstimateCalculatorTests
 {
     private const int WarehouseGid = 10;
+
+    [Fact]
+    public void QueueRefresh_PrunesCompletedConstructionAfterVillageCacheIsAvailable()
+    {
+        var root = ProjectRootLocator.FindProjectRoot();
+        var source = File.ReadAllText(Path.Combine(
+            root,
+            "src",
+            "TbotUltra.Desktop",
+            "MainWindow.QueueUi.Display.cs"));
+
+        Assert.Contains("PruneCompletedConstructionQueueItems(ordered)", source, StringComparison.Ordinal);
+    }
 
     [Fact]
     public void SumLevels_NullGidReturnsAlarmReason()

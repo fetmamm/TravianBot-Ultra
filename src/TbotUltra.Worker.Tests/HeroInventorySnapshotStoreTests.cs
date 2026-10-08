@@ -52,7 +52,8 @@ public sealed class HeroInventorySnapshotStoreTests : IDisposable
             observedAt,
             HeroInventoryObservationSource.EmptyToast,
             ConsecutiveEmptyObservations: 2,
-            NextProbeAtUtc: observedAt.AddMinutes(37));
+            NextProbeAtUtc: observedAt.AddMinutes(37),
+            ConstructionProbe: new HeroConstructionProbeState(3, observedAt.AddMinutes(52)));
         var store = new HeroInventorySnapshotStore(_rootPath);
 
         store.SaveSnapshot("account-one", "https://ts100.example.com", expected);

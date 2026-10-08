@@ -620,6 +620,7 @@ public sealed class JsonQueueStore : IQueueStore
     // status reads land first, and tasks that verify live state (build_troops queue scan,
     // construction queue read) then see the already-applied work and defer normally.
     private static readonly TimeSpan RecoveredRunningItemDefer = TimeSpan.FromSeconds(120);
+    internal const int RetainedSucceededRuntimeHistory = 250;
 
     // Resets items stranded in Running (e.g. the process crashed mid-execution) back to Pending so
     // they are retried instead of stuck forever. Only safe to call at startup, before any execution
@@ -681,7 +682,7 @@ public sealed class JsonQueueStore : IQueueStore
         EnsureFileExists();
         var loaded = WithFileLock(() =>
         {
-            var raw = RetryFileIo(() => File.ReadAllText(_queuePath));
+            var raw = RetryFileIo(() => File.ReadAllText(_queuePath), "read queue", _queuePath);
             if (string.IsNullOrWhiteSpace(raw))
             {
                 return new List<QueueItem>();
@@ -709,7 +710,7 @@ public sealed class JsonQueueStore : IQueueStore
                     File.Move(_queuePath, quarantinePath, overwrite: true);
                     File.WriteAllText(_queuePath, "[]");
                     return true;
-                });
+                }, "quarantine corrupt queue", _queuePath);
                 return new List<QueueItem>();
             }
         });
@@ -722,31 +723,60 @@ public sealed class JsonQueueStore : IQueueStore
     private void SaveMutable(List<QueueItem> items)
     {
         EnsureFileExists();
+        var trimmedHistory = TrimSucceededRuntimeHistory(items);
+        if (trimmedHistory > 0)
+        {
+            _log?.Invoke($"[queue] trimmed {trimmedHistory} old succeeded runtime history row(s); retained {RetainedSucceededRuntimeHistory}.");
+        }
+
         var directory = Path.GetDirectoryName(_queuePath);
         if (string.IsNullOrWhiteSpace(directory))
         {
             throw new InvalidOperationException("Queue path is invalid.");
         }
 
-        var tempPath = Path.Combine(directory, $"{Path.GetFileName(_queuePath)}.tmp");
-        WithFileLock(() =>
+        var legacyTempPath = $"{_queuePath}.tmp";
+        var tempPath = Path.Combine(directory, $"{Path.GetFileName(_queuePath)}.{Guid.NewGuid():N}.tmp");
+        try
         {
-            RetryFileIo(() =>
+            WithFileLock(() =>
+            {
+                RetryFileIo(() =>
+                {
+                    if (File.Exists(legacyTempPath))
+                    {
+                        File.Delete(legacyTempPath);
+                    }
+
+                    return true;
+                }, "remove stale legacy queue temp", legacyTempPath);
+
+                RetryFileIo(() =>
+                {
+                    using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                    {
+                        JsonSerializer.Serialize(stream, items, JsonOptions);
+                    }
+
+                    File.Move(tempPath, _queuePath, overwrite: true);
+                    return true;
+                }, "replace queue", _queuePath);
+            });
+        }
+        finally
+        {
+            try
             {
                 if (File.Exists(tempPath))
                 {
                     File.Delete(tempPath);
                 }
-
-                using (var stream = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
-                {
-                    JsonSerializer.Serialize(stream, items, JsonOptions);
-                }
-
-                File.Move(tempPath, _queuePath, overwrite: true);
-                return true;
-            });
-        });
+            }
+            catch
+            {
+                // A unique stale temp file cannot affect later writes.
+            }
+        }
 
         // Refresh the read cache from what we just persisted so subsequent GetAll calls stay off disk.
         _cache = items.Select(Clone).ToList();
@@ -768,23 +798,32 @@ public sealed class JsonQueueStore : IQueueStore
             {
                 File.WriteAllText(_queuePath, "[]");
                 return true;
-            });
+            }, "create queue", _queuePath);
         }
         if (!File.Exists(_lockPath))
         {
-            using var _ = RetryFileIo(() => new FileStream(_lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite));
+            using var _ = RetryFileIo(
+                () => new FileStream(_lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.ReadWrite),
+                "create queue lock",
+                _lockPath);
         }
     }
 
     private T WithFileLock<T>(Func<T> action)
     {
-        using var lockStream = RetryFileIo(() => new FileStream(_lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None));
+        using var lockStream = RetryFileIo(
+            () => new FileStream(_lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None),
+            "acquire queue lock",
+            _lockPath);
         return action();
     }
 
     private void WithFileLock(Action action)
     {
-        using var lockStream = RetryFileIo(() => new FileStream(_lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None));
+        using var lockStream = RetryFileIo(
+            () => new FileStream(_lockPath, FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None),
+            "acquire queue lock",
+            _lockPath);
         action();
     }
 
@@ -792,20 +831,45 @@ public sealed class JsonQueueStore : IQueueStore
     // where File.Move/opens intermittently fail with UnauthorizedAccessException (ERROR_ACCESS_DENIED)
     // or a sharing-violation IOException while OneDrive/antivirus briefly holds the file. Mirrors
     // AtomicFile.RetryFileIo (Desktop) and BrowserSession.ReplaceStorageStateWithRetryAsync.
-    private static T RetryFileIo<T>(Func<T> action)
+    private T RetryFileIo<T>(Func<T> action, string operation, string path)
     {
-        const int maxAttempts = 5;
+        const int maxAttempts = 8;
         for (var attempt = 1; ; attempt++)
         {
             try
             {
                 return action();
             }
-            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && attempt < maxAttempts)
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
-                Thread.Sleep(40 * attempt);
+                if (attempt >= maxAttempts)
+                {
+                    _log?.Invoke(
+                        $"[queue] file I/O failed operation='{operation}' path='{path}' attempts={attempt}: " +
+                        $"{ex.GetType().Name}: {ex.Message}");
+                    throw;
+                }
+
+                Thread.Sleep(Math.Min(1_000, 50 * (1 << Math.Min(attempt - 1, 5))));
             }
         }
+    }
+
+    internal static int TrimSucceededRuntimeHistory(List<QueueItem> items)
+    {
+        var removeIds = items
+            .Where(item => item.IsRuntimeOnly && item.Status == QueueStatus.Succeeded)
+            .OrderByDescending(item => item.UpdatedAt)
+            .ThenByDescending(item => item.CreatedAt)
+            .Skip(RetainedSucceededRuntimeHistory)
+            .Select(item => item.Id)
+            .ToHashSet();
+        if (removeIds.Count == 0)
+        {
+            return 0;
+        }
+
+        return items.RemoveAll(item => removeIds.Contains(item.Id));
     }
 
     private static QueueItem Clone(QueueItem source)

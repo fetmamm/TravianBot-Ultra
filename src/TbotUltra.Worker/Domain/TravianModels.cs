@@ -270,12 +270,17 @@ public enum HeroInventoryObservationSource
     TransferDeduction = 4,
 }
 
+public sealed record HeroConstructionProbeState(
+    int ConsecutiveInsufficientObservations = 0,
+    DateTimeOffset? NextProbeAtUtc = null);
+
 public sealed record HeroInventorySnapshot(
     HeroInventoryResources Resources,
     DateTimeOffset UpdatedAtUtc,
     HeroInventoryObservationSource Source = HeroInventoryObservationSource.Unknown,
     int ConsecutiveEmptyObservations = 0,
-    DateTimeOffset? NextProbeAtUtc = null);
+    DateTimeOffset? NextProbeAtUtc = null,
+    HeroConstructionProbeState? ConstructionProbe = null);
 
 public sealed record HeroAdventureDispatchResult(
     bool IsInHomeVillage,

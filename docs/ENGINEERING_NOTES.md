@@ -646,6 +646,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Detailed queue, storage, click, and estimate rules: [construction ADR](adr/2026-06-20-construction-queue.md).
 - Cities use explicit tri-state server/village knowledge; never allocate slots 41–43 or queue City-only work from `Unknown`. Probe the authenticated page's runtime feature flag first, then anonymous login HTML; a complete live dorf2 overview that confirms a City is also affirmative proof that the server supports Cities.
 - Watchtowers are a wall extension with an independent two-place queue and demand-driven wall navigation; they must not block ordinary construction. See [City/Watchtower ADR](adr/2026-10-07-city-capability-and-watchtower-queue.md).
+- Construction affordability must be decided in Core from the embedded catalog and a complete live Dorf1 stock/production snapshot before opening `build.php`. Only affordable, locally recoverable (Hero/NPC), or one atomically reserved Hero revalidation offer may navigate; incomplete live data keeps the build-page fallback. Hero revalidation uses the exact build-page transfer dialog and a persisted account/server cooldown shared by all villages—never the Hero inventory page.
+- Queue persistence must tolerate multi-second OneDrive/antivirus locks, use unique temporary files, and log the exact failed path/operation. Retain only the latest 250 succeeded runtime-history rows; task activity statistics remain in their separate journal.
 
 ## Current pitfalls
 

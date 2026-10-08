@@ -520,7 +520,7 @@ public sealed partial class TravianClient
         return seconds;
     }
 
-    private static int NormalizeNpcTradeBuildTimeLimitSeconds(int seconds)
+    internal static int NormalizeNpcTradeBuildTimeLimitSeconds(int seconds)
     {
         return seconds switch
         {

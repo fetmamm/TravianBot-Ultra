@@ -97,6 +97,20 @@ public sealed partial class TravianClient : IBuildingClient
                 return humanizeDefer;
             }
 
+            var gid = ParseGidFromBuildingCode(info.BuildingCode)
+                      ?? BuildingCatalogService.GidForName(buildingName);
+            var affordabilityBlock = await EvaluateBuildingUpgradeAffordabilityAsync(
+                slotId,
+                gid,
+                buildingName,
+                nextLevel,
+                upgrades,
+                cancellationToken);
+            if (affordabilityBlock is not null)
+            {
+                return affordabilityBlock;
+            }
+
             // Step 3: open or reuse the slot's build page.
             await EnsureCurrentBuildPageForActionAsync(slotId, "upgrade", cancellationToken);
             // Wait for the build slot controls to render before reading/clicking. GotoAsync only waits
@@ -118,13 +132,6 @@ public sealed partial class TravianClient : IBuildingClient
             }
 
             // Step 5: verify the live page one final time, then click "Upgrade to level N".
-            var gid = ParseGidFromBuildingCode(info.BuildingCode)
-                      ?? BuildingCatalogService.GidForName(buildingName);
-            if (gid is null)
-            {
-                return $"Slot {slotId}: pre-click safety could not resolve gid for '{buildingName}'. "
-                       + "Re-reading live levels before retry. queue_wait_seconds=1";
-            }
             var durationAnomaly = DetectMainBuildingDurationAnomaly(
                 gid,
                 nextLevel,
@@ -136,7 +143,7 @@ public sealed partial class TravianClient : IBuildingClient
             }
             var clickSafety = await VerifyUpgradePreClickSafetyAsync(
                 slotId,
-                gid.Value,
+                gid!.Value,
                 buildingName,
                 currentLevel,
                 nextLevel,
@@ -990,7 +997,8 @@ public sealed partial class TravianClient : IBuildingClient
             }
             EnsureExpectedBuildingIdentity(slotId, expectedBuildingName, info);
             var currentLevel = info.Level;
-            var gid = ParseGidFromBuildingCode(info.BuildingCode);
+            var gid = ParseGidFromBuildingCode(info.BuildingCode)
+                      ?? BuildingCatalogService.GidForName(info.BuildingName);
             var maxLevel = gid is int g ? BuildingCatalogService.MaxLevelFor(g) : 20;
             var buildingName = string.IsNullOrWhiteSpace(info.BuildingName) ? $"slot {slotId}" : info.BuildingName;
             if (currentLevel >= maxLevel)
@@ -1023,6 +1031,18 @@ public sealed partial class TravianClient : IBuildingClient
                 return humanizeDefer;
             }
 
+            var affordabilityBlock = await EvaluateBuildingUpgradeAffordabilityAsync(
+                slotId,
+                gid,
+                buildingName,
+                nextLevel,
+                upgrades,
+                cancellationToken);
+            if (affordabilityBlock is not null)
+            {
+                return affordabilityBlock;
+            }
+
             // Step 3: open or reuse the slot's build page.
             await EnsureCurrentBuildPageForActionAsync(slotId, "upgrade-to-max", cancellationToken);
             // Wait for the build slot controls to render before reading/clicking (see UpgradeBuildingToLevelAsync).
@@ -1040,11 +1060,6 @@ public sealed partial class TravianClient : IBuildingClient
             }
 
             // Step 5: verify the live page one final time, then click "Upgrade to level N".
-            if (gid is null)
-            {
-                return $"Slot {slotId}: pre-click safety could not resolve gid for '{buildingName}'. "
-                       + $"Upgrades performed: {upgrades}. queue_wait_seconds=1";
-            }
             var durationAnomaly = DetectMainBuildingDurationAnomaly(
                 gid,
                 nextLevel,
@@ -1056,7 +1071,7 @@ public sealed partial class TravianClient : IBuildingClient
             }
             var clickSafety = await VerifyUpgradePreClickSafetyAsync(
                 slotId,
-                gid.Value,
+                gid!.Value,
                 buildingName,
                 currentLevel,
                 nextLevel,

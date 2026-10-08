@@ -1,6 +1,7 @@
 using Microsoft.Playwright;
 using System.Text.Json;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Construction;
 using TbotUltra.Core.Tasks;
 using TbotUltra.Worker.Domain;
 
@@ -77,6 +78,31 @@ public sealed partial class TravianClient
                 if (humanizeDefer is not null)
                 {
                     return humanizeDefer;
+                }
+
+                var resourceGid = ResourceSnapshotCalculator.ResourceFieldGid(field?.FieldType);
+                var catalogOfferLevel = highestKnownLevel + 1;
+                var catalogCost = resourceGid is int exactResourceGid
+                    ? BuildingCatalogService.CostFor(exactResourceGid, catalogOfferLevel)
+                    : null;
+                if (catalogCost is not null)
+                {
+                    var preflightLabel = $"Resource slot {slotId} ({resourceName}) upgrade to level {catalogOfferLevel}";
+                    var affordability = await EvaluateLiveConstructionAffordabilityAsync(
+                        catalogCost,
+                        preflightLabel,
+                        cancellationToken);
+                    if (!affordability.ShouldOpenBuildPage)
+                    {
+                        return ConstructionAffordabilityOperation.BuildBlockedResult(
+                            preflightLabel,
+                            affordability,
+                            DateTimeOffset.UtcNow);
+                    }
+                }
+                else
+                {
+                    Notify($"[construction-preflight] Resource slot {slotId}: catalog cost for level {catalogOfferLevel} is unavailable; retaining live build-page fallback.");
                 }
 
                 var buildQueueBefore = snapshot.BuildQueue;
@@ -455,14 +481,40 @@ public sealed partial class TravianClient
                     warehouseCapacity,
                     granaryCapacity);
                 ResourceBulkUpgradeCandidate? localEarliestBlocked = null;
+                ConstructionAffordabilityDecision? blockedPreflightDecision = null;
                 if (localPlan.IsComplete)
                 {
                     var selectedCandidate = localPlan.CandidateToInspect;
-                    var recoveryEnabled = (_config.HeroResourceTransferEnabled && _config.HeroResourceUseConstruction)
-                        || _config.NpcTradeConstructionEnabled;
-                    if (selectedCandidate is null && recoveryEnabled)
+                    if (selectedCandidate is null && localPlan.RecoveryCandidate is { } representative)
                     {
-                        selectedCandidate = localPlan.RecoveryCandidate;
+                        var blockedSlot = representative.Field.SlotId ?? 0;
+                        var blockedName = string.IsNullOrWhiteSpace(representative.Field.Name)
+                            ? $"slot {blockedSlot}"
+                            : representative.Field.Name;
+                        var decision = await EvaluateConstructionAffordabilityAsync(
+                            representative.Cost,
+                            $"Resource slot {blockedSlot} ({blockedName}) upgrade to level {representative.OfferLevel}",
+                            currentResources,
+                            currentProduction,
+                            warehouseCapacity,
+                            granaryCapacity,
+                            isLive: true,
+                            cancellationToken);
+                        if (decision.ShouldOpenBuildPage)
+                        {
+                            selectedCandidate = representative;
+                        }
+                        else
+                        {
+                            blockedPreflightDecision = decision;
+                        }
+
+                        if (selectedCandidate is not null && !IsCurrentUrlForPath(Paths.Resources))
+                        {
+                            await EnsureResourceFieldsPageAsync(
+                                cancellationToken,
+                                "Manual verification appeared while returning from Hero construction preflight.");
+                        }
                     }
 
                     localEarliestBlocked = localPlan.CandidateToInspect is null
@@ -476,7 +528,7 @@ public sealed partial class TravianClient
                         $"affordable/live candidate={(localPlan.CandidateToInspect?.Field.SlotId.ToString() ?? "none")}, " +
                         $"resource-blocked={localPlan.BlockedByResources.Count}, " +
                         $"selected={(selectedCandidate?.Field.SlotId.ToString() ?? "none")}, " +
-                        $"recovery={(selectedCandidate is not null && selectedCandidate == localPlan.RecoveryCandidate ? "representative" : "not-needed")}.");
+                        $"recovery={(selectedCandidate is not null && localPlan.CandidateToInspect is null ? "preflight-confirmed" : "not-needed")}.");
                 }
                 else
                 {
@@ -821,6 +873,21 @@ public sealed partial class TravianClient
                     {
                         return WithQueuedLevelProjections(
                             $"All selected resource fields are at or above target level {targetLevel}. Upgrades made: {upgrades}.");
+                    }
+
+                    if (blockedPreflightDecision is not null && localPlan.RecoveryCandidate is { } representative)
+                    {
+                        var slot = representative.Field.SlotId ?? 0;
+                        var name = string.IsNullOrWhiteSpace(representative.Field.Name)
+                            ? $"slot {slot}"
+                            : representative.Field.Name;
+                        var label = $"Resource slot {slot} ({name}) upgrade to level {representative.OfferLevel}";
+                        Notify($"[UpgradeAllResourcesToLevelAsync] representative offer blocked by stable construction preflight until {blockedPreflightDecision.NextAttemptAtUtc:O}.");
+                        return WithQueuedLevelProjections(
+                            ConstructionAffordabilityOperation.BuildBlockedResult(
+                                label,
+                                blockedPreflightDecision,
+                                DateTimeOffset.UtcNow));
                     }
 
                     if (earliestResourceWait is not null)

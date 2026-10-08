@@ -1214,12 +1214,18 @@ public sealed partial class TravianClient
                     consecutiveEmptyObservations,
                     Random.Shared.NextDouble())
                 : null;
+            var inventoryIncreased = previous is null
+                || resources.Wood > previous.Resources.Wood
+                || resources.Clay > previous.Resources.Clay
+                || resources.Iron > previous.Resources.Iron
+                || resources.Crop > previous.Resources.Crop;
             snapshot = new HeroInventorySnapshot(
                 resources,
                 now,
                 source,
                 consecutiveEmptyObservations,
-                nextProbeAt);
+                nextProbeAt,
+                inventoryIncreased ? null : previous!.ConstructionProbe);
             CachedHeroInventoryByKey[key] = snapshot;
         }
 
@@ -1266,6 +1272,49 @@ public sealed partial class TravianClient
         catch (Exception ex)
         {
             Notify($"[hero-inventory] could not persist empty-inventory probe reservation: {ex.Message}");
+        }
+
+        return true;
+    }
+
+    private bool TryReserveConstructionHeroInventoryProbe(
+        HeroInventorySnapshot? expected,
+        DateTimeOffset now,
+        out DateTimeOffset reservedUntil)
+    {
+        var key = BuildHeroInventoryCacheKey();
+        HeroInventorySnapshot reserved;
+        lock (HeroInventoryCacheSync)
+        {
+            CachedHeroInventoryByKey.TryGetValue(key, out var current);
+            if (current != expected
+                || current?.ConstructionProbe?.NextProbeAtUtc is { } nextProbe && nextProbe > now)
+            {
+                reservedUntil = current?.ConstructionProbe?.NextProbeAtUtc ?? now;
+                return false;
+            }
+
+            var observations = Math.Max(1, (current?.ConstructionProbe?.ConsecutiveInsufficientObservations ?? 0) + 1);
+            reservedUntil = now + HeroInventoryProbePolicy.GetConstructionProbeDelay(
+                observations,
+                Random.Shared.NextDouble());
+            reserved = (current ?? new HeroInventorySnapshot(
+                new HeroInventoryResources(),
+                now,
+                HeroInventoryObservationSource.Unknown)) with
+            {
+                ConstructionProbe = new HeroConstructionProbeState(observations, reservedUntil),
+            };
+            CachedHeroInventoryByKey[key] = reserved;
+        }
+
+        try
+        {
+            _heroInventorySnapshotStore.SaveSnapshot(AccountName, ServerUrl, reserved);
+        }
+        catch (Exception ex)
+        {
+            Notify($"[construction-preflight] could not persist Hero probe reservation: {ex.Message}");
         }
 
         return true;

@@ -71,7 +71,8 @@ public sealed class HeroInventorySnapshotStore
                 cached.UpdatedAtUtc,
                 cached.Source,
                 cached.ConsecutiveEmptyObservations,
-                cached.NextProbeAtUtc);
+                cached.NextProbeAtUtc,
+                cached.ConstructionProbe);
             return true;
         }
         catch
@@ -99,7 +100,8 @@ public sealed class HeroInventorySnapshotStore
             snapshot.UpdatedAtUtc,
             snapshot.Source,
             snapshot.ConsecutiveEmptyObservations,
-            snapshot.NextProbeAtUtc);
+            snapshot.NextProbeAtUtc,
+            snapshot.ConstructionProbe);
         AtomicFile.WriteAllText(filePath, JsonSerializer.Serialize(cached, JsonOptions));
     }
 
@@ -110,5 +112,6 @@ public sealed class HeroInventorySnapshotStore
         DateTimeOffset UpdatedAtUtc,
         HeroInventoryObservationSource Source = HeroInventoryObservationSource.Unknown,
         int ConsecutiveEmptyObservations = 0,
-        DateTimeOffset? NextProbeAtUtc = null);
+        DateTimeOffset? NextProbeAtUtc = null,
+        HeroConstructionProbeState? ConstructionProbe = null);
 }

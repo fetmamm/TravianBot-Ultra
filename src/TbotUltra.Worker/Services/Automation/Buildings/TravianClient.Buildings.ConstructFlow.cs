@@ -86,6 +86,27 @@ public sealed partial class TravianClient : IBuildingClient
                 return WithEffectiveSlot(humanizeDefer);
             }
 
+            var catalogCost = BuildingCatalogService.CostFor(gid, 1);
+            if (catalogCost is not null)
+            {
+                var preflightLabel = $"Building slot {slotId} construct {buildingName}";
+                var affordability = await EvaluateLiveConstructionAffordabilityAsync(
+                    catalogCost,
+                    preflightLabel,
+                    cancellationToken);
+                if (!affordability.ShouldOpenBuildPage)
+                {
+                    return WithEffectiveSlot(ConstructionAffordabilityOperation.BuildBlockedResult(
+                        preflightLabel,
+                        affordability,
+                        DateTimeOffset.UtcNow));
+                }
+            }
+            else
+            {
+                Notify($"[construction-preflight] Building slot {slotId}: catalog cost for gid {gid} level 1 is unavailable; retaining live construct-page fallback.");
+            }
+
             // Step 1: open the slot's construction page on the right category tab so the building's
             // wrapper actually exists in the DOM. Walls (slot 40) ignore category — only one option.
             var url = Paths.BuildBySlot(slotId);

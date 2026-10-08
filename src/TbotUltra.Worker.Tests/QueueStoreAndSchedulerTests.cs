@@ -11,6 +11,72 @@ namespace TbotUltra.Worker.Tests;
 public sealed class QueueStoreAndSchedulerTests : IDisposable
 {
     [Fact]
+    public void TrimSucceededRuntimeHistory_RetainsRecentRowsAndAllActionableHistory()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var items = Enumerable.Range(0, JsonQueueStore.RetainedSucceededRuntimeHistory + 10)
+            .Select(index => new QueueItem
+            {
+                Id = Guid.NewGuid(),
+                TaskName = "runtime:test",
+                IsRuntimeOnly = true,
+                Status = QueueStatus.Succeeded,
+                CreatedAt = now.AddMinutes(-index),
+                UpdatedAt = now.AddMinutes(-index),
+            })
+            .ToList();
+        var newestRuntimeId = items[0].Id;
+        var oldestRuntimeId = items[^1].Id;
+        var failedRuntime = new QueueItem
+        {
+            TaskName = "runtime:failed",
+            IsRuntimeOnly = true,
+            Status = QueueStatus.Failed,
+        };
+        var normalSucceeded = new QueueItem
+        {
+            TaskName = "status",
+            IsRuntimeOnly = false,
+            Status = QueueStatus.Succeeded,
+        };
+        items.Add(failedRuntime);
+        items.Add(normalSucceeded);
+
+        var removed = JsonQueueStore.TrimSucceededRuntimeHistory(items);
+
+        Assert.Equal(10, removed);
+        Assert.Equal(
+            JsonQueueStore.RetainedSucceededRuntimeHistory,
+            items.Count(item => item.IsRuntimeOnly && item.Status == QueueStatus.Succeeded));
+        Assert.Contains(items, item => item.Id == newestRuntimeId);
+        Assert.DoesNotContain(items, item => item.Id == oldestRuntimeId);
+        Assert.Contains(items, item => item.Id == failedRuntime.Id);
+        Assert.Contains(items, item => item.Id == normalSucceeded.Id);
+    }
+
+    [Fact]
+    public async Task MarkSucceeded_RetriesThroughLongExternalQueueFileLock()
+    {
+        var store = new JsonQueueStore(_queuePath);
+        var item = store.Add("status", null, priority: 0, maxRetries: 0);
+        Assert.True(store.MarkRunning(item.Id));
+
+        using var gate = new ManualResetEventSlim(false);
+        var locker = Task.Run(() =>
+        {
+            using var stream = new FileStream(_queuePath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+            gate.Set();
+            Thread.Sleep(900);
+        });
+
+        gate.Wait();
+        Assert.True(store.MarkSucceeded(item.Id));
+        await locker;
+
+        Assert.Equal(QueueStatus.Succeeded, store.GetAll().Single(entry => entry.Id == item.Id).Status);
+    }
+
+    [Fact]
     public void ApplyPendingReconciliation_UpdatesAndRemovesInOneStoreOperation()
     {
         var store = new JsonQueueStore(_queuePath);

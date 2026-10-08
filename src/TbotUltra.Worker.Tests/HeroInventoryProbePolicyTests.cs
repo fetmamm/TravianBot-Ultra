@@ -50,4 +50,19 @@ public sealed class HeroInventoryProbePolicyTests
             TimeSpan.FromMinutes(expectedMinutes),
             HeroInventoryProbePolicy.GetEmptyProbeDelay(consecutiveEmptyObservations, sample));
     }
+
+    [Theory]
+    [InlineData(1, 0d, 15)]
+    [InlineData(2, 1d, 45)]
+    [InlineData(3, 0d, 45)]
+    [InlineData(8, 1d, 60)]
+    public void ConstructionProbeDelay_UsesSharedProgressiveBackoff(
+        int consecutiveInsufficientObservations,
+        double sample,
+        int expectedMinutes)
+    {
+        Assert.Equal(
+            TimeSpan.FromMinutes(expectedMinutes),
+            HeroInventoryProbePolicy.GetConstructionProbeDelay(consecutiveInsufficientObservations, sample));
+    }
 }

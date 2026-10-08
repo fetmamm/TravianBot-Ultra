@@ -17,9 +17,9 @@ public static class AtomicFile
                     File.Move(temporaryPath, path, overwrite: true);
                     return;
                 }
-                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && attempt < 5)
+                catch (Exception ex) when (ex is IOException or UnauthorizedAccessException && attempt < 8)
                 {
-                    Thread.Sleep(40 * attempt);
+                    Thread.Sleep(Math.Min(1_000, 50 * (1 << Math.Min(attempt - 1, 5))));
                 }
             }
         }

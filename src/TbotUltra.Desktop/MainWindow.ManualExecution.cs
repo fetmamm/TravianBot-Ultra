@@ -1,3 +1,4 @@
+using System.IO;
 using System.Text.RegularExpressions;
 using TbotUltra.Desktop.Services;
 
@@ -67,6 +68,13 @@ public partial class MainWindow
                     _botService.MarkQueueItemCanceled(execution.QueueItemId);
                     break;
             }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            AppendLog(
+                $"[manual-execution] Operation '{execution.OperationName}' finished, but its queue outcome " +
+                $"could not be persisted for id={execution.QueueItemId}. The runtime row will be reconciled " +
+                $"on the next startup. {ex.GetType().Name}: {ex.Message}");
         }
         finally
         {
