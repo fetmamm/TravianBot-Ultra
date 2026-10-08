@@ -21,6 +21,16 @@ public sealed class TravianSessionCache
         return true;
     }
 
+    internal Domain.CityCapability ObserveCityCapability(Domain.CityCapability observed)
+    {
+        if (observed != Domain.CityCapability.Unknown)
+        {
+            CityCapability = observed;
+        }
+
+        return CityCapability;
+    }
+
     public System.Collections.Concurrent.ConcurrentDictionary<string, Domain.CityStatus> VillageCityStatuses { get; } =
         new(System.StringComparer.OrdinalIgnoreCase);
     public System.Collections.Concurrent.ConcurrentDictionary<string, Domain.WatchtowerStatus> WatchtowerStatuses { get; } =
@@ -28,6 +38,44 @@ public sealed class TravianSessionCache
     public System.Collections.Concurrent.ConcurrentDictionary<string, System.DateTimeOffset> WatchtowerStatusReadAt { get; } =
         new(System.StringComparer.OrdinalIgnoreCase);
     public bool WatchtowerSnapshotsSeeded { get; set; }
+
+    internal void RestoreWatchtowerSnapshot(string villageKey, Domain.WatchtowerStatus status)
+    {
+        WatchtowerStatuses[villageKey] = status;
+        WatchtowerStatusReadAt[villageKey] = status.ObservedAtUtc;
+
+        // A persisted Watchtower read was made on a confirmed City. Carry that evidence into the
+        // quick-login village list, whose older account-analysis snapshot may still say Unknown.
+        if (!villageKey.StartsWith("xy:", StringComparison.OrdinalIgnoreCase)
+            || (VillageCityStatuses.TryGetValue(villageKey, out var knownStatus)
+                && knownStatus == Domain.CityStatus.Village))
+        {
+            return;
+        }
+
+        if (CachedVillages is not null)
+        {
+            for (var index = 0; index < CachedVillages.Count; index++)
+            {
+                var village = CachedVillages[index];
+                if (!village.CoordX.HasValue || !village.CoordY.HasValue
+                    || !string.Equals(
+                        villageKey,
+                        $"xy:{village.CoordX.Value}|{village.CoordY.Value}",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                CachedVillages[index] = village with { CityStatus = Domain.CityStatus.City };
+                break;
+            }
+        }
+
+        VillageCityStatuses[villageKey] = Domain.CityStatus.City;
+        ConfirmCitiesCapabilityFromCity();
+    }
+
     public bool? CachedTravianPlusActive { get; set; }
     public bool? CachedGoldClubEnabled { get; set; }
     public int? CachedGold { get; set; }

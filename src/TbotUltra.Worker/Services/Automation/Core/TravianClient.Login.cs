@@ -431,15 +431,26 @@ public sealed partial class TravianClient : ISessionClient
             }
         }
 
-        _session.CityCapability = current;
+        var resolved = _session.ObserveCityCapability(current);
+        if (current == CityCapability.Unknown && resolved != CityCapability.Unknown)
+        {
+            if (_session.LogValueChanged("city-capability-retained", $"{resolved}:{source}:{unknownReason}"))
+            {
+                var reason = string.IsNullOrWhiteSpace(unknownReason) ? string.Empty : $" reason='{unknownReason}'";
+                Notify($"[city] capability={resolved} source=retained-known-state probe={source}{reason}");
+            }
+
+            return;
+        }
+
         if (current == CityCapability.Unknown
-            || previous != current
-            || _session.LogValueChanged("city-capability", current.ToString()))
+            || previous != resolved
+            || _session.LogValueChanged("city-capability", resolved.ToString()))
         {
             var reason = current == CityCapability.Unknown && !string.IsNullOrWhiteSpace(unknownReason)
                 ? $" reason='{unknownReason}'"
                 : string.Empty;
-            Notify($"[city] capability={current} source={source}{reason}");
+            Notify($"[city] capability={resolved} source={source}{reason}");
         }
     }
 

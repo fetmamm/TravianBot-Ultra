@@ -9,11 +9,13 @@ public sealed class TravianBuildQueueRow : INotifyPropertyChanged
     private string _levelText = "-";
     private string _countdownText = "-";
     private string _finishAtText = "-";
+    private bool _isWatchtower;
 
     public string Name { get => _name; init => _name = value; }
     public string LevelText { get => _levelText; init => _levelText = value; }
     public string CountdownText { get => _countdownText; init => _countdownText = value; }
     public string FinishAtText { get => _finishAtText; init => _finishAtText = value; }
+    public bool IsWatchtower { get => _isWatchtower; init => _isWatchtower = value; }
 
     public void ApplySnapshot(TravianBuildQueueRow snapshot)
     {
@@ -21,6 +23,11 @@ public sealed class TravianBuildQueueRow : INotifyPropertyChanged
         Set(ref _levelText, snapshot.LevelText, nameof(LevelText));
         Set(ref _countdownText, snapshot.CountdownText, nameof(CountdownText));
         Set(ref _finishAtText, snapshot.FinishAtText, nameof(FinishAtText));
+        if (_isWatchtower != snapshot.IsWatchtower)
+        {
+            _isWatchtower = snapshot.IsWatchtower;
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(nameof(IsWatchtower)));
+        }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

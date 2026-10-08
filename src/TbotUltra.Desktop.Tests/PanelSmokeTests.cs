@@ -134,6 +134,33 @@ public sealed class PanelSmokeTests
         });
     }
 
+    [Fact]
+    public void QueuePanel_HighlightsWatchtowerRowsSeparately()
+    {
+        _wpf.Run(() =>
+        {
+            var panel = new QueuePanel();
+            var grid = Assert.IsType<DataGrid>(panel.FindName("TravianBuildQueueDataGrid"));
+            grid.ItemsSource = new ObservableCollection<TravianBuildQueueRow>
+            {
+                new() { Name = "Ready" },
+                new() { Name = "Ready" },
+                new() { Name = "Watchtowers", LevelText = "Level 19", IsWatchtower = true },
+                new() { Name = "Watchtowers", LevelText = "Level 20", IsWatchtower = true },
+            };
+            panel.Measure(new Size(1280, 900));
+            panel.Arrange(new Rect(0, 0, 1280, 900));
+            panel.UpdateLayout();
+
+            var watchtower = Assert.IsType<DataGridRow>(grid.ItemContainerGenerator.ContainerFromIndex(3));
+            var purple = Assert.IsType<SolidColorBrush>(Application.Current.FindResource("PurpleBgBrush"));
+            Assert.True(grid.ActualHeight > 120);
+            var cells = FindVisualChildren<DataGridCell>(watchtower).ToList();
+            Assert.Equal(4, cells.Count);
+            Assert.All(cells, cell => Assert.Equal(purple.Color, Assert.IsType<SolidColorBrush>(cell.Background).Color));
+        });
+    }
+
     [Theory]
     [InlineData(CityStatus.City, "ROMA (city)")]
     [InlineData(CityStatus.Village, "ROMA")]

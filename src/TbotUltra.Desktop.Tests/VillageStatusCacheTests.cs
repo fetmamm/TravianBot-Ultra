@@ -59,6 +59,44 @@ public sealed class VillageStatusCacheTests
     }
 
     [Fact]
+    public void Set_UnknownReloginStatusPreservesConfirmedCityAndWatchtower()
+    {
+        var cache = new VillageStatusCache();
+        var confirmed = MakeStatus("WHY", 164, 110) with
+        {
+            CityCapability = CityCapability.Enabled,
+            CityStatus = CityStatus.City,
+            WatchtowerStatus = new WatchtowerStatus(19, [], DateTimeOffset.UtcNow),
+        };
+        cache.Set("WHY", confirmed);
+
+        cache.Set("WHY", MakeStatus("WHY", 164, 110));
+
+        Assert.True(cache.TryGetByKey("xy:164|110", out var restored));
+        Assert.Equal(CityCapability.Enabled, restored.CityCapability);
+        Assert.Equal(CityStatus.City, restored.CityStatus);
+        Assert.Equal(19, restored.WatchtowerStatus?.Level);
+    }
+
+    [Fact]
+    public void Set_ConfirmedVillageOverridesOlderCityKnowledge()
+    {
+        var cache = new VillageStatusCache();
+        cache.Set("WHY", MakeStatus("WHY", 164, 110) with
+        {
+            CityCapability = CityCapability.Enabled,
+            CityStatus = CityStatus.City,
+            WatchtowerStatus = new WatchtowerStatus(19, [], DateTimeOffset.UtcNow),
+        });
+
+        cache.Set("WHY", MakeStatus("WHY", 164, 110) with { CityStatus = CityStatus.Village });
+
+        Assert.True(cache.TryGetByKey("xy:164|110", out var updated));
+        Assert.Equal(CityStatus.Village, updated.CityStatus);
+        Assert.Null(updated.WatchtowerStatus);
+    }
+
+    [Fact]
     public void Set_StorageOnlyRefreshPreservesKnownProductionForTheSameVillage()
     {
         var cache = new VillageStatusCache();

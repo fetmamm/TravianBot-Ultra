@@ -840,6 +840,7 @@ public partial class MainWindow
                         existing.TroopTrainingQueues,
                         now),
                 SmithyUpgradeStatus = status.SmithyUpgradeStatus ?? existing.SmithyUpgradeStatus,
+                WatchtowerStatus = status.WatchtowerStatus ?? existing.WatchtowerStatus,
                 BreweryCelebrationStatus = status.BreweryCelebrationStatus ?? existing.BreweryCelebrationStatus,
                 FarmLists = status.FarmLists ?? existing.FarmLists,
                 HeroStatus = status.HeroStatus ?? existing.HeroStatus,
@@ -1035,7 +1036,9 @@ public partial class MainWindow
             return;
         }
 
-        _lastBuildingStatus = status;
+        _lastBuildingStatus = _villageStatusCache.TryGetByKey(cachedStatusKey, out var storedStatus)
+            ? storedStatus
+            : status;
         AppendLog($"[village-cache:verbose] synchronized preferred snapshot for key='{cachedStatusKey}'.");
     }
 

@@ -170,6 +170,30 @@ public sealed class VillageStatusCache
 
             if (_byKey.TryGetValue(key, out var previous))
             {
+                var cityCapability = status.CityCapability == CityCapability.Unknown
+                    ? previous.CityCapability
+                    : status.CityCapability;
+                var cityStatus = status.CityCapability == CityCapability.Disabled
+                    ? CityStatus.Unknown
+                    : status.CityStatus == CityStatus.Unknown
+                        ? previous.CityStatus
+                        : status.CityStatus;
+                var watchtowerStatus = status.CityCapability == CityCapability.Disabled
+                    || status.CityStatus == CityStatus.Village
+                        ? null
+                        : status.WatchtowerStatus ?? previous.WatchtowerStatus;
+                if (cityCapability != status.CityCapability
+                    || cityStatus != status.CityStatus
+                    || !ReferenceEquals(watchtowerStatus, status.WatchtowerStatus))
+                {
+                    status = status with
+                    {
+                        CityCapability = cityCapability,
+                        CityStatus = cityStatus,
+                        WatchtowerStatus = watchtowerStatus,
+                    };
+                }
+
                 status = PreserveKnownResourceProduction(status, previous);
             }
 

@@ -13,7 +13,8 @@ public static class LiveQueueRowFactory
         int slotCount,
         bool hasStatus,
         DateTimeOffset nowUtc,
-        Func<DateTimeOffset, string> finishTimeFormatter)
+        Func<DateTimeOffset, string> finishTimeFormatter,
+        WatchtowerStatus? watchtowerStatus = null)
     {
         var rows = activeConstructions
             .Take(slotCount)
@@ -30,6 +31,30 @@ public static class LiveQueueRowFactory
             .ToList();
 
         PadConstructionRows(rows, slotCount, hasStatus);
+
+        if (watchtowerStatus is not null)
+        {
+            foreach (var upgrade in watchtowerStatus.Active.Take(2))
+            {
+                var finish = upgrade.Finish ?? (upgrade.TimeLeftSeconds is > 0
+                    ? TimerSnapshot.FromRemaining(upgrade.TimeLeftSeconds.Value, watchtowerStatus.ObservedAtUtc)
+                    : null);
+                if (finish is null || finish.IsFinishedAt(nowUtc))
+                {
+                    continue;
+                }
+
+                rows.Add(new TravianBuildQueueRow
+                {
+                    Name = "Watchtowers",
+                    LevelText = $"Level {upgrade.Level}",
+                    CountdownText = FormatCountdown(finish.RemainingSecondsAt(nowUtc)),
+                    FinishAtText = finishTimeFormatter(finish.FinishUtc),
+                    IsWatchtower = true,
+                });
+            }
+        }
+
         return rows;
     }
 

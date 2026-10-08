@@ -11,7 +11,13 @@ public sealed class QueuePanelSourceTests
         var root = ProjectRootLocator.FindProjectRoot();
         var xaml = File.ReadAllText(Path.Combine(root, "src", "TbotUltra.Desktop", "Views", "QueuePanel.xaml"));
 
-        Assert.DoesNotContain("<DataGrid.CellStyle>", xaml, StringComparison.Ordinal);
+        var localCellStyles = System.Xml.Linq.XDocument.Parse(xaml)
+            .Descendants()
+            .Where(element => element.Name.LocalName == "DataGrid.CellStyle")
+            .Select(element => Assert.Single(element.Elements()))
+            .ToList();
+        Assert.All(localCellStyles, style =>
+            Assert.Equal("{StaticResource {x:Type DataGridCell}}", style.Attribute("BasedOn")?.Value));
         Assert.DoesNotContain("<DataGrid.ColumnHeaderStyle>", xaml, StringComparison.Ordinal);
         Assert.Contains("DataGridTextColumn Header=\"Group\"", xaml, StringComparison.Ordinal);
         Assert.Contains("DataGridTextColumn Header=\"Village\"", xaml, StringComparison.Ordinal);

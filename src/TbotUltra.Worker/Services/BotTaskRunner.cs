@@ -914,11 +914,12 @@ public sealed partial class BotTaskRunner
 
         foreach (var pair in statuses)
         {
-            sessionCache.WatchtowerStatuses[pair.Key] = pair.Value;
-            sessionCache.WatchtowerStatusReadAt[pair.Key] = pair.Value.ObservedAtUtc;
+            sessionCache.RestoreWatchtowerSnapshot(pair.Key, pair.Value);
         }
 
-        log($"[cache] watchtower status ({statuses.Count}) loaded for '{account.Name}'.");
+        var restoredCityCount = statuses.Keys.Count(key =>
+            sessionCache.VillageCityStatuses.TryGetValue(key, out var city) && city == CityStatus.City);
+        log($"[cache] watchtower status ({statuses.Count}) loaded for '{account.Name}'; restored city identities={restoredCityCount}.");
     }
 
     private void SeedStableAccountSignals(

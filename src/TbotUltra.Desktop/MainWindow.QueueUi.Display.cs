@@ -309,7 +309,8 @@ public partial class MainWindow
                      slotCount,
                      snapshot.Knowledge != ConstructionQueueKnowledge.Unknown,
                      nowUtc,
-                     FormatQueueFinishTime);
+                     FormatQueueFinishTime,
+                     status?.WatchtowerStatus);
         _travianQueueViewModel.ApplyBuildQueueRows(rows);
     }
 

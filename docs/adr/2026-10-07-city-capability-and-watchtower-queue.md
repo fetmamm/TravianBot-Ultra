@@ -12,5 +12,6 @@
 ## Consequences
 
 - Wall-page reads are demand-driven: the first confirmed City read without a persisted Watchtower snapshot, explicit Buildings load, or queued/active Watchtower work. A successful level read persists per account/world/village and generic startup/status reads reuse it without age-based refresh.
+- A persisted coordinate-keyed Watchtower snapshot also restores the confirmed City status for a quick re-login whose older village-list snapshot lacks it. Unknown probes and partial reads preserve this knowledge; an explicit live Village result may replace it.
 - Watchtower targets are supported manually and in building templates, but excluded from generic “Upgrade all to max”.
 - Non-capital Cities may upgrade resource fields to level 12.
