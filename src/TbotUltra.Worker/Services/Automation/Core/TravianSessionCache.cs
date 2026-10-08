@@ -27,6 +27,7 @@ public sealed class TravianSessionCache
         new(System.StringComparer.OrdinalIgnoreCase);
     public System.Collections.Concurrent.ConcurrentDictionary<string, System.DateTimeOffset> WatchtowerStatusReadAt { get; } =
         new(System.StringComparer.OrdinalIgnoreCase);
+    public bool WatchtowerSnapshotsSeeded { get; set; }
     public bool? CachedTravianPlusActive { get; set; }
     public bool? CachedGoldClubEnabled { get; set; }
     public int? CachedGold { get; set; }

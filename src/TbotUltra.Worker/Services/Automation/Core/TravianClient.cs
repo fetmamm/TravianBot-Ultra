@@ -27,6 +27,7 @@ public sealed partial class TravianClient
     private readonly HeroAttributeSnapshotStore _heroAttributeSnapshotStore;
     private readonly HeroInventorySnapshotStore _heroInventorySnapshotStore;
     private readonly HeroOintmentAvailabilityStore _heroOintmentAvailabilityStore;
+    private readonly WatchtowerSnapshotStore _watchtowerSnapshotStore;
     private readonly Action<string>? _statusCallback;
     private readonly Action<VerifiedActiveVillage>? _activeVillageVerified;
     private readonly Action<ConstructionQueueObservation>? _constructionQueueObserved;
@@ -304,6 +305,7 @@ public sealed partial class TravianClient
         _heroAttributeSnapshotStore = new HeroAttributeSnapshotStore(_projectRoot);
         _heroInventorySnapshotStore = new HeroInventorySnapshotStore(_projectRoot);
         _heroOintmentAvailabilityStore = new HeroOintmentAvailabilityStore(_projectRoot);
+        _watchtowerSnapshotStore = new WatchtowerSnapshotStore(_projectRoot, callbacks.StatusCallback);
         _statusCallback = callbacks.StatusCallback;
         _activeVillageVerified = callbacks.ActiveVillageVerified;
         _constructionQueueObserved = callbacks.ConstructionQueueObserved;

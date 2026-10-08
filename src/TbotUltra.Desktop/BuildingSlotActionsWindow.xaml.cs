@@ -47,8 +47,8 @@ public partial class BuildingSlotActionsWindow : Window
         UpgradeOneLevelButton.IsEnabled = canUpgrade;
         UpgradeToMaxButton.IsEnabled = canUpgrade;
         WatchtowerButton.Visibility = slot.CanQueueWatchtowers ? Visibility.Visible : Visibility.Collapsed;
-        WatchtowerButton.IsEnabled = slot.CanQueueWatchtowers
-            && (slot.WatchtowerProjectedLevel ?? slot.WatchtowerLevel ?? 0) < 20;
+        WatchtowerButton.IsEnabled = slot.WatchtowerUpgradeBaseLevel is int watchtowerLevel
+            && watchtowerLevel < 20;
 
         if (nextLevel is not null)
         {

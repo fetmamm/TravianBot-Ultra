@@ -23,6 +23,9 @@ public sealed class BuildingSlotRow
     public int? WatchtowerLevel { get; init; }
     public int? WatchtowerProjectedLevel { get; init; }
     public bool CanQueueWatchtowers { get; init; }
+    public int? WatchtowerUpgradeBaseLevel => CanQueueWatchtowers && IsWallSlot
+        ? WatchtowerProjectedLevel ?? WatchtowerLevel
+        : null;
     public bool HasWatchtowerStatus => WatchtowerLevel.HasValue;
     public string WatchtowerStatusLabel => WatchtowerLevel is not int level
         ? string.Empty

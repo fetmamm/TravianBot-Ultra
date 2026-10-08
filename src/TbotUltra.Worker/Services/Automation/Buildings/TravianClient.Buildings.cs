@@ -15,7 +15,12 @@ namespace TbotUltra.Worker.Services;
 public sealed partial class TravianClient : IBuildingClient
 {
 
-    public async Task<VillageStatus> ReadBuildingsStatusAsync(CancellationToken cancellationToken = default)
+    public Task<VillageStatus> ReadBuildingsStatusAsync(CancellationToken cancellationToken = default)
+        => ReadBuildingsStatusAsync(refreshWatchtowerStatus: false, cancellationToken);
+
+    internal async Task<VillageStatus> ReadBuildingsStatusAsync(
+        bool refreshWatchtowerStatus,
+        CancellationToken cancellationToken = default)
     {
         Notify("[build:verbose] ReadBuildingsStatusAsync started");
         var buildings = await ReadBuildingsAsync(cancellationToken);
@@ -23,7 +28,7 @@ public sealed partial class TravianClient : IBuildingClient
         var tribe = await ReadActiveVillageTribeAsync(cancellationToken);
         var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
         var watchtowerStatus = _lastBuildingOverviewCityStatus == CityStatus.City
-            ? await ReadWatchtowerStatusAsync(forceRefresh: true, cancellationToken)
+            ? await ReadWatchtowerStatusAsync(refreshWatchtowerStatus, cancellationToken)
             : null;
 
         return new VillageStatus(

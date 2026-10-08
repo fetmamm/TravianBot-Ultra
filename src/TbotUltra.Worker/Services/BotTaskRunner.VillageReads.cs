@@ -476,7 +476,9 @@ public sealed partial class BotTaskRunner
                 log($"Reading buildings status for server {options.ServerName}.");
                 await client.LoginAsync(cancellationToken);
                 await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken);
-                status = await client.ReadBuildingsStatusAsync(cancellationToken);
+                status = await client.ReadBuildingsStatusAsync(
+                    refreshWatchtowerStatus: true,
+                    cancellationToken);
             });
 
         return status ?? throw new InvalidOperationException("Could not read buildings status.");

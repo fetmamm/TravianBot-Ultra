@@ -149,7 +149,7 @@ A persisted Watchtower or Waterworks task whose current verified City rules do n
 _Avoid_: Deleted invalid task, retrying invalid task, program-wide block
 
 **Watchtower Status Refresh**:
-A per-village, demand-driven read of the wall page used to cache Watchtower level and its independent queue. Refresh when Watchtower work is queued or due, its cached deadline expires, the user explicitly loads building details, or a City is discovered for the first time; Cities without Watchtower work must not cause repeated wall-page navigation.
+A per-village, demand-driven read of the wall page used to persist Watchtower level and its independent queue per account and world. Read when no persisted snapshot exists for a confirmed City, when Watchtower work is queued or due, or when the user explicitly loads building details; generic startup/status reads reuse the persisted snapshot without age-based refresh.
 _Avoid_: Every-scan wall visit, Dorf2-derived Watchtower timer
 
 **Watchtower Target**:

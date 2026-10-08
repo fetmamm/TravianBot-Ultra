@@ -11,6 +11,6 @@
 
 ## Consequences
 
-- Wall-page reads are demand-driven: first confirmed City discovery, explicit Buildings load, queued/active Watchtower work, or expired cache.
+- Wall-page reads are demand-driven: the first confirmed City read without a persisted Watchtower snapshot, explicit Buildings load, or queued/active Watchtower work. A successful level read persists per account/world/village and generic startup/status reads reuse it without age-based refresh.
 - Watchtower targets are supported manually and in building templates, but excluded from generic “Upgrade all to max”.
 - Non-capital Cities may upgrade resource fields to level 12.

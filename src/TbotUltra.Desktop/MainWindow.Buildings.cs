@@ -588,23 +588,20 @@ public partial class MainWindow
 
     private void ShowWatchtowerTarget(BuildingSlotRow wallRow)
     {
-        var status = ResolveSelectedVillageBuildingStatus();
-        var watchtower = status?.WatchtowerStatus;
-        if (status is null
-            || status.CityCapability != CityCapability.Enabled
-            || status.CityStatus != CityStatus.City
-            || watchtower is null)
+        if (wallRow.WatchtowerUpgradeBaseLevel is not int currentLevel)
         {
-            BuildingsInfoTextBlock.Text = "Watchtowers require a confirmed Cities server, City and existing wall. Load buildings to refresh the status.";
+            BuildingsInfoTextBlock.Text = "Watchtower level is unavailable. Load buildings to refresh the status.";
+            AppendLog("[watchtower-ui] Upgrade target unavailable: the selected wall has no confirmed Watchtower level.");
             return;
         }
 
-        var currentLevel = watchtower.ProjectedLevel;
         if (currentLevel >= 20)
         {
             BuildingsInfoTextBlock.Text = "Watchtowers are already max level (20).";
             return;
         }
+
+        AppendLog($"[watchtower-ui] Opening upgrade target for slot {wallRow.SlotId}: current projected level {currentLevel}.");
 
         var targetRow = new BuildingSlotRow
         {

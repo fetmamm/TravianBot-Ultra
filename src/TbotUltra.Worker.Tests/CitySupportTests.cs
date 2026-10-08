@@ -82,6 +82,55 @@ public sealed class CitySupportTests
         Assert.Contains("City", reason);
     }
 
+    [Fact]
+    public void GenericVillageReads_DoNotForceWatchtowerWallRefresh()
+    {
+        var root = FindProjectRoot();
+        var buildingsSource = File.ReadAllText(Path.Combine(
+            root,
+            "src",
+            "TbotUltra.Worker",
+            "Services",
+            "Automation",
+            "Buildings",
+            "TravianClient.Buildings.cs"));
+        var runnerSource = File.ReadAllText(Path.Combine(
+            root,
+            "src",
+            "TbotUltra.Worker",
+            "Services",
+            "BotTaskRunner.VillageReads.cs"));
+
+        Assert.DoesNotContain(
+            "ReadWatchtowerStatusAsync(forceRefresh: true",
+            buildingsSource,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "ReadBuildingsStatusAsync(refreshWatchtowerStatus: false",
+            buildingsSource,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "refreshWatchtowerStatus: true",
+            runnerSource,
+            StringComparison.Ordinal);
+    }
+
     private static (int, int, int, int) ToCosts(WatchtowerCatalogLevel level) =>
         (level.Wood, level.Clay, level.Iron, level.Crop);
+
+    private static string FindProjectRoot()
+    {
+        var directory = new DirectoryInfo(AppContext.BaseDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "TbotUltra.sln")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        throw new DirectoryNotFoundException("Could not locate repository root.");
+    }
 }

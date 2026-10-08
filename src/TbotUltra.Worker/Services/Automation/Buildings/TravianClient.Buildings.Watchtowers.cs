@@ -12,8 +12,7 @@ public sealed partial class TravianClient
         var identity = await ReadCurrentVillageIdentityAsync(cancellationToken);
         if (!forceRefresh
             && identity.Key is not null
-            && _session.WatchtowerStatuses.TryGetValue(identity.Key, out var cached)
-            && IsWatchtowerCacheFresh(cached))
+            && _session.WatchtowerStatuses.TryGetValue(identity.Key, out var cached))
         {
             return cached;
         }
@@ -202,6 +201,14 @@ public sealed partial class TravianClient
         {
             _session.WatchtowerStatuses[identity.Key] = status;
             _session.WatchtowerStatusReadAt[identity.Key] = DateTimeOffset.UtcNow;
+            try
+            {
+                _watchtowerSnapshotStore.Save(_account.Name, ServerUrl, identity.Key, status);
+            }
+            catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+            {
+                Notify($"[watchtower-cache] could not persist village='{identity.Name ?? identity.Key}': {ex.Message}");
+            }
         }
     }
 
@@ -216,20 +223,4 @@ public sealed partial class TravianClient
         return Math.Max(30, shortest + 5);
     }
 
-    private static bool IsWatchtowerCacheFresh(WatchtowerStatus status)
-    {
-        var now = DateTimeOffset.UtcNow;
-        if (status.Active.Count == 0)
-        {
-            return now - status.ObservedAtUtc < TimeSpan.FromMinutes(15);
-        }
-
-        var nextFinish = status.Active
-            .Select(item => item.Finish?.FinishUtc)
-            .Where(finish => finish.HasValue)
-            .Select(finish => finish!.Value)
-            .DefaultIfEmpty(status.ObservedAtUtc.AddMinutes(1))
-            .Min();
-        return now < nextFinish.AddSeconds(5);
-    }
 }

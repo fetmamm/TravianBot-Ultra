@@ -30,18 +30,19 @@ public sealed class WindowSmokeTests
     {
         _wpf.Run(() =>
         {
+            var wall = new BuildingSlotRow
+            {
+                SlotId = 40,
+                Name = "Stone Wall",
+                Level = 20,
+                Gid = 31,
+                IsWallSlot = true,
+                WatchtowerLevel = 6,
+                WatchtowerProjectedLevel = 7,
+                CanQueueWatchtowers = true,
+            };
             var window = new BuildingSlotActionsWindow(
-                new BuildingSlotRow
-                {
-                    SlotId = 40,
-                    Name = "Stone Wall",
-                    Level = 20,
-                    Gid = 31,
-                    IsWallSlot = true,
-                    WatchtowerLevel = 6,
-                    WatchtowerProjectedLevel = 6,
-                    CanQueueWatchtowers = true,
-                },
+                wall,
                 canDemolish: false,
                 demolishRequirementText: string.Empty);
             try
@@ -50,6 +51,51 @@ public sealed class WindowSmokeTests
                 Assert.Equal(Visibility.Visible, button.Visibility);
                 Assert.True(button.IsEnabled);
                 Assert.Equal("Upgrade watchtowers...", button.Content);
+
+                Assert.Equal(7, wall.WatchtowerUpgradeBaseLevel);
+                window.ShowInTaskbar = false;
+                window.Opacity = 0;
+                window.Loaded += (_, _) => button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.True(window.ShowDialog());
+                Assert.Equal(BuildingSlotAction.UpgradeWatchtowers, window.SelectedAction);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void BuildingUpgradeTargetWindow_ShowsWatchtowerLevelsAndEstimate()
+    {
+        _wpf.Run(() =>
+        {
+            var wall = new BuildingSlotRow
+            {
+                SlotId = 40,
+                Name = "Stone Wall",
+                Level = 20,
+                IsWallSlot = true,
+                WatchtowerLevel = 18,
+                WatchtowerProjectedLevel = 19,
+                CanQueueWatchtowers = true,
+            };
+            var baseLevel = Assert.IsType<int>(wall.WatchtowerUpgradeBaseLevel);
+            var targetRow = new BuildingSlotRow { SlotId = 40, Name = "Watchtowers", Level = baseLevel };
+            var window = new BuildingUpgradeTargetWindow(
+                targetRow,
+                20,
+                level => new BuildingNextLevelEstimate(level, 60, "1m", "100", "200", "300", "400"));
+            try
+            {
+                var levels = Assert.IsType<ComboBox>(window.FindName("TargetLevelComboBox"));
+                Assert.Equal(20, Assert.Single(levels.Items));
+                Assert.Equal(20, levels.SelectedItem);
+                Assert.Equal("Upgrade Watchtowers", Assert.IsType<TextBlock>(window.FindName("TitleTextBlock")).Text);
+                Assert.Equal("1m", Assert.IsType<TextBlock>(window.FindName("TimeTextBlock")).Text);
+                Assert.Equal("100", Assert.IsType<TextBlock>(window.FindName("WoodTextBlock")).Text);
+                Assert.Equal(Visibility.Visible, Assert.IsType<Border>(window.FindName("EstimateBorder")).Visibility);
             }
             finally
             {

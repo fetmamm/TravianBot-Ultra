@@ -722,6 +722,7 @@ public sealed partial class BotTaskRunner
         else
         {
             SeedStableAccountSignals(_sharedVisibleSessionCache, account, options, log);
+            SeedWatchtowerStatuses(_sharedVisibleSessionCache, account, options, log);
         }
 
         await _sharedVisibleSession!.SetDetailedBrowserLoggingAsync(
@@ -889,7 +890,35 @@ public sealed partial class BotTaskRunner
     {
         var sessionCache = new TravianSessionCache();
         SeedStableAccountSignals(sessionCache, account, options, log);
+        SeedWatchtowerStatuses(sessionCache, account, options, log);
         return sessionCache;
+    }
+
+    private void SeedWatchtowerStatuses(
+        TravianSessionCache sessionCache,
+        AccountOptions account,
+        BotOptions options,
+        Action<string> log)
+    {
+        if (sessionCache.WatchtowerSnapshotsSeeded)
+        {
+            return;
+        }
+
+        sessionCache.WatchtowerSnapshotsSeeded = true;
+        var store = new WatchtowerSnapshotStore(_projectContext.RootPath, log);
+        if (!store.TryLoad(account.Name, options.BaseUrl, out var statuses) || statuses.Count == 0)
+        {
+            return;
+        }
+
+        foreach (var pair in statuses)
+        {
+            sessionCache.WatchtowerStatuses[pair.Key] = pair.Value;
+            sessionCache.WatchtowerStatusReadAt[pair.Key] = pair.Value.ObservedAtUtc;
+        }
+
+        log($"[cache] watchtower status ({statuses.Count}) loaded for '{account.Name}'.");
     }
 
     private void SeedStableAccountSignals(
