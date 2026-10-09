@@ -8,7 +8,6 @@ using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
 using System.Windows.Data;
-using System.Windows.Input;
 using System.Windows.Media;
 using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
@@ -37,6 +36,7 @@ public partial class MainWindow
         }
 
         var orderedNames = LoadConfiguredContinuousLoopGroupOrder();
+        _continuousLoopGroupOrder = orderedNames;
         var visibleGroups = storedPreferences.VisibleGroups
             ?? LoadConfiguredDashboardVisibleGroups();
         BackfillTownHallVisibleGroupIfNew(visibleGroups);
@@ -744,10 +744,6 @@ public partial class MainWindow
                 .Select(item => item.TaskName)
                 .Where(name => !string.IsNullOrWhiteSpace(name))
                 .ToList();
-            var orderedGroupNames = _automationLoopTasks
-                .Select(item => item.TaskName)
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .ToList();
             var visibleGroupNames = _automationLoopTasks
                 .Where(item => item.IsVisible)
                 .Select(item => item.TaskName)
@@ -758,7 +754,6 @@ public partial class MainWindow
 
             var config = _botConfigStore.Load();
             config["continuous_loop_groups"] = new JsonArray(enabledGroupNames.Select(name => JsonValue.Create(name)!).ToArray());
-            config[ContinuousLoopGroupOrderConfigKey] = new JsonArray(orderedGroupNames.Select(name => JsonValue.Create(name)!).ToArray());
             config[DashboardVisibleGroupsConfigKey] = new JsonArray(visibleGroupNames.Select(name => JsonValue.Create(name)!).ToArray());
 
             var existingLoopTasks = config["loop_tasks"] as JsonArray ?? new JsonArray();
@@ -818,57 +813,15 @@ public partial class MainWindow
         try
         {
             var config = _botConfigStore.Load();
-            var configuredOrder = (config[ContinuousLoopGroupOrderConfigKey] as JsonArray ?? new JsonArray())
-                .Select(node => node?.ToString())
-                .Where(name => !string.IsNullOrWhiteSpace(name))
-                .Select(name => name!.Trim())
-                .Where(name => QueueGroupCatalog.TryParse(name, out var group) && group != QueueGroup.Account)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
+            return VillageTaskPriorityOrder.Resolve((config[ContinuousLoopGroupOrderConfigKey] as JsonArray ?? new JsonArray())
+                    .Select(node => node?.ToString() ?? string.Empty))
                 .ToList();
-
-            foreach (var groupKey in GetDefaultContinuousLoopGroupOrder())
-            {
-                if (!configuredOrder.Contains(groupKey, StringComparer.OrdinalIgnoreCase))
-                {
-                    configuredOrder.Add(groupKey);
-                }
-            }
-
-            return configuredOrder;
         }
-        catch
+        catch (Exception ex)
         {
-            return GetDefaultContinuousLoopGroupOrder();
+            AppendLog($"[task-priority] Could not load saved order; using default: {ex.Message}");
+            return VillageTaskPriorityOrder.DefaultKeys.ToList();
         }
-    }
-
-    private static List<string> GetDefaultContinuousLoopGroupOrder()
-    {
-        // Explicit default priority order shown on the dashboard automation loop:
-        // 1 Auto celebration, 2 Hero, then the remaining groups in their existing relative
-        // order, with NPC Trade landing at position 8.
-        var explicitOrder = new[]
-        {
-            QueueGroup.BreweryCelebration,
-            QueueGroup.TownHallCelebration,
-            QueueGroup.Hero,
-            QueueGroup.Construction,
-            QueueGroup.Troops,
-            QueueGroup.Farming,
-            QueueGroup.TroopTraining,
-            QueueGroup.ResourceTransfer,
-            QueueGroup.NpcTrade,
-            QueueGroup.Reinforcements,
-        };
-
-        return explicitOrder
-            .Select(QueueGroupCatalog.GetKey)
-            // Append any group not covered above (defensive against future additions).
-            .Concat(QueueGroupCatalog.AllGroups
-                .Where(group => group != QueueGroup.Account && !explicitOrder.Contains(group))
-                .Select(QueueGroupCatalog.GetKey))
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
     }
 
     private static string NormalizeLegacyLoopTaskName(string? taskName)
@@ -1164,88 +1117,4 @@ public partial class MainWindow
         });
     }
 
-    private void AutomationLoopListBox_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        _automationLoopDragStart = e.GetPosition(AutomationLoopListBox);
-        _automationLoopDragSource = FindAutomationLoopTask(e.OriginalSource as DependencyObject);
-    }
-
-    private void AutomationLoopListBox_PreviewMouseMove(object sender, MouseEventArgs e)
-    {
-        if (e.LeftButton != MouseButtonState.Pressed || _automationLoopDragSource is null)
-        {
-            return;
-        }
-
-        var position = e.GetPosition(AutomationLoopListBox);
-        var delta = position - _automationLoopDragStart;
-        if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance
-            && Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
-        {
-            return;
-        }
-
-        DragDrop.DoDragDrop(AutomationLoopListBox, _automationLoopDragSource, DragDropEffects.Move);
-    }
-
-    private void AutomationLoopListBox_DragOver(object sender, DragEventArgs e)
-    {
-        e.Effects = e.Data.GetDataPresent(typeof(LoopTaskOption))
-            ? DragDropEffects.Move
-            : DragDropEffects.None;
-        e.Handled = true;
-    }
-
-    private void AutomationLoopListBox_Drop(object sender, DragEventArgs e)
-    {
-        if (!e.Data.GetDataPresent(typeof(LoopTaskOption)))
-        {
-            return;
-        }
-
-        if (e.Data.GetData(typeof(LoopTaskOption)) is not LoopTaskOption sourceOption)
-        {
-            return;
-        }
-
-        var targetOption = FindAutomationLoopTask(e.OriginalSource as DependencyObject);
-        var fromIndex = _automationLoopTasks.IndexOf(sourceOption);
-        if (fromIndex < 0)
-        {
-            return;
-        }
-
-        var toIndex = targetOption is null
-            ? _automationLoopTasks.Count - 1
-            : _automationLoopTasks.IndexOf(targetOption);
-        if (toIndex < 0)
-        {
-            toIndex = _automationLoopTasks.Count - 1;
-        }
-
-        if (fromIndex == toIndex)
-        {
-            return;
-        }
-
-        _automationLoopTasks.Move(fromIndex, toIndex);
-        _automationLoopViewModel.UpdateVisibleOrders();
-        RefreshAutomationLoopDashboardUi();
-        PersistAutomationLoopTasksToConfig();
-    }
-
-    private LoopTaskOption? FindAutomationLoopTask(DependencyObject? source)
-    {
-        while (source is not null)
-        {
-            if (source is FrameworkElement { DataContext: LoopTaskOption option })
-            {
-                return option;
-            }
-
-            source = VisualTreeHelper.GetParent(source);
-        }
-
-        return null;
-    }
 }

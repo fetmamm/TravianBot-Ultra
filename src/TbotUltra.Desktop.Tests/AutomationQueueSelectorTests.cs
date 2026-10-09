@@ -34,6 +34,51 @@ public sealed class AutomationQueueSelectorTests
     }
 
     [Fact]
+    public void Select_SavedGroupOrderChoosesFirstReadyGroupWithinVillage()
+    {
+        var construction = Candidate("upgrade_building_to_level", "a");
+        var training = Candidate("build_troops", "a", group: QueueGroup.TroopTraining);
+
+        var input = new AutomationQueueSelectionInput(
+            [construction, training], [QueueGroup.TroopTraining, QueueGroup.Construction],
+            new VillageBatchSnapshot("a", 1), "a", Now, 30, Preview: false);
+        var result = AutomationQueueSelector.Select(input,
+            (items, now, _) => ContinuousLoopSelector.SelectReadyGroupHead(items, now));
+
+        Assert.Same(training.Item, result.Selected);
+    }
+
+    [Fact]
+    public void Select_HigherGroupThatIsNotReadyDoesNotBlockNextGroup()
+    {
+        var construction = Candidate("upgrade_building_to_level", "a");
+        var training = Candidate("build_troops", "a", nextAttemptAt: Now.AddMinutes(5), group: QueueGroup.TroopTraining);
+
+        var input = new AutomationQueueSelectionInput(
+            [construction, training], [QueueGroup.TroopTraining, QueueGroup.Construction],
+            new VillageBatchSnapshot("a", 1), "a", Now, 30, Preview: false);
+        var result = AutomationQueueSelector.Select(input,
+            (items, now, _) => ContinuousLoopSelector.SelectReadyGroupHead(items, now));
+
+        Assert.Same(construction.Item, result.Selected);
+    }
+
+    [Fact]
+    public void Select_HigherGroupInAnotherVillageDoesNotInterruptReadyCurrentVillage()
+    {
+        var construction = Candidate("upgrade_building_to_level", "a");
+        var training = Candidate("build_troops", "b", group: QueueGroup.TroopTraining);
+
+        var input = new AutomationQueueSelectionInput(
+            [construction, training], [QueueGroup.TroopTraining, QueueGroup.Construction],
+            new VillageBatchSnapshot("a", 1), "a", Now, 30, Preview: false);
+        var result = AutomationQueueSelector.Select(input,
+            (items, now, _) => ContinuousLoopSelector.SelectReadyGroupHead(items, now));
+
+        Assert.Same(construction.Item, result.Selected);
+    }
+
+    [Fact]
     public void Select_DoesNotRotateAwayFromReadyCurrentVillageAfterManyAttempts()
     {
         var current = Candidate("current", "a");

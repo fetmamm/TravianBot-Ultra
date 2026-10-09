@@ -149,6 +149,7 @@ public partial class MainWindow : Window
     // existing code-behind that mutates the collection in place keeps working.
     private ObservableCollection<LoopTaskOption> _automationLoopTasks => _automationLoopViewModel.Tasks;
     private ICollectionView? _automationLoopTasksView;
+    private IReadOnlyList<string> _continuousLoopGroupOrder = VillageTaskPriorityOrder.DefaultKeys;
     // Resource Transfer villages now live on ResourceTransferViewModel; this
     // delegates so existing code-behind that mutates the collection in place
     // (scan/persist/payload) keeps working unchanged.
@@ -334,8 +335,6 @@ public partial class MainWindow : Window
     private bool _logDragSelecting;
     private int _logDragAnchorIndex = -1;
     private ListBox? _logDragSourceList;
-    private Point _automationLoopDragStart;
-    private LoopTaskOption? _automationLoopDragSource;
     private bool _suppressAutomationLoopConfigWrite;
     private bool _suppressFarmListUiRefresh;
     private bool _suppressFarmingSettingsConfigWrite;

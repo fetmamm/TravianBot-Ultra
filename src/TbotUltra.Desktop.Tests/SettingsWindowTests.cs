@@ -128,6 +128,94 @@ public sealed class SettingsWindowTests : IDisposable
     }
 
     [Fact]
+    public void GeneralCategory_TaskPriorityIsDraftedUntilSaveAndCanReset()
+    {
+        _wpf.Run(() =>
+        {
+            var store = CreateStore(new JsonObject());
+            var window = new SettingsWindow(
+                store,
+                initialCategory: SettingsCategory.General,
+                taskPriorityEnabledGroups: ["construction"]);
+            try
+            {
+                ShowWindowForTest(window);
+                DrainDispatcher();
+                Assert.IsType<ItemsControl>(window.FindName("TaskPriorityList"));
+                var rows = window.SettingsVm.TaskPriority.Rows;
+                Assert.Equal("hero", rows[0].Key);
+                Assert.False(rows[0].IsAutomationEnabled);
+                Assert.True(rows[1].IsAutomationEnabled);
+
+                window.SettingsVm.TaskPriority.MoveUpCommand.Execute(rows[1]);
+                Assert.Equal("construction", rows[0].Key);
+                Assert.True(window.SettingsVm.IsDirty);
+                Assert.Null(store.Load()["continuous_loop_group_order"]);
+
+                Assert.True(window.TryBuildNormalizedConfigDraft(out var draft));
+                Assert.Equal("construction", draft["continuous_loop_group_order"]![0]!.ToString());
+
+                window.SettingsVm.TaskPriority.ResetToDefault();
+                Assert.Equal("hero", rows[0].Key);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void GeneralCategory_SavesTaskPriorityForOnlyActiveAccount()
+    {
+        _wpf.Run(() =>
+        {
+            Directory.CreateDirectory(_root);
+            var configPath = Path.Combine(_root, "bot.json");
+            File.WriteAllText(configPath, new JsonObject().ToJsonString());
+            var activeAccount = "alice";
+            var store = new BotConfigStore(configPath, _root, () => activeAccount);
+            var window = new SettingsWindow(store, taskPriorityEnabledGroups: ["construction"])
+            {
+                ShowInTaskbar = false,
+                Opacity = 0,
+            };
+            window.ContentRendered += (_, _) =>
+            {
+                window.SettingsVm.TaskPriority.MoveUpCommand.Execute(window.SettingsVm.TaskPriority.Rows[1]);
+                window.SettingsVm.SaveCommand.Execute(null);
+            };
+
+            Assert.True(window.ShowDialog());
+            Assert.Equal("construction", store.Load()["continuous_loop_group_order"]![0]!.ToString());
+            activeAccount = "bob";
+            Assert.Null(store.Load()["continuous_loop_group_order"]);
+        });
+    }
+
+    [Fact]
+    public void GeneralCategory_WithoutAccountDoesNotWriteGlobalTaskPriority()
+    {
+        _wpf.Run(() =>
+        {
+            var store = CreateStore(new JsonObject());
+            var window = new SettingsWindow(store, taskPriorityAccountAvailable: false);
+            try
+            {
+                ShowWindowForTest(window);
+                DrainDispatcher();
+                Assert.False(window.SettingsVm.TaskPriority.IsEditable);
+                Assert.True(window.TryBuildNormalizedConfigDraft(out var draft));
+                Assert.Null(draft["continuous_loop_group_order"]);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void PacingCategory_LoadsIdleDorf2ParkingSettingAndTooltip()
     {
         _wpf.Run(() =>

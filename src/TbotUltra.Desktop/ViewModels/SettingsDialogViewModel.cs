@@ -76,6 +76,8 @@ public sealed class SettingsDialogViewModel : BaseViewModel
 
     public PacingSettingsViewModel Pacing { get; } = new();
 
+    public VillageTaskPriorityViewModel TaskPriority { get; } = new();
+
     public ConstructionSettingsViewModel Construction { get; } = new();
 
     public FarmingSettingsViewModel Farming { get; } = new();

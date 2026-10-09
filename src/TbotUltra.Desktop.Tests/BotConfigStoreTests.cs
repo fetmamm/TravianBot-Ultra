@@ -75,6 +75,7 @@ public sealed class BotConfigStoreTests : IDisposable
             BotOptionPayloadKeys.ConstructionStorageUpgradeLevelsAhead,
             BotOptionPayloadKeys.ConstructionRomanPriority,
             BotOptionPayloadKeys.HeroAdventureVideoChancePercent,
+            "continuous_loop_group_order",
         };
 
         foreach (var key in requiredKeys)
@@ -207,6 +208,30 @@ public sealed class BotConfigStoreTests : IDisposable
         Assert.Equal(
             "fighting_strength,resources,offence_bonus,defence_bonus",
             store.Load()[BotOptionPayloadKeys.HeroStatPriority]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void TaskPriorityOrder_IsAccountScopedAndLegacyGlobalOrderMigratesOnlyToActiveAccount()
+    {
+        WriteJson(_configPath, new JsonObject
+        {
+            ["continuous_loop_group_order"] = new JsonArray("construction", "hero"),
+        });
+        var store = CreateStore();
+
+        Assert.Equal("construction", store.Load()["continuous_loop_group_order"]![0]!.ToString());
+        Assert.False(store.LoadGlobal().ContainsKey("continuous_loop_group_order"));
+
+        _activeAccount = "bob";
+        Assert.Null(store.Load()["continuous_loop_group_order"]);
+        var bob = store.Load();
+        bob["continuous_loop_group_order"] = new JsonArray("hero", "construction");
+        store.Save(bob);
+
+        _activeAccount = "alice";
+        Assert.Equal("construction", store.Load()["continuous_loop_group_order"]![0]!.ToString());
+        _activeAccount = "bob";
+        Assert.Equal("hero", store.Load()["continuous_loop_group_order"]![0]!.ToString());
     }
 
     [Fact]

@@ -97,6 +97,11 @@ Published artifacts belong under `artifacts/`, never beside source files.
   village-scoped; runtime snapshots are Worker-owned observations, not user configuration.
 - Per-village automation-group toggles have one persisted authority. Every write must immediately synchronize
   the matching Dashboard card and Village settings row; neither view may retain a private toggle state.
+- Village task priority is an account-scoped order edited only in Settings > General. Dashboard displays the
+  same relative group order but never writes it; toggle changes must not overwrite it. Selection applies the
+  order within each village, skips groups that are not ready, and preserves urgent/manual-immediate work and
+  each group's own queue order. An untouched legacy Dashboard order resolves to the new default, while a
+  customized legacy order stays intact.
 - `BotOptionsFactory` and `BotOptionsPayloadApplier` are public orchestration facades. Domain option modules own
   their defaults, compatibility normalization, payload overlay, and projection to the flat `BotOptions` record;
   do not duplicate a domain rule in either facade. Domain modules also declare their account-scoped keys, which

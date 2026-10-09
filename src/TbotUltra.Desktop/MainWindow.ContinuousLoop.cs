@@ -921,23 +921,31 @@ public partial class MainWindow
 
         // Account is a queue category, not a user-configurable automation group. Keep it permanently
         // considered even when every village toggle group is disabled.
-        var ordered = new List<QueueGroup> { QueueGroup.Account };
-        ordered.AddRange(GetContinuousLoopEnabledGroupsInOrder());
-        var seen = ordered.ToHashSet();
+        var enabled = GetContinuousLoopEnabledGroupsInOrder().ToHashSet();
+        // NPC Trade has no Dashboard toggle, but queued NPC work still follows the saved group order.
+        enabled.Add(QueueGroup.NpcTrade);
 
         foreach (var (_, enabledGroups) in _villageSettingsStore.GetEnabledVillagesGroups())
         {
             foreach (var key in enabledGroups ?? VillageSettingsStore.DefaultEnabledGroups)
             {
                 if (QueueGroupCatalog.TryParse(key, out var group)
-                    && group != QueueGroup.Account
-                    && seen.Add(group))
+                    && group != QueueGroup.Account)
                 {
-                    ordered.Add(group);
+                    enabled.Add(group);
                 }
             }
         }
 
+        var ordered = new List<QueueGroup> { QueueGroup.Account };
+        foreach (var key in _continuousLoopGroupOrder)
+        {
+            if (QueueGroupCatalog.TryParse(key, out var group) && enabled.Remove(group))
+            {
+                ordered.Add(group);
+            }
+        }
+        ordered.AddRange(enabled.OrderBy(group => group));
         return ordered;
     }
 

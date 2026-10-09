@@ -47,6 +47,7 @@ public partial class SettingsWindow : Window
     private readonly Func<DateTimeOffset>? _continuousKeepAliveNextReloadProvider;
     private readonly Func<Task>? _runVillageStatusSweepNow;
     private readonly bool _newAccountAnalysisCompleted;
+    private readonly IReadOnlyCollection<string>? _taskPriorityEnabledGroups;
     private readonly DispatcherTimer _villageStatusSweepTimer;
 
     public SettingsDialogViewModel SettingsVm { get; }
@@ -73,7 +74,9 @@ public partial class SettingsWindow : Window
         Func<Task>? runVillageStatusSweepNow = null,
         bool newAccountAnalysisCompleted = false,
         IReadOnlyList<HeroCropAntiStarveVillageRow>? heroCropAntiStarveVillages = null,
-        string? projectRoot = null)
+        string? projectRoot = null,
+        IReadOnlyCollection<string>? taskPriorityEnabledGroups = null,
+        bool taskPriorityAccountAvailable = true)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
@@ -88,11 +91,13 @@ public partial class SettingsWindow : Window
         _continuousKeepAliveNextReloadProvider = continuousKeepAliveNextReloadProvider;
         _runVillageStatusSweepNow = runVillageStatusSweepNow;
         _newAccountAnalysisCompleted = newAccountAnalysisCompleted;
+        _taskPriorityEnabledGroups = taskPriorityEnabledGroups;
         SettingsVm = new SettingsDialogViewModel(
             sleepNowEnabled: !_sessionSleeping,
             villageStatusSweepEnabled: _runVillageStatusSweepNow is not null,
             dailyGoldSpendingResetEnabled: _resetDailyGoldSpending is not null,
             dailySilverSpendingResetEnabled: _resetDailySilverSpending is not null);
+        SettingsVm.TaskPriority.IsEditable = taskPriorityAccountAvailable;
         SettingsVm.DailyGoldSpent = dailyGoldSpent;
         SettingsVm.DailySilverSpent = dailySilverSpent;
         SettingsVm.SaveRequested += SaveSettings;
@@ -103,6 +108,7 @@ public partial class SettingsWindow : Window
         SettingsVm.VillageStatusSweepNowRequested += () => _ = RunVillageStatusSweepNowAsync();
         SettingsVm.ResetDailyGoldSpendingRequested += ResetDailyGoldLimit;
         SettingsVm.ResetDailySilverSpendingRequested += ResetDailySilverLimit;
+        SettingsVm.TaskPriority.Changed += SettingsVm.MarkChanged;
         foreach (var row in townHallRows ?? [])
         {
             SettingsVm.Celebrations.TownHallRows.Add(row);
@@ -236,6 +242,10 @@ public partial class SettingsWindow : Window
         var settings = SettingsConfigurationAdapter.Load(_config);
         var options = settings.Options;
         using var suppressChanges = SettingsVm.SuppressChangeTracking();
+        SettingsVm.TaskPriority.Load(
+            (_config["continuous_loop_group_order"] as JsonArray ?? new JsonArray())
+                .Select(node => node?.ToString() ?? string.Empty),
+            _taskPriorityEnabledGroups ?? options.ContinuousLoopGroups);
         SettingsVm.DontNotifyNewVersion = settings.General.DontNotifyNewVersion;
         SettingsVm.QuickReloginEnabled = settings.General.QuickReloginEnabled;
         SettingsVm.StartBrowserMinimized = settings.General.StartBrowserMinimized;
@@ -586,13 +596,26 @@ public partial class SettingsWindow : Window
 
     // Writes the current UI values to the config store. Returns false (and shows the error) on failure so
     // callers can abort closing. Shared by Save and the "Sleep now" button.
-    private bool PersistConfig()
+    private bool PersistConfig(bool saveTaskPriority = true)
     {
         try
         {
             if (!TryBuildNormalizedConfigDraft(out var draft))
             {
                 return false;
+            }
+
+            // Sleep now commits pacing values to start the sleep, but it is not the Task priority Save action.
+            if (!saveTaskPriority)
+            {
+                if (_config.TryGetPropertyValue("continuous_loop_group_order", out var savedOrder))
+                {
+                    draft["continuous_loop_group_order"] = savedOrder?.DeepClone();
+                }
+                else
+                {
+                    draft.Remove("continuous_loop_group_order");
+                }
             }
 
             var saveResult = _settingsPersistence.Save(draft);
@@ -648,6 +671,11 @@ public partial class SettingsWindow : Window
                 dailySilverSpendingLimit),
         };
         draft = SettingsConfigurationAdapter.BuildDraft(_config, settings);
+        if (SettingsVm.TaskPriority.IsEditable)
+        {
+            draft["continuous_loop_group_order"] = new JsonArray(
+                SettingsVm.TaskPriority.OrderKeys.Select(key => JsonValue.Create(key)!).ToArray());
+        }
         return true;
     }
 
@@ -1173,7 +1201,7 @@ public partial class SettingsWindow : Window
         }
 
         // Persist first so the sleep uses the current sleep-time/variation values.
-        if (!PersistConfig())
+        if (!PersistConfig(saveTaskPriority: false))
         {
             return;
         }

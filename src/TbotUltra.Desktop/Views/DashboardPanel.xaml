@@ -56,7 +56,7 @@
                                                    Text="Runs the enabled task groups in the order shown. The loop checks the queue, runs ready tasks, and waits between passes while still reacting quickly to stop or pause." />
                                         <TextBlock Margin="0,6,0,0"
                                                    TextWrapping="Wrap"
-                                                   Text="Drag items to change order. Use each switch to enable or disable a task group." />
+                                                   Text="Change task priority in Settings > General. Use each switch to enable or disable a task group." />
                                     </StackPanel>
                                 </ToolTip>
                             </Border.ToolTip>
@@ -92,11 +92,7 @@
                          SelectionMode="Single"
                          ScrollViewer.HorizontalScrollBarVisibility="Disabled"
                          ScrollViewer.VerticalScrollBarVisibility="Auto"
-                         AllowDrop="True"
-                         PreviewMouseLeftButtonDown="AutomationLoopListBox_PreviewMouseLeftButtonDown"
-                         PreviewMouseMove="AutomationLoopListBox_PreviewMouseMove"
-                         DragOver="AutomationLoopListBox_DragOver"
-                         Drop="AutomationLoopListBox_Drop">
+                         AllowDrop="False">
                     <ListBox.ItemsPanel>
                         <ItemsPanelTemplate>
                             <StackPanel Orientation="Vertical" />

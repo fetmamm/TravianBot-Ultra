@@ -1,6 +1,5 @@
 using System.Windows;
 using System.Windows.Controls;
-using System.Windows.Input;
 using System.Windows.Shapes;
 
 namespace TbotUltra.Desktop;
@@ -28,10 +27,6 @@ public partial class MainWindow
     }
     internal void OnDashboardClearTimersClicked(object sender, RoutedEventArgs e) => DashboardClearTimersButton_Click(sender, e);
     internal void OnAutomationLoopToggleClicked(object sender, RoutedEventArgs e) => AutomationLoopToggleButton_Click(sender, e);
-    internal void OnAutomationLoopPreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e) => AutomationLoopListBox_PreviewMouseLeftButtonDown(sender, e);
-    internal void OnAutomationLoopPreviewMouseMove(object sender, MouseEventArgs e) => AutomationLoopListBox_PreviewMouseMove(sender, e);
-    internal void OnAutomationLoopDragOver(object sender, DragEventArgs e) => AutomationLoopListBox_DragOver(sender, e);
-    internal void OnAutomationLoopDrop(object sender, DragEventArgs e) => AutomationLoopListBox_Drop(sender, e);
     internal void OnAutoCollectTasksSettingChanged(object sender, RoutedEventArgs e) => AutoCollectTasksSetting_Changed(sender, e);
     internal void OnAutoCollectDailyQuestsSettingChanged(object sender, RoutedEventArgs e) => AutoCollectDailyQuestsSetting_Changed(sender, e);
     internal void OnGoldSpendingSettingsClicked(object sender, RoutedEventArgs e) => GoldSpendingSettingsButton_Click(sender, e);
