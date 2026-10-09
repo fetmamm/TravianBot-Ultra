@@ -59,10 +59,12 @@ Published artifacts belong under `artifacts/`, never beside source files.
   server-added parameters may be extra. Never identify all `/build.php` URLs as the same slot.
 - Common paths are `/dorf1.php`, `/dorf2.php`, `/build.php?id={slot}`, `/karte.php`, `/berichte.php`, and
   `/messages.php`.
-- Enter a resource field through the Dorf1 overview and a building through Dorf2; use their visible
-  links and the slot's live click target, not a typed `build.php` URL. Reuse an already valid target
-  page. Construction affordability may read stock and capacity on the current page; visit Dorf1
-  only when production is needed to resolve a resource shortfall or the visible stock is incomplete.
+- Enter a resource field through the Dorf1 overview and a building through Dorf2; prefer their visible
+  links and the slot's live click target. If the exact slot remains visible but no click target is
+  actionable, a direct `build.php` URL is an alarmed compatibility fallback; never use it when the slot
+  itself is absent. Reuse an already valid target page. Construction affordability may read stock and
+  capacity on the current page; visit Dorf1 only when production is needed to resolve a resource
+  shortfall or the visible stock is incomplete.
 - Scope selectors to the relevant Official page, widget, dialog, row, or building contract.
 - Before treating the Official sidebar village list as complete or resolving a village switch target from it,
   expand every collapsed village group with its scoped group action and verify the rendered expanded state.
@@ -144,8 +146,11 @@ Published artifacts belong under `artifacts/`, never beside source files.
   against each real target village when queueing. For buildings that allow multiple instances, ascending Auto rows
   continue the most recent compatible instance while an equal or lower target starts another instance; repeated
   explicit slots remain the same instance. Conditional duplicates may use an earlier row's projected max-level
-  upgrade to satisfy their duplicate threshold. The Official internal-building set is Warehouse, Granary, Cranny,
-  Great Warehouse, and Great Granary; the Great variants remain unavailable until their plan/WW eligibility can be
+  upgrade to satisfy their duplicate threshold. Automatic prerequisite repair must prefer the slot reserved by a
+  pending matching upgrade and must not steal the parent construct's slot; an actually occupied target may use the
+  existing safe fallback with dependent queue rows rebound to the effective slot. The Official internal-building
+  set is Warehouse, Granary, Cranny, Great Warehouse, and Great Granary; the Great variants remain unavailable until
+  their plan/WW eligibility can be
   verified without guessing. Multi-village template queueing never navigates to fill missing
   snapshots; unavailable targets remain unselected, existing active village queue work is projected first, storage
   additions are confirmed once across all selected villages, and the final cross-village insert is atomic.

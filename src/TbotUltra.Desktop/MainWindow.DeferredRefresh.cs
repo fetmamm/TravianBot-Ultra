@@ -847,12 +847,39 @@ public partial class MainWindow
         await Dispatcher.InvokeAsync(() => RefreshQueueUi());
     }
 
-    // Post-defer construction refresh: the build task just reloaded dorf2, so read storage + build
-    // queue from the CURRENT page (no navigation) and merge the construction data into the caches.
-    // The old full-status refresh navigated dorf1+dorf2 for data a building mutation never changes
-    // (resource fields/production). Falls back to the full read only when the quick read fails.
-    private async Task RefreshConstructionStatusAfterDeferAsync(CancellationToken cancellationToken)
+    // A deferred construct can already have queued level 1 before waiting for another level.
+    // On Dorf2, refresh the complete building overview so the Buildings tab follows that mutation;
+    // on other pages retain the cheap current-page storage/queue read.
+    private async Task RefreshConstructionStatusAfterDeferAsync(QueueItem item, CancellationToken cancellationToken)
     {
+        if (IsBuildingMutationTask(item.TaskName))
+        {
+            try
+            {
+                var options = AutomationExecutionOptions.WithoutImplicitVillageTarget(LoadBotOptions());
+                var currentDorf2Status = await _botService.ReadCurrentBuildingOverviewStatusAsync(
+                    options,
+                    AppendLog,
+                    cancellationToken);
+                await RefreshConstructionStatusAfterBuildingMutationAsync(item, cancellationToken, currentDorf2Status);
+                return;
+            }
+            catch (InvalidOperationException ex) when (ex.Message.Contains("not a fresh Dorf2 building overview", StringComparison.OrdinalIgnoreCase))
+            {
+                AppendLog("[construction-refresh] deferred task is not on Dorf2; refreshing current-page queue only.");
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                AppendLog($"[construction-refresh] deferred Dorf2 building read failed ({ex.Message}); falling back to full status.");
+                await RefreshConstructionStatusAsync(cancellationToken, ConstructionStatusObservationOrigin.PostDeferredAttempt);
+                return;
+            }
+        }
+
         try
         {
             var options = AutomationExecutionOptions.WithoutImplicitVillageTarget(LoadBotOptions());

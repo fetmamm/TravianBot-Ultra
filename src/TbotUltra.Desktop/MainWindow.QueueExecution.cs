@@ -14,7 +14,8 @@ public partial class MainWindow
 {
     private async Task<(bool BuildingsStatusRead, bool StorageStatusRead)> RefreshConstructionStatusAfterBuildingMutationAsync(
         QueueItem item,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        VillageStatus? currentDorf2Status = null)
     {
         // A confirmed construct/upgrade redirects to Dorf2. Reuse that already-loaded overview so the
         // next level can open directly from it instead of forcing Dorf2 -> Dorf1 -> Dorf2. The quick read
@@ -23,7 +24,7 @@ public partial class MainWindow
         try
         {
             var options = AutomationExecutionOptions.WithoutImplicitVillageTarget(LoadBotOptions());
-            var currentStatus = await _botService.ReadCurrentBuildingOverviewStatusAsync(
+            var currentStatus = currentDorf2Status ?? await _botService.ReadCurrentBuildingOverviewStatusAsync(
                 options,
                 AppendLog,
                 cancellationToken);

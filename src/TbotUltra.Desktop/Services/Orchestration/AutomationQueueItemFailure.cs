@@ -34,11 +34,12 @@ internal interface IAutomationQueueItemFailurePort
     ValueTask RefreshVillageActivityIndicatorsAsync();
     string FormatServerTime(DateTimeOffset value);
     void RebindPendingTemplateStep(QueueItem item, int effectiveSlotId);
+    void RebindPendingBuildingUpgrades(QueueItem item, int effectiveSlotId);
     ValueTask HandleStorageCapacityDependencyAsync(
         QueueItem item,
         Dictionary<string, string> payload);
     ValueTask RefreshFarmListsAfterAutoSendAsync(QueueItem item, string message);
-    ValueTask RefreshConstructionStatusAfterDeferAsync();
+    ValueTask RefreshConstructionStatusAfterDeferAsync(QueueItem item);
     ValueTask VerifyMainBuildingAfterDurationAnomalyAsync(QueueItem item);
     ValueTask HandleCropShortageDeferAsync(QueueItem item);
     ValueTask RefreshTroopTrainingAfterBuildAsync(QueueItem item);
@@ -457,6 +458,14 @@ internal sealed class AutomationQueueItemFailure(
                     }
                 }
 
+                if (string.Equals(item.TaskName, "construct_building", StringComparison.OrdinalIgnoreCase)
+                    && TryExtractPayloadInt(ex.Message, BotOptionPayloadKeys.BuildingConstructSlotId, out var confirmedEffectiveSlot))
+                {
+                    // The source item still has its original slot here. A generic defer-payload patch
+                    // may already carry the effective slot and would otherwise hide the rebind edge.
+                    port.RebindPendingBuildingUpgrades(item, confirmedEffectiveSlot);
+                }
+
                 if (payloadChanged)
                 {
                     var payloadPersisted = port.PatchDeferredPayload(item, updatedPayload);
@@ -528,7 +537,7 @@ internal sealed class AutomationQueueItemFailure(
                 {
                     try
                     {
-                        await port.RefreshConstructionStatusAfterDeferAsync();
+                        await port.RefreshConstructionStatusAfterDeferAsync(item);
                     }
                     catch (Exception refreshEx)
                     {

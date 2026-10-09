@@ -89,14 +89,17 @@ public partial class MainWindow
         public string FormatServerTime(DateTimeOffset value) => owner.FormatQueueServerTime(value);
         public void RebindPendingTemplateStep(QueueItem item, int effectiveSlotId) =>
             owner.RebindPendingBuildingTemplateStep(item, effectiveSlotId);
+        public void RebindPendingBuildingUpgrades(QueueItem item, int effectiveSlotId) =>
+            owner.RebindPendingBuildingUpgrades(item, effectiveSlotId);
         public ValueTask HandleStorageCapacityDependencyAsync(
             QueueItem item,
             Dictionary<string, string> payload) =>
             new(owner.TryHandleStorageCapacityDependencyAsync(item, payload));
         public ValueTask RefreshFarmListsAfterAutoSendAsync(QueueItem item, string message) =>
             new(owner.RefreshFarmListsUiAfterAutoSendIfNeededAsync(item, message));
-        public ValueTask RefreshConstructionStatusAfterDeferAsync() =>
+        public ValueTask RefreshConstructionStatusAfterDeferAsync(QueueItem item) =>
             new(owner.RefreshConstructionStatusAfterDeferAsync(
+                item,
                 owner._loopController.AcquireSessionScopeToken()));
         public ValueTask VerifyMainBuildingAfterDurationAnomalyAsync(QueueItem item) =>
             new(owner.VerifyMainBuildingAfterDurationAnomalyAsync(item));

@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.Services.Orchestration;
 using TbotUltra.Worker.Domain;
@@ -183,6 +184,25 @@ public sealed class AutomationQueueItemFailureTests
 
         Assert.Equal("abc123", item.Payload[BotOptionPayloadKeys.UnknownUpgradeBlockSignature]);
         Assert.Single(port.Logs, log => log.StartsWith("ALARM: Unknown Travian upgrade block", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task DeferredConstructFallback_RebindsDependentUpgradesBeforeChangingSourceSlot()
+    {
+        var port = new InMemoryPort();
+        var item = Item("construct_building");
+        item.Payload = new BuildingConstructPayload(22, 19, "Barracks", 3).ToDictionary();
+
+        await new AutomationQueueItemFailure(port).HandleAsync(
+            item,
+            new TaskWaitException(60, "construction queued building_construct_slot_id=34"),
+            "[LOOP 1]",
+            Stopwatch.StartNew(),
+            AutomationRunMode.ContinuousLoop);
+
+        Assert.Contains("rebind-upgrades:22->34", port.Trace);
+        Assert.Equal("34", item.Payload[BotOptionPayloadKeys.BuildingConstructSlotId]);
+        Assert.True(port.Trace.IndexOf("rebind-upgrades:22->34") < port.Trace.IndexOf("patch"));
     }
 
     [Fact]
@@ -418,7 +438,14 @@ public sealed class AutomationQueueItemFailureTests
             Trace.Add("farm-refresh");
             return ValueTask.CompletedTask;
         }
-        public ValueTask RefreshConstructionStatusAfterDeferAsync() => ValueTask.CompletedTask;
+        public ValueTask RefreshConstructionStatusAfterDeferAsync(QueueItem item) => ValueTask.CompletedTask;
+        public void RebindPendingBuildingUpgrades(QueueItem item, int effectiveSlotId)
+        {
+            if (BuildingConstructPayload.TryFromDictionary(item.Payload, out var construct) && construct is not null)
+            {
+                Trace.Add($"rebind-upgrades:{construct.SlotId}->{effectiveSlotId}");
+            }
+        }
         public ValueTask VerifyMainBuildingAfterDurationAnomalyAsync(QueueItem item)
         {
             Trace.Add("verify-main-building");

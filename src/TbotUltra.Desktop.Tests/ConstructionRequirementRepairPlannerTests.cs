@@ -54,6 +54,101 @@ public sealed class ConstructionRequirementRepairPlannerTests
     }
 
     [Fact]
+    public void Plan_MissingTemplatePrerequisite_UsesSlotReservedByItsPendingUpgrade()
+    {
+        var parent = QueueItem(
+            "construct_building",
+            new BuildingConstructPayload(20, 22, "Academy", 5).ToDictionary());
+        var status = CreateStatus(
+        [
+            new Building(19, "Main Building", 5, null, 15),
+            new Building(21, "Smithy", 3, null, 13),
+            new Building(39, "Rally Point", 1, null, 16),
+        ]);
+        var pendingTemplateUpgrade = QueueItem(
+            "upgrade_building_to_level",
+            new BuildingUpgradePayload(22, 12, "Barracks").ToDictionary());
+
+        var plan = ConstructionRequirementRepairPlanner.Plan(parent, status, [pendingTemplateUpgrade], Now);
+
+        Assert.Empty(plan.Blockers);
+        var step = Assert.Single(plan.Steps);
+        Assert.Equal("Barracks", step.Payload[BotOptionPayloadKeys.BuildingConstructName]);
+        Assert.Equal("22", step.Payload[BotOptionPayloadKeys.BuildingConstructSlotId]);
+    }
+
+    [Fact]
+    public void Plan_ReservedPrerequisiteSlotOccupied_PreservesSourceAndAllowsSafeFallback()
+    {
+        var parent = QueueItem(
+            "construct_building",
+            new BuildingConstructPayload(20, 22, "Academy", 5).ToDictionary());
+        var status = CreateStatus(
+        [
+            new Building(19, "Main Building", 5, null, 15),
+            new Building(21, "Smithy", 3, null, 13),
+            new Building(22, "Cranny", 1, null, 23),
+            new Building(39, "Rally Point", 1, null, 16),
+        ]);
+        var upgrade = QueueItem(
+            "upgrade_building_to_level",
+            new BuildingUpgradePayload(22, 12, "Barracks").ToDictionary());
+
+        var plan = ConstructionRequirementRepairPlanner.Plan(parent, status, [upgrade], Now);
+
+        Assert.Empty(plan.Blockers);
+        var step = Assert.Single(plan.Steps);
+        Assert.Equal("22", step.Payload[BotOptionPayloadKeys.BuildingConstructSlotId]);
+        Assert.Equal(bool.TrueString, step.Payload[BotOptionPayloadKeys.BuildingConstructAllowSlotFallback]);
+        Assert.Contains("20", step.Payload[BotOptionPayloadKeys.BuildingConstructFallbackExcludedSlots]);
+    }
+
+    [Fact]
+    public void Plan_MultipleReservedPrerequisiteSlots_DoesNotGuess()
+    {
+        var parent = QueueItem(
+            "construct_building",
+            new BuildingConstructPayload(20, 22, "Academy", 5).ToDictionary());
+        var status = CreateStatus(
+        [
+            new Building(19, "Main Building", 5, null, 15),
+            new Building(21, "Smithy", 3, null, 13),
+            new Building(39, "Rally Point", 1, null, 16),
+        ]);
+        var upgrades = new[] { 22, 34 }
+            .Select(slot => QueueItem(
+                "upgrade_building_to_level",
+                new BuildingUpgradePayload(slot, 12, "Barracks").ToDictionary()))
+            .ToList();
+
+        var plan = ConstructionRequirementRepairPlanner.Plan(parent, status, upgrades, Now);
+
+        Assert.Empty(plan.Steps);
+        Assert.Contains(plan.Blockers, reason => reason.Contains("ambiguous", StringComparison.OrdinalIgnoreCase));
+    }
+
+    [Fact]
+    public void Plan_MissingPrerequisite_DoesNotTakeParentConstructSlot()
+    {
+        var parent = QueueItem(
+            "construct_building",
+            new BuildingConstructPayload(20, 22, "Academy", 5).ToDictionary());
+        var status = CreateStatus(
+        [
+            new Building(19, "Main Building", 5, null, 15),
+            new Building(21, "Smithy", 3, null, 13),
+            new Building(39, "Rally Point", 1, null, 16),
+        ]);
+
+        var plan = ConstructionRequirementRepairPlanner.Plan(parent, status, [], Now);
+
+        Assert.Empty(plan.Blockers);
+        var step = Assert.Single(plan.Steps);
+        Assert.Equal("Barracks", step.Payload[BotOptionPayloadKeys.BuildingConstructName]);
+        Assert.NotEqual("20", step.Payload[BotOptionPayloadKeys.BuildingConstructSlotId]);
+    }
+
+    [Fact]
     public void Plan_StableWithLowAcademy_UpgradesAcademyOnly()
     {
         var parent = StableConstruct();
