@@ -6,6 +6,33 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class BuildingTemplatesWindowSourceTests
 {
     [Fact]
+    public void QueueActions_UseEditedRowsWithoutSavingTheTemplateLibrary()
+    {
+        var root = ProjectRootLocator.FindProjectRoot();
+        var code = File.ReadAllText(Path.Combine(root, "src", "TbotUltra.Desktop", "BuildingTemplatesWindow.xaml.cs"));
+        var queueStart = code.IndexOf("private void QueueTemplateButton_Click", StringComparison.Ordinal);
+        var closeStart = code.IndexOf("private void CloseButton_Click", queueStart, StringComparison.Ordinal);
+        var queueActions = code[queueStart..closeStart];
+
+        Assert.Contains("BuildTemplateRowsFromUi()", queueActions, StringComparison.Ordinal);
+        Assert.DoesNotContain("SaveAllTemplates", queueActions, StringComparison.Ordinal);
+        Assert.DoesNotContain("_store.Save", queueActions, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void SaveButton_IsEnabledOnlyForUnsavedChanges()
+    {
+        var root = ProjectRootLocator.FindProjectRoot();
+        var xaml = File.ReadAllText(Path.Combine(root, "src", "TbotUltra.Desktop", "BuildingTemplatesWindow.xaml"));
+        var saveStart = xaml.IndexOf("Content=\"Save\"", StringComparison.Ordinal);
+        var saveEnd = xaml.IndexOf("Click=\"SaveButton_Click\"", saveStart, StringComparison.Ordinal);
+        Assert.True(saveStart >= 0 && saveEnd > saveStart);
+        Assert.Contains("IsEnabled=\"{Binding HasUnsavedChanges}\"", xaml[saveStart..saveEnd], StringComparison.Ordinal);
+        var code = File.ReadAllText(Path.Combine(root, "src", "TbotUltra.Desktop", "BuildingTemplatesWindow.xaml.cs"));
+        Assert.Equal(2, code.Split("SaveAllTemplates(", StringSplitOptions.None).Length - 1);
+    }
+
+    [Fact]
     public void LoadingOverlay_CoversTheWholeWindowAndStaysUntilInitialPreviewCompletes()
     {
         var root = ProjectRootLocator.FindProjectRoot();
@@ -145,7 +172,7 @@ public sealed class BuildingTemplatesWindowSourceTests
         Assert.Contains("Header=\"All templates\"", xaml, StringComparison.Ordinal);
         Assert.Contains("Import manifest", previewXaml, StringComparison.Ordinal);
         Assert.Contains("Import as copy", previewCode, StringComparison.Ordinal);
-        Assert.Contains("SaveAllTemplates(skipValidation: true)", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("SaveAllTemplates(skipValidation: true)", code, StringComparison.Ordinal);
     }
 
     [Fact]

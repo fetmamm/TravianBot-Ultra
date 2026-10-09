@@ -49,6 +49,9 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
     private readonly Dictionary<Guid, string> _dismissedStoragePrompts = [];
     private readonly HashSet<BuildingTemplateRowView> _pendingStorageCheckRows = [];
     private bool _isApplyingStoragePrerequisites;
+    private string? _savedTemplateSnapshot;
+    private bool _hasUnsavedChanges;
+    private readonly HashSet<BuildingTemplate> _observedTemplates = [];
 
     public ObservableCollection<BuildingTemplate> Templates { get; } = [];
     public ObservableCollection<BuildingTemplateRowView> Rows { get; } = [];
@@ -76,12 +79,12 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
             if (_selectedTemplate is not null)
             {
                 _selectedTemplate.Rows = BuildTemplateRowsFromUi().ToList();
-                _selectedTemplate.UpdatedAtUtc = DateTimeOffset.UtcNow;
             }
 
             _selectedTemplate = value;
             OnPropertyChanged();
             LoadRowsFromSelectedTemplate();
+            UpdateHasUnsavedChanges();
         }
     }
 
@@ -139,6 +142,12 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
         private set => SetProperty(ref _validationSummaryText, value);
     }
 
+    public bool HasUnsavedChanges
+    {
+        get => _hasUnsavedChanges;
+        private set => SetProperty(ref _hasUnsavedChanges, value);
+    }
+
     public BuildingTemplatesWindow(
         string projectRoot,
         VillageStatus status,
@@ -160,6 +169,7 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
         _storageUpgradeLevelsAhead = storageUpgradeLevelsAhead;
 
         Rows.CollectionChanged += Rows_CollectionChanged;
+        Templates.CollectionChanged += Templates_CollectionChanged;
         _planPreviewTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromMilliseconds(120),
@@ -248,13 +258,15 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
             var createdDefaultTemplate = Templates.Count == 0;
             if (createdDefaultTemplate)
             {
+                _savedTemplateSnapshot = CaptureTemplateSnapshot();
                 Templates.Add(CreateNewTemplate("New template"));
             }
 
             SelectedTemplate = Templates[0];
-            if (createdDefaultTemplate)
+            if (!createdDefaultTemplate)
             {
-                SaveAllTemplates(skipValidation: true);
+                _savedTemplateSnapshot = CaptureTemplateSnapshot();
+                UpdateHasUnsavedChanges();
             }
             _planPreviewTimer.Stop();
             RefreshPlanPreview();
@@ -281,6 +293,37 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
     {
         _planPreviewTimer.Stop();
         _templateLoadCts?.Cancel();
+        foreach (var template in _observedTemplates)
+        {
+            template.PropertyChanged -= Template_PropertyChanged;
+        }
+    }
+
+    private void Templates_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
+    {
+        foreach (var template in _observedTemplates.Where(template => !Templates.Contains(template)).ToList())
+        {
+            template.PropertyChanged -= Template_PropertyChanged;
+            _observedTemplates.Remove(template);
+        }
+
+        foreach (var template in Templates)
+        {
+            if (_observedTemplates.Add(template))
+            {
+                template.PropertyChanged += Template_PropertyChanged;
+            }
+        }
+
+        UpdateHasUnsavedChanges();
+    }
+
+    private void Template_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(BuildingTemplate.Name))
+        {
+            UpdateHasUnsavedChanges();
+        }
     }
 
     private BuildingTemplate CreateNewTemplate(string name)
@@ -331,6 +374,7 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
 
         RefreshIndexes();
         RequestPlanPreviewRefresh();
+        UpdateHasUnsavedChanges();
     }
 
     private void Rows_CollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
@@ -362,6 +406,7 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
 
         RefreshIndexes();
         RequestPlanPreviewRefresh();
+        UpdateHasUnsavedChanges();
     }
 
     private void AddRowView(BuildingTemplateRowView row)
@@ -382,6 +427,15 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
             && e.PropertyName is nameof(BuildingTemplateRowView.Target) or nameof(BuildingTemplateRowView.TargetLevel))
         {
             _pendingStorageCheckRows.Add(row);
+        }
+
+        if (e.PropertyName is nameof(BuildingTemplateRowView.Kind)
+            or nameof(BuildingTemplateRowView.Target)
+            or nameof(BuildingTemplateRowView.SlotText)
+            or nameof(BuildingTemplateRowView.TargetLevel)
+            or nameof(BuildingTemplateRowView.ResourceStrategy))
+        {
+            UpdateHasUnsavedChanges();
         }
 
         RequestPlanPreviewRefresh();
@@ -484,9 +538,7 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
         var template = CreateNewTemplate($"Template {index}");
         Templates.Add(template);
         SelectedTemplate = template;
-        StatusText = SaveAllTemplates(skipValidation: true)
-            ? "Created and saved template."
-            : StatusText;
+        StatusText = "Created template. Click Save to keep it.";
     }
 
     private void DuplicateTemplateButton_Click(object sender, RoutedEventArgs e)
@@ -503,18 +555,11 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
         var sourceIndex = Templates.IndexOf(SelectedTemplate);
         Templates.Insert(sourceIndex + 1, duplicate);
         SelectedTemplate = duplicate;
-        StatusText = SaveAllTemplates(skipValidation: true)
-            ? "Duplicated and saved template."
-            : StatusText;
+        StatusText = "Duplicated template. Click Save to keep it.";
     }
 
     private void ImportTemplatesButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!SaveAllTemplates(skipValidation: true))
-        {
-            return;
-        }
-
         var dialog = new OpenFileDialog
         {
             Title = "Import building templates",
@@ -542,8 +587,12 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
                 return;
             }
 
+            if (SelectedTemplate is not null)
+            {
+                SelectedTemplate.Rows = BuildTemplateRowsFromUi().ToList();
+            }
+
             var result = _exchangeService.ApplyImport(Templates.ToList(), preview.Selections, DateTimeOffset.UtcNow);
-            _store.Save(result.Templates);
 
             SelectedTemplate = null;
             Templates.Clear();
@@ -555,7 +604,8 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
             SelectedTemplate = result.ImportedTemplateIds.Count > 0
                 ? Templates.FirstOrDefault(template => template.Id == result.ImportedTemplateIds[0])
                 : Templates.FirstOrDefault();
-            StatusText = $"Imported {result.ImportedCount}, overwritten {result.OverwrittenCount}, copied {result.CopiedCount}.";
+            UpdateHasUnsavedChanges();
+            StatusText = $"Imported {result.ImportedCount}, overwritten {result.OverwrittenCount}, copied {result.CopiedCount}. Click Save to keep changes.";
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidDataException)
         {
@@ -596,9 +646,9 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
 
     private void ExportTemplates(IReadOnlyList<BuildingTemplate> templates, string suggestedName)
     {
-        if (!SaveAllTemplates(skipValidation: true))
+        if (SelectedTemplate is not null)
         {
-            return;
+            SelectedTemplate.Rows = BuildTemplateRowsFromUi().ToList();
         }
 
         if (templates.Count == 0)
@@ -709,8 +759,7 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
         }
 
         SelectedTemplate = Templates[Math.Clamp(index, 0, Templates.Count - 1)];
-        SaveAllTemplates(skipValidation: true);
-        StatusText = "Deleted template.";
+        StatusText = "Deleted template. Click Save to keep changes.";
     }
 
     private void AddBuildingRowButton_Click(object sender, RoutedEventArgs e)
@@ -931,7 +980,8 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
 
     private void SaveButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!TryPrepareTemplateForSave()
+        if (!HasUnsavedChanges
+            || !TryPrepareTemplateForSave()
             || !SaveAllTemplates(skipValidation: false))
         {
             return;
@@ -1042,11 +1092,6 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
 
     private void QueueTemplateButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!SaveAllTemplates(skipValidation: true))
-        {
-            return;
-        }
-
         var rows = BuildTemplateRowsFromUi();
         var selectedTarget = _queueTargets.FirstOrDefault();
         var targetStatus = selectedTarget?.PlanningStatus ?? _selectedVillageStatus;
@@ -1101,11 +1146,6 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
 
     private void QueueMultipleVillagesButton_Click(object sender, RoutedEventArgs e)
     {
-        if (!SaveAllTemplates(skipValidation: true))
-        {
-            return;
-        }
-
         var window = new BuildingTemplateVillageQueueWindow(_queueTargets, BuildTemplateRowsFromUi(), _serverSpeed)
         {
             Owner = this,
@@ -1153,6 +1193,8 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
         {
             _store.Save(Templates.ToList());
             _templateLoadWarning = null;
+            _savedTemplateSnapshot = CaptureTemplateSnapshot();
+            UpdateHasUnsavedChanges();
             return true;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
@@ -1164,6 +1206,13 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
 
     private IReadOnlyList<BuildingTemplateRow> BuildTemplateRowsFromUi()
         => Rows.Select(row => row.ToTemplateRow()).ToList();
+
+    private string CaptureTemplateSnapshot()
+        => BuildingTemplateEditSnapshot.Capture(Templates, SelectedTemplate, BuildTemplateRowsFromUi());
+
+    private void UpdateHasUnsavedChanges()
+        => HasUnsavedChanges = _savedTemplateSnapshot is not null
+            && !string.Equals(_savedTemplateSnapshot, CaptureTemplateSnapshot(), StringComparison.Ordinal);
 
     private void RequestPlanPreviewRefresh()
     {
@@ -1471,6 +1520,7 @@ public sealed class BuildingTemplateRowView : INotifyPropertyChanged
 
         return new BuildingTemplateRowView
         {
+            Id = row.Id,
             Kind = row.Kind switch
             {
                 BuildingTemplateRowKind.AllResources => "Add resources",
