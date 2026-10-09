@@ -497,6 +497,7 @@ public partial class MainWindow : Window
         _botService.FarmLossDestinationChanged += OnFarmLossDestinationChanged;
         _botService.ActiveVillageVerified += OnActiveVillageVerified;
         _botService.ConstructionQueueObserved += OnConstructionQueueObserved;
+        _botService.WatchtowerStatusObserved += OnWatchtowerStatusObserved;
         _botService.TaskActivityRecorded += OnTaskActivityRecorded;
         _travianQueueViewModel.RemoveRequested += QueueRemoveSelected;
         _travianQueueViewModel.RestoreRequested += RestoreRemovedQueueItems;

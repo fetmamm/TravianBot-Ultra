@@ -1263,6 +1263,66 @@ public partial class MainWindow
         });
     }
 
+    private void OnWatchtowerStatusObserved(WatchtowerStatusObservation observation)
+    {
+        if (!string.Equals(observation.AccountName, _accountStore.ActiveAccountName(), StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        RunOrPostToUi(() =>
+        {
+            if (!string.Equals(observation.AccountName, _accountStore.ActiveAccountName(), StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var name = NormalizeVillageName(observation.VillageName);
+            var villageKey = observation.CoordX.HasValue && observation.CoordY.HasValue
+                ? VillageKey.FromCoords(observation.CoordX.Value, observation.CoordY.Value)
+                : ResolveVillageKeyByName(name);
+            if (name is null || (villageKey is null && IsVillageNameAmbiguous(name)))
+            {
+                AppendLog($"[watchtower-ui] skipped status update for ambiguous village '{observation.VillageName}'.");
+                return;
+            }
+
+            VillageStatus? existing = null;
+            var found = villageKey is not null
+                ? _villageStatusCache.TryGetByKey(villageKey, out existing)
+                : _villageStatusCache.TryGetByName(name, out existing);
+            var status = found && existing is not null
+                ? existing with
+                {
+                    WatchtowerStatus = observation.Status,
+                    CityCapability = CityCapability.Enabled,
+                    CityStatus = CityStatus.City,
+                    ActiveVillageCoordX = observation.CoordX ?? existing.ActiveVillageCoordX,
+                    ActiveVillageCoordY = observation.CoordY ?? existing.ActiveVillageCoordY,
+                }
+                : new VillageStatus(
+                    ActiveVillage: name,
+                    Villages: [],
+                    Resources: new Dictionary<string, string>(),
+                    ResourceFields: [],
+                    Buildings: [],
+                    BuildQueue: [],
+                    ActiveVillageCoordX: observation.CoordX,
+                    ActiveVillageCoordY: observation.CoordY,
+                    CityCapability: CityCapability.Enabled,
+                    CityStatus: CityStatus.City,
+                    WatchtowerStatus: observation.Status);
+
+            StoreVillageStatusCacheEntry(name, status);
+            _villageCacheWriter.Request(new VillageCacheWrite(
+                _accountStore.ActiveAccountName(),
+                _villageStatusCache.Snapshot));
+            RefreshTravianBuildQueueUi();
+            AppendLog($"[watchtower-ui] applied village='{name}' level={observation.Status.Level} " +
+                $"active={observation.Status.Active.Count}/2 to Queue view.");
+        });
+    }
+
     private string? ResolveVillageKeyByName(string? villageName)
     {
         if (string.IsNullOrWhiteSpace(villageName))

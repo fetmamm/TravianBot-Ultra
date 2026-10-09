@@ -111,6 +111,7 @@ public sealed partial class BotTaskRunner
     public event Action<FarmLossDestinationChange>? FarmLossDestinationChanged;
     public event Action<VerifiedActiveVillage>? ActiveVillageVerified;
     public event Action<ConstructionQueueObservation>? ConstructionQueueObserved;
+    public event Action<WatchtowerStatusObservation>? WatchtowerStatusObserved;
     public event Action<BotTaskActivity>? TaskActivityRecorded;
 
     private void RaiseFarmLossDestinationChanged(FarmLossDestinationChange change)
@@ -221,9 +222,9 @@ public sealed partial class BotTaskRunner
                     }
 
                     await client.LoginAsync(cancellationToken);
-                    await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken);
                     var context = new TaskExecutionContext(this, options, client, log, cancellationToken, taskResults.Add);
                     var taskIndex = 0;
+                    var targetVillageApplied = false;
                     foreach (var taskName in tasks)
                     {
                         using var taskLogContext = AutomationLogContext.BeginScope(task: taskName);
@@ -246,6 +247,19 @@ public sealed partial class BotTaskRunner
                         {
                             log($"[tick] task '{taskName}' is allowed but not implemented — skipping ({taskIndex}/{tasks.Count})");
                             continue;
+                        }
+
+                        if (RequiresTargetVillageSwitch(taskName))
+                        {
+                            if (!targetVillageApplied)
+                            {
+                                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken);
+                                targetVillageApplied = true;
+                            }
+                        }
+                        else
+                        {
+                            log($"[farm-list] skipping target village switch for account-wide task '{taskName}'; using the current village's Rally Point.");
                         }
 
                         var taskSw = System.Diagnostics.Stopwatch.StartNew();
@@ -858,6 +872,7 @@ public sealed partial class BotTaskRunner
                 StatusCallback = log,
                 ActiveVillageVerified = village => ActiveVillageVerified?.Invoke(village),
                 ConstructionQueueObserved = observation => ConstructionQueueObserved?.Invoke(observation),
+                WatchtowerStatusObserved = observation => WatchtowerStatusObserved?.Invoke(observation),
                 SetConsentDomainsAllowed = setConsentDomainsAllowed,
                 SetManualAuthenticationPopupsAllowed = setManualAuthenticationPopupsAllowed,
                 CleanupAfterBonusVideoAsync = cleanupAfterBonusVideoAsync,
@@ -1079,4 +1094,7 @@ public sealed partial class BotTaskRunner
         var label = !string.IsNullOrWhiteSpace(targetName) ? targetName : targetUrl;
         log($"[village-switch:verbose] target village applied: {label}");
     }
+
+    internal static bool RequiresTargetVillageSwitch(string taskName) =>
+        !string.Equals(taskName, "send_farmlists", StringComparison.OrdinalIgnoreCase);
 }

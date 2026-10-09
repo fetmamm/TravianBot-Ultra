@@ -133,7 +133,7 @@ public partial class MainWindow
             ReadInt(config, BotOptionPayloadKeys.SessionPacingHoursVariationPercent, PacingDefaults.SessionPacingHoursVariationPercent, 0, 49),
             RunTimerEnabled: sessionPacingEnabled,
             SmartSleepMaxRuntimeEnabled: smartSleepMaxRuntimeEnabled,
-            SmartSleepMaxRuntimeMinutes: ReadInt(config, BotOptionPayloadKeys.SmartSleepMaxRuntimeMinutes, PacingDefaults.SmartSleepMaxRuntimeMinutes, 30, 300),
+            SmartSleepMaxRuntimeMinutes: ReadInt(config, BotOptionPayloadKeys.SmartSleepMaxRuntimeMinutes, PacingDefaults.SmartSleepMaxRuntimeMinutes, 1, 10080),
             SmartSleepMaxRuntimeSleepMinutes: ReadInt(config, BotOptionPayloadKeys.SmartSleepMaxRuntimeSleepMinutes, PacingDefaults.SmartSleepMaxRuntimeSleepMinutes, 1, 1440),
             SmartSleepMaxRuntimeVariationPercent: ReadInt(config, BotOptionPayloadKeys.SmartSleepMaxRuntimeVariationPercent, PacingDefaults.SmartSleepMaxRuntimeVariationPercent, 0, 50)),
             reloadRuntime);

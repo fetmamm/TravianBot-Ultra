@@ -68,6 +68,26 @@ public sealed class ConstructionAffordabilityPlannerTests
     }
 
     [Fact]
+    public void Evaluate_DueHeroRevalidationCannotBypassKnownPerResourceLimit()
+    {
+        var request = Request(
+            stock: (100, 1000, 1000, 1000),
+            production: (600, 100, 100, 100),
+            hero: new ConstructionResourceAmounts(2000, 0, 0, 0),
+            heroNextProbeAt: Now);
+
+        var result = ConstructionAffordabilityPlanner.Evaluate(request with
+        {
+            Hero = request.Hero with { MaxUsePerResource = 500 },
+        });
+
+        Assert.Equal(ConstructionAffordabilityOutcome.Blocked, result.Outcome);
+        Assert.False(result.ShouldOpenBuildPage);
+        Assert.False(result.ShouldRevalidateHero);
+        Assert.Equal(Now.AddMinutes(40), result.NextAttemptAtUtc);
+    }
+
+    [Fact]
     public void Evaluate_NpcCanRedistributeTotalStock_WhenAllLocalGoldGatesPass()
     {
         var result = ConstructionAffordabilityPlanner.Evaluate(Request(

@@ -407,6 +407,7 @@ public partial class MainWindow
         _botService.FarmLossDestinationChanged -= OnFarmLossDestinationChanged;
         _botService.ActiveVillageVerified -= OnActiveVillageVerified;
         _botService.ConstructionQueueObserved -= OnConstructionQueueObserved;
+        _botService.WatchtowerStatusObserved -= OnWatchtowerStatusObserved;
         TravianClient.HeroInventoryUpdated -= OnWorkerHeroInventoryUpdated;
         TravianClient.HeroHpUpdated -= OnWorkerHeroHpUpdated;
         TravianClient.HeroStatusUpdated -= OnWorkerHeroStatusUpdated;

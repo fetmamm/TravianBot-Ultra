@@ -1116,7 +1116,7 @@ public sealed class SessionPacer
             // Capped at 49% so a ±jitter can never push adjacent hour boundaries past each other.
             HoursVariationPercent = Math.Clamp(settings.HoursVariationPercent, 0, 49),
             RuntimeSeconds = Math.Max(0, settings.RuntimeSeconds),
-            SmartSleepMaxRuntimeMinutes = Math.Clamp(settings.SmartSleepMaxRuntimeMinutes, 30, 300),
+            SmartSleepMaxRuntimeMinutes = Math.Clamp(settings.SmartSleepMaxRuntimeMinutes, 1, 10080),
             SmartSleepMaxRuntimeSleepMinutes = Math.Clamp(settings.SmartSleepMaxRuntimeSleepMinutes, 1, 1440),
             SmartSleepMaxRuntimeVariationPercent = Math.Clamp(settings.SmartSleepMaxRuntimeVariationPercent, 0, 50),
         };

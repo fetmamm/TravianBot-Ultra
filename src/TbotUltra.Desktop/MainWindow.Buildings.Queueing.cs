@@ -405,11 +405,12 @@ public partial class MainWindow
         if (_lastBuildingStatus is not null
             && string.Equals(lastStatusKey, selectedKey, StringComparison.OrdinalIgnoreCase))
         {
-            if (_lastBuildingStatus.WatchtowerStatus is null
-                && TryGetCachedVillageStatus(selected, out var cachedWithWatchtowers)
-                && cachedWithWatchtowers.WatchtowerStatus is not null)
+            if (TryGetCachedVillageStatus(selected, out var cachedWithWatchtowers)
+                && cachedWithWatchtowers.WatchtowerStatus is { } cachedWatchtower
+                && (_lastBuildingStatus.WatchtowerStatus is null
+                    || cachedWatchtower.ObservedAtUtc > _lastBuildingStatus.WatchtowerStatus.ObservedAtUtc))
             {
-                return _lastBuildingStatus with { WatchtowerStatus = cachedWithWatchtowers.WatchtowerStatus };
+                return _lastBuildingStatus with { WatchtowerStatus = cachedWatchtower };
             }
 
             return _lastBuildingStatus;

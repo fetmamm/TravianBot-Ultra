@@ -40,6 +40,12 @@ public sealed class DesktopBotService : IDesktopBotService
         remove => _taskRunner.ConstructionQueueObserved -= value;
     }
 
+    public event Action<WatchtowerStatusObservation>? WatchtowerStatusObserved
+    {
+        add => _taskRunner.WatchtowerStatusObserved += value;
+        remove => _taskRunner.WatchtowerStatusObserved -= value;
+    }
+
     public event Action<BotTaskActivity>? TaskActivityRecorded
     {
         add => _taskRunner.TaskActivityRecorded += value;

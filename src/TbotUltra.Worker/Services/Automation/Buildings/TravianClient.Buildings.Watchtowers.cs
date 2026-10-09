@@ -14,6 +14,7 @@ public sealed partial class TravianClient
             && identity.Key is not null
             && _session.WatchtowerStatuses.TryGetValue(identity.Key, out var cached))
         {
+            PublishWatchtowerStatusObservation(identity, cached, "cache");
             return cached;
         }
 
@@ -208,6 +209,29 @@ public sealed partial class TravianClient
             catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
             {
                 Notify($"[watchtower-cache] could not persist village='{identity.Name ?? identity.Key}': {ex.Message}");
+            }
+        }
+
+        PublishWatchtowerStatusObservation(identity, status, "live");
+    }
+
+    private void PublishWatchtowerStatusObservation(
+        (string? Key, string? Name, int? X, int? Y) identity,
+        WatchtowerStatus status,
+        string source)
+    {
+        if (_watchtowerStatusObserved is not null && !string.IsNullOrWhiteSpace(identity.Name))
+        {
+            try
+            {
+                _watchtowerStatusObserved(new WatchtowerStatusObservation(
+                    AccountName, identity.Name, identity.X, identity.Y, status));
+                Notify($"[watchtower-ui:verbose] published village='{identity.Name}' level={status.Level} " +
+                    $"active={status.Active.Count}/2 source={source}.");
+            }
+            catch (Exception ex)
+            {
+                Notify($"[watchtower-ui] status publication failed for village='{identity.Name}': {ex.Message}");
             }
         }
     }

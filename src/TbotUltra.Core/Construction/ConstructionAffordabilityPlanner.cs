@@ -232,6 +232,35 @@ public static class ConstructionAffordabilityPlanner
                 "NPC trade can redistribute sufficient total village stock and all local gold gates pass");
         }
 
+        if (request.Hero.Enabled && request.Hero.MaxUseEnabled)
+        {
+            var maxPerResource = Math.Max(0, request.Hero.MaxUsePerResource);
+            if (deficit.Wood > maxPerResource
+                || deficit.Clay > maxPerResource
+                || deficit.Iron > maxPerResource
+                || deficit.Crop > maxPerResource)
+            {
+                var excessOverLimit = new ConstructionResourceAmounts(
+                    Math.Max(0, deficit.Wood - maxPerResource),
+                    Math.Max(0, deficit.Clay - maxPerResource),
+                    Math.Max(0, deficit.Iron - maxPerResource),
+                    Math.Max(0, deficit.Crop - maxPerResource));
+                var limitDeadline = ComputeProductionDeadline(request, excessOverLimit)
+                    ?? request.NowUtc.Add(request.FallbackWait <= TimeSpan.Zero
+                        ? TimeSpan.FromMinutes(15)
+                        : request.FallbackWait);
+                return Decision(
+                    ConstructionAffordabilityOutcome.Blocked,
+                    ConstructionRecoveryKind.None,
+                    shouldOpenBuildPage: false,
+                    shouldRevalidateHero: false,
+                    limitDeadline,
+                    stock,
+                    deficit,
+                    $"per-resource Hero use limit ({maxPerResource}) is below the current deficit");
+            }
+        }
+
         if (request.Hero.Enabled
             && (request.Hero.NextRevalidationAtUtc is null
                 || request.Hero.NextRevalidationAtUtc <= request.NowUtc))

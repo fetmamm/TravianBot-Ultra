@@ -146,7 +146,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Roman construction priority is an account-scoped Construction setting. It applies to every Roman village;
   Village settings must not expose a separate per-village priority control.
 - Smart Sleep's account-scoped `Wake when construction queue clears` option changes only its wake deadline.
-  Its optional account-scoped max-runtime cap is off by default. A varied active-automation timer may request
+  Its optional account-scoped max-runtime cap is on by default (120 minutes online, 20 minutes asleep).
+  A varied active-automation timer may request
   sleep despite ready work; stop new tasks, finish the current action without cancellation, then start its own
   varied sleep duration from actual browser shutdown. This duration is independent of minimum idle opportunity;
   explicit pauses and manual functions freeze the timer, while allowed hours and Daily max remain hard limits.
@@ -650,6 +651,7 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Detailed queue, storage, click, and estimate rules: [construction ADR](adr/2026-06-20-construction-queue.md).
 - Cities use explicit tri-state server/village knowledge; never allocate slots 41–43 or queue City-only work from `Unknown`. Probe the authenticated page's runtime feature flag first, then anonymous login HTML; a complete live dorf2 overview that confirms a City is also affirmative proof that the server supports Cities. An `Unknown` login probe or partial village read must not erase a prior confirmed City result. On quick re-login, a persisted coordinate-keyed Watchtower snapshot restores its confirmed City identity without revisiting the wall; an explicit live Village result still overrides it.
 - Watchtowers are a wall extension with an independent two-place queue and demand-driven wall navigation; they must not block ordinary construction. A successful level read is persisted per account/world/village and generic startup or village-status reads reuse it indefinitely. Only explicit Buildings load or Watchtower work refreshes the wall page. See [City/Watchtower ADR](adr/2026-10-07-city-capability-and-watchtower-queue.md).
+- Confirmed Watchtower queue observations update the selected village's Queue view immediately. A newer Watchtower observation must not be overwritten by an older village-status snapshot.
 - Construction affordability must be decided in Core from the embedded catalog and a complete live Dorf1 stock/production snapshot before opening `build.php`. Only affordable, locally recoverable (Hero/NPC), or one atomically reserved Hero revalidation offer may navigate; incomplete live data keeps the build-page fallback. Hero revalidation uses the exact build-page transfer dialog and a persisted account/server cooldown shared by all villages—never the Hero inventory page.
 - Queue persistence must tolerate multi-second OneDrive/antivirus locks, use unique temporary files, and log the exact failed path/operation. Retain only the latest 250 succeeded runtime-history rows; task activity statistics remain in their separate journal.
 
@@ -785,6 +787,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   the exact selected send order.
 - Farm-list exact timers get a 5-15s render margin; unreadable disabled timers use an estimated 60s wait.
 - "Shared schedule" is the default farm-list send mode and appears before "Individual schedule" in the UI.
+  `send_farmlists` is account-wide: do not switch to the queue item's village before dispatch.
+  Open the farm-list page from the current village; its Rally Point must be built.
   Both modes send only UI-enabled farm lists ONE AT A TIME via
   `SendFarmListsSequentiallyAsync`: click each list's Start,
   then wait for that exact list's `.farmListStatus svg.success` or `svg.error` response before advancing.

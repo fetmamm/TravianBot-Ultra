@@ -31,6 +31,7 @@ public sealed partial class TravianClient
     private readonly Action<string>? _statusCallback;
     private readonly Action<VerifiedActiveVillage>? _activeVillageVerified;
     private readonly Action<ConstructionQueueObservation>? _constructionQueueObserved;
+    private readonly Action<WatchtowerStatusObservation>? _watchtowerStatusObserved;
     private readonly BrowserTraceLogger _browserTrace;
     // Flips the browser session's consentmanager route block on/off; used only by the bonus-video flow,
     // which needs GDPR/TCF consent while the rest of the session keeps it blocked (no stray sync tabs).
@@ -309,6 +310,7 @@ public sealed partial class TravianClient
         _statusCallback = callbacks.StatusCallback;
         _activeVillageVerified = callbacks.ActiveVillageVerified;
         _constructionQueueObserved = callbacks.ConstructionQueueObserved;
+        _watchtowerStatusObserved = callbacks.WatchtowerStatusObserved;
         _browserTrace = browserTrace ?? new BrowserTraceLogger(config.DetailedBrowserLoggingEnabled, callbacks.StatusCallback);
         _browserTrace.AttachPage(page, "travian-client");
     }

@@ -182,7 +182,7 @@ public sealed class SettingsWindowTests : IDisposable
     }
 
     [Fact]
-    public void PacingCategory_ShowsDisabledMaxRuntimeWithDefaultChoices()
+    public void PacingCategory_ShowsEnabledMaxRuntimeWithMinuteInputs()
     {
         _wpf.Run(() =>
         {
@@ -192,16 +192,26 @@ public sealed class SettingsWindowTests : IDisposable
             try
             {
                 var enabled = Assert.IsType<CheckBox>(window.FindName("SmartSleepMaxRuntimeCheckBox"));
-                var online = Assert.IsType<ComboBox>(window.FindName("SmartSleepMaxRuntimeComboBox"));
+                var online = Assert.IsType<TextBox>(window.FindName("SmartSleepMaxRuntimeTextBox"));
                 var sleep = Assert.IsType<TextBox>(window.FindName("SmartSleepMaxRuntimeSleepTextBox"));
                 var variation = Assert.IsType<ComboBox>(window.FindName("SmartSleepMaxRuntimeVariationComboBox"));
 
-                Assert.False(enabled.IsChecked);
-                Assert.Equal(5, online.Items.Count);
-                Assert.Equal(60, window.SettingsVm.Pacing.SmartSleepMaxRuntimeMinutes);
-                Assert.Equal("30", sleep.Text);
+                Assert.True(enabled.IsChecked);
+                Assert.Equal("120", online.Text);
+                Assert.Equal("20", sleep.Text);
                 Assert.Equal(20, window.SettingsVm.Pacing.SmartSleepMaxRuntimeVariationPercent);
                 Assert.Equal(6, variation.Items.Count);
+                Assert.Equal(1, Grid.GetRow(variation));
+                Assert.Equal(2, Grid.GetColumn(variation));
+
+                var upperInput = Assert.IsType<TextBox>(window.FindName("SmartSleepMinimumOpportunityTextBox"));
+                var upperGrid = Assert.IsType<Grid>(upperInput.Parent);
+                var runtimeGrid = Assert.IsType<Grid>(online.Parent);
+                var runtimeSection = Assert.IsType<StackPanel>(runtimeGrid.Parent);
+                Assert.Equal(upperGrid.Margin.Left, runtimeSection.Margin.Left + runtimeGrid.Margin.Left);
+                Assert.Equal(upperGrid.ColumnDefinitions[0].Width, runtimeGrid.ColumnDefinitions[0].Width);
+                Assert.Equal(upperGrid.ColumnDefinitions[1].Width, runtimeGrid.ColumnDefinitions[1].Width);
+                Assert.Same(runtimeGrid, sleep.Parent);
             }
             finally
             {

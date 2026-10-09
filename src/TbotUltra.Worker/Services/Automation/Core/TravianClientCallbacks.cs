@@ -23,6 +23,9 @@ public sealed record TravianClientCallbacks
     /// <summary>Publishes an authoritative live construction queue immediately after a build is confirmed.</summary>
     public Action<ConstructionQueueObservation>? ConstructionQueueObserved { get; init; }
 
+    /// <summary>Publishes the live City wall-extension queue after it is read or changed.</summary>
+    public Action<WatchtowerStatusObservation>? WatchtowerStatusObserved { get; init; }
+
     /// <summary>
     /// Flips the browser session's consentmanager route block on/off. Used only by the bonus-video
     /// flow, which needs GDPR/TCF consent while the rest of the session keeps it blocked.

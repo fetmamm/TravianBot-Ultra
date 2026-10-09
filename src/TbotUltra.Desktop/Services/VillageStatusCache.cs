@@ -181,7 +181,11 @@ public sealed class VillageStatusCache
                 var watchtowerStatus = status.CityCapability == CityCapability.Disabled
                     || status.CityStatus == CityStatus.Village
                         ? null
-                        : status.WatchtowerStatus ?? previous.WatchtowerStatus;
+                        : status.WatchtowerStatus is { } incomingWatchtower
+                            && previous.WatchtowerStatus is { } previousWatchtower
+                            && incomingWatchtower.ObservedAtUtc < previousWatchtower.ObservedAtUtc
+                                ? previousWatchtower
+                                : status.WatchtowerStatus ?? previous.WatchtowerStatus;
                 if (cityCapability != status.CityCapability
                     || cityStatus != status.CityStatus
                     || !ReferenceEquals(watchtowerStatus, status.WatchtowerStatus))

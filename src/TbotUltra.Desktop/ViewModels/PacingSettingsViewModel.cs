@@ -47,7 +47,7 @@ public sealed class PacingSettingsViewModel : BaseViewModel
     private bool _sessionPacingEnabled = PacingDefaults.SessionPacingEnabled;
     private bool _smartSleepEnabled = PacingDefaults.SmartSleepEnabled;
     private bool _smartSleepMaxRuntimeEnabled = PacingDefaults.SmartSleepMaxRuntimeEnabled;
-    private int _smartSleepMaxRuntimeMinutes = PacingDefaults.SmartSleepMaxRuntimeMinutes;
+    private string _smartSleepMaxRuntimeMinutes = PacingDefaults.SmartSleepMaxRuntimeMinutes.ToString(CultureInfo.InvariantCulture);
     private string _smartSleepMaxRuntimeSleepMinutes = PacingDefaults.SmartSleepMaxRuntimeSleepMinutes.ToString(CultureInfo.InvariantCulture);
     private int _smartSleepMaxRuntimeVariationPercent = PacingDefaults.SmartSleepMaxRuntimeVariationPercent;
     private bool _smartSleepWakeWhenConstructionQueueClears = PacingDefaults.SmartSleepWakeWhenConstructionQueueClears;
@@ -165,7 +165,7 @@ public sealed class PacingSettingsViewModel : BaseViewModel
     }
     public bool SmartSleepWakeWhenConstructionQueueClears { get => _smartSleepWakeWhenConstructionQueueClears; set => SetProperty(ref _smartSleepWakeWhenConstructionQueueClears, value); }
     public bool SmartSleepMaxRuntimeEnabled { get => _smartSleepMaxRuntimeEnabled; set => SetProperty(ref _smartSleepMaxRuntimeEnabled, value); }
-    public int SmartSleepMaxRuntimeMinutes { get => _smartSleepMaxRuntimeMinutes; set => SetProperty(ref _smartSleepMaxRuntimeMinutes, value); }
+    public string SmartSleepMaxRuntimeMinutes { get => _smartSleepMaxRuntimeMinutes; set => SetProperty(ref _smartSleepMaxRuntimeMinutes, value); }
     public string SmartSleepMaxRuntimeSleepMinutes { get => _smartSleepMaxRuntimeSleepMinutes; set => SetProperty(ref _smartSleepMaxRuntimeSleepMinutes, value); }
     public int SmartSleepMaxRuntimeVariationPercent { get => _smartSleepMaxRuntimeVariationPercent; set => SetProperty(ref _smartSleepMaxRuntimeVariationPercent, Math.Clamp(value, 0, 50)); }
     public string SmartSleepMinimumOpportunityMinutes { get => _smartSleepMinimumOpportunityMinutes; set => SetProperty(ref _smartSleepMinimumOpportunityMinutes, value); }
@@ -256,7 +256,7 @@ public sealed class PacingSettingsViewModel : BaseViewModel
         SessionPacingEnabled = PacingDefaults.SessionPacingEnabled;
         SmartSleepEnabled = PacingDefaults.SmartSleepEnabled;
         SmartSleepMaxRuntimeEnabled = PacingDefaults.SmartSleepMaxRuntimeEnabled;
-        SmartSleepMaxRuntimeMinutes = PacingDefaults.SmartSleepMaxRuntimeMinutes;
+        SmartSleepMaxRuntimeMinutes = PacingDefaults.SmartSleepMaxRuntimeMinutes.ToString(CultureInfo.InvariantCulture);
         SmartSleepMaxRuntimeSleepMinutes = PacingDefaults.SmartSleepMaxRuntimeSleepMinutes.ToString(CultureInfo.InvariantCulture);
         SmartSleepMaxRuntimeVariationPercent = PacingDefaults.SmartSleepMaxRuntimeVariationPercent;
         SmartSleepWakeWhenConstructionQueueClears = PacingDefaults.SmartSleepWakeWhenConstructionQueueClears;

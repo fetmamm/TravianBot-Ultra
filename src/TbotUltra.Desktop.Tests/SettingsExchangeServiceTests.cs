@@ -25,7 +25,7 @@ public sealed class SettingsExchangeServiceTests : IDisposable
             [BotOptionPayloadKeys.SmartSleepDeadlineGroups] = new JsonArray("construction", "hero"),
             [BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears] = false,
             [BotOptionPayloadKeys.SmartSleepMaxRuntimeEnabled] = true,
-            [BotOptionPayloadKeys.SmartSleepMaxRuntimeMinutes] = 120,
+            [BotOptionPayloadKeys.SmartSleepMaxRuntimeMinutes] = 95,
             [BotOptionPayloadKeys.SmartSleepMaxRuntimeSleepMinutes] = 30,
             [BotOptionPayloadKeys.SmartSleepMaxRuntimeVariationPercent] = 20,
             [BotOptionPayloadKeys.ActionPacingTaskMinSeconds] = 1.5,

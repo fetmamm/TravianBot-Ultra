@@ -76,7 +76,7 @@ internal static class ActionPacingOptionsModule
             configuration.GetValue(BotOptionPayloadKeys.SessionPacingEnabled, PacingDefaults.SessionPacingEnabled),
             configuration.GetValue(BotOptionPayloadKeys.SmartSleepEnabled, PacingDefaults.SmartSleepEnabled),
             configuration.GetValue(BotOptionPayloadKeys.SmartSleepMaxRuntimeEnabled, PacingDefaults.SmartSleepMaxRuntimeEnabled),
-            NormalizeSmartSleepMaxRuntimeMinutes(configuration.GetValue(BotOptionPayloadKeys.SmartSleepMaxRuntimeMinutes, PacingDefaults.SmartSleepMaxRuntimeMinutes)),
+            Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SmartSleepMaxRuntimeMinutes, PacingDefaults.SmartSleepMaxRuntimeMinutes), 1, 10080),
             Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SmartSleepMaxRuntimeSleepMinutes, PacingDefaults.SmartSleepMaxRuntimeSleepMinutes), 1, 1440),
             Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.SmartSleepMaxRuntimeVariationPercent, PacingDefaults.SmartSleepMaxRuntimeVariationPercent), 0, 50),
             configuration.GetValue(BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears, PacingDefaults.SmartSleepWakeWhenConstructionQueueClears),
@@ -104,7 +104,7 @@ internal static class ActionPacingOptionsModule
         target[BotOptionPayloadKeys.SessionPacingEnabled] = pacing.SessionPacingEnabled;
         target[BotOptionPayloadKeys.SmartSleepEnabled] = pacing.SmartSleepEnabled;
         target[BotOptionPayloadKeys.SmartSleepMaxRuntimeEnabled] = pacing.SmartSleepMaxRuntimeEnabled;
-        target[BotOptionPayloadKeys.SmartSleepMaxRuntimeMinutes] = NormalizeSmartSleepMaxRuntimeMinutes(pacing.SmartSleepMaxRuntimeMinutes);
+        target[BotOptionPayloadKeys.SmartSleepMaxRuntimeMinutes] = Math.Clamp(pacing.SmartSleepMaxRuntimeMinutes, 1, 10080);
         target[BotOptionPayloadKeys.SmartSleepMaxRuntimeSleepMinutes] = Math.Clamp(pacing.SmartSleepMaxRuntimeSleepMinutes, 1, 1440);
         target[BotOptionPayloadKeys.SmartSleepMaxRuntimeVariationPercent] = Math.Clamp(pacing.SmartSleepMaxRuntimeVariationPercent, 0, 50);
         target[BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears] = pacing.SmartSleepWakeWhenConstructionQueueClears;
@@ -168,9 +168,6 @@ internal static class ActionPacingOptionsModule
             ? Enumerable.Range(0, 24).ToArray()
             : hours.Where(hour => hour is >= 0 and <= 23).Distinct().Order().ToArray();
     }
-
-    private static int NormalizeSmartSleepMaxRuntimeMinutes(int minutes) =>
-        minutes is 30 or 60 or 120 or 180 or 300 ? minutes : PacingDefaults.SmartSleepMaxRuntimeMinutes;
 
     private static IReadOnlyList<string> ReadStringList(
         IConfiguration configuration,
