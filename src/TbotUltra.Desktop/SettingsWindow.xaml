@@ -403,6 +403,36 @@
                                                     <TextBox x:Name="SmartSleepFallbackMinTextBox" Grid.Row="3" Grid.Column="1" Height="24" Margin="0,2" Text="{Binding SettingsVm.Pacing.SmartSleepFallbackMinMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                     <TextBox x:Name="SmartSleepFallbackMaxTextBox" Grid.Row="3" Grid.Column="2" Height="24" Margin="6,2,0,2" Text="{Binding SettingsVm.Pacing.SmartSleepFallbackMaxMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
                                                 </Grid>
+                                                <StackPanel Margin="20,12,0,0">
+                                                    <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                                        <CheckBox x:Name="SmartSleepMaxRuntimeCheckBox"
+                                                                  Content="Limit online runtime"
+                                                                  IsChecked="{Binding SettingsVm.Pacing.SmartSleepMaxRuntimeEnabled, Mode=TwoWay}" />
+                                                        <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                                        ToolTip="After the varied online limit, stop starting tasks, finish the current task, then sleep for the configured duration even when more tasks are ready. Paused automation and manual functions do not count." />
+                                                    </StackPanel>
+                                                    <Grid Margin="0,6,0,0">
+                                                        <Grid.ColumnDefinitions>
+                                                            <ColumnDefinition Width="130" />
+                                                            <ColumnDefinition Width="100" />
+                                                        </Grid.ColumnDefinitions>
+                                                        <Grid.RowDefinitions>
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                            <RowDefinition Height="Auto" />
+                                                        </Grid.RowDefinitions>
+                                                        <TextBlock Text="Max online" Grid.Row="0" VerticalAlignment="Center" />
+                                                        <ComboBox x:Name="SmartSleepMaxRuntimeComboBox" Grid.Row="0" Grid.Column="1" Height="24" Margin="0,2" SelectedValuePath="Tag" SelectedValue="{Binding SettingsVm.Pacing.SmartSleepMaxRuntimeMinutes, Mode=TwoWay}" />
+                                                        <TextBlock Text="Sleep (minutes)" Grid.Row="1" VerticalAlignment="Center" />
+                                                        <TextBox x:Name="SmartSleepMaxRuntimeSleepTextBox" Grid.Row="1" Grid.Column="1" Height="24" Margin="0,2" Text="{Binding SettingsVm.Pacing.SmartSleepMaxRuntimeSleepMinutes, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                                                        <StackPanel Grid.Row="2" Orientation="Horizontal" VerticalAlignment="Center">
+                                                            <TextBlock Text="Variation" VerticalAlignment="Center" />
+                                                            <ContentControl Style="{StaticResource SettingInfoIconStyle}"
+                                                                            ToolTip="One shared ± percentage varies both the online limit and this sleep duration. The sleep duration is independent of Sleep opportunity; Allowed hours and Daily max still apply." />
+                                                        </StackPanel>
+                                                        <ComboBox x:Name="SmartSleepMaxRuntimeVariationComboBox" Grid.Row="2" Grid.Column="1" Height="24" Margin="0,2" SelectedValuePath="Tag" SelectedValue="{Binding SettingsVm.Pacing.SmartSleepMaxRuntimeVariationPercent, Mode=TwoWay}" />
+                                                    </Grid>
+                                                </StackPanel>
                                                 <StackPanel Orientation="Horizontal" Margin="20,12,0,0" VerticalAlignment="Center">
                                                     <CheckBox x:Name="SmartSleepWakeWhenConstructionQueueClearsCheckBox"
                                                               Content="Skip queued construction wake-ups"

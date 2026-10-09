@@ -77,6 +77,7 @@ internal sealed class SessionSleepLifecycle
     private SleepSnapshot _snapshot = SleepSnapshot.Idle;
     private DateTimeOffset? _villageRoundDeferredUntilUtc;
     private bool _villageRoundRetryScheduled;
+    private bool _runtimeCapSnapshotCaptured;
 
     private sealed record SleepSnapshot(
         bool WasLoggedIn,
@@ -150,6 +151,7 @@ internal sealed class SessionSleepLifecycle
         }
 
         if (!manual
+            && !_pacer.PendingSmartSleepIsRuntimeCap
             && state.LoginRoundPending
             && (state.ContinuousLoopRunning || state.AutoQueueRunning)
             && _pacer.PendingSleepReason is SessionSleepReason.SessionPacing or SessionSleepReason.SmartSleep)
@@ -171,9 +173,20 @@ internal sealed class SessionSleepLifecycle
 
         if (state.ActiveOperation)
         {
+            if (_pacer.PendingSmartSleepIsRuntimeCap)
+            {
+                if (!_runtimeCapSnapshotCaptured)
+                {
+                    _snapshot = CaptureSnapshot();
+                    _runtimeCapSnapshotCaptured = true;
+                }
+                _port.RequestAutomationStop(AutomationStopMode.AfterCurrentAction);
+            }
             if (!IsSleepDeferredForActiveOperation)
             {
-                _port.Log("[pacing] sleep delayed until the active manual operation finishes.");
+                _port.Log(_pacer.PendingSmartSleepIsRuntimeCap
+                    ? "[smart-sleep] max-runtime reached; no new tasks will start while the current action finishes."
+                    : "[pacing] sleep delayed until the active manual operation finishes.");
             }
 
             IsSleepDeferredForActiveOperation = true;
@@ -185,7 +198,8 @@ internal sealed class SessionSleepLifecycle
         {
             if (!manual)
             {
-                _snapshot = CaptureSnapshot();
+                if (!_runtimeCapSnapshotCaptured)
+                    _snapshot = CaptureSnapshot();
             }
 
             _port.Log($"[pacing] pre-sleep state: loggedIn={_snapshot.WasLoggedIn}, "
@@ -196,14 +210,23 @@ internal sealed class SessionSleepLifecycle
                 return;
             }
 
-            if (!await RequestGracefulAutomationStopAsync().ConfigureAwait(true))
+            var runtimeCapSleep = _pacer.PendingSmartSleepIsRuntimeCap;
+            if (!await RequestGracefulAutomationStopAsync(runtimeCapSleep).ConfigureAwait(true))
             {
+                if (runtimeCapSleep)
+                {
+                    _port.Log("[smart-sleep] max-runtime sleep postponed because automation could not stop safely; current action was not canceled.");
+                    return;
+                }
                 _port.Log("[pacing] graceful stop timed out; canceling the remaining automation.");
             }
 
             _port.Log("[pacing] controlled session stop requested.");
-            _port.RequestAutomationStop(AutomationStopMode.CancelCurrentAction);
-            _port.CancelActiveOperation();
+            if (!runtimeCapSleep)
+            {
+                _port.RequestAutomationStop(AutomationStopMode.CancelCurrentAction);
+                _port.CancelActiveOperation();
+            }
             _port.PrepareOfflineForSleep();
             await _port.StopAllAutomationAsync().ConfigureAwait(true);
 
@@ -220,6 +243,7 @@ internal sealed class SessionSleepLifecycle
             _port.ActivatePendingProxyAtSleep();
             _port.ReloadPacerConfiguration();
             _pacer.BeginSleep(manual);
+            _runtimeCapSnapshotCaptured = false;
             IsManualSleepRequested = false;
             if (_pacer.PlannedWakeAt is { } wakeAt)
             {
@@ -397,6 +421,7 @@ internal sealed class SessionSleepLifecycle
     internal void Reset()
     {
         _snapshot = SleepSnapshot.Idle;
+        _runtimeCapSnapshotCaptured = false;
         IsSleepInProgress = false;
         IsWakeInProgress = false;
         IsSleepDeferredForActiveOperation = false;
@@ -417,6 +442,11 @@ internal sealed class SessionSleepLifecycle
 
     private async Task<bool> ValidatePreShutdownOpportunityAsync()
     {
+        if (_pacer.PendingSmartSleepIsRuntimeCap)
+        {
+            _port.Log("[smart-sleep] max-runtime sleep bypasses idle-opportunity and pre-sleep construction fill.");
+            return true;
+        }
         var fill = await _port.WaitForPreSleepFillAsync().ConfigureAwait(true);
         if (_pacer.PendingSleepReason != SessionSleepReason.SmartSleep
             || _pacer.PendingSmartWakeAt is not { } pendingWakeAt)
@@ -440,17 +470,26 @@ internal sealed class SessionSleepLifecycle
         return true;
     }
 
-    private async Task<bool> RequestGracefulAutomationStopAsync()
+    private async Task<bool> RequestGracefulAutomationStopAsync(bool waitForCurrentAction)
     {
         _port.RequestAutomationStop(AutomationStopMode.AfterCurrentAction);
         var deadline = _utcNow() + GracefulStopTimeout;
         var announced = false;
-        while (_utcNow() < deadline)
+        var extendedWaitLogged = false;
+        while (true)
         {
             var state = _port.ReadState();
+            if (state.AppClosing)
+                return false;
             if (!state.AutoQueueRunning && !state.ContinuousLoopRunning && !state.ActiveOperation)
             {
                 return true;
+            }
+            if (_utcNow() >= deadline && (!waitForCurrentAction || !state.ActiveOperation))
+            {
+                if (waitForCurrentAction)
+                    _port.Log("[smart-sleep] active action finished; stopping remaining loop state without canceling an action.");
+                return waitForCurrentAction;
             }
 
             if (!announced)
@@ -459,10 +498,15 @@ internal sealed class SessionSleepLifecycle
                 _port.Log("[pacing] waiting for the current action to finish before sleep; no new action will start.");
             }
 
+            if (waitForCurrentAction && !extendedWaitLogged && _utcNow() >= deadline)
+            {
+                _port.Log("[smart-sleep] current action exceeded the graceful-stop window; waiting without canceling it.");
+                extendedWaitLogged = true;
+            }
+
             await _delayAsync(TimeSpan.FromMilliseconds(Random.Shared.Next(150, 350))).ConfigureAwait(true);
         }
 
-        return false;
     }
 
     private async Task<bool> TryWakeLoginWithRetryAsync()

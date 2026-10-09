@@ -192,6 +192,54 @@ public sealed class SessionSleepLifecycleTests
     }
 
     [Fact]
+    public async Task MaxRuntime_WaitsForCurrentActionAndBypassesIdleOpportunity()
+    {
+        var now = Now;
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(true, 60, 60, 30, 30,
+            RunTimerEnabled: false,
+            SmartSleepMaxRuntimeEnabled: true,
+            SmartSleepMaxRuntimeMinutes: 30,
+            SmartSleepMaxRuntimeSleepMinutes: 5,
+            SmartSleepMaxRuntimeVariationPercent: 0));
+        pacer.NotifyAutomationStarted();
+        now = now.AddMinutes(30);
+        pacer.TickForTests();
+
+        var port = new InMemorySleepPort
+        {
+            State = DefaultState() with
+            {
+                LoggedIn = true,
+                ContinuousLoopRunning = true,
+                ActiveOperation = true,
+                LoginRoundPending = true,
+            },
+            SmartSleepMinimumOpportunityMinutes = 20,
+        };
+        var lifecycle = CreateLifecycle(pacer, port, () => now);
+        await lifecycle.StartAutomaticSleepAsync();
+
+        Assert.Contains("stop:AfterCurrentAction", port.Trace);
+        Assert.DoesNotContain("cancel-operation", port.Trace);
+        Assert.DoesNotContain(port.Trace, entry => entry.StartsWith("close:", StringComparison.Ordinal));
+        Assert.Null(lifecycle.VillageRoundDeferredUntilUtc);
+
+        port.State = port.State with { ActiveOperation = false };
+        now = now.AddMinutes(2);
+        await lifecycle.StartDeferredSleepAsync();
+
+        Assert.Equal(SessionPacerPhase.Sleeping, pacer.Phase);
+        Assert.Equal(now.AddMinutes(5), pacer.PlannedWakeAt);
+        Assert.DoesNotContain("fill", port.Trace);
+        Assert.DoesNotContain("cancel-operation", port.Trace);
+
+        pacer.WakeNow();
+        await lifecycle.WakeAsync();
+        Assert.Contains("resume-continuous", port.Trace);
+    }
+
+    [Fact]
     public async Task ActiveOperation_DefersTheWholeTransactionUntilTheOperationEnds()
     {
         var pacer = new SessionPacer(() => Now);

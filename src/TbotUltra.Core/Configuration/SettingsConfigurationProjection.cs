@@ -13,6 +13,10 @@ public sealed record GeneralSettingsConfiguration(
 public sealed record SessionPacingSettingsConfiguration(
     bool SessionPacingEnabled,
     bool SmartSleepEnabled,
+    bool SmartSleepMaxRuntimeEnabled,
+    int SmartSleepMaxRuntimeMinutes,
+    int SmartSleepMaxRuntimeSleepMinutes,
+    int SmartSleepMaxRuntimeVariationPercent,
     bool SmartSleepWakeWhenConstructionQueueClears,
     int SmartSleepMinimumOpportunityMinutes,
     int SmartSleepWakeBeforeMinutes,

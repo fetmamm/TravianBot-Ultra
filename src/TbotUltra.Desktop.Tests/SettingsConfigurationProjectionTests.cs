@@ -22,6 +22,10 @@ public sealed class SettingsConfigurationProjectionTests
         Assert.Equal(FarmingDefaults.DefaultLastSentLimitHours, settings.Options.FarmListLastSentLimitHours);
         Assert.False(settings.SessionPacing.SessionPacingEnabled);
         Assert.True(settings.SessionPacing.SmartSleepEnabled);
+        Assert.False(settings.SessionPacing.SmartSleepMaxRuntimeEnabled);
+        Assert.Equal(60, settings.SessionPacing.SmartSleepMaxRuntimeMinutes);
+        Assert.Equal(30, settings.SessionPacing.SmartSleepMaxRuntimeSleepMinutes);
+        Assert.Equal(20, settings.SessionPacing.SmartSleepMaxRuntimeVariationPercent);
         Assert.Equal(10, settings.SessionPacing.SessionRunMinMinutes);
         Assert.Equal(40, settings.SessionPacing.SessionRunMaxMinutes);
         Assert.Equal(30, settings.SessionPacing.SessionSleepMinMinutes);
@@ -51,6 +55,10 @@ public sealed class SettingsConfigurationProjectionTests
             },
             SessionPacing = current.SessionPacing with
             {
+                SmartSleepMaxRuntimeEnabled = true,
+                SmartSleepMaxRuntimeMinutes = 120,
+                SmartSleepMaxRuntimeSleepMinutes = 25,
+                SmartSleepMaxRuntimeVariationPercent = 30,
                 SmartSleepFallbackMinMinutes = 60,
                 SmartSleepFallbackMaxMinutes = 20,
                 SessionAllowedHours = [-1, 4, 4, 24],
@@ -78,6 +86,10 @@ public sealed class SettingsConfigurationProjectionTests
         Assert.True(reloaded.Options.StartBrowserMinimized);
         Assert.Equal(23, reloaded.General.DailyServerResetHour);
         Assert.Equal(60, reloaded.SessionPacing.SmartSleepFallbackMinMinutes);
+        Assert.True(reloaded.SessionPacing.SmartSleepMaxRuntimeEnabled);
+        Assert.Equal(120, reloaded.SessionPacing.SmartSleepMaxRuntimeMinutes);
+        Assert.Equal(25, reloaded.SessionPacing.SmartSleepMaxRuntimeSleepMinutes);
+        Assert.Equal(30, reloaded.SessionPacing.SmartSleepMaxRuntimeVariationPercent);
         Assert.Equal(60, reloaded.SessionPacing.SmartSleepFallbackMaxMinutes);
         Assert.Equal([4], reloaded.SessionPacing.SessionAllowedHours);
         Assert.Equal(80, reloaded.Options.ConstructionHumanizeQueuePercentMin);

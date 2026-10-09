@@ -320,6 +320,7 @@ internal sealed class SettingsExchangeService
         {
             BotOptionPayloadKeys.SessionPacingEnabled,
             BotOptionPayloadKeys.SmartSleepEnabled,
+            BotOptionPayloadKeys.SmartSleepMaxRuntimeEnabled,
             BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears,
             BotOptionPayloadKeys.ActionPacingEnabled,
             BotOptionPayloadKeys.ContinuousKeepAliveEnabled,
@@ -352,6 +353,9 @@ internal sealed class SettingsExchangeService
         Add(Hours(BotOptionPayloadKeys.SessionPacingAllowedHours, "Pacing"));
         Add(Int(BotOptionPayloadKeys.SessionPacingHoursVariationPercent, "Pacing", 0, 30, [0, 10, 20, 30]));
         Add(Int(BotOptionPayloadKeys.SmartSleepMinimumOpportunityMinutes, "Pacing", 1, 1440));
+        Add(Int(BotOptionPayloadKeys.SmartSleepMaxRuntimeMinutes, "Pacing", 30, 300, [30, 60, 120, 180, 300]));
+        Add(Int(BotOptionPayloadKeys.SmartSleepMaxRuntimeSleepMinutes, "Pacing", 1, 1440));
+        Add(Int(BotOptionPayloadKeys.SmartSleepMaxRuntimeVariationPercent, "Pacing", 0, 50, [0, 10, 20, 30, 40, 50]));
         Add(Int(BotOptionPayloadKeys.SmartSleepWakeBeforeMinutes, "Pacing", 0, 1440));
         Add(Int(BotOptionPayloadKeys.SmartSleepWakeAfterMinutes, "Pacing", 0, 1440));
         Add(Int(BotOptionPayloadKeys.SmartSleepFallbackMinMinutes, "Pacing", 1, 10080));

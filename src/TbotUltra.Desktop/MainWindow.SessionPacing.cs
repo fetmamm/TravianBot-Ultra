@@ -95,6 +95,10 @@ public partial class MainWindow
             ReadInt(config, BotOptionPayloadKeys.SmartSleepWakeAfterMinutes, PacingDefaults.SmartSleepWakeAfterMinutes, 0, 1440),
             ReadInt(config, BotOptionPayloadKeys.SmartSleepFallbackMinMinutes, PacingDefaults.SmartSleepFallbackMinMinutes, 1, 10080),
             ReadInt(config, BotOptionPayloadKeys.SmartSleepFallbackMaxMinutes, PacingDefaults.SmartSleepFallbackMaxMinutes, 1, 10080));
+        var smartSleepMaxRuntimeEnabled = smartSleepEnabled && ReadBool(
+            config,
+            BotOptionPayloadKeys.SmartSleepMaxRuntimeEnabled,
+            PacingDefaults.SmartSleepMaxRuntimeEnabled);
         _smartSleepWakeWhenConstructionQueueClears = ReadBool(
             config,
             BotOptionPayloadKeys.SmartSleepWakeWhenConstructionQueueClears,
@@ -127,7 +131,11 @@ public partial class MainWindow
             ReadDouble(config, BotOptionPayloadKeys.SessionPacingRuntimeSeconds, 0, 0, 86400),
             ReadInt(config, BotOptionPayloadKeys.SessionPacingDailyMaxVariationPercent, PacingDefaults.SessionPacingDailyMaxVariationPercent, 0, 50),
             ReadInt(config, BotOptionPayloadKeys.SessionPacingHoursVariationPercent, PacingDefaults.SessionPacingHoursVariationPercent, 0, 49),
-            RunTimerEnabled: sessionPacingEnabled),
+            RunTimerEnabled: sessionPacingEnabled,
+            SmartSleepMaxRuntimeEnabled: smartSleepMaxRuntimeEnabled,
+            SmartSleepMaxRuntimeMinutes: ReadInt(config, BotOptionPayloadKeys.SmartSleepMaxRuntimeMinutes, PacingDefaults.SmartSleepMaxRuntimeMinutes, 30, 300),
+            SmartSleepMaxRuntimeSleepMinutes: ReadInt(config, BotOptionPayloadKeys.SmartSleepMaxRuntimeSleepMinutes, PacingDefaults.SmartSleepMaxRuntimeSleepMinutes, 1, 1440),
+            SmartSleepMaxRuntimeVariationPercent: ReadInt(config, BotOptionPayloadKeys.SmartSleepMaxRuntimeVariationPercent, PacingDefaults.SmartSleepMaxRuntimeVariationPercent, 0, 50)),
             reloadRuntime);
         ConfigureProxyPlanTransition(accountName);
     }
@@ -896,7 +904,9 @@ public partial class MainWindow
         {
             Content = _sessionPacer.Phase == SessionPacerPhase.Running
                 && !_sessionPacer.IsRunTimerEnabled
-                    ? "Smart sleep is active. The browser will close when there is a long enough idle window."
+                    ? _sessionPacer.IsSmartSleepMaxRuntimeEnabled
+                        ? $"Smart sleep is active. Maximum online time remaining: {SessionPacer.FormatDuration(_sessionPacer.TimeUntilSleep)}. The current task finishes before sleep."
+                        : "Smart sleep is active. The browser will close when there is a long enough idle window."
                     : $"Run time: {SessionPacer.FormatDuration(_sessionPacer.ActiveRunDuration ?? _sessionPacer.TimeUntilSleep)}\nSleep time: {sleepTime}",
         };
     }

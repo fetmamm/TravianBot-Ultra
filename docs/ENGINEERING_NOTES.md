@@ -146,6 +146,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Roman construction priority is an account-scoped Construction setting. It applies to every Roman village;
   Village settings must not expose a separate per-village priority control.
 - Smart Sleep's account-scoped `Wake when construction queue clears` option changes only its wake deadline.
+  Its optional account-scoped max-runtime cap is off by default. A varied active-automation timer may request
+  sleep despite ready work; stop new tasks, finish the current action without cancellation, then start its own
+  varied sleep duration from actual browser shutdown. This duration is independent of minimum idle opportunity;
+  explicit pauses and manual functions freeze the timer, while allowed hours and Daily max remain hard limits.
   With confirmed Plus overview data, a queued pair uses the final timer; Roman resource and building queues
   are evaluated separately. Normal online construction scheduling always keeps the earliest-slot behavior.
   Trusted deadlines within a randomized 10-15 minute coalescing window remain in the current online session.

@@ -768,6 +768,10 @@ public partial class SettingsWindow : Window
         => new(
             SettingsVm.Pacing.SessionPacingEnabled,
             SettingsVm.Pacing.SmartSleepEnabled,
+            SettingsVm.Pacing.SmartSleepMaxRuntimeEnabled,
+            SettingsVm.Pacing.SmartSleepMaxRuntimeMinutes,
+            ReadIntText(SettingsVm.Pacing.SmartSleepMaxRuntimeSleepMinutes, PacingDefaults.SmartSleepMaxRuntimeSleepMinutes, 1, 1440),
+            SettingsVm.Pacing.SmartSleepMaxRuntimeVariationPercent,
             SettingsVm.Pacing.SmartSleepWakeWhenConstructionQueueClears,
             ReadIntText(SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes, PacingDefaults.SmartSleepMinimumOpportunityMinutes, 1, 1440),
             ReadIntText(SettingsVm.Pacing.SmartSleepWakeBeforeMinutes, PacingDefaults.SmartSleepWakeBeforeMinutes, 0, 1440),
@@ -797,6 +801,7 @@ public partial class SettingsWindow : Window
             (SmartSleepWakeAfterTextBox, "Smart sleep wake-after", true, 0, 1440),
             (SmartSleepFallbackMinTextBox, "Smart sleep fallback minimum", true, 1, 10080),
             (SmartSleepFallbackMaxTextBox, "Smart sleep fallback maximum", true, 1, 10080),
+            (SmartSleepMaxRuntimeSleepTextBox, "Smart sleep max-runtime sleep", true, 1, 1440),
             (ActionTaskMinTextBox, "Task action delay minimum", false, 0, 3600),
             (ActionTaskMaxTextBox, "Task action delay maximum", false, 0, 3600),
             (ActionPageLoadMinTextBox, "Page-load delay minimum", false, 0, 3600),
@@ -1323,6 +1328,8 @@ public partial class SettingsWindow : Window
         ContinuousKeepAliveMaxMinutesTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.ContinuousKeepAliveMaxMinutes);
         SessionPacingEnabledCheckBox.SetCurrentValue(ToggleButton.IsCheckedProperty, SettingsVm.Pacing.SessionPacingEnabled);
         SmartSleepEnabledCheckBox.SetCurrentValue(ToggleButton.IsCheckedProperty, SettingsVm.Pacing.SmartSleepEnabled);
+        SmartSleepMaxRuntimeCheckBox.SetCurrentValue(ToggleButton.IsCheckedProperty, SettingsVm.Pacing.SmartSleepMaxRuntimeEnabled);
+        SmartSleepMaxRuntimeSleepTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.SmartSleepMaxRuntimeSleepMinutes);
         SmartSleepWakeWhenConstructionQueueClearsCheckBox.SetCurrentValue(ToggleButton.IsCheckedProperty, SettingsVm.Pacing.SmartSleepWakeWhenConstructionQueueClears);
         SmartSleepMinimumOpportunityTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes);
         SmartSleepWakeBeforeTextBox.SetCurrentValue(TextBox.TextProperty, SettingsVm.Pacing.SmartSleepWakeBeforeMinutes);
@@ -1527,6 +1534,10 @@ public partial class SettingsWindow : Window
         var options = settings.Options;
         SettingsVm.Pacing.SessionPacingEnabled = pacing.SessionPacingEnabled;
         SettingsVm.Pacing.SmartSleepEnabled = pacing.SmartSleepEnabled;
+        SettingsVm.Pacing.SmartSleepMaxRuntimeEnabled = pacing.SmartSleepMaxRuntimeEnabled;
+        SettingsVm.Pacing.SmartSleepMaxRuntimeMinutes = pacing.SmartSleepMaxRuntimeMinutes;
+        SettingsVm.Pacing.SmartSleepMaxRuntimeSleepMinutes = pacing.SmartSleepMaxRuntimeSleepMinutes.ToString(CultureInfo.InvariantCulture);
+        SettingsVm.Pacing.SmartSleepMaxRuntimeVariationPercent = pacing.SmartSleepMaxRuntimeVariationPercent;
         SettingsVm.Pacing.SmartSleepWakeWhenConstructionQueueClears = pacing.SmartSleepWakeWhenConstructionQueueClears;
         SettingsVm.Pacing.SmartSleepMinimumOpportunityMinutes = pacing.SmartSleepMinimumOpportunityMinutes.ToString(CultureInfo.InvariantCulture);
         SettingsVm.Pacing.SmartSleepWakeBeforeMinutes = pacing.SmartSleepWakeBeforeMinutes.ToString(CultureInfo.InvariantCulture);
@@ -1599,6 +1610,22 @@ public partial class SettingsWindow : Window
 
     private void InitializeSessionPacingChoices()
     {
+        foreach (var minutes in new[] { 30, 60, 120, 180, 300 })
+        {
+            SmartSleepMaxRuntimeComboBox.Items.Add(new ComboBoxItem
+            {
+                Content = minutes == 30 ? "0.5 h" : $"{minutes / 60} h",
+                Tag = minutes.ToString(CultureInfo.InvariantCulture),
+            });
+        }
+        for (var percent = 0; percent <= 50; percent += 10)
+        {
+            SmartSleepMaxRuntimeVariationComboBox.Items.Add(new ComboBoxItem
+            {
+                Content = percent == 0 ? "0%" : $"±{percent}%",
+                Tag = percent.ToString(CultureInfo.InvariantCulture),
+            });
+        }
         SessionDailyMaxHoursComboBox.Items.Add(new ComboBoxItem { Content = "No limit", Tag = "0" });
         for (var hour = 1; hour <= 24; hour++)
         {

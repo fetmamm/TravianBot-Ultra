@@ -33,7 +33,11 @@ public sealed record SessionPacerSettings(
     double RuntimeSeconds = 0,
     int DailyMaxVariationPercent = PacingDefaults.SessionPacingDailyMaxVariationPercent,
     int HoursVariationPercent = PacingDefaults.SessionPacingHoursVariationPercent,
-    bool RunTimerEnabled = true);
+    bool RunTimerEnabled = true,
+    bool SmartSleepMaxRuntimeEnabled = false,
+    int SmartSleepMaxRuntimeMinutes = PacingDefaults.SmartSleepMaxRuntimeMinutes,
+    int SmartSleepMaxRuntimeSleepMinutes = PacingDefaults.SmartSleepMaxRuntimeSleepMinutes,
+    int SmartSleepMaxRuntimeVariationPercent = PacingDefaults.SmartSleepMaxRuntimeVariationPercent);
 
 public sealed record SessionPacerRuntimeState(DateOnly Date, double RuntimeSeconds);
 
@@ -79,6 +83,7 @@ public sealed class SessionPacer
     // disallowed off-hours window the user explicitly chose to override.
     private DateTimeOffset? _scheduleOverrideUntil;
     private DateTimeOffset? _requestedSmartWakeAt;
+    private TimeSpan? _requestedSmartSleepDuration;
 
     public SessionPacer(Func<DateTimeOffset>? now = null)
     {
@@ -119,12 +124,16 @@ public sealed class SessionPacer
     public DateTimeOffset? PendingSmartWakeAt => _pendingSleepReason == SessionSleepReason.SmartSleep
         ? _requestedSmartWakeAt
         : null;
+    public bool PendingSmartSleepIsRuntimeCap => _pendingSleepReason == SessionSleepReason.SmartSleep
+        && _requestedSmartSleepDuration is not null;
     public bool IsRunTimerEnabled => _settings.Enabled && _settings.RunTimerEnabled;
+    public bool IsSmartSleepMaxRuntimeEnabled => _settings.Enabled && _settings.SmartSleepMaxRuntimeEnabled;
     public bool IsSleepPaused => Phase == SessionPacerPhase.Sleeping && _pausedSleepRemaining is not null;
     public TimeSpan? PausedSleepRemaining => _pausedSleepRemaining;
     public SessionPacerRuntimeState RuntimeState => new(_runtimeDate, _runtimeSeconds);
     public string StatusText => Phase switch
     {
+        SessionPacerPhase.Running when _settings.SmartSleepMaxRuntimeEnabled => $"Next sleep: {Format(TimeUntilSleep)}",
         SessionPacerPhase.Running when !IsRunTimerEnabled => "Smart sleep",
         SessionPacerPhase.Running => $"Next sleep: {Format(TimeUntilSleep)}",
         SessionPacerPhase.Paused => "Paused",
@@ -143,6 +152,9 @@ public sealed class SessionPacer
     public void Configure(SessionPacerSettings settings, bool reloadRuntime = false)
     {
         var previousDailyMaxHours = _settings.DailyMaxHours;
+        var previousMaxRuntimeEnabled = _settings.SmartSleepMaxRuntimeEnabled;
+        var previousMaxRuntimeMinutes = _settings.SmartSleepMaxRuntimeMinutes;
+        var previousMaxRuntimeVariation = _settings.SmartSleepMaxRuntimeVariationPercent;
         _settings = Normalize(settings);
         _allowedHours = (_settings.AllowedHours ?? Enumerable.Range(0, 24))
             .Where(hour => hour is >= 0 and <= 23)
@@ -223,6 +235,20 @@ public sealed class SessionPacer
 
         if (Phase == SessionPacerPhase.Running)
         {
+            if (previousMaxRuntimeEnabled != _settings.SmartSleepMaxRuntimeEnabled
+                || (previousMaxRuntimeEnabled && (previousMaxRuntimeMinutes != _settings.SmartSleepMaxRuntimeMinutes
+                    || previousMaxRuntimeVariation != _settings.SmartSleepMaxRuntimeVariationPercent)))
+            {
+                _activeRunDuration = _settings.SmartSleepMaxRuntimeEnabled
+                    ? TimeSpan.FromMinutes(RandomVariedMinutes(_settings.SmartSleepMaxRuntimeMinutes, _settings.SmartSleepMaxRuntimeVariationPercent))
+                    : null;
+                _runDeadline = _activeRunDuration is { } duration
+                    ? Earliest(now.Add(duration), GetNextRestrictionAt(now))
+                    : GetNextRestrictionAt(now);
+                Logger?.Invoke(_settings.SmartSleepMaxRuntimeEnabled
+                    ? $"[smart-sleep] max-runtime setting applied; next sleep in {Format(TimeUntilSleep)}."
+                    : "[smart-sleep] max-runtime limit disabled.");
+            }
             _timer.Start();
         }
 
@@ -347,6 +373,7 @@ public sealed class SessionPacer
         _pendingSleepReason = SessionSleepReason.None;
         _scheduleOverrideUntil = null;
         _requestedSmartWakeAt = null;
+        _requestedSmartSleepDuration = null;
         Phase = SessionPacerPhase.Disabled;
         _runStartedAt = null;
         _runDeadline = null;
@@ -398,6 +425,13 @@ public sealed class SessionPacer
             _activeSleepDuration = Positive(_wakeAt.Value - now);
             _requestedSmartWakeAt = null;
         }
+        else if (reason == SessionSleepReason.SmartSleep && _requestedSmartSleepDuration is { } duration)
+        {
+            _wakeAt = ResolveEffectiveSmartSleepWakeAt(now.Add(duration));
+            _activeSleepDuration = Positive(_wakeAt.Value - now);
+            Logger?.Invoke($"[smart-sleep] max-runtime sleep started; duration={Format(duration)} "
+                + $"effectiveWake='{_wakeAt:yyyy-MM-dd HH:mm:ss zzz}'.");
+        }
         else
         {
             var sleepMinutes = RandomMinutesInRange(_settings.SleepMinMinutes, _settings.SleepMaxMinutes);
@@ -424,6 +458,7 @@ public sealed class SessionPacer
         _lastRuntimeUpdate = null;
         _sleepStartRaised = false;
         _requestedSmartWakeAt = null;
+        _requestedSmartSleepDuration = null;
         _automationActive = false;
         _timer.Start();
         Logger?.Invoke(
@@ -593,8 +628,24 @@ public sealed class SessionPacer
         }
 
         _requestedSmartWakeAt = ResolveEffectiveSmartSleepWakeAt(wakeAt);
+        _requestedSmartSleepDuration = null;
         RequestSleep(SessionSleepReason.SmartSleep);
         return true;
+    }
+
+    private void RequestSmartSleepRuntimeCap()
+    {
+        if (_sleepStartRaised)
+            return;
+
+        var minutes = RandomVariedMinutes(
+            _settings.SmartSleepMaxRuntimeSleepMinutes,
+            _settings.SmartSleepMaxRuntimeVariationPercent);
+        _requestedSmartWakeAt = null;
+        _requestedSmartSleepDuration = TimeSpan.FromMinutes(minutes);
+        Logger?.Invoke($"[smart-sleep] max-runtime reached; stopping after current action, "
+            + $"then sleeping for {Format(_requestedSmartSleepDuration)}.");
+        RequestSleep(SessionSleepReason.SmartSleep);
     }
 
     public DateTimeOffset ResolveEffectiveSmartSleepWakeAt(DateTimeOffset requestedWakeAt)
@@ -618,6 +669,7 @@ public sealed class SessionPacer
 
         _pendingSleepReason = SessionSleepReason.None;
         _requestedSmartWakeAt = null;
+        _requestedSmartSleepDuration = null;
         _sleepStartRaised = false;
         _timer.Start();
         RaiseTick();
@@ -685,8 +737,10 @@ public sealed class SessionPacer
         _runStartedAt = now;
         _activeRunDuration = _settings.RunTimerEnabled
             ? TimeSpan.FromMinutes(RandomMinutesInRange(_settings.RunMinMinutes, _settings.RunMaxMinutes))
-            : null;
-        _runDeadline = _settings.RunTimerEnabled
+            : _settings.SmartSleepMaxRuntimeEnabled
+                ? TimeSpan.FromMinutes(RandomVariedMinutes(_settings.SmartSleepMaxRuntimeMinutes, _settings.SmartSleepMaxRuntimeVariationPercent))
+                : null;
+        _runDeadline = _activeRunDuration is not null
             ? Earliest(now.Add(_activeRunDuration!.Value), GetNextRestrictionAt(now))
             : GetNextRestrictionAt(now);
         if (_settings.RunTimerEnabled && _proxyTransitionAt is { } proxyAt)
@@ -701,6 +755,8 @@ public sealed class SessionPacer
         _timer.Start();
         Logger?.Invoke(_settings.RunTimerEnabled
             ? $"[pacing] session run timer started; next sleep in {Format(TimeUntilSleep)}."
+            : _settings.SmartSleepMaxRuntimeEnabled
+                ? $"[smart-sleep] max-runtime timer started; next sleep in {Format(TimeUntilSleep)}."
             : "[smart-sleep] online; waiting for a trusted idle deadline.");
         RaiseTick();
     }
@@ -757,6 +813,10 @@ public sealed class SessionPacer
             else if (_settings.RunTimerEnabled && TimeUntilSleep <= TimeSpan.Zero)
             {
                 RequestSleep(SessionSleepReason.SessionPacing);
+            }
+            else if (_settings.SmartSleepMaxRuntimeEnabled && TimeUntilSleep <= TimeSpan.Zero)
+            {
+                RequestSmartSleepRuntimeCap();
             }
         }
         else if (Phase == SessionPacerPhase.Sleeping && TimeUntilWake <= TimeSpan.Zero)
@@ -967,6 +1027,7 @@ public sealed class SessionPacer
         _lastRuntimeUpdate = null;
         _sleepStartRaised = false;
         _requestedSmartWakeAt = null;
+        _requestedSmartSleepDuration = null;
         _timer.Stop();
         RaiseTick();
     }
@@ -980,6 +1041,12 @@ public sealed class SessionPacer
         var min = Math.Max(1, minMinutes);
         var max = Math.Max(min, maxMinutes);
         return min + (Random.Shared.NextDouble() * (max - min));
+    }
+
+    private static double RandomVariedMinutes(int baseMinutes, int variationPercent)
+    {
+        var spread = baseMinutes * variationPercent / 100.0;
+        return Math.Max(1, baseMinutes - spread + Random.Shared.NextDouble() * (spread * 2));
     }
 
     // Well-distributed signed fraction in [-1, 1] for a calendar day. Uses the splitmix64 finalizer on the
@@ -1049,6 +1116,9 @@ public sealed class SessionPacer
             // Capped at 49% so a ±jitter can never push adjacent hour boundaries past each other.
             HoursVariationPercent = Math.Clamp(settings.HoursVariationPercent, 0, 49),
             RuntimeSeconds = Math.Max(0, settings.RuntimeSeconds),
+            SmartSleepMaxRuntimeMinutes = Math.Clamp(settings.SmartSleepMaxRuntimeMinutes, 30, 300),
+            SmartSleepMaxRuntimeSleepMinutes = Math.Clamp(settings.SmartSleepMaxRuntimeSleepMinutes, 1, 1440),
+            SmartSleepMaxRuntimeVariationPercent = Math.Clamp(settings.SmartSleepMaxRuntimeVariationPercent, 0, 50),
         };
     }
 

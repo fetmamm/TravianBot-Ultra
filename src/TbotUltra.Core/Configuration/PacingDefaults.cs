@@ -17,6 +17,10 @@ public static class PacingDefaults
     public const int SessionPacingHoursVariationPercent = 30;
 
     public const bool SmartSleepEnabled = true;
+    public const bool SmartSleepMaxRuntimeEnabled = false;
+    public const int SmartSleepMaxRuntimeMinutes = 60;
+    public const int SmartSleepMaxRuntimeSleepMinutes = 30;
+    public const int SmartSleepMaxRuntimeVariationPercent = 20;
     public const int SmartSleepMinimumOpportunityMinutes = 20;
     public const int SmartSleepWakeBeforeMinutes = 10;
     public const int SmartSleepWakeAfterMinutes = 15;

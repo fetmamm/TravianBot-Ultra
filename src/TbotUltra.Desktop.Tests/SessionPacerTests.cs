@@ -7,6 +7,77 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class SessionPacerTests
 {
     [Fact]
+    public void SmartSleepMaxRuntime_RequestsSleepAfterVariedLimitAndStartsDurationAfterAction()
+    {
+        var now = new DateTimeOffset(2026, 10, 8, 10, 0, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(true, 15, 50, 30, 60,
+            RunTimerEnabled: false,
+            SmartSleepMaxRuntimeEnabled: true,
+            SmartSleepMaxRuntimeMinutes: 60,
+            SmartSleepMaxRuntimeSleepMinutes: 30,
+            SmartSleepMaxRuntimeVariationPercent: 0));
+        pacer.NotifyAutomationStarted();
+
+        Assert.Equal(TimeSpan.FromHours(1), pacer.TimeUntilSleep);
+        now = now.AddMinutes(60);
+        pacer.TickForTests();
+
+        Assert.True(pacer.PendingSmartSleepIsRuntimeCap);
+        Assert.Equal(SessionPacerPhase.Running, pacer.Phase);
+        now = now.AddMinutes(8); // current action finishes after the cap
+        pacer.BeginSleep();
+
+        Assert.Equal(now.AddMinutes(30), pacer.PlannedWakeAt);
+        Assert.Equal(SessionSleepReason.SmartSleep, pacer.SleepReason);
+
+        now = now.AddMinutes(30);
+        pacer.TickForTests();
+        pacer.NotifyAutomationStarted();
+        Assert.Equal(TimeSpan.FromHours(1), pacer.TimeUntilSleep);
+    }
+
+    [Fact]
+    public void SmartSleepMaxRuntime_UsesOneSharedVariationForRunAndSleep()
+    {
+        var now = new DateTimeOffset(2026, 10, 8, 10, 0, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(true, 15, 50, 30, 60,
+            RunTimerEnabled: false,
+            SmartSleepMaxRuntimeEnabled: true,
+            SmartSleepMaxRuntimeMinutes: 60,
+            SmartSleepMaxRuntimeSleepMinutes: 30,
+            SmartSleepMaxRuntimeVariationPercent: 20));
+        pacer.NotifyAutomationStarted();
+        var runDuration = pacer.TimeUntilSleep!.Value;
+        Assert.InRange(runDuration.TotalMinutes, 48, 72);
+
+        now = now.Add(runDuration);
+        pacer.TickForTests();
+        pacer.BeginSleep();
+        Assert.InRange(pacer.ActiveSleepDuration!.Value.TotalMinutes, 24, 36);
+    }
+
+    [Fact]
+    public void SmartSleepMaxRuntime_PausesWhileAutomationIsStopped()
+    {
+        var now = new DateTimeOffset(2026, 10, 8, 10, 0, 0, TimeSpan.Zero);
+        var pacer = new SessionPacer(() => now);
+        pacer.Configure(new SessionPacerSettings(true, 15, 50, 30, 60,
+            RunTimerEnabled: false,
+            SmartSleepMaxRuntimeEnabled: true,
+            SmartSleepMaxRuntimeMinutes: 60,
+            SmartSleepMaxRuntimeVariationPercent: 0));
+        pacer.NotifyAutomationStarted();
+        now = now.AddMinutes(20);
+        pacer.NotifyAutomationStopped();
+        now = now.AddMinutes(90);
+        pacer.NotifyAutomationStarted();
+
+        Assert.Equal(TimeSpan.FromMinutes(40), pacer.TimeUntilSleep);
+    }
+
+    [Fact]
     public void SmartSleep_UsesRequestedWakeAndDisablesRunTimer()
     {
         var now = new DateTimeOffset(2026, 9, 11, 10, 0, 0, TimeSpan.Zero);
