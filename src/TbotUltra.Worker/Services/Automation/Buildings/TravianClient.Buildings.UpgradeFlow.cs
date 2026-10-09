@@ -439,8 +439,9 @@ public sealed partial class TravianClient : IBuildingClient
                 null,
                 null,
                 null);
-            Notify(UpgradeResourceWaitCalculator.FormatLog(heroLimitSnapshot));
-            return heroLimitSnapshot;
+            var boundedSnapshot = HonorConstructionHeroRevalidationDeadline(heroLimitSnapshot);
+            Notify(UpgradeResourceWaitCalculator.FormatLog(boundedSnapshot));
+            return boundedSnapshot;
         }
 
         _heroTransferOverLimitWaitSeconds = null;
@@ -527,6 +528,7 @@ public sealed partial class TravianClient : IBuildingClient
                 capacities.Warehouse,
                 capacities.Granary,
                 serverStorageBlockKind);
+            snapshot = HonorConstructionHeroRevalidationDeadline(snapshot);
             Notify(UpgradeResourceWaitCalculator.FormatLog(snapshot));
             return snapshot;
         }
@@ -543,8 +545,25 @@ public sealed partial class TravianClient : IBuildingClient
             capacities.Warehouse,
             capacities.Granary,
             serverStorageBlockKind);
+        liveSnapshot = HonorConstructionHeroRevalidationDeadline(liveSnapshot);
         Notify(UpgradeResourceWaitCalculator.FormatLog(liveSnapshot));
         return liveSnapshot;
+    }
+
+    private UpgradeResourceWaitSnapshot HonorConstructionHeroRevalidationDeadline(UpgradeResourceWaitSnapshot snapshot)
+    {
+        if (snapshot.StorageCapacityKind is not null
+            || !_config.HeroResourceTransferEnabled
+            || !_config.HeroResourceUseConstruction
+            || TryGetCachedHeroInventorySnapshot()?.ConstructionProbe?.NextProbeAtUtc is not { } nextProbe)
+        {
+            return snapshot;
+        }
+
+        var probeWaitSeconds = Math.Max(1, (int)Math.Ceiling((nextProbe - DateTimeOffset.UtcNow).TotalSeconds));
+        return probeWaitSeconds < snapshot.WaitSeconds
+            ? snapshot with { WaitSeconds = probeWaitSeconds, WaitReason = "hero_revalidation" }
+            : snapshot;
     }
 
     private async Task<IReadOnlyDictionary<string, double?>> ReadCachedProductionByHourForActiveVillageAsync(CancellationToken cancellationToken)

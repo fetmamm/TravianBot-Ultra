@@ -87,19 +87,9 @@ public sealed partial class TravianClient
 
         if (decision.ShouldRevalidateHero)
         {
-            if (TryReserveConstructionHeroInventoryProbe(heroSnapshot, now, out var reservedUntil))
+            var latestSnapshot = TryGetCachedHeroInventorySnapshot();
+            if (latestSnapshot != heroSnapshot)
             {
-                decision = decision with
-                {
-                    ShouldOpenBuildPage = true,
-                    NextAttemptAtUtc = reservedUntil,
-                    Reason = "Hero inventory revalidation reserved for the exact current build-page transfer dialog",
-                };
-                Notify($"[construction-preflight] label='{label}' reserved the shared Hero revalidation until {reservedUntil:O}; the exact build-page transfer dialog may be inspected once.");
-            }
-            else
-            {
-                heroSnapshot = TryGetCachedHeroInventorySnapshot();
                 decision = operation.Evaluate(
                     cost,
                     resources,
@@ -107,11 +97,20 @@ public sealed partial class TravianClient
                     warehouseCapacity,
                     granaryCapacity,
                     isLive,
-                    heroSnapshot,
+                    latestSnapshot,
                     gold,
                     dailyBudgetAvailable,
                     stateKey,
                     DateTimeOffset.UtcNow);
+            }
+            if (decision.ShouldRevalidateHero)
+            {
+                decision = decision with
+                {
+                    ShouldOpenBuildPage = true,
+                    Reason = "Hero inventory revalidation is due on the exact build-page transfer dialog",
+                };
+                Notify($"[construction-preflight] label='{label}' Hero revalidation is due; the shared cooldown starts only after a readable dialog or confirmed empty response.");
             }
         }
 

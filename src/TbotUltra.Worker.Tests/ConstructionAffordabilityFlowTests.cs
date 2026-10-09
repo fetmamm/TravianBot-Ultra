@@ -45,15 +45,38 @@ public sealed class ConstructionAffordabilityFlowTests
     }
 
     [Fact]
-    public void HeroRevalidation_ReservesSharedProbeAndNeverNavigatesToHeroInventory()
+    public void HeroRevalidation_ReservesOnlyFromTheExactBuildPageDialog()
     {
         var affordabilitySource = ReadAutomationSource("Construction", "TravianClient.ConstructionAffordability.cs");
         var heroTransferSource = ReadAutomationSource("Hero", "TravianClient.HeroResourceTransfer.cs");
 
-        Assert.Contains("TryReserveConstructionHeroInventoryProbe", affordabilitySource, StringComparison.Ordinal);
+        Assert.DoesNotContain("TryReserveConstructionHeroInventoryProbe", affordabilitySource, StringComparison.Ordinal);
+        Assert.Contains("TryReserveConstructionHeroInventoryProbe", heroTransferSource, StringComparison.Ordinal);
+        AssertOrdered(heroTransferSource, "if (!transferAvailable)", "TryReserveConstructionHeroInventoryProbe");
         Assert.DoesNotContain("ReadHeroInventoryResourcesAsync", affordabilitySource, StringComparison.Ordinal);
         Assert.Contains("lock (HeroInventoryCacheSync)", heroTransferSource, StringComparison.Ordinal);
         Assert.Contains("ConstructionProbe = new HeroConstructionProbeState(observations, reservedUntil)", heroTransferSource, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void HeroRevalidation_InsufficientNonEmptyCacheCanReadDialogAndFailedReadBacksOff()
+    {
+        var source = ReadAutomationSource("Hero", "TravianClient.HeroResourceTransfer.cs");
+
+        Assert.Contains("&& HeroInventoryProbePolicy.ShouldRevalidateConstruction(cachedSnapshot", source, StringComparison.Ordinal);
+        Assert.Contains("DeferUnreadableConstructionHeroInventoryProbe", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void HeroRevalidation_ResourceWaitCannotOutlastSharedProbeDeadline()
+    {
+        var source = ReadAutomationSource("Buildings", "TravianClient.Buildings.UpgradeFlow.cs");
+        var method = Slice(source, "private async Task<UpgradeResourceWaitSnapshot> ReadUpgradeResourceWaitSnapshotAsync", "private async Task<IReadOnlyDictionary<string, double?>> ReadCachedProductionByHourForActiveVillageAsync");
+
+        Assert.Contains("HonorConstructionHeroRevalidationDeadline(heroLimitSnapshot)", method, StringComparison.Ordinal);
+        Assert.Contains("HonorConstructionHeroRevalidationDeadline(snapshot)", method, StringComparison.Ordinal);
+        Assert.Contains("HonorConstructionHeroRevalidationDeadline(liveSnapshot)", method, StringComparison.Ordinal);
+        Assert.Contains("snapshot with { WaitSeconds = probeWaitSeconds", method, StringComparison.Ordinal);
     }
 
     private static void AssertOrdered(string source, string first, string second)

@@ -32,7 +32,7 @@ public sealed partial class TravianClient
             return false;
         }
 
-        return await TryHeroResourceTransferOnCurrentBuildPageAsync(label, cancellationToken);
+        return await TryHeroResourceTransferOnCurrentBuildPageAsync(label, cancellationToken, constructionRecovery: true);
     }
 
     // A build page exposes the same resource-transfer dialog even when the village can already
@@ -150,7 +150,8 @@ public sealed partial class TravianClient
         return await TryHeroResourceTransferOnCurrentBuildPageAsync(
             label,
             cancellationToken,
-            constructBuildingGid: buildingGid);
+            constructBuildingGid: buildingGid,
+            constructionRecovery: true);
     }
 
     // Best-effort hero top-up for the celebration on the current brewery build page. Reuses the generic
@@ -202,7 +203,8 @@ public sealed partial class TravianClient
         bool preferTownHallCelebration = false,
         string? townHallCelebrationMode = null,
         bool preferBreweryCelebration = false,
-        int? constructBuildingGid = null)
+        int? constructBuildingGid = null,
+        bool constructionRecovery = false)
     {
         _heroTransferOverLimitWaitSeconds = null;
         var constructBuildingScopeId = BuildHeroTransferConstructScopeId(constructBuildingGid);
@@ -309,14 +311,21 @@ public sealed partial class TravianClient
         // cooldown; external adventure/raid rewards can refill it without any observable local event.
         var cachedSnapshot = TryGetCachedHeroInventorySnapshot();
         var cachedInventory = cachedSnapshot?.Resources;
+        var constructionRevalidationDue = constructionRecovery
+            && (cachedInventory is null || shortfall is not null && !HeroCoversShortfall(cachedInventory, shortfall))
+            && HeroInventoryProbePolicy.ShouldRevalidateConstruction(cachedSnapshot, DateTimeOffset.UtcNow);
         if (cachedInventory is not null && shortfall is not null)
         {
             if (!HeroCoversShortfall(cachedInventory, shortfall))
             {
                 var now = DateTimeOffset.UtcNow;
-                if (cachedSnapshot is null || !HeroInventoryProbePolicy.ShouldProbe(cachedSnapshot, now))
+                if (!constructionRevalidationDue
+                    && (constructionRecovery || cachedSnapshot is null || !HeroInventoryProbePolicy.ShouldProbe(cachedSnapshot, now)))
                 {
-                    var nextProbe = cachedSnapshot?.NextProbeAtUtc is { } next
+                    var nextProbeAt = constructionRecovery
+                        ? cachedSnapshot?.ConstructionProbe?.NextProbeAtUtc
+                        : cachedSnapshot?.NextProbeAtUtc;
+                    var nextProbe = nextProbeAt is { } next
                         ? $" nextProbe={next:O}"
                         : string.Empty;
                     Notify($"[hero-transfer] skip at {label}. Cached hero inventory cannot cover the shortfall "
@@ -326,14 +335,21 @@ public sealed partial class TravianClient
                     return false;
                 }
 
-                if (!TryReserveEmptyHeroInventoryProbe(cachedSnapshot, now, out var reservedUntil))
+                if (constructionRevalidationDue)
+                {
+                    Notify($"[hero-transfer] cached construction inventory is insufficient at {label}; checking the exact build-page dialog once before starting the shared cooldown.");
+                }
+                else if (!TryReserveEmptyHeroInventoryProbe(cachedSnapshot!, now, out var reservedUntil))
                 {
                     Notify($"[hero-transfer] stale empty-inventory probe was already reserved at {label}; skipping.");
                     return false;
                 }
 
-                Notify($"[hero-transfer] cached empty inventory is stale at {label}; "
-                    + $"checking the current build-page transfer dialog (next probe after {reservedUntil:O}).");
+                else
+                {
+                    Notify($"[hero-transfer] cached empty inventory is stale at {label}; "
+                        + $"checking the current build-page transfer dialog (next probe after {reservedUntil:O}).");
+                }
             }
         }
 
@@ -350,12 +366,14 @@ public sealed partial class TravianClient
             if (!opened)
             {
                 Notify($"[hero-transfer] could not click transfer icon at {label}.");
+                if (constructionRevalidationDue) DeferUnreadableConstructionHeroInventoryProbe(label);
                 return false;
             }
         }
         catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
         {
             Notify($"[hero-transfer] transient error clicking transfer icon at {label}; skipping");
+            if (constructionRevalidationDue) DeferUnreadableConstructionHeroInventoryProbe(label);
             return false;
         }
 
@@ -379,10 +397,16 @@ public sealed partial class TravianClient
                     UpdateHeroInventoryCache(
                         new HeroInventoryResources(0, 0, 0, 0),
                         HeroInventoryObservationSource.EmptyToast);
+                    if (constructionRevalidationDue)
+                    {
+                        TryReserveConstructionHeroInventoryProbe(
+                            TryGetCachedHeroInventorySnapshot(), DateTimeOffset.UtcNow, out _);
+                    }
                 }
                 else
                 {
                     Notify($"[hero-transfer] transfer rejected at {label} (server: '{toastText}'); skipping.");
+                    if (constructionRevalidationDue) DeferUnreadableConstructionHeroInventoryProbe(label);
                 }
 
                 return false;
@@ -403,11 +427,13 @@ public sealed partial class TravianClient
         catch (TimeoutException)
         {
             Notify($"[hero-transfer] transfer dialog did not appear at {label}; skipping");
+            if (constructionRevalidationDue) DeferUnreadableConstructionHeroInventoryProbe(label);
             return false;
         }
         catch (PlaywrightException)
         {
             Notify($"[hero-transfer] transfer dialog wait failed at {label}; skipping");
+            if (constructionRevalidationDue) DeferUnreadableConstructionHeroInventoryProbe(label);
             return false;
         }
 
@@ -426,6 +452,7 @@ public sealed partial class TravianClient
         else if (constructBuildingGid is not null)
         {
             Notify($"[hero-transfer] could not verify exact construct shortfall gid={constructBuildingGid} after opening dialog; closing without transfer.");
+            if (constructionRevalidationDue) DeferUnreadableConstructionHeroInventoryProbe(label);
             await TryDismissResourceTransferDialogAsync(cancellationToken);
             return false;
         }
@@ -445,6 +472,15 @@ public sealed partial class TravianClient
         {
             Notify($"[hero-transfer] inventory resynced from dialog: wood={actualInventory.Wood} clay={actualInventory.Clay} iron={actualInventory.Iron} crop={actualInventory.Crop}");
             UpdateHeroInventoryCache(actualInventory, HeroInventoryObservationSource.TransferDialog);
+            if (constructionRevalidationDue && shortfall is not null && !HeroCoversShortfall(actualInventory, shortfall)
+                && TryReserveConstructionHeroInventoryProbe(TryGetCachedHeroInventorySnapshot(), DateTimeOffset.UtcNow, out var nextProbe))
+            {
+                Notify($"[hero-transfer] exact dialog still cannot cover {label}; shared Hero revalidation next due {nextProbe:O}.");
+            }
+        }
+        else if (constructionRevalidationDue)
+        {
+            DeferUnreadableConstructionHeroInventoryProbe(label);
         }
 
         // The dialog now reports what the hero actually carries. If that still cannot cover the shortfall
@@ -1287,7 +1323,8 @@ public sealed partial class TravianClient
         lock (HeroInventoryCacheSync)
         {
             CachedHeroInventoryByKey.TryGetValue(key, out var current);
-            if (current != expected
+            if (current is null
+                || current != expected
                 || current?.ConstructionProbe?.NextProbeAtUtc is { } nextProbe && nextProbe > now)
             {
                 reservedUntil = current?.ConstructionProbe?.NextProbeAtUtc ?? now;
@@ -1298,10 +1335,7 @@ public sealed partial class TravianClient
             reservedUntil = now + HeroInventoryProbePolicy.GetConstructionProbeDelay(
                 observations,
                 Random.Shared.NextDouble());
-            reserved = (current ?? new HeroInventorySnapshot(
-                new HeroInventoryResources(),
-                now,
-                HeroInventoryObservationSource.Unknown)) with
+            reserved = current! with
             {
                 ConstructionProbe = new HeroConstructionProbeState(observations, reservedUntil),
             };
@@ -1318,6 +1352,42 @@ public sealed partial class TravianClient
         }
 
         return true;
+    }
+
+    // A failed dialog read is not an insufficient inventory observation. Give the same
+    // account/world a short retry delay without advancing its progressive probe counter.
+    private void DeferUnreadableConstructionHeroInventoryProbe(string label)
+    {
+        var key = BuildHeroInventoryCacheKey();
+        var nextAttempt = DateTimeOffset.UtcNow.AddMinutes(2);
+        HeroInventorySnapshot snapshot;
+        lock (HeroInventoryCacheSync)
+        {
+            CachedHeroInventoryByKey.TryGetValue(key, out var current);
+            if (current is null)
+            {
+                Notify($"[hero-transfer] unreadable dialog at {label}; no prior inventory snapshot exists, so no unobserved zero inventory is saved.");
+                return;
+            }
+            snapshot = current with
+            {
+                ConstructionProbe = new HeroConstructionProbeState(
+                    current?.ConstructionProbe?.ConsecutiveInsufficientObservations ?? 0,
+                    nextAttempt),
+            };
+            CachedHeroInventoryByKey[key] = snapshot;
+        }
+
+        try
+        {
+            _heroInventorySnapshotStore.SaveSnapshot(AccountName, ServerUrl, snapshot);
+        }
+        catch (Exception ex)
+        {
+            Notify($"[hero-transfer] could not persist unreadable-dialog retry: {ex.Message}");
+        }
+
+        Notify($"[hero-transfer] revalidation dialog unreadable at {label}; retry no earlier than {nextAttempt:O} without counting an insufficient inventory read.");
     }
 
     // Subtracts the just-transferred amounts from the cache (floored at 0) and notifies listeners.
