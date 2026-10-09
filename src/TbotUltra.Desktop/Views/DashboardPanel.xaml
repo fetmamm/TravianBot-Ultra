@@ -105,6 +105,18 @@
                             <Setter Property="Margin" Value="0,0,6,6" />
                             <Setter Property="BorderThickness" Value="0" />
                             <Setter Property="Background" Value="Transparent" />
+                            <Setter Property="Focusable" Value="False" />
+                            <Setter Property="FocusVisualStyle" Value="{x:Null}" />
+                            <Setter Property="Template">
+                                <Setter.Value>
+                                    <ControlTemplate TargetType="ListBoxItem">
+                                        <Border Background="{TemplateBinding Background}"
+                                                Padding="{TemplateBinding Padding}">
+                                            <ContentPresenter HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}" />
+                                        </Border>
+                                    </ControlTemplate>
+                                </Setter.Value>
+                            </Setter>
                             <Style.Triggers>
                                 <DataTrigger Binding="{Binding IsVisible}" Value="False">
                                     <Setter Property="Visibility" Value="Collapsed" />
