@@ -305,9 +305,13 @@ public sealed partial class BrowserSession
         bool interactive,
         CancellationToken cancellationToken)
     {
+        // Lobby-selected accounts retain the lobby URL in their original options. The isolated
+        // browser must navigate on the verified game-world origin used by its context.
+        var videoOptions = _config with { BaseUrl = _effectiveBaseUrl };
+        _log?.Invoke($"[browser-video] isolated navigation origin='{_effectiveBaseUrl}' request='{request.GetType().Name}'.");
         var client = new TravianClient(
             page,
-            _config,
+            videoOptions,
             _account,
             interactive: interactive,
             browserVisible: true,

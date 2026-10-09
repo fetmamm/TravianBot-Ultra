@@ -32,6 +32,15 @@ public sealed class BonusVideoBrowserContainmentTests
     }
 
     [Fact]
+    public void IsolatedBonusBrowser_UsesResolvedGameWorldForClientNavigation()
+    {
+        var source = ReadBonusVideoSource();
+
+        Assert.Contains("BaseURL = _effectiveBaseUrl", source, StringComparison.Ordinal);
+        Assert.Contains("_config with { BaseUrl = _effectiveBaseUrl }", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void IsolatedBonusBrowser_ReassertsMinimizedWindowStateAfterPageCreation()
     {
         var source = ReadBonusVideoSource();

@@ -205,6 +205,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   shared browser. Every normal main context also installs CMP UI suppression at document start, before its visible
   page is created; manual lobby authentication can otherwise prime an in-page consent overlay that is recreated
   during later read-only status passes. Bonus videos remain isolated in their separate browser context.
+- After a `Choose in lobby` login resolves a game world, isolated bonus-video clients must use the
+  browser session's verified game-world origin for navigation; the original account options may still
+  contain the lobby URL even though the main browser is on the game world.
 - An account's optional display name is local presentation only; authentication continues to use the lobby email.
   The internal account key is immutable after creation. New accounts allocate a unique key atomically, including
   when the same email has multiple pending `Choose in lobby` worlds, and resolving a lobby world never renames it.
