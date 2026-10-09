@@ -427,6 +427,123 @@ public sealed partial class TravianClient
         }
     }
 
+    // Enter a field or building through the same overview link a player uses. A missing link is
+    // not permission to type a build.php URL: the live overview may be stale or the slot changed.
+    private async Task OpenSlotFromOverviewAsync(int slotId, CancellationToken cancellationToken)
+    {
+        if (TravianUrls.IsBuildPageForSlot(_page.Url, slotId) && !await IsPageMarkedStaleAsync())
+        {
+            return;
+        }
+
+        var isResourceField = slotId is >= 1 and <= 18;
+        await OpenVillageOverviewAsync(isResourceField, cancellationToken);
+
+        var slotLink = isResourceField
+            ? $"#resourceFieldContainer a[data-aid='{slotId}'][href*='build.php?id={slotId}']"
+            : $".buildingSlot[data-aid='{slotId}'] a[href*='build.php?id={slotId}']";
+        // City walls may expose an empty level-link href; their SVG paths carry the live click handler.
+        if (slotId == 40)
+        {
+            slotLink += $", .buildingSlot[data-aid='40'] svg path[onclick*='build.php?id=40']";
+        }
+        if (!await TryClickFirstVisibleEnabledAsync(
+                slotLink,
+                cancellationToken,
+                reason: $"open slot {slotId} from {(isResourceField ? "Dorf1" : "Dorf2")}"))
+        {
+            throw new InvalidOperationException(
+                $"Cannot open slot {slotId}: no clickable slot link was confirmed on {(isResourceField ? "Dorf1" : "Dorf2")}. Current page: '{_page.Url}'.");
+        }
+
+        await WaitForPageReadyAsync(cancellationToken);
+        if (!TravianUrls.IsBuildPageForSlot(_page.Url, slotId))
+        {
+            throw new InvalidOperationException(
+                $"Cannot open slot {slotId}: slot click did not reach its build page. Current page: '{_page.Url}'.");
+        }
+
+        Notify($"[slot-nav] opened slot {slotId} via {(isResourceField ? "Dorf1" : "Dorf2")} link.");
+        InvalidateActiveConstructionsCache();
+        await ApplyPacingDelayAsync(
+            _config.ActionPacingPageLoadMinSeconds,
+            _config.ActionPacingPageLoadMaxSeconds,
+            "page-load-pacing",
+            "after village slot click",
+            cancellationToken);
+        await TryDismissContinuePromptAsync(cancellationToken);
+    }
+
+    private async Task OpenVillageOverviewAsync(bool resourceFields, CancellationToken cancellationToken)
+    {
+        var overviewPath = resourceFields ? Paths.Resources : Paths.Buildings;
+        if (IsCurrentUrlForPath(overviewPath) && !await IsPageMarkedStaleAsync())
+        {
+            return;
+        }
+
+        var overviewLink = resourceFields
+            ? "a.village.resourceView[href*='dorf1.php']"
+            : "a.village.buildingView[href*='dorf2.php']";
+        if (!await TryClickFirstVisibleEnabledAsync(
+                overviewLink,
+                cancellationToken,
+                reason: $"open {(resourceFields ? "resource" : "building")} overview"))
+        {
+            throw new InvalidOperationException(
+                $"Cannot open {(resourceFields ? "Dorf1" : "Dorf2")}: its visible overview link is unavailable. Current page: '{_page.Url}'.");
+        }
+
+        await WaitForPageReadyAsync(cancellationToken);
+        if (!IsCurrentUrlForPath(overviewPath))
+        {
+            throw new InvalidOperationException(
+                $"Overview click did not reach {overviewPath}. Current page: '{_page.Url}'.");
+        }
+
+        Notify($"[slot-nav] opened {(resourceFields ? "Dorf1" : "Dorf2")} via overview link.");
+        InvalidateActiveConstructionsCache();
+        await ApplyPacingDelayAsync(
+            _config.ActionPacingPageLoadMinSeconds,
+            _config.ActionPacingPageLoadMaxSeconds,
+            "page-load-pacing",
+            "after village overview click",
+            cancellationToken);
+    }
+
+    private async Task OpenSlotTabAsync(int slotId, int tab, CancellationToken cancellationToken)
+    {
+        var tabPath = Paths.BuildBySlotTab(slotId, tab);
+        if (IsCurrentUrlForPath(tabPath) && !await IsPageMarkedStaleAsync())
+        {
+            return;
+        }
+
+        await OpenSlotFromOverviewAsync(slotId, cancellationToken);
+        var tabLink = $".contentNavi.subNavi a.tabItem[href*='id={slotId}'][href$='t={tab}']";
+        if (!await TryClickFirstVisibleEnabledAsync(tabLink, cancellationToken, reason: $"open slot {slotId} tab {tab}"))
+        {
+            throw new InvalidOperationException(
+                $"Cannot open slot {slotId} tab {tab}: no visible tab link on '{_page.Url}'.");
+        }
+
+        await WaitForPageReadyAsync(cancellationToken);
+        if (!IsCurrentUrlForPath(tabPath))
+        {
+            throw new InvalidOperationException(
+                $"Slot {slotId} tab {tab} click did not reach {tabPath}. Current page: '{_page.Url}'.");
+        }
+
+        Notify($"[slot-nav] opened slot {slotId} tab {tab} via tab click.");
+        InvalidateActiveConstructionsCache();
+        await ApplyPacingDelayAsync(
+            _config.ActionPacingPageLoadMinSeconds,
+            _config.ActionPacingPageLoadMaxSeconds,
+            "page-load-pacing",
+            "after building tab click",
+            cancellationToken);
+    }
+
     // Reuses an already-open page only when its URL contract matches and Travian has not marked a timer
     // stale. Callers still perform their normal live DOM read; this only removes a redundant navigation.
     private async Task EnsurePageForReadAsync(

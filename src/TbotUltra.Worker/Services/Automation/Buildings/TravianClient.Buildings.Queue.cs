@@ -160,7 +160,7 @@ public sealed partial class TravianClient
             && !IsCurrentUrlForPath(Paths.Buildings)
             && !IsCurrentUrlForPath(Paths.Resources))
         {
-            await GotoAsync(Paths.Buildings, cancellationToken);
+            await OpenVillageOverviewAsync(resourceFields: false, cancellationToken);
             raw = await ReadActiveConstructionsOnCurrentPageAsync();
         }
 

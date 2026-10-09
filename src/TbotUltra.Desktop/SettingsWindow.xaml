@@ -285,65 +285,6 @@
                                     </StackPanel>
                                 </StackPanel>
                             </Border>
-                            <Border Style="{StaticResource SettingsGroupBox}" Margin="0,10,0,0"
-                                    IsEnabled="{Binding SettingsVm.TaskPriority.IsEditable}">
-                                <StackPanel>
-                                    <DockPanel Margin="0,0,0,6">
-                                        <Button DockPanel.Dock="Right"
-                                                Content="Reset to default"
-                                                Command="{Binding SettingsVm.TaskPriority.ResetCommand}"
-                                                Padding="10,4" />
-                                        <TextBlock Text="Task priority"
-                                                   FontSize="13"
-                                                   FontWeight="SemiBold"
-                                                   Foreground="{DynamicResource TextPrimaryBrush}"
-                                                   VerticalAlignment="Center" />
-                                    </DockPanel>
-                                    <TextBlock Text="Top groups run first within each village. Unavailable groups are skipped; urgent actions are unaffected. Dimmed groups are off for the current village or account default."
-                                               TextWrapping="Wrap"
-                                               Foreground="{DynamicResource TextMutedBrush}"
-                                               Margin="0,0,0,8" />
-                                    <ItemsControl x:Name="TaskPriorityList"
-                                                  ItemsSource="{Binding SettingsVm.TaskPriority.Rows}">
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Border Background="{DynamicResource SurfaceBrush}"
-                                                        BorderBrush="{DynamicResource BorderSubtleBrush}"
-                                                BorderThickness="1"
-                                                CornerRadius="5"
-                                                Padding="8,3"
-                                                ToolTip="{Binding Description}"
-                                                Margin="0,0,0,3">
-                                                    <DockPanel LastChildFill="True">
-                                                        <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
-                                                            <Button Content="↑" Width="28" Height="26" Margin="0,0,4,0"
-                                                                    ToolTip="Move up"
-                                                                    Command="{Binding DataContext.SettingsVm.TaskPriority.MoveUpCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                    CommandParameter="{Binding}" />
-                                                            <Button Content="↓" Width="28" Height="26"
-                                                                    ToolTip="Move down"
-                                                                    Command="{Binding DataContext.SettingsVm.TaskPriority.MoveDownCommand, RelativeSource={RelativeSource AncestorType=Window}}"
-                                                                    CommandParameter="{Binding}" />
-                                                        </StackPanel>
-                                                        <TextBlock Text="{Binding Title}" VerticalAlignment="Center">
-                                                            <TextBlock.Style>
-                                                                <Style TargetType="TextBlock">
-                                                                    <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
-                                                                    <Style.Triggers>
-                                                                        <DataTrigger Binding="{Binding IsAutomationEnabled}" Value="False">
-                                                                            <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
-                                                                        </DataTrigger>
-                                                                    </Style.Triggers>
-                                                                </Style>
-                                                            </TextBlock.Style>
-                                                        </TextBlock>
-                                                    </DockPanel>
-                                                </Border>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </StackPanel>
-                            </Border>
                         </StackPanel>
                     </Border>
 
@@ -1079,7 +1020,8 @@
                         </StackPanel>
                     </Border>
 
-                    <Border Style="{StaticResource GeneralSettingsCategoryStyle}">
+                    <Border x:Name="PostLoginAutomationSection"
+                            Style="{StaticResource GeneralSettingsCategoryStyle}">
                         <StackPanel>
                             <TextBlock Text="Automation"
                                        FontSize="15"
@@ -1160,6 +1102,69 @@
                                                FontWeight="SemiBold" />
                                 </Border>
                             </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <Border x:Name="TaskPrioritySection"
+                            Style="{StaticResource GeneralSettingsCategoryStyle}"
+                            Margin="0,16,0,0"
+                            IsEnabled="{Binding SettingsVm.TaskPriority.IsEditable}">
+                        <StackPanel>
+                            <DockPanel Margin="0,0,0,6">
+                                <Button DockPanel.Dock="Right"
+                                        Content="Reset to default"
+                                        Command="{Binding SettingsVm.TaskPriority.ResetCommand}"
+                                        Padding="8,3" />
+                                <StackPanel Orientation="Horizontal" VerticalAlignment="Center">
+                                    <TextBlock Text="Task priority"
+                                               FontSize="13"
+                                               FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                               VerticalAlignment="Center" />
+                                    <ContentControl x:Name="TaskPriorityInfoIcon"
+                                                    Style="{StaticResource SettingInfoIconStyle}"
+                                                    ToolTip="Top groups run first within each village. Unavailable groups are skipped; urgent actions are unaffected. Dimmed groups are off for the current village or account default." />
+                                </StackPanel>
+                            </DockPanel>
+                            <ItemsControl x:Name="TaskPriorityList"
+                                          ItemsSource="{Binding SettingsVm.TaskPriority.Rows}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Border Background="{DynamicResource SurfaceBrush}"
+                                                BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                                BorderThickness="1"
+                                                CornerRadius="4"
+                                                Padding="7,1"
+                                                ToolTip="{Binding Description}"
+                                                Margin="0,0,0,2">
+                                            <DockPanel LastChildFill="True">
+                                                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal">
+                                                    <Button Content="↑" Width="24" Height="22" Margin="0,0,3,0"
+                                                            ToolTip="Move up"
+                                                            Command="{Binding DataContext.SettingsVm.TaskPriority.MoveUpCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}" />
+                                                    <Button Content="↓" Width="24" Height="22"
+                                                            ToolTip="Move down"
+                                                            Command="{Binding DataContext.SettingsVm.TaskPriority.MoveDownCommand, RelativeSource={RelativeSource AncestorType=Window}}"
+                                                            CommandParameter="{Binding}" />
+                                                </StackPanel>
+                                                <TextBlock Text="{Binding Title}" VerticalAlignment="Center">
+                                                    <TextBlock.Style>
+                                                        <Style TargetType="TextBlock">
+                                                            <Setter Property="Foreground" Value="{DynamicResource TextPrimaryBrush}" />
+                                                            <Style.Triggers>
+                                                                <DataTrigger Binding="{Binding IsAutomationEnabled}" Value="False">
+                                                                    <Setter Property="Foreground" Value="{DynamicResource TextMutedBrush}" />
+                                                                </DataTrigger>
+                                                            </Style.Triggers>
+                                                        </Style>
+                                                    </TextBlock.Style>
+                                                </TextBlock>
+                                            </DockPanel>
+                                        </Border>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
                     </Border>
 

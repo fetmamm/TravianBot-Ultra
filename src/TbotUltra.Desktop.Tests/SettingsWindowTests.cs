@@ -142,6 +142,13 @@ public sealed class SettingsWindowTests : IDisposable
                 ShowWindowForTest(window);
                 DrainDispatcher();
                 Assert.IsType<ItemsControl>(window.FindName("TaskPriorityList"));
+                var automationSection = Assert.IsType<Border>(window.FindName("PostLoginAutomationSection"));
+                var prioritySection = Assert.IsType<Border>(window.FindName("TaskPrioritySection"));
+                var settingsSections = Assert.IsType<StackPanel>(prioritySection.Parent);
+                Assert.Equal(settingsSections.Children.IndexOf(automationSection) + 1,
+                    settingsSections.Children.IndexOf(prioritySection));
+                var infoIcon = Assert.IsType<ContentControl>(window.FindName("TaskPriorityInfoIcon"));
+                Assert.Contains("Top groups run first", Assert.IsType<string>(infoIcon.ToolTip));
                 var rows = window.SettingsVm.TaskPriority.Rows;
                 Assert.Equal("hero", rows[0].Key);
                 Assert.False(rows[0].IsAutomationEnabled);

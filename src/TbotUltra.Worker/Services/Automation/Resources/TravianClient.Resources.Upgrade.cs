@@ -900,7 +900,7 @@ public sealed partial class TravianClient
                     var reasonSuffix = blockReasons.Count > 0 ? $" Blockers: {string.Join(", ", blockReasons)}." : string.Empty;
                     if (!IsCurrentUrlForPath(Paths.Resources))
                     {
-                        await GotoAsync(Paths.Resources, cancellationToken);
+                        await OpenVillageOverviewAsync(resourceFields: true, cancellationToken);
                     }
 
                     return WithQueuedLevelProjections(
@@ -958,7 +958,7 @@ public sealed partial class TravianClient
     {
         if (!IsCurrentUrlForPath(Paths.Resources))
         {
-            await GotoAsync(Paths.Resources, cancellationToken);
+            await OpenVillageOverviewAsync(resourceFields: true, cancellationToken);
         }
         else
         {
@@ -990,7 +990,7 @@ public sealed partial class TravianClient
 
         if (!IsCurrentUrlForPath(Paths.Resources))
         {
-            await GotoAsync(Paths.Resources, cancellationToken);
+            await OpenVillageOverviewAsync(resourceFields: true, cancellationToken);
         }
 
         await EnsureLoggedInAsync();

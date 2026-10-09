@@ -16,7 +16,7 @@ public sealed partial class TravianClient
             {
                 if (allowNavigationToResourcePage && !IsCurrentUrlForPath(Paths.Resources))
                 {
-                    await GotoAsync(Paths.Resources, cancellationToken);
+                    await OpenVillageOverviewAsync(resourceFields: true, cancellationToken);
                 }
 
                 await EnsureLoggedInAsync(cancellationToken: cancellationToken);
@@ -138,7 +138,7 @@ public sealed partial class TravianClient
         Notify("[resources:verbose] NavigateToResourceFieldsAsync started");
         if (!IsCurrentUrlForPath(Paths.Resources))
         {
-            await GotoAsync(Paths.Resources, cancellationToken);
+            await OpenVillageOverviewAsync(resourceFields: true, cancellationToken);
         }
 
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
@@ -153,7 +153,7 @@ public sealed partial class TravianClient
             return false;
         }
 
-        await GotoAsync(Paths.Buildings, cancellationToken);
+        await OpenVillageOverviewAsync(resourceFields: false, cancellationToken);
         return true;
     }
 
@@ -164,7 +164,7 @@ public sealed partial class TravianClient
         if (!IsCurrentUrlForPath(Paths.Resources))
         {
             Notify("ReadCurrentPageResourceProductionPerHourAsync: current page is not dorf1, navigating to resource fields first.");
-            await GotoAsync(Paths.Resources, cancellationToken);
+            await OpenVillageOverviewAsync(resourceFields: true, cancellationToken);
             await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         }
 

@@ -52,9 +52,9 @@ public partial class MainWindow
                     continue;
                 }
 
-                // NPC trade has its own settings. Account is an always-on queue category. Neither is a
-                // user-toggleable Automation Loop group or belongs in the per-village group matrix.
-                if (group is QueueGroup.NpcTrade or QueueGroup.Account)
+                // Demolition runs only from explicit queue items and has no group toggle. NPC trade has
+                // its own settings, while Account is an always-on queue category.
+                if (group is QueueGroup.NpcTrade or QueueGroup.Account or QueueGroup.Demolish)
                 {
                     continue;
                 }

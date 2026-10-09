@@ -15,7 +15,14 @@ public sealed partial class TravianClient
         using var trace = _browserTrace.BeginOperation("READ", "buildings-overview", "scope=dorf2");
         if (!reuseFreshCurrentOverview || !IsCurrentUrlForPath(Paths.Buildings) || await IsPageMarkedStaleAsync())
         {
-            await GotoAsync(Paths.Buildings, cancellationToken);
+            if (IsCurrentUrlForPath(Paths.Buildings))
+            {
+                await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
+            }
+            else
+            {
+                await OpenVillageOverviewAsync(resourceFields: false, cancellationToken);
+            }
         }
         else
         {

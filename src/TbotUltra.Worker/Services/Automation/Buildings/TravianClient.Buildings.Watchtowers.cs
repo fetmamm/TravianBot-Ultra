@@ -32,7 +32,7 @@ public sealed partial class TravianClient
             return null;
         }
 
-        await GotoAsync(Paths.BuildBySlot(40), cancellationToken);
+        await OpenSlotFromOverviewAsync(40, cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         var parsed = WatchtowerDomParser.Parse(await _page.ContentAsync(), CurrentTravianServerTimeUtc());
         if (identity.Key is not null)
@@ -75,7 +75,7 @@ public sealed partial class TravianClient
                 "watchtower_prerequisite");
         }
 
-        await GotoAsync(Paths.BuildBySlot(40), cancellationToken);
+        await OpenSlotFromOverviewAsync(40, cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         var page = WatchtowerDomParser.Parse(await _page.ContentAsync(), CurrentTravianServerTimeUtc());
         if (!page.ExtensionAvailable || page.Status is null)

@@ -48,7 +48,7 @@ public sealed partial class TravianClient
             ? ResolveRestartDelaySeconds(restartDelayMinMinutes, restartDelayMaxMinutes)
             : 0;
 
-        await GotoAsync(BuildTownHallCelebrationsPath(townHallSlotId.Value), cancellationToken);
+        await OpenSlotTabAsync(townHallSlotId.Value, 1, cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var mode = TownHallCelebrationDefaults.NormalizeMode(requestedMode);
@@ -146,7 +146,7 @@ public sealed partial class TravianClient
                 await WaitForPageReadyAsync(cancellationToken);
             }
 
-            await GotoAsync(BuildTownHallCelebrationsPath(townHallSlotId.Value), cancellationToken);
+            await OpenSlotTabAsync(townHallSlotId.Value, 1, cancellationToken);
             await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
             var reread = await ReadTownHallCelebrationStatusFromCurrentPageAsync(cancellationToken);

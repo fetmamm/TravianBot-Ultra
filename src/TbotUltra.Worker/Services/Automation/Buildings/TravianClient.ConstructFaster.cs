@@ -251,7 +251,7 @@ public sealed partial class TravianClient
             if (slotId is 39 or 40)
             {
                 Notify($"[construct-faster] verifying fixed-slot result on fresh build page — slot={slotId}.");
-                await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
+                await OpenSlotFromOverviewAsync(slotId, cancellationToken);
                 await WaitForPageReadyAsync(cancellationToken);
 
                 var observedLevel = await TryReadSlotLevelOnCurrentPageAsync(slotId);
@@ -327,8 +327,18 @@ public sealed partial class TravianClient
     {
         try
         {
-            var path = string.IsNullOrWhiteSpace(restorePath) ? Paths.BuildBySlot(slotId) : restorePath;
-            await GotoAsync(path, cancellationToken);
+            var category = (int?)null;
+            if (!string.IsNullOrWhiteSpace(restorePath))
+            {
+                var query = new Uri(new Uri("https://path.local/"), restorePath).Query;
+                if (ParseQueryParameters(query).TryGetValue("category", out var rawCategory)
+                    && int.TryParse(rawCategory, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedCategory))
+                {
+                    category = parsedCategory;
+                }
+            }
+
+            await OpenConstructSlotPageAsync(slotId, category, cancellationToken);
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

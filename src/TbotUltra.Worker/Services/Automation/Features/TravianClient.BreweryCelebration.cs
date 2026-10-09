@@ -70,7 +70,7 @@ public sealed partial class TravianClient
                 "Capital village required.");
         }
 
-        await GotoAsync(Paths.BuildBySlot(brewerySlotId.Value), cancellationToken);
+        await OpenSlotFromOverviewAsync(brewerySlotId.Value, cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var pageStatus = await ReadBreweryCelebrationStatusFromCurrentPageAsync(cancellationToken);
@@ -278,7 +278,7 @@ public sealed partial class TravianClient
             await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         }
 
-        await GotoAsync(Paths.BuildBySlot(status.BrewerySlotId.Value), cancellationToken);
+        await OpenSlotFromOverviewAsync(status.BrewerySlotId.Value, cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var startedStatus = await ReadBreweryCelebrationStatusFromCurrentPageAsync(cancellationToken);

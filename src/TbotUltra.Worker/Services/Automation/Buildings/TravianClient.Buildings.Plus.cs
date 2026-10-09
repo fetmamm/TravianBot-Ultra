@@ -58,7 +58,7 @@ public sealed partial class TravianClient : IBuildingClient
             && !IsCurrentUrlForPath(Paths.Resources)
             && !IsCurrentUrlForPath(Paths.Buildings))
         {
-            await GotoAsync(Paths.Buildings, cancellationToken);
+            await OpenVillageOverviewAsync(resourceFields: false, cancellationToken);
             state = await EvaluatePlusStateOnCurrentPageAsync(cancellationToken);
             Notify($"[plus:verbose] dorf2 re-read state='{state}' url='{_page.Url}'");
         }

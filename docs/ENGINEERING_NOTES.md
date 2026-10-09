@@ -59,6 +59,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
   server-added parameters may be extra. Never identify all `/build.php` URLs as the same slot.
 - Common paths are `/dorf1.php`, `/dorf2.php`, `/build.php?id={slot}`, `/karte.php`, `/berichte.php`, and
   `/messages.php`.
+- Enter a resource field through the Dorf1 overview and a building through Dorf2; use their visible
+  links and the slot's live click target, not a typed `build.php` URL. Reuse an already valid target
+  page. Construction affordability may read stock and capacity on the current page; visit Dorf1
+  only when production is needed to resolve a resource shortfall or the visible stock is incomplete.
 - Scope selectors to the relevant Official page, widget, dialog, row, or building contract.
 - Before treating the Official sidebar village list as complete or resolving a village switch target from it,
   expand every collapsed village group with its scoped group action and verify the rendered expanded state.

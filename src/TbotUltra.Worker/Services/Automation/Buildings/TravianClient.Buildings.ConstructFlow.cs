@@ -115,7 +115,7 @@ public sealed partial class TravianClient : IBuildingClient
             {
                 url = Paths.BuildBySlotWithCategory(slotId, categoryIndex.Value);
             }
-            await GotoAsync(url, cancellationToken);
+            await OpenConstructSlotPageAsync(slotId, categoryIndex, cancellationToken);
 
             // Confirmed already-built guard: a stale construct task can target a slot that already holds the
             // building — e.g. a special fixed slot (Rally Point slot 39 / Wall slot 40 exist from founding)
@@ -487,7 +487,7 @@ public sealed partial class TravianClient : IBuildingClient
                 return (true, $"active construction detected for slot {matchingActiveConstruction.SlotId?.ToString(CultureInfo.InvariantCulture) ?? "unknown"} {matchingActiveConstruction.Name}");
             }
 
-            await GotoAsync(Paths.Buildings, cancellationToken);
+            await OpenVillageOverviewAsync(resourceFields: false, cancellationToken);
             var slots = (await ReadBuildingInfosAsync(cancellationToken)).Buildings;
             if (slots.TryGetValue(slotId, out var slotInfo))
             {
@@ -866,6 +866,46 @@ public sealed partial class TravianClient : IBuildingClient
         return missing;
     }
 
+    private async Task OpenConstructSlotPageAsync(int slotId, int? categoryIndex, CancellationToken cancellationToken)
+    {
+        await OpenSlotFromOverviewAsync(slotId, cancellationToken);
+        if (categoryIndex is not int category || slotId == 40)
+        {
+            return;
+        }
+
+        var categoryPath = Paths.BuildBySlotWithCategory(slotId, category);
+        if (IsCurrentUrlForPath(categoryPath))
+        {
+            return;
+        }
+
+        var categoryLink = $"a[href*='id={slotId}'][href$='category={category}'], a[href*='id={slotId}'][href*='category={category}&']";
+        if (!await TryClickFirstVisibleEnabledAsync(
+                categoryLink,
+                cancellationToken,
+                reason: $"select construction category {category} for slot {slotId}"))
+        {
+            throw new InvalidOperationException(
+                $"Cannot construct in slot {slotId}: category {category} has no visible tab link on '{_page.Url}'.");
+        }
+
+        await WaitForPageReadyAsync(cancellationToken);
+        if (!IsCurrentUrlForPath(categoryPath))
+        {
+            throw new InvalidOperationException(
+                $"Cannot construct in slot {slotId}: category click did not reach {categoryPath}. Current page: '{_page.Url}'.");
+        }
+
+        InvalidateActiveConstructionsCache();
+        await ApplyPacingDelayAsync(
+            _config.ActionPacingPageLoadMinSeconds,
+            _config.ActionPacingPageLoadMaxSeconds,
+            "page-load-pacing",
+            "after construction category click",
+            cancellationToken);
+    }
+
     private async Task EnsureExpectedConstructChoicePageAsync(
         int slotId,
         int gid,
@@ -912,7 +952,7 @@ public sealed partial class TravianClient : IBuildingClient
                 {
                     restoredExpectedSlot = true;
                     Notify($"{operationLabel} left construct slot {slotId}; restoring the expected page once.");
-                    await GotoAsync(constructUrl, cancellationToken);
+                    await OpenConstructSlotPageAsync(slotId, BuildingCatalogService.CategoryIndexFor(gid), cancellationToken);
                     await EnsureLoggedInAsync(cancellationToken: cancellationToken);
                     continue;
                 }
@@ -927,7 +967,7 @@ public sealed partial class TravianClient : IBuildingClient
             if (round < verificationRounds)
             {
                 Notify($"{operationLabel} construct choices are still missing after the transfer reload; reopening exact slot once.");
-                await GotoAsync(constructUrl, cancellationToken);
+                await OpenConstructSlotPageAsync(slotId, BuildingCatalogService.CategoryIndexFor(gid), cancellationToken);
                 await EnsureLoggedInAsync(cancellationToken: cancellationToken);
             }
         }

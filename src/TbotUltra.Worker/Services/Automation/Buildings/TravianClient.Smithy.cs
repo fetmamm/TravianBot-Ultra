@@ -76,7 +76,7 @@ public sealed partial class TravianClient
             var smithyPath = Paths.BuildBySlot(smithySlotId.Value);
             if (!IsCurrentUrlForPath(smithyPath))
             {
-                await GotoAsync(smithyPath, cancellationToken);
+                await OpenSlotFromOverviewAsync(smithySlotId.Value, cancellationToken);
             }
             try
             {
@@ -125,7 +125,7 @@ public sealed partial class TravianClient
                 consecutiveEmptyReloads += 1;
                 if (consecutiveEmptyReloads >= 3)
                 {
-                    await GotoAsync(Paths.Buildings, cancellationToken);
+                    await OpenVillageOverviewAsync(resourceFields: false, cancellationToken);
                     return $"Smithy: no troop rows found after 3 reloads. Improved {improved}, skipped {skipped}.";
                 }
                 Notify($"Smithy: no troop rows visible, reload {consecutiveEmptyReloads}/3.");
@@ -376,7 +376,7 @@ public sealed partial class TravianClient
             break;
         }
 
-        await GotoAsync(Paths.Buildings, cancellationToken);
+        await OpenVillageOverviewAsync(resourceFields: false, cancellationToken);
 
         // All selected troops resolved to a terminal state (at target / maxed / smithy level too low /
         // not researched) and nothing was improved this run: report "All done" so the task runner
@@ -809,7 +809,7 @@ public sealed partial class TravianClient
                 StatusText: "Smithy not found.");
         }
 
-        await GotoAsync(Paths.BuildBySlot(smithySlotId.Value), cancellationToken);
+        await OpenSlotFromOverviewAsync(smithySlotId.Value, cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var activeQueue = (await ReadSmithyQueueEntriesAsync(cancellationToken))
@@ -919,7 +919,7 @@ public sealed partial class TravianClient
             }
             else
             {
-                await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
+                await OpenVillageOverviewAsync(resourceFields: false, cancellationToken);
             }
 
             await EnsureLoggedInAsync(cancellationToken: cancellationToken);

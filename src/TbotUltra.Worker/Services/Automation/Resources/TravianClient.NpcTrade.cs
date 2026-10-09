@@ -565,7 +565,7 @@ public sealed partial class TravianClient
         }
 
         Notify($"NPC trade test: navigating to {queueStatus.BuildingName} slot {queueStatus.SlotId.Value} for '{troopType}' (t{troopUnitId.Value}).");
-        await GotoAsync(Paths.BuildBySlot(queueStatus.SlotId.Value), cancellationToken);
+        await OpenSlotFromOverviewAsync(queueStatus.SlotId.Value, cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var traded = await ExecuteNpcTradeClicksAsync(troopUnitId.Value, queueStatus.BuildingName, cancellationToken);

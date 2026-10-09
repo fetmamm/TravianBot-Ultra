@@ -287,7 +287,7 @@ public sealed partial class TravianClient
         string sourceVillageName,
         CancellationToken cancellationToken)
     {
-        await GotoAsync(Paths.BuildBySlotTab(marketplaceSlotId, 5), cancellationToken);
+        await OpenSlotFromOverviewAsync(marketplaceSlotId, cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var html = await _page.ContentAsync();

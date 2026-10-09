@@ -33,7 +33,7 @@ public sealed partial class TravianClient : IBuildingClient
         }
 
         // One-shot: read dorf2 to get the live target level and Main Building slot.
-        await ReloadOrGotoAsync(Paths.Buildings, cancellationToken);
+        await OpenVillageOverviewAsync(resourceFields: false, cancellationToken);
 
         var initialSlots = (await ReadBuildingInfosAsync(cancellationToken)).Buildings;
         if (!initialSlots.TryGetValue(slotId, out var initialInfo) || initialInfo.Level <= 0)
@@ -59,7 +59,7 @@ public sealed partial class TravianClient : IBuildingClient
             ? $"slot {slotId}"
             : initialInfo.BuildingName;
         var mainBuildingPath = Paths.BuildBySlot(mainSlot.Value);
-        await GotoAsync(mainBuildingPath, cancellationToken);
+        await OpenSlotFromOverviewAsync(mainSlot.Value, cancellationToken);
 
         var activeSeconds = await ReadActiveDemolitionSecondsOnCurrentPageAsync(cancellationToken);
         if (activeSeconds is > 0)

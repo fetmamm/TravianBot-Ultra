@@ -30,7 +30,7 @@ public sealed class ConstructionAffordabilityFlowTests
         var source = ReadAutomationSource("Buildings", "TravianClient.Buildings.ConstructFlow.cs");
         var method = Slice(source, "public async Task<string> ConstructBuildingAsync", "private async Task<");
 
-        AssertOrdered(method, "EvaluateLiveConstructionAffordabilityAsync", "await GotoAsync(url, cancellationToken)");
+        AssertOrdered(method, "EvaluateLiveConstructionAffordabilityAsync", "await OpenConstructSlotPageAsync(slotId, categoryIndex, cancellationToken)");
     }
 
     [Fact]

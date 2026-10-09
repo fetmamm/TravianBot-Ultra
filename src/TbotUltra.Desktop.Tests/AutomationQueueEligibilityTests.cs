@@ -49,6 +49,20 @@ public sealed class AutomationQueueEligibilityTests : IDisposable
     }
 
     [Fact]
+    public void IsAllowed_QueuedDemolitionDoesNotRequireGroupToggle()
+    {
+        var (eligibility, port, store, village) = CreateEligibility();
+        port.VillageKey = village.Key;
+        store.SetEnabledGroups(village, ["hero"]);
+
+        Assert.True(eligibility.IsAllowed(new QueueItem
+        {
+            TaskName = "demolish_building_to_level",
+            Group = QueueGroup.Demolish,
+        }));
+    }
+
+    [Fact]
     public void IsAllowed_RallyPointRepairUsesHeroGroup()
     {
         var (eligibility, port, store, village) = CreateEligibility();

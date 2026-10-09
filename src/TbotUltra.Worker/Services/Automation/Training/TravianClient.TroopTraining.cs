@@ -509,7 +509,7 @@ public sealed partial class TravianClient : ITrainingClient
         }
 
         Notify($"[troops:verbose] queue scan:navigating to {buildingName} slot {building.SlotId.Value}.");
-        await GotoAsync(Paths.BuildBySlot(building.SlotId.Value), cancellationToken);
+        await OpenSlotFromOverviewAsync(building.SlotId.Value, cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var queueItems = await ReadTroopTrainingQueueFromCurrentPageAsync(cancellationToken);
@@ -554,10 +554,7 @@ public sealed partial class TravianClient : ITrainingClient
         }
 
         Notify($"[troops:verbose]opening {candidate.Request.BuildingName} slot {candidate.QueueStatus.SlotId.Value}.");
-        await EnsurePageForReadAsync(
-            Paths.BuildBySlot(candidate.QueueStatus.SlotId.Value),
-            $"train at {candidate.Request.BuildingName}",
-            cancellationToken);
+        await OpenSlotFromOverviewAsync(candidate.QueueStatus.SlotId.Value, cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         Notify($"[troops:verbose]page after navigation url='{_page.Url}'.");
 

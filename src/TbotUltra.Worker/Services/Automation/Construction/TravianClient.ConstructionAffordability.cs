@@ -9,6 +9,30 @@ public sealed partial class TravianClient
         string label,
         CancellationToken cancellationToken)
     {
+        if (!IsCurrentUrlForPath(Paths.Resources))
+        {
+            var currentPage = await ReadResourceSnapshotAsync(cancellationToken, allowRecovery: false, maxAttempts: 1);
+            var stock = ConstructionAffordabilityOperation.TryParseStock(currentPage.Resources);
+            if (stock is not null
+                && currentPage.Capacities.Warehouse is > 0
+                && currentPage.Capacities.Granary is > 0
+                && stock.Covers(new ConstructionResourceAmounts(cost.Wood, cost.Clay, cost.Iron, cost.Crop)))
+            {
+                Notify($"[construction-preflight] label='{label}' using complete current-page stock; Dorf1 production read not needed.");
+                return await EvaluateConstructionAffordabilityAsync(
+                    cost,
+                    label,
+                    currentPage.Resources,
+                    currentPage.ProductionByHour,
+                    currentPage.Capacities.Warehouse,
+                    currentPage.Capacities.Granary,
+                    isLive: true,
+                    cancellationToken);
+            }
+
+            Notify($"[construction-preflight] label='{label}' needs Dorf1 production or complete stock for an unresolved deficit.");
+        }
+
         await EnsureResourceFieldsPageAsync(
             cancellationToken,
             $"Manual verification appeared while preparing construction affordability for {label}.");
