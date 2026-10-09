@@ -1213,11 +1213,17 @@ public sealed partial class TravianClient : IFarmingClient
         }
 
         // Farm lists require a built Rally Point. When it is still level 0 (not built) the rally point
-        // page shows the construct view instead of the farm lists — abort with a clear message rather
-        // than auto-building it, so the user decides when to build it.
+        // page shows the construct view instead of the farm lists — try another owned village
+        // rather than auto-building it.
         if (await IsRallyPointLevelZeroAsync(cancellationToken))
         {
-            throw new InvalidOperationException("Rally Point is level 0 (not built) in this village. Build the Rally Point before using farm lists.");
+            if (await TryOpenFarmListsFromAnotherVillageAsync(cancellationToken))
+            {
+                return;
+            }
+
+            throw new InvalidOperationException(
+                "Rally Point is level 0 in the current village, and no other owned village could open the farm list page with a built Rally Point.");
         }
 
         await GotoAsync(Paths.FarmListFastUp, cancellationToken);
@@ -1241,6 +1247,59 @@ public sealed partial class TravianClient : IFarmingClient
         {
             throw new InvalidOperationException($"Could not open farm list page at {Paths.RallyPointFarmLists}. Farmlists may be unavailable on this account/server.");
         }
+    }
+
+    private async Task<bool> TryOpenFarmListsFromAnotherVillageAsync(CancellationToken cancellationToken)
+    {
+        var currentCoordinates = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+        var villages = await ReadVillagesPreferCacheAsync(cancellationToken);
+        Notify($"[farm-list] current village has no Rally Point; checking {villages.Count} owned village(s) for an available farm-list page.");
+
+        foreach (var village in villages)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var villageCoordinates = (village.CoordX, village.CoordY);
+            if (VillageIdentityReconciler.SameCoordinates(villageCoordinates, currentCoordinates))
+            {
+                continue;
+            }
+
+            try
+            {
+                var villageKey = VillageIdentityReconciler.HasCoordinates(villageCoordinates)
+                    ? $"xy:{village.CoordX}|{village.CoordY}"
+                    : null;
+                await SwitchToVillageByIdentityAsync(
+                    village.Name,
+                    village.Url,
+                    villageKey,
+                    cancellationToken,
+                    skipFeatureRefresh: true);
+                await GotoAsync(Paths.RallyPointFarmLists, cancellationToken);
+                await EnsureLoggedInAsync(cancellationToken: cancellationToken);
+                await WaitForOfficialFarmListRenderAsync(cancellationToken);
+                if (await _page.Locator("#rallyPointFarmList").CountAsync() > 0
+                    && !await IsRallyPointLevelZeroAsync(cancellationToken))
+                {
+                    Notify($"[farm-list] using Rally Point in village '{village.Name}' for account-wide farm lists.");
+                    return true;
+                }
+
+                Notify(await IsRallyPointLevelZeroAsync(cancellationToken)
+                    ? $"[farm-list] village '{village.Name}' has no built Rally Point; trying the next village."
+                    : $"[farm-list] village '{village.Name}' did not show the farm-list page; trying the next village.");
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                Notify($"[farm-list] could not verify Rally Point in village '{village.Name}'; trying the next village: {ex.Message}");
+            }
+        }
+
+        return false;
     }
 
     private async Task<bool> CanReuseCurrentFarmListPageAsync(CancellationToken cancellationToken)

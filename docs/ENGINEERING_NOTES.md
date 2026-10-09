@@ -788,7 +788,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Farm-list exact timers get a 5-15s render margin; unreadable disabled timers use an estimated 60s wait.
 - "Shared schedule" is the default farm-list send mode and appears before "Individual schedule" in the UI.
   `send_farmlists` is account-wide: do not switch to the queue item's village before dispatch.
-  Open the farm-list page from the current village; its Rally Point must be built.
+  Open the farm-list page from the current village. If its Rally Point is confirmed level 0,
+  try other owned villages once each and use the first that verifies the Official farm-list page;
+  do not construct a Rally Point during this fallback.
   Both modes send only UI-enabled farm lists ONE AT A TIME via
   `SendFarmListsSequentiallyAsync`: click each list's Start,
   then wait for that exact list's `.farmListStatus svg.success` or `svg.error` response before advancing.
