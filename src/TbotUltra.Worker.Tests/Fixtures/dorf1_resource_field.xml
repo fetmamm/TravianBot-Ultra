@@ -1,0 +1,4 @@
+<div id="resourceFieldContainer">
+  <a href="/build.php?id=1" data-aid="1" data-gid="1" />
+  <svg><path class="buildingSlot1" onclick="window.location.href='/build.php?id=1'" /></svg>
+</div>

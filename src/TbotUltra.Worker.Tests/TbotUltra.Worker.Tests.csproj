@@ -22,6 +22,12 @@
           CopyToOutputDirectory="PreserveNewest" />
     <None Update="Fixtures\hero_adv_noRp.txt"
           CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\dorf2_empty_slots.xml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\dorf1_resource_field.xml"
+          CopyToOutputDirectory="PreserveNewest" />
+    <None Update="Fixtures\dorf2_wall_layers.xml"
+          CopyToOutputDirectory="PreserveNewest" />
     <None Include="..\..\scripts\Test-ReleaseBundle.ps1"
           Link="ReleaseScripts\Test-ReleaseBundle.ps1"
           CopyToOutputDirectory="PreserveNewest" />

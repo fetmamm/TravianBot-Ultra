@@ -1,0 +1,10 @@
+<overview>
+  <div class="buildingSlot a22 g0 aid22 hun" data-aid="22" data-gid="0">
+    <a href="/build.php?id=22" class="emptyBuildingSlot" />
+    <svg><path onclick="window.location.href='/build.php?id=22'" /></svg>
+  </div>
+  <div class="buildingSlot a34 g0 aid34 hun" data-aid="34" data-gid="0">
+    <a href="/build.php?id=34" class="emptyBuildingSlot" />
+    <svg><path onclick="window.location.href='/build.php?id=34'" /></svg>
+  </div>
+</overview>

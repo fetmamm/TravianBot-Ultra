@@ -427,8 +427,8 @@ public sealed partial class TravianClient
         }
     }
 
-    // Enter a field or building through the same overview link a player uses. A missing link is
-    // not permission to type a build.php URL: the live overview may be stale or the slot changed.
+    // Prefer the overview's visible click target. Only a confirmed slot on the correct overview
+    // may use the diagnostic URL fallback when Official exposes no actionable click target.
     private async Task OpenSlotFromOverviewAsync(int slotId, CancellationToken cancellationToken)
     {
         if (TravianUrls.IsBuildPageForSlot(_page.Url, slotId) && !await IsPageMarkedStaleAsync())
@@ -442,18 +442,43 @@ public sealed partial class TravianClient
         var slotLink = isResourceField
             ? $"#resourceFieldContainer a[data-aid='{slotId}'][href*='build.php?id={slotId}']"
             : $".buildingSlot[data-aid='{slotId}'] a[href*='build.php?id={slotId}']";
-        // City walls may expose an empty level-link href; their SVG paths carry the live click handler.
-        if (slotId == 40)
+        if (isResourceField)
         {
-            slotLink += $", .buildingSlot[data-aid='40'] svg path[onclick*='build.php?id=40']";
+            // Dorf1 exposes the exact field as a separate SVG path when its overlay anchor
+            // cannot receive a real click.
+            slotLink += $", #resourceFieldContainer svg path.buildingSlot{slotId}[onclick*='build.php?id={slotId}']";
+        }
+        else
+        {
+            // Empty building slots and City walls can have an invisible anchor; the visible SVG
+            // path inside that exact slot carries the Official click handler.
+            slotLink += $", .buildingSlot[data-aid='{slotId}'] svg path[onclick*='build.php?id={slotId}']";
         }
         if (!await TryClickFirstVisibleEnabledAsync(
                 slotLink,
                 cancellationToken,
                 reason: $"open slot {slotId} from {(isResourceField ? "Dorf1" : "Dorf2")}"))
         {
-            throw new InvalidOperationException(
-                $"Cannot open slot {slotId}: no clickable slot link was confirmed on {(isResourceField ? "Dorf1" : "Dorf2")}. Current page: '{_page.Url}'.");
+            var visibleSlot = isResourceField
+                ? $"#resourceFieldContainer a[data-aid='{slotId}']:visible, "
+                  + $"#resourceFieldContainer svg path.buildingSlot{slotId}[onclick*='build.php?id={slotId}']:visible"
+                : $".buildingSlot[data-aid='{slotId}']:visible";
+            if (await _page.Locator(visibleSlot).CountAsync() == 0)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot open slot {slotId}: the slot is not visible on {(isResourceField ? "Dorf1" : "Dorf2")}; URL fallback was not attempted. Current page: '{_page.Url}'.");
+            }
+
+            Notify($"ALARM: [slot-nav] No clickable target for visible slot {slotId} on {(isResourceField ? "Dorf1" : "Dorf2")}; using direct build-page URL fallback. Review this slot's live click markup.");
+            await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken);
+            if (!TravianUrls.IsBuildPageForSlot(_page.Url, slotId))
+            {
+                throw new InvalidOperationException(
+                    $"Cannot open slot {slotId}: URL fallback did not reach its exact build page. Current page: '{_page.Url}'.");
+            }
+
+            Notify($"[slot-nav] opened slot {slotId} via verified URL fallback from {(isResourceField ? "Dorf1" : "Dorf2")}.");
+            return;
         }
 
         await WaitForPageReadyAsync(cancellationToken);

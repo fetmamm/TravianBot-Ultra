@@ -1,0 +1,8 @@
+<overview>
+  <div class="buildingSlot a40 g43 bottom hun" data-aid="40" data-gid="43">
+    <svg><path onclick="window.location.href='/build.php?id=40&amp;gid=43'" /></svg>
+  </div>
+  <div class="buildingSlot a40 g43 top hun" data-aid="40" data-gid="43">
+    <svg><path onclick="window.location.href='/build.php?id=40&amp;gid=43'" /></svg>
+  </div>
+</overview>
