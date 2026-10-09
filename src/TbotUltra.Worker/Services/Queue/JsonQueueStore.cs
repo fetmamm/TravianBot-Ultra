@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using TbotUltra.Core.Configuration;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Worker.Services;
@@ -427,7 +428,7 @@ public sealed class JsonQueueStore : IQueueStore
         });
     }
 
-    public bool MarkDeferred(Guid id, TimeSpan delay)
+    public bool MarkDeferred(Guid id, TimeSpan delay, IReadOnlyDictionary<string, string>? valuesToSet = null)
     {
         return Update(id, item =>
         {
@@ -437,6 +438,13 @@ public sealed class JsonQueueStore : IQueueStore
             }
 
             var effectiveDelay = delay < TimeSpan.Zero ? TimeSpan.Zero : delay;
+            if (valuesToSet is not null)
+            {
+                foreach (var pair in valuesToSet)
+                {
+                    item.Payload[pair.Key] = pair.Value;
+                }
+            }
             item.Status = QueueStatus.Pending;
             item.NextAttemptAt = DateTimeOffset.UtcNow.Add(effectiveDelay);
             item.UpdatedAt = DateTimeOffset.UtcNow;
@@ -473,11 +481,21 @@ public sealed class JsonQueueStore : IQueueStore
         Guid id,
         IReadOnlyDictionary<string, string>? valuesToSet,
         IReadOnlyCollection<string>? keysToRemove,
-        TimeSpan? delay = null)
+        TimeSpan? delay = null,
+        string? expectedDeferReason = null)
     {
         return Update(id, item =>
         {
             if (item.Status != QueueStatus.Pending)
+            {
+                return false;
+            }
+
+            if (expectedDeferReason is not null
+                && !string.Equals(
+                    item.Payload.GetValueOrDefault(BotOptionPayloadKeys.UpgradeDeferReason) ?? string.Empty,
+                    expectedDeferReason,
+                    StringComparison.OrdinalIgnoreCase))
             {
                 return false;
             }

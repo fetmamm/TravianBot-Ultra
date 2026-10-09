@@ -1025,6 +1025,41 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     }
 
     [Fact]
+    public void QueueStore_ResourceDeferCannotBeReleasedByStaleQueueFullRefresh()
+    {
+        var store = new JsonQueueStore(_queuePath);
+        var item = store.Add(
+            "upgrade_all_resources_to_level",
+            new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonQueueFull,
+            },
+            priority: 1,
+            maxRetries: 3);
+        Assert.True(store.MarkRunning(item.Id));
+
+        Assert.True(store.MarkDeferred(
+            item.Id,
+            TimeSpan.FromMinutes(2),
+            new Dictionary<string, string>
+            {
+                [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonResources,
+            }));
+        var deferred = Assert.Single(store.GetAll());
+        Assert.Equal(BotOptionPayloadKeys.UpgradeDeferReasonResources,
+            deferred.Payload[BotOptionPayloadKeys.UpgradeDeferReason]);
+
+        Assert.False(store.PatchDeferred(
+            item.Id,
+            null,
+            null,
+            TimeSpan.Zero,
+            expectedDeferReason: BotOptionPayloadKeys.UpgradeDeferReasonQueueFull));
+        var persisted = Assert.Single(store.GetAll());
+        Assert.Equal(deferred.NextAttemptAt, persisted.NextAttemptAt);
+    }
+
+    [Fact]
     public void QueueStore_PatchDeferred_SerializesConcurrentDistinctKeys()
     {
         var store = new JsonQueueStore(_queuePath);

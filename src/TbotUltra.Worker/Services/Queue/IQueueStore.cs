@@ -23,13 +23,14 @@ public interface IQueueStore
     bool MarkRunning(Guid id);
     bool MarkSucceeded(Guid id);
     bool MarkCanceled(Guid id);
-    bool MarkDeferred(Guid id, TimeSpan delay);
+    bool MarkDeferred(Guid id, TimeSpan delay, IReadOnlyDictionary<string, string>? valuesToSet = null);
     bool UpdateDeferred(Guid id, Dictionary<string, string>? payload, TimeSpan? delay = null);
     bool PatchDeferred(
         Guid id,
         IReadOnlyDictionary<string, string>? valuesToSet,
         IReadOnlyCollection<string>? keysToRemove,
-        TimeSpan? delay = null);
+        TimeSpan? delay = null,
+        string? expectedDeferReason = null);
     bool UpdatePending(Guid id, Dictionary<string, string>? payload, int? priority, TimeSpan? delay = null);
     bool ApplyPendingReconciliation(IReadOnlyList<Guid> removals, IReadOnlyList<QueuePayloadUpdate> updates);
     bool MarkExecutionFailed(Guid id);

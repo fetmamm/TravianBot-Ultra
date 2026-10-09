@@ -34,13 +34,14 @@ public interface IDesktopBotService
     bool MarkQueueItemRunning(Guid id);
     bool MarkQueueItemSucceeded(Guid id);
     bool MarkQueueItemCanceled(Guid id);
-    bool MarkQueueItemDeferred(Guid id, TimeSpan delay);
+    bool MarkQueueItemDeferred(Guid id, TimeSpan delay, IReadOnlyDictionary<string, string>? valuesToSet = null);
     bool UpdateDeferredQueueItem(Guid id, Dictionary<string, string>? payload, TimeSpan? delay = null);
     bool PatchDeferredQueueItem(
         Guid id,
         IReadOnlyDictionary<string, string>? valuesToSet,
         IReadOnlyCollection<string>? keysToRemove,
-        TimeSpan? delay = null);
+        TimeSpan? delay = null,
+        string? expectedDeferReason = null);
     bool UpdatePendingQueueItem(Guid id, Dictionary<string, string>? payload, int? priority, TimeSpan? delay = null);
     bool ApplyPendingQueueReconciliation(IReadOnlyList<Guid> removals, IReadOnlyList<QueuePayloadUpdate> updates);
     bool MarkQueueItemExecutionFailed(Guid id);

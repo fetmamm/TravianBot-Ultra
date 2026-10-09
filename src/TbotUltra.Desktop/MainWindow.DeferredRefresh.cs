@@ -145,7 +145,12 @@ public partial class MainWindow
                 ConstructionQueueState.ResolveQueueFullRetryDelay(status, _travianPlusActive, item, now) == TimeSpan.Zero);
             if (releasableItem is not null)
             {
-                if (_botService.PatchDeferredQueueItem(releasableItem.Id, null, null, TimeSpan.Zero))
+                if (_botService.PatchDeferredQueueItem(
+                        releasableItem.Id,
+                        null,
+                        null,
+                        TimeSpan.Zero,
+                        BotOptionPayloadKeys.UpgradeDeferReasonQueueFull))
                 {
                     AppendLog(
                         $"[construction-queue:verbose] live status released queue-full blocker " +
@@ -179,7 +184,12 @@ public partial class MainWindow
                         continue;
                     }
 
-                    if (_botService.PatchDeferredQueueItem(item.Id, null, null, queueFullDelay.Value))
+                    if (_botService.PatchDeferredQueueItem(
+                            item.Id,
+                            null,
+                            null,
+                            queueFullDelay.Value,
+                            BotOptionPayloadKeys.UpgradeDeferReasonQueueFull))
                     {
                         updatedCount++;
                         largestAdjustmentSeconds = Math.Max(largestAdjustmentSeconds, adjustmentSeconds);
@@ -239,7 +249,8 @@ public partial class MainWindow
                         item.Id,
                         null,
                         null,
-                        TimeSpan.Zero))
+                        TimeSpan.Zero,
+                        BotOptionPayloadKeys.UpgradeDeferReasonResources))
                 {
                     AppendLog(
                         $"Deferred upgrade resumed from {source}: {DeferredWaitCalculator.DescribeDeferredUpgrade(item.Payload)} — "
@@ -426,7 +437,10 @@ public partial class MainWindow
                             BotOptionPayloadKeys.ConstructionLoginFill,
                             BotOptionPayloadKeys.ConstructionLoginFillExpiresAtUnixSeconds,
                         ],
-                        TimeSpan.Zero))
+                        TimeSpan.Zero,
+                        releaseConfirmedEmptyQueueHead
+                            ? BotOptionPayloadKeys.UpgradeDeferReasonResources
+                            : BotOptionPayloadKeys.UpgradeDeferReasonQueueFull))
                 {
                     if (valuesToSet is not null)
                     {
@@ -485,7 +499,15 @@ public partial class MainWindow
             var delay = isHumanizeWait || isQueueWait || releaseConfirmedEmptyQueueHead
                 ? TimeSpan.Zero
                 : (TimeSpan?)null;
-            var updated = _botService.PatchDeferredQueueItem(item.Id, valuesToSet, keysToRemove, delay);
+            var expectedReason = releaseConfirmedEmptyQueueHead
+                ? BotOptionPayloadKeys.UpgradeDeferReasonResources
+                : isQueueWait
+                    ? BotOptionPayloadKeys.UpgradeDeferReasonQueueFull
+                    : isHumanizeWait
+                        ? BotOptionPayloadKeys.UpgradeDeferReasonHumanize
+                        : null;
+            var updated = _botService.PatchDeferredQueueItem(
+                item.Id, valuesToSet, keysToRemove, delay, expectedReason);
             if (!updated)
             {
                 AppendLog($"[construction-{source}-fill] could not prepare id={item.Id} task='{item.TaskName}'.");

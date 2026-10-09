@@ -70,8 +70,8 @@ public partial class MainWindow
             string? message,
             TimeSpan delay) =>
             owner.ApplyTownHallCelebrationDeferSignal(item, message, delay);
-        public bool MarkDeferred(Guid itemId, TimeSpan delay) =>
-            owner._botService.MarkQueueItemDeferred(itemId, delay);
+        public bool MarkDeferred(Guid itemId, TimeSpan delay, IReadOnlyDictionary<string, string>? valuesToSet = null) =>
+            owner._botService.MarkQueueItemDeferred(itemId, delay, valuesToSet);
         public string? GetVillageKey(QueueItem item) => owner.GetQueueItemVillageKey(item);
         public string? GetVillageName(QueueItem item) => GetQueueItemVillageName(item);
         public void ClearConstructionLoginFillForBlockedHead(QueueItem item, string source) =>

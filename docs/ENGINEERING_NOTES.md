@@ -335,6 +335,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Raising or disabling Daily max while sleeping for the old daily limit must re-evaluate the restriction immediately.
   If the recorded runtime is below the new limit and Allowed hours permit running, wake with zero added sleep delay.
 - Known queue deadlines are authoritative and may not be shortened by pacing.
+- Construction and resource-field defers must persist their reason with their deadline in one queue update.
+  A live queue-full refresh may change the deadline only if the persisted reason is still `queue_full`;
+  a stale status snapshot must never release a newer resource wait.
 - Smart Sleep and Session pacing are mutually exclusive account modes, though both may be disabled. Smart Sleep may
   close the browser only at a safe automation boundary when a user-selected queue-group deadline provides enough idle
   time; scheduled Village Scan and Keep Alive maintenance must not wake it. Its saved wake uses the configured

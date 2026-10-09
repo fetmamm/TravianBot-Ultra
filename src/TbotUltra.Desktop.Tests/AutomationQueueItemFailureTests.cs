@@ -303,6 +303,29 @@ public sealed class AutomationQueueItemFailureTests
         Assert.Equal("2", item.Payload[BotOptionPayloadKeys.ConstructionDeferBackoffCount]);
     }
 
+    [Fact]
+    public async Task AffordabilityWait_ReclassifiesQueueFullBeforePublishingDeferredState()
+    {
+        var port = new InMemoryPort();
+        var item = Item("upgrade_all_resources_to_level");
+        item.Payload[BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonQueueFull;
+
+        await new AutomationQueueItemFailure(port).HandleAsync(
+            item,
+            new TaskWaitException(121,
+                "Resource slot 10 (Iron mine) blocked by construction affordability preflight. "
+                + "wait_reason=construction_affordability queue_wait_seconds=121"),
+            "[LOOP 306]",
+            Stopwatch.StartNew(),
+            AutomationRunMode.ContinuousLoop);
+
+        Assert.Equal(BotOptionPayloadKeys.UpgradeDeferReasonResources,
+            port.DeferredClassification![BotOptionPayloadKeys.UpgradeDeferReason]);
+        Assert.Equal(BotOptionPayloadKeys.UpgradeDeferReasonResources,
+            item.Payload[BotOptionPayloadKeys.UpgradeDeferReason]);
+        Assert.Equal(TimeSpan.FromSeconds(121), port.DeferredDelay);
+    }
+
     private static QueueItem Item(string taskName) => new()
     {
         Id = Guid.NewGuid(),
@@ -352,12 +375,17 @@ public sealed class AutomationQueueItemFailureTests
         }
         public void ApplyBreweryCelebrationDeferSignal(string? message, TimeSpan delay) { }
         public void ApplyTownHallCelebrationDeferSignal(QueueItem item, string? message, TimeSpan delay) { }
-        public bool MarkDeferred(Guid itemId, TimeSpan delay)
+        public bool MarkDeferred(Guid itemId, TimeSpan delay, IReadOnlyDictionary<string, string>? valuesToSet = null)
         {
             DeferredDelay = delay;
             Trace.Add("defer");
+            if (valuesToSet is not null)
+            {
+                DeferredClassification = new Dictionary<string, string>(valuesToSet);
+            }
             return true;
         }
+        public IReadOnlyDictionary<string, string>? DeferredClassification { get; private set; }
         public string? GetVillageKey(QueueItem item) => "1:2";
         public string? GetVillageName(QueueItem item) => "Alpha";
         public void ClearConstructionLoginFillForBlockedHead(QueueItem item, string source) =>

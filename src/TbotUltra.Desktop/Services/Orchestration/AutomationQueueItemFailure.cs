@@ -23,7 +23,7 @@ internal interface IAutomationQueueItemFailurePort
     Guid EnsureHeroRallyPointRepairQueued(QueueItem item, HeroRallyPointRepairRequest request);
     void ApplyBreweryCelebrationDeferSignal(string? message, TimeSpan delay);
     void ApplyTownHallCelebrationDeferSignal(QueueItem item, string? message, TimeSpan delay);
-    bool MarkDeferred(Guid itemId, TimeSpan delay);
+    bool MarkDeferred(Guid itemId, TimeSpan delay, IReadOnlyDictionary<string, string>? valuesToSet = null);
     string? GetVillageKey(QueueItem item);
     string? GetVillageName(QueueItem item);
     void ClearConstructionLoginFillForBlockedHead(QueueItem item, string source);
@@ -192,7 +192,34 @@ internal sealed class AutomationQueueItemFailure(
                     $"effectiveReadyAt='{effectiveReadyAt:O}' navigation=completed.");
             }
 
-            var deferred = port.MarkDeferred(item.Id, queueWaitDelay);
+            var constructionDeferReason = (IsConstructionQueueTask(item.TaskName) || IsResourceUpgradeTask(item.TaskName))
+                ? ConstructionQueueState.IsQueueOccupancyDeferMessage(ex.Message)
+                    ? BotOptionPayloadKeys.UpgradeDeferReasonQueueFull
+                    : ConstructionQueueState.IsConstructionInProgressDeferMessage(ex.Message)
+                        ? BotOptionPayloadKeys.UpgradeDeferReasonInProgress
+                        : ConstructionQueueState.IsConstructionStorageCapacityDeferMessage(ex.Message)
+                            ? BotOptionPayloadKeys.UpgradeDeferReasonStorageCapacity
+                            : ConstructionQueueState.IsCropShortageDeferMessage(ex.Message)
+                                ? BotOptionPayloadKeys.UpgradeDeferReasonCropShortage
+                                : ConstructionQueueState.IsConstructionRequirementDeferMessage(ex.Message)
+                                    ? BotOptionPayloadKeys.UpgradeDeferReasonRequirements
+                                    : ConstructionQueueState.IsConstructionResourceDeferMessage(ex.Message)
+                                        ? BotOptionPayloadKeys.UpgradeDeferReasonResources
+                                        : ConstructionQueueState.IsConstructionHumanizeDeferMessage(ex.Message)
+                                            ? BotOptionPayloadKeys.UpgradeDeferReasonHumanize
+                                            : BotOptionPayloadKeys.UpgradeDeferReasonRetry
+                : null;
+            IReadOnlyDictionary<string, string>? deferClassification = constructionDeferReason is null
+                ? null
+                : new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [BotOptionPayloadKeys.UpgradeDeferReason] = constructionDeferReason,
+                    [BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
+                        ConstructionQueueState.CurrentDeferClassificationVersion,
+                };
+            // Publish the reason and deadline in one queue-store update. A concurrent live-status
+            // refresh must never see the old queue-full reason on a new resource wait.
+            var deferred = port.MarkDeferred(item.Id, queueWaitDelay, deferClassification);
             if (deferred)
             {
                 if (string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase)
@@ -226,28 +253,13 @@ internal sealed class AutomationQueueItemFailure(
                     updatedPayload[BotOptionPayloadKeys.DemolishDelaySeconds] = demolishDelaySeconds.ToString();
                     payloadChanged = true;
                 }
-                if (IsConstructionQueueTask(item.TaskName))
+                if (IsConstructionQueueTask(item.TaskName) || IsResourceUpgradeTask(item.TaskName))
                 {
                     // Record WHY this construction item deferred so the resource-driven refresh
                     // (RefreshDeferredConstructionWaitsAsync) doesn't resume a queue-full deferral
                     // the moment resources look sufficient, which caused a brief "Ready" flash
                     // before the worker re-deferred on the still-full build queue.
-                    updatedPayload[BotOptionPayloadKeys.UpgradeDeferReason] =
-                        ConstructionQueueState.IsQueueOccupancyDeferMessage(ex.Message)
-                            ? BotOptionPayloadKeys.UpgradeDeferReasonQueueFull
-                            : ConstructionQueueState.IsConstructionInProgressDeferMessage(ex.Message)
-                                ? BotOptionPayloadKeys.UpgradeDeferReasonInProgress
-                            : ConstructionQueueState.IsConstructionStorageCapacityDeferMessage(ex.Message)
-                                    ? BotOptionPayloadKeys.UpgradeDeferReasonStorageCapacity
-                                : ConstructionQueueState.IsCropShortageDeferMessage(ex.Message)
-                                    ? BotOptionPayloadKeys.UpgradeDeferReasonCropShortage
-                                : ConstructionQueueState.IsConstructionRequirementDeferMessage(ex.Message)
-                                        ? BotOptionPayloadKeys.UpgradeDeferReasonRequirements
-                                        : ConstructionQueueState.IsConstructionResourceDeferMessage(ex.Message)
-                                            ? BotOptionPayloadKeys.UpgradeDeferReasonResources
-                                            : ConstructionQueueState.IsConstructionHumanizeDeferMessage(ex.Message)
-                                                ? BotOptionPayloadKeys.UpgradeDeferReasonHumanize
-                                                : BotOptionPayloadKeys.UpgradeDeferReasonRetry;
+                    updatedPayload[BotOptionPayloadKeys.UpgradeDeferReason] = constructionDeferReason!;
                     updatedPayload[BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
                         ConstructionQueueState.CurrentDeferClassificationVersion;
                     payloadChanged = true;
@@ -449,7 +461,8 @@ internal sealed class AutomationQueueItemFailure(
                 {
                     var payloadPersisted = port.PatchDeferredPayload(item, updatedPayload);
                     item.Payload = updatedPayload;
-                    if (IsConstructionQueueTask(item.TaskName) && !payloadPersisted)
+                    if ((IsConstructionQueueTask(item.TaskName) || IsResourceUpgradeTask(item.TaskName))
+                        && !payloadPersisted)
                     {
                         port.Log(
                             $"[construction-queue] construction payload persistence failed " +

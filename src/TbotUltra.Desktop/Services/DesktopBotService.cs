@@ -88,13 +88,16 @@ public sealed class DesktopBotService : IDesktopBotService
     public bool MarkQueueItemRunning(Guid id) => _queueStore.MarkRunning(id);
     public bool MarkQueueItemSucceeded(Guid id) => _queueStore.MarkSucceeded(id);
     public bool MarkQueueItemCanceled(Guid id) => _queueStore.MarkCanceled(id);
-    public bool MarkQueueItemDeferred(Guid id, TimeSpan delay) => _queueStore.MarkDeferred(id, delay);
+    public bool MarkQueueItemDeferred(Guid id, TimeSpan delay, IReadOnlyDictionary<string, string>? valuesToSet = null) =>
+        _queueStore.MarkDeferred(id, delay, valuesToSet);
     public bool UpdateDeferredQueueItem(Guid id, Dictionary<string, string>? payload, TimeSpan? delay = null) => _queueStore.UpdateDeferred(id, payload, delay);
     public bool PatchDeferredQueueItem(
         Guid id,
         IReadOnlyDictionary<string, string>? valuesToSet,
         IReadOnlyCollection<string>? keysToRemove,
-        TimeSpan? delay = null) => _queueStore.PatchDeferred(id, valuesToSet, keysToRemove, delay);
+        TimeSpan? delay = null,
+        string? expectedDeferReason = null) =>
+        _queueStore.PatchDeferred(id, valuesToSet, keysToRemove, delay, expectedDeferReason);
     public bool UpdatePendingQueueItem(Guid id, Dictionary<string, string>? payload, int? priority, TimeSpan? delay = null) => _queueStore.UpdatePending(id, payload, priority, delay);
     public bool ApplyPendingQueueReconciliation(IReadOnlyList<Guid> removals, IReadOnlyList<QueuePayloadUpdate> updates) => _queueStore.ApplyPendingReconciliation(removals, updates);
     public bool MarkQueueItemExecutionFailed(Guid id) => _queueStore.MarkExecutionFailed(id);

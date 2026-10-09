@@ -1555,10 +1555,21 @@ public partial class MainWindow
             [BotOptionPayloadKeys.QueueHumanizeExtraSeconds] = decision.HumanizeExtraSeconds.ToString(),
             [BotOptionPayloadKeys.ConstructionHumanizePreNavigationDelaySatisfied] = "true",
         };
-        if (!_botService.UpdateDeferredQueueItem(
-                item.Id, payload, TimeSpan.FromSeconds(decision.QueueRetrySeconds)))
+        if (!_botService.PatchDeferredQueueItem(
+                item.Id,
+                new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+                {
+                    [BotOptionPayloadKeys.UpgradeDeferReason] = BotOptionPayloadKeys.UpgradeDeferReasonQueueFull,
+                    [BotOptionPayloadKeys.UpgradeDeferClassificationVersion] =
+                        ConstructionQueueState.CurrentDeferClassificationVersion,
+                    [BotOptionPayloadKeys.QueueHumanizeExtraSeconds] = decision.HumanizeExtraSeconds.ToString(),
+                    [BotOptionPayloadKeys.ConstructionHumanizePreNavigationDelaySatisfied] = "true",
+                },
+                null,
+                TimeSpan.FromSeconds(decision.QueueRetrySeconds),
+                item.Payload.GetValueOrDefault(BotOptionPayloadKeys.UpgradeDeferReason) ?? string.Empty))
         {
-            AppendLog($"[construction-timing] could not persist full-queue pre-navigation delay id={item.Id} task='{item.TaskName}'.");
+            AppendLog($"[construction-timing] full-queue pre-navigation delay skipped after queue state changed id={item.Id} task='{item.TaskName}'.");
             return;
         }
 
