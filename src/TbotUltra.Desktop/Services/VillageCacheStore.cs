@@ -106,8 +106,9 @@ public sealed class VillageCacheStore
 
             return result;
         }
-        catch
+        catch (System.Exception ex)
         {
+            _log?.Invoke($"[village-cache] could not load '{path}': {ex.Message}");
             return new Dictionary<string, VillageStatus>(System.StringComparer.OrdinalIgnoreCase);
         }
     }
@@ -129,8 +130,8 @@ public sealed class VillageCacheStore
         }
     }
 
-    /// <summary>Persists the per-village statuses for the active account (volatile values stripped).
-    /// Keys are persisted as given — callers pass the canonical-keyed snapshot.</summary>
+    /// <summary>Persists per-village statuses without letting an early partial snapshot discard
+    /// other villages or a previously known layout. Volatile values are stripped.</summary>
     public void Save(IReadOnlyDictionary<string, VillageStatus> villagesByKey)
     {
         var account = GetActiveAccountName();
@@ -144,15 +145,6 @@ public sealed class VillageCacheStore
             return;
         }
 
-        var file = new VillageCacheFile { UpdatedAtUtc = DateTimeOffset.UtcNow };
-        foreach (var pair in villagesByKey)
-        {
-            if (!string.IsNullOrWhiteSpace(pair.Key) && pair.Value is not null)
-            {
-                file.Villages[pair.Key] = StripVolatile(pair.Value);
-            }
-        }
-
         try
         {
             var path = AccountStoragePaths.VillageCachePath(_projectRoot, account);
@@ -162,13 +154,68 @@ public sealed class VillageCacheStore
                 Directory.CreateDirectory(directory);
             }
 
-            WriteAllTextShared(path, JsonSerializer.Serialize(file, SerializerOptions));
+            // The UI may receive a Watchtower observation before post-login cache loading. Keep the
+            // read and write under one lock so that an older one-village snapshot cannot replace the
+            // complete on-disk account cache or race another queued snapshot write.
+            lock (FileIoLock)
+            {
+                var file = File.Exists(path)
+                    ? JsonSerializer.Deserialize<VillageCacheFile>(ReadAllTextShared(path), SerializerOptions)
+                        ?? throw new InvalidDataException($"Village cache at '{path}' was empty or invalid.")
+                    : new VillageCacheFile();
+                var merged = new Dictionary<string, VillageStatus>(
+                    file.Villages ?? new Dictionary<string, VillageStatus>(),
+                    System.StringComparer.OrdinalIgnoreCase);
+                foreach (var pair in villagesByKey)
+                {
+                    if (string.IsNullOrWhiteSpace(pair.Key) || pair.Value is null)
+                    {
+                        continue;
+                    }
+
+                    var status = pair.Value;
+                    if (merged.TryGetValue(pair.Key, out var previous))
+                    {
+                        status = PreserveKnownLayout(status, previous);
+                    }
+
+                    merged[pair.Key] = StripVolatile(status);
+                }
+
+                file.Villages = merged;
+                file.UpdatedAtUtc = DateTimeOffset.UtcNow;
+                WriteAllTextShared(path, JsonSerializer.Serialize(file, SerializerOptions));
+                if (merged.Count > villagesByKey.Count)
+                {
+                    _log?.Invoke($"[village-cache] preserved {merged.Count - villagesByKey.Count} saved village(s) missing from a partial snapshot for account '{account}'.");
+                }
+            }
         }
         catch (System.Exception ex)
         {
             _log?.Invoke($"Could not save village cache: {ex.Message}");
         }
     }
+
+    private static VillageStatus PreserveKnownLayout(VillageStatus incoming, VillageStatus previous) =>
+        incoming with
+        {
+            Villages = incoming.Villages.Count > 0 ? incoming.Villages : previous.Villages,
+            ResourceFields = incoming.ResourceFields.Count > 0 ? incoming.ResourceFields : previous.ResourceFields,
+            Buildings = incoming.Buildings.Count > 0 ? incoming.Buildings : previous.Buildings,
+            Tribe = string.Equals(incoming.Tribe, "Unknown", StringComparison.OrdinalIgnoreCase)
+                ? previous.Tribe
+                : incoming.Tribe,
+            VillageCount = incoming.VillageCount > 0 ? incoming.VillageCount : previous.VillageCount,
+            WarehouseCapacity = incoming.WarehouseCapacity ?? previous.WarehouseCapacity,
+            GranaryCapacity = incoming.GranaryCapacity ?? previous.GranaryCapacity,
+            IsCapital = incoming.IsCapital ?? previous.IsCapital,
+            CityCapability = incoming.CityCapability == CityCapability.Unknown
+                ? previous.CityCapability
+                : incoming.CityCapability,
+            CityStatus = incoming.CityStatus == CityStatus.Unknown ? previous.CityStatus : incoming.CityStatus,
+            WatchtowerStatus = incoming.WatchtowerStatus ?? previous.WatchtowerStatus,
+        };
 
     // Keep durable structure and absolute timer finishes. Tick-down values are rebuilt from FinishUtc
     // on load so a restart or machine sleep cannot freeze an old countdown.

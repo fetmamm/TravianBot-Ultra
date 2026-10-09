@@ -188,6 +188,36 @@ public sealed class VillageCacheStoreTests : IDisposable
     }
 
     [Fact]
+    public void EarlyWatchtowerSnapshot_DoesNotReplaceOtherVillagesOrKnownLayout()
+    {
+        var store = CreateStore();
+        store.Save(new Dictionary<string, VillageStatus>
+        {
+            ["xy:1|2"] = MakeStatus("GREZ", 1, 2),
+            ["xy:3|4"] = MakeStatus("SLAV", 3, 4),
+        });
+
+        var earlyObservation = MakeStatus("GREZ", 1, 2) with
+        {
+            Villages = [],
+            ResourceFields = [],
+            Buildings = [],
+            WatchtowerStatus = new WatchtowerStatus(19, [], DateTimeOffset.UtcNow),
+        };
+        store.Save(new Dictionary<string, VillageStatus> { ["xy:1|2"] = earlyObservation });
+
+        var loaded = CreateStore().Load();
+        Assert.Equal(2, loaded.Count);
+        Assert.Single(loaded["xy:1|2"].Buildings);
+        Assert.Single(loaded["xy:1|2"].ResourceFields);
+        Assert.Equal(19, loaded["xy:1|2"].WatchtowerStatus?.Level);
+        Assert.Single(loaded["xy:3|4"].Buildings);
+        Assert.Empty(NewVillageStartupAnalyzer.FindVillagesWithoutKnownStatus(
+            [new Village("GREZ", null, CoordX: 1, CoordY: 2), new Village("SLAV", null, CoordX: 3, CoordY: 4)],
+            loaded));
+    }
+
+    [Fact]
     public void Load_MigratesLegacyNameKeysToCoordinateKeys()
     {
         // Legacy files were keyed by village name; the coordinates live in each entry's own village

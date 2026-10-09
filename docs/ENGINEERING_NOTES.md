@@ -640,6 +640,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   gid/name is absent village-wide. An incomplete or identity-ambiguous read defers without adding a construct.
 - Every village-status cache write for the same village must also replace the preferred UI building snapshot after
   partial-state merging; never let an older unknown-level snapshot override a newer live or merged read.
+- Persisted village-cache saves merge atomically with existing account entries: a pre-login partial
+  Watchtower/status observation must never replace the full village set or erase known Dorf1/Dorf2
+  layout for its own village. A corrupt existing cache must be logged, not silently overwritten.
 - Queued and direct `Load buildings` must both produce a full village status with Warehouse/Granary capacity. A
   dorf2 building snapshot must be merged with the same village's existing status, never replace it with null capacity.
 - Release smoke tests must wait on `ReleaseSmokeContract.ReadyLogMarker`, not logs from optional/removed startup work.
