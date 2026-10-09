@@ -188,6 +188,10 @@ _Avoid_: Dodge queue, attack scanner
 One between-actions iteration shared by Continuous Loop and Auto Queue. It may execute at most one eligible queued action before the next selection.
 _Avoid_: Loop tick, Auto Queue iteration
 
+**Village Task Priority**:
+One account-and-world-specific order of user-facing automation task groups, applied separately within each village. It chooses the first ready group, skipping ineligible groups without reserving resources, reordering work across villages or within a group, or delaying urgent safety work, explicit user-requested immediate work, or internal account work.
+_Avoid_: Resource reservation, account-wide task order
+
 **Send Troops**:
 The verified Official Travian flow that opens the Rally Point troop form and prepares troop dispatch for combat or Farm Lists.
 _Avoid_: Manual Farming, Natar farming
