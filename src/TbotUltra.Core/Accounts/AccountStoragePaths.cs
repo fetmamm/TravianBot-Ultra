@@ -322,4 +322,9 @@ public static class AccountStoragePaths
     {
         return Path.Combine(projectRoot, "temp_build_out", "farmlist-dispatch-state", $"{NormalizeAccountKey(accountName)}.json");
     }
+
+    public static string FarmListHistoryPath(string projectRoot, string accountName, string? serverUrl)
+    {
+        return Path.Combine(AccountDirectory(projectRoot, accountName), "farm-list-history", $"{NormalizeServerKey(serverUrl)}.json");
+    }
 }

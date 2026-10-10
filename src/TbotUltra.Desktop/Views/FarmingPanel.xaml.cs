@@ -13,6 +13,21 @@ public partial class FarmingPanel : UserControl
 
     public FarmingPanel() => InitializeComponent();
 
+    internal event Action? HistoryRequested;
+    internal event Action? ClearHistoryRequested;
+    internal void SetHistory(IReadOnlyList<TbotUltra.Core.Farming.FarmListHistoryEntry> entries)
+        => FarmHistoryGrid.ItemsSource = entries;
+
+    private void FarmingTabControl_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (ReferenceEquals(e.OriginalSource, FarmingTabControl)
+            && ReferenceEquals(FarmingTabControl.SelectedItem, FarmHistoryTabItem))
+            HistoryRequested?.Invoke();
+    }
+
+    private void ClearFarmHistoryButton_Click(object sender, RoutedEventArgs e)
+        => ClearHistoryRequested?.Invoke();
+
     internal Button AnalyzeButton => AnalyzeFarmListsButton;
     internal Button AddFarmsButton => AddFarmsToListButton;
     internal Button CreateListButton => CreateFarmListButton;

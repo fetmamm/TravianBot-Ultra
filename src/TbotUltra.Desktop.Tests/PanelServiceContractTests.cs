@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using TbotUltra.Core.Accounts;
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Farming;
 using TbotUltra.Core.Tasks;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
@@ -174,11 +175,12 @@ public sealed class PanelServiceContractTests : IDisposable
         };
         Assert.True(await service.DispatchOneAsync(options, row, cancellation.Token));
         Assert.Equal(2, row.RemainingSeconds);
-        Assert.Equal(3, (await service.DispatchManyAsync(ViewRequest(options), [row], true, cancellation.Token)).SentCount);
-        Assert.Equal(4, (await service.DispatchManyAsync(ViewRequest(options), [row], false, cancellation.Token)).SentCount);
+        Assert.Equal(1, (await service.DispatchManyAsync(ViewRequest(options), [row], cancellation.Token)).SentCount);
+        row.IsEnabled = false;
+        Assert.Equal(0, (await service.DispatchManyAsync(ViewRequest(options), [row], cancellation.Token)).SentCount);
 
         Assert.Equal(
-            ["gold", "overview", "one", "selected", "gold", "overview", "all", "gold", "overview"],
+            ["gold", "overview", "one", "selected", "gold", "overview", "gold", "overview"],
             client.Calls);
         Assert.Equal("A", client.SendOneName);
         Assert.Equal(["A"], client.SelectedNames);
@@ -232,6 +234,25 @@ public sealed class PanelServiceContractTests : IDisposable
         Assert.Equal(2, loadResult.TargetLists.Count);
         Assert.Contains("3|4", loadResult.ExistingCoordinates);
         Assert.Contains("'Raiders' 1/3", loadResult.IncompleteFarmLists!);
+    }
+
+    [Fact]
+    public async Task FarmListsWorkflow_NoSavedSelection_KeepsEveryListOff()
+    {
+        var client = new RecordingFarmingClient
+        {
+            Overview =
+            [
+                new FarmListOverview("Old", 1, 1, 0, "1"),
+                new FarmListOverview("New", 1, 1, 0, "2"),
+            ],
+        };
+        var workflow = CreateFarmListsWorkflow(client, CreateConfigStore());
+
+        var projection = (await workflow.AnalyzeAsync(ViewRequest(new BotOptions()), CancellationToken.None)).Projection;
+
+        Assert.Equal(2, projection.Rows.Count);
+        Assert.All(projection.Rows, row => Assert.False(row.IsEnabled));
     }
 
     [Fact]
@@ -372,6 +393,14 @@ public sealed class PanelServiceContractTests : IDisposable
         Assert.True(workflow.PersistDispatchInterval(row, 20, 20, options));
         Assert.Equal(row.LastSentAtUtc.Value.AddMinutes(20), row.NextSendAtUtc);
 
+        var existingDeadline = row.NextSendAtUtc;
+        Assert.True(workflow.PersistDispatchInterval(row, 30, 40, options, preserveDeadline: true));
+        Assert.Equal(existingDeadline, row.NextSendAtUtc);
+        var persisted = FarmListDispatchStateStore.Load(_root, "alice")["lid:lid-1"];
+        Assert.Equal(30, persisted.IntervalMinMinutes);
+        Assert.Equal(40, persisted.IntervalMaxMinutes);
+        Assert.Equal(existingDeadline, persisted.NextSendAtUtc);
+
         row.RemainingSeconds = 90;
         Assert.True(workflow.ReconcileDispatches(
             [row],
@@ -384,7 +413,8 @@ public sealed class PanelServiceContractTests : IDisposable
         row.RemainingSeconds = null;
         row.IsEnabled = true;
         Assert.Equal(["lid:lid-1"], workflow.GetReadyDispatchKeys([row], enabledOnly: true));
-        Assert.Equal(["lid:lid-1"], workflow.GetAutoDispatchKeys([row], sendAllLists: true));
+        row.IsEnabled = false;
+        Assert.Empty(workflow.GetReadyDispatchKeys([row], enabledOnly: true));
     }
 
     [Fact]
@@ -972,9 +1002,17 @@ public sealed class PanelServiceContractTests : IDisposable
         public Task<FarmAddBatchResult> AddFarmsAsync(BotOptions options, string farmListName, string troopType, int troopCount, int requestedCount, IReadOnlyList<FarmCoordinate> coordinates, bool useDefaultTroops, FarmTargetProtectionContext? protection, Action<string> log, IProgress<FarmAddProgress>? progress, CancellationToken cancellationToken) { Coordinates = coordinates; return Record("add", cancellationToken, AddResult); }
         public Task<FarmTargetIdentity> ReadTargetProtectionIdentityAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken) => Record("identity", cancellationToken, Identity);
         public Task<FarmListCreateBatchResult> CreateListsAsync(BotOptions options, FarmListCreateRequest request, Action<string> log, IProgress<FarmListCreateProgress>? progress, CancellationToken cancellationToken) { CreateRequest = request; return Record("create", cancellationToken, CreateResult); }
-        public Task<int?> SendOneAsync(BotOptions options, string farmListName, Action<string> log, CancellationToken cancellationToken) { SendOneName = farmListName; return Record("one", cancellationToken, (int?)2); }
-        public Task<int> SendSelectedAsync(BotOptions options, IReadOnlyCollection<string> names, IReadOnlyCollection<string> ids, Action<string> log, CancellationToken cancellationToken) { SelectedNames = names; SelectedIds = ids; return Record("selected", cancellationToken, 3); }
-        public Task<int> SendAllAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken) => Record("all", cancellationToken, 4);
+        public Task<FarmListSingleSendResult> SendOneWithResultAsync(BotOptions options, string farmListName, Action<string> log, CancellationToken cancellationToken)
+        {
+            SendOneName = farmListName;
+            return Record("one", cancellationToken, new FarmListSingleSendResult(2, new FarmListSendEntry(farmListName, "11", DateTimeOffset.UtcNow, "success")));
+        }
+        public Task<FarmListSendBatchResult> SendSelectedWithResultsAsync(BotOptions options, IReadOnlyCollection<string> names, IReadOnlyCollection<string> ids, Action<string> log, CancellationToken cancellationToken)
+        {
+            SelectedNames = names;
+            SelectedIds = ids;
+            return Record("selected", cancellationToken, new FarmListSendBatchResult([], names.Take(3).Select(name => new FarmListSendEntry(name, null, DateTimeOffset.UtcNow, "success")).ToList()));
+        }
         private Task<T> Record<T>(string call, CancellationToken token, T result) { Calls.Add(call); CancellationTokens.Add(token); return Task.FromResult(result); }
     }
 

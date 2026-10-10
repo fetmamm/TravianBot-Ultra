@@ -48,6 +48,19 @@ public sealed class FarmListAnalysisReuseTests
         Assert.False(snapshot.NeedsAnalysis);
     }
 
+    [Fact]
+    public void AutomationSnapshot_ExplicitlyDisabledLists_DoNotTriggerRepeatedAnalysis()
+    {
+        var workflow = CreateWorkflow();
+        workflow.CaptureAutomationState(
+            [new FarmListStatusRow { Name = "Disabled", IsEnabled = false }],
+            DateTimeOffset.UtcNow);
+
+        Assert.False(workflow.AutomationSnapshot.NeedsAnalysis);
+        workflow.InvalidateAnalysis();
+        Assert.True(workflow.AutomationSnapshot.NeedsAnalysis);
+    }
+
     private static FarmListsWorkflow CreateWorkflow() => new(null!, null!, null!, string.Empty, () => string.Empty, _ => { });
 
     private static FarmListStatusRow RealRow() => new() { Name = "Raiders", IsEnabled = true };

@@ -13,21 +13,9 @@ internal sealed class ContinuousFarmingOperation(IFarmingClient client)
     public async Task<ContinuousFarmingDispatchResult> ExecuteAsync(
         ContinuousFarmingDispatchRequest request,
         Action<string> log,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<IReadOnlyList<FarmListSendEntry>, IReadOnlyList<FarmListOverview>>? onConfirmed = null)
     {
-        if (string.Equals(request.SendMode, FarmingDefaults.SendModeAllAtOnce, StringComparison.Ordinal))
-        {
-            var lossResults = await HandleLossesIfEnabledAsync(request, log, cancellationToken);
-            log("Continuous farming send-all started.");
-            var listCount = await client.SendAllFarmListsViaStartAllButtonAsync(cancellationToken);
-            log($"Continuous farming send-all completed. Lists considered={listCount}.");
-            var snapshot = await client.ReadFarmListsOverviewAsync(cancellationToken);
-            return ContinuousFarmingDispatchResult.ForCompletedRound(
-                snapshot,
-                request.DispatchDelaySeconds,
-                lossResults);
-        }
-
         var selectedNames = (request.SelectedNames ?? [])
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Select(name => name.Trim())
@@ -39,14 +27,16 @@ internal sealed class ContinuousFarmingOperation(IFarmingClient client)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         if (selectedNames.Count <= 0 && selectedIds.Count <= 0)
         {
-            throw new InvalidOperationException("No farm lists selected for continuous farming.");
+            log("Continuous farming: no enabled farm lists; waiting for a list to be enabled.");
+            return ContinuousFarmingDispatchResult.ForDefer("No farm lists are enabled.", Math.Max(60, request.DispatchDelaySeconds));
         }
 
         var overview = await client.ReadFarmListsOverviewAsync(cancellationToken);
         var matchingLists = overview
             .Where(item => item is not null
-                && ((item.ListId is not null && selectedIds.Contains(item.ListId))
-                    || selectedNames.Contains(item.Name, StringComparer.OrdinalIgnoreCase)))
+                && (item.ListId is not null && selectedIds.Count > 0
+                    ? selectedIds.Contains(item.ListId)
+                    : selectedNames.Contains(item.Name, StringComparer.OrdinalIgnoreCase)))
             .ToList();
         if (matchingLists.Count <= 0)
         {
@@ -97,10 +87,14 @@ internal sealed class ContinuousFarmingOperation(IFarmingClient client)
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .Select(id => id!)
             .ToList();
-        var scheduleLabel = usesIndividualSchedules ? "individual schedules" : "shared schedule";
+        var scheduleLabel = usesIndividualSchedules ? "individual schedules" : "shared round";
         log($"Continuous farming ({scheduleLabel}): sending {readyLists.Count}/{matchingLists.Count} ready list(s).");
         var sendResult = await client.SendSelectedFarmListsNowAsync(dueNames, dueIds, cancellationToken);
         log($"Continuous farming ({scheduleLabel}): {sendResult.SentCount} list(s) dispatched.");
+        if (sendResult.SentLists.Count > 0)
+        {
+            onConfirmed?.Invoke(sendResult.SentLists, overview);
+        }
         var refreshedOverview = await client.ReadFarmListsOverviewAsync(cancellationToken);
         return ContinuousFarmingDispatchResult.ForCompletedRound(
             refreshedOverview,

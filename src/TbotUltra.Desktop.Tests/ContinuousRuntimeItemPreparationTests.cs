@@ -92,7 +92,7 @@ public sealed class ContinuousRuntimeItemPreparationTests
                 new AutomationRuntimeVillage("3:4", "Beta", "/dorf1.php?newdid=2", false, 3, 4),
                 new AutomationRuntimeVillage("5:6", "Gamma", "/dorf1.php?newdid=3", false, 5, 6),
             ],
-            FarmListSelection = new AutomationFarmListSelection([], [], 4),
+            FarmListSelection = new AutomationFarmListSelection(["List A"], ["7"], 4),
         };
 
         await new ContinuousRuntimeItemPreparation(port).PrepareAsync(
@@ -104,7 +104,24 @@ public sealed class ContinuousRuntimeItemPreparationTests
 
         var item = Assert.Single(port.Queue.Items);
         Assert.Equal("send_farmlists", item.TaskName);
-        Assert.Equal("Send all farmlists", item.DisplayName);
+        Assert.Equal("Send all enabled farmlists", item.DisplayName);
+    }
+
+    [Fact]
+    public async Task SendAllFarming_WithNoEnabledLists_DoesNotQueue()
+    {
+        var port = new InMemoryPort
+        {
+            EnabledGroups = [QueueGroup.Farming],
+            ConsideredGroups = [QueueGroup.Farming],
+            Villages = [new AutomationRuntimeVillage("1:2", "Alpha", "/dorf1.php?newdid=1", false, 1, 2)],
+            FarmListSelection = new AutomationFarmListSelection([], [], 4),
+        };
+
+        await new ContinuousRuntimeItemPreparation(port).PrepareAsync(
+            new BotOptions { ContinuousFarmSendMode = FarmingDefaults.SendModeAllAtOnce }, default);
+
+        Assert.Empty(port.Queue.Items);
     }
 
     [Fact]

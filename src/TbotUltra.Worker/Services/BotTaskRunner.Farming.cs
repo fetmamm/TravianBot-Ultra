@@ -233,21 +233,23 @@ public sealed partial class BotTaskRunner
         Action<string> log,
         string? accountName = null,
         CancellationToken cancellationToken = default)
+        => (await SendFarmListNowWithResultAsync(options, farmListName, log, accountName, cancellationToken)).RemainingSeconds;
+
+    public async Task<FarmListSingleSendResult> SendFarmListNowWithResultAsync(
+        BotOptions options,
+        string farmListName,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
     {
-        int? remainingSeconds = null;
-        await ExecuteWithClientAsync(
-            options,
-            log,
-            accountName,
-            interactive: false,
-            cancellationToken,
+        FarmListSingleSendResult? result = null;
+        await ExecuteWithClientAsync(options, log, accountName, interactive: false, cancellationToken,
             async client =>
             {
                 await client.LoginAsync(cancellationToken);
-                remainingSeconds = await new ManualFarmingOperation(client).SendOneAsync(farmListName, cancellationToken);
+                result = await new ManualFarmingOperation(client).SendOneWithResultAsync(farmListName, cancellationToken);
             });
-
-        return remainingSeconds;
+        return result ?? throw new InvalidOperationException($"Farm list '{farmListName}' did not return a send result.");
     }
 
     public async Task<int> SendAllFarmListsNowAsync(
@@ -280,22 +282,27 @@ public sealed partial class BotTaskRunner
         Action<string> log,
         string? accountName = null,
         CancellationToken cancellationToken = default)
+        => (await SendSelectedFarmListsWithResultsNowAsync(
+            options, selectedNames, selectedIds, log, accountName, cancellationToken)).SentCount;
+
+    public async Task<FarmListSendBatchResult> SendSelectedFarmListsWithResultsNowAsync(
+        BotOptions options,
+        IReadOnlyCollection<string> selectedNames,
+        IReadOnlyCollection<string> selectedIds,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
     {
-        var sent = 0;
-        await ExecuteWithClientAsync(
-            options,
-            log,
-            accountName,
-            interactive: false,
-            cancellationToken,
+        FarmListSendBatchResult result = new([], []);
+        await ExecuteWithClientAsync(options, log, accountName, interactive: false, cancellationToken,
             async client =>
             {
                 await client.LoginAsync(cancellationToken);
                 await RunFarmListLossDeactivationIfEnabledAsync(new TaskExecutionContext(this, options, client, log, cancellationToken, _ => { }));
-                sent = await new ManualFarmingOperation(client).SendSelectedAsync(selectedNames, selectedIds, cancellationToken);
+                result = await new ManualFarmingOperation(client).SendSelectedWithResultsAsync(
+                    selectedNames, selectedIds, cancellationToken);
             });
-
-        return sent;
+        return result;
     }
 
     public async Task<int> SendAllFarmListsViaStartAllButtonAsync(

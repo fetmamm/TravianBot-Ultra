@@ -71,17 +71,21 @@ public sealed class FarmListDispatchStateStoreTests
     }
 
     [Fact]
-    public void ShouldTrackDispatch_SendAllIncludesDisabledReadyLists()
+    public void ResetDeadlines_MakesStoredListsReadyWithoutChangingIntervalsOrEnabledSelection()
     {
-        Assert.True(FarmListDispatchStateStore.ShouldTrackDispatch(
-            sendAllLists: true,
-            isEnabled: false,
-            isReady: true,
-            isEmpty: false));
-        Assert.False(FarmListDispatchStateStore.ShouldTrackDispatch(
-            sendAllLists: false,
-            isEnabled: false,
-            isReady: true,
-            isEmpty: false));
+        var root = Path.Combine(Path.GetTempPath(), "tbot-farmlist-dispatch-tests", Guid.NewGuid().ToString("N"));
+        var oldDeadline = DateTimeOffset.UtcNow.AddHours(2);
+        var now = DateTimeOffset.UtcNow;
+        FarmListDispatchStateStore.Save(root, "alice", new Dictionary<string, FarmListDispatchState>
+        {
+            ["lid:42"] = new(now.AddHours(-1), false, 10, 20, oldDeadline),
+            ["lid:43"] = new(null, false, 30, 40, oldDeadline),
+        });
+
+        Assert.Equal(2, FarmListDispatchStateStore.ResetDeadlines(root, "alice", now));
+        var states = FarmListDispatchStateStore.Load(root, "alice");
+        Assert.All(states.Values, state => Assert.Equal(now, state.NextSendAtUtc));
+        Assert.Equal(10, states["lid:42"].IntervalMinMinutes);
+        Assert.Equal(40, states["lid:43"].IntervalMaxMinutes);
     }
 }

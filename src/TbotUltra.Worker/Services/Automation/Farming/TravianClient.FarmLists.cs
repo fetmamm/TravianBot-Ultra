@@ -105,6 +105,9 @@ public sealed partial class TravianClient : IFarmingClient
     }
 
     public async Task<int?> SendFarmListNowAsync(string farmListName, CancellationToken cancellationToken = default)
+        => (await SendFarmListNowWithResultAsync(farmListName, cancellationToken)).RemainingSeconds;
+
+    public async Task<FarmListSingleSendResult> SendFarmListNowWithResultAsync(string farmListName, CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
         if (string.IsNullOrWhiteSpace(farmListName))
@@ -141,13 +144,15 @@ public sealed partial class TravianClient : IFarmingClient
                 $"Farm list '{farmListName}' (lid {lid}) showed no success/error response within 15 seconds after Start.");
         }
 
+        var confirmedAtUtc = DateTimeOffset.UtcNow;
         await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
         var remaining = await ReadFarmListTimerSecondsByNameAsync(farmListName, cancellationToken);
         Notify(
             $"[farm-list] '{farmListName}' marked sent (response={confirmation.Description}) — "
             + $"next ready in {(remaining is > 0 ? TravianParsing.FormatDuration(remaining.Value) : "now")}");
         await DelayBeforeClickAsync(cancellationToken, "after final confirmed farm list");
-        return remaining;
+        return new FarmListSingleSendResult(remaining,
+            new FarmListSendEntry(farmListName, lid, confirmedAtUtc, confirmation.Description));
     }
 
     public async Task<int> SendAllFarmListsNowAsync(CancellationToken cancellationToken = default)
@@ -237,7 +242,7 @@ public sealed partial class TravianClient : IFarmingClient
             var confirmation = await WaitForFarmListDispatchConfirmationAsync(entry.Lid, cancellationToken);
             if (confirmation.IsConfirmed)
             {
-                sent.Add(new FarmListSendEntry(entry.Name, entry.Lid));
+                sent.Add(new FarmListSendEntry(entry.Name, entry.Lid, DateTimeOffset.UtcNow, confirmation.Description));
                 Notify(
                     $"[farm-list] send: '{entry.Name}' marked sent "
                     + $"(response={confirmation.Description}; Travian processed the Start request).");

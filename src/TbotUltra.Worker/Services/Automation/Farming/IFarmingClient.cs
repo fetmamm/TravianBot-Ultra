@@ -15,6 +15,7 @@ public interface IFarmingClient
     Task<IReadOnlyList<FarmListOverview>> ReadFarmListsOverviewAsync(CancellationToken cancellationToken = default);
 
     Task<int?> SendFarmListNowAsync(string farmListName, CancellationToken cancellationToken = default);
+    Task<FarmListSingleSendResult> SendFarmListNowWithResultAsync(string farmListName, CancellationToken cancellationToken = default);
 
     Task<int> SendAllFarmListsNowAsync(CancellationToken cancellationToken = default);
 

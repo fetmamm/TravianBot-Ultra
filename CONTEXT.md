@@ -201,7 +201,7 @@ The required minimum/maximum wait for one Farm List in Individual schedule mode,
 _Avoid_: Farm-list pacing, round delay
 
 **Farm List Send Mode**:
-One of Individual schedule (enabled UI lists use their own intervals), Shared schedule (enabled UI lists use one account-wide interval), or Send all (Travian's Start all sends every account list regardless of UI toggles).
+One of Individual schedule (enabled UI lists use their own intervals), Shared schedule (enabled UI lists use one account-wide interval), or Send all (all enabled lists on one account-wide interval). Disabled lists are never sent by the UI or automatic farming.
 _Avoid_: Send toggled lists, fallback interval
 
 **Farm Target Protection**:

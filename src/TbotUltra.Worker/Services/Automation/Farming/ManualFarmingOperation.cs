@@ -16,6 +16,9 @@ internal sealed class ManualFarmingOperation(IFarmingClient client)
     public Task<int?> SendOneAsync(string farmListName, CancellationToken cancellationToken)
         => client.SendFarmListNowAsync(farmListName, cancellationToken);
 
+    public Task<FarmListSingleSendResult> SendOneWithResultAsync(string farmListName, CancellationToken cancellationToken)
+        => client.SendFarmListNowWithResultAsync(farmListName, cancellationToken);
+
     public Task<int> SendAllAsync(CancellationToken cancellationToken)
         => client.SendAllFarmListsNowAsync(cancellationToken);
 
@@ -24,6 +27,12 @@ internal sealed class ManualFarmingOperation(IFarmingClient client)
         IReadOnlyCollection<string> selectedIds,
         CancellationToken cancellationToken)
         => (await client.SendSelectedFarmListsNowAsync(selectedNames, selectedIds, cancellationToken)).SentCount;
+
+    public Task<FarmListSendBatchResult> SendSelectedWithResultsAsync(
+        IReadOnlyCollection<string> selectedNames,
+        IReadOnlyCollection<string> selectedIds,
+        CancellationToken cancellationToken)
+        => client.SendSelectedFarmListsNowAsync(selectedNames, selectedIds, cancellationToken);
 
     public Task<int> SendAllViaStartAllButtonAsync(CancellationToken cancellationToken)
         => client.SendAllFarmListsViaStartAllButtonAsync(cancellationToken);

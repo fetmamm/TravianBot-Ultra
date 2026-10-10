@@ -19,7 +19,8 @@ public sealed class FarmListsViewModel : BaseViewModel
     private readonly RelayCommand _addFarmsCommand;
     private readonly RelayCommand _createFarmListCommand;
     private readonly RelayCommand _sendAllNowCommand;
-    private readonly RelayCommand _resetIntervalsCommand;
+    private readonly RelayCommand _resetTimersCommand;
+    private readonly RelayCommand<FarmListStatusRow> _resetVillageIntervalsCommand;
     private readonly RelayCommand<FarmListStatusRow> _sendNowCommand;
     private bool _canAnalyze = true;
     private bool _canManageLists;
@@ -45,7 +46,8 @@ public sealed class FarmListsViewModel : BaseViewModel
         _addFarmsCommand = new RelayCommand(() => AddFarmsRequested?.Invoke(), () => _canManageLists);
         _createFarmListCommand = new RelayCommand(() => CreateFarmListRequested?.Invoke(), () => _canCreate);
         _sendAllNowCommand = new RelayCommand(() => SendAllNowRequested?.Invoke(), () => _canSendAll);
-        _resetIntervalsCommand = new RelayCommand(ResetIndividualIntervals);
+        _resetTimersCommand = new RelayCommand(() => ResetTimersRequested?.Invoke());
+        _resetVillageIntervalsCommand = new RelayCommand<FarmListStatusRow>(row => ResetVillageIntervalsRequested?.Invoke(row));
         _sendNowCommand = new RelayCommand<FarmListStatusRow>(row => SendNowRequested?.Invoke(row), row => _canManageLists && row.CanSendNow);
     }
 
@@ -59,14 +61,16 @@ public sealed class FarmListsViewModel : BaseViewModel
     public ICommand AddFarmsCommand => _addFarmsCommand;
     public ICommand CreateFarmListCommand => _createFarmListCommand;
     public ICommand SendAllNowCommand => _sendAllNowCommand;
-    public ICommand ResetIntervalsCommand => _resetIntervalsCommand;
+    public ICommand ResetTimersCommand => _resetTimersCommand;
+    public ICommand ResetVillageIntervalsCommand => _resetVillageIntervalsCommand;
     public ICommand SendNowCommand => _sendNowCommand;
 
     public event Action? AnalyzeRequested;
     public event Action? AddFarmsRequested;
     public event Action? CreateFarmListRequested;
     public event Action? SendAllNowRequested;
-    public event Action<int, int, int>? IntervalsReset;
+    public event Action? ResetTimersRequested;
+    public event Action<FarmListStatusRow>? ResetVillageIntervalsRequested;
     public event Action<FarmListStatusRow>? SendNowRequested;
     public event Action? SettingsChanged;
     public event Action? MoveRedLossesEnabledRequested;
@@ -144,7 +148,7 @@ public sealed class FarmListsViewModel : BaseViewModel
     public string DispatchModeDescription => SendMode switch
     {
         FarmingDefaults.SendModeSharedSchedule => "Only enabled lists run, all on the shared interval.",
-        FarmingDefaults.SendModeAllAtOnce => "Travian Start all sends every account list, ignoring UI toggles.",
+        FarmingDefaults.SendModeAllAtOnce => "Only enabled lists run together on the shared interval.",
         _ => "Only enabled lists run, each on its own interval.",
     };
 
@@ -359,24 +363,6 @@ public sealed class FarmListsViewModel : BaseViewModel
         DeactivateYellowOasisLosses = deactivateYellowOasisLosses;
         MoveRedLosses = deactivateRedLosses && moveRedLosses;
         MoveYellowLosses = deactivateYellowLosses && moveYellowLosses;
-    }
-
-    private void ResetIndividualIntervals()
-    {
-        var minMinutes = FarmingDefaults.NormalizeDispatchDelayMinMinutes(
-            int.TryParse(DispatchDelayMinMinutes, out var parsedMin) ? parsedMin : 0);
-        var maxMinutes = Math.Max(
-            minMinutes,
-            FarmingDefaults.NormalizeDispatchDelayMaxMinutes(
-                int.TryParse(DispatchDelayMaxMinutes, out var parsedMax) ? parsedMax : 0));
-        var rows = FarmLists.Where(IsRealRow).ToList();
-        foreach (var row in rows)
-        {
-            row.IntervalMinMinutesText = minMinutes.ToString();
-            row.IntervalMaxMinutesText = maxMinutes.ToString();
-        }
-
-        IntervalsReset?.Invoke(rows.Count, minMinutes, maxMinutes);
     }
 
     private void SyncOasisMasterFromColors()

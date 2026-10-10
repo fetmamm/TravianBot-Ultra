@@ -126,7 +126,7 @@ public sealed class ContinuousFarmingOperationTests
     }
 
     [Fact]
-    public async Task ExecuteAsync_AllAtOnce_PreservesLossHandlingThenSendOrder()
+    public async Task ExecuteAsync_AllAtOnce_RequiresEnabledListAndPreservesLossHandlingThenSendOrder()
     {
         var client = new FakeFarmingClient(
             [new FarmListOverview("Mercs", 3, 3, 0, "42")]);
@@ -135,18 +135,31 @@ public sealed class ContinuousFarmingOperationTests
         var result = await operation.ExecuteAsync(
             new ContinuousFarmingDispatchRequest(
                 FarmingDefaults.SendModeAllAtOnce,
-                [],
-                [],
+                ["Mercs"],
+                ["42"],
                 600,
                 true,
                 new FarmListLossHandlingRequest(false, false, "", "", "")),
             _ => { },
             CancellationToken.None);
 
-        Assert.Equal(["loss", "start-all", "read"], client.Calls);
+        Assert.Equal(["read", "loss", "send-selected", "read"], client.Calls);
         Assert.True(result.ScheduleNextRound);
         Assert.Equal(600, result.WaitSeconds);
         Assert.Equal("Continuous farming cooldown active.", result.WaitMessage);
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_AllAtOnce_WithNoEnabledLists_DoesNotNavigateOrSend()
+    {
+        var client = new FakeFarmingClient([new FarmListOverview("Mercs", 3, 3, 0, "42")]);
+        var result = await new ContinuousFarmingOperation(client).ExecuteAsync(
+            new ContinuousFarmingDispatchRequest(FarmingDefaults.SendModeAllAtOnce, [], [], 600, false, null),
+            _ => { }, CancellationToken.None);
+
+        Assert.Empty(client.Calls);
+        Assert.False(result.ScheduleNextRound);
+        Assert.Equal("No farm lists are enabled.", result.WaitMessage);
     }
 
     [Fact]
@@ -193,8 +206,8 @@ public sealed class ContinuousFarmingOperationTests
         await operation.ExecuteAsync(
             new ContinuousFarmingDispatchRequest(
                 FarmingDefaults.SendModeAllAtOnce,
-                [],
-                [],
+                ["Mercs"],
+                ["42"],
                 600,
                 false,
                 null,
@@ -206,7 +219,7 @@ public sealed class ContinuousFarmingOperationTests
             _ => { },
             CancellationToken.None);
 
-        Assert.Equal(["start-all", "read"], client.Calls);
+        Assert.Equal(["read", "send-selected", "read"], client.Calls);
     }
 
     [Fact]
@@ -220,8 +233,8 @@ public sealed class ContinuousFarmingOperationTests
         var result = await operation.ExecuteAsync(
             new ContinuousFarmingDispatchRequest(
                 FarmingDefaults.SendModeAllAtOnce,
-                [],
-                [],
+                ["Mercs"],
+                ["42"],
                 600,
                 true,
                 null,
@@ -229,7 +242,7 @@ public sealed class ContinuousFarmingOperationTests
             _ => { },
             CancellationToken.None);
 
-        Assert.Equal(["loss", "loss", "start-all", "read"], client.Calls);
+        Assert.Equal(["read", "loss", "loss", "send-selected", "read"], client.Calls);
         Assert.Equal([FarmListLossColors.Red, FarmListLossColors.Yellow], client.LossRequests.Select(request => request.LossColors));
         Assert.Equal(2, result.LossHandlingResults!.Count);
     }
@@ -251,6 +264,7 @@ public sealed class ContinuousFarmingOperationTests
         }
 
         public Task<int?> SendFarmListNowAsync(string farmListName, CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<FarmListSingleSendResult> SendFarmListNowWithResultAsync(string farmListName, CancellationToken cancellationToken = default) => throw new NotSupportedException();
 
         public Task<int> SendAllFarmListsNowAsync(CancellationToken cancellationToken = default)
         {

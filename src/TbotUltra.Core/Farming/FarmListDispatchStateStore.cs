@@ -24,9 +24,6 @@ public static class FarmListDispatchStateStore
         return sendActionCompleted;
     }
 
-    public static bool ShouldTrackDispatch(bool sendAllLists, bool isEnabled, bool isReady, bool isEmpty)
-        => !isEmpty && isReady && (sendAllLists || isEnabled);
-
     public static string CreateKey(string? listId, string? listName)
     {
         if (!string.IsNullOrWhiteSpace(listId))
@@ -92,6 +89,22 @@ public static class FarmListDispatchStateStore
             states[key] = state;
             SaveCore(projectRoot, accountName, states);
             return state;
+        }
+    }
+
+    public static int ResetDeadlines(string projectRoot, string accountName, DateTimeOffset nowUtc)
+    {
+        lock (Gate)
+        {
+            var states = LoadCore(projectRoot, accountName)
+                .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.OrdinalIgnoreCase);
+            foreach (var key in states.Keys.ToList())
+            {
+                states[key] = states[key] with { NextSendAtUtc = nowUtc };
+            }
+
+            SaveCore(projectRoot, accountName, states);
+            return states.Count;
         }
     }
 

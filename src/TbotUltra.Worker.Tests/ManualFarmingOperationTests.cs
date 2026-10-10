@@ -54,6 +54,8 @@ public sealed class ManualFarmingOperationTests
 
         public Task<IReadOnlyList<FarmListOverview>> ReadFarmListsOverviewAsync(CancellationToken cancellationToken = default) => Record("overview", cancellationToken, Overview);
         public Task<int?> SendFarmListNowAsync(string farmListName, CancellationToken cancellationToken = default) => Record("one", cancellationToken, (int?)1);
+        public Task<FarmListSingleSendResult> SendFarmListNowWithResultAsync(string farmListName, CancellationToken cancellationToken = default)
+            => Record("one-result", cancellationToken, new FarmListSingleSendResult(1, new FarmListSendEntry(farmListName, "1", DateTimeOffset.UtcNow, "success")));
         public Task<int> SendAllFarmListsNowAsync(CancellationToken cancellationToken = default) => Record("all", cancellationToken, 2);
         public Task<FarmListSendBatchResult> SendSelectedFarmListsNowAsync(IReadOnlyCollection<string> selectedNames, IReadOnlyCollection<string> selectedIds, CancellationToken cancellationToken = default)
         {

@@ -61,10 +61,35 @@ public sealed partial class BotTaskRunner
                     pair => pair.Value.NextSendAtUtc,
                     StringComparer.OrdinalIgnoreCase)),
             context.Log,
-            context.CancellationToken);
+            context.CancellationToken,
+            (sentLists, overview) =>
+            {
+                try
+                {
+                    FarmListHistoryStore.Append(
+                        context.Runner._projectContext.RootPath,
+                        activeAccount,
+                        context.Options.BaseUrl,
+                        sentLists.Select(entry =>
+                        {
+                            var list = overview.FirstOrDefault(item =>
+                                !string.IsNullOrWhiteSpace(entry.ListId)
+                                    ? string.Equals(item.ListId, entry.ListId, StringComparison.OrdinalIgnoreCase)
+                                    : string.Equals(item.Name, entry.Name, StringComparison.OrdinalIgnoreCase));
+                            return new FarmListHistoryEntry(
+                                entry.ConfirmedAtUtc ?? DateTimeOffset.UtcNow,
+                                entry.Name, entry.ListId, list?.VillageName,
+                                "Automatic", entry.Response ?? "confirmed", null);
+                        }), context.Log);
+                    context.Log($"[farm-list] saved history for {sentLists.Count} confirmed automatic send(s).");
+                }
+                catch (Exception ex)
+                {
+                    context.Log($"[farm-list] could not save automatic send history: {ex.Message}");
+                }
+            });
 
-        if (string.Equals(mode, FarmingDefaults.SendModeListPerList, StringComparison.Ordinal) &&
-            result.AttemptedLists is { Count: > 0 })
+        if (result.AttemptedLists is { Count: > 0 })
         {
             dispatchStates = UpdateFarmListDispatchStates(
                 context,
@@ -72,15 +97,18 @@ public sealed partial class BotTaskRunner
                 dispatchStates,
                 result.AttemptedLists,
                 result.SentLists ?? []);
-            result = result with
+            if (string.Equals(mode, FarmingDefaults.SendModeListPerList, StringComparison.Ordinal))
             {
-                WaitSeconds = CalculateNextFarmListWaitSeconds(
-                    context.Options,
-                    result.Snapshot ?? [],
-                    dispatchStates,
-                    DateTimeOffset.UtcNow,
-                    dispatchDelaySeconds),
-            };
+                result = result with
+                {
+                    WaitSeconds = CalculateNextFarmListWaitSeconds(
+                        context.Options,
+                        result.Snapshot ?? [],
+                        dispatchStates,
+                        DateTimeOffset.UtcNow,
+                        dispatchDelaySeconds),
+                };
+            }
         }
 
         foreach (var lossResult in result.LossHandlingResults ?? [])

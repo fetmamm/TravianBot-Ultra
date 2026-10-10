@@ -219,13 +219,13 @@ public sealed class FarmListsViewModelTests
 
         vm.SendAllLists = true;
 
-        Assert.Contains("Start all", vm.DispatchModeDescription);
+        Assert.Contains("Only enabled lists", vm.DispatchModeDescription);
         Assert.True(vm.SendAllLists);
         Assert.False(vm.UseSharedSchedule);
     }
 
     [Fact]
-    public void ResetIntervalsCommand_AppliesCurrentDefaultToEveryRealList()
+    public void ResetCommands_KeepTimerAndVillageIntervalActionsSeparate()
     {
         var vm = new FarmListsViewModel
         {
@@ -241,16 +241,20 @@ public sealed class FarmListsViewModelTests
         vm.FarmLists.Add(first);
         vm.FarmLists.Add(second);
         vm.FarmLists.Add(new FarmListStatusRow { IsPlaceholder = true });
-        (int Count, int Min, int Max)? reset = null;
-        vm.IntervalsReset += (count, min, max) => reset = (count, min, max);
+        var timerRequested = false;
+        FarmListStatusRow? villageRequested = null;
+        vm.ResetTimersRequested += () => timerRequested = true;
+        vm.ResetVillageIntervalsRequested += row => villageRequested = row;
 
-        vm.ResetIntervalsCommand.Execute(null);
+        vm.ResetTimersCommand.Execute(null);
+        vm.ResetVillageIntervalsCommand.Execute(first);
 
-        Assert.Equal((2, 30, 90), reset);
+        Assert.True(timerRequested);
+        Assert.Same(first, villageRequested);
         Assert.All(new[] { first, second }, row =>
         {
-            Assert.Equal("30", row.IntervalMinMinutesText);
-            Assert.Equal("90", row.IntervalMaxMinutesText);
+            Assert.NotEqual("30", row.IntervalMinMinutesText);
+            Assert.NotEqual("90", row.IntervalMaxMinutesText);
         });
     }
 

@@ -310,8 +310,9 @@ public sealed class FarmListsWorkflow(
     {
         try
         {
-            var timerSeconds = await client.SendOneAsync(options, row.Name, log, cancellationToken);
-            row.RemainingSeconds = timerSeconds is > 0 ? timerSeconds : null;
+            var result = await client.SendOneWithResultAsync(options, row.Name, log, cancellationToken);
+            row.RemainingSeconds = result.RemainingSeconds is > 0 ? result.RemainingSeconds : null;
+            AppendHistory(options, [result.Entry], [row]);
             return RecordDispatch(row, succeeded: true, options);
         }
         catch (OperationCanceledException)
@@ -328,35 +329,34 @@ public sealed class FarmListsWorkflow(
     private async Task<FarmListBatchDispatchResult> DispatchManyAsync(
         BotOptions options,
         IReadOnlyList<FarmListStatusRow> rows,
-        bool enabledOnly,
         CancellationToken cancellationToken)
     {
-        var attemptedKeys = GetReadyDispatchKeys(rows, enabledOnly);
+        var enabledRows = rows.Where(row => FarmListsViewModel.IsRealRow(row) && row.IsEnabled).ToList();
+        var attemptedKeys = GetReadyDispatchKeys(enabledRows, enabledOnly: true);
+        if (enabledRows.Count == 0)
+        {
+            log("[farm-list] manual batch skipped: no farm lists are enabled.");
+            return new FarmListBatchDispatchResult(0, []);
+        }
         try
         {
-            int sentCount;
-            if (enabledOnly)
-            {
-                var enabledRows = rows.Where(row => FarmListsViewModel.IsRealRow(row) && row.IsEnabled).ToList();
-                var names = enabledRows
+            var names = enabledRows
                     .Select(row => row.Name)
                     .Where(name => !string.IsNullOrWhiteSpace(name))
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
-                var ids = enabledRows
+            var ids = enabledRows
                     .Select(row => row.ListId)
                     .Where(id => !string.IsNullOrWhiteSpace(id))
                     .Select(id => id!.Trim())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
-                sentCount = await client.SendSelectedAsync(options, names, ids, log, cancellationToken);
-            }
-            else
-            {
-                sentCount = await client.SendAllAsync(options, log, cancellationToken);
-            }
-
-            return new FarmListBatchDispatchResult(sentCount, attemptedKeys);
+            var result = await client.SendSelectedWithResultsAsync(options, names, ids, log, cancellationToken);
+            AppendHistory(options, result.SentLists, enabledRows);
+            var confirmedKeys = result.SentLists
+                .Select(entry => FarmListDispatchStateStore.CreateKey(entry.ListId, entry.Name))
+                .ToList();
+            return new FarmListBatchDispatchResult(result.SentCount, confirmedKeys);
         }
         catch (OperationCanceledException)
         {
@@ -376,13 +376,11 @@ public sealed class FarmListsWorkflow(
     public async Task<FarmListsBatchDispatchOutcome> DispatchManyAsync(
         FarmListsViewRequest viewRequest,
         IReadOnlyList<FarmListStatusRow> rows,
-        bool enabledOnly,
         CancellationToken cancellationToken)
     {
         var dispatch = await DispatchManyAsync(
             viewRequest.Options,
             rows,
-            enabledOnly,
             cancellationToken);
         var view = await AnalyzeAsync(viewRequest, cancellationToken);
         var successfulDispatch = view.IsAvailable
@@ -817,7 +815,6 @@ public sealed class FarmListsWorkflow(
             log($"[farm-list] initialized {initializedIntervals} list interval(s) from the shared default {defaultMin}-{defaultMax} minutes.");
         }
 
-        var hasSelection = selectedNames.Count > 0 || selectedIds.Count > 0;
         var rows = orderedKeys
             .Take(MaximumVisibleLists)
             .Select(key =>
@@ -835,9 +832,9 @@ public sealed class FarmListsWorkflow(
                     ActiveFarmCount = value.Active,
                     TotalFarmCount = value.Total,
                     Capacity = value.Capacity,
-                    IsEnabled = !hasSelection
-                        || (value.ListId is not null && selectedIds.Contains(value.ListId))
-                        || selectedNames.Contains(value.Name),
+                    IsEnabled = value.ListId is not null && selectedIds.Count > 0
+                        ? selectedIds.Contains(value.ListId)
+                        : selectedNames.Contains(value.Name),
                     RemainingSeconds = value.RemainingSeconds,
                     LastSentAtUtc = state?.LastSentAtUtc,
                     NextSendAtUtc = state?.NextSendAtUtc,
@@ -1072,11 +1069,55 @@ public sealed class FarmListsWorkflow(
         }
     }
 
+    public int ResetDispatchDeadlines(DateTimeOffset nowUtc)
+        => FarmListDispatchStateStore.ResetDeadlines(projectRoot, activeAccountName(), nowUtc);
+
+    public Task<IReadOnlyList<FarmListHistoryEntry>> LoadHistoryAsync(string? serverUrl)
+    {
+        var accountName = activeAccountName();
+        return Task.Run<IReadOnlyList<FarmListHistoryEntry>>(() => FarmListHistoryStore
+            .Load(projectRoot, accountName, serverUrl, log)
+            .OrderByDescending(entry => entry.SentAtUtc)
+            .ToList());
+    }
+
+    public void ClearHistory(string? serverUrl)
+        => FarmListHistoryStore.Clear(projectRoot, activeAccountName(), serverUrl);
+
+    private void AppendHistory(
+        BotOptions options,
+        IReadOnlyList<FarmListSendEntry> sentLists,
+        IReadOnlyList<FarmListStatusRow> rows)
+    {
+        if (sentLists.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            FarmListHistoryStore.Append(projectRoot, activeAccountName(), options.BaseUrl,
+                sentLists.Select(entry =>
+                {
+                    var village = rows.FirstOrDefault(row => !string.IsNullOrWhiteSpace(entry.ListId)
+                        ? string.Equals(row.ListId, entry.ListId, StringComparison.OrdinalIgnoreCase)
+                        : string.Equals(row.Name, entry.Name, StringComparison.OrdinalIgnoreCase))?.VillageName;
+                    return new FarmListHistoryEntry(entry.ConfirmedAtUtc ?? DateTimeOffset.UtcNow,
+                        entry.Name, entry.ListId, village, "Manual", entry.Response ?? "confirmed", null);
+                }), log);
+        }
+        catch (Exception ex)
+        {
+            log($"[farm-list] could not save manual send history: {ex.Message}");
+        }
+    }
+
     public bool PersistDispatchInterval(
         FarmListStatusRow row,
         int minMinutes,
         int maxMinutes,
-        BotOptions options)
+        BotOptions options,
+        bool preserveDeadline = false)
     {
         try
         {
@@ -1092,7 +1133,7 @@ public sealed class FarmListsWorkflow(
                         IntervalMinMinutes = minMinutes,
                         IntervalMaxMinutes = maxMinutes,
                     };
-                    return updated with
+                    return preserveDeadline ? updated : updated with
                     {
                         NextSendAtUtc = updated.LastSentAtUtc?.AddSeconds(
                             CalculateDispatchDelaySeconds(updated, options)),
@@ -1130,21 +1171,6 @@ public sealed class FarmListsWorkflow(
 
         return successfulDispatch;
     }
-
-    public IReadOnlyList<string> GetAutoDispatchKeys(
-        IEnumerable<FarmListStatusRow> rows,
-        bool sendAllLists)
-        => sendAllLists
-            ? rows
-                .Where(row => FarmListsViewModel.IsRealRow(row)
-                    && FarmListDispatchStateStore.ShouldTrackDispatch(
-                        true,
-                        row.IsEnabled,
-                        row.IsReady,
-                        row.IsEmpty))
-                .Select(DispatchKey)
-                .ToList()
-            : [];
 
     public IReadOnlyList<string> GetReadyDispatchKeys(
         IEnumerable<FarmListStatusRow> rows,
@@ -1746,10 +1772,8 @@ public sealed record FarmListsAutomationSnapshot(
         Array.Empty<string>(),
         DateTimeOffset.MinValue);
 
-    public bool NeedsAnalysis => TotalCount <= 0
-        || SelectedNames.Count <= 0
-        || SelectedNames.Any(name => !AvailableNames.Contains(name, StringComparer.OrdinalIgnoreCase))
-        || LastAnalysisAt == DateTimeOffset.MinValue;
+    public bool NeedsAnalysis => LastAnalysisAt == DateTimeOffset.MinValue
+        || SelectedNames.Any(name => !AvailableNames.Contains(name, StringComparer.OrdinalIgnoreCase));
 }
 
 public sealed record FarmingPanelSettings(
