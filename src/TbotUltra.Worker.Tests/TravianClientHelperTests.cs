@@ -989,6 +989,21 @@ public sealed class TravianClientHelperTests
     }
 
     [Fact]
+    public void FindConstructingBuildingAtSlot_ResumesOnlyTheMatchingLevelZeroSlot()
+    {
+        var buildings = new List<Building>
+        {
+            new(29, "Cranny", 0, null, 23),
+            new(30, "Cranny", 0, null, 23),
+            new(31, "Warehouse", 0, null, 10),
+        };
+
+        Assert.Equal(30, InvokeFindConstructingBuildingAtSlot(buildings, 30, 23, "Cranny")?.SlotId);
+        Assert.Null(InvokeFindConstructingBuildingAtSlot(buildings, 31, 23, "Cranny"));
+        Assert.Null(InvokeFindConstructingBuildingAtSlot(buildings, 32, 23, "Cranny"));
+    }
+
+    [Fact]
     public void BuildingIdentityMatches_RejectsWarehousePayloadForTownHallSlot()
     {
         var method = typeof(TravianClient).GetMethod("BuildingIdentityMatches", BindingFlags.NonPublic | BindingFlags.Static);
@@ -1035,6 +1050,17 @@ public sealed class TravianClientHelperTests
         string name)
     {
         var method = typeof(TravianClient).GetMethod("FindExistingBuildingThatMakesConstructRedundant", BindingFlags.NonPublic | BindingFlags.Static);
+        Assert.NotNull(method);
+        return (Building?)method!.Invoke(null, [buildings, targetSlotId, gid, name]);
+    }
+
+    private static Building? InvokeFindConstructingBuildingAtSlot(
+        IReadOnlyList<Building> buildings,
+        int targetSlotId,
+        int gid,
+        string name)
+    {
+        var method = typeof(TravianClient).GetMethod("FindConstructingBuildingAtSlot", BindingFlags.NonPublic | BindingFlags.Static);
         Assert.NotNull(method);
         return (Building?)method!.Invoke(null, [buildings, targetSlotId, gid, name]);
     }

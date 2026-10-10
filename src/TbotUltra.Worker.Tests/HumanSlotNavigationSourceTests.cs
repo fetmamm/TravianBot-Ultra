@@ -43,6 +43,40 @@ public sealed class HumanSlotNavigationSourceTests
         Assert.DoesNotContain("await GotoAsync(Paths.BuildBySlot(", construct, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void CompositeConstruct_RecognizesQueuedLevelZeroBeforeCategorySelection()
+    {
+        var source = ReadSource("Buildings", "TravianClient.Buildings.ConstructFlow.cs");
+        var construct = Slice(source, "public async Task<string> ConstructBuildingAsync", "private static Building? FindExistingBuildingThatMakesConstructRedundant");
+
+        Assert.True(construct.IndexOf("FindConstructingBuildingAtSlot(liveBuildings", StringComparison.Ordinal)
+            < construct.IndexOf("CheckQueueOrDeferAsync", StringComparison.Ordinal));
+        Assert.Contains("live Dorf2 confirms level 0", construct, StringComparison.Ordinal);
+
+        var category = Slice(source, "private async Task OpenConstructSlotPageAsync", "private async Task EnsureExpectedConstructChoicePageAsync");
+        Assert.True(category.IndexOf("skipping construction category selection", StringComparison.Ordinal)
+            < category.IndexOf("var categoryLink", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void SlotEntry_RecoversAutoReloadAndRejectsWrongHitTargets()
+    {
+        var navigation = ReadSource("Core", "TravianClient.Navigation.cs");
+        var slotEntry = Slice(navigation, "private async Task OpenSlotFromOverviewAsync", "private async Task OpenVillageOverviewAsync");
+
+        Assert.Contains("reload=auto", slotEntry, StringComparison.Ordinal);
+        Assert.Contains("WaitForSelectorState.Visible", slotEntry, StringComparison.Ordinal);
+        Assert.Contains("document.elementFromPoint", slotEntry, StringComparison.Ordinal);
+        Assert.Contains("browser left the overview", slotEntry, StringComparison.Ordinal);
+        Assert.Contains("CaptureFailureArtifactsAsync", slotEntry, StringComparison.Ordinal);
+        Assert.True(slotEntry.IndexOf("_page.Locator(visibleSlot).CountAsync()", StringComparison.Ordinal)
+            < slotEntry.IndexOf("await GotoAsync(Paths.BuildBySlot(slotId), cancellationToken)", StringComparison.Ordinal));
+
+        var overview = Slice(navigation, "private async Task OpenVillageOverviewAsync", "private async Task OpenSlotTabAsync");
+        Assert.Contains("attempt <= 2", overview, StringComparison.Ordinal);
+        Assert.Contains("WaitForSelectorState.Visible", overview, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(22)]
     [InlineData(34)]

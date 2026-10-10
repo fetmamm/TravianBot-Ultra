@@ -437,6 +437,7 @@ public sealed partial class TravianClient
         }
 
         var isResourceField = slotId is >= 1 and <= 18;
+        var overviewPath = isResourceField ? Paths.Resources : Paths.Buildings;
         await OpenVillageOverviewAsync(isResourceField, cancellationToken);
 
         var slotLink = isResourceField
@@ -454,19 +455,85 @@ public sealed partial class TravianClient
             // path inside that exact slot carries the Official click handler.
             slotLink += $", .buildingSlot[data-aid='{slotId}'] svg path[onclick*='build.php?id={slotId}']";
         }
-        if (!await TryClickFirstVisibleEnabledAsync(
-                slotLink,
-                cancellationToken,
-                reason: $"open slot {slotId} from {(isResourceField ? "Dorf1" : "Dorf2")}"))
+        var visibleSlot = isResourceField
+            ? $"#resourceFieldContainer a[data-aid='{slotId}']:visible, "
+              + $"#resourceFieldContainer svg path.buildingSlot{slotId}[onclick*='build.php?id={slotId}']:visible"
+            : $".buildingSlot[data-aid='{slotId}']:visible";
+        for (var attempt = 1; attempt <= 2; attempt++)
         {
-            var visibleSlot = isResourceField
-                ? $"#resourceFieldContainer a[data-aid='{slotId}']:visible, "
-                  + $"#resourceFieldContainer svg path.buildingSlot{slotId}[onclick*='build.php?id={slotId}']:visible"
-                : $".buildingSlot[data-aid='{slotId}']:visible";
+            if (!IsCurrentUrlForPath(overviewPath))
+            {
+                if (TravianUrls.IsBuildPageForSlot(_page.Url, slotId))
+                {
+                    break;
+                }
+
+                throw new InvalidOperationException(
+                    $"Cannot open slot {slotId}: overview changed to '{_page.Url}' before the exact slot click. No further click or URL fallback was attempted.");
+            }
+
+            try
+            {
+                await _page.Locator(visibleSlot).First.WaitForAsync(new LocatorWaitForOptions
+                {
+                    State = WaitForSelectorState.Visible,
+                    Timeout = 4000,
+                }).WaitAsync(cancellationToken);
+            }
+            catch (PlaywrightException ex) when (attempt == 1 &&
+                (_page.Url.Contains("reload=auto", StringComparison.OrdinalIgnoreCase)
+                    || IsTransientExecutionContextError(ex)))
+            {
+                Notify($"[slot-nav] slot {slotId} was hidden during an overview reload; waiting for the settled page once.");
+                await WaitForPageReadyAsync(cancellationToken);
+                await Task.Delay(300, cancellationToken);
+                continue;
+            }
+            catch (PlaywrightException)
+            {
+                throw new InvalidOperationException(
+                    $"Cannot open slot {slotId}: the slot is not visible on {(isResourceField ? "Dorf1" : "Dorf2")}; URL fallback was not attempted. Current page: '{_page.Url}'.");
+            }
+
+            if (await TryClickExactOverviewSlotAsync(slotLink, overviewPath, slotId, cancellationToken))
+            {
+                break;
+            }
+
+            if (!IsCurrentUrlForPath(overviewPath))
+            {
+                if (TravianUrls.IsBuildPageForSlot(_page.Url, slotId))
+                {
+                    break;
+                }
+
+                throw new InvalidOperationException(
+                    $"Cannot open slot {slotId}: browser left the overview for '{_page.Url}'. No further click or URL fallback was attempted.");
+            }
+
+            if (attempt == 1 && _page.Url.Contains("reload=auto", StringComparison.OrdinalIgnoreCase))
+            {
+                Notify($"[slot-nav] slot {slotId} was not actionable during auto-reload; retrying the settled overview once.");
+                await WaitForPageReadyAsync(cancellationToken);
+                await Task.Delay(300, cancellationToken);
+                continue;
+            }
+
             if (await _page.Locator(visibleSlot).CountAsync() == 0)
             {
                 throw new InvalidOperationException(
                     $"Cannot open slot {slotId}: the slot is not visible on {(isResourceField ? "Dorf1" : "Dorf2")}; URL fallback was not attempted. Current page: '{_page.Url}'.");
+            }
+
+            if (_page.Url.Contains("reload=auto", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new TransientNavigationException(
+                    $"Cannot open slot {slotId}: the overview is still auto-reloading after one recovery. URL fallback was not attempted.");
+            }
+
+            if (slotId == 40)
+            {
+                await CaptureFailureArtifactsAsync($"slot-{slotId}-click-fallback", cancellationToken);
             }
 
             Notify($"ALARM: [slot-nav] No clickable target for visible slot {slotId} on {(isResourceField ? "Dorf1" : "Dorf2")}; using direct build-page URL fallback. Review this slot's live click markup.");
@@ -499,6 +566,85 @@ public sealed partial class TravianClient
         await TryDismissContinuePromptAsync(cancellationToken);
     }
 
+    private async Task<bool> TryClickExactOverviewSlotAsync(
+        string selector,
+        string overviewPath,
+        int slotId,
+        CancellationToken cancellationToken)
+    {
+        var candidates = _page.Locator(selector);
+        var count = await candidates.CountAsync();
+        if (count == 0)
+        {
+            return false;
+        }
+
+        await DelayBeforeClickAsync(cancellationToken, $"open slot {slotId} from overview");
+        for (var i = 0; i < count; i++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            if (!IsCurrentUrlForPath(overviewPath))
+            {
+                return TravianUrls.IsBuildPageForSlot(_page.Url, slotId);
+            }
+
+            var candidate = candidates.Nth(i);
+            try
+            {
+                if (!await candidate.IsVisibleAsync())
+                {
+                    continue;
+                }
+
+                await candidate.ScrollIntoViewIfNeededAsync(new LocatorScrollIntoViewIfNeededOptions
+                {
+                    Timeout = Math.Min(_config.TimeoutMs, 3000),
+                }).WaitAsync(cancellationToken);
+
+                // A wall can expose several visible SVG layers. Do not click a layer whose
+                // center belongs to another slot or to the village-content overlay.
+                var ownsClickPoint = await candidate.EvaluateAsync<bool>(
+                    """
+                    node => {
+                      const rect = node.getBoundingClientRect();
+                      if (rect.width <= 0 || rect.height <= 0) return false;
+                      const hit = document.elementFromPoint(rect.left + rect.width / 2, rect.top + rect.height / 2);
+                      if (!hit) return false;
+                      if (hit === node || node.contains(hit)) return true;
+                      const slot = node.closest('[data-aid]');
+                      const hitSlot = hit.closest('[data-aid]');
+                      return !!slot && !!hitSlot
+                        && hitSlot.getAttribute('data-aid') === slot.getAttribute('data-aid');
+                    }
+                    """);
+                if (!ownsClickPoint)
+                {
+                    Notify($"[slot-nav] slot {slotId} candidate {i + 1}/{count} does not own its click point; skipped.");
+                    continue;
+                }
+
+                await candidate.ClickAsync(new LocatorClickOptions { Timeout = Math.Min(_config.TimeoutMs, 3000) })
+                    .WaitAsync(cancellationToken);
+                return true;
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex) when (ex is PlaywrightException or TimeoutException)
+            {
+                Notify($"[slot-nav] slot {slotId} candidate {i + 1}/{count} was not actionable: {ex.Message}");
+                await Task.Delay(300, cancellationToken);
+                if (!IsCurrentUrlForPath(overviewPath))
+                {
+                    return TravianUrls.IsBuildPageForSlot(_page.Url, slotId);
+                }
+            }
+        }
+
+        return false;
+    }
+
     private async Task OpenVillageOverviewAsync(bool resourceFields, CancellationToken cancellationToken)
     {
         var overviewPath = resourceFields ? Paths.Resources : Paths.Buildings;
@@ -510,30 +656,65 @@ public sealed partial class TravianClient
         var overviewLink = resourceFields
             ? "a.village.resourceView[href*='dorf1.php']"
             : "a.village.buildingView[href*='dorf2.php']";
-        if (!await TryClickFirstVisibleEnabledAsync(
-                overviewLink,
-                cancellationToken,
-                reason: $"open {(resourceFields ? "resource" : "building")} overview"))
+        for (var attempt = 1; attempt <= 2; attempt++)
         {
-            throw new InvalidOperationException(
-                $"Cannot open {(resourceFields ? "Dorf1" : "Dorf2")}: its visible overview link is unavailable. Current page: '{_page.Url}'.");
-        }
+            if (IsCurrentUrlForPath(overviewPath) && !await IsPageMarkedStaleAsync())
+            {
+                return;
+            }
 
-        await WaitForPageReadyAsync(cancellationToken);
-        if (!IsCurrentUrlForPath(overviewPath))
-        {
-            throw new InvalidOperationException(
-                $"Overview click did not reach {overviewPath}. Current page: '{_page.Url}'.");
-        }
+            try
+            {
+                await _page.Locator(overviewLink).First.WaitForAsync(new LocatorWaitForOptions
+                {
+                    State = WaitForSelectorState.Visible,
+                    Timeout = 4000,
+                }).WaitAsync(cancellationToken);
+                if (await TryClickFirstVisibleEnabledAsync(
+                        overviewLink,
+                        cancellationToken,
+                        reason: $"open {(resourceFields ? "resource" : "building")} overview",
+                        timeoutMs: 4000))
+                {
+                    await WaitForPageReadyAsync(cancellationToken);
+                    if (IsCurrentUrlForPath(overviewPath))
+                    {
+                        Notify($"[slot-nav] opened {(resourceFields ? "Dorf1" : "Dorf2")} via overview link.");
+                        InvalidateActiveConstructionsCache();
+                        await ApplyPacingDelayAsync(
+                            _config.ActionPacingPageLoadMinSeconds,
+                            _config.ActionPacingPageLoadMaxSeconds,
+                            "page-load-pacing",
+                            "after village overview click",
+                            cancellationToken);
+                        return;
+                    }
+                }
+            }
+            catch (PlaywrightException ex) when (attempt == 1 && IsTransientExecutionContextError(ex))
+            {
+                Notify($"[slot-nav] overview navigation interrupted by page reload; retrying once: {ex.Message}");
+            }
+            catch (PlaywrightException) when (attempt == 1 && _page.Url.Contains("reload=auto", StringComparison.OrdinalIgnoreCase))
+            {
+                Notify("[slot-nav] overview link hidden during auto-reload; retrying once.");
+            }
+            catch (PlaywrightException ex)
+            {
+                Notify($"[slot-nav] overview link unavailable on attempt {attempt}/2: {ex.Message}");
+            }
 
-        Notify($"[slot-nav] opened {(resourceFields ? "Dorf1" : "Dorf2")} via overview link.");
-        InvalidateActiveConstructionsCache();
-        await ApplyPacingDelayAsync(
-            _config.ActionPacingPageLoadMinSeconds,
-            _config.ActionPacingPageLoadMaxSeconds,
-            "page-load-pacing",
-            "after village overview click",
-            cancellationToken);
+            if (attempt == 1)
+            {
+                Notify($"[slot-nav] {(resourceFields ? "Dorf1" : "Dorf2")} overview did not settle; waiting once before retry. Current page: '{_page.Url}'.");
+                await WaitForPageReadyAsync(cancellationToken);
+                await Task.Delay(300, cancellationToken);
+                continue;
+            }
+
+            throw new InvalidOperationException(
+                $"Cannot open {(resourceFields ? "Dorf1" : "Dorf2")}: visible overview link was unavailable or its click did not reach {overviewPath} after one recovery. Current page: '{_page.Url}'.");
+        }
     }
 
     private async Task OpenSlotTabAsync(int slotId, int tab, CancellationToken cancellationToken)

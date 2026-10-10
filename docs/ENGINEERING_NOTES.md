@@ -62,7 +62,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Enter a resource field through the Dorf1 overview and a building through Dorf2; prefer their visible
   links and the slot's live click target. If the exact slot remains visible but no click target is
   actionable, a direct `build.php` URL is an alarmed compatibility fallback; never use it when the slot
-  itself is absent. Reuse an already valid target page. Construction affordability may read stock and
+  itself is absent. A Travian `reload=auto` can temporarily hide overview links and slots: wait for a
+  settled overview with a bounded retry before declaring absence. After a failed slot click, confirm the
+  browser is still on that overview before trying another layer; never click through to a different slot.
+  Reuse an already valid target page. Construction affordability may read stock and
   capacity on the current page; visit Dorf1 only when production is needed to resolve a resource
   shortfall or the visible stock is incomplete.
 - Scope selectors to the relevant Official page, widget, dialog, row, or building contract.
@@ -1044,6 +1047,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   read with full Dorf1+Dorf2 fallback as backup.
 - A buildings snapshot passed from Worker to Desktop retains the authoritative active-construction list. A newly
   identified building at live level 0 with target level 1 renders as `Level 0 (1)`, like an ordinary upgrade.
+  A resumed composite construct treats a matching level-0 building in its exact slot as already queued;
+  occupied build pages do not offer construction category tabs and must reach the occupancy guard first.
 - A complete live Dorf2 overview may reconcile a pending ordinary-slot construct whose requested slot was manually
   occupied by another building. Rebind the construct and its dependent upgrades atomically to the lowest confirmed
   empty slot 19-38. The selected construction queue head takes precedence over soft reservations from later pending

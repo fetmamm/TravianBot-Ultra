@@ -70,6 +70,16 @@ public sealed partial class TravianClient : IBuildingClient
                     existingVillageBuilding.SlotId);
             }
 
+            // Level 0 is a confirmed construction, not an empty slot. A composite construct task
+            // resumes here after a queue-full defer; report the completed construct step so its
+            // upgrade step can wait for the live queue without opening construction categories again.
+            var constructingAtSlot = FindConstructingBuildingAtSlot(liveBuildings, slotId, gid, buildingName);
+            if (constructingAtSlot is not null)
+            {
+                Notify($"[construct] {buildingName} is already queued in slot {slotId} (live Dorf2 level 0); continuing the composite task.");
+                return WithEffectiveSlot($"Queued {buildingName} in slot {slotId}. Evidence: live Dorf2 confirms level 0.");
+            }
+
             // Pre-flight queue gate: defer to program queue if no construction slot is free.
             var deferMessage = await CheckQueueOrDeferAsync(ConstructionKind.Building, slotId, attempt, cancellationToken);
             if (deferMessage is not null)
@@ -727,6 +737,16 @@ public sealed partial class TravianClient : IBuildingClient
         return null;
     }
 
+    private static Building? FindConstructingBuildingAtSlot(
+        IReadOnlyList<Building> buildings,
+        int targetSlotId,
+        int gid,
+        string buildingName)
+        => buildings.FirstOrDefault(building =>
+            building.SlotId == targetSlotId
+            && building.Level == 0
+            && BuildingIdentityMatches(gid, buildingName, building.Gid, building.Name));
+
     private static bool BuildingIdentityMatches(
         int expectedGid,
         string? expectedName,
@@ -871,6 +891,15 @@ public sealed partial class TravianClient : IBuildingClient
         await OpenSlotFromOverviewAsync(slotId, cancellationToken);
         if (categoryIndex is not int category || slotId == 40)
         {
+            return;
+        }
+
+        // Official appends gid to an occupied slot's URL and no longer renders construction
+        // category tabs. Let the caller's existing-building/occupied-gid guard classify it.
+        if (Regex.IsMatch(_page.Url, @"[?&]gid=\d+(?:&|$)", RegexOptions.IgnoreCase)
+            && await _page.Locator("[id^='contract_building'], #contract_building").CountAsync() == 0)
+        {
+            Notify($"[construct] slot {slotId} opened as an occupied build page; skipping construction category selection.");
             return;
         }
 
