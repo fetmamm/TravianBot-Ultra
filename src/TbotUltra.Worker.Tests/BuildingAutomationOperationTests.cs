@@ -155,6 +155,7 @@ public sealed class BuildingAutomationOperationTests
 
         public Task<VillageStatus> ReadBuildingsStatusAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<VillageStatus> ReadCurrentBuildingOverviewStatusAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
+        public Task<VillageStatus> ReadBuildingOverviewStatusAsync(CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<string> DemolishBuildingToLevelAsync(string targetBuildingSlotOrName, int targetLevel, CancellationToken cancellationToken = default) => Task.FromResult("demolished");
         public Task<string> UpgradeBuildingToLevelAsync(int slotId, int targetLevel, CancellationToken cancellationToken = default, string? expectedBuildingName = null) => Task.FromResult("upgraded");
 

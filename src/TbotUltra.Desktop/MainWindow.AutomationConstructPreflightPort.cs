@@ -23,6 +23,17 @@ public partial class MainWindow
                 AutomationExecutionOptions.WithoutImplicitVillageTarget(options),
                 owner.AppendLog,
                 cancellationToken));
+        public ValueTask<VillageStatus> ReadTargetDorf2StatusAsync(
+            BotOptions options,
+            string? villageName,
+            string? villageUrl,
+            CancellationToken cancellationToken) =>
+            new(owner._botService.ReadTargetBuildingOverviewStatusAsync(
+                AutomationExecutionOptions.WithoutImplicitVillageTarget(options),
+                owner.AppendLog,
+                villageName,
+                villageUrl,
+                cancellationToken));
         public ValueTask<VillageStatus> ReadLiveVillageStatusAsync(
             BotOptions options,
             string? villageName,

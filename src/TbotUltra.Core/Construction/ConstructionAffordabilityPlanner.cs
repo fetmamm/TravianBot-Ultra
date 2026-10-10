@@ -84,7 +84,10 @@ public sealed record ConstructionAffordabilityDecision(
     DateTimeOffset? NextAttemptAtUtc,
     ConstructionResourceAmounts Stock,
     ConstructionResourceAmounts Deficit,
-    string Reason);
+    string Reason)
+{
+    public bool NeedsProductionRefresh { get; init; }
+}
 
 public sealed record ConstructionAffordabilityDeadlineState(
     DateTimeOffset DeadlineAtUtc,
@@ -208,7 +211,7 @@ public static class ConstructionAffordabilityPlanner
                 nextAttemptAtUtc: null,
                 stock,
                 deficit,
-                "production snapshot is incomplete");
+                "production snapshot is incomplete") with { NeedsProductionRefresh = true };
         }
 
         var productionDeadline = ComputeProductionDeadline(request, deficit);

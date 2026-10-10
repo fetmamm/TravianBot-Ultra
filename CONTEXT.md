@@ -109,7 +109,7 @@ A pre-navigation decision using complete local construction inputs for resource 
 _Avoid_: Cached resource guess, unconditional navigation skip
 
 **Live Construction Resource Snapshot**:
-A complete Dorf1 storage, stock, and production observation captured during the current village run. It may be reused across that run and is the only village-resource snapshot allowed to produce a Blocked Construction Affordability Preflight result.
+A complete current-page storage and stock observation captured during the current village run, with production from the latest coordinate-owned Dorf1 observation when needed. Dorf2 stock is valid. Only live stock may produce a Blocked Construction Affordability Preflight result; navigate to Dorf1 for missing production only when a real resource shortfall needs a wait calculation.
 _Avoid_: Restored resource cache, stale blocking snapshot
 
 **Construction Affordability Deadline**:

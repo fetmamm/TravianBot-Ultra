@@ -88,6 +88,8 @@ public sealed class ConstructionAffordabilityFlowTests
         Assert.Contains("ResourceSnapshotCalculator.MergeProductionByHour", method, StringComparison.Ordinal);
         Assert.Contains("ReadCachedProductionByHourForActiveVillageAsync", method, StringComparison.Ordinal);
         Assert.Contains("SaveCachedVillageResourceSnapshot", method, StringComparison.Ordinal);
+        Assert.Contains("decision.NeedsProductionRefresh", method, StringComparison.Ordinal);
+        Assert.DoesNotContain("productionByHour.Values.Any", method, StringComparison.Ordinal);
         AssertOrdered(method, "ReadResourceSnapshotAsync(cancellationToken, allowRecovery: false, maxAttempts: 1)", "EnsureResourceFieldsPageAsync");
     }
 

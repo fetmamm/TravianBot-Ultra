@@ -47,6 +47,7 @@ public sealed class ConstructionAffordabilityPlannerTests
         Assert.Equal(ConstructionAffordabilityOutcome.Recoverable, result.Outcome);
         Assert.Equal(ConstructionRecoveryKind.Hero, result.Recovery);
         Assert.True(result.ShouldOpenBuildPage);
+        Assert.False(result.NeedsProductionRefresh);
     }
 
     [Fact]
@@ -60,6 +61,17 @@ public sealed class ConstructionAffordabilityPlannerTests
         Assert.Equal(ConstructionAffordabilityOutcome.Recoverable, result.Outcome);
         Assert.Equal(ConstructionRecoveryKind.Hero, result.Recovery);
         Assert.True(result.ShouldOpenBuildPage);
+    }
+
+    [Fact]
+    public void Evaluate_ResourceDeficitWithoutProduction_RequestsProductionRefresh()
+    {
+        var result = ConstructionAffordabilityPlanner.Evaluate(Request(
+            stock: (900, 900, 900, 900),
+            production: (null, null, null, null),
+            hero: null));
+
+        Assert.True(result.NeedsProductionRefresh);
     }
 
     [Fact]

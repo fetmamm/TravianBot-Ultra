@@ -181,11 +181,9 @@ public partial class MainWindow
         // but if the user is currently viewing a DIFFERENT village in the dropdown, don't overwrite that
         // village's view with the active village's live data.
         SetActiveWorkingVillageFromStatus(status);
-        CacheVillageStatus(status, triggerDeferredWaitRefresh: false);
+        CacheVillageStatus(status);
         if (!IsStatusForSelectedVillage(status))
         {
-            TriggerDeferredConstructionWaitRefresh(status, "resource_status_refresh");
-            TriggerDeferredTroopTrainingWaitRefresh(status, "resource_status_refresh");
             return;
         }
 
@@ -210,11 +208,9 @@ public partial class MainWindow
     private void ApplyStorageStatusToUi(VillageStatus status, string source)
     {
         SetActiveWorkingVillageFromStatus(status);
-        CacheVillageStatus(status, triggerDeferredWaitRefresh: false);
+        CacheVillageStatus(status);
         if (!IsStatusForSelectedVillage(status))
         {
-            TriggerDeferredConstructionWaitRefresh(status, "storage_status_refresh");
-            TriggerDeferredTroopTrainingWaitRefresh(status, "storage_status_refresh");
             AppendLog($"[storage-refresh] skipped UI update from {source}: data is for '{status.ActiveVillage}', another village is selected. Cache updated.");
             return;
         }

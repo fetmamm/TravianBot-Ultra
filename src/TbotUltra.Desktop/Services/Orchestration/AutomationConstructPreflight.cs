@@ -18,6 +18,11 @@ internal interface IAutomationConstructPreflightPort
     ValueTask<VillageStatus> ReadCurrentDorf2StatusAsync(
         BotOptions options,
         CancellationToken cancellationToken);
+    ValueTask<VillageStatus> ReadTargetDorf2StatusAsync(
+        BotOptions options,
+        string? villageName,
+        string? villageUrl,
+        CancellationToken cancellationToken);
     ValueTask<VillageStatus> ReadLiveVillageStatusAsync(
         BotOptions options,
         string? villageName,
@@ -84,7 +89,7 @@ internal sealed class AutomationConstructPreflight(
                     return new ConstructPreflightObservation(true, currentStatus);
                 }
 
-                port.Log($"[construction-preflight:verbose] current Dorf2 is incomplete or belongs to another village; reading full target status.");
+                port.Log($"[construction-preflight:verbose] current Dorf2 is incomplete or belongs to another village; reading target Dorf2.");
             }
             catch (OperationCanceledException)
             {
@@ -92,8 +97,30 @@ internal sealed class AutomationConstructPreflight(
             }
             catch (Exception exception)
             {
-                port.Log($"[construction-preflight:verbose] current Dorf2 unavailable ({exception.Message}); reading full target status.");
+                port.Log($"[construction-preflight:verbose] current Dorf2 unavailable ({exception.Message}); reading target Dorf2.");
             }
+        }
+
+        try
+        {
+            var targetStatus = await port.ReadTargetDorf2StatusAsync(
+                options, targetVillageName, targetVillageUrl, cancellationToken);
+            if (ConstructionMutationRefreshPolicy.CanUseCurrentDorf2Snapshot(targetStatus, targetVillageKey))
+            {
+                port.ApplyLiveVillageStatus(targetStatus, targetVillageName);
+                port.Log($"[construction-preflight] read complete target Dorf2 for '{targetVillageName ?? targetVillageUrl}'; Dorf1 status read skipped.");
+                return new ConstructPreflightObservation(true, targetStatus);
+            }
+
+            port.Log("[construction-preflight:verbose] target Dorf2 is incomplete or village identity does not match; reading full target status.");
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            port.Log($"[construction-preflight:verbose] target Dorf2 read unavailable ({exception.Message}); reading full target status.");
         }
 
         try

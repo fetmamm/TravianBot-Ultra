@@ -16,6 +16,7 @@ public interface IBuildingClient
 {
     Task<VillageStatus> ReadBuildingsStatusAsync(CancellationToken cancellationToken = default);
     Task<VillageStatus> ReadCurrentBuildingOverviewStatusAsync(CancellationToken cancellationToken = default);
+    Task<VillageStatus> ReadBuildingOverviewStatusAsync(CancellationToken cancellationToken = default);
 
     Task<WatchtowerStatus?> ReadWatchtowerStatusAsync(
         bool forceRefresh = false,

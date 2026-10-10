@@ -49,10 +49,18 @@ public sealed partial class TravianClient : IBuildingClient
             WatchtowerStatus: watchtowerStatus);
     }
 
-    public async Task<VillageStatus> ReadCurrentBuildingOverviewStatusAsync(CancellationToken cancellationToken = default)
+    public Task<VillageStatus> ReadCurrentBuildingOverviewStatusAsync(CancellationToken cancellationToken = default)
+        => ReadBuildingOverviewStatusAsync(requireCurrentPage: true, cancellationToken);
+
+    public Task<VillageStatus> ReadBuildingOverviewStatusAsync(CancellationToken cancellationToken = default)
+        => ReadBuildingOverviewStatusAsync(requireCurrentPage: false, cancellationToken);
+
+    private async Task<VillageStatus> ReadBuildingOverviewStatusAsync(
+        bool requireCurrentPage,
+        CancellationToken cancellationToken)
     {
-        Notify("[build:verbose] ReadCurrentBuildingOverviewStatusAsync started");
-        if (!IsCurrentUrlForPath(Paths.Buildings) || await IsPageMarkedStaleAsync())
+        Notify($"[build:verbose] building overview status started currentOnly={requireCurrentPage}");
+        if (requireCurrentPage && (!IsCurrentUrlForPath(Paths.Buildings) || await IsPageMarkedStaleAsync()))
         {
             throw new InvalidOperationException("The current page is not a fresh Dorf2 building overview.");
         }

@@ -507,6 +507,34 @@ public sealed partial class BotTaskRunner
         return status ?? throw new InvalidOperationException("Could not read current Dorf2 status.");
     }
 
+    public async Task<VillageStatus> ReadTargetBuildingOverviewStatusAsync(
+        BotOptions options,
+        Action<string> log,
+        string? villageName,
+        string? villageUrl,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        VillageStatus? status = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                log($"Reading target Dorf2 status for village '{villageName ?? villageUrl ?? "-"}' without a Dorf1 status read.");
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(
+                    client, options, log, cancellationToken, villageName, villageUrl);
+                status = await client.ReadBuildingOverviewStatusAsync(cancellationToken);
+            },
+            saveStateMode: BrowserStateSaveMode.Skip);
+
+        return status ?? throw new InvalidOperationException("Could not read target Dorf2 status.");
+    }
+
     public async Task NavigateToVillageResourceFieldsAsync(
         BotOptions options,
         Action<string> log,

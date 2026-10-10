@@ -73,6 +73,12 @@ public interface IDesktopBotService
     Task ExecuteOnceAsync(BotOptions options, Action<string> log, IEnumerable<string>? tasksOverride, CancellationToken cancellationToken);
     Task<VillageStatus> ReadBuildingsStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
     Task<VillageStatus> ReadCurrentBuildingOverviewStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
+    Task<VillageStatus> ReadTargetBuildingOverviewStatusAsync(
+        BotOptions options,
+        Action<string> log,
+        string? villageName,
+        string? villageUrl,
+        CancellationToken cancellationToken);
     Task<IReadOnlyList<TroopTrainingQueueStatus>> ReadTroopTrainingQueuesAsync(BotOptions options, Action<string> log, IReadOnlyList<Building>? knownBuildings, CancellationToken cancellationToken);
     Task<BreweryCelebrationStatus> ReadBreweryCelebrationStatusAsync(BotOptions options, Action<string> log, IReadOnlyList<Building>? knownBuildings, CancellationToken cancellationToken);
     Task<SmithyUpgradeStatus> ReadSmithyUpgradeStatusAsync(BotOptions options, Action<string> log, IReadOnlyList<Building>? knownBuildings, CancellationToken cancellationToken);

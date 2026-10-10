@@ -31,15 +31,7 @@ public sealed partial class TravianClient
                     isLive: true,
                     cancellationToken);
 
-                var needsProduction = decision.Outcome == ConstructionAffordabilityOutcome.Unknown
-                    && !decision.ShouldRevalidateHero
-                    && !stock.Covers(new ConstructionResourceAmounts(cost.Wood, cost.Clay, cost.Iron, cost.Crop))
-                    && cost.Wood <= currentPage.Capacities.Warehouse.Value
-                    && cost.Clay <= currentPage.Capacities.Warehouse.Value
-                    && cost.Iron <= currentPage.Capacities.Warehouse.Value
-                    && cost.Crop <= currentPage.Capacities.Granary.Value
-                    && productionByHour.Values.Any(value => value is null || !double.IsFinite(value.Value));
-                if (!needsProduction)
+                if (!decision.NeedsProductionRefresh)
                 {
                     Notify($"[construction-preflight] label='{label}' used live current-page stock and {(cachedProduction.Values.Any(value => value is not null) ? "cached" : "current-page")} production; Dorf1 navigation skipped.");
                     return decision;
