@@ -16,50 +16,51 @@
                               Filter="BuildingRemainingSlotsView_Filter" />
 
         <DataTemplate x:Key="BuildingSlotButtonTemplate">
-            <Button Margin="1"
-                    Background="{DynamicResource SurfaceBrush}"
-                    BorderBrush="{DynamicResource BorderBrush}"
-                    BorderThickness="1"
-                    Padding="8,7"
-                    Width="110"
-                    MinHeight="72"
-                    Command="{Binding DataContext.SlotSelectedCommand, RelativeSource={RelativeSource AncestorType={x:Type views:BuildingsPanel}}}"
-                    CommandParameter="{Binding}"
-                    HorizontalContentAlignment="Stretch"
-                    VerticalContentAlignment="Stretch">
-                <Button.Template>
-                    <ControlTemplate TargetType="Button">
-                        <Border x:Name="SlotCardBorder"
-                                Background="{TemplateBinding Background}"
-                                BorderBrush="{TemplateBinding BorderBrush}"
-                                BorderThickness="{TemplateBinding BorderThickness}"
-                                CornerRadius="6"
-                                SnapsToDevicePixels="True">
-                            <ContentPresenter Margin="{TemplateBinding Padding}"
-                                              HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
-                                              VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
-                        </Border>
-                        <ControlTemplate.Triggers>
-                            <DataTrigger Binding="{Binding HasPendingUpgrade}" Value="True">
-                                <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="{DynamicResource CapitalBrush}" />
-                                <Setter TargetName="SlotCardBorder" Property="Background" Value="{DynamicResource SlotSelectedBgBrush}" />
-                            </DataTrigger>
-                            <DataTrigger Binding="{Binding HasPendingConstruct}" Value="True">
-                                <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
-                                <Setter TargetName="SlotCardBorder" Property="Background" Value="{DynamicResource HeroAdvBgBrush}" />
-                            </DataTrigger>
-                            <Trigger Property="IsMouseOver" Value="True">
-                                <Setter TargetName="SlotCardBorder" Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
-                                <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="{DynamicResource TerminalFgBrush}" />
-                            </Trigger>
-                            <Trigger Property="IsPressed" Value="True">
-                                <Setter TargetName="SlotCardBorder" Property="Background" Value="{DynamicResource InfoBgBrush}" />
-                                <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="{DynamicResource SlotSelectedBorderBrush}" />
-                            </Trigger>
-                        </ControlTemplate.Triggers>
-                    </ControlTemplate>
-                </Button.Template>
-                <StackPanel>
+            <Grid Width="110"
+                  MinHeight="72"
+                  Margin="1">
+                <Button Background="{DynamicResource SurfaceBrush}"
+                        BorderBrush="{DynamicResource BorderBrush}"
+                        BorderThickness="1"
+                        MinHeight="72"
+                        Padding="8,7"
+                        Command="{Binding DataContext.SlotSelectedCommand, RelativeSource={RelativeSource AncestorType={x:Type views:BuildingsPanel}}}"
+                        CommandParameter="{Binding}"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalContentAlignment="Stretch">
+                    <Button.Template>
+                        <ControlTemplate TargetType="Button">
+                            <Border x:Name="SlotCardBorder"
+                                    Background="{TemplateBinding Background}"
+                                    BorderBrush="{TemplateBinding BorderBrush}"
+                                    BorderThickness="{TemplateBinding BorderThickness}"
+                                    CornerRadius="6"
+                                    SnapsToDevicePixels="True">
+                                <ContentPresenter Margin="{TemplateBinding Padding}"
+                                                  HorizontalAlignment="{TemplateBinding HorizontalContentAlignment}"
+                                                  VerticalAlignment="{TemplateBinding VerticalContentAlignment}" />
+                            </Border>
+                            <ControlTemplate.Triggers>
+                                <DataTrigger Binding="{Binding HasPendingUpgrade}" Value="True">
+                                    <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="{DynamicResource CapitalBrush}" />
+                                    <Setter TargetName="SlotCardBorder" Property="Background" Value="{DynamicResource SlotSelectedBgBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding HasPendingConstruct}" Value="True">
+                                    <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="{DynamicResource SuccessBrush}" />
+                                    <Setter TargetName="SlotCardBorder" Property="Background" Value="{DynamicResource HeroAdvBgBrush}" />
+                                </DataTrigger>
+                                <Trigger Property="IsMouseOver" Value="True">
+                                    <Setter TargetName="SlotCardBorder" Property="Background" Value="{DynamicResource SurfaceAltBrush}" />
+                                    <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="{DynamicResource TerminalFgBrush}" />
+                                </Trigger>
+                                <Trigger Property="IsPressed" Value="True">
+                                    <Setter TargetName="SlotCardBorder" Property="Background" Value="{DynamicResource InfoBgBrush}" />
+                                    <Setter TargetName="SlotCardBorder" Property="BorderBrush" Value="{DynamicResource SlotSelectedBorderBrush}" />
+                                </Trigger>
+                            </ControlTemplate.Triggers>
+                        </ControlTemplate>
+                    </Button.Template>
+                    <StackPanel>
                     <TextBlock Text="{Binding SlotLabel}"
                                FontSize="11"
                                Foreground="{DynamicResource BorderMutedBrush}"
@@ -111,8 +112,27 @@
                                FontSize="10"
                                Margin="0,2,0,0"
                                Foreground="{DynamicResource CapitalBrush}" />
-                </StackPanel>
-            </Button>
+                    </StackPanel>
+                </Button>
+
+                <Button Content="+"
+                        Width="20"
+                        Height="20"
+                        Padding="0"
+                        Margin="0,5,5,0"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Top"
+                        FontSize="15"
+                        FontWeight="SemiBold"
+                        Background="{DynamicResource SurfaceAltBrush}"
+                        Foreground="{DynamicResource SuccessTextBrush}"
+                        BorderBrush="{DynamicResource SuccessBorderBrush}"
+                        Command="{Binding DataContext.QuickUpgradeCommand, RelativeSource={RelativeSource AncestorType={x:Type views:BuildingsPanel}}}"
+                        CommandParameter="{Binding}"
+                        IsEnabled="{Binding CanQueueOneLevelUpgrade}"
+                        ToolTipService.ShowOnDisabled="True"
+                        ToolTip="{Binding QuickUpgradeToolTip}" />
+            </Grid>
         </DataTemplate>
     </UserControl.Resources>
 

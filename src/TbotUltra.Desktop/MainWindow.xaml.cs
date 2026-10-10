@@ -688,6 +688,7 @@ public partial class MainWindow : Window
         _buildingsViewModel.DemolishOverviewRequested += OnDemolishOverviewClicked;
         _buildingsViewModel.StopDemolitionRequested += OnStopDemolitionClicked;
         _buildingsViewModel.SlotSelected += HandleBuildingSlotSelection;
+        _buildingsViewModel.QuickUpgradeRequested += row => QueueSingleBuildingUpgradeFromSlot(row.SlotId);
         _resourcesViewModel.LoadRequested += () => _ = GuardUiAsync(LoadResourcesButtonClickAsync);
         _resourcesViewModel.UpgradeAllRequested += UpgradeAllResources;
         _resourcesViewModel.UpgradeAllToMaxRequested += UpgradeAllResourcesToMax;

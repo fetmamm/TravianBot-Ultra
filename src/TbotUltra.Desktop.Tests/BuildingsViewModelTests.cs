@@ -235,14 +235,32 @@ public sealed class BuildingsViewModelTests
         var vm = new BuildingsViewModel();
         var loadRequested = false;
         BuildingSlotRow? selected = null;
+        BuildingSlotRow? quickUpgrade = null;
         vm.LoadRequested += () => loadRequested = true;
         vm.SlotSelected += row => selected = row;
-        var row = new BuildingSlotRow { SlotId = 25, Name = "Warehouse", Level = 2 };
+        vm.QuickUpgradeRequested += row => quickUpgrade = row;
+        var row = new BuildingSlotRow { SlotId = 25, Name = "Warehouse", Level = 2, Gid = 10 };
 
         vm.LoadCommand.Execute(null);
         vm.SlotSelectedCommand.Execute(row);
+        vm.QuickUpgradeCommand.Execute(row);
 
         Assert.True(loadRequested);
         Assert.Same(row, selected);
+        Assert.Same(row, quickUpgrade);
+    }
+
+    [Fact]
+    public void QuickUpgrade_IsDisabledForEmptyAndMaxLevelSlots()
+    {
+        var vm = new BuildingsViewModel();
+        var empty = new BuildingSlotRow { SlotId = 25, Name = "Empty" };
+        var maxed = new BuildingSlotRow { SlotId = 26, Name = "Main Building", Level = 20, Gid = 15 };
+        var upgradeable = new BuildingSlotRow { SlotId = 27, Name = "Warehouse", Level = 19, Gid = 10 };
+
+        Assert.False(vm.QuickUpgradeCommand.CanExecute(empty));
+        Assert.False(vm.QuickUpgradeCommand.CanExecute(maxed));
+        Assert.True(vm.QuickUpgradeCommand.CanExecute(upgradeable));
+        Assert.Contains("maximum level", maxed.QuickUpgradeToolTip, StringComparison.OrdinalIgnoreCase);
     }
 }

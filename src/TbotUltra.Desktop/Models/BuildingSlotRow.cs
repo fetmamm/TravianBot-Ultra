@@ -77,4 +77,11 @@ public sealed class BuildingSlotRow
     public bool IsMaxLevel => CanQueueUpgrade
         && UpgradeGid is int gid
         && UpgradeBaseLevel >= BuildingCatalogService.MaxLevelFor(gid);
+
+    public bool CanQueueOneLevelUpgrade => CanQueueUpgrade && !IsMaxLevel;
+    public string QuickUpgradeToolTip => IsMaxLevel
+        ? $"{UpgradeName} is already at maximum level."
+        : CanQueueUpgrade
+            ? $"Queue {UpgradeName} to level {UpgradeBaseLevel + 1}."
+            : "Build something in this slot before upgrading it.";
 }
