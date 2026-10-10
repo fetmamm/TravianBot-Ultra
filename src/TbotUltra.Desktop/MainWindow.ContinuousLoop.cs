@@ -456,6 +456,26 @@ public partial class MainWindow
                         CacheVillageStatus(status, targetVillage.Name, triggerDeferredWaitRefresh: false);
                         SetActiveWorkingVillageFromStatus(status);
                         ReconcilePendingBuildingQueueWithLiveStatus(status);
+                        // The post-login round already read both overviews. Do not repeat the full
+                        // Dorf1 -> Dorf2 read for the loop's initial construction sync when this
+                        // observation is complete and belongs to the village actually visited.
+                        if (postLoginRound
+                            && _automationDesk.ConstructionStatusNeedsSync
+                            && status.ActiveConstructionsFromOverview
+                            && status.ActiveVillageCoordX.HasValue
+                            && status.ActiveVillageCoordY.HasValue
+                            && status.ActiveVillageCoordX == targetVillage.CoordX
+                            && status.ActiveVillageCoordY == targetVillage.CoordY
+                            && status.ResourceFields.Count >= 18
+                            && status.Buildings
+                                .Where(building => building.SlotId is >= 19 and <= 43)
+                                .Select(building => building.SlotId)
+                                .Distinct()
+                                .Count() >= 22)
+                        {
+                            _automationDesk.MarkConstructionStatusSynchronized();
+                            AppendLog("[village-round] complete live Dorf1/Dorf2 status satisfied pending construction sync.");
+                        }
                         if (postLoginRound)
                         {
                             PrepareConstructionLoginFill(

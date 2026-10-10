@@ -6,6 +6,33 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class ConstructionLoginFillSourceTests
 {
     [Fact]
+    public void PostLoginVillageRound_SatisfiesPendingConstructionSyncFromVerifiedStatus()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            ProjectRootLocator.FindProjectRoot(),
+            "src", "TbotUltra.Desktop", "MainWindow.ContinuousLoop.cs"));
+        var start = source.IndexOf(
+            "private async ValueTask<VillageStatusRoundVisitResult> VisitVillageStatusRoundAsync(",
+            StringComparison.Ordinal);
+        var end = source.IndexOf("    private AutomationRunContext CreateAutomationRunContext(", start, StringComparison.Ordinal);
+
+        Assert.True(start >= 0 && end > start);
+        var visit = source[start..end];
+        var cached = visit.IndexOf("CacheVillageStatus(status, targetVillage.Name", StringComparison.Ordinal);
+        var verified = visit.IndexOf("status.ActiveConstructionsFromOverview", StringComparison.Ordinal);
+        var synchronized = visit.IndexOf("_automationDesk.MarkConstructionStatusSynchronized();", StringComparison.Ordinal);
+
+        Assert.True(cached >= 0);
+        Assert.True(verified > cached);
+        Assert.True(synchronized > verified);
+        Assert.Contains("status.ActiveVillageCoordX == targetVillage.CoordX", visit, StringComparison.Ordinal);
+        Assert.Contains("status.ActiveVillageCoordY == targetVillage.CoordY", visit, StringComparison.Ordinal);
+        Assert.Contains("status.ResourceFields.Count >= 18", visit, StringComparison.Ordinal);
+        Assert.Contains(".Distinct()", visit, StringComparison.Ordinal);
+        Assert.Contains(".Count() >= 22", visit, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void LoginFlow_PreparesOnlyTheLiveVerifiedBrowserVillage()
     {
         var projectRoot = ProjectRootLocator.FindProjectRoot();
