@@ -18,14 +18,15 @@ public sealed partial class TravianClient
     private async Task ClickLocatorAsync(
         ILocator locator,
         string actionName,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int? timeoutMs = null)
     {
         await EnsureAccountAccessAllowedAsync(cancellationToken);
         var field = locator.ToString() ?? "unknown-locator";
         using var trace = _browserTrace.BeginOperation("CLICK", actionName, $"field={field}");
         try
         {
-            await locator.ClickAsync(new LocatorClickOptions { Timeout = _config.TimeoutMs })
+            await locator.ClickAsync(new LocatorClickOptions { Timeout = timeoutMs ?? _config.TimeoutMs })
                 .WaitAsync(cancellationToken);
             trace.Complete("success");
         }
@@ -623,8 +624,11 @@ public sealed partial class TravianClient
                     continue;
                 }
 
-                await candidate.ClickAsync(new LocatorClickOptions { Timeout = Math.Min(_config.TimeoutMs, 3000) })
-                    .WaitAsync(cancellationToken);
+                await ClickLocatorAsync(
+                    candidate,
+                    $"open slot {slotId} from overview (candidate {i + 1}/{count})",
+                    cancellationToken,
+                    Math.Min(_config.TimeoutMs, 3000));
                 return true;
             }
             catch (OperationCanceledException)
