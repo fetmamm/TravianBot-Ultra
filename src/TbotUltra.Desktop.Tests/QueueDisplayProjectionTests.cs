@@ -43,6 +43,21 @@ public sealed class QueueDisplayProjectionTests
     }
 
     [Fact]
+    public void Build_HistoryContainsOnlyConstructionItems()
+    {
+        var construction = Item(QueueStatus.Succeeded, runtimeOnly: false);
+        construction.Group = QueueGroup.Construction;
+        var account = Item(QueueStatus.Succeeded, runtimeOnly: true);
+        account.Group = QueueGroup.Account;
+        var farming = Item(QueueStatus.Failed, runtimeOnly: true);
+        farming.Group = QueueGroup.Farming;
+
+        var projection = QueueDisplayProjection.Build([construction, account, farming], Row);
+
+        Assert.Same(construction, Assert.Single(projection.HistoryItems));
+    }
+
+    [Fact]
     [Trait("Category", "Performance")]
     public void Build_RepresentativeQueueProjectionStaysBelowTheUiBudget()
     {

@@ -37,5 +37,6 @@ public static class QueueDisplayProjection
         item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused;
 
     private static bool IsHistory(QueueItem item) =>
-        item.Status is QueueStatus.Succeeded or QueueStatus.Canceled or QueueStatus.Failed;
+        item.Group == QueueGroup.Construction
+        && item.Status is QueueStatus.Succeeded or QueueStatus.Canceled or QueueStatus.Failed;
 }
