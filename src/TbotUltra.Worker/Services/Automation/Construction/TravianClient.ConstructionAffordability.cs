@@ -15,33 +15,65 @@ public sealed partial class TravianClient
             var stock = ConstructionAffordabilityOperation.TryParseStock(currentPage.Resources);
             if (stock is not null
                 && currentPage.Capacities.Warehouse is > 0
-                && currentPage.Capacities.Granary is > 0
-                && stock.Covers(new ConstructionResourceAmounts(cost.Wood, cost.Clay, cost.Iron, cost.Crop)))
+                && currentPage.Capacities.Granary is > 0)
             {
-                Notify($"[construction-preflight] label='{label}' using complete current-page stock; Dorf1 production read not needed.");
-                return await EvaluateConstructionAffordabilityAsync(
+                var cachedProduction = await ReadCachedProductionByHourForActiveVillageAsync(cancellationToken);
+                var productionByHour = ResourceSnapshotCalculator.MergeProductionByHour(
+                    currentPage.ProductionByHour,
+                    cachedProduction);
+                var decision = await EvaluateConstructionAffordabilityAsync(
                     cost,
                     label,
                     currentPage.Resources,
-                    currentPage.ProductionByHour,
+                    productionByHour,
                     currentPage.Capacities.Warehouse,
                     currentPage.Capacities.Granary,
                     isLive: true,
                     cancellationToken);
-            }
 
-            Notify($"[construction-preflight] label='{label}' needs Dorf1 production or complete stock for an unresolved deficit.");
+                var needsProduction = decision.Outcome == ConstructionAffordabilityOutcome.Unknown
+                    && !decision.ShouldRevalidateHero
+                    && !stock.Covers(new ConstructionResourceAmounts(cost.Wood, cost.Clay, cost.Iron, cost.Crop))
+                    && cost.Wood <= currentPage.Capacities.Warehouse.Value
+                    && cost.Clay <= currentPage.Capacities.Warehouse.Value
+                    && cost.Iron <= currentPage.Capacities.Warehouse.Value
+                    && cost.Crop <= currentPage.Capacities.Granary.Value
+                    && productionByHour.Values.Any(value => value is null || !double.IsFinite(value.Value));
+                if (!needsProduction)
+                {
+                    Notify($"[construction-preflight] label='{label}' used live current-page stock and {(cachedProduction.Values.Any(value => value is not null) ? "cached" : "current-page")} production; Dorf1 navigation skipped.");
+                    return decision;
+                }
+
+                Notify($"[construction-preflight] label='{label}' has a resource deficit and no complete production rate; reading Dorf1 to calculate the wait.");
+            }
+            else
+            {
+                Notify($"[construction-preflight] label='{label}' has incomplete current-page stock or capacity; reading Dorf1.");
+            }
         }
 
         await EnsureResourceFieldsPageAsync(
             cancellationToken,
             $"Manual verification appeared while preparing construction affordability for {label}.");
         var snapshot = await ReadResourceSnapshotAsync(cancellationToken);
+        var activeVillage = await ReadActiveVillageNameAsync(cancellationToken);
+        var activeCoords = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+        var cachedSnapshot = TryGetCachedVillageResourceSnapshot(activeVillage, activeCoords);
+        var dorf1ProductionByHour = ResourceSnapshotCalculator.MergeProductionByHour(
+            snapshot.ProductionByHour,
+            cachedSnapshot?.ProductionByHour);
+        SaveCachedVillageResourceSnapshot(
+            activeVillage,
+            [],
+            snapshot.Capacities,
+            dorf1ProductionByHour,
+            activeCoords);
         return await EvaluateConstructionAffordabilityAsync(
             cost,
             label,
             snapshot.Resources,
-            snapshot.ProductionByHour,
+            dorf1ProductionByHour,
             snapshot.Capacities.Warehouse,
             snapshot.Capacities.Granary,
             isLive: true,

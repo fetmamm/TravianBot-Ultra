@@ -36,7 +36,40 @@ public sealed class AutomationConstructPreflightTests
 
         Assert.True(result.CanUseCache);
         Assert.Same(port.Status, result.FreshStatus);
-        Assert.Equal(["read", "apply"], port.Trace);
+        Assert.Equal(["read-current", "read", "apply"], port.Trace);
+    }
+
+    [Fact]
+    public async Task ConstructTarget_ReusesCompleteCurrentDorf2WithoutDorf1Read()
+    {
+        var currentStatus = CompleteDorf2Status();
+        var port = new InMemoryPort
+        {
+            TargetVillageName = "Alpha",
+            CurrentDorf2Status = currentStatus,
+        };
+
+        var result = await new AutomationConstructPreflight(port).RefreshTargetStatusAsync(
+            Item("construct_building"), new BotOptions(), default);
+
+        Assert.Same(currentStatus, result.FreshStatus);
+        Assert.Equal(["read-current", "apply"], port.Trace);
+    }
+
+    [Fact]
+    public async Task ConstructTarget_WrongVillageDorf2FallsBackToLiveStatus()
+    {
+        var port = new InMemoryPort
+        {
+            TargetVillageName = "Alpha",
+            CurrentDorf2Status = CompleteDorf2Status() with { ActiveVillageCoordX = 8 },
+        };
+
+        var result = await new AutomationConstructPreflight(port).RefreshTargetStatusAsync(
+            Item("construct_building"), new BotOptions(), default);
+
+        Assert.Same(port.Status, result.FreshStatus);
+        Assert.Equal(["read-current", "read", "apply"], port.Trace);
     }
 
     [Fact]
@@ -92,17 +125,37 @@ public sealed class AutomationConstructPreflightTests
         [],
         []);
 
+    private static VillageStatus CompleteDorf2Status() => Status() with
+    {
+        Buildings = Enumerable.Range(19, 22)
+            .Select(slot => new Building(slot, string.Empty, 0, $"build.php?id={slot}", null))
+            .ToList(),
+        ActiveConstructionsFromOverview = true,
+        ActiveVillageCoordX = 1,
+        ActiveVillageCoordY = 2,
+    };
+
     private sealed class InMemoryPort : IAutomationConstructPreflightPort
     {
         public List<string> Trace { get; } = [];
         public List<string> Logs { get; } = [];
         public string? TargetVillageName { get; init; }
         public VillageStatus Status { get; init; } = AutomationConstructPreflightTests.Status();
+        public VillageStatus? CurrentDorf2Status { get; init; }
         public VillageStatus? CachedStatus { get; init; }
         public TimeSpan? DeferredDelay { get; private set; }
         public string? GetTargetVillageName(QueueItem item) => TargetVillageName;
         public string? GetTargetVillageUrl(QueueItem item) => null;
-        public string? GetTargetVillageKey(QueueItem item) => "1:2";
+        public string? GetTargetVillageKey(QueueItem item) => "xy:1|2";
+        public ValueTask<VillageStatus> ReadCurrentDorf2StatusAsync(
+            BotOptions options,
+            CancellationToken cancellationToken)
+        {
+            Trace.Add("read-current");
+            return CurrentDorf2Status is not null
+                ? ValueTask.FromResult(CurrentDorf2Status)
+                : ValueTask.FromException<VillageStatus>(new InvalidOperationException("Not on Dorf2"));
+        }
         public ValueTask<VillageStatus> ReadLiveVillageStatusAsync(
             BotOptions options,
             string? villageName,

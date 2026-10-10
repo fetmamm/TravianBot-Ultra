@@ -1,5 +1,6 @@
 using TbotUltra.Core.Configuration;
 using TbotUltra.Core.Tasks;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Desktop.Services.Orchestration;
 using TbotUltra.Worker.Domain;
 
@@ -15,6 +16,13 @@ public partial class MainWindow
         public string? GetTargetVillageUrl(QueueItem item) =>
             GetQueueItemPayloadValue(item, BotOptionPayloadKeys.TargetVillageUrl);
         public string? GetTargetVillageKey(QueueItem item) => owner.GetQueueItemVillageKey(item);
+        public ValueTask<VillageStatus> ReadCurrentDorf2StatusAsync(
+            BotOptions options,
+            CancellationToken cancellationToken) =>
+            new(owner._botService.ReadCurrentBuildingOverviewStatusAsync(
+                AutomationExecutionOptions.WithoutImplicitVillageTarget(options),
+                owner.AppendLog,
+                cancellationToken));
         public ValueTask<VillageStatus> ReadLiveVillageStatusAsync(
             BotOptions options,
             string? villageName,

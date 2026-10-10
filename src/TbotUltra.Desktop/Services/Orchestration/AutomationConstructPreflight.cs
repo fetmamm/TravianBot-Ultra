@@ -15,6 +15,9 @@ internal interface IAutomationConstructPreflightPort
     string? GetTargetVillageName(QueueItem item);
     string? GetTargetVillageUrl(QueueItem item);
     string? GetTargetVillageKey(QueueItem item);
+    ValueTask<VillageStatus> ReadCurrentDorf2StatusAsync(
+        BotOptions options,
+        CancellationToken cancellationToken);
     ValueTask<VillageStatus> ReadLiveVillageStatusAsync(
         BotOptions options,
         string? villageName,
@@ -66,6 +69,31 @@ internal sealed class AutomationConstructPreflight(
         if (targetVillageName is null && string.IsNullOrWhiteSpace(targetVillageUrl))
         {
             return new ConstructPreflightObservation(true, null);
+        }
+
+        var targetVillageKey = port.GetTargetVillageKey(item);
+        if (!string.IsNullOrWhiteSpace(targetVillageKey))
+        {
+            try
+            {
+                var currentStatus = await port.ReadCurrentDorf2StatusAsync(options, cancellationToken);
+                if (ConstructionMutationRefreshPolicy.CanUseCurrentDorf2Snapshot(currentStatus, targetVillageKey))
+                {
+                    port.ApplyLiveVillageStatus(currentStatus, targetVillageName);
+                    port.Log($"[construction-preflight] reused complete current Dorf2 for '{targetVillageName ?? targetVillageUrl}'; Dorf1 navigation skipped.");
+                    return new ConstructPreflightObservation(true, currentStatus);
+                }
+
+                port.Log($"[construction-preflight:verbose] current Dorf2 is incomplete or belongs to another village; reading full target status.");
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception exception)
+            {
+                port.Log($"[construction-preflight:verbose] current Dorf2 unavailable ({exception.Message}); reading full target status.");
+            }
         }
 
         try

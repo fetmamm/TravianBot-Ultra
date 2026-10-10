@@ -139,7 +139,7 @@ public static class ConstructionAffordabilityPlanner
                 nextAttemptAtUtc: null,
                 stock ?? Empty,
                 Empty,
-                "live Dorf1 resource snapshot is incomplete");
+                "live resource snapshot is incomplete");
         }
 
         var deficit = stock.DeficitFrom(request.Cost);
@@ -172,21 +172,8 @@ public static class ConstructionAffordabilityPlanner
                 "catalog cost exceeds current storage capacity; live page remains authoritative");
         }
 
-        // Production is required before any negative affordability decision. Without it, neither
-        // the production deadline nor the NPC build-time gate can be proven from the live overview.
-        if (!request.Village.ProductionPerHour.IsComplete)
-        {
-            return Decision(
-                ConstructionAffordabilityOutcome.Unknown,
-                ConstructionRecoveryKind.None,
-                shouldOpenBuildPage: true,
-                shouldRevalidateHero: false,
-                nextAttemptAtUtc: null,
-                stock,
-                deficit,
-                "live Dorf1 production snapshot is incomplete");
-        }
-
+        // Hero coverage depends on the live stock deficit, not on production. In particular, a
+        // complete Dorf2 stock read should not send us to Dorf1 just to use Hero resources.
         if (request.Hero.Enabled && request.Hero.Inventory is { } heroInventory)
         {
             var maxPerResource = request.Hero.MaxUseEnabled
@@ -207,6 +194,21 @@ public static class ConstructionAffordabilityPlanner
                     deficit,
                     "cached Hero inventory can cover every resource deficit");
             }
+        }
+
+        // A production deadline or NPC build-time gate does require known rates. The Worker can
+        // use the village's last Dorf1 observation and navigate there only when it is unavailable.
+        if (!request.Village.ProductionPerHour.IsComplete)
+        {
+            return Decision(
+                ConstructionAffordabilityOutcome.Unknown,
+                ConstructionRecoveryKind.None,
+                shouldOpenBuildPage: true,
+                shouldRevalidateHero: false,
+                nextAttemptAtUtc: null,
+                stock,
+                deficit,
+                "production snapshot is incomplete");
         }
 
         var productionDeadline = ComputeProductionDeadline(request, deficit);

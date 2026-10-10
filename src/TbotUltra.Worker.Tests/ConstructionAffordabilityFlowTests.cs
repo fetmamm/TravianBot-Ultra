@@ -79,6 +79,18 @@ public sealed class ConstructionAffordabilityFlowTests
         Assert.Contains("snapshot with { WaitSeconds = probeWaitSeconds", method, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void BuildingPreflight_UsesCurrentPageStockAndCachedProductionBeforeDorf1()
+    {
+        var source = ReadAutomationSource("Construction", "TravianClient.ConstructionAffordability.cs");
+        var method = Slice(source, "private async Task<ConstructionAffordabilityDecision> EvaluateLiveConstructionAffordabilityAsync", "private async Task<ConstructionAffordabilityDecision> EvaluateConstructionAffordabilityAsync");
+
+        Assert.Contains("ResourceSnapshotCalculator.MergeProductionByHour", method, StringComparison.Ordinal);
+        Assert.Contains("ReadCachedProductionByHourForActiveVillageAsync", method, StringComparison.Ordinal);
+        Assert.Contains("SaveCachedVillageResourceSnapshot", method, StringComparison.Ordinal);
+        AssertOrdered(method, "ReadResourceSnapshotAsync(cancellationToken, allowRecovery: false, maxAttempts: 1)", "EnsureResourceFieldsPageAsync");
+    }
+
     private static void AssertOrdered(string source, string first, string second)
     {
         var firstIndex = source.IndexOf(first, StringComparison.Ordinal);
