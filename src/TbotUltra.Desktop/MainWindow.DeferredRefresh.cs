@@ -919,6 +919,11 @@ public partial class MainWindow
             ApplyVillageStatusToUi(status);
             PopulateBuildingsTab(status);
         });
+
+        if (status.ActiveConstructionsFromOverview)
+        {
+            _automationDesk.MarkConstructionStatusSynchronized();
+        }
     }
 
     private static bool NeedsConstructionStatusRefresh(string taskName)

@@ -58,6 +58,8 @@ public partial class MainWindow
                 PopulateBuildingsTab(merged);
             });
 
+            _automationDesk.MarkConstructionStatusSynchronized();
+
             AppendLog(
                 $"[construction-refresh] reused authoritative current Dorf2 after '{item.TaskName}'; " +
                 "skipped Dorf1 navigation.");

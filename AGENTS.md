@@ -4,12 +4,10 @@
 
 ## Kodregler
 - Försök att inte ändra kod som inte behöver ändras.
-- Ändra bara det som är nödvändigt för att lösa uppgiften.
 - Hellre robust och lätt kod att felsöka än "perfekt" men svårförståelig kod.
-- Försök att använda samma struktur, stil och namngivning som redan finns i projektet.
-- Skriv tydlig och praktisk kod framför smart men svårläst kod.
+- Använd samma struktur, stil och namngivning som redan finns i projektet.
 - All kod skrivs på engelska. UI ska vara på engelska.
-- Duplicera inte kod i onödan. Försök återanvända om det går.
+- Duplicera inte kod i onödan. Återanvänd befintlig om det går.
 - Skriv kod som går att återanvända och är enkel att underhålla och felsöka
 - Skriv loggar i nya funktioner så det enkelt går att felöka i framtiden
 
@@ -29,7 +27,6 @@
 ## Vid ändringar
 - Ändra inte befintliga funktioner i onödan.
 - Behåll befintligt beteende om jag inte uttryckligen ber om något annat.
-- Gör små, lokala ändringar hellre än stora omskrivningar.
 - Om en funktion redan fungerar, bygg vidare på den istället för att skriva om den.
 - Ändra endast de filer och metoder som är direkt relevanta för uppgiften.
 

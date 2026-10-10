@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Worker;
 using TbotUltra.Worker.Domain;
 using Xunit;
 
@@ -7,6 +8,28 @@ namespace TbotUltra.Desktop.Tests;
 
 public sealed class ConstructionMutationRefreshPolicyTests
 {
+    [Fact]
+    public void AcceptedCurrentDorf2Refresh_SatisfiesPendingConstructionStatusSync()
+    {
+        var source = File.ReadAllText(Path.Combine(
+            ProjectRootLocator.FindProjectRoot(),
+            "src", "TbotUltra.Desktop", "MainWindow.QueueExecution.cs"));
+        var start = source.IndexOf(
+            "private async Task<(bool BuildingsStatusRead, bool StorageStatusRead)> RefreshConstructionStatusAfterBuildingMutationAsync(",
+            StringComparison.Ordinal);
+        var end = source.IndexOf("    // dorf1 counterpart", start, StringComparison.Ordinal);
+
+        Assert.True(start >= 0 && end > start);
+        var method = source[start..end];
+        var accepted = method.IndexOf("ConstructionMutationRefreshPolicy.CanUseCurrentDorf2Snapshot", StringComparison.Ordinal);
+        var cached = method.IndexOf("CacheVillageStatus(merged);", StringComparison.Ordinal);
+        var synchronized = method.IndexOf("_automationDesk.MarkConstructionStatusSynchronized();", StringComparison.Ordinal);
+
+        Assert.True(accepted >= 0);
+        Assert.True(cached > accepted);
+        Assert.True(synchronized > cached);
+    }
+
     [Fact]
     public void CanUseCurrentDorf2Snapshot_RequiresCompleteAuthoritativeMatchingVillage()
     {
