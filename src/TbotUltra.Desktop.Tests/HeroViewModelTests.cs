@@ -48,6 +48,28 @@ public sealed class HeroViewModelTests
     }
 
     [Fact]
+    public void AttributePriorityCommands_MovePersistAndDisableAtBoundaries()
+    {
+        var vm = new HeroViewModel();
+        var changeCount = 0;
+        vm.LoadPriorityFromConfig("resources,fighting_strength,offence_bonus,defence_bonus");
+        vm.AttributePriorityChanged += () => changeCount++;
+        var resources = vm.AttributePriorityItems[0];
+        var fightingStrength = vm.AttributePriorityItems[1];
+
+        Assert.False(vm.MoveAttributeUpCommand.CanExecute(resources));
+        Assert.False(vm.MoveAttributeDownCommand.CanExecute(vm.AttributePriorityItems[^1]));
+
+        vm.MoveAttributeUpCommand.Execute(fightingStrength);
+
+        Assert.Equal("fighting_strength,resources,offence_bonus,defence_bonus", vm.BuildPriorityPayload());
+        Assert.Equal([1, 2, 3, 4], vm.AttributePriorityItems.Select(item => item.Order));
+        Assert.Equal(1, changeCount);
+        Assert.False(vm.MoveAttributeUpCommand.CanExecute(fightingStrength));
+        Assert.True(vm.MoveAttributeDownCommand.CanExecute(fightingStrength));
+    }
+
+    [Fact]
     public void LoadSettingsFromConfig_LoadsAttributeMaximumsAndDefaultsMissingValues()
     {
         var vm = new HeroViewModel();

@@ -16,14 +16,13 @@ namespace TbotUltra.Desktop.ViewModels;
 /// command enablement; <see cref="HeroPanelService"/> owns its persistence and Worker calls.
 ///
 /// Owns:
-///   - <see cref="AttributePriorityItems"/> — drag-orderable hero attributes.
+///   - <see cref="AttributePriorityItems"/> — arrow-orderable hero attributes.
 ///   - The three status text fields shown on the Hero card.
 ///   - Manual-panel command enablement and request signals.
 ///   - Pure helpers for parsing and serializing the priority list and for
 ///     applying a stats snapshot to the items collection.
 ///
 /// Host-only state remains on MainWindow:
-///   - The drag-handler scratch state (anchor point, source item)
 ///   - The blocked-reason key + IsHeroGroupBlocked() helper
 ///   - Lifecycle, dialog, cancellation, and dashboard integration bridges.
 /// </summary>
@@ -33,6 +32,8 @@ public sealed class HeroViewModel : BaseViewModel
     private readonly RelayCommand _refreshHpCommand;
     private readonly RelayCommand _refreshStatsCommand;
     private readonly RelayCommand _refreshInventoryCommand;
+    private readonly RelayCommand<HeroAttributePriorityItem> _moveAttributeUpCommand;
+    private readonly RelayCommand<HeroAttributePriorityItem> _moveAttributeDownCommand;
     private bool _isManualOperationRunning;
     private static readonly string[] DefaultPriorityOrder =
         ["resources", "fighting_strength", "offence_bonus", "defence_bonus"];
@@ -78,6 +79,13 @@ public sealed class HeroViewModel : BaseViewModel
         _refreshHpCommand = new RelayCommand(() => RefreshHpRequested?.Invoke(), CanRunManualCommand);
         _refreshStatsCommand = new RelayCommand(() => RefreshStatsRequested?.Invoke(), CanRunManualCommand);
         _refreshInventoryCommand = new RelayCommand(() => RefreshInventoryRequested?.Invoke(), CanRunManualCommand);
+        _moveAttributeUpCommand = new RelayCommand<HeroAttributePriorityItem>(
+            item => MoveAttributePriority(item, -1),
+            item => AttributePriorityItems.IndexOf(item) > 0);
+        _moveAttributeDownCommand = new RelayCommand<HeroAttributePriorityItem>(
+            item => MoveAttributePriority(item, 1),
+            item => AttributePriorityItems.IndexOf(item) >= 0
+                && AttributePriorityItems.IndexOf(item) < AttributePriorityItems.Count - 1);
     }
 
     /// <summary>
@@ -98,11 +106,14 @@ public sealed class HeroViewModel : BaseViewModel
     public ICommand RefreshHpCommand => _refreshHpCommand;
     public ICommand RefreshStatsCommand => _refreshStatsCommand;
     public ICommand RefreshInventoryCommand => _refreshInventoryCommand;
+    public ICommand MoveAttributeUpCommand => _moveAttributeUpCommand;
+    public ICommand MoveAttributeDownCommand => _moveAttributeDownCommand;
 
     public event Action? RefreshAdventuresRequested;
     public event Action? RefreshHpRequested;
     public event Action? RefreshStatsRequested;
     public event Action? RefreshInventoryRequested;
+    public event Action? AttributePriorityChanged;
 
     public void SetManualOperationRunning(bool isRunning)
     {
@@ -490,6 +501,8 @@ public sealed class HeroViewModel : BaseViewModel
                 MaxPoints = existingMaximums.GetValueOrDefault(order[i], HeroAttributeMaximums.DefaultMaximum),
             });
         }
+
+        RaiseAttributePriorityCommandState();
     }
 
     public void LoadMaximumsFromConfig(string? configuredMaximums)
@@ -503,8 +516,8 @@ public sealed class HeroViewModel : BaseViewModel
 
     /// <summary>
     /// Re-numbers <see cref="HeroAttributePriorityItem.Order"/> for each item
-    /// based on its current position in the collection. Call after a drag /
-    /// move that reordered the list.
+    /// based on its current position in the collection. Call after a move that
+    /// reordered the list.
     /// </summary>
     public void UpdateOrders()
     {
@@ -551,6 +564,29 @@ public sealed class HeroViewModel : BaseViewModel
         HeroStatusText = snapshot.HomeVillageHeroAway && !terminalStatus
             ? string.IsNullOrWhiteSpace(snapshot.MovementState) ? "Away" : snapshot.MovementState.Trim()
             : FormatHeroStatus(snapshot.HeroState, snapshot.ReviveRemainingSeconds);
+    }
+
+    private void MoveAttributePriority(HeroAttributePriorityItem item, int offset)
+    {
+        var oldIndex = AttributePriorityItems.IndexOf(item);
+        var newIndex = oldIndex + offset;
+        if (oldIndex < 0 || newIndex < 0 || newIndex >= AttributePriorityItems.Count)
+        {
+            return;
+        }
+
+        AttributePriorityItems.Move(oldIndex, newIndex);
+        UpdateOrders();
+        RaiseAttributePriorityCommandState();
+        Logger.Invoke(
+            $"[hero-attributes-ui] moved '{item.Title}' from priority {oldIndex + 1} to {newIndex + 1}.");
+        AttributePriorityChanged?.Invoke();
+    }
+
+    private void RaiseAttributePriorityCommandState()
+    {
+        _moveAttributeUpCommand.RaiseCanExecuteChanged();
+        _moveAttributeDownCommand.RaiseCanExecuteChanged();
     }
 
     public string BuildMaximumsPayload()

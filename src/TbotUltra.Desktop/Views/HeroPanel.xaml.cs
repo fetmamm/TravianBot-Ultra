@@ -14,8 +14,7 @@ using TbotUltra.Desktop.ViewModels;
 namespace TbotUltra.Desktop.Views;
 
 /// <summary>
-/// Hero / Adventures panel. Owns the drag-and-drop scratch state for the
-/// attribute priority list and routes button clicks back to the host
+/// Hero / Adventures panel. Routes button clicks back to the host
 /// MainWindow's internal "Core" methods, which still hold the
 /// service-bound logic (refresh stats / refresh adventures / queue
 /// adventure). The panel reads its DataContext as a
@@ -35,8 +34,6 @@ public partial class HeroPanel : UserControl
         set => SetValue(SectionProperty, value);
     }
 
-    private Point _dragStart;
-    private HeroAttributePriorityItem? _dragSource;
     private MainWindow? _hostCache;
     private readonly DispatcherTimer _heroResourceMaxSaveTimer;
     private bool _isLoadingHeroResourceSettings;
@@ -243,20 +240,6 @@ public partial class HeroPanel : UserControl
         }
     }
 
-    private HeroViewModel? Vm => DataContext as HeroViewModel;
-
-    private void HeroAttributePriorityItemsControl_PreviewMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
-    {
-        _dragStart = e.GetPosition(HeroAttributePriorityItemsControl);
-        if (FindVisualParent<TextBox>(e.OriginalSource as DependencyObject) is not null)
-        {
-            _dragSource = null;
-            return;
-        }
-
-        _dragSource = FindHeroAttributePriorityItem(e.OriginalSource as DependencyObject);
-    }
-
     private void HeroAttributeMaximum_LostFocus(object sender, RoutedEventArgs e)
     {
         if (sender is TextBox textBox)
@@ -294,91 +277,6 @@ public partial class HeroPanel : UserControl
         {
             Host?.PersistHeroPriorityToConfig();
         }
-    }
-
-    private static T? FindVisualParent<T>(DependencyObject? source) where T : DependencyObject
-    {
-        while (source is not null)
-        {
-            if (source is T match)
-            {
-                return match;
-            }
-
-            source = VisualTreeHelper.GetParent(source);
-        }
-
-        return null;
-    }
-
-    private void HeroAttributePriorityItemsControl_PreviewMouseMove(object sender, MouseEventArgs e)
-    {
-        if (e.LeftButton != MouseButtonState.Pressed || _dragSource is null)
-        {
-            return;
-        }
-
-        var position = e.GetPosition(HeroAttributePriorityItemsControl);
-        var delta = position - _dragStart;
-        if (Math.Abs(delta.X) < SystemParameters.MinimumHorizontalDragDistance
-            && Math.Abs(delta.Y) < SystemParameters.MinimumVerticalDragDistance)
-        {
-            return;
-        }
-
-        DragDrop.DoDragDrop(HeroAttributePriorityItemsControl, _dragSource, DragDropEffects.Move);
-    }
-
-    private void HeroAttributePriorityItemsControl_Drop(object sender, DragEventArgs e)
-    {
-        if (Vm is not { } vm)
-        {
-            return;
-        }
-
-        if (!e.Data.GetDataPresent(typeof(HeroAttributePriorityItem)))
-        {
-            return;
-        }
-
-        if (e.Data.GetData(typeof(HeroAttributePriorityItem)) is not HeroAttributePriorityItem sourceItem)
-        {
-            return;
-        }
-
-        var targetItem = FindHeroAttributePriorityItem(e.OriginalSource as DependencyObject);
-        var fromIndex = vm.AttributePriorityItems.IndexOf(sourceItem);
-        if (fromIndex < 0)
-        {
-            return;
-        }
-
-        var toIndex = targetItem is null
-            ? vm.AttributePriorityItems.Count - 1
-            : vm.AttributePriorityItems.IndexOf(targetItem);
-        if (toIndex < 0 || fromIndex == toIndex)
-        {
-            return;
-        }
-
-        vm.AttributePriorityItems.Move(fromIndex, toIndex);
-        vm.UpdateOrders();
-        Host?.PersistHeroPriorityToConfig();
-    }
-
-    private static HeroAttributePriorityItem? FindHeroAttributePriorityItem(DependencyObject? source)
-    {
-        while (source is not null)
-        {
-            if (source is FrameworkElement { DataContext: HeroAttributePriorityItem item })
-            {
-                return item;
-            }
-
-            source = VisualTreeHelper.GetParent(source);
-        }
-
-        return null;
     }
 
 }

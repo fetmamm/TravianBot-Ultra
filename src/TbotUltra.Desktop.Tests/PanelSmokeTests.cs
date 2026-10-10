@@ -576,6 +576,31 @@ public sealed class PanelSmokeTests
     }
 
     [Fact]
+    public void HeroPanel_ShowsPriorityArrowsInTheLeftAttributeColumn()
+    {
+        _wpf.Run(() =>
+        {
+            var vm = new HeroViewModel();
+            vm.LoadPriorityFromConfig(null);
+            var panel = new HeroPanel { DataContext = vm };
+
+            panel.Measure(new Size(1000, 700));
+            panel.Arrange(new Rect(0, 0, 1000, 700));
+            panel.UpdateLayout();
+
+            var arrows = FindVisualChildren<Button>(panel)
+                .Where(button => button.DataContext is HeroAttributePriorityItem
+                    && button.Content is "↑" or "↓")
+                .ToList();
+            Assert.Equal(8, arrows.Count);
+            Assert.All(arrows, arrow => Assert.Equal(0, Grid.GetColumn(arrow)));
+            Assert.DoesNotContain(
+                FindVisualChildren<TextBlock>(panel),
+                text => string.Equals(text.Text, "Drag to reorder", StringComparison.Ordinal));
+        });
+    }
+
+    [Fact]
     public void FarmingPanel_NextSendDisplay_BindsToHeadersCreatedAfterTheTimerUpdate()
     {
         _wpf.Run(() =>

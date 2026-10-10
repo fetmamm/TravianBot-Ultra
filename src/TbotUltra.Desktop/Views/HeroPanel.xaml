@@ -337,7 +337,7 @@
                         BorderBrush="{DynamicResource BorderSubtleBrush}"
                         BorderThickness="1"
                         CornerRadius="8"
-                        Padding="14"
+                        Padding="12"
                         Margin="0,0,6,0">
                     <StackPanel>
                         <Border x:Name="AttributeAutomationCard"
@@ -345,8 +345,8 @@
                                 BorderBrush="{DynamicResource BorderSubtleBrush}"
                                 BorderThickness="1"
                                 CornerRadius="6"
-                                Padding="12"
-                                Margin="0,0,0,12">
+                                Padding="10,8"
+                                Margin="0,0,0,8">
                             <StackPanel>
                                 <TextBlock Text="Attribute automation"
                                            FontSize="13"
@@ -355,12 +355,12 @@
                                 <TextBlock Text="Automatically spend free attribute points using the priority below."
                                            FontSize="11"
                                            Foreground="{DynamicResource TextSubtleBrush}"
-                                           Margin="0,3,0,12" />
+                                           Margin="0,2,0,8" />
                                 <CheckBox Content="Auto assign attribute points"
                                           IsChecked="{Binding AutoAssignPoints}" />
                             </StackPanel>
                         </Border>
-                        <DockPanel Margin="0,0,0,10">
+                        <DockPanel Margin="0,0,0,6">
                             <StackPanel DockPanel.Dock="Left" Orientation="Horizontal">
                                 <TextBlock Text="Attribute priority"
                                            FontSize="14"
@@ -384,7 +384,7 @@
                                                            Foreground="{DynamicResource TooltipForegroundBrush}"
                                                            Margin="0,0,0,6" />
                                                 <TextBlock TextWrapping="Wrap"
-                                                           Text="When auto assign attribute points is enabled, points are assigned in this order. Drag attributes to change priority." />
+                                                           Text="When auto assign attribute points is enabled, points are assigned in this order. Use the arrow buttons to change priority." />
                                             </StackPanel>
                                         </ToolTip>
                                     </Border.ToolTip>
@@ -405,20 +405,16 @@
                                     Background="{DynamicResource SurfaceBrush}"
                                     BorderBrush="{DynamicResource BorderSubtleBrush}" />
                         </DockPanel>
-                        <TextBlock Text="Drag to reorder"
-                                   Foreground="{DynamicResource BorderMutedBrush}"
-                                   FontSize="11"
-                                   Margin="0,0,0,6" />
                         <Border BorderBrush="{DynamicResource AppBackgroundBrush}"
                                 BorderThickness="1"
                                 Background="{DynamicResource RowAltBackgroundBrush}"
                                 CornerRadius="6"
-                                Padding="10"
-                                Margin="0,0,0,8">
+                                Padding="8,6"
+                                Margin="0">
                             <StackPanel>
-                                <Grid Margin="10,0,10,4">
+                                <Grid Margin="6,0,6,3">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="28" />
+                                        <ColumnDefinition Width="52" />
                                         <ColumnDefinition Width="*" />
                                         <ColumnDefinition Width="54" />
                                         <ColumnDefinition Width="70" />
@@ -439,15 +435,11 @@
                                          HorizontalAlignment="Stretch"
                                          BorderThickness="0"
                                          Background="Transparent"
-                                         AllowDrop="True"
-                                         ItemsSource="{Binding AttributePriorityItems}"
-                                         PreviewMouseLeftButtonDown="HeroAttributePriorityItemsControl_PreviewMouseLeftButtonDown"
-                                         PreviewMouseMove="HeroAttributePriorityItemsControl_PreviewMouseMove"
-                                         Drop="HeroAttributePriorityItemsControl_Drop">
+                                         ItemsSource="{Binding AttributePriorityItems}">
                                     <ListBox.ItemContainerStyle>
                                         <Style TargetType="ListBoxItem">
                                             <Setter Property="Padding" Value="0" />
-                                            <Setter Property="Margin" Value="0,0,0,4" />
+                                            <Setter Property="Margin" Value="0,0,0,2" />
                                             <Setter Property="HorizontalContentAlignment" Value="Stretch" />
                                         </Style>
                                     </ListBox.ItemContainerStyle>
@@ -457,19 +449,34 @@
                                                     BorderBrush="{DynamicResource BorderSubtleBrush}"
                                                     BorderThickness="1"
                                                     CornerRadius="6"
-                                                    Padding="10,6">
+                                                    Padding="6,3">
                                                 <Grid>
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="28" />
+                                                        <ColumnDefinition Width="52" />
                                                         <ColumnDefinition Width="*" />
                                                         <ColumnDefinition Width="54" />
                                                         <ColumnDefinition Width="70" />
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Grid.Column="0"
-                                                               Text="{Binding Order}"
-                                                               VerticalAlignment="Center"
-                                                               Foreground="{DynamicResource BorderMutedBrush}"
-                                                               FontWeight="SemiBold" />
+                                                    <StackPanel Grid.Column="0"
+                                                                Orientation="Horizontal"
+                                                                VerticalAlignment="Center">
+                                                        <Button Content="↑"
+                                                                Width="22"
+                                                                Height="20"
+                                                                Padding="0"
+                                                                Margin="0,0,3,0"
+                                                                ToolTip="Move up"
+                                                                Command="{Binding DataContext.MoveAttributeUpCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}" />
+                                                        <Button Content="↓"
+                                                                Width="22"
+                                                                Height="20"
+                                                                Padding="0"
+                                                                Margin="0"
+                                                                ToolTip="Move down"
+                                                                Command="{Binding DataContext.MoveAttributeDownCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                                CommandParameter="{Binding}" />
+                                                    </StackPanel>
                                                     <TextBlock Grid.Column="1"
                                                                Text="{Binding Title}"
                                                                VerticalAlignment="Center"
@@ -484,7 +491,7 @@
                                                     </Border>
                                                     <TextBox Grid.Column="3"
                                                              Width="56"
-                                                             Height="24"
+                                                             Height="22"
                                                              HorizontalAlignment="Right"
                                                              VerticalContentAlignment="Center"
                                                              TextAlignment="Center"
