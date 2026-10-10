@@ -30,6 +30,8 @@ internal sealed class AutomationSessionRuntime(
     private bool? _goldClubEnabled;
     private DateTimeOffset _lastGoldClubCheckUtc = DateTimeOffset.MinValue;
     private int _constructionStatusNeedsSync = 1;
+    private long _constructionStatusSyncGeneration;
+    private readonly object _constructionStatusSyncGate = new();
     private string? _lastWarningSignature;
     private DateTimeOffset _lastIdleHeartbeatUtc = DateTimeOffset.MinValue;
     private bool _idleDorf2ParkingEvaluated;
@@ -169,14 +171,43 @@ internal sealed class AutomationSessionRuntime(
         return enabled;
     }
 
-    internal void RequestConstructionStatusSync() =>
-        Interlocked.Exchange(ref _constructionStatusNeedsSync, 1);
+    internal void RequestConstructionStatusSync()
+    {
+        lock (_constructionStatusSyncGate)
+        {
+            _constructionStatusSyncGeneration++;
+            _constructionStatusNeedsSync = 1;
+        }
+    }
 
     internal bool ConstructionStatusNeedsSync =>
         Volatile.Read(ref _constructionStatusNeedsSync) == 1;
 
-    internal void MarkConstructionStatusSynchronized() =>
-        Interlocked.Exchange(ref _constructionStatusNeedsSync, 0);
+    internal long ConstructionStatusSyncGeneration
+    {
+        get { lock (_constructionStatusSyncGate) return _constructionStatusSyncGeneration; }
+    }
+
+    internal bool TryMarkConstructionStatusSynchronized(long observedGeneration)
+    {
+        lock (_constructionStatusSyncGate)
+        {
+            if (_constructionStatusNeedsSync == 0
+                || _constructionStatusSyncGeneration != observedGeneration)
+            {
+                return false;
+            }
+
+            Volatile.Write(ref _constructionStatusNeedsSync, 0);
+            return true;
+        }
+    }
+
+    internal void MarkConstructionStatusSynchronized()
+    {
+        lock (_constructionStatusSyncGate)
+            Volatile.Write(ref _constructionStatusNeedsSync, 0);
+    }
 
     internal bool ShouldPublishWarnings(string signature)
     {

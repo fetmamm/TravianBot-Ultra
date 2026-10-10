@@ -405,7 +405,7 @@ public partial class MainWindow
                     "[account-scan]");
                 var hasExpectedDorf1 = !options.VillageStatusSweepDorf1Enabled
                     || (requireCompleteStructure
-                        ? HasCompleteResourceFieldSnapshot(status.ResourceFields)
+                        ? VillageStatusCompleteness.HasCompleteResourceFieldSnapshot(status.ResourceFields)
                         : status.ResourceFields.Count > 0);
                 var hasExpectedDorf2 = !options.VillageStatusSweepDorf2Enabled
                     || (requireCompleteStructure

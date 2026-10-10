@@ -1,6 +1,6 @@
 # Engineering Notes
 
-Last updated: 2026-10-05
+Last updated: 2026-10-10
 
 Read this file before changing architecture, selectors, paths, browser behavior, persisted state, queueing,
 or server logic. Keep it short and current: durable rules belong here; detailed decisions belong in ADRs;
@@ -1034,6 +1034,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
   Village scan, but a disabled recurring scan remains disabled. Full slots retain their persisted queue-humanize extra
   so later navigation still waits for the effective deadline. Planned Smart/Session pacing sleep may wait for this
   round only up to its Pacing extension choice; varied allowed-hours and daily-max boundaries remain hard stops.
+  The final post-login village visit may satisfy the initial construction-status sync only with a complete,
+  coordinate-verified Dorf1/Dorf2 observation for that village (including all City slots when applicable).
+  An incomplete final visit or a newer sync request retains the full-read fallback; earlier villages must not
+  clear the global sync request.
 - Every target-specific live confirmation that a building or resource entered Travian's construction queue publishes
   that authoritative overview snapshot to Desktop immediately. Update the coordinate-owned village cache and green
   construction-slot icons before the enclosing Worker task finishes; retain the validated current-Dorf2 post-task

@@ -167,6 +167,11 @@ public sealed class AutomationDesk : IAutomationDesk, IAsyncDisposable
 
     internal bool ConstructionStatusNeedsSync => Runtime.Session.ConstructionStatusNeedsSync;
 
+    internal long ConstructionStatusSyncGeneration => Runtime.Session.ConstructionStatusSyncGeneration;
+
+    internal bool TryMarkConstructionStatusSynchronized(long observedGeneration) =>
+        Runtime.Session.TryMarkConstructionStatusSynchronized(observedGeneration);
+
     internal void MarkConstructionStatusSynchronized() => Runtime.Session.MarkConstructionStatusSynchronized();
 
     internal bool ShouldPublishWarnings(string signature) => Runtime.Session.ShouldPublishWarnings(signature);

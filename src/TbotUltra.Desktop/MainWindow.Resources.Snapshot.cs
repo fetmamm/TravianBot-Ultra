@@ -327,7 +327,7 @@ public partial class MainWindow
     private VillageStatus MergeResourceStatusForUi(VillageStatus status)
     {
         var hasCompleteStorageSnapshot = HasCompleteResourceUiSnapshot(status);
-        var hasCompleteFieldSnapshot = HasCompleteResourceFieldSnapshot(status.ResourceFields);
+        var hasCompleteFieldSnapshot = VillageStatusCompleteness.HasCompleteResourceFieldSnapshot(status.ResourceFields);
         if (hasCompleteStorageSnapshot && hasCompleteFieldSnapshot)
         {
             _lastResourceStatusForUi = status;
@@ -358,7 +358,7 @@ public partial class MainWindow
         var mergedWarehouse = status.WarehouseCapacity ?? previous.WarehouseCapacity;
         var mergedGranary = status.GranaryCapacity ?? previous.GranaryCapacity;
         var mergedForecasts = BuildMergedResourceForecasts(status, previous, mergedWarehouse, mergedGranary);
-        var mergedResourceFields = hasCompleteFieldSnapshot || !HasCompleteResourceFieldSnapshot(previous.ResourceFields)
+        var mergedResourceFields = hasCompleteFieldSnapshot || !VillageStatusCompleteness.HasCompleteResourceFieldSnapshot(previous.ResourceFields)
             ? status.ResourceFields
             : previous.ResourceFields;
         var mergedStatus = status with
@@ -389,30 +389,6 @@ public partial class MainWindow
         return status.ResourceStorageForecasts.Any(item => item.Capacity is not null || item.ProductionPerHour is not null);
     }
 
-    private static bool HasCompleteResourceFieldSnapshot(IReadOnlyList<ResourceField>? fields)
-    {
-        if (fields is null)
-        {
-            return false;
-        }
-
-        var bySlot = fields
-            .Where(field => field.SlotId is >= 1 and <= 18)
-            .GroupBy(field => field.SlotId!.Value)
-            .ToList();
-        if (bySlot.Count != 18)
-        {
-            return false;
-        }
-
-        return bySlot.All(group =>
-        {
-            var field = group.First();
-            return field.Level is >= 0
-                && (BuildingCatalogService.GidForName(field.Name) is not null
-                    || BuildingCatalogService.GidForName(field.FieldType) is not null);
-        });
-    }
 
     private static bool IsSameOrUnknownVillage(string? left, string? right)
     {

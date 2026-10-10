@@ -27,6 +27,7 @@ public partial class MainWindow
     private string? _confirmedVillageMembershipSignature;
     private DateTimeOffset _confirmedVillageMembershipAtUtc = DateTimeOffset.MinValue;
     private bool _differentAvatarHoldActive;
+    private long? _postLoginConstructionSyncGeneration;
 
     private DateTimeOffset GetContinuousKeepAliveNextReloadUtc()
         => _automationDesk.NextKeepAliveAtUtc;
@@ -440,6 +441,10 @@ public partial class MainWindow
         CancellationToken cancellationToken)
     {
         var postLoginRound = _automationDesk.LoginVillageStatusRoundPending;
+        if (postLoginRound && villageNumber == 1)
+            _postLoginConstructionSyncGeneration = _automationDesk.ConstructionStatusSyncGeneration;
+        var constructionSyncGeneration = _postLoginConstructionSyncGeneration;
+        VillageStatus? finalVisitStatus = null;
         using var villageActivity = _dashboardActivityTracker.Begin(
             $"{(postLoginRound ? "Village round" : "Village scan")} ({villageNumber}/{villageCount}): {village.Name}");
         cancellationToken.ThrowIfCancellationRequested();
@@ -456,26 +461,8 @@ public partial class MainWindow
                         CacheVillageStatus(status, targetVillage.Name, triggerDeferredWaitRefresh: false);
                         SetActiveWorkingVillageFromStatus(status);
                         ReconcilePendingBuildingQueueWithLiveStatus(status);
-                        // The post-login round already read both overviews. Do not repeat the full
-                        // Dorf1 -> Dorf2 read for the loop's initial construction sync when this
-                        // observation is complete and belongs to the village actually visited.
-                        if (postLoginRound
-                            && _automationDesk.ConstructionStatusNeedsSync
-                            && status.ActiveConstructionsFromOverview
-                            && status.ActiveVillageCoordX.HasValue
-                            && status.ActiveVillageCoordY.HasValue
-                            && status.ActiveVillageCoordX == targetVillage.CoordX
-                            && status.ActiveVillageCoordY == targetVillage.CoordY
-                            && status.ResourceFields.Count >= 18
-                            && status.Buildings
-                                .Where(building => building.SlotId is >= 19 and <= 43)
-                                .Select(building => building.SlotId)
-                                .Distinct()
-                                .Count() >= 22)
-                        {
-                            _automationDesk.MarkConstructionStatusSynchronized();
-                            AppendLog("[village-round] complete live Dorf1/Dorf2 status satisfied pending construction sync.");
-                        }
+                        if (postLoginRound && villageNumber == villageCount)
+                            finalVisitStatus = status;
                         if (postLoginRound)
                         {
                             PrepareConstructionLoginFill(
@@ -507,6 +494,8 @@ public partial class MainWindow
                         targetVillage,
                         status,
                         token);
+                    if (postLoginRound && villageNumber == villageCount)
+                        finalVisitStatus = result.Status;
                     return new VillageStatusCollectionResult<VillageStatus>(
                         result.Status,
                         result.ShouldContinue,
@@ -540,12 +529,34 @@ public partial class MainWindow
                             targetVillage.CoordX,
                             targetVillage.CoordY),
                         token));
-            return await _villageStatusReactionCoordinator.RunAsync(
+            var visit = await _villageStatusReactionCoordinator.RunAsync(
                 village,
                 options.VillageStatusSweepDorf1Enabled || postLoginRound,
                 inboxStatusChecked,
                 port,
                 cancellationToken);
+            if (postLoginRound && villageNumber == villageCount)
+            {
+                if (visit.ShouldContinue
+                    && finalVisitStatus is not null
+                    && constructionSyncGeneration.HasValue
+                    && ConstructionStatusSyncPolicy.IsCompleteFinalVisit(
+                        finalVisitStatus, village.CoordX, village.CoordY, villageNumber, villageCount)
+                    && _automationDesk.TryMarkConstructionStatusSynchronized(constructionSyncGeneration.Value))
+                {
+                    AppendLog("[village-round] final live Dorf1/Dorf2 status satisfied pending construction sync.");
+                }
+                else if (_automationDesk.ConstructionStatusNeedsSync)
+                {
+                    AppendLog(
+                        $"[village-round] final status did not satisfy construction sync; "
+                        + $"village='{village.Name}' fields={finalVisitStatus?.ResourceFields.Count ?? 0} "
+                        + $"buildings={finalVisitStatus?.Buildings.Count ?? 0} city={finalVisitStatus?.CityStatus} "
+                        + $"requestChanged={constructionSyncGeneration != _automationDesk.ConstructionStatusSyncGeneration}; "
+                        + "full-read fallback remains pending.");
+                }
+            }
+            return visit;
         }
         catch (OperationCanceledException)
         {
@@ -1166,6 +1177,7 @@ public partial class MainWindow
         try
         {
             using var activity = _dashboardActivityTracker.Begin("Refreshing construction status");
+            var syncGeneration = _automationDesk.ConstructionStatusSyncGeneration;
             var status = await ReadVillageStatusWithRetryAsync(
                 options,
                 cancellationToken,
@@ -1182,7 +1194,8 @@ public partial class MainWindow
                     PopulateBuildingsTab(status);
                 }
             });
-            _automationDesk.MarkConstructionStatusSynchronized();
+            if (!_automationDesk.TryMarkConstructionStatusSynchronized(syncGeneration))
+                AppendLog("[construction-status] a newer sync request remains pending after the full read.");
         }
         catch (OperationCanceledException)
         {
