@@ -26,6 +26,35 @@ public sealed class WindowSmokeTests
     }
 
     [Fact]
+    public void StartupProgressWindow_HasMatchingControlsAndCanCancelOffscreen()
+    {
+        _wpf.Run(() =>
+        {
+            var window = new StartupProgressWindow();
+            var canceled = false;
+            window.CancelRequested += (_, _) => canceled = true;
+            try
+            {
+                WpfSmokeFixture.PrepareOffscreen(window);
+                window.Show();
+                window.SetProgress(45, "Loading settings...");
+                Assert.Equal(45, Assert.IsType<ProgressBar>(window.FindName("LaunchProgress")).Value);
+                Assert.Equal("Loading settings...", Assert.IsType<TextBlock>(window.FindName("StatusText")).Text);
+                var minimize = Assert.IsType<Button>(window.FindName("MinimizeButton"));
+                var close = Assert.IsType<Button>(window.FindName("CloseButton"));
+                Assert.Equal(minimize.Width, close.Width);
+                Assert.Equal(minimize.Height, close.Height);
+                close.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                Assert.True(canceled);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void BuildingSlotActionsWindow_ShowsWatchtowerTargetActionForEligibleWall()
     {
         _wpf.Run(() =>

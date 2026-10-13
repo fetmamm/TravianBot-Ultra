@@ -54,7 +54,8 @@ public sealed class DevLauncherPreflightTests
         Assert.Contains("Border x:Name=\"ErrorPanel\"", progressWindow);
         Assert.Contains("Button x:Name=\"OpenLogButton\"", progressWindow);
         Assert.Contains("Button x:Name=\"CloseButton\"", progressWindow);
-        Assert.Contains("Grid.Row=\"8\" Content=\"Close\"", progressWindow);
+        Assert.Contains("Button x:Name=\"CloseButton\" Grid.Column=\"3\"", progressWindow);
+        Assert.Contains("Path Data=\"M 2,2 L 10,10 M 10,2 L 2,10\"", progressWindow);
         Assert.Contains("Button x:Name=\"MinimizeButton\"", progressWindow);
         Assert.Contains("<Rectangle Width=\"10\" Height=\"1\" Fill=\"#ADBAC7\" />", progressWindow);
         Assert.DoesNotContain("Content=\"—\"", progressWindow);

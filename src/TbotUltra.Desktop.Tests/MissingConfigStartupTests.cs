@@ -7,7 +7,7 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class MissingConfigStartupTests
 {
     [Fact]
-    public void DesktopProcess_Exits_WhenConfigDirectoryIsMissing()
+    public void NonInteractiveDevLaunch_Exits_WhenConfigDirectoryIsMissing()
     {
         var sourceDirectory = AppContext.BaseDirectory;
         var executableName = "TbotUltra.Desktop.exe";
@@ -24,6 +24,9 @@ public sealed class MissingConfigStartupTests
             using var process = Process.Start(new ProcessStartInfo
             {
                 FileName = executablePath,
+                // The public EXE keeps its startup popup open on failure so a user can inspect it.
+                // This process-level failure check must use the non-interactive VBS launch path.
+                Arguments = "--dev-launcher",
                 WorkingDirectory = isolatedDirectory,
                 UseShellExecute = false,
                 CreateNoWindow = true,

@@ -13,7 +13,7 @@ Add-Type -AssemblyName PresentationFramework
 $xaml = @'
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Width="430" Height="196" WindowStartupLocation="CenterScreen"
+        Width="430" Height="162" WindowStartupLocation="CenterScreen"
         WindowStyle="None" ResizeMode="NoResize" AllowsTransparency="True"
         Background="Transparent" ShowInTaskbar="True" Topmost="True"
         FontFamily="Segoe UI">
@@ -62,6 +62,7 @@ $xaml = @'
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />
                     <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
                 </Grid.ColumnDefinitions>
                 <TextBlock Text="Starting Tbot Ultra" Foreground="#E6EDF3"
                            FontSize="17" FontWeight="SemiBold" />
@@ -74,6 +75,15 @@ $xaml = @'
                         BorderBrush="#30363D" BorderThickness="1"
                         ToolTip="Minimize">
                     <Rectangle Width="10" Height="1" Fill="#ADBAC7" />
+                </Button>
+                <Button x:Name="CloseButton" Grid.Column="3"
+                        Width="28" Height="24" Margin="6,-2,0,0"
+                        Background="#2D1213" Foreground="#FF7B72"
+                        BorderBrush="#B62324" BorderThickness="1"
+                        ToolTip="Cancel startup">
+                    <Path Data="M 2,2 L 10,10 M 10,2 L 2,10" Width="12" Height="12"
+                          Stroke="#FF7B72" StrokeThickness="1.4"
+                          StrokeStartLineCap="Round" StrokeEndLineCap="Round" />
                 </Button>
             </Grid>
             <ProgressBar x:Name="LaunchProgress" Grid.Row="2" Height="9"
@@ -115,10 +125,6 @@ $xaml = @'
                                FontSize="10" TextTrimming="CharacterEllipsis" />
                 </Grid>
             </Border>
-            <Button x:Name="CloseButton" Grid.Row="8" Content="Close"
-                    Width="78" Height="29" HorizontalAlignment="Left"
-                    Background="#2D1213" Foreground="#FF7B72"
-                    BorderBrush="#B62324" BorderThickness="1" />
             <Button x:Name="OpenLogButton" Grid.Row="8" Content="Open log"
                     Width="92" Height="29" HorizontalAlignment="Right" Visibility="Collapsed"
                     Background="#21262D" Foreground="#E6EDF3"
@@ -151,7 +157,8 @@ $script:logPath = $null
 $closeButton.Add_Click({ $window.Close() })
 $minimizeButton.Add_Click({ $window.WindowState = [Windows.WindowState]::Minimized })
 $dragHandle.Add_MouseLeftButtonDown({
-    if ($_.LeftButton -eq [Windows.Input.MouseButtonState]::Pressed -and $_.OriginalSource -ne $minimizeButton) {
+    if ($_.LeftButton -eq [Windows.Input.MouseButtonState]::Pressed -and
+        -not $minimizeButton.IsMouseOver -and -not $closeButton.IsMouseOver) {
         $window.DragMove()
     }
 })
@@ -192,7 +199,7 @@ $timer.Add_Tick({
         if ($value -lt 0) {
             if ($lines.Length -lt 3) { return }
             $window.Width = 520
-            $window.Height = 350
+            $window.Height = 320
             $errorPanel.Visibility = [Windows.Visibility]::Visible
             $openLogButton.Visibility = [Windows.Visibility]::Visible
             $errorDetails.Text = $lines[1]

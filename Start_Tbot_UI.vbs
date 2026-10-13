@@ -267,7 +267,7 @@ End Function
 Sub LaunchAndActivate(shellObject, executablePath)
     On Error Resume Next
 
-    shellObject.Run """" & executablePath & """", 1, False
+    shellObject.Run """" & executablePath & """ --dev-launcher", 1, False
 
     Dim attempts
     For attempts = 1 To 20

@@ -1,6 +1,6 @@
 # Engineering Notes
 
-Last updated: 2026-10-12
+Last updated: 2026-10-13
 
 Read this file before changing architecture, selectors, paths, browser behavior, persisted state, queueing,
 or server logic. Keep it short and current: durable rules belong here; detailed decisions belong in ADRs;
@@ -36,6 +36,8 @@ projects before opening the UI. Failed checks block new launches and stay in the
 the failing test and local log path; an already-running app is left untouched. A passing source stamp avoids repeating
 unchanged checks on every launch. The launcher opens its themed progress window before checking sources;
 build and test child processes remain hidden, and the window reports stages rather than an estimated elapsed-time percentage.
+The portable EXE owns its own themed startup popup and closes it as soon as MainWindow is rendered; it never
+runs developer build/tests. The VBS passes `--dev-launcher` so development starts do not show a second popup.
 
 Published artifacts belong under `artifacts/`, never beside source files.
 

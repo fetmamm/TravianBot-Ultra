@@ -15,7 +15,9 @@ namespace TbotUltra.Desktop;
 public partial class App : Application
 {
     private static ServiceProvider? _serviceProvider;
-    private bool _hasLoadedWindow;
+    private bool _hasLoadedMainWindow;
+    private bool _startupCanceled;
+    private StartupProgressWindow? _startupProgressWindow;
 
     /// <summary>
     /// Application-wide service provider. Populated in <see cref="OnStartup"/>
@@ -40,13 +42,79 @@ public partial class App : Application
             new RoutedEventHandler(OnAnyWindowLoaded));
 
         base.OnStartup(e);
+
+        // The development VBS already owns its launch progress window. The portable EXE has no
+        // launcher, so it shows the same visual during app initialization only.
+        if (e.Args.Contains("--dev-launcher", StringComparer.OrdinalIgnoreCase))
+        {
+            StartMainWindow(null);
+            return;
+        }
+
+        _startupProgressWindow = new StartupProgressWindow();
+        _startupProgressWindow.CancelRequested += (_, _) =>
+        {
+            _startupCanceled = true;
+            Shutdown(2);
+        };
+        MainWindow = _startupProgressWindow;
+        _startupProgressWindow.Show();
+        Dispatcher.BeginInvoke(
+            DispatcherPriority.Background,
+            new Action(() => StartMainWindow(_startupProgressWindow)));
+    }
+
+    private void StartMainWindow(StartupProgressWindow? progress)
+    {
+        if (_startupCanceled)
+        {
+            return;
+        }
+
+        progress?.SetProgress(24, "Loading settings and dashboard...");
+        try
+        {
+            var window = new TbotUltra.Desktop.MainWindow();
+            if (_startupCanceled)
+            {
+                window.Close();
+                return;
+            }
+
+            MainWindow = window;
+            if (progress is not null)
+            {
+                progress.SetProgress(90, "Opening Tbot Ultra...");
+                window.ContentRendered += (_, _) =>
+                {
+                    progress.CloseAfterMainWindowReady();
+                    _startupProgressWindow = null;
+                };
+            }
+            window.Show();
+        }
+        catch (Exception ex)
+        {
+            TryWriteUnhandledException("Startup", ex);
+            if (progress is null)
+            {
+                Shutdown(-1);
+                return;
+            }
+
+            var logPath = Path.Combine(AppContext.BaseDirectory, "logs", "desktop-unhandled.log");
+            progress.ShowFailure("Tbot Ultra could not start.", ex.Message, logPath);
+        }
     }
 
     private void OnAnyWindowLoaded(object sender, RoutedEventArgs e)
     {
         if (sender is Window window)
         {
-            _hasLoadedWindow = true;
+            if (window is TbotUltra.Desktop.MainWindow)
+            {
+                _hasLoadedMainWindow = true;
+            }
             ThemeChrome.TryEnableDarkTitleBar(window);
         }
     }
@@ -102,9 +170,17 @@ public partial class App : Application
         // StartupUri construction failures happen before MainWindow loads. Keeping the
         // exception handled without an explicit shutdown leaves an invisible dispatcher
         // process running indefinitely.
-        if (!_hasLoadedWindow)
+        if (!_hasLoadedMainWindow)
         {
-            Shutdown(-1);
+            if (_startupProgressWindow is not null)
+            {
+                var logPath = Path.Combine(AppContext.BaseDirectory, "logs", "desktop-unhandled.log");
+                _startupProgressWindow.ShowFailure("Tbot Ultra could not start.", e.Exception.Message, logPath);
+            }
+            else
+            {
+                Shutdown(-1);
+            }
         }
     }
 
