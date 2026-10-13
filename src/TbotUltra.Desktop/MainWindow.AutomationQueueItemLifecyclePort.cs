@@ -19,6 +19,9 @@ public partial class MainWindow
         public bool IsAllowedByAutomationSettings(QueueItem item) =>
             queueEligibility.IsAllowed(item);
 
+        public ValueTask<bool> HandleStorageMasterPlanGateAsync(QueueItem item, CancellationToken cancellationToken) =>
+            new(owner.HandleStorageMasterPlanGateAsync(item, cancellationToken));
+
         public IDisposable BeginExecutionScope(QueueItem item)
         {
             var account = owner._accountStore.ActiveAccountName();

@@ -199,7 +199,7 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
     {
         BuildingOptions.Clear();
         foreach (var item in BuildingCatalogService.GetFullCatalog(tribe)
-                     .Where(item => item.Gid is not 38 and not 39 and not 40)
+                     .Where(item => item.Gid != 40)
                      .OrderBy(item => CategorySortOrder(CategoryDisplayName(item.Gid, item.Category, item.IsSpecial)))
                      .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase))
         {

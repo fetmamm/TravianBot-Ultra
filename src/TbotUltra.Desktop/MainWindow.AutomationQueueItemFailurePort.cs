@@ -13,6 +13,9 @@ public partial class MainWindow
     {
         private readonly MainWindowAutomationQueueContext _queueContext = new(owner);
 
+        public ValueTask<bool> HandleStorageMasterPlanFailureAsync(QueueItem item) =>
+            new(owner.HandleStorageMasterPlanGateAsync(item, owner._loopController.AcquireSessionScopeToken()));
+
         public ValueTask<bool?> VerifySmithyMissingAsync(QueueItem item) =>
             new(owner.VerifySmithyMissingAsync(item));
         public bool MarkSucceeded(Guid itemId) => owner._botService.MarkQueueItemSucceeded(itemId);

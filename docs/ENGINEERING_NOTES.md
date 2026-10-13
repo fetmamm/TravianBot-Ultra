@@ -170,9 +170,11 @@ Published artifacts belong under `artifacts/`, never beside source files.
   upgrade to satisfy their duplicate threshold. Automatic prerequisite repair must prefer the slot reserved by a
   pending matching upgrade and must not steal the parent construct's slot; an actually occupied target may use the
   existing safe fallback with dependent queue rows rebound to the effective slot. The Official internal-building
-  set is Warehouse, Granary, Cranny, Great Warehouse, and Great Granary; the Great variants remain unavailable until
-  their plan/WW eligibility can be
-  verified without guessing. Multi-village template queueing never navigates to fill missing
+  set is Warehouse, Granary, Cranny, Great Warehouse, and Great Granary. Great Warehouse/Great Granary require an
+  explicit per-village Storage Master Plan toggle (default OFF); the worker verifies the active village effect on
+  that village's Treasury page before execution. An inconclusive read defers without deleting work; a confirmed
+  inactive effect turns the toggle off and removes only that village's pending Great storage work. World Wonder
+  remains unavailable. Multi-village template queueing never navigates to fill missing
   snapshots; unavailable targets remain unselected, existing active village queue work is projected first, storage
   additions are confirmed once across all selected villages, and the final cross-village insert is atomic.
 - New settings require the complete pipeline: model, defaults, load/save, ViewModel, UI, and tests.

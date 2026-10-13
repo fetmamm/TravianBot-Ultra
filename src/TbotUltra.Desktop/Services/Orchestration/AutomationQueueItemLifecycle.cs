@@ -15,6 +15,8 @@ internal readonly record struct QueueItemGuardResult(
 internal interface IAutomationQueueItemLifecyclePort
 {
     bool IsAllowedByAutomationSettings(QueueItem item);
+    ValueTask<bool> HandleStorageMasterPlanGateAsync(QueueItem item, CancellationToken cancellationToken) =>
+        ValueTask.FromResult(false);
     IDisposable BeginExecutionScope(QueueItem item);
     BotOptions LoadCurrentOptions();
     void MarkDueConstructionForPreSleepFill(QueueItem item);
@@ -90,6 +92,11 @@ internal sealed class AutomationQueueItemLifecycle(
                 port.Log(
                     $"{logPrefix} SKIP task={item.TaskName}, id={item.Id} "
                     + "because automation was disabled for this task before execution.");
+                return true;
+            }
+
+            if (await port.HandleStorageMasterPlanGateAsync(item, cancellationToken))
+            {
                 return true;
             }
 

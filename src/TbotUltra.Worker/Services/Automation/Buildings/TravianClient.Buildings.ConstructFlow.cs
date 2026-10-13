@@ -817,11 +817,6 @@ public sealed partial class TravianClient : IBuildingClient
 
     private static void EnsureBuildingCanBeConstructed(VillageStatus status, int gid, string name)
     {
-        if (gid is 38 or 39)
-        {
-            throw new InvalidOperationException($"{name} requires building plans and is not supported yet.");
-        }
-
         var existing = status.Buildings
             .Where(building => building.Gid == gid || BuildingNames.Same(building.Name, name))
             .ToList();

@@ -10,6 +10,18 @@ public sealed class BuildingTemplatePlannerTests
 {
     private readonly BuildingTemplatePlanner _planner = new();
 
+    [Theory]
+    [InlineData(38, "Great Warehouse")]
+    [InlineData(39, "Great Granary")]
+    public void Plan_GreatStorageWithPrerequisites_ProducesActions(int gid, string name)
+    {
+        var status = Status("Gauls", Building(19, "Main Building", 10, 15));
+        var result = _planner.Plan([Row(gid, name, 1)], status, 1, 10);
+
+        Assert.Empty(result.Errors);
+        Assert.Contains(result.Actions, action => action.Gid == gid);
+    }
+
     [Fact]
     public void Plan_StableBeforePrerequisites_ReturnsError()
     {

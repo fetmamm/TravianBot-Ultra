@@ -327,6 +327,79 @@ public sealed partial class VillageSettingsStore
         }
     }
 
+    public bool GetStorageMasterPlan(VillageKeyInfo village)
+    {
+        if (village is null || string.IsNullOrWhiteSpace(village.Key))
+        {
+            return false;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            return FindRecordByVillage(village)?.StorageMasterPlanEnabled == true;
+        }
+    }
+
+    public bool IsStorageMasterPlanEnabledByKey(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return false;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            return _cache.TryGetValue(NormalizeKey(key), out var record)
+                && record.StorageMasterPlanEnabled == true;
+        }
+    }
+
+    public void SetStorageMasterPlan(VillageKeyInfo village, bool enabled)
+    {
+        if (village is null || string.IsNullOrWhiteSpace(village.Key))
+        {
+            return;
+        }
+
+        lock (FileIoLock)
+        {
+            EnsureCacheLoaded();
+            var record = FindRecordByVillage(village);
+            if (record is not null)
+            {
+                if ((record.StorageMasterPlanEnabled ?? false) == enabled)
+                {
+                    return;
+                }
+
+                record.StorageMasterPlanEnabled = enabled;
+                record.Name = village.Name;
+                record.LastSeenUtc = DateTimeOffset.UtcNow;
+            }
+            else
+            {
+                var key = CanonicalKey(village);
+                _cache[key] = new VillageSettingRecord
+                {
+                    Key = key,
+                    Name = village.Name,
+                    CoordX = village.CoordX,
+                    CoordY = village.CoordY,
+                    IsCapital = village.IsCapital,
+                    IsEnabled = DefaultAutomationEnabled,
+                    EnabledGroups = CreateDefaultEnabledGroups(),
+                    StorageMasterPlanEnabled = enabled,
+                    LastSeenUtc = DateTimeOffset.UtcNow,
+                };
+            }
+
+            Save();
+            _log?.Invoke($"Village '{village.Name}' Storage Master Plan set to {(enabled ? "enabled" : "disabled")}.");
+        }
+    }
+
     /// <summary>Sets a village's enabled automation-loop group keys and persists it (upserts the record).</summary>
     public void SetEnabledGroups(VillageKeyInfo village, IReadOnlyList<string> groups)
     {

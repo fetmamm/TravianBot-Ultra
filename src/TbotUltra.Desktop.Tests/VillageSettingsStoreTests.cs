@@ -17,6 +17,24 @@ public sealed class VillageSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void StorageMasterPlan_DefaultsOffAndPersistsPerAccount()
+    {
+        var village = new Info("xy:4|7", "New village", 4, 7, IsCapital: false);
+        var store = CreateStore();
+        store.Merge([village]);
+        Assert.False(store.GetStorageMasterPlan(village));
+
+        store.SetStorageMasterPlan(village, true);
+        Assert.True(CreateStore().GetStorageMasterPlan(village));
+
+        _activeAccount = "bob";
+        Assert.False(CreateStore().GetStorageMasterPlan(village));
+        _activeAccount = "alice";
+        store.SetStorageMasterPlan(village, false);
+        Assert.False(CreateStore().GetStorageMasterPlan(village));
+    }
+
+    [Fact]
     public void Merge_OnlyInitialVillage_AutoEnabledWithConstructFaster()
     {
         var store = CreateStore();

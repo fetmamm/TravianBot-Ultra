@@ -257,6 +257,11 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.ReadBuildingsStatusAsync(options, log, null, cancellationToken);
     }
 
+    public Task<bool?> VerifyStorageMasterPlanAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+    {
+        return _taskRunner.VerifyStorageMasterPlanAsync(options, log, null, cancellationToken);
+    }
+
     public Task<VillageStatus> ReadCurrentBuildingOverviewStatusAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.ReadCurrentBuildingOverviewStatusAsync(options, log, null, cancellationToken);

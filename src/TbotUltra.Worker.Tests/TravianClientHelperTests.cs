@@ -896,7 +896,7 @@ public sealed class TravianClientHelperTests
     }
 
     [Fact]
-    public void EnsureBuildingCanBeConstructed_BlocksGreatWarehouseWithoutBuildingPlans()
+    public void EnsureBuildingCanBeConstructed_GreatWarehouseUsesNormalPrerequisites()
     {
         var status = new VillageStatus(
             ActiveVillage: "Capital",
@@ -906,8 +906,7 @@ public sealed class TravianClientHelperTests
             Buildings: [],
             BuildQueue: []);
 
-        var ex = Assert.Throws<TargetInvocationException>(() => InvokeEnsureBuildingCanBeConstructed(status, 38, "Great Warehouse"));
-        Assert.Equal("Great Warehouse requires building plans and is not supported yet.", ex.InnerException?.Message);
+        InvokeEnsureBuildingCanBeConstructed(status, 38, "Great Warehouse");
     }
 
     [Theory]

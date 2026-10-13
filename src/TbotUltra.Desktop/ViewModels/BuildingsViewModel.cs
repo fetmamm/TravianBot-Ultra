@@ -22,6 +22,7 @@ public sealed class BuildingsViewModel : BaseViewModel
     private readonly RelayCommand _openQueueCommand;
     private readonly RelayCommand _templatesCommand;
     private readonly RelayCommand _showSlotsCommand;
+    private readonly RelayCommand _storageMasterPlanCommand;
     private readonly RelayCommand _demolishOverviewCommand;
     private readonly RelayCommand _stopDemolitionCommand;
     private readonly RelayCommand<BuildingSlotRow> _slotSelectedCommand;
@@ -41,6 +42,7 @@ public sealed class BuildingsViewModel : BaseViewModel
         _openQueueCommand = new RelayCommand(() => OpenQueueRequested?.Invoke());
         _templatesCommand = new RelayCommand(() => TemplatesRequested?.Invoke());
         _showSlotsCommand = new RelayCommand(() => ShowSlotsRequested?.Invoke());
+        _storageMasterPlanCommand = new RelayCommand(() => StorageMasterPlanRequested?.Invoke());
         _demolishOverviewCommand = new RelayCommand(() => DemolishOverviewRequested?.Invoke());
         _stopDemolitionCommand = new RelayCommand(() => StopDemolitionRequested?.Invoke());
         _slotSelectedCommand = new RelayCommand<BuildingSlotRow>(row => SlotSelected?.Invoke(row));
@@ -54,6 +56,7 @@ public sealed class BuildingsViewModel : BaseViewModel
     public ICommand OpenQueueCommand => _openQueueCommand;
     public ICommand TemplatesCommand => _templatesCommand;
     public ICommand ShowSlotsCommand => _showSlotsCommand;
+    public ICommand StorageMasterPlanCommand => _storageMasterPlanCommand;
     public ICommand DemolishOverviewCommand => _demolishOverviewCommand;
     public ICommand StopDemolitionCommand => _stopDemolitionCommand;
     public ICommand SlotSelectedCommand => _slotSelectedCommand;
@@ -64,6 +67,7 @@ public sealed class BuildingsViewModel : BaseViewModel
     public event Action? OpenQueueRequested;
     public event Action? TemplatesRequested;
     public event Action? ShowSlotsRequested;
+    public event Action? StorageMasterPlanRequested;
     public event Action? DemolishOverviewRequested;
     public event Action? StopDemolitionRequested;
     public event Action<BuildingSlotRow>? SlotSelected;

@@ -10,6 +10,7 @@ namespace TbotUltra.Desktop.Services.Orchestration;
 
 internal interface IAutomationQueueItemFailurePort
 {
+    ValueTask<bool> HandleStorageMasterPlanFailureAsync(QueueItem item) => ValueTask.FromResult(false);
     ValueTask<bool?> VerifySmithyMissingAsync(QueueItem item);
     bool MarkSucceeded(Guid itemId);
     bool DisableTroopsGroupForVillage(QueueItem item, out string blockedVillageName);
@@ -82,6 +83,11 @@ internal sealed class AutomationQueueItemFailure(
         Stopwatch timer,
         AutomationRunMode mode)
     {
+        if (await port.HandleStorageMasterPlanFailureAsync(item))
+        {
+            return true;
+        }
+
         if (await TryHandleTroopsBlockedExecutionAsync(item, ex, logPrefix))
         {
             return true;

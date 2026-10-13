@@ -50,6 +50,18 @@ public sealed class AutomationQueueItemLifecycleTests
     }
 
     [Fact]
+    public async Task StorageMasterPlanGate_WhenHandled_DoesNotCallWorker()
+    {
+        var port = new InMemoryQueueItemLifecyclePort { StorageMasterPlanHandled = true };
+
+        var shouldContinue = await CreateLifecycle(port).ExecuteAsync(
+            CreateItem(), new BotOptions(), "[LOOP 1]", AutomationRunMode.ContinuousLoop, default);
+
+        Assert.True(shouldContinue);
+        Assert.Equal(["scope", "running", "storage-plan-gate", "finalize"], port.Trace);
+    }
+
+    [Fact]
     public async Task Cancellation_DefersItemAndStopsPass()
     {
         var port = new InMemoryQueueItemLifecyclePort
@@ -247,10 +259,19 @@ public sealed class AutomationQueueItemLifecycleTests
         public QueueItemGuardResult GuardResult { get; init; } = QueueItemGuardResult.NotHandled;
         public Exception? WorkerException { get; init; }
         public bool FailureOutcome { get; init; }
+        public bool StorageMasterPlanHandled { get; init; }
         public bool Demolition { get; init; }
         public bool SimulateVerifiedVillageDuringWorker { get; init; }
         public TimeSpan? DeferredDelay { get; private set; }
         public bool IsAllowedByAutomationSettings(QueueItem item) => Allowed;
+        public ValueTask<bool> HandleStorageMasterPlanGateAsync(QueueItem item, CancellationToken cancellationToken)
+        {
+            if (StorageMasterPlanHandled)
+            {
+                Trace.Add("storage-plan-gate");
+            }
+            return ValueTask.FromResult(StorageMasterPlanHandled);
+        }
         public IDisposable BeginExecutionScope(QueueItem item)
         {
             Trace.Add("scope");

@@ -124,6 +124,7 @@ public partial class MainWindow
         var candidateRows = _buildingRows
             .Where(row => row.SlotId is >= 19 and <= 43)
             .Where(row => (row.IsOccupied && !row.IsMaxLevel) || row.HasPendingConstruct)
+            .Where(row => row.UpgradeGid is not 38 and not 39 || IsStorageMasterPlanEnabled(status))
             .GroupBy(row => row.SlotId)
             .Select(group => group.First())
             .OrderBy(row => row.SlotId)
@@ -318,6 +319,12 @@ public partial class MainWindow
 
         foreach (var action in selection.Plan.Actions)
         {
+            if (action.Gid is 38 or 39
+                && !_villageSettingsStore.IsStorageMasterPlanEnabledByKey(GetVillageKey(selection.Village)))
+            {
+                failure = $"Enable Storage Master Plan for {selection.Village.Name} before queuing {action.DisplayName}.";
+                return false;
+            }
             var payload = new Dictionary<string, string>(action.Payload, StringComparer.OrdinalIgnoreCase);
             ApplyVillageToPayload(payload, selection.Village);
             var request = new QueueItemCreateRequest(action.TaskName, payload, 0, 3);
@@ -666,6 +673,13 @@ public partial class MainWindow
             return false;
         }
 
+        if (row.UpgradeGid is 38 or 39
+            && (ResolveSelectedVillageBuildingStatus() is not { } status || !IsStorageMasterPlanEnabled(status)))
+        {
+            BuildingsInfoTextBlock.Text = "Enable Storage Master Plan for this village before upgrading Great storage.";
+            return false;
+        }
+
         var currentLevel = row.UpgradeBaseLevel;
         var maxLevel = row.UpgradeGid is int gid ? BuildingCatalogService.MaxLevelFor(gid) : 40;
         if (currentLevel >= maxLevel)
@@ -811,13 +825,12 @@ public partial class MainWindow
                 continue;
             }
 
-            // World Wonder, Great Warehouse, Great Granary require building plans — not yet supported.
-            if (entry.Gid is 38 or 39 or 40)
+            if (entry.Gid == 40 || ((entry.Gid is 38 or 39) && !IsStorageMasterPlanEnabled(sourceStatus)))
             {
                 option.Availability = BuildingConstructAvailability.Unavailable;
                 option.UnavailableReason = entry.Gid == 40
                     ? "World Wonder requires building plans"
-                    : $"{entry.Name} requires building plans";
+                    : $"Enable Storage Master Plan for this village to build {entry.Name}";
                 result.Add(option);
                 continue;
             }
@@ -912,6 +925,12 @@ public partial class MainWindow
     private bool CanQueueConstructBuilding(int slotId, BuildingCatalogOption selectedBuilding, VillageStatus sourceStatus, out string reason)
     {
         reason = string.Empty;
+        if ((selectedBuilding.Gid is 38 or 39) && !IsStorageMasterPlanEnabled(sourceStatus))
+        {
+            reason = $"Enable Storage Master Plan for this village to build {selectedBuilding.Name}.";
+            return false;
+        }
+
         var projectedStatus = BuildProjectedBuildingStatus(sourceStatus);
         if (!BuildingCatalogService.CanConstructInVillage(
                 selectedBuilding.Gid,
@@ -1105,6 +1124,13 @@ public partial class MainWindow
         if (row is null || !row.CanQueueUpgrade)
         {
             BuildingsInfoTextBlock.Text = $"Slot {slotId} is empty.";
+            return false;
+        }
+
+        if (row.UpgradeGid is 38 or 39
+            && (ResolveSelectedVillageBuildingStatus() is not { } status || !IsStorageMasterPlanEnabled(status)))
+        {
+            BuildingsInfoTextBlock.Text = "Enable Storage Master Plan for this village before upgrading Great storage.";
             return false;
         }
 

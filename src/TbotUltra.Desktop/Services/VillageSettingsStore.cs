@@ -55,6 +55,8 @@ public sealed partial class VillageSettingsStore
         public bool? NpcTrade { get; set; }
         // Whether construct-faster bonus videos may run in this village. Account-wide master toggle still gates it.
         public bool? ConstructFasterEnabled { get; set; }
+        // User-declared eligibility for Great Warehouse/Great Granary. Missing values are OFF.
+        public bool? StorageMasterPlanEnabled { get; set; }
         public bool? HeroResourcesEnabled { get; set; }
         public bool? HeroResourceUseConstruction { get; set; }
         public bool? HeroResourceUseSmithy { get; set; }
@@ -267,6 +269,7 @@ public sealed partial class VillageSettingsStore
         winner.EnabledGroups ??= loser.EnabledGroups;
         winner.NpcTrade ??= loser.NpcTrade;
         winner.ConstructFasterEnabled ??= loser.ConstructFasterEnabled;
+        winner.StorageMasterPlanEnabled ??= loser.StorageMasterPlanEnabled;
         winner.HeroResourcesEnabled ??= loser.HeroResourcesEnabled;
         winner.HeroResourceUseConstruction ??= loser.HeroResourceUseConstruction;
         winner.HeroResourceUseSmithy ??= loser.HeroResourceUseSmithy;

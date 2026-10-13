@@ -735,6 +735,7 @@ public partial class MainWindow : Window
         _buildingsViewModel.OpenQueueRequested += OpenQueueFromBuildings;
         _buildingsViewModel.TemplatesRequested += OnBuildingTemplatesClicked;
         _buildingsViewModel.ShowSlotsRequested += OnShowBuildingSlotsClicked;
+        _buildingsViewModel.StorageMasterPlanRequested += OpenStorageMasterPlanSettingsWindow;
         _buildingsViewModel.DemolishOverviewRequested += OnDemolishOverviewClicked;
         _buildingsViewModel.StopDemolitionRequested += OnStopDemolitionClicked;
         _buildingsViewModel.SlotSelected += HandleBuildingSlotSelection;

@@ -484,6 +484,28 @@ public sealed partial class BotTaskRunner
         return status ?? throw new InvalidOperationException("Could not read buildings status.");
     }
 
+    public async Task<bool?> VerifyStorageMasterPlanAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        bool? active = null;
+        await ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            async client =>
+            {
+                await client.LoginAsync(cancellationToken);
+                await TrySwitchToTargetVillageAsync(client, options, log, cancellationToken);
+                active = await client.VerifyStorageMasterPlanAsync(cancellationToken);
+            });
+        return active;
+    }
+
     public async Task<VillageStatus> ReadCurrentBuildingOverviewStatusAsync(
         BotOptions options,
         Action<string> log,
