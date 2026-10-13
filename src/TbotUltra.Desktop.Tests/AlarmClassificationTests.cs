@@ -207,6 +207,21 @@ public sealed class AlarmClassificationTests
             "[village-membership] profile verification complete: villages=8 removedConfirmed=true."));
     }
 
+    [Fact]
+    public void ActiveStorageMasterPlanVerification_IsNotAlarm()
+    {
+        Assert.False(MainWindow.IsAlarmMessage(
+            "[storage-master-plan] Treasury slot 33 verification: active. [context account='account' task='upgrade_building_to_level' village='GAPP' xy='-122|83']"));
+    }
+
+    [Theory]
+    [InlineData("inactive")]
+    [InlineData("unknown")]
+    public void UnsuccessfulStorageMasterPlanVerification_RemainsAlarm(string status)
+    {
+        Assert.True(MainWindow.IsAlarmMessage($"[storage-master-plan] Treasury slot 33 verification: {status}."));
+    }
+
     [Theory]
     [InlineData("[village-membership] live sidebar differs from the verified UI list (2/2); blocking automation until profile verification completes.")]
     [InlineData("[village-membership] profile verification returned 2 village(s).")]

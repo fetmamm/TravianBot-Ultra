@@ -644,6 +644,14 @@ public partial class MainWindow
             return false;
         }
 
+        // An active village effect is a successful Treasury check, not a failed verification.
+        if (Regex.IsMatch(message,
+                @"^\[storage-master-plan\] Treasury slot \d+ verification: active\.(?: \[context [^\r\n]*\])?$",
+                RegexOptions.IgnoreCase))
+        {
+            return false;
+        }
+
         // Bonus-video ad-network diagnostics ([browser-video:network]) are sanitized telemetry: per-host
         // block reasons (e.g. ERR_BLOCKED_BY_ORB from our own ad-domain route block) and aggregate
         // ok/no-content/http-errors/request-failures counters. They are expected noise, never an actionable
