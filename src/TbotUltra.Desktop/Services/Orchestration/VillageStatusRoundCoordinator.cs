@@ -12,6 +12,8 @@ internal readonly record struct VillageStatusRoundResult(
 
 internal interface IVillageStatusRoundPort
 {
+    bool StopRequested { get; }
+
     ValueTask PrepareAsync(CancellationToken cancellationToken);
 
     ValueTask<VillageStatusRoundVisitResult> VisitAsync(
@@ -44,12 +46,21 @@ internal sealed class VillageStatusRoundCoordinator(Func<int, int, int>? nextRan
             return new VillageStatusRoundResult(Completed: false, VisitedVillages: 0);
         }
 
+        if (port.StopRequested)
+        {
+            return new VillageStatusRoundResult(Completed: false, VisitedVillages: 0);
+        }
+
         var ordered = preserveOrder ? villages : Shuffle(villages);
         await port.PrepareAsync(cancellationToken).ConfigureAwait(false);
         var inboxStatusChecked = false;
         for (var index = 0; index < ordered.Count; index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (port.StopRequested)
+            {
+                return new VillageStatusRoundResult(Completed: false, VisitedVillages: index);
+            }
             port.UpdateRoundActivity(startIndex + index + 1, totalCount ?? ordered.Count);
             var visit = await port.VisitAsync(
                     ordered[index],
@@ -65,6 +76,11 @@ internal sealed class VillageStatusRoundCoordinator(Func<int, int, int>? nextRan
             }
 
             onVisited?.Invoke(ordered[index]);
+
+            if (port.StopRequested)
+            {
+                return new VillageStatusRoundResult(Completed: false, VisitedVillages: index + 1);
+            }
 
             if (index < ordered.Count - 1)
             {

@@ -147,6 +147,11 @@ public partial class MainWindow
         VillageStatus status,
         CancellationToken cancellationToken)
     {
+        if (IsContinuousAutomationStopRequested())
+        {
+            return (status, false, 0);
+        }
+
         await TryQueueAutoCollectTasksAsync(options, status);
         await TryQueueAutoCollectDailyQuestsAsync(options, status);
 
@@ -182,6 +187,10 @@ public partial class MainWindow
         foreach (var item in readyItems)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (IsContinuousAutomationStopRequested())
+            {
+                return (status, false, attempts);
+            }
             AppendLog(
                 $"[village-scan] collecting detected rewards in '{village.Name}': "
                 + $"task={item.TaskName}.");
@@ -190,6 +199,10 @@ public partial class MainWindow
                 options.ActionPacingTaskMaxSeconds,
                 cancellationToken,
                 "Village scan: before reward collection");
+            if (IsContinuousAutomationStopRequested())
+            {
+                return (status, false, attempts);
+            }
             RecordVillageBatchAttempt(item, "village-scan");
             attempts++;
             if (!await _automationDesk.ExecuteQueueItemAsync(
@@ -203,6 +216,10 @@ public partial class MainWindow
             }
 
             MarkContinuousBrowserActivity(options);
+            if (IsContinuousAutomationStopRequested())
+            {
+                return (status, false, attempts);
+            }
             await ApplyPostTaskCooldownAsync(item, options, cancellationToken);
         }
 
@@ -528,7 +545,8 @@ public partial class MainWindow
                             targetVillage.IsCapital,
                             targetVillage.CoordX,
                             targetVillage.CoordY),
-                        token));
+                        token),
+                IsContinuousAutomationStopRequested);
             var visit = await _villageStatusReactionCoordinator.RunAsync(
                 village,
                 options.VillageStatusSweepDorf1Enabled || postLoginRound,

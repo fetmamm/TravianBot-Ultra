@@ -58,9 +58,25 @@ public sealed class VillageStatusRoundCoordinatorTests
         Assert.Equal(0, port.DelayCount);
     }
 
+    [Fact]
+    public async Task RunAsync_ManualSleepDuringVisit_DoesNotVisitAnotherVillage()
+    {
+        var coordinator = new VillageStatusRoundCoordinator((_, max) => max - 1);
+        var port = new RecordingPort(requestStopAfterVisit: 1);
+
+        var result = await coordinator.RunAsync(
+            [new("a", "A", null), new("b", "B", null)], port, CancellationToken.None);
+
+        Assert.False(result.Completed);
+        Assert.Equal(1, result.VisitedVillages);
+        Assert.Equal(["A"], port.VisitedNames);
+        Assert.Equal(0, port.DelayCount);
+    }
+
     private sealed class RecordingPort(
         bool markInboxCheckedOnFirstVisit = false,
-        int? stopAfterVisit = null) : IVillageStatusRoundPort
+        int? stopAfterVisit = null,
+        int? requestStopAfterVisit = null) : IVillageStatusRoundPort
     {
         internal int PrepareCount { get; private set; }
 
@@ -71,6 +87,7 @@ public sealed class VillageStatusRoundCoordinatorTests
         internal List<bool> InboxWasAlreadyChecked { get; } = [];
 
         internal List<(int Current, int Total)> Progress { get; } = [];
+        public bool StopRequested { get; private set; }
 
         public void UpdateRoundActivity(int villageNumber, int villageCount) =>
             Progress.Add((villageNumber, villageCount));
@@ -89,6 +106,7 @@ public sealed class VillageStatusRoundCoordinatorTests
             CancellationToken cancellationToken)
         {
             VisitedNames.Add(village.Name);
+            StopRequested = villageNumber == requestStopAfterVisit;
             InboxWasAlreadyChecked.Add(inboxStatusChecked);
             var shouldContinue = stopAfterVisit is null || villageNumber < stopAfterVisit.Value;
             return ValueTask.FromResult(new VillageStatusRoundVisitResult(

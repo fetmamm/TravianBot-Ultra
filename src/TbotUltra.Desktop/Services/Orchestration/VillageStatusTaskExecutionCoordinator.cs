@@ -5,6 +5,8 @@ namespace TbotUltra.Desktop.Services.Orchestration;
 
 internal interface IVillageStatusTaskExecutionPort
 {
+    bool StopRequested { get; }
+
     string? ActiveVillageKey { get; }
     string? ActiveVillageName { get; }
     string? ResolveCanonicalVillageKey(string? villageKey);
@@ -44,6 +46,11 @@ internal sealed class VillageStatusTaskExecutionCoordinator(
         while (true)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            if (port.StopRequested)
+            {
+                port.Log("[village-scan] graceful stop requested; no further task will start.");
+                return false;
+            }
             var urgent = queueSelection.SelectUrgent(options, attemptedItemIds, postLoginRound);
             var next = urgent ?? queueSelection.SelectVillageStatusItem(villageKey, attemptedItemIds);
             if (next is null)
@@ -101,6 +108,11 @@ internal sealed class VillageStatusTaskExecutionCoordinator(
             }
 
             await port.DelayBeforeTaskAsync(options, cancellationToken);
+            if (port.StopRequested)
+            {
+                port.Log("[village-scan] graceful stop requested before task start.");
+                return false;
+            }
             RecordVillageBatchAttempt(next);
             var shouldContinue = await queueItemLifecycle.ExecuteAsync(
                 next,
@@ -112,7 +124,7 @@ internal sealed class VillageStatusTaskExecutionCoordinator(
                 options.ContinuousKeepAliveEnabled,
                 options.ContinuousKeepAliveMinMinutes,
                 options.ContinuousKeepAliveMaxMinutes);
-            if (!shouldContinue)
+            if (!shouldContinue || port.StopRequested)
             {
                 return false;
             }

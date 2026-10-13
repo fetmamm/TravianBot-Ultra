@@ -12,6 +12,22 @@ public sealed class ContinuousAutomationPassTests
         new(2026, 9, 13, 12, 0, 0, TimeSpan.Zero);
 
     [Fact]
+    public async Task StopRequestedDuringVillageRound_SkipsPostRoundWork()
+    {
+        var port = new InMemoryContinuousAutomationPassPort { StopAfterVillageRound = true };
+        var pass = new ContinuousAutomationPass(port, new FixedTimeProvider(Now));
+
+        var result = await pass.ReadAsync(
+            new AutomationRunContext("account-1", new Uri("https://ts1.x1.example/"), 7),
+            CancellationToken.None);
+
+        Assert.Empty(result.Candidates);
+        Assert.Equal(1, port.VillageStatusRoundCount);
+        Assert.Equal(0, port.RuntimeItemsCount);
+        Assert.DoesNotContain("select", port.Trace);
+    }
+
+    [Fact]
     public async Task ReadyCandidate_IsPublishedAfterPreparation()
     {
         var item = new QueueItem
@@ -426,6 +442,8 @@ public sealed class ContinuousAutomationPassTests
         public DateTimeOffset? RequestedSmartSleepDeadline { get; private set; }
         public BotOptions Options { get; set; } = new() { LoopIntervalSeconds = 60 };
         public bool SmartSleepRequestAccepted { get; init; }
+        public bool StopAfterVillageRound { get; init; }
+        public bool StopRequested { get; private set; }
         public List<string> Trace { get; } = [];
         public ContinuousAutomationDeadlineSnapshot Deadlines { get; init; } = new(
             Now.AddMinutes(1), null, null, [], SmartSleepDeadlinePolicy.AllGroups.ToHashSet());
@@ -480,6 +498,7 @@ public sealed class ContinuousAutomationPassTests
         {
             Trace.Add("village-status-round");
             VillageStatusRoundCount++;
+            StopRequested = StopAfterVillageRound;
             return ValueTask.CompletedTask;
         }
         public ValueTask EnsureConstructionStatusAsync(BotOptions options, CancellationToken cancellationToken) => ValueTask.CompletedTask;

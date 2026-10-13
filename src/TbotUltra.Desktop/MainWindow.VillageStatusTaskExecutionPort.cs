@@ -9,6 +9,7 @@ public partial class MainWindow
     private sealed class MainWindowVillageStatusTaskExecutionPort(MainWindow owner)
         : IVillageStatusTaskExecutionPort
     {
+        public bool StopRequested => owner.IsContinuousAutomationStopRequested();
         public string? ActiveVillageKey => owner._activeWorkingVillageKey;
         public string? ActiveVillageName => owner._activeWorkingVillageName;
         public string? ResolveCanonicalVillageKey(string? villageKey) =>

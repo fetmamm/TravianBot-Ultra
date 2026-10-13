@@ -61,6 +61,7 @@ public sealed class ContinuousVillageStatusRoundTests
         public int DelayCount { get; private set; }
         public string? ActiveAccountName => "account-1";
         public string? ActiveVillageKey { get; init; }
+        public bool StopRequested => false;
         public DateTimeOffset GetNextRoundUtc() => NextRoundUtc;
         public ValueTask<bool> EnsureVillageMembershipVerifiedAsync(
             BotOptions options,

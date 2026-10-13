@@ -16,6 +16,8 @@ internal sealed record ContinuousAutomationDeadlineSnapshot(
 
 internal interface IContinuousAutomationPassPort
 {
+    bool StopRequested { get; }
+
     BotOptions LoadOptions();
     bool TryScheduleAutomaticProxyRecovery(BotOptions options);
     DateTimeOffset VillageMembershipVerificationNotBeforeUtc { get; }
@@ -74,6 +76,11 @@ internal sealed class ContinuousAutomationPass : IAutomationModePassPort
         var stopwatch = Stopwatch.StartNew();
         try
         {
+            if (_port.StopRequested)
+            {
+                return new AutomationStateSnapshot([], IsComplete: true);
+            }
+
             if (_port.TryScheduleAutomaticProxyRecovery(options))
             {
                 return new AutomationStateSnapshot([], IsComplete: true);
@@ -99,6 +106,11 @@ internal sealed class ContinuousAutomationPass : IAutomationModePassPort
                         : now.AddSeconds(30));
             }
 
+            if (_port.StopRequested)
+            {
+                return new AutomationStateSnapshot([], IsComplete: true);
+            }
+
             var immediateWorkRequested = _runtime.ConsumeImmediateWorkRequest();
             var loginRoundPending = _runtime.HasPendingLoginRound;
             if (!immediateWorkRequested && !loginRoundPending)
@@ -112,6 +124,10 @@ internal sealed class ContinuousAutomationPass : IAutomationModePassPort
             }
 
             await _port.HonorPendingVillageSwitchAsync(options, cancellationToken);
+            if (_port.StopRequested)
+            {
+                return new AutomationStateSnapshot([], IsComplete: true);
+            }
             if (loginRoundPending)
             {
                 await _runtime.EnsureRuntimeItemsAsync(options, cancellationToken);
@@ -129,6 +145,10 @@ internal sealed class ContinuousAutomationPass : IAutomationModePassPort
             {
                 var forceVillageStatusRound = _runtime.ConsumeForceVillageStatusRoundRequest();
                 await _runtime.MaybeRunVillageStatusRoundAsync(options, cancellationToken, forceVillageStatusRound);
+                if (_port.StopRequested)
+                {
+                    return new AutomationStateSnapshot([], IsComplete: true);
+                }
                 if (_runtime.HasPendingLoginRound)
                 {
                     _port.Log("[village-round] round paused before completion; ordinary tasks remain deferred.");
@@ -141,9 +161,21 @@ internal sealed class ContinuousAutomationPass : IAutomationModePassPort
             }
 
             await _port.EnsureConstructionStatusAsync(options, cancellationToken);
+            if (_port.StopRequested)
+            {
+                return new AutomationStateSnapshot([], IsComplete: true);
+            }
             await _port.MaybeAnalyzeNewVillageAsync(options, cancellationToken);
+            if (_port.StopRequested)
+            {
+                return new AutomationStateSnapshot([], IsComplete: true);
+            }
             await _runtime.EnsureRuntimeItemsAsync(options, cancellationToken);
             await _port.MaybeCheckInboxAsync(cancellationToken);
+            if (_port.StopRequested)
+            {
+                return new AutomationStateSnapshot([], IsComplete: true);
+            }
 
             var next = _runtime.SelectNextQueueItem();
             if (next is not null)
@@ -160,6 +192,10 @@ internal sealed class ContinuousAutomationPass : IAutomationModePassPort
                 _runtime.PrioritizeDeadlineWorkOnWake = false;
                 var forceVillageStatusRound = _runtime.ConsumeForceVillageStatusRoundRequest();
                 await _runtime.MaybeRunVillageStatusRoundAsync(options, cancellationToken, forceVillageStatusRound);
+                if (_port.StopRequested)
+                {
+                    return new AutomationStateSnapshot([], IsComplete: true);
+                }
                 if (_runtime.HasPendingLoginRound)
                     return new AutomationStateSnapshot([], NextWakeAt: _timeProvider.GetUtcNow().AddSeconds(10));
                 await _runtime.EnsureRuntimeItemsAsync(options, cancellationToken);

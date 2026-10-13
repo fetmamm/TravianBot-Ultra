@@ -59,10 +59,26 @@ public sealed class VillageStatusReactionCoordinatorTests
         Assert.Equal(["read", "publish:1", "collect:1"], port.Calls);
     }
 
-    private sealed class RecordingPort(bool collectionShouldContinue = true)
+    [Fact]
+    public async Task RunAsync_ManualSleepAfterCurrentAction_SkipsFurtherVillageWork()
+    {
+        var port = new RecordingPort(requestStopAfterCollection: true);
+        var coordinator = new VillageStatusReactionCoordinator<string, int>();
+
+        var result = await coordinator.RunAsync(
+            "village-a", refreshInbox: false, inboxStatusChecked: false, port, CancellationToken.None);
+
+        Assert.False(result.ShouldContinue);
+        Assert.Equal(["read", "publish:1", "collect:1"], port.Calls);
+    }
+
+    private sealed class RecordingPort(
+        bool collectionShouldContinue = true,
+        bool requestStopAfterCollection = false)
         : IVillageStatusReactionPort<string, int>
     {
         internal List<string> Calls { get; } = [];
+        public bool StopRequested { get; private set; }
 
         public ValueTask<int> ReadBaseStatusAsync(string village, CancellationToken cancellationToken)
         {
@@ -91,6 +107,7 @@ public sealed class VillageStatusReactionCoordinatorTests
             CancellationToken cancellationToken)
         {
             Calls.Add($"collect:{status}");
+            StopRequested = requestStopAfterCollection;
             return ValueTask.FromResult(new VillageStatusCollectionResult<int>(2, collectionShouldContinue, 4));
         }
 

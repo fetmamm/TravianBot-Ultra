@@ -7,6 +7,8 @@ internal readonly record struct VillageStatusCollectionResult<TStatus>(
 
 internal interface IVillageStatusReactionPort<TVillage, TStatus>
 {
+    bool StopRequested { get; }
+
     ValueTask<TStatus> ReadBaseStatusAsync(TVillage village, CancellationToken cancellationToken);
 
     ValueTask PublishBaseStatusAsync(
@@ -48,6 +50,11 @@ internal sealed class VillageStatusReactionCoordinator<TVillage, TStatus>
         var status = await port.ReadBaseStatusAsync(village, cancellationToken).ConfigureAwait(false);
         await port.PublishBaseStatusAsync(village, status, cancellationToken).ConfigureAwait(false);
 
+        if (port.StopRequested)
+        {
+            return new VillageStatusRoundVisitResult(false, false);
+        }
+
         var inboxCheckedDuringVisit = false;
         if (refreshInbox && !inboxStatusChecked)
         {
@@ -55,9 +62,14 @@ internal sealed class VillageStatusReactionCoordinator<TVillage, TStatus>
             await port.RefreshInboxAsync(cancellationToken).ConfigureAwait(false);
         }
 
+        if (port.StopRequested)
+        {
+            return new VillageStatusRoundVisitResult(false, inboxCheckedDuringVisit);
+        }
+
         var collection = await port.CollectRewardsAsync(village, status, cancellationToken)
             .ConfigureAwait(false);
-        if (!collection.ShouldContinue)
+        if (!collection.ShouldContinue || port.StopRequested)
         {
             return new VillageStatusRoundVisitResult(false, inboxCheckedDuringVisit);
         }
@@ -67,8 +79,20 @@ internal sealed class VillageStatusReactionCoordinator<TVillage, TStatus>
                 collection.Status,
                 cancellationToken)
             .ConfigureAwait(false);
+        if (port.StopRequested)
+        {
+            return new VillageStatusRoundVisitResult(false, inboxCheckedDuringVisit);
+        }
         await port.RefreshDeferredWaitsAsync(status, cancellationToken).ConfigureAwait(false);
+        if (port.StopRequested)
+        {
+            return new VillageStatusRoundVisitResult(false, inboxCheckedDuringVisit);
+        }
         await port.ReconcileRuntimeItemsAsync(village, cancellationToken).ConfigureAwait(false);
+        if (port.StopRequested)
+        {
+            return new VillageStatusRoundVisitResult(false, inboxCheckedDuringVisit);
+        }
         var shouldContinue = await port.ExecuteReadyTasksAsync(
                 village,
                 collection.Attempts,
@@ -86,9 +110,12 @@ internal sealed class DelegateVillageStatusReactionPort<TVillage, TStatus>(
     Func<TVillage, TStatus, CancellationToken, ValueTask<TStatus>> refreshOptionalStatusesAsync,
     Func<TStatus, CancellationToken, ValueTask> refreshDeferredWaitsAsync,
     Func<TVillage, CancellationToken, ValueTask> reconcileRuntimeItemsAsync,
-    Func<TVillage, int, CancellationToken, ValueTask<bool>> executeReadyTasksAsync)
+    Func<TVillage, int, CancellationToken, ValueTask<bool>> executeReadyTasksAsync,
+    Func<bool>? stopRequested = null)
     : IVillageStatusReactionPort<TVillage, TStatus>
 {
+    public bool StopRequested => stopRequested?.Invoke() == true;
+
     public ValueTask<TStatus> ReadBaseStatusAsync(TVillage village, CancellationToken cancellationToken) =>
         readBaseStatusAsync(village, cancellationToken);
 

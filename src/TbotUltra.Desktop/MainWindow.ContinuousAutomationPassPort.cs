@@ -14,6 +14,7 @@ public partial class MainWindow
         AutomationActionExecutor actionExecutor)
         : IContinuousAutomationPassPort, IContinuousAutomationDeadlinePort
     {
+        public bool StopRequested => owner.IsContinuousAutomationStopRequested();
         public BotOptions LoadOptions() => owner.LoadBotOptions();
 
         public bool TryScheduleAutomaticProxyRecovery(BotOptions options) =>

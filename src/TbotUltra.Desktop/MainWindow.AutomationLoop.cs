@@ -48,6 +48,9 @@ public partial class MainWindow
             && snapshot.Phase is AutomationPhase.Running or AutomationPhase.Stopping;
     }
 
+    private bool IsContinuousAutomationStopRequested() =>
+        _loopController.LoopStopRequested && IsContinuousLoopRunning();
+
     private async void StartContinuousLoopRunner()
     {
         if (BlockIfActiveAccountOnHold("Continuous loop"))

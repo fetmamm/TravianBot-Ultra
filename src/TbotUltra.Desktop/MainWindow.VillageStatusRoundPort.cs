@@ -17,6 +17,7 @@ public partial class MainWindow
 
         public string? ActiveAccountName => owner._accountStore.ActiveAccountName();
         public string? ActiveVillageKey => owner._activeWorkingVillageKey;
+        public bool StopRequested => owner.IsContinuousAutomationStopRequested();
         public DateTimeOffset GetNextRoundUtc() => owner.GetVillageStatusSweepNextScanUtc();
         public ValueTask<bool> EnsureVillageMembershipVerifiedAsync(
             BotOptions options,
