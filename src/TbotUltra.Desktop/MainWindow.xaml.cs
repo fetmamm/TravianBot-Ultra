@@ -725,7 +725,9 @@ public partial class MainWindow : Window
         _troopTrainingViewModel.UpdateTroopOptions(ResolveStoredTroopTrainingTribe());
         _troopTrainingViewModel.ResetQueueStatus();
         _troopTrainingViewModel.ConfigChanged += OnTroopTrainingConfigChanged;
-        _troopTrainingViewModel.UpgradeOptionsRequested += OnTroopsUpgradeOptionsClicked;
+        _troopTrainingViewModel.SmithyVillageSettingsRequested += row => OpenSmithyUpgradeOptionsForVillage(row.Village);
+        _troopTrainingViewModel.SmithyVillageToggleRequested += ToggleSmithyVillageFromTroopsTab;
+        TroopsHubPanelControl.UpgradeTroopsSelected += RefreshSmithyVillageRows;
         _troopTrainingViewModel.SyncSettingsRequested += OnTroopsSyncSettingsClicked;
         _troopTrainingViewModel.BuildNowRequested += OnTroopsBuildNowClicked;
         _troopTrainingViewModel.RefreshQueuesRequested += () => _ = RunTroopTrainingStatusRefreshAsync(RefreshTroopQueuesCoreAsync);

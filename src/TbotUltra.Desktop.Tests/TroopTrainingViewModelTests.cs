@@ -1,6 +1,8 @@
 using System.Collections.Generic;
 using TbotUltra.Core.Travian;
 using TbotUltra.Desktop.ViewModels;
+using TbotUltra.Desktop.Models;
+using TbotUltra.Desktop.Services;
 using TbotUltra.Worker.Domain;
 using Xunit;
 
@@ -32,10 +34,13 @@ public sealed class TroopTrainingViewModelTests
         vm.MarkBreweryExists(true);
         vm.PushBreweryCelebrationRemainingSeconds(300, "Running.");
         vm.InfoText = "Loaded previous account.";
+        vm.SmithyVillages.Add(new SmithyUpgradeVillageRow(
+            new VillageSettingsStore.VillageKeyInfo("xy:1|2", "Previous", 1, 2, false), 1, true));
 
         vm.ResetRuntimeState();
 
         Assert.Empty(vm.InfoText);
+        Assert.Empty(vm.SmithyVillages);
         Assert.False(vm.BreweryExists);
         Assert.Null(vm.AutoCelebrationRemainingSeconds);
         Assert.All(vm.Buildings, item =>

@@ -244,6 +244,10 @@ public partial class MainWindow
         DashboardVillageList.ItemsSource = EnsureVillageSelectionItems(items)
             .OrderByDescending(item => item.IsCapital)
             .ToList();
+        if (TroopsHubPanelControl.IsUpgradeTroopsSelected)
+        {
+            RefreshSmithyVillageRows();
+        }
         if (DashboardHubPanelControl.IsVillageTabSelected)
         {
             EnsureDashboardVillagePanels();

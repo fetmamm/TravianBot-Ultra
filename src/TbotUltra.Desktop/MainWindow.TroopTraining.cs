@@ -35,6 +35,10 @@ namespace TbotUltra.Desktop;
 /// </summary>
 public partial class MainWindow
 {
+    private readonly Dictionary<string, VillageSettingsStore.VillageKeyInfo> _pendingSmithySetupVillages =
+        new(StringComparer.OrdinalIgnoreCase);
+    private bool _smithySetupNoticeScheduled;
+
     private async Task RunTroopTrainingStatusRefreshAsync(Func<Task> action)
     {
         await GuardUiAsync(async () =>
@@ -740,28 +744,104 @@ public partial class MainWindow
         }
     }
 
-    /// <summary>
-    /// Opens the Smithy upgrade-options popup for the SELECTED village, seeding it from the tribe troop
-    /// catalog merged with that village's saved selection. On Save it persists the village's selection; on
-    /// "Sync to all villages" it copies the selection to every village. Called by the Troops panel's
-    /// "Upgrade options" button.
-    /// </summary>
-    internal void OnTroopsUpgradeOptionsClicked()
+    private void RefreshSmithyVillageRows()
     {
-        var villageInfo = GetSelectedVillageKeyInfoOrNull();
-        if (villageInfo is null)
+        var villages = GetAllVillageKeyInfos();
+        var account = _accountStore.ActiveAccountName();
+        var counts = SmithyUpgradeTargetsStore.LoadSelectionCounts(_projectRoot, account);
+        var groupKey = QueueGroupCatalog.GetKey(QueueGroup.Troops);
+        var rows = _troopTrainingViewModel.SmithyVillages;
+        var updated = new List<SmithyUpgradeVillageRow>(villages.Count);
+        foreach (var village in villages)
         {
-            _troopTrainingViewModel.InfoText = "Select a village on the Dashboard first to configure its Smithy upgrades.";
-            AppendLog("Smithy upgrade options: no village selected.");
+            var groups = _villageSettingsStore.GetEnabledGroups(village)
+                ?? VillageSettingsStore.DefaultEnabledGroups;
+            updated.Add(new SmithyUpgradeVillageRow(
+                village,
+                counts.TryGetValue(village.Key, out var count) ? count : 0,
+                groups.Contains(groupKey, StringComparer.OrdinalIgnoreCase)));
+        }
+
+        if (rows.SequenceEqual(updated))
+        {
             return;
         }
 
-        OpenSmithyUpgradeOptionsForVillage(villageInfo);
+        rows.Clear();
+        foreach (var row in updated)
+        {
+            rows.Add(row);
+        }
+
+        AppendLog($"[smithy-ui] Refreshed Upgrade troops list for {rows.Count} village(s).");
     }
 
-    // Opens the Smithy "Upgrade options" popup for a SPECIFIC village and saves against ITS key,
-    // independent of which village the bot/UI is currently on. Used by the Troops panel button (selected
-    // village) and the Village settings per-row gear (that row's village).
+    private void ToggleSmithyVillageFromTroopsTab(SmithyUpgradeVillageRow row)
+    {
+        if (row is null)
+        {
+            return;
+        }
+
+        AppendLog($"[smithy-ui] Upgrade troops toggle requested for '{row.VillageName}': {!row.IsEnabled}.");
+        PersistAutomationGroupEnabledForVillage(
+            row.Village,
+            !row.IsEnabled,
+            QueueGroupCatalog.GetKey(QueueGroup.Troops));
+        if (_troopTrainingViewModel.SmithyVillages.Any(current => ReferenceEquals(current, row)))
+        {
+            // A rejected click changed only the CheckBox target; rebuild its one-way binding
+            // from the unchanged persisted value so the toggle never appears falsely ON.
+            _troopTrainingViewModel.SmithyVillages.Clear();
+            RefreshSmithyVillageRows();
+        }
+    }
+
+    private void QueueMissingSmithySelectionNotice(VillageSettingsStore.VillageKeyInfo village)
+    {
+        _pendingSmithySetupVillages[village.Key] = village;
+        if (_smithySetupNoticeScheduled)
+        {
+            return;
+        }
+
+        _smithySetupNoticeScheduled = true;
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Background, new Action(() =>
+        {
+            _smithySetupNoticeScheduled = false;
+            var blocked = _pendingSmithySetupVillages.Values.ToList();
+            _pendingSmithySetupVillages.Clear();
+            if (blocked.Count == 0)
+            {
+                return;
+            }
+
+            if (blocked.Count == 1)
+            {
+                var target = blocked[0];
+                AppDialog.Show(
+                    this,
+                    $"Choose at least one troop for '{target.Name}' before turning on Upgrade troops. Upgrade options will open now.",
+                    "Choose troops first",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Information);
+                OpenSmithyUpgradeOptionsForVillage(target);
+            }
+            else if (blocked.Count > 1)
+            {
+                AppDialog.Show(
+                    this,
+                    $"Upgrade troops stayed off in {blocked.Count} villages without selected troops. Choose troops with each village's settings button, then turn them on.",
+                    "Choose troops first",
+                    System.Windows.MessageBoxButton.OK,
+                    System.Windows.MessageBoxImage.Information);
+            }
+
+            AppendLog($"[smithy-ui] Blocked enabling Upgrade troops in {blocked.Count} village(s) without selected troops.");
+        }));
+    }
+
+    // Opens the Smithy options popup for a specific village without changing the browser village.
     private void OpenSmithyUpgradeOptionsForVillage(VillageSettingsStore.VillageKeyInfo villageInfo)
     {
         var account = _accountStore.ActiveAccountName();
@@ -770,6 +850,8 @@ public partial class MainWindow
         {
             _troopTrainingViewModel.InfoText = "Could not determine the tribe's troops yet. Scan the account first.";
             AppendLog($"Smithy upgrade options: no troops resolved for target village '{villageInfo.Name}'.");
+            AppDialog.Show(this, _troopTrainingViewModel.InfoText, "Upgrade troops",
+                System.Windows.MessageBoxButton.OK, System.Windows.MessageBoxImage.Information);
             return;
         }
 
@@ -784,14 +866,14 @@ public partial class MainWindow
             var villageInfos = GetAllVillageKeyInfos();
             var keys = villageInfos.Select(info => info.Key).ToList();
             SmithyUpgradeTargetsStore.SaveForVillages(_projectRoot, account, keys, window.Result);
-            // Selecting troops re-enables each village's Upgrade Troops group (any may have been
-            // auto-disabled on a previous "All done"). No selection leaves the toggles untouched.
-            if (window.Result.Count > 0)
+            // Saving choices never turns on a group the user left off. Clearing every choice
+            // turns off an already enabled group so an ON toggle always has work to do.
+            if (window.Result.Count == 0)
             {
                 var troopsGroupKey = QueueGroupCatalog.GetKey(QueueGroup.Troops);
                 foreach (var info in villageInfos)
                 {
-                    PersistAutomationGroupEnabledForVillage(info, enabled: true, troopsGroupKey);
+                    PersistAutomationGroupEnabledForVillage(info, enabled: false, troopsGroupKey);
                 }
             }
             // Drop every village's stale smithy queue item so the loop re-enqueues with the synced targets.
@@ -799,15 +881,14 @@ public partial class MainWindow
             _troopTrainingViewModel.InfoText = $"Synced Smithy upgrade options to {keys.Count} village(s).";
             AppendLog($"Synced Smithy upgrade options from '{villageInfo.Name}' to {keys.Count} village(s) "
                 + $"({window.Result.Count} troop(s)). Cleared {removedAll} queued smithy task(s) to apply the change.");
+            RefreshSmithyVillageRows();
             return;
         }
 
         SmithyUpgradeTargetsStore.Save(_projectRoot, account, villageInfo.Key, window.Result);
-        // Selecting troops re-enables this village's Upgrade Troops group (it may have been auto-disabled
-        // when a previous run reported "All done"). No selection leaves the toggle untouched.
-        if (window.Result.Count > 0)
+        if (window.Result.Count == 0)
         {
-            PersistAutomationGroupEnabledForVillage(villageInfo, enabled: true, QueueGroupCatalog.GetKey(QueueGroup.Troops));
+            PersistAutomationGroupEnabledForVillage(villageInfo, enabled: false, QueueGroupCatalog.GetKey(QueueGroup.Troops));
         }
         // Drop this village's stale smithy queue item (old troop snapshot) so the loop re-enqueues with the
         // new selection — otherwise the dedup keeps the old targets running until the stale item completes.
@@ -817,6 +898,7 @@ public partial class MainWindow
             : $"Saved Smithy upgrade options for '{villageInfo.Name}': no troops selected.";
         AppendLog($"Saved Smithy upgrade options for '{villageInfo.Name}' ({window.Result.Count} troop(s) selected)."
             + (removed > 0 ? $" Cleared {removed} queued smithy task(s) to apply the change." : string.Empty));
+        RefreshSmithyVillageRows();
     }
 
     /// <summary>

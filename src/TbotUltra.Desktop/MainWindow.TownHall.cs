@@ -137,6 +137,17 @@ public partial class MainWindow
             .Where(group => !string.IsNullOrWhiteSpace(group))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
+        var smithyGroupKey = QueueGroupCatalog.GetKey(QueueGroup.Troops);
+        var previousGroups = _villageSettingsStore.GetEnabledGroups(village)
+            ?? VillageSettingsStore.DefaultEnabledGroups;
+        var blockedSmithyEnable = !previousGroups.Contains(smithyGroupKey, StringComparer.OrdinalIgnoreCase)
+            && groups.Contains(smithyGroupKey, StringComparer.OrdinalIgnoreCase)
+            && SmithyUpgradeTargetsStore.Load(_projectRoot, _accountStore.ActiveAccountName(), village.Key).Count == 0;
+        if (blockedSmithyEnable)
+        {
+            groups.RemoveAll(group => string.Equals(group, smithyGroupKey, StringComparison.OrdinalIgnoreCase));
+        }
+
         _villageSettingsStore.SetEnabledGroups(village, groups);
 
         _syncingVillageGroupSettings = true;
@@ -168,6 +179,16 @@ public partial class MainWindow
         AppendLog(
             $"[village-groups] synchronized '{village.Name}' enabled={string.Join(',', groups)} "
             + $"village_settings={(villageSettingsSynced ? "updated" : "not-loaded")}.");
+        if (TroopsHubPanelControl.IsUpgradeTroopsSelected)
+        {
+            RefreshSmithyVillageRows();
+        }
+
+        if (blockedSmithyEnable)
+        {
+            AppendLog($"[smithy-ui] Blocked Upgrade troops for '{village.Name}': no troops selected.");
+            QueueMissingSmithySelectionNotice(village);
+        }
     }
 
     private static void UpdateVillageSettingsGroupRow(

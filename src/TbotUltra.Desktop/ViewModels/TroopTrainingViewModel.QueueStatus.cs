@@ -91,6 +91,7 @@ public sealed partial class TroopTrainingViewModel
     public void ResetRuntimeState()
     {
         InfoText = string.Empty;
+        SmithyVillages.Clear();
         ResetQueueStatus();
         BreweryExists = false;
         AutoCelebrationCanStart = false;

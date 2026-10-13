@@ -967,6 +967,8 @@ public partial class MainWindow
             VillageComboBox.ItemsSource = placeholder;
             VillageComboBox.SelectedItem = placeholder[0];
             DashboardVillageList.ItemsSource = Array.Empty<VillageSelectionItem>();
+            _troopTrainingViewModel.SmithyVillages.Clear();
+            _pendingSmithySetupVillages.Clear();
             _queueItemsForUiProjection = [];
             _historyQueueItems = [];
             _allActiveQueueRows = [];

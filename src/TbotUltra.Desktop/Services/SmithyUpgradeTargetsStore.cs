@@ -59,6 +59,29 @@ public static class SmithyUpgradeTargetsStore
         }
     }
 
+    /// <summary>Reads the selected troop counts for all villages in one file access.</summary>
+    public static IReadOnlyDictionary<string, int> LoadSelectionCounts(string projectRoot, string? accountName)
+    {
+        if (string.IsNullOrWhiteSpace(accountName))
+        {
+            return new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+        }
+
+        lock (FileIoLock)
+        {
+            var counts = new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase);
+            foreach (var village in ReadFile(projectRoot, accountName)?.Villages ?? [])
+            {
+                if (village is not null && !string.IsNullOrWhiteSpace(village.Key))
+                {
+                    counts.TryAdd(village.Key, Clean(village.Troops).Count);
+                }
+            }
+
+            return counts;
+        }
+    }
+
     /// <summary>Saves the selection for a single village (upsert).</summary>
     public static void Save(string projectRoot, string? accountName, string? villageKey, IReadOnlyList<SmithyUpgradeSelection> selections)
     {

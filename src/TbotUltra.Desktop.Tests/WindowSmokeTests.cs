@@ -26,6 +26,45 @@ public sealed class WindowSmokeTests
     }
 
     [Fact]
+    public void UpgradeTroopsTab_ShowsPerVillageListOffscreen()
+    {
+        _wpf.Run(() =>
+        {
+            var vm = new TroopTrainingViewModel();
+            vm.SmithyVillages.Add(new SmithyUpgradeVillageRow(
+                new VillageSettingsStore.VillageKeyInfo("xy:1|2", "Home", 1, 2, false), 2, true));
+            var panel = new TroopsHubPanel { DataContext = vm };
+            var selectionNotifications = 0;
+            panel.UpgradeTroopsSelected += () => selectionNotifications++;
+            var window = new Window { Content = panel };
+            try
+            {
+                WpfSmokeFixture.PrepareOffscreen(window);
+                window.Show();
+                Assert.IsType<TabItem>(panel.FindName("UpgradeTroopsTabItem")).IsSelected = true;
+                window.UpdateLayout();
+
+                Assert.True(panel.IsUpgradeTroopsSelected);
+                Assert.Equal(1, selectionNotifications);
+                var list = Assert.IsType<ItemsControl>(panel.UpgradeTroopsPanel.FindName("SmithyVillagesList"));
+                Assert.Single(list.Items);
+                Assert.Equal("Home", Assert.IsType<SmithyUpgradeVillageRow>(list.Items[0]).VillageName);
+                var presenter = Assert.IsType<ContentPresenter>(list.ItemContainerGenerator.ContainerFromIndex(0));
+                var toggle = Assert.IsType<CheckBox>(presenter.ContentTemplate.FindName("SmithyVillageToggle", presenter));
+                var settings = Assert.IsType<Button>(presenter.ContentTemplate.FindName("SmithyVillageSettingsButton", presenter));
+                Assert.Same(vm.ToggleSmithyVillageCommand, toggle.Command);
+                Assert.Same(vm.OpenSmithyVillageSettingsCommand, settings.Command);
+                Assert.Same(list.Items[0], toggle.CommandParameter);
+                Assert.Same(list.Items[0], settings.CommandParameter);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void StartupProgressWindow_HasMatchingControlsAndCanCancelOffscreen()
     {
         _wpf.Run(() =>

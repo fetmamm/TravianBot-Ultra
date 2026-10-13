@@ -28,7 +28,8 @@ namespace TbotUltra.Desktop.ViewModels;
 /// </summary>
 public sealed partial class TroopTrainingViewModel : BaseViewModel
 {
-    private readonly RelayCommand _upgradeOptionsCommand;
+    private readonly RelayCommand<SmithyUpgradeVillageRow> _openSmithyVillageSettingsCommand;
+    private readonly RelayCommand<SmithyUpgradeVillageRow> _toggleSmithyVillageCommand;
     private readonly RelayCommand _syncSettingsCommand;
     private readonly RelayCommand _buildNowCommand;
     private readonly RelayCommand _refreshQueuesCommand;
@@ -82,7 +83,8 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
 
     public TroopTrainingViewModel()
     {
-        _upgradeOptionsCommand = new RelayCommand(() => UpgradeOptionsRequested?.Invoke());
+        _openSmithyVillageSettingsCommand = new RelayCommand<SmithyUpgradeVillageRow>(row => SmithyVillageSettingsRequested?.Invoke(row));
+        _toggleSmithyVillageCommand = new RelayCommand<SmithyUpgradeVillageRow>(row => SmithyVillageToggleRequested?.Invoke(row));
         _syncSettingsCommand = new RelayCommand(() => SyncSettingsRequested?.Invoke());
         _buildNowCommand = new RelayCommand(() => BuildNowRequested?.Invoke());
         _refreshQueuesCommand = new RelayCommand(() => RefreshQueuesRequested?.Invoke(), CanRefreshManualStatus);
@@ -91,14 +93,17 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
 
     /// <summary>The three building rules shown as rows on the panel.</summary>
     public ObservableCollection<TroopTrainingBuildingOption> Buildings { get; } = [];
+    public ObservableCollection<SmithyUpgradeVillageRow> SmithyVillages { get; } = [];
 
-    public ICommand UpgradeOptionsCommand => _upgradeOptionsCommand;
+    public ICommand OpenSmithyVillageSettingsCommand => _openSmithyVillageSettingsCommand;
+    public ICommand ToggleSmithyVillageCommand => _toggleSmithyVillageCommand;
     public ICommand SyncSettingsCommand => _syncSettingsCommand;
     public ICommand BuildNowCommand => _buildNowCommand;
     public ICommand RefreshQueuesCommand => _refreshQueuesCommand;
     public ICommand CheckCelebrationCommand => _checkCelebrationCommand;
 
-    public event Action? UpgradeOptionsRequested;
+    public event Action<SmithyUpgradeVillageRow>? SmithyVillageSettingsRequested;
+    public event Action<SmithyUpgradeVillageRow>? SmithyVillageToggleRequested;
     public event Action? SyncSettingsRequested;
     public event Action? BuildNowRequested;
     public event Action? RefreshQueuesRequested;

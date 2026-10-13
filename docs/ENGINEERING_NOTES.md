@@ -730,6 +730,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Account tribe and active-village tribe are different on special servers. Cache village tribe by stable identity;
   unknown tribe is deferred, never borrowed from another village/account. Per-village Smithy option dialogs resolve
   their troop catalog from the target row's canonical village key, never from the Dashboard's selected village.
+- Upgrade Troops uses one persisted per-village group toggle across Dashboard, Village settings, and the Troops list.
+  Enabling without selected Smithy targets is rejected with a user-facing explanation; saving target choices never
+  turns an off toggle on, while clearing all targets turns an on toggle off. The Troops list never switches the browser village.
 - Verify active village after switching and before state-changing actions. Missing villages are quarantined until
   confirmed, not deleted after one incomplete refresh.
 - Hero ownership and current location are separate. Scope transfers to the active dialog and verify the target.

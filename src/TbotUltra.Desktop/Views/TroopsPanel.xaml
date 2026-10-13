@@ -44,7 +44,8 @@
                         BorderBrush="{DynamicResource BorderBrush}"
                         BorderThickness="1"
                         CornerRadius="8"
-                        Padding="12">
+                        Padding="14"
+                        MinWidth="540">
                     <StackPanel>
                         <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
                             <TextBlock Text="Upgrade troops"
@@ -54,12 +55,85 @@
                                        VerticalAlignment="Center" />
                             <ContentControl Style="{DynamicResource InfoTooltipIconStyle}"
                                             Margin="6,2,0,0"
-                                            ToolTip="Pick troops and target levels in Upgrade options (per village). The Automation Loop's Upgrade Troops group runs the Smithy upgrades. Smithy upgrades stay separate from troop building." />
+                                            ToolTip="Choose troops and target levels for each village. The Automation Loop's Upgrade Troops group runs Smithy upgrades independently of troop building." />
                         </StackPanel>
-                        <Button Content="Upgrade options"
-                                Width="150"
-                                HorizontalAlignment="Left"
-                                Command="{Binding UpgradeOptionsCommand}" />
+                        <TextBlock Text="Choose troops for a village, then turn on its upgrades."
+                                   Foreground="{DynamicResource TextSubtleBrush}"
+                                   Margin="0,0,0,12" />
+                        <Border Background="{DynamicResource SurfaceAltBrush}"
+                                BorderBrush="{DynamicResource BorderBrush}"
+                                BorderThickness="1"
+                                CornerRadius="7">
+                            <StackPanel>
+                                <Grid Margin="12,8" MinWidth="500">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="2*" />
+                                        <ColumnDefinition Width="2*" />
+                                        <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="42" />
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="VILLAGE" FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextMutedBrush}" />
+                                    <TextBlock Grid.Column="1" Text="SELECTED TROOPS" FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextMutedBrush}" />
+                                    <TextBlock Grid.Column="2" Text="ENABLED" FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextMutedBrush}" HorizontalAlignment="Center" />
+                                </Grid>
+                                <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" />
+                                <ItemsControl x:Name="SmithyVillagesList" ItemsSource="{Binding SmithyVillages}">
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Border BorderBrush="{DynamicResource BorderSubtleBrush}"
+                                                    BorderThickness="0,0,0,1"
+                                                    Padding="12,9">
+                                                <Grid MinWidth="500">
+                                                    <Grid.ColumnDefinitions>
+                                                        <ColumnDefinition Width="2*" />
+                                                        <ColumnDefinition Width="2*" />
+                                                        <ColumnDefinition Width="90" />
+                                                        <ColumnDefinition Width="42" />
+                                                    </Grid.ColumnDefinitions>
+                                                    <TextBlock Text="{Binding VillageName}" FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock Grid.Column="1" Text="{Binding SelectionSummary}"
+                                                               Foreground="{DynamicResource TextSubtleBrush}"
+                                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                    <CheckBox x:Name="SmithyVillageToggle" Grid.Column="2"
+                                                              Style="{DynamicResource ToggleSwitchBlueStyle}"
+                                                              IsChecked="{Binding IsEnabled, Mode=OneWay}"
+                                                              Command="{Binding DataContext.ToggleSmithyVillageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                              CommandParameter="{Binding}"
+                                                              HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                              ToolTip="Enable or disable Smithy upgrades for this village." />
+                                                    <Button x:Name="SmithyVillageSettingsButton" Grid.Column="3"
+                                                            Content="&#xE713;" FontFamily="Segoe MDL2 Assets"
+                                                            Width="26" Height="26" Padding="0"
+                                                            HorizontalAlignment="Right" VerticalAlignment="Center"
+                                                            Command="{Binding DataContext.OpenSmithyVillageSettingsCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                                            CommandParameter="{Binding}"
+                                                            ToolTip="Choose this village's troops and target levels." />
+                                                </Grid>
+                                            </Border>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                                <TextBlock Text="No villages loaded. Scan the account to configure troop upgrades."
+                                           Foreground="{DynamicResource TextSubtleBrush}"
+                                           Margin="12,14">
+                                    <TextBlock.Style>
+                                        <Style TargetType="TextBlock">
+                                            <Setter Property="Visibility" Value="Collapsed" />
+                                            <Style.Triggers>
+                                                <DataTrigger Binding="{Binding SmithyVillages.Count}" Value="0">
+                                                    <Setter Property="Visibility" Value="Visible" />
+                                                </DataTrigger>
+                                            </Style.Triggers>
+                                        </Style>
+                                    </TextBlock.Style>
+                                </TextBlock>
+                            </StackPanel>
+                        </Border>
                     </StackPanel>
                 </Border>
 
