@@ -55,8 +55,10 @@
                            Foreground="{DynamicResource TextSecondaryBrush}" Width="220" />
                 <TextBox Width="54" Text="{Binding HeroRaidingObservationMinutes, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
                 <TextBlock Text="minutes" VerticalAlignment="Center" Margin="6,0,0,0" />
+                <ContentControl Style="{StaticResource SettingInfoIconStyle}" Margin="8,0,0,0"
+                                ToolTip="Maximum age of an oasis animal observation before its map area is scanned again. Older observations are not used to choose raids." />
               </StackPanel>
-              <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                 <TextBlock Text="Hero priority" VerticalAlignment="Center"
                            Foreground="{DynamicResource TextSecondaryBrush}" Width="220" />
                 <ComboBox Width="172" SelectedValuePath="Tag"
@@ -64,6 +66,11 @@
                   <ComboBoxItem Content="Hero raiding first" Tag="raiding" />
                   <ComboBoxItem Content="Adventures first" Tag="adventures" />
                 </ComboBox>
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                <CheckBox Content="Auto use ointments" IsChecked="{Binding AutoUseOintments}" />
+                <ContentControl Style="{StaticResource SettingInfoIconStyle}" Margin="8,0,0,0"
+                                ToolTip="Shared with Adventures. When off, the hero heals naturally." />
               </StackPanel>
               <TextBlock Text="Oasis types" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
               <Grid Margin="0,8,0,12">
@@ -105,11 +112,6 @@
                   </StackPanel>
                 </Border>
               </Grid>
-              <StackPanel Orientation="Horizontal">
-                <CheckBox Content="Auto use ointments" IsChecked="{Binding AutoUseOintments}" />
-                <ContentControl Style="{StaticResource SettingInfoIconStyle}" Margin="8,0,0,0"
-                                ToolTip="Shared with Adventures. When off, the hero heals naturally." />
-              </StackPanel>
             </StackPanel>
           </Border>
           <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"
@@ -127,6 +129,15 @@
               <DataGrid ItemsSource="{Binding HeroRaidingCandidates}"
                         AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
                         CanUserReorderColumns="False" MinHeight="120" MaxHeight="330">
+                <DataGrid.RowStyle>
+                  <Style TargetType="DataGridRow">
+                    <Style.Triggers>
+                      <DataTrigger Binding="{Binding IsUnsafeEstimate}" Value="True">
+                        <Setter Property="Background" Value="{DynamicResource DangerBgBrush}" />
+                      </DataTrigger>
+                    </Style.Triggers>
+                  </Style>
+                </DataGrid.RowStyle>
                 <DataGrid.Columns>
                   <DataGridTemplateColumn Header="Exclude" Width="70">
                     <DataGridTemplateColumn.CellTemplate>

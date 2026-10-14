@@ -9,6 +9,26 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class HeroViewModelTests
 {
     [Fact]
+    public void HeroRaidingCandidates_KeepUnsafeAndUnknownOasesVisible()
+    {
+        var vm = new HeroViewModel();
+        var now = DateTimeOffset.UtcNow;
+        vm.ApplyHeroRaidingScan(new HeroRaidingScanResult(true, false,
+        [
+            new HeroRaidingScanCandidate(1, 0, "Wood 25%", "Rat 2", 90, 80, 1, false, true, now),
+            new HeroRaidingScanCandidate(2, 0, "Wood 25%", "Bear 80", 15, 400, 2, false, false, now),
+            new HeroRaidingScanCandidate(3, 0, "Wood 25%", "Unknown animals", null, null, 3, false, false, now),
+        ], 3, 0, "Scan complete"));
+
+        Assert.Equal(3, vm.HeroRaidingCandidates.Count);
+        Assert.False(vm.HeroRaidingCandidates[0].IsUnsafeEstimate);
+        Assert.Equal("Unsafe estimate", vm.HeroRaidingCandidates[1].Safety);
+        Assert.True(vm.HeroRaidingCandidates[1].IsUnsafeEstimate);
+        Assert.Equal("Safety unknown", vm.HeroRaidingCandidates[2].Safety);
+        Assert.True(vm.HeroRaidingCandidates[2].IsUnsafeEstimate);
+    }
+
+    [Fact]
     public void HeroRaidingScan_IsDisabledOnlyWhileRunning()
     {
         var vm = new HeroViewModel();

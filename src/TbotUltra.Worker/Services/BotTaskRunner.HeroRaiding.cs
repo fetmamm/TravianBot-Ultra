@@ -243,7 +243,8 @@ public sealed partial class BotTaskRunner
                         readiness.AttackStrength,
                         readiness.HpPercent,
                         readiness.Mounted,
-                        options.HeroRaidingMinimumHpPercent), cancellationToken);
+                        options.HeroRaidingMinimumHpPercent,
+                        ScanAllAreas: true), cancellationToken);
 
                 if (discovery.SafeCandidates.Count == 0)
                     schedule.RecordNoCandidate(client.AccountName, client.ServerUrl, DateTimeOffset.UtcNow);
@@ -253,14 +254,16 @@ public sealed partial class BotTaskRunner
                 var candidates = new List<HeroRaidingScanCandidate>();
                 foreach (var oasis in discovery.ObservedOases)
                 {
-                    if (oasis.IsOccupied || !HeroRaidingCandidateSelector.MatchesSelectedType(oasis, types)
-                        || !NatureTroopCatalog.TryParseGarrison(oasis.Animals, out var garrison))
+                    if (oasis.IsOccupied || string.IsNullOrWhiteSpace(oasis.Animals)
+                        || !HeroRaidingCandidateSelector.MatchesSelectedType(oasis, types))
                         continue;
                     var distance = Math.Sqrt(Math.Pow(oasis.X - readiness.VillageX, 2)
                         + Math.Pow(oasis.Y - readiness.VillageY, 2));
                     if (distance <= 0 || distance > options.HeroRaidingMaximumDistance) continue;
-                    var estimated = HeroOasisRaidEstimator.TryEstimate(garrison,
-                        readiness.AttackStrength, readiness.HpPercent, readiness.Mounted, out var estimate);
+                    var parsedGarrison = NatureTroopCatalog.TryParseGarrison(oasis.Animals, out var garrison);
+                    HeroOasisRaidEstimate? estimate = null;
+                    var estimated = parsedGarrison && HeroOasisRaidEstimator.TryEstimate(garrison,
+                        readiness.AttackStrength, readiness.HpPercent, readiness.Mounted, out estimate);
                     candidates.Add(new HeroRaidingScanCandidate(
                         oasis.X, oasis.Y, oasis.OasisType, oasis.Animals,
                         estimated ? estimate!.PredictedHpAfterRaid : null,
@@ -275,9 +278,9 @@ public sealed partial class BotTaskRunner
                     .ThenByDescending(candidate => (candidate.EstimatedBountyPerResource ?? 0) / candidate.DistanceFields)
                     .ThenByDescending(candidate => candidate.PredictedHpAfterRaid)
                     .ToList();
-                var message = discovery.SafeCandidates.Count > 0
-                    ? $"Found {discovery.SafeCandidates.Count} safe oasis candidate(s)."
-                    : "No safe oasis is available. The next automatic discovery is in 60 minutes; Scan now can retry earlier.";
+                var message = $"Found {candidates.Count} animal oasis candidate(s); {discovery.SafeCandidates.Count} safe estimate(s).";
+                if (discovery.SafeCandidates.Count == 0)
+                    message += " The next automatic discovery is in 60 minutes; Scan now can retry earlier.";
                 if (readiness.CagesEquipped)
                     message += " Cages are equipped and must be removed before raiding.";
                 result = new HeroRaidingScanResult(true, readiness.CagesEquipped, candidates,

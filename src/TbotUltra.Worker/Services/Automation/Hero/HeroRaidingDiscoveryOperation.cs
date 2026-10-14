@@ -16,7 +16,8 @@ internal sealed record HeroRaidingDiscoveryInput(
     int HeroAttackStrength,
     int CurrentHpPercent,
     bool HeroMounted,
-    int MinimumHpPercent);
+    int MinimumHpPercent,
+    bool ScanAllAreas = false);
 
 internal sealed record HeroRaidingSafeCandidate(
     HeroRaidingCandidate Candidate,
@@ -56,6 +57,7 @@ internal sealed class HeroRaidingDiscoveryOperation(
         var readCount = 0;
         var cachedCount = 0;
         var seen = new Dictionary<(int X, int Y), MapOasisEntry>();
+        List<HeroRaidingSafeCandidate> safe = [];
 
         while (true)
         {
@@ -120,13 +122,18 @@ internal sealed class HeroRaidingDiscoveryOperation(
                 }
 
                 foreach (var oasis in observed)
-                    seen[(oasis.X, oasis.Y)] = oasis;
+                {
+                    var key = (oasis.X, oasis.Y);
+                    if (!seen.TryGetValue(key, out var previous)
+                        || oasis.ObservedAtUtc >= previous.ObservedAtUtc)
+                        seen[key] = oasis;
+                }
 
                 var selected = HeroRaidingCandidateSelector.Select(
                     seen.Values, input.HeroVillageX, input.HeroVillageY,
                     input.MaximumDistance, input.ObservationMinutes, input.SelectedTypes,
                     input.Excluded, DateTimeOffset.UtcNow);
-                var safe = selected.Select(candidate =>
+                safe = selected.Select(candidate =>
                 {
                     var estimated = HeroOasisRaidEstimator.TryEstimate(
                         candidate.Garrison, input.HeroAttackStrength, input.CurrentHpPercent,
@@ -139,7 +146,7 @@ internal sealed class HeroRaidingDiscoveryOperation(
                     .ThenBy(candidate => candidate.Estimate.PredictedHpLoss)
                     .ThenBy(candidate => candidate.Candidate.DistanceFields)
                     .ToList();
-                if (safe.Count > 0)
+                if (safe.Count > 0 && !input.ScanAllAreas)
                 {
                     log($"[hero-raiding] found {safe.Count} safe oasis candidate(s) after {readCount} map read(s), {cachedCount} cached area(s).");
                     return new HeroRaidingDiscoveryResult(safe, seen.Values.ToList(), readCount, cachedCount);
@@ -149,11 +156,14 @@ internal sealed class HeroRaidingDiscoveryOperation(
             if (retryAtLowerZoom)
             {
                 seen.Clear();
+                safe = [];
                 continue;
             }
 
-            log($"[hero-raiding] no safe oasis after {readCount} map read(s), {cachedCount} cached area(s); next discovery follows the 60-minute retry schedule.");
-            return new HeroRaidingDiscoveryResult([], seen.Values.ToList(), readCount, cachedCount);
+            log(input.ScanAllAreas
+                ? $"[hero-raiding] full scan completed: {safe.Count} safe oasis candidate(s), {seen.Count} observed oasis(es), {readCount} map read(s), {cachedCount} cached area(s)."
+                : $"[hero-raiding] no safe oasis after {readCount} map read(s), {cachedCount} cached area(s); next discovery follows the 60-minute retry schedule.");
+            return new HeroRaidingDiscoveryResult(safe, seen.Values.ToList(), readCount, cachedCount);
         }
     }
 

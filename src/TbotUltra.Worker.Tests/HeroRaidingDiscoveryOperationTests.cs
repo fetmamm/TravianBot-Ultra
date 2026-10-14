@@ -58,6 +58,27 @@ public sealed class HeroRaidingDiscoveryOperationTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_FullScanRetainsNearCandidatesWhenRadiusExpands()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"tbot-hero-discovery-{Guid.NewGuid():N}");
+        try
+        {
+            var reader = new CoverageReader();
+            var operation = new HeroRaidingDiscoveryOperation(reader, root, "account", "https://ts1.travian.com", _ => { });
+            var near = await operation.ExecuteAsync(Input() with { MaximumDistance = 16, ScanAllAreas = true }, CancellationToken.None);
+            var expanded = await operation.ExecuteAsync(Input() with { MaximumDistance = 20, ScanAllAreas = true }, CancellationToken.None);
+
+            Assert.Contains(near.SafeCandidates, candidate => candidate.Candidate.Oasis.X == 1);
+            Assert.Contains(expanded.SafeCandidates, candidate => candidate.Candidate.Oasis.X == 1);
+            Assert.Contains(expanded.SafeCandidates, candidate => candidate.Candidate.Oasis.X == 18);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task ExecuteAsync_FallsBackFromRegionOverlayToDetailedZoom()
     {
         var root = Path.Combine(Path.GetTempPath(), $"tbot-hero-discovery-{Guid.NewGuid():N}");
@@ -102,6 +123,20 @@ public sealed class HeroRaidingDiscoveryOperationTests
             return Task.FromResult(overlayAtZoomThree && zoomLevel == 3
                 ? """{"tiles":[{"x":0,"y":0,"title":"{k.regionTooltip} Region"}]}"""
                 : json);
+        }
+    }
+
+    private sealed class CoverageReader : IMapOasisAreaReader
+    {
+        public Task<string> ReadMapAreaAsync(int x, int y, int zoomLevel, CancellationToken cancellationToken)
+        {
+            const string text = "{a:r1} {a.r1} 25%<br />{k.animals}<br /><div class=\"inlineIcon tooltipUnit\" title=\"\"><i class=\"unit u31\"></i><span class=\"value \">2</span></div>";
+            var radius = zoomLevel == 3 ? 15 : zoomLevel == 2 ? 10 : 5;
+            var tiles = new[] { 1, 18 }
+                .Where(tileX => Math.Abs(tileX - x) <= radius && Math.Abs(y) <= radius)
+                .Select(tileX => new { x = tileX, y = 0, did = -1, title = "{k.fo}", text })
+                .ToArray();
+            return Task.FromResult(System.Text.Json.JsonSerializer.Serialize(new { tiles }));
         }
     }
 }

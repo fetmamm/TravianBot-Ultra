@@ -16,7 +16,9 @@ public sealed class HeroRaidingCandidateItem(HeroRaidingScanCandidate candidate)
     public string EstimatedBounty => candidate.EstimatedBountyPerResource is int bounty ? bounty.ToString() : "Unknown";
     public string Distance => candidate.DistanceFields.ToString("0.0");
     public bool IsSafe => candidate.IsSafe && !IsExcluded;
-    public string Safety => IsExcluded ? "Excluded" : candidate.IsSafe ? "Safe estimate" : "Not eligible";
+    public bool IsUnsafeEstimate => !candidate.IsSafe;
+    public string Safety => IsExcluded ? "Excluded" : candidate.IsSafe ? "Safe estimate"
+        : candidate.PredictedHpAfterRaid.HasValue ? "Unsafe estimate" : "Safety unknown";
     public DateTimeOffset ObservedAtUtc => candidate.ObservedAtUtc;
 
     public bool IsExcluded
