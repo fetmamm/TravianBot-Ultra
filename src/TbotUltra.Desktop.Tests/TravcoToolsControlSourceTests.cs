@@ -1,10 +1,55 @@
 using TbotUltra.Worker;
+using TbotUltra.Worker.Domain;
 using Xunit;
 
 namespace TbotUltra.Desktop.Tests;
 
 public sealed class TravcoToolsControlSourceTests
 {
+    [Fact]
+    public void MapOasisSummary_ReportsElapsedTimeAndEveryOasisType()
+    {
+        var scan = new MapOasisScanResult(
+            [
+                new MapOasisEntry(1, 1, false, "Clay", "Clay", "", "", ""),
+                new MapOasisEntry(2, 2, true, "Clay", "Clay", "", "Player", ""),
+                new MapOasisEntry(3, 3, false, "Iron", "Iron", "", "", ""),
+                new MapOasisEntry(4, 4, false, "Crop", "Crop", "", "", ""),
+            ],
+            12,
+            12);
+
+        var summary = TravcoToolsControl.BuildMapOasisScanSummary(
+            new MapOasisScanRequest(0, 0, MapOasisScanScope.Radius, 40, MapOasisScanSpeed.Normal),
+            scan,
+            TimeSpan.FromHours(27) + TimeSpan.FromMinutes(2) + TimeSpan.FromSeconds(3),
+            "Map Oasis");
+
+        Assert.Contains("Time: 27:02:03", summary, StringComparison.Ordinal);
+        Assert.Contains("Map areas scanned: 12/12", summary, StringComparison.Ordinal);
+        Assert.Contains("Oases found: 4 (3 free, 1 occupied)", summary, StringComparison.Ordinal);
+        Assert.Contains("Clay: 2", summary, StringComparison.Ordinal);
+        Assert.Contains("Iron: 1", summary, StringComparison.Ordinal);
+        Assert.Contains("Crop: 1", summary, StringComparison.Ordinal);
+        Assert.Contains("Saved list 'Map Oasis'", summary, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void MapOasisSummary_ExplainsPartialScanWithNoMatches()
+    {
+        var summary = TravcoToolsControl.BuildMapOasisScanSummary(
+            new MapOasisScanRequest(0, 0, MapOasisScanScope.WholeMap, 0, MapOasisScanSpeed.Normal),
+            new MapOasisScanResult([], 2, 10, IsPartialResult: true),
+            TimeSpan.FromSeconds(9),
+            savedListName: null);
+
+        Assert.Contains("Scan stopped early", summary, StringComparison.Ordinal);
+        Assert.Contains("Time: 00:00:09", summary, StringComparison.Ordinal);
+        Assert.Contains("Oases found: 0", summary, StringComparison.Ordinal);
+        Assert.Contains("By type:\nNone", summary, StringComparison.Ordinal);
+        Assert.Contains("No list was created", summary, StringComparison.Ordinal);
+    }
+
     [Fact]
     public void MapSqlScan_DoesNotStartPersistentTravcoSession()
     {

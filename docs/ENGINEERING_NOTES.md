@@ -527,7 +527,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
   automation; the first browser-backed action starts an analysis session. Finishing it closes the external Travco
   browser tab only when one was actually opened, then resumes whichever automation mode the session paused. An active
   session keeps a green animated finish control visible in the global sidebar, so ordinary UI navigation never hides
-  the action or implicitly closes a tab while analysis may still be running.
+  the action or implicitly closes a tab while analysis may still be running. After a completed Map Oasis scan (including
+  a saved partial result or zero matches), close the analysis session and resume paused automation before showing its
+  area/count/type-breakdown/elapsed-time/save summary in a modal with only `OK`; dismissing that modal requires the
+  explicit action.
 - Map SQL scan is a self-contained manual operation. It never starts a persistent Travco analysis session and exposes
   no Finish-session action after download, filtering, and list persistence complete.
 - The Settings window is category-tabbed: General (including post-login automation), Pacing, Construction, Hero,

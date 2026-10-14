@@ -1,6 +1,5 @@
 using System.IO;
 using TbotUltra.Core.Accounts;
-using TbotUltra.Desktop.Models;
 using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop;
@@ -23,17 +22,17 @@ public partial class MainWindow
     // Type/occupied filtering is applied later when adding farms, so the scan stores everything.
     // Automation is already paused by the Travco tools window that hosts this scan, so no extra
     // pause/resume handling is needed here.
-    private async Task<List<OasisInfo>> RunMapOasisScanAsync(
+    private Task<MapOasisScanResult> RunMapOasisScanAsync(
         MapOasisScanRequest request,
         IProgress<MapOasisScanProgress> progress,
         CancellationToken cancellationToken)
     {
-        return await RunManualOperationAsync(
+        return RunManualOperationAsync(
             "Analyze Map Oasis",
             async token =>
             {
                 var options = LoadBotOptions();
-                var scanResult = await _botService.ScanMapOasesAsync(
+                return await _botService.ScanMapOasesAsync(
                     options,
                     includeOccupied: true,
                     MapOasisAllTypes,
@@ -41,17 +40,6 @@ public partial class MainWindow
                     AppendLog,
                     progress,
                     token);
-                return scanResult.Oases.Select(entry => new OasisInfo
-                {
-                    X = entry.X,
-                    Y = entry.Y,
-                    Landscape = 0,
-                    IsOccupied = entry.IsOccupied,
-                    OasisType = entry.OasisType,
-                    Animals = entry.Animals,
-                    OwnerPlayer = entry.OwnerPlayer,
-                    OwnerAlliance = entry.OwnerAlliance,
-                }).ToList();
             },
             cancellationToken);
     }

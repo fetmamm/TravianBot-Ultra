@@ -21,6 +21,7 @@ public partial class AppDialog : Window
     private readonly MessageBoxResult? _warningResult;
     private readonly MessageBoxResult? _dangerResult;
     private readonly IReadOnlyList<(string Label, MessageBoxResult Result)>? _customButtons;
+    private readonly bool _requireExplicitChoice;
     private MessageBoxResult _result;
     private bool _resultChosen;
 
@@ -38,7 +39,8 @@ public partial class AppDialog : Window
         MessageBoxResult? accentResult = null,
         MessageBoxResult? warningResult = null,
         MessageBoxResult? dangerResult = null,
-        bool hideIcon = false)
+        bool hideIcon = false,
+        bool requireExplicitChoice = false)
     {
         InitializeComponent();
         ThemeChrome.EnableEarlyDarkTitleBar(this);
@@ -48,6 +50,7 @@ public partial class AppDialog : Window
         MessageTextBlock.Text = message ?? string.Empty;
         _buttons = buttons;
         _customButtons = customButtons;
+        _requireExplicitChoice = requireExplicitChoice;
         _successResult = successResult;
         _infoResult = infoResult;
         _accentResult = accentResult;
@@ -175,7 +178,8 @@ public partial class AppDialog : Window
         MessageBoxResult? successResult = null,
         MessageBoxResult? dangerResult = null,
         MessageBoxResult? accentResult = null,
-        MessageBoxResult? infoResult = null)
+        MessageBoxResult? infoResult = null,
+        bool requireExplicitChoice = false)
     {
         var dialog = new AppDialog(
             owner,
@@ -190,7 +194,8 @@ public partial class AppDialog : Window
             infoResult,
             accentResult: accentResult,
             warningResult: null,
-            dangerResult: dangerResult);
+            dangerResult: dangerResult,
+            requireExplicitChoice: requireExplicitChoice);
         return PresentDialog(dialog);
     }
 
@@ -255,6 +260,10 @@ public partial class AppDialog : Window
             }
             finally
             {
+                if (dialog._requireExplicitChoice)
+                {
+                    dialog._resultChosen = true;
+                }
                 dialog.Close();
             }
         }
@@ -354,6 +363,12 @@ public partial class AppDialog : Window
             return;
         }
 
+        if (_requireExplicitChoice)
+        {
+            e.Handled = true;
+            return;
+        }
+
         _result = _cancelResult;
         _resultChosen = true;
         DialogResult = false;
@@ -367,8 +382,16 @@ public partial class AppDialog : Window
             return;
         }
 
+        if (_requireExplicitChoice)
+        {
+            e.Cancel = true;
+            return;
+        }
+
         _result = _cancelResult;
     }
+
+    internal bool RequiresExplicitChoice => _requireExplicitChoice;
 
     private static IReadOnlyList<(string label, MessageBoxResult result)> ResolveButtonSet(
         MessageBoxButton buttons,

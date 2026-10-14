@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Windows;
 using System.Windows.Controls;
 using TbotUltra.Desktop.Models;
@@ -24,7 +25,7 @@ public partial class TravcoToolsControl : UserControl
 
     public Func<TravcoSearchRequest, IProgress<TravcoSearchProgress>, CancellationToken, Task<TravcoScrapeResult>>? SearchRequested { get; init; }
     public Func<IProgress<(int CurrentPage, int TotalPages)>, CancellationToken, Task<TravcoScrapeResult>>? ScrapeAllPagesRequested { get; init; }
-    public Func<MapOasisScanRequest, IProgress<MapOasisScanProgress>, CancellationToken, Task<List<OasisInfo>>>? MapOasisScanRequested { get; init; }
+    public Func<MapOasisScanRequest, IProgress<MapOasisScanProgress>, CancellationToken, Task<MapOasisScanResult>>? MapOasisScanRequested { get; init; }
     public Func<bool>? MapOasisScanExists { get; init; }
     public Func<MapSqlVillageImportRequest, IProgress<MapSqlVillageImportProgress>, CancellationToken, Task<MapSqlVillageImportResult>>? AddAllVillagesRequested { get; init; }
     public Func<Task>? CloseRequested { get; init; }
@@ -380,7 +381,7 @@ public partial class TravcoToolsControl : UserControl
 
     // Scans the selected map area for oases (all types, occupied and free) and saves them as one list. The
     // list keeps each oasis's type/occupied/animals/owner so the farm-add dialog can filter on them.
-    private async Task RunMapOasisScanAndSaveAsync(MapOasisScanRequest request)
+    internal async Task RunMapOasisScanAndSaveAsync(MapOasisScanRequest request)
     {
         if (_busy || MapOasisScanRequested is null)
         {
@@ -394,15 +395,15 @@ public partial class TravcoToolsControl : UserControl
         BusyOverlay.Show("Analyze map oasis", "0% - preparing map scan...");
         BusyOverlay.IsIndeterminate = false;
         BusyOverlay.ProgressValue = 0;
+        var scanTimer = Stopwatch.StartNew();
+        string? completionMessage = null;
         try
         {
-            var savedPartialResult = false;
             SetStatus(request.Scope == MapOasisScanScope.WholeMap
                 ? "Scanning the whole Travian map for oases."
                 : $"Scanning a radius of {request.Radius} around ({request.CenterX}|{request.CenterY}).");
             var progress = new Progress<MapOasisScanProgress>(value =>
             {
-                savedPartialResult = value.IsPartialResult;
                 var percent = value.TotalAreas == 0
                     ? 0
                     : (double)value.CompletedAreas / value.TotalAreas * 100;
@@ -412,24 +413,30 @@ public partial class TravcoToolsControl : UserControl
                     $"Map area {value.CompletedAreas}/{value.TotalAreas} - {value.TotalAreas - value.CompletedAreas} remaining\n" +
                     $"{value.OasisCount} oases found";
             });
-            var oases = await MapOasisScanRequested(request, progress, operationCts.Token);
+            var scan = await MapOasisScanRequested(request, progress, operationCts.Token);
+            var oases = scan.Oases;
             if (oases.Count == 0)
             {
-                SetStatus("Map oasis scan finished with no oases found. No list was created.");
-                return;
+                SetStatus(scan.IsPartialResult
+                    ? "Map oasis scan stopped early with no oases found. No list was created."
+                    : "Map oasis scan finished with no oases found. No list was created.");
+                completionMessage = BuildMapOasisScanSummary(request, scan, scanTimer.Elapsed, savedListName: null);
             }
-
-            SetEditMode(false);
-            _openedSavedListId = null;
-            ApplyRows(oases.Select(OasisToRow));
-            var name = OasisListNaming.CreateName(
-                OasisListNaming.TypeOrder,
-                _store.LoadAll().Select(list => list.Name));
-            _viewModel.ListName = name;
-            SaveCurrentRows(name);
-            SetStatus(savedPartialResult
-                ? $"Scan canceled. Saved partial list '{name}' with {oases.Count} oasis/oases."
-                : $"Saved '{name}' with {oases.Count} oasis/oases.");
+            else
+            {
+                SetEditMode(false);
+                _openedSavedListId = null;
+                ApplyRows(oases.Select(OasisToRow));
+                var name = OasisListNaming.CreateName(
+                    OasisListNaming.TypeOrder,
+                    _store.LoadAll().Select(list => list.Name));
+                _viewModel.ListName = name;
+                SaveCurrentRows(name);
+                SetStatus(scan.IsPartialResult
+                    ? $"Scan canceled. Saved partial list '{name}' with {oases.Count} oasis/oases."
+                    : $"Saved '{name}' with {oases.Count} oasis/oases.");
+                completionMessage = BuildMapOasisScanSummary(request, scan, scanTimer.Elapsed, name);
+            }
         }
         catch (OperationCanceledException)
         {
@@ -446,12 +453,61 @@ public partial class TravcoToolsControl : UserControl
             BusyOverlay.Hide();
             SetBusy(false);
         }
+
+        if (completionMessage is not null && _sessionActive && !_lifetimeCts.IsCancellationRequested)
+        {
+            await CloseTravcoSessionAsync();
+            var sessionClosed = !_sessionActive;
+            AppDialog.ShowCustom(
+                Window.GetWindow(this),
+                completionMessage + (sessionClosed
+                    ? "\nAnalysis session finished."
+                    : "\nThe analysis session could not close automatically. Use Finish session after dismissing this dialog."),
+                sessionClosed ? "Map oasis analysis finished" : "Map oasis session needs attention",
+                [("OK", MessageBoxResult.OK)],
+                sessionClosed ? MessageBoxImage.Information : MessageBoxImage.Warning,
+                MessageBoxResult.OK,
+                MessageBoxResult.OK,
+                successResult: sessionClosed ? MessageBoxResult.OK : null,
+                requireExplicitChoice: true);
+        }
+    }
+
+    internal static string BuildMapOasisScanSummary(
+        MapOasisScanRequest request,
+        MapOasisScanResult scan,
+        TimeSpan elapsed,
+        string? savedListName)
+    {
+        var area = request.Scope == MapOasisScanScope.WholeMap
+            ? "Whole Travian map"
+            : $"Radius {request.Radius} around ({request.CenterX}|{request.CenterY})";
+        var order = OasisListNaming.TypeOrder
+            .Select((type, index) => (type, index))
+            .ToDictionary(item => item.type, item => item.index, StringComparer.OrdinalIgnoreCase);
+        var typeCounts = scan.Oases
+            .GroupBy(oasis => string.IsNullOrWhiteSpace(oasis.OasisType) ? "Unknown" : oasis.OasisType.Trim(),
+                StringComparer.OrdinalIgnoreCase)
+            .OrderBy(group => order.TryGetValue(group.Key, out var index) ? index : int.MaxValue)
+            .ThenBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(group => $"{group.Key}: {group.Count()}")
+            .ToList();
+        var listOutcome = savedListName is null
+            ? "No list was created."
+            : $"Saved {(scan.IsPartialResult ? "partial " : string.Empty)}list '{savedListName}'.";
+
+        return $"{(scan.IsPartialResult ? "Scan stopped early" : "Scan complete")} — {area}\n"
+            + $"Time: {(int)elapsed.TotalHours:00}:{elapsed.Minutes:00}:{elapsed.Seconds:00}\n"
+            + $"Map areas scanned: {scan.CompletedAreas}/{scan.TotalAreas}\n"
+            + $"Oases found: {scan.Oases.Count} ({scan.Oases.Count(oasis => !oasis.IsOccupied)} free, {scan.Oases.Count(oasis => oasis.IsOccupied)} occupied)\n"
+            + $"By type:\n{(typeCounts.Count == 0 ? "None" : string.Join("\n", typeCounts))}\n"
+            + listOutcome;
     }
 
     // Maps a scanned oasis to a list row. The Village column shows the oasis type and the Account
     // column shows the owner (occupied) or the animal garrison (free); the structured oasis fields
     // are kept for the farm-add filter. Distance is left empty — it is computed live at add time.
-    private static TravcoListRow OasisToRow(OasisInfo oasis)
+    private static TravcoListRow OasisToRow(MapOasisEntry oasis)
     {
         var ownerOrAnimals = oasis.IsOccupied
             ? string.IsNullOrWhiteSpace(oasis.OwnerAlliance)

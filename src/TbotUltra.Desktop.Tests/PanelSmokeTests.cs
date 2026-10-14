@@ -287,6 +287,58 @@ public sealed class PanelSmokeTests
     }
 
     [Fact]
+    public void MapOasisCompletion_ShowsOneExplicitFinishActionAndClosesSession()
+    {
+        _wpf.Run(() =>
+        {
+            var root = Path.Combine(Path.GetTempPath(), $"tbot-oasis-completion-{Guid.NewGuid():N}");
+            Directory.CreateDirectory(root);
+            try
+            {
+                var closed = false;
+                var control = new TravcoToolsControl(
+                    new TravcoListStore(root, () => "smoke-account"),
+                    new AllVillagesImportSettingsStore(root, () => "smoke-account", () => "https://example.invalid"),
+                    [new VillageSelectionItem { Name = "Capital", CoordX = 10, CoordY = -20, IsCapital = true }],
+                    log: null)
+                {
+                    MapOasisScanRequested = (_, _, _) => Task.FromResult(new MapOasisScanResult(
+                        [new MapOasisEntry(11, -20, false, "Wood", "Wood", "3 rats", "", "")], 2, 2)),
+                    CloseRequested = () => { closed = true; return Task.CompletedTask; },
+                };
+                control.SetSessionState(active: true, browserTabOpen: false);
+                AppDialog.BeforeModalShowForTests = dialog =>
+                {
+                    Assert.True(closed);
+                    Assert.Equal("Map oasis analysis finished", dialog.Title);
+                    Assert.True(dialog.RequiresExplicitChoice);
+                    Assert.False(dialog.IsVisible);
+                    var buttons = Assert.IsType<StackPanel>(dialog.FindName("ButtonsPanel"));
+                    Assert.Equal("OK", Assert.IsType<Button>(Assert.Single(buttons.Children)).Content);
+                    var message = Assert.IsType<TextBlock>(dialog.FindName("MessageTextBlock")).Text;
+                    Assert.Contains("Map areas scanned: 2/2", message, StringComparison.Ordinal);
+                    Assert.Contains("Time: 00:00:", message, StringComparison.Ordinal);
+                    Assert.Contains("Oases found: 1 (1 free, 0 occupied)", message, StringComparison.Ordinal);
+                    Assert.Contains("Wood: 1", message, StringComparison.Ordinal);
+                    Assert.Contains("Saved list 'Map Oasis", message, StringComparison.Ordinal);
+                    Assert.Contains("Analysis session finished.", message, StringComparison.Ordinal);
+                };
+
+                control.RunMapOasisScanAndSaveAsync(new MapOasisScanRequest(
+                    10, -20, MapOasisScanScope.Radius, 40, MapOasisScanSpeed.Normal)).GetAwaiter().GetResult();
+
+                Assert.True(closed);
+                Assert.Single(new TravcoListStore(root, () => "smoke-account").LoadAll());
+            }
+            finally
+            {
+                AppDialog.BeforeModalShowForTests = null;
+                Directory.Delete(root, recursive: true);
+            }
+        });
+    }
+
+    [Fact]
     public void ReinforcementsPanel_ContainsReinforcementsAndIncomingAttackTabs()
     {
         _wpf.Run(() =>
