@@ -751,23 +751,28 @@ public sealed partial class TravianClient
                   return null;
                 }
                 """);
-            if (string.IsNullOrWhiteSpace(raw))
-            {
-                return (null, false, null, null);
-            }
-
-            using var doc = System.Text.Json.JsonDocument.Parse(raw);
-            var root = doc.RootElement;
-            var name = root.TryGetProperty("name", out var n) ? n.GetString() : null;
-            var away = root.TryGetProperty("away", out var a) && a.GetBoolean();
-            var x = root.TryGetProperty("x", out var xNode) && xNode.TryGetInt32(out var parsedX) ? parsedX : (int?)null;
-            var y = root.TryGetProperty("y", out var yNode) && yNode.TryGetInt32(out var parsedY) ? parsedY : (int?)null;
-            return (string.IsNullOrWhiteSpace(name) ? null : name!.Trim(), away, x, y);
+            return ParseHeroHomeVillageInfo(raw);
         }
-        catch
+        catch (Exception ex)
         {
+            Notify($"[herohome] could not read hero village from Attributes: {ex.Message}");
             return (null, false, null, null);
         }
+    }
+
+    internal static (string? Name, bool Away, int? X, int? Y) ParseHeroHomeVillageInfo(string? raw)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return (null, false, null, null);
+
+        using var doc = System.Text.Json.JsonDocument.Parse(raw);
+        var root = doc.RootElement;
+        var name = root.TryGetProperty("name", out var n) ? n.GetString() : null;
+        var away = root.TryGetProperty("away", out var a) && a.GetBoolean();
+        var x = root.TryGetProperty("x", out var xNode) && xNode.ValueKind == System.Text.Json.JsonValueKind.Number
+            && xNode.TryGetInt32(out var parsedX) ? parsedX : (int?)null;
+        var y = root.TryGetProperty("y", out var yNode) && yNode.ValueKind == System.Text.Json.JsonValueKind.Number
+            && yNode.TryGetInt32(out var parsedY) ? parsedY : (int?)null;
+        return (string.IsNullOrWhiteSpace(name) ? null : name!.Trim(), away, x, y);
     }
 
     private async Task<HeroStatus> ReadHeroStatusAsync(CancellationToken cancellationToken)

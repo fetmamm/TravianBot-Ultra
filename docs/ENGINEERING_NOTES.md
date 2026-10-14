@@ -743,6 +743,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - Verify active village after switching and before state-changing actions. Missing villages are quarantined until
   confirmed, not deleted after one incomplete refresh.
 - Hero ownership and current location are separate. Scope transfers to the active dialog and verify the target.
+- Hero Attributes may identify the home village only by a `karte.php?d=` link. Preserve its name when optional
+  x/y JSON fields are null, then resolve a unique coordinate-bearing village in the live sidebar; never discard
+  the name because a nullable coordinate is not a number.
 - Read an away Hero's ETA from Hero Attributes, never from Rally Point troop movements. Use the displayed timer
   directly for an explicit return to the home village; double every outbound movement timer (adventure, raid,
   attack, reinforcement, or another destination) to include the return leg. A live Attributes analysis must project
