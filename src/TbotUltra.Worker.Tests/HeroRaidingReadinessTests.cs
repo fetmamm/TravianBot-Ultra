@@ -60,6 +60,30 @@ public sealed class HeroRaidingReadinessTests
     }
 
     [Fact]
+    public void MapVillage_ResolvesDuplicateNameUsingClickedTileDetails()
+    {
+        Village[] villages =
+        [
+            new("GAPP", "dorf1.php?newdid=18734", CoordX: -122, CoordY: 83),
+            new("GAPP", "dorf1.php?newdid=91234", CoordX: 22, CoordY: -9),
+        ];
+
+        Assert.Equal((null, null), TravianClient.ResolveHeroRaidingVillage("GAPP", villages));
+        Assert.Equal((-122, 83), TravianClient.ParseHeroRaidingMapVillage(
+            """{"name":"GAPP","x":-122,"y":83}""", "GAPP"));
+    }
+
+    [Theory]
+    [InlineData("{\"name\":\"Other\",\"x\":-122,\"y\":83}")]
+    [InlineData("{\"name\":\"GAPP\",\"x\":null,\"y\":83}")]
+    [InlineData("{\"name\":\"GAPP\",\"x\":-122,\"y\":null}")]
+    [InlineData(null)]
+    public void MapVillage_RejectsUnverifiedDetails(string? details)
+    {
+        Assert.Equal((null, null), TravianClient.ParseHeroRaidingMapVillage(details, "GAPP"));
+    }
+
+    [Fact]
     public void ResolveHeroRaidingVillage_DoesNotGuessWhenCoordinatesAreMissing()
     {
         Village[] villages = [new("SATA", "dorf1.php?newdid=38455")];

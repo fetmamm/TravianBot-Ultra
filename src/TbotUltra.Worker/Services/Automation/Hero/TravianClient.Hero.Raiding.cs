@@ -78,13 +78,14 @@ public sealed partial class TravianClient
         if (!VillageIdentityReconciler.HasCoordinates(villageCoordinates) && !string.IsNullOrWhiteSpace(home.Name))
         {
             // Official hero-state links can contain only a map tile id (?d=), not x/y.
-            // Resolve the visible village name against the live sidebar, but never guess
-            // when duplicate names or missing coordinates make the identity ambiguous.
+            // A unique live sidebar name is sufficient; duplicate names require the
+            // hero-state tile link and its own map details instead of a name guess.
             var sidebarVillages = await ReadVillagesFromCurrentPageAsync(cancellationToken);
             villageCoordinates = ResolveHeroRaidingVillage(home.Name, sidebarVillages);
-            Notify(VillageIdentityReconciler.HasCoordinates(villageCoordinates)
-                ? $"[hero-raiding] hero village '{home.Name}' coordinates verified from live sidebar: ({villageCoordinates.X}|{villageCoordinates.Y})."
-                : $"[hero-raiding] hero village '{home.Name}' could not be uniquely resolved from live sidebar.");
+            if (VillageIdentityReconciler.HasCoordinates(villageCoordinates))
+                Notify($"[hero-raiding] hero village '{home.Name}' coordinates verified from live sidebar: ({villageCoordinates.X}|{villageCoordinates.Y}).");
+            else
+                Notify($"[hero-raiding] hero village '{home.Name}' could not be uniquely resolved from live sidebar; checking its exact map link.");
         }
         var hp = await ReadHeroHpFromCurrentPageAsync(cancellationToken);
         var strengthText = await _page.EvaluateAsync<string?>(
@@ -96,6 +97,8 @@ public sealed partial class TravianClient
             }
             """);
         var strengthDigits = new string((strengthText ?? string.Empty).Where(char.IsDigit).ToArray());
+        if (!VillageIdentityReconciler.HasCoordinates(villageCoordinates) && !home.Away && !string.IsNullOrWhiteSpace(home.Name))
+            villageCoordinates = await ReadHeroRaidingHomeCoordinatesFromMapAsync(home.Name, cancellationToken);
         if (home.Away || !VillageIdentityReconciler.HasCoordinates(villageCoordinates) || hp is not > 0
             || !int.TryParse(strengthDigits, out var strength) || strength <= 0)
             throw new InvalidOperationException("Hero raiding could not verify the hero's live home village, HP, or total fighting strength.");
@@ -139,6 +142,80 @@ public sealed partial class TravianClient
         return matches.Count == 1 && matches[0].CoordX.HasValue && matches[0].CoordY.HasValue
             ? (matches[0].CoordX, matches[0].CoordY)
             : (null, null);
+    }
+
+    private async Task<(int? X, int? Y)> ReadHeroRaidingHomeCoordinatesFromMapAsync(
+        string heroVillageName, CancellationToken cancellationToken)
+    {
+        var link = _page.Locator(".attributeBox .heroState a[href*='karte.php?d=']");
+        if (await link.CountAsync() != 1)
+            throw new InvalidOperationException("Hero raiding could not identify one exact hero-home map link in Attributes.");
+
+        var href = await link.GetAttributeAsync("href");
+        if (!Uri.TryCreate(new Uri(_page.Url), href, out var target)
+            || !string.Equals(target.Host, new Uri(_page.Url).Host, StringComparison.OrdinalIgnoreCase)
+            || !target.AbsolutePath.EndsWith("/karte.php", StringComparison.OrdinalIgnoreCase)
+            || !ParseQueryParameters(target.Query).TryGetValue("d", out var tileId)
+            || !int.TryParse(tileId, out var parsedTileId) || parsedTileId <= 0)
+            throw new InvalidOperationException("Hero raiding hero-home map link has no valid tile identity.");
+
+        await ClickLocatorAsync(link, "hero-raiding-open-home-map", cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken);
+        var current = new Uri(_page.Url);
+        if (!current.AbsolutePath.EndsWith("/karte.php", StringComparison.OrdinalIgnoreCase)
+            || !ParseQueryParameters(current.Query).TryGetValue("d", out var currentTileId)
+            || currentTileId != tileId)
+            throw new InvalidOperationException($"Hero raiding map did not open the expected home tile d={tileId}; current page: '{_page.Url}'.");
+
+        await _page.Locator("#tileDetails.village .titleInHeader").WaitForAsync(
+            new LocatorWaitForOptions { State = WaitForSelectorState.Visible, Timeout = _config.TimeoutMs })
+            .WaitAsync(cancellationToken);
+        var raw = await _page.EvaluateAsync<string?>(
+            """
+            () => {
+              const details = document.querySelector('#tileDetails.village');
+              const title = details?.querySelector('.titleInHeader');
+              const center = details?.querySelector('a[data-centermap="true"]');
+              if (!title || !center) return null;
+              const name = Array.from(title.childNodes).filter(n => n.nodeType === Node.TEXT_NODE)
+                .map(n => n.textContent || '').join(' ').replace(/\s+/g, ' ').trim();
+              const url = new URL(center.getAttribute('href') || '', location.href);
+              if (!url.searchParams.has('x') || !url.searchParams.has('y')) return null;
+              const x = Number(url.searchParams.get('x'));
+              const y = Number(url.searchParams.get('y'));
+              if (!Number.isInteger(x) || !Number.isInteger(y)) return null;
+              const displayed = (value) => (value || '').replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069\ufeff]/g, '')
+                .replace(/\u2212/g, '-').replace(/[^\d-]/g, '');
+              const displayX = title.querySelector('.coordinateX');
+              const displayY = title.querySelector('.coordinateY');
+              if (!displayX || !displayY) return null;
+              const textX = displayed(displayX.textContent);
+              const textY = displayed(displayY.textContent);
+              if (!/^-?\d+$/.test(textX) || !/^-?\d+$/.test(textY)) return null;
+              const shownX = Number(textX);
+              const shownY = Number(textY);
+              if (x !== shownX || y !== shownY) return null;
+              return JSON.stringify({ name, x, y });
+            }
+            """);
+        var coordinates = ParseHeroRaidingMapVillage(raw, heroVillageName);
+        if (!VillageIdentityReconciler.HasCoordinates(coordinates))
+            throw new InvalidOperationException($"Hero raiding could not verify the name and coordinates of home tile d={tileId}.");
+        Notify($"[hero-raiding] hero village '{heroVillageName}' coordinates verified from map tile d={tileId}: ({coordinates.X}|{coordinates.Y}).");
+        return coordinates;
+    }
+
+    internal static (int? X, int? Y) ParseHeroRaidingMapVillage(string? raw, string expectedName)
+    {
+        if (string.IsNullOrWhiteSpace(raw)) return (null, null);
+        using var document = JsonDocument.Parse(raw);
+        var root = document.RootElement;
+        if (!root.TryGetProperty("name", out var name) || name.ValueKind != JsonValueKind.String
+            || !VillageIdentityReconciler.IsSameName(name.GetString(), expectedName)
+            || !root.TryGetProperty("x", out var x) || x.ValueKind != JsonValueKind.Number || !x.TryGetInt32(out var parsedX)
+            || !root.TryGetProperty("y", out var y) || y.ValueKind != JsonValueKind.Number || !y.TryGetInt32(out var parsedY))
+            return (null, null);
+        return (parsedX, parsedY);
     }
 
     /// <summary>Uses Official's Cage popup to move all equipped cages, then verifies the equipped bag is empty.</summary>
