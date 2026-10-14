@@ -63,6 +63,35 @@ public sealed class ContinuousRuntimeItemPreparationTests
         Assert.Equal(2, port.AppliedAdventureCount);
     }
 
+    [Theory]
+    [InlineData("raiding", -49)]
+    [InlineData("adventures", -51)]
+    public async Task GlobalHeroRaiding_QueuesWithoutVillageHeroGroup(string priority, int expectedPriority)
+    {
+        var port = new InMemoryPort { HeroRaidingDue = true };
+
+        await new ContinuousRuntimeItemPreparation(port).PrepareAsync(
+            new BotOptions { HeroRaidingEnabled = true, HeroRaidingPriority = priority }, default);
+        await new ContinuousRuntimeItemPreparation(port).PrepareAsync(
+            new BotOptions { HeroRaidingEnabled = true, HeroRaidingPriority = priority }, default);
+
+        var item = Assert.Single(port.Queue.Items);
+        Assert.Equal("hero_raid", item.TaskName);
+        Assert.Equal(expectedPriority, item.Priority);
+        Assert.Empty(item.Payload);
+    }
+
+    [Fact]
+    public async Task GlobalHeroRaiding_WaitsForDiscoveryGate()
+    {
+        var port = new InMemoryPort { HeroRaidingDue = false };
+
+        await new ContinuousRuntimeItemPreparation(port).PrepareAsync(
+            new BotOptions { HeroRaidingEnabled = true }, default);
+
+        Assert.Empty(port.Queue.Items);
+    }
+
     [Fact]
     public async Task FarmingWithoutGoldClub_RecordsBlockWithoutQueueingWork()
     {
@@ -213,6 +242,7 @@ public sealed class ContinuousRuntimeItemPreparationTests
         public bool GoldClubEnabled { get; init; } = true;
         public bool MissingGoldClubBlocked { get; private set; }
         public bool ResourceTransferReady { get; init; }
+        public bool HeroRaidingDue { get; init; }
         public int EnsureFarmListsReadyCalls { get; private set; }
         public AutomationFarmListSelection FarmListSelection { get; init; } = new([], [], 0);
         public InMemoryQueuePort Queue { get; } = new();
@@ -224,6 +254,7 @@ public sealed class ContinuousRuntimeItemPreparationTests
         public IReadOnlySet<QueueGroup> GetEnabledGroupsForVillage(string villageKey) =>
             EnabledGroups.ToHashSet();
         public bool ShouldKeepHeroAdventurePolling() => false;
+        public bool IsHeroRaidingDue() => HeroRaidingDue;
         public IReadOnlyList<QueueItem> GetQueueItems() => Queue.Items;
         public string? CanonicalizeVillageKey(string? key) => key;
         public IReadOnlyList<AutomationRuntimeVillage> GetAutomationVillages(AutomationRuntimeVillage? onlyVillage) =>

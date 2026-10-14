@@ -34,6 +34,11 @@ public partial class MainWindow
     internal void OnProductionBonusSettingsClicked(object sender, RoutedEventArgs e) => ProductionBonusSettingsButton_Click(sender, e);
     internal void OnVillageStatusSweepSettingChanged(object sender, RoutedEventArgs e) => VillageStatusSweepSetting_Changed(sender, e);
     internal void OnVillageStatusSweepSettingsClicked(object sender, RoutedEventArgs e) => VillageStatusSweepSettingsButton_Click(sender, e);
+    internal void OnHeroRaidingSettingsClicked(object sender, RoutedEventArgs e)
+    {
+        MainTabControl.SelectedItem = HeroTabItem;
+        HeroHubPanelControl.ShowRaidingTab();
+    }
     internal void OnIncomingAttackClicked(object sender, RoutedEventArgs e) => IncomingAttackButton_Click(sender, e);
     internal void OnDashboardVillageQueueClicked(object sender, RoutedEventArgs e) => DashboardVillageQueueButton_Click(sender, e);
 }

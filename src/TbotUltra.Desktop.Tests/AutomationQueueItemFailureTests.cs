@@ -85,6 +85,18 @@ public sealed class AutomationQueueItemFailureTests
     }
 
     [Fact]
+    public async Task HeroRaidFailure_DisablesGlobalToggleAndRaisesOneAlarm()
+    {
+        var port = new InMemoryPort();
+
+        await new AutomationQueueItemFailure(port).HandleAsync(
+            Item("hero_raid"), new HeroRaidingSafetyException("outgoing result unknown"),
+            "[LOOP 1]", Stopwatch.StartNew(), AutomationRunMode.ContinuousLoop);
+
+        Assert.Equal(["disable-hero-raiding", "permanent-failure", "alarm", "refresh-indicators"], port.Trace);
+    }
+
+    [Fact]
     public async Task MissingSmithy_WhenVerificationFindsIt_RetriesWithoutBlockingTroops()
     {
         var port = new InMemoryPort { SmithyMissing = false };
@@ -382,6 +394,7 @@ public sealed class AutomationQueueItemFailureTests
             Trace.Add("block-troops-global");
         public void DisableTownHallForVillage(string villageKey, string? villageName) =>
             Trace.Add("disable-town-hall-village");
+        public void DisableHeroRaiding(string reason) => Trace.Add("disable-hero-raiding");
         public ValueTask ApplyConstructionInlineWaitAsync(
             TimeSpan delay,
             string? humanizeVillageKey,

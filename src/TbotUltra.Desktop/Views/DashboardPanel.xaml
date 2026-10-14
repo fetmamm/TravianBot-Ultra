@@ -359,6 +359,22 @@
                         </StackPanel>
                     </StackPanel>
                     <StackPanel Grid.Column="1" Margin="20,0,0,0">
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,8">
+                            <CheckBox Content="Hero raiding"
+                                      Style="{StaticResource ToggleSwitchStyle}"
+                                      Foreground="{DynamicResource TextSecondaryBrush}"
+                                      VerticalAlignment="Center"
+                                      ToolTip="Account-wide. Automatically switches off if a hero raid's outcome is unsafe or unknown."
+                                      IsChecked="{Binding HeroVm.HeroRaidingEnabled, RelativeSource={RelativeSource AncestorType=Window}, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" />
+                            <ContentControl Style="{StaticResource SettingInfoIconStyle}" Margin="4,0,0,0"
+                                            ToolTip="Account-wide. Raid unoccupied oases with animals using the hero alone. Configure the predicted HP threshold and oasis types on the Hero raiding tab." />
+                            <Button Content="&#xE713;" FontFamily="Segoe MDL2 Assets" FontSize="13"
+                                    Width="26" Height="22" Padding="0" Margin="6,0,0,0"
+                                    VerticalAlignment="Center" Background="{DynamicResource SurfaceBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    ToolTip="Open Hero raiding settings"
+                                    Click="HeroRaidingSettingsButton_Click" />
+                        </StackPanel>
                         <StackPanel Orientation="Horizontal">
                             <CheckBox x:Name="VillageStatusSweepCheckBox" Content="Village scan"
                                       Style="{StaticResource ToggleSwitchStyle}"

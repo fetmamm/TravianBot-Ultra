@@ -16,6 +16,14 @@ _Avoid_: Scan cache, temporary scan state
 The list of oases found by a Map Oasis Scan together with completion information. The oasis list remains the input to Farm Lists and other downstream uses.
 _Avoid_: Map data response, scan output
 
+**Hero Raiding**:
+Account-wide automation that sends the hero to unoccupied oases with animals, defeating them to gather resources. Occupied and animal-free oases are never eligible targets.
+_Avoid_: Occupied-oasis attack, empty-oasis raid, hero adventure
+
+**Hero Raiding Candidate**:
+An automatically discovered oasis that matches Hero Raiding's distance and oasis-type filters and remains eligible for a safety assessment. The user may exclude an individual candidate without turning off Hero Raiding.
+_Avoid_: Manual farm-list entry, guaranteed safe target
+
 **Construction Queue Reconciliation**:
 The application of a confirmed live village construction status to pending construction queue items, including satisfied targets, slot rebinding, and required dependencies.
 _Avoid_: Queue repair, build queue sync

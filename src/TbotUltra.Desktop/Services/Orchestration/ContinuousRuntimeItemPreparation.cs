@@ -24,6 +24,7 @@ internal interface IContinuousRuntimeItemPreparationPort
     IReadOnlyList<QueueGroup> GetConsideredGroups();
     IReadOnlySet<QueueGroup> GetEnabledGroupsForVillage(string villageKey);
     bool ShouldKeepHeroAdventurePolling();
+    bool IsHeroRaidingDue();
     IReadOnlyList<QueueItem> GetQueueItems();
     string? CanonicalizeVillageKey(string? key);
     IReadOnlyList<AutomationRuntimeVillage> GetAutomationVillages(AutomationRuntimeVillage? onlyVillage);
@@ -81,6 +82,7 @@ internal sealed class ContinuousRuntimeItemPreparation(IContinuousRuntimeItemPre
         if (consideredGroups.Count <= 0
             && !heroPollingEnabled
             && !options.HeroCropAntiStarveEnabled
+            && !options.HeroRaidingEnabled
             && onlyVillage is null)
         {
             return;
@@ -94,6 +96,15 @@ internal sealed class ContinuousRuntimeItemPreparation(IContinuousRuntimeItemPre
         var villages = port.GetAutomationVillages(onlyVillage);
 
         port.PrepareHeroCropAntiStarve(options);
+        if (onlyVillage is null && options.HeroRaidingEnabled
+            && port.IsHeroRaidingDue() && !runtimeItems.HasActive("hero_raid"))
+        {
+            var priority = string.Equals(options.HeroRaidingPriority, "adventures", StringComparison.OrdinalIgnoreCase)
+                ? -51 : -49;
+            runtimeItems.Ensure(new AutomationRuntimeItemSpec(
+                "hero_raid", "Hero oasis raid", null, priority, 0));
+            port.Log($"[hero-raiding] global raid task queued; priority={options.HeroRaidingPriority}.");
+        }
         if (onlyVillage is null && heroPollingEnabled && !runtimeItems.HasActive("hero_manage"))
         {
             var adventureCount = await port.RefreshAdventureCountAsync(options, cancellationToken);

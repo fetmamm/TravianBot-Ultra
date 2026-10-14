@@ -74,6 +74,19 @@ public sealed class AutomationQueueEligibilityTests : IDisposable
     }
 
     [Fact]
+    public void IsAllowed_HeroRaidDependsOnlyOnGlobalToggle()
+    {
+        var (_, port, store, village) = CreateEligibility();
+        port.VillageKey = village.Key;
+        store.SetEnabled(village, enabled: false);
+        store.SetEnabledGroups(village, []);
+        var raid = new QueueItem { TaskName = "hero_raid", Group = QueueGroup.Hero };
+
+        Assert.True(new AutomationQueueEligibility(store, () => false, port, () => true).IsAllowed(raid));
+        Assert.False(new AutomationQueueEligibility(store, () => true, port, () => false).IsAllowed(raid));
+    }
+
+    [Fact]
     public void IsAllowed_RequiresEnabledVillageAndGroup()
     {
         var (eligibility, port, store, village) = CreateEligibility();

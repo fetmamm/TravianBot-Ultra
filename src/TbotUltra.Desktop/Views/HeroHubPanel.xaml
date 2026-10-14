@@ -14,5 +14,103 @@
     <TabItem x:Name="HeroInventoryTabItem" Header="Hero inventory">
       <views:HeroPanel x:Name="HeroInventoryPanel" Section="Hero inventory" />
     </TabItem>
+    <TabItem x:Name="HeroRaidingTabItem" Header="Hero raiding">
+      <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{DynamicResource AppBackgroundBrush}">
+        <StackPanel Margin="14" MaxWidth="860" HorizontalAlignment="Left">
+          <TextBlock Text="Hero raiding" FontSize="22" FontWeight="SemiBold"
+                     Foreground="{DynamicResource TextPrimaryBrush}" />
+          <TextBlock Text="Raid unoccupied oases with animals using the hero alone."
+                     Foreground="{DynamicResource TextSubtleBrush}" Margin="0,4,0,14" />
+          <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"
+                  BorderThickness="1" CornerRadius="8" Padding="14">
+            <StackPanel>
+              <CheckBox Content="Enable hero raiding" IsChecked="{Binding HeroRaidingEnabled, Mode=TwoWay}"
+                        Style="{StaticResource ToggleSwitchStyle}"
+                        ToolTip="Account-wide. Sends the hero alone on Raid to safe animal oases. Automatically switches off if the outcome is unsafe or unknown." />
+              <TextBlock Text="The hero raids only when home and available. Empty or occupied oases are never targets."
+                         TextWrapping="Wrap" Foreground="{DynamicResource TextSubtleBrush}" Margin="0,8,0,14" />
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <TextBlock Text="Minimum predicted HP after raid" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextSecondaryBrush}" Width="220" />
+                <TextBox Width="54" Text="{Binding HeroRaidingMinimumHpPercent, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                <TextBlock Text="%" VerticalAlignment="Center" Margin="5,0,0,0" />
+                <ContentControl Style="{StaticResource SettingInfoIconStyle}" Margin="8,0,0,0"
+                                ToolTip="This is an approximation based on observed animals and current hero strength. Actual combat damage can differ; 40% is not a survival guarantee." />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <TextBlock Text="Maximum distance" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextSecondaryBrush}" Width="220" />
+                <TextBox Width="54" Text="{Binding HeroRaidingMaximumDistance, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                <TextBlock Text="tiles (1–50)" VerticalAlignment="Center" Margin="6,0,0,0" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <TextBlock Text="Observation freshness" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextSecondaryBrush}" Width="220" />
+                <TextBox Width="54" Text="{Binding HeroRaidingObservationMinutes, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                <TextBlock Text="minutes" VerticalAlignment="Center" Margin="6,0,0,0" />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                <TextBlock Text="Hero priority" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextSecondaryBrush}" Width="220" />
+                <ComboBox Width="172" SelectedValuePath="Tag"
+                          SelectedValue="{Binding HeroRaidingPriority, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}">
+                  <ComboBoxItem Content="Hero raiding first" Tag="raiding" />
+                  <ComboBoxItem Content="Adventures first" Tag="adventures" />
+                </ComboBox>
+              </StackPanel>
+              <TextBlock Text="Oasis types" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
+              <WrapPanel Margin="0,8,0,12">
+                <CheckBox Content="Wood" IsChecked="{Binding RaidWood}" Margin="0,0,16,8" />
+                <CheckBox Content="Clay" IsChecked="{Binding RaidClay}" Margin="0,0,16,8" />
+                <CheckBox Content="Iron" IsChecked="{Binding RaidIron}" Margin="0,0,16,8" />
+                <CheckBox Content="Crop only" IsChecked="{Binding RaidCrop}" Margin="0,0,16,8" />
+                <CheckBox Content="Wood + Crop" IsChecked="{Binding RaidWoodCrop}" Margin="0,0,16,8" />
+                <CheckBox Content="Clay + Crop" IsChecked="{Binding RaidClayCrop}" Margin="0,0,16,8" />
+                <CheckBox Content="Iron + Crop" IsChecked="{Binding RaidIronCrop}" Margin="0,0,16,8" />
+              </WrapPanel>
+              <CheckBox Content="Auto use ointments" IsChecked="{Binding AutoUseOintments}" />
+              <TextBlock Text="Shared with Adventures. When off, the hero heals naturally."
+                         Foreground="{DynamicResource TextSubtleBrush}" Margin="20,4,0,0" />
+            </StackPanel>
+          </Border>
+          <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"
+                  BorderThickness="1" CornerRadius="8" Padding="14" Margin="0,12,0,0">
+            <StackPanel>
+              <DockPanel Margin="0,0,0,8">
+                <TextBlock Text="Oasis candidates" FontSize="14" FontWeight="SemiBold"
+                           Foreground="{DynamicResource TextPrimaryBrush}" VerticalAlignment="Center" />
+                <Button Content="Scan now" DockPanel.Dock="Right" HorizontalAlignment="Right"
+                        Padding="12,5" IsEnabled="{Binding CanScanHeroRaiding}"
+                        Click="HeroRaidingScanButton_Click" />
+              </DockPanel>
+              <TextBlock Text="{Binding HeroRaidingStatusText}" TextWrapping="Wrap"
+                         Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,9" />
+              <DataGrid ItemsSource="{Binding HeroRaidingCandidates}"
+                        AutoGenerateColumns="False" CanUserAddRows="False" CanUserDeleteRows="False"
+                        CanUserReorderColumns="False" MinHeight="120" MaxHeight="330">
+                <DataGrid.Columns>
+                  <DataGridTemplateColumn Header="Exclude" Width="70">
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate>
+                        <CheckBox IsChecked="{Binding IsExcluded, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+                                  HorizontalAlignment="Center" VerticalAlignment="Center"
+                                  ToolTip="Exclude this oasis until you uncheck it." />
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
+                  <DataGridTextColumn Header="Coordinates" Binding="{Binding Coordinates}" IsReadOnly="True" Width="90" />
+                  <DataGridTextColumn Header="Type" Binding="{Binding OasisType}" IsReadOnly="True" Width="110" />
+                  <DataGridTextColumn Header="Animals" Binding="{Binding Animals}" IsReadOnly="True" Width="*" MinWidth="130" />
+                  <DataGridTextColumn Header="Predicted HP" Binding="{Binding PredictedHp}" IsReadOnly="True" Width="95" />
+                  <DataGridTextColumn Header="Bounty / resource" Binding="{Binding EstimatedBounty}" IsReadOnly="True" Width="110" />
+                  <DataGridTextColumn Header="Distance" Binding="{Binding Distance}" IsReadOnly="True" Width="70" />
+                  <DataGridTextColumn Header="Status" Binding="{Binding Safety}" IsReadOnly="True" Width="100" />
+                </DataGrid.Columns>
+              </DataGrid>
+            </StackPanel>
+          </Border>
+        </StackPanel>
+      </ScrollViewer>
+    </TabItem>
   </TabControl>
 </UserControl>

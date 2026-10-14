@@ -16,6 +16,7 @@ internal interface IAutomationQueueItemFailurePort
     bool DisableTroopsGroupForVillage(QueueItem item, out string blockedVillageName);
     void SetTroopsBlockedState(string reasonKey, string reasonText);
     void DisableTownHallForVillage(string villageKey, string? villageName);
+    void DisableHeroRaiding(string reason);
     ValueTask ApplyConstructionInlineWaitAsync(
         TimeSpan delay,
         string? humanizeVillageKey,
@@ -83,6 +84,17 @@ internal sealed class AutomationQueueItemFailure(
         Stopwatch timer,
         AutomationRunMode mode)
     {
+        if (string.Equals(item.TaskName, "hero_raid", StringComparison.OrdinalIgnoreCase)
+            && ex is not TaskWaitException)
+        {
+            port.DisableHeroRaiding(ex.Message);
+            port.MarkPermanentlyFailed(item.Id);
+            port.Log($"{logPrefix} SAFETY STOP {timer.Elapsed.TotalSeconds:F1}s | {port.FormatException(ex)}");
+            port.RaisePermanentFailureAlarm(item, ex.Message);
+            await port.RefreshVillageActivityIndicatorsAsync();
+            return true;
+        }
+
         if (await port.HandleStorageMasterPlanFailureAsync(item))
         {
             return true;

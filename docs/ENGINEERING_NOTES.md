@@ -1,6 +1,6 @@
 # Engineering Notes
 
-Last updated: 2026-10-13
+Last updated: 2026-10-14
 
 Read this file before changing architecture, selectors, paths, browser behavior, persisted state, queueing,
 or server logic. Keep it short and current: durable rules belong here; detailed decisions belong in ADRs;
@@ -748,6 +748,23 @@ Published artifacts belong under `artifacts/`, never beside source files.
   attack, reinforcement, or another destination) to include the return leg. A live Attributes analysis must project
   movement, away-state, and return time together with the attribute snapshot and defer an existing due `hero_manage`
   item immediately, so login updates the Hero countdown without a second Attributes visit after Start.
+- Hero raiding is account+world scoped and opt-in. Only unoccupied oases with confirmed animals may be raided,
+  by the hero alone using Raid. Read current HP, effective strength, mount, and equipment live before choosing a
+  target; stale or unknown garrisons are not safety evidence. The predicted post-raid HP threshold defaults to 40%
+  and is an approximation, not a guarantee. Verify send and outcome; an unknown outcome or unexpected hero damage
+  disables raiding until the user enables it again. Verify the exact hero-only outgoing Raid in Rally Point after
+  Confirm, then use fresh hero-home state and HP for outcome; a combat report is optional diagnostic evidence.
+  Post-raid comparison tolerates at most one HP percentage point
+  of simulator rounding, never below the configured absolute HP minimum.
+- Official inventory cage removal uses the equipped Cage popup: click the equipped bag item once, set the full
+  count, click Move once, and verify the equipped bag has the `empty` class and no Cage item. The inventory list
+  can be filtered; do not require a visible inventory Cage to prove removal. Do not drag cages.
+- The Rally Point confirmation page exposes one-way travel duration. Persist the expected home check at roughly
+  twice that duration before final Confirm; do not poll hero status every second while the raid is travelling.
+- Discover hero-raid targets from the hero's actual village, first local map area then center-out only if no safe
+  candidate exists. Cache areas per account+world with per-area timestamps; re-read observations older than the
+  configured freshness limit (10 minutes by default). If no safe target exists, wait 60 minutes without an alarm;
+  explicit Scan now bypasses only that wait. User exclusions persist per account+world and must fail closed if unreadable.
 - Empty building slots contain one contract per available type; scope cost reads and transfer clicks to the exact
   `#contract_building{gid}`.
 - Cache only data with an owner, invalidation rule, and safe stale behavior. Incomplete refreshes must not erase

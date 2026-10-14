@@ -24,7 +24,8 @@ public partial class MainWindow
             var queueEligibility = new AutomationQueueEligibility(
                 owner._villageSettingsStore,
                 () => owner.CurrentGoldClubAvailability,
-                new MainWindowAutomationQueueEligibilityPort(owner));
+                new MainWindowAutomationQueueEligibilityPort(owner),
+                () => owner._heroViewModel.HeroRaidingEnabled);
             var queueSelection = new AutomationQueueSelectionCoordinator(
                 new MainWindowAutomationQueueSelectionPort(owner, queueEligibility, passRuntime));
             var forecast = new ContinuousAutomationForecastCoordinator(

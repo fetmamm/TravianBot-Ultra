@@ -512,7 +512,7 @@ public sealed class PanelSmokeTests
             var tabs = Assert.IsType<TabControl>(panel.FindName("HeroTabControl"));
 
             Assert.Equal(
-                new[] { "Adventures", "Attributes", "Hero inventory" },
+                new[] { "Adventures", "Attributes", "Hero inventory", "Hero raiding" },
                 tabs.Items.Cast<TabItem>().Select(item => item.Header?.ToString() ?? string.Empty).ToArray());
         });
     }
@@ -557,7 +557,8 @@ public sealed class PanelSmokeTests
             var hub = new HeroHubPanel { DataContext = vm };
             var tabs = Assert.IsType<TabControl>(hub.FindName("HeroTabControl"));
             var panels = tabs.Items.Cast<TabItem>()
-                .Select(item => Assert.IsType<HeroPanel>(item.Content))
+                .Select(item => item.Content)
+                .OfType<HeroPanel>()
                 .ToList();
             foreach (var panel in panels)
             {

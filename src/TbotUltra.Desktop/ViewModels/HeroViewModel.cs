@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.ComponentModel;
 using System.Linq;
 using System.Windows.Input;
 using TbotUltra.Core.Configuration;
@@ -72,6 +73,20 @@ public sealed class HeroViewModel : BaseViewModel
     private bool _increaseAdventuresToHard;
     private bool _reduceAdventureTime;
     private int _adventureVideoChancePercent = 70;
+    private bool _heroRaidingEnabled;
+    private int _heroRaidingMinimumHpPercent = 40;
+    private int _heroRaidingMaximumDistance = 20;
+    private int _heroRaidingObservationMinutes = 10;
+    private string _heroRaidingPriority = "raiding";
+    private bool _raidWood = true;
+    private bool _raidClay = true;
+    private bool _raidIron = true;
+    private bool _raidCrop;
+    private bool _raidWoodCrop = true;
+    private bool _raidClayCrop = true;
+    private bool _raidIronCrop = true;
+    private string _heroRaidingStatusText = "No oasis scan yet.";
+    private bool _isHeroRaidingScanRunning;
 
     public HeroViewModel()
     {
@@ -101,6 +116,47 @@ public sealed class HeroViewModel : BaseViewModel
     /// bindings to <c>ItemsSource</c> stay stable across config reloads.
     /// </summary>
     public ObservableCollection<HeroAttributePriorityItem> AttributePriorityItems { get; } = [];
+    public ObservableCollection<HeroRaidingCandidateItem> HeroRaidingCandidates { get; } = [];
+    public event Action<int, int, bool>? HeroRaidingExclusionChanged;
+
+    public string HeroRaidingStatusText
+    {
+        get => _heroRaidingStatusText;
+        set => SetProperty(ref _heroRaidingStatusText, value);
+    }
+
+    public bool IsHeroRaidingScanRunning
+    {
+        get => _isHeroRaidingScanRunning;
+        set
+        {
+            if (SetProperty(ref _isHeroRaidingScanRunning, value))
+                OnPropertyChanged(nameof(CanScanHeroRaiding));
+        }
+    }
+
+    public bool CanScanHeroRaiding => !IsHeroRaidingScanRunning;
+
+    public void ApplyHeroRaidingScan(HeroRaidingScanResult scan)
+    {
+        foreach (var old in HeroRaidingCandidates)
+            old.PropertyChanged -= HeroRaidingCandidate_PropertyChanged;
+        HeroRaidingCandidates.Clear();
+        foreach (var candidate in scan.Candidates)
+        {
+            var item = new HeroRaidingCandidateItem(candidate);
+            item.PropertyChanged += HeroRaidingCandidate_PropertyChanged;
+            HeroRaidingCandidates.Add(item);
+        }
+        HeroRaidingStatusText = scan.Message;
+    }
+
+    private void HeroRaidingCandidate_PropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(HeroRaidingCandidateItem.IsExcluded)
+            && sender is HeroRaidingCandidateItem candidate)
+            HeroRaidingExclusionChanged?.Invoke(candidate.X, candidate.Y, candidate.IsExcluded);
+    }
 
     public ICommand RefreshAdventuresCommand => _refreshAdventuresCommand;
     public ICommand RefreshHpCommand => _refreshHpCommand;
@@ -316,6 +372,11 @@ public sealed class HeroViewModel : BaseViewModel
 
     public void ResetRuntimeState()
     {
+        foreach (var candidate in HeroRaidingCandidates)
+            candidate.PropertyChanged -= HeroRaidingCandidate_PropertyChanged;
+        HeroRaidingCandidates.Clear();
+        HeroRaidingStatusText = "No oasis scan yet.";
+        IsHeroRaidingScanRunning = false;
         AttributesStatusText = "Hero stats not loaded.";
         AdventureCountText = "?";
         HeroHpText = "?";
@@ -374,6 +435,56 @@ public sealed class HeroViewModel : BaseViewModel
 
     private static int NormalizeOintmentTarget(int value)
         => value is 50 or 60 or 70 or 80 or 90 or 100 ? value : 100;
+
+    public bool HeroRaidingEnabled
+    {
+        get => _heroRaidingEnabled;
+        set => SetProperty(ref _heroRaidingEnabled, value);
+    }
+
+    public int HeroRaidingMinimumHpPercent
+    {
+        get => _heroRaidingMinimumHpPercent;
+        set => SetProperty(ref _heroRaidingMinimumHpPercent, Math.Clamp(value, 1, 100));
+    }
+
+    public int HeroRaidingMaximumDistance
+    {
+        get => _heroRaidingMaximumDistance;
+        set => SetProperty(ref _heroRaidingMaximumDistance, Math.Clamp(value, 1, 50));
+    }
+
+    public int HeroRaidingObservationMinutes
+    {
+        get => _heroRaidingObservationMinutes;
+        set => SetProperty(ref _heroRaidingObservationMinutes, Math.Clamp(value, 1, 120));
+    }
+
+    public string HeroRaidingPriority
+    {
+        get => _heroRaidingPriority;
+        set => SetProperty(ref _heroRaidingPriority,
+            string.Equals(value, "adventures", StringComparison.OrdinalIgnoreCase) ? "adventures" : "raiding");
+    }
+
+    public bool RaidWood { get => _raidWood; set => SetProperty(ref _raidWood, value); }
+    public bool RaidClay { get => _raidClay; set => SetProperty(ref _raidClay, value); }
+    public bool RaidIron { get => _raidIron; set => SetProperty(ref _raidIron, value); }
+    public bool RaidCrop { get => _raidCrop; set => SetProperty(ref _raidCrop, value); }
+    public bool RaidWoodCrop { get => _raidWoodCrop; set => SetProperty(ref _raidWoodCrop, value); }
+    public bool RaidClayCrop { get => _raidClayCrop; set => SetProperty(ref _raidClayCrop, value); }
+    public bool RaidIronCrop { get => _raidIronCrop; set => SetProperty(ref _raidIronCrop, value); }
+
+    public string HeroRaidingSelectedTypes => string.Join(',', new[]
+    {
+        RaidWood ? "Wood" : null,
+        RaidClay ? "Clay" : null,
+        RaidIron ? "Iron" : null,
+        RaidCrop ? "Crop" : null,
+        RaidWoodCrop ? "Wood+Crop" : null,
+        RaidClayCrop ? "Clay+Crop" : null,
+        RaidIronCrop ? "Iron+Crop" : null,
+    }.Where(type => type is not null));
 
     /// <summary>
     /// Adventure pick order — top of the list. Mutually exclusive with
@@ -451,6 +562,21 @@ public sealed class HeroViewModel : BaseViewModel
         AutoAssignPoints = options.HeroAutoAssignPoints;
         AutoUseOintments = options.HeroAutoUseOintments;
         OintmentTargetHpPercent = options.HeroOintmentTargetHpPercent;
+        HeroRaidingEnabled = options.HeroRaidingEnabled;
+        HeroRaidingMinimumHpPercent = options.HeroRaidingMinimumHpPercent;
+        HeroRaidingMaximumDistance = options.HeroRaidingMaximumDistance;
+        HeroRaidingObservationMinutes = options.HeroRaidingObservationMinutes;
+        HeroRaidingPriority = options.HeroRaidingPriority;
+        var raidTypes = new HashSet<string>(
+            (options.HeroRaidingSelectedTypes ?? string.Empty).Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries),
+            StringComparer.OrdinalIgnoreCase);
+        RaidWood = raidTypes.Contains("Wood");
+        RaidClay = raidTypes.Contains("Clay");
+        RaidIron = raidTypes.Contains("Iron");
+        RaidCrop = raidTypes.Contains("Crop");
+        RaidWoodCrop = raidTypes.Contains("Wood+Crop");
+        RaidClayCrop = raidTypes.Contains("Clay+Crop");
+        RaidIronCrop = raidTypes.Contains("Iron+Crop");
         var topFirst = string.Equals(options.HeroAdventurePickOrder, "top", StringComparison.OrdinalIgnoreCase);
         if (topFirst)
         {

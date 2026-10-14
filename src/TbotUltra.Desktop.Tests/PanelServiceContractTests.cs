@@ -109,6 +109,13 @@ public sealed class PanelServiceContractTests : IDisposable
             IncreaseAdventuresToHard = true,
             ReduceAdventureTime = true,
             AdventureVideoChancePercent = 35,
+            HeroRaidingEnabled = true,
+            HeroRaidingMinimumHpPercent = 45,
+            HeroRaidingMaximumDistance = 30,
+            HeroRaidingObservationMinutes = 12,
+            HeroRaidingPriority = "adventures",
+            RaidCrop = true,
+            RaidIron = false,
         };
         vm.LoadPriorityFromConfig("offence_bonus,resources,defence_bonus,fighting_strength");
         vm.LoadMaximumsFromConfig("resources=40,fighting_strength=80,offence_bonus=0,defence_bonus=100");
@@ -131,6 +138,13 @@ public sealed class PanelServiceContractTests : IDisposable
         Assert.True(persisted[BotOptionPayloadKeys.IncreaseAdventuresToHard]!.GetValue<bool>());
         Assert.True(persisted[BotOptionPayloadKeys.ReduceAdventureTime]!.GetValue<bool>());
         Assert.Equal(35, persisted[BotOptionPayloadKeys.HeroAdventureVideoChancePercent]!.GetValue<int>());
+        Assert.True(persisted[BotOptionPayloadKeys.HeroRaidingEnabled]!.GetValue<bool>());
+        Assert.Equal(45, persisted[BotOptionPayloadKeys.HeroRaidingMinimumHpPercent]!.GetValue<int>());
+        Assert.Equal(30, persisted[BotOptionPayloadKeys.HeroRaidingMaximumDistance]!.GetValue<int>());
+        Assert.Equal(12, persisted[BotOptionPayloadKeys.HeroRaidingObservationMinutes]!.GetValue<int>());
+        Assert.Equal("adventures", persisted[BotOptionPayloadKeys.HeroRaidingPriority]!.GetValue<string>());
+        Assert.Equal("Wood,Clay,Crop,Wood+Crop,Clay+Crop,Iron+Crop",
+            persisted[BotOptionPayloadKeys.HeroRaidingSelectedTypes]!.GetValue<string>());
         Assert.False(persisted.ContainsKey("hero_hide_mode_enabled"));
         Assert.False(persisted.ContainsKey("hero_hide_mode"));
         Assert.Equal("keep", persisted["unrelated"]!.GetValue<string>());

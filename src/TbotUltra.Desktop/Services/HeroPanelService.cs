@@ -33,6 +33,12 @@ public sealed class HeroPanelService(IHeroPanelClient client, BotConfigStore con
         config[BotOptionPayloadKeys.IncreaseAdventuresToHard] = viewModel.IncreaseAdventuresToHard;
         config[BotOptionPayloadKeys.ReduceAdventureTime] = viewModel.ReduceAdventureTime;
         config[BotOptionPayloadKeys.HeroAdventureVideoChancePercent] = viewModel.AdventureVideoChancePercent;
+        config[BotOptionPayloadKeys.HeroRaidingEnabled] = viewModel.HeroRaidingEnabled;
+        config[BotOptionPayloadKeys.HeroRaidingMinimumHpPercent] = viewModel.HeroRaidingMinimumHpPercent;
+        config[BotOptionPayloadKeys.HeroRaidingMaximumDistance] = viewModel.HeroRaidingMaximumDistance;
+        config[BotOptionPayloadKeys.HeroRaidingObservationMinutes] = viewModel.HeroRaidingObservationMinutes;
+        config[BotOptionPayloadKeys.HeroRaidingSelectedTypes] = viewModel.HeroRaidingSelectedTypes;
+        config[BotOptionPayloadKeys.HeroRaidingPriority] = viewModel.HeroRaidingPriority;
         configStore.Save(config);
     }
 

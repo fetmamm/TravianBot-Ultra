@@ -14,10 +14,15 @@ internal interface IAutomationQueueEligibilityPort
 internal sealed class AutomationQueueEligibility(
     VillageSettingsStore villageSettings,
     Func<bool?> goldClubAvailability,
-    IAutomationQueueEligibilityPort port)
+    IAutomationQueueEligibilityPort port,
+    Func<bool>? heroRaidingEnabled = null)
 {
     internal bool IsAllowed(QueueItem item)
     {
+        // Hero raiding is a global opt-in, independent of the selected village's Auto or Hero group.
+        if (string.Equals(item.TaskName, "hero_raid", StringComparison.OrdinalIgnoreCase))
+            return heroRaidingEnabled?.Invoke() == true;
+
         // Farm lists and their Rally Point access are account-wide. The worker opens the farm page
         // from the current village and falls back to another owned Rally Point when needed.
         if (string.Equals(item.TaskName, "send_farmlists", StringComparison.OrdinalIgnoreCase))

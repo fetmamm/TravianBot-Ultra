@@ -68,7 +68,12 @@ internal static class ContinuousLoopSelector
     internal static ContinuousLoopSelectionPlan CreatePlan(ContinuousLoopSelectionInput input)
     {
         var queueItems = input.Candidates.Select(candidate => candidate.Item).ToList();
-        var orderedGroups = BuildConsideredGroups(input.ConfiguredGroups, queueItems);
+        var orderedGroups = BuildConsideredGroups(input.ConfiguredGroups, queueItems).ToList();
+        if (!orderedGroups.Contains(QueueGroup.Hero)
+            && input.Candidates.Any(candidate => candidate.IsAllowedByAutomationSettings
+                && string.Equals(candidate.Item.TaskName, "hero_raid", StringComparison.OrdinalIgnoreCase)
+                && candidate.Item.Status is QueueStatus.Pending or QueueStatus.Running or QueueStatus.Paused))
+            orderedGroups.Add(QueueGroup.Hero);
         var orderedItemsByGroup = orderedGroups.ToDictionary(
             group => group,
             group => (IReadOnlyList<QueueItem>)OrderItems(input.Candidates
@@ -165,7 +170,9 @@ internal static class ContinuousLoopSelector
     {
         return SelectReadyGroupHead(villageItems, now)
             ?? villageItems.FirstOrDefault(item =>
-                string.Equals(item.TaskName, "spend_hero_attribute_points", StringComparison.OrdinalIgnoreCase)
+                (string.Equals(item.TaskName, "spend_hero_attribute_points", StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(item.TaskName, "hero_raid", StringComparison.OrdinalIgnoreCase)
+                 || string.Equals(item.TaskName, "hero_manage", StringComparison.OrdinalIgnoreCase))
                 && item.Status == QueueStatus.Pending
                 && item.NextAttemptAt <= now);
     }

@@ -53,6 +53,31 @@ public sealed class ContinuousLoopSelectorTests
     }
 
     [Fact]
+    public void SelectReadyHeroGroupItem_DoesNotLetDeferredRaidBlockAdventure()
+    {
+        var deferredRaid = Item("hero_raid", QueueStatus.Pending, 60);
+        var readyAdventure = Item("hero_manage", QueueStatus.Pending, 0);
+
+        var result = ContinuousLoopSelector.SelectReadyHeroGroupItem([deferredRaid, readyAdventure], Now);
+
+        Assert.Same(readyAdventure, result);
+    }
+
+    [Fact]
+    public void CreatePlan_ConsidersEligibleGlobalHeroRaidEvenWhenVillageHeroGroupIsOff()
+    {
+        var raid = Item("hero_raid", QueueStatus.Pending, 0);
+        raid.Group = QueueGroup.Hero;
+        raid.IsRuntimeOnly = true;
+
+        var plan = ContinuousLoopSelector.CreatePlan(new ContinuousLoopSelectionInput(
+            [new ContinuousLoopSelectionCandidate(raid, null, true, false)], []));
+
+        Assert.Contains(QueueGroup.Hero, plan.OrderedGroups);
+        Assert.Same(raid, Assert.Single(plan.OrderedItemsByGroup[QueueGroup.Hero]));
+    }
+
+    [Fact]
     public void BuildConsideredGroups_AppendsActiveManualGroupsOnce()
     {
         var manualConstruction = Item("upgrade_building_to_level", QueueStatus.Pending, 0);

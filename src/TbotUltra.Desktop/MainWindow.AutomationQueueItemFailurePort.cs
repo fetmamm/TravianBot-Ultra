@@ -54,6 +54,19 @@ public partial class MainWindow
                 owner.Dispatcher.Invoke(Apply);
             }
         }
+        public void DisableHeroRaiding(string reason)
+        {
+            void Apply()
+            {
+                owner._heroViewModel.HeroRaidingEnabled = false;
+                owner._heroViewModel.HeroRaidingStatusText =
+                    $"Hero raiding stopped for safety: {reason} Enable it again to retry after checking the hero.";
+                owner.AppendLog($"[hero-raiding] global toggle disabled for safety: {reason}");
+            }
+
+            if (owner.Dispatcher.CheckAccess()) Apply();
+            else owner.Dispatcher.Invoke(Apply);
+        }
         public ValueTask ApplyConstructionInlineWaitAsync(
             TimeSpan delay,
             string? humanizeVillageKey,

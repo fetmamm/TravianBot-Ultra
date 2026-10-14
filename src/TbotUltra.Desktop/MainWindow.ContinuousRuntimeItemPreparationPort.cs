@@ -38,6 +38,25 @@ public partial class MainWindow
                 .Where(group => queueEligibility.IsGroupEnabled(villageKey, group))
                 .ToHashSet();
         public bool ShouldKeepHeroAdventurePolling() => owner.ShouldKeepHeroAdventurePolling();
+        public bool IsHeroRaidingDue()
+        {
+            var accountName = owner._accountStore.ActiveAccountName();
+            if (string.IsNullOrWhiteSpace(accountName)) return false;
+            var serverUrl = owner.GetActiveAccountServerUrl();
+            var pending = new HeroRaidingPendingOutcomeStore(owner._projectRoot, owner.AppendLog);
+            try
+            {
+                if (pending.Load(accountName, serverUrl) is not null) return true;
+                return new HeroRaidingScheduleStore(owner._projectRoot, owner.AppendLog)
+                    .IsDiscoveryDue(accountName, serverUrl, DateTimeOffset.UtcNow);
+            }
+            catch (InvalidOperationException ex)
+            {
+                // Queue the worker once so it can fail closed with a visible diagnostic.
+                owner.AppendLog($"[hero-raiding] saved state needs inspection: {ex.Message}");
+                return true;
+            }
+        }
         public IReadOnlyList<QueueItem> GetQueueItems() => owner._botService.GetQueueItemsForDisplay();
         public string? CanonicalizeVillageKey(string? key) =>
             owner._villageSettingsStore.ResolveCanonicalKey(key);

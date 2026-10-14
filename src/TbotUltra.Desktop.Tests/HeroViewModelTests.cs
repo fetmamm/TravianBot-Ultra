@@ -9,6 +9,69 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class HeroViewModelTests
 {
     [Fact]
+    public void HeroRaidingScan_IsDisabledOnlyWhileRunning()
+    {
+        var vm = new HeroViewModel();
+        Assert.True(vm.CanScanHeroRaiding);
+
+        vm.IsHeroRaidingScanRunning = true;
+        Assert.False(vm.CanScanHeroRaiding);
+
+        vm.IsHeroRaidingScanRunning = false;
+        Assert.True(vm.CanScanHeroRaiding);
+    }
+
+    [Fact]
+    public void HeroRaidingSettings_LoadDefaultsAndPreserveTypeSelections()
+    {
+        var vm = new HeroViewModel();
+        vm.LoadSettingsFromConfig(new BotOptions());
+
+        Assert.False(vm.HeroRaidingEnabled);
+        Assert.Equal(40, vm.HeroRaidingMinimumHpPercent);
+        Assert.Equal(20, vm.HeroRaidingMaximumDistance);
+        Assert.Equal(10, vm.HeroRaidingObservationMinutes);
+        Assert.Equal("raiding", vm.HeroRaidingPriority);
+        Assert.Equal("Wood,Clay,Iron,Wood+Crop,Clay+Crop,Iron+Crop", vm.HeroRaidingSelectedTypes);
+
+        vm.LoadSettingsFromConfig(new BotOptions
+        {
+            HeroRaidingEnabled = true,
+            HeroRaidingMinimumHpPercent = 55,
+            HeroRaidingMaximumDistance = 50,
+            HeroRaidingObservationMinutes = 15,
+            HeroRaidingPriority = "adventures",
+            HeroRaidingSelectedTypes = "Crop,Iron+Crop",
+        });
+
+        Assert.True(vm.HeroRaidingEnabled);
+        Assert.Equal(55, vm.HeroRaidingMinimumHpPercent);
+        Assert.Equal(50, vm.HeroRaidingMaximumDistance);
+        Assert.Equal(15, vm.HeroRaidingObservationMinutes);
+        Assert.Equal("adventures", vm.HeroRaidingPriority);
+        Assert.Equal("Crop,Iron+Crop", vm.HeroRaidingSelectedTypes);
+    }
+
+    [Fact]
+    public void HeroRaidingCandidates_ExclusionUpdatesSafetyAndEmitsCoordinate()
+    {
+        var vm = new HeroViewModel();
+        var changes = new List<(int X, int Y, bool Excluded)>();
+        vm.HeroRaidingExclusionChanged += (x, y, excluded) => changes.Add((x, y, excluded));
+        vm.ApplyHeroRaidingScan(new HeroRaidingScanResult(true, false,
+            [new HeroRaidingScanCandidate(1, 2, "Wood 25%", "Rat 2", 85, 80, 2.2,
+                false, true, DateTimeOffset.UtcNow)], 1, 0, "Found 1 safe candidate."));
+
+        var candidate = Assert.Single(vm.HeroRaidingCandidates);
+        Assert.True(candidate.IsSafe);
+        candidate.IsExcluded = true;
+
+        Assert.False(candidate.IsSafe);
+        Assert.Equal("Excluded", candidate.Safety);
+        Assert.Equal([(1, 2, true)], changes);
+    }
+
+    [Fact]
     public void ApplyObservedInventory_OnlyReportsAnIncreaseForTheSameAccountAndServer()
     {
         var vm = new HeroViewModel();

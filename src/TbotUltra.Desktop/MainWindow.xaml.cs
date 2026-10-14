@@ -408,6 +408,7 @@ public partial class MainWindow : Window
         _loopController.Logger = AppendLog;
         _heroViewModel.Logger = AppendLog;
         _heroViewModel.PropertyChanged += HeroViewModel_PropertyChanged;
+        _heroViewModel.HeroRaidingExclusionChanged += HeroRaidingExclusion_Changed;
 
         _projectRoot = ProjectRootLocator.FindProjectRoot();
         _versionPath = Path.Combine(_projectRoot, "VERSION");
@@ -1810,7 +1811,19 @@ public partial class MainWindow : Window
             or nameof(HeroViewModel.ContinuousAdventures)
             or nameof(HeroViewModel.IncreaseAdventuresToHard)
             or nameof(HeroViewModel.ReduceAdventureTime)
-            or nameof(HeroViewModel.AdventureVideoChancePercent)))
+            or nameof(HeroViewModel.AdventureVideoChancePercent)
+            or nameof(HeroViewModel.HeroRaidingEnabled)
+            or nameof(HeroViewModel.HeroRaidingMinimumHpPercent)
+            or nameof(HeroViewModel.HeroRaidingMaximumDistance)
+            or nameof(HeroViewModel.HeroRaidingObservationMinutes)
+            or nameof(HeroViewModel.HeroRaidingPriority)
+            or nameof(HeroViewModel.RaidWood)
+            or nameof(HeroViewModel.RaidClay)
+            or nameof(HeroViewModel.RaidIron)
+            or nameof(HeroViewModel.RaidCrop)
+            or nameof(HeroViewModel.RaidWoodCrop)
+            or nameof(HeroViewModel.RaidClayCrop)
+            or nameof(HeroViewModel.RaidIronCrop)))
         {
             return;
         }
