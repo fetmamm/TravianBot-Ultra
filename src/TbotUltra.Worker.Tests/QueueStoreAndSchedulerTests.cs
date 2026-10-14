@@ -382,6 +382,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
         Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("upgrade_building_to_max"));
         Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("demolish_building_to_level"));
         Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("hero_manage"));
+        Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("hero_raid"));
         Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("spend_hero_attribute_points"));
         Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("anti_starve_hero_crop"));
         Assert.True(TbotUltra.Worker.Services.TaskCatalog.IsAllowed("send_resources_between_villages"));
@@ -407,6 +408,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
                 "load_buildings_snapshot",
                 "demolish_building_to_level",
                 "hero_manage",
+                "hero_raid",
                 "spend_hero_attribute_points",
                 "anti_starve_hero_crop",
                 "upgrade_troops_at_smithy",
@@ -430,6 +432,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
     [InlineData("upgrade_building_to_max", TaskGroup.Construction, TaskPayloadKind.BuildingUpgrade)]
     [InlineData("construct_building", TaskGroup.Construction, TaskPayloadKind.BuildingConstruct)]
     [InlineData("hero_manage", TaskGroup.Hero, TaskPayloadKind.Hero)]
+    [InlineData("hero_raid", TaskGroup.Hero, TaskPayloadKind.Hero)]
     [InlineData("spend_hero_attribute_points", TaskGroup.Hero, TaskPayloadKind.Hero)]
     [InlineData("anti_starve_hero_crop", TaskGroup.Account, TaskPayloadKind.None)]
     [InlineData("send_farmlists", TaskGroup.Farming, TaskPayloadKind.Farming)]

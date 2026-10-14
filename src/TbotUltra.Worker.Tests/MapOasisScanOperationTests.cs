@@ -30,6 +30,8 @@ public sealed class MapOasisScanOperationTests
 
             var oasis = Assert.Single(result.Oases);
             Assert.Equal("Wood", oasis.FilterType);
+            Assert.NotNull(oasis.ObservedAtUtc);
+            Assert.InRange(oasis.ObservedAtUtc.Value, DateTimeOffset.UtcNow.AddMinutes(-1), DateTimeOffset.UtcNow);
             Assert.False(result.IsPartialResult);
             Assert.Equal(1, result.CompletedAreas);
             Assert.Equal(1, result.TotalAreas);

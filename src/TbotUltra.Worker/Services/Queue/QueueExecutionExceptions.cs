@@ -84,3 +84,12 @@ public sealed class TaskBlockedPermanentlyException : Exception
     {
     }
 }
+
+/// <summary>Stops global Hero raiding until the user deliberately enables it again.</summary>
+public sealed class HeroRaidingSafetyException : Exception
+{
+    public HeroRaidingSafetyException(string message, Exception? innerException = null)
+        : base(message, innerException)
+    {
+    }
+}

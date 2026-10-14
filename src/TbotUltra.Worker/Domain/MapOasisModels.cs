@@ -8,7 +8,8 @@ public sealed record MapOasisEntry(
     string FilterType,
     string Animals,
     string OwnerPlayer,
-    string OwnerAlliance);
+    string OwnerAlliance,
+    DateTimeOffset? ObservedAtUtc = null);
 
 public sealed record MapOasisScanProgress(
     int CompletedAreas,

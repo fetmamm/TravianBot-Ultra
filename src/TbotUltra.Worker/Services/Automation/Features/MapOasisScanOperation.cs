@@ -51,10 +51,12 @@ internal sealed class MapOasisScanOperation(
             startingY: request.CenterY);
         var zoomLevel = 3;
         string? firstAreaJson = null;
+        DateTimeOffset? firstAreaObservedAtUtc = null;
         if (centers.Count > 0)
         {
             var firstCenter = centers[0];
             firstAreaJson = await ReadWithRetryAsync(firstCenter.X, firstCenter.Y, zoomLevel, cancellationToken);
+            firstAreaObservedAtUtc = DateTimeOffset.UtcNow;
             if (MapOasisApiParser.IsRegionOverlay(firstAreaJson))
             {
                 zoomLevel = 2;
@@ -69,6 +71,7 @@ internal sealed class MapOasisScanOperation(
                     startingY: request.CenterY);
                 firstCenter = centers[0];
                 firstAreaJson = await ReadWithRetryAsync(firstCenter.X, firstCenter.Y, zoomLevel, cancellationToken);
+                firstAreaObservedAtUtc = DateTimeOffset.UtcNow;
                 if (MapOasisApiParser.IsRegionOverlay(firstAreaJson))
                 {
                     zoomLevel = 1;
@@ -83,6 +86,7 @@ internal sealed class MapOasisScanOperation(
                         startingY: request.CenterY);
                     firstCenter = centers[0];
                     firstAreaJson = await ReadWithRetryAsync(firstCenter.X, firstCenter.Y, zoomLevel, cancellationToken);
+                    firstAreaObservedAtUtc = DateTimeOffset.UtcNow;
                     if (MapOasisApiParser.IsRegionOverlay(firstAreaJson))
                     {
                         throw new InvalidOperationException("The map API returned only regional overlays at zoom levels 3, 2, and 1.");
@@ -116,12 +120,15 @@ internal sealed class MapOasisScanOperation(
                 var json = index == 0 && firstAreaJson is not null
                     ? firstAreaJson
                     : await ReadWithRetryAsync(center.X, center.Y, zoomLevel, cancellationToken);
+                var observedAtUtc = index == 0 && firstAreaObservedAtUtc.HasValue
+                    ? firstAreaObservedAtUtc.Value
+                    : DateTimeOffset.UtcNow;
                 foreach (var oasis in MapOasisApiParser.Parse(json))
                 {
                     if (oasis.X is < -200 or > 200 || oasis.Y is < -200 or > 200
                         || oasis.X < minimumX || oasis.X > maximumX || oasis.Y < minimumY || oasis.Y > maximumY
                         || (!input.IncludeOccupied && oasis.IsOccupied) || !selected.Contains(oasis.FilterType)) continue;
-                    found[(oasis.X, oasis.Y)] = oasis;
+                    found[(oasis.X, oasis.Y)] = oasis with { ObservedAtUtc = observedAtUtc };
                 }
 
                 completedAreas.Add(index);

@@ -53,7 +53,7 @@ public sealed partial class TravianClient
         return retryNotBeforeUtc;
     }
 
-    private async Task<HeroOintmentUseResult> TryUseHeroOintmentsForAdventureAsync(
+    internal async Task<HeroOintmentUseResult> TryUseHeroOintmentsForAdventureAsync(
         int currentHpPercent,
         int minHpForAdventure,
         int targetHpPercent,

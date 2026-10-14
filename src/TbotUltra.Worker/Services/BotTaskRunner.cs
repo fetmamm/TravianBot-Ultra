@@ -44,6 +44,7 @@ public sealed partial class BotTaskRunner
             ["demolish_building_to_level"] = ExecuteDemolishBuildingToLevelAsync,
             // Manages hero actions: revives if dead, allocates points, and sends on adventures if HP allows.
             ["hero_manage"] = ExecuteHeroManageAsync,
+            ["hero_raid"] = ExecuteHeroRaidAsync,
             // Spends available hero attribute points using the configured stat priority.
             ["spend_hero_attribute_points"] = ExecuteSpendHeroAttributePointsAsync,
             ["anti_starve_hero_crop"] = ExecuteAntiStarveHeroCropAsync,

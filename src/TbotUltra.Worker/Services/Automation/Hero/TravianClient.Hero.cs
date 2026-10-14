@@ -890,7 +890,7 @@ public sealed partial class TravianClient : IHeroClient
 
     private sealed record HeroOintmentRetryKey(int AdventureCount, int HpPercent, int MinHpForAdventure, int TargetHpPercent);
 
-    private sealed record HeroOintmentUseResult(
+    internal sealed record HeroOintmentUseResult(
         int UsedCount,
         bool LookupAttempted,
         bool SkippedBySuppression)
