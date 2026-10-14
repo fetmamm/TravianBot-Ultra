@@ -9,7 +9,7 @@ public readonly record struct ChromiumInstallProgress(string Status, int? Percen
 
 /// <summary>
 /// Downloads the bundled Chromium build Playwright expects, by running the Playwright driver that ships
-/// next to the app (<c>.playwright/node/win32_x64/node.exe</c> + <c>package/cli.js</c>).
+/// next to the app (<c>.playwright/node/&lt;platform&gt;/node</c> + <c>package/cli.js</c>).
 ///
 /// The driver is used directly rather than the <c>playwright.ps1</c> wrapper because the release package
 /// deliberately drops that script, so a wrapper-based install works in development and fails for users.
@@ -50,7 +50,7 @@ public static class ChromiumInstaller
                 "The browser installer that ships with the app is missing. Please download the latest release again.");
         }
 
-        var browsersPath = Path.Combine(projectRoot, "ms-playwright");
+        var browsersPath = PlaywrightPlatform.ResolveBrowsersPath(projectRoot);
         Directory.CreateDirectory(browsersPath);
         log?.Invoke($"[browser] installing Chromium into '{browsersPath}' via the bundled Playwright driver.");
         progress?.Report(new ChromiumInstallProgress("Preparing download...", null));
@@ -191,7 +191,7 @@ public static class ChromiumInstaller
     }
 
     private static string ResolveNodePath()
-        => Path.Combine(AppContext.BaseDirectory, ".playwright", "node", "win32_x64", "node.exe");
+        => Path.Combine(AppContext.BaseDirectory, ".playwright", PlaywrightPlatform.DriverNodeRelativePath);
 
     private static string ResolveCliPath()
         => Path.Combine(AppContext.BaseDirectory, ".playwright", "package", "cli.js");

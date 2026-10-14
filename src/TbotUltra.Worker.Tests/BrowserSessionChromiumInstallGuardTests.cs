@@ -26,7 +26,7 @@ public sealed class BrowserSessionChromiumInstallGuardTests : IDisposable
     [Fact]
     public void ReportsInstalled_WithLegacyWindowsArchiveName()
     {
-        CreateChromiumFolder(ExpectedRevision(), "chrome-win");
+        CreateChromiumFolder(ExpectedRevision(), PlaywrightPlatform.ChromiumExecutableLayout().ArchivePrefix);
 
         Assert.True(BrowserSession.ChromiumAlreadyInstalled(_root));
     }
@@ -46,11 +46,11 @@ public sealed class BrowserSessionChromiumInstallGuardTests : IDisposable
         Assert.False(BrowserSession.ChromiumAlreadyInstalled(_root));
     }
 
-    private void CreateChromiumFolder(string revision, string archiveName = "chrome-win64")
+    private void CreateChromiumFolder(string revision, string? archiveName = null)
     {
-        var executableDirectory = Path.Combine(_root, "ms-playwright", $"chromium-{revision}", archiveName);
+        var executableDirectory = Path.Combine(_root, "ms-playwright", $"chromium-{revision}", archiveName ?? PlaywrightPlatform.ChromiumExecutableLayout().ArchivePrefix + "64");
         Directory.CreateDirectory(executableDirectory);
-        File.WriteAllText(Path.Combine(executableDirectory, "chrome.exe"), string.Empty);
+        File.WriteAllText(Path.Combine(executableDirectory, PlaywrightPlatform.ChromiumExecutableLayout().ExecutableName), string.Empty);
     }
 
     /// <summary>

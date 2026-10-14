@@ -114,15 +114,25 @@ public sealed class LaunchedBrowserRegistryTests : IDisposable
     }
 
     [Theory]
-    [InlineData(@"C:\Tbot\.playwright\node\win32_x64\node.exe", @"C:\Tbot\.playwright", true)]
-    [InlineData(@"C:\Program Files\Google\Chrome\Application\chrome.exe", @"C:\Tbot\.playwright", false)]
-    [InlineData(@"C:\Other\.playwright\node\win32_x64\node.exe", @"C:\Tbot\.playwright", false)]
-    [InlineData("", @"C:\Tbot\.playwright", false)]
+    [InlineData("Tbot", "driver-node", true)]
+    [InlineData("Tbot", "system-chrome", false)]
+    [InlineData("Other", "driver-node", false)]
+    [InlineData("Tbot", "empty", false)]
     public void OwnershipRequiresTheExactConfiguredPlaywrightDriver(
-        string executablePath,
-        string driverRoot,
+        string executableRootName,
+        string executableKind,
         bool expected)
     {
+        var baseRoot = Path.Combine(Path.GetTempPath(), "tbot-ownership");
+        var driverRoot = Path.Combine(baseRoot, "Tbot", ".playwright");
+        var executablePath = executableKind switch
+        {
+            "driver-node" => Path.Combine(
+                baseRoot, executableRootName, ".playwright", PlaywrightPlatform.DriverNodeRelativePath),
+            "system-chrome" => Path.Combine(baseRoot, "Google", "Chrome", "Application", "chrome"),
+            _ => string.Empty,
+        };
+
         Assert.Equal(
             expected,
             LaunchedBrowserRegistry.IsConfiguredPlaywrightDriverExecutable(executablePath, driverRoot));

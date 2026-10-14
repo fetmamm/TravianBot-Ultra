@@ -12,9 +12,9 @@ public sealed class BrowserSessionDriverPathTests : IDisposable
     {
         var appDirectory = Path.Combine(_root, "app");
         var projectRoot = Path.Combine(_root, "runtime-data");
-        Directory.CreateDirectory(Path.Combine(appDirectory, ".playwright", "node", "win32_x64"));
+        Directory.CreateDirectory(Path.GetDirectoryName(Path.Combine(appDirectory, ".playwright", PlaywrightPlatform.DriverNodeRelativePath))!);
         Directory.CreateDirectory(Path.Combine(appDirectory, ".playwright", "package"));
-        File.WriteAllText(Path.Combine(appDirectory, ".playwright", "node", "win32_x64", "node.exe"), string.Empty);
+        File.WriteAllText(Path.Combine(appDirectory, ".playwright", PlaywrightPlatform.DriverNodeRelativePath), string.Empty);
         File.WriteAllText(Path.Combine(appDirectory, ".playwright", "package", "cli.js"), string.Empty);
 
         var path = BrowserSession.ResolvePlaywrightDriverPath(projectRoot, appDirectory);

@@ -82,9 +82,10 @@ public sealed class BrowserSessionChromiumCleanupTests : IDisposable
 
     private void CreateChromiumFolder(string revision)
     {
-        var executableDirectory = Path.Combine(BrowserPath($"chromium-{revision}"), "chrome-win64");
+        var (executableName, archivePrefix) = PlaywrightPlatform.ChromiumExecutableLayout();
+        var executableDirectory = Path.Combine(BrowserPath($"chromium-{revision}"), archivePrefix + "64");
         Directory.CreateDirectory(executableDirectory);
-        File.WriteAllText(Path.Combine(executableDirectory, "chrome.exe"), string.Empty);
+        File.WriteAllText(Path.Combine(executableDirectory, executableName), string.Empty);
     }
 
     private static string ExpectedRevision()

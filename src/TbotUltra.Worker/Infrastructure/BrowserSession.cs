@@ -106,7 +106,6 @@ public sealed partial class BrowserSession : IAsyncDisposable
         })();
         """;
 
-    private const string LocalPlaywrightBrowsersDirectoryName = "ms-playwright";
     private const string LocalPlaywrightDriverDirectoryName = ".playwright";
     private static readonly TimeSpan BonusVideoCleanupStepTimeout = TimeSpan.FromSeconds(5);
     // Setup and playback have separate caps. Slow proxies no longer consume the playback budget while
@@ -209,7 +208,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
         AccountStoragePaths.BrowserStatePath(_projectRoot, _account.Name);
 
     public string PlaywrightBrowsersPath =>
-        Path.Combine(_projectRoot, LocalPlaywrightBrowsersDirectoryName);
+        PlaywrightPlatform.ResolveBrowsersPath(_projectRoot);
 
     public async Task<IPage> OpenPageAsync(CancellationToken cancellationToken = default)
     {
@@ -232,7 +231,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
             {
                 _log?.Invoke(
                     $"[browser] Playwright driver failed to start from '{driverPath}'. " +
-                    $"nodeExists={File.Exists(Path.Combine(driverPath, "node", "win32_x64", "node.exe"))} " +
+                    $"nodeExists={File.Exists(Path.Combine(driverPath, PlaywrightPlatform.DriverNodeRelativePath))} " +
                     $"cliExists={File.Exists(Path.Combine(driverPath, "package", "cli.js"))}. {ex.Message}");
                 throw;
             }
@@ -776,7 +775,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
         // cannot decode ("format is not supported"). Use the system Google Chrome build, which
         // ships the proprietary codecs. If Chrome is not installed we fall back to bundled
         // Chromium (everything except the bonus videos still works).
-        var chromeChannel = ResolveInstalledChromeChannel();
+        var chromeChannel = PlaywrightPlatform.ResolveInstalledChromeChannel();
         if (chromeChannel is not null)
         {
             launchOptions.Channel = chromeChannel;
@@ -861,38 +860,6 @@ public sealed partial class BrowserSession : IAsyncDisposable
         {
             return false;
         }
-    }
-
-    // Returns the Playwright browser channel to use when proprietary codecs are needed (bonus videos),
-    // preferring Google Chrome, then Edge. Returns null when neither is installed at a standard path.
-    private static string? ResolveInstalledChromeChannel()
-    {
-        var programFiles = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
-        var programFilesX86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-
-        var chromePaths = new[]
-        {
-            Path.Combine(programFiles, "Google", "Chrome", "Application", "chrome.exe"),
-            Path.Combine(programFilesX86, "Google", "Chrome", "Application", "chrome.exe"),
-            Path.Combine(localAppData, "Google", "Chrome", "Application", "chrome.exe"),
-        };
-        if (chromePaths.Any(File.Exists))
-        {
-            return "chrome";
-        }
-
-        var edgePaths = new[]
-        {
-            Path.Combine(programFiles, "Microsoft", "Edge", "Application", "msedge.exe"),
-            Path.Combine(programFilesX86, "Microsoft", "Edge", "Application", "msedge.exe"),
-        };
-        if (edgePaths.Any(File.Exists))
-        {
-            return "msedge";
-        }
-
-        return null;
     }
 
     private static bool IsBlockedPopupOrConsentUrl(string? url)
@@ -1023,7 +990,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
         var driverPath = ResolvePlaywrightDriverPath(projectRoot, AppContext.BaseDirectory);
         Environment.SetEnvironmentVariable("PLAYWRIGHT_DRIVER_PATH", driverPath);
 
-        var browsersPath = Path.Combine(projectRoot, LocalPlaywrightBrowsersDirectoryName);
+        var browsersPath = PlaywrightPlatform.ResolveBrowsersPath(projectRoot);
         Directory.CreateDirectory(browsersPath);
         Environment.SetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH", browsersPath);
         return driverPath;
@@ -1032,7 +999,7 @@ public sealed partial class BrowserSession : IAsyncDisposable
     internal static string ResolvePlaywrightDriverPath(string projectRoot, string appBaseDirectory)
     {
         var bundledDriverPath = Path.Combine(appBaseDirectory, LocalPlaywrightDriverDirectoryName);
-        if (File.Exists(Path.Combine(bundledDriverPath, "node", "win32_x64", "node.exe")) &&
+        if (File.Exists(Path.Combine(bundledDriverPath, PlaywrightPlatform.DriverNodeRelativePath)) &&
             File.Exists(Path.Combine(bundledDriverPath, "package", "cli.js")))
         {
             return bundledDriverPath;

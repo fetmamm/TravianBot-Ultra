@@ -342,7 +342,7 @@ public static class LaunchedBrowserRegistry
 
         try
         {
-            var expected = Path.GetFullPath(Path.Combine(driverRoot, "node", "win32_x64", "node.exe"));
+            var expected = Path.GetFullPath(Path.Combine(driverRoot, PlaywrightPlatform.DriverNodeRelativePath));
             return string.Equals(Path.GetFullPath(executablePath), expected, StringComparison.OrdinalIgnoreCase);
         }
         catch

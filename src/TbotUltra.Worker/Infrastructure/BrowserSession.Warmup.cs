@@ -17,7 +17,7 @@ public sealed partial class BrowserSession
                 return false;
             }
 
-            var playwrightRoot = Path.Combine(projectRoot, LocalPlaywrightBrowsersDirectoryName);
+            var playwrightRoot = PlaywrightPlatform.ResolveBrowsersPath(projectRoot);
             if (!Directory.Exists(playwrightRoot))
             {
                 return false;
@@ -30,7 +30,7 @@ public sealed partial class BrowserSession
             if (expectedRevision is not null)
             {
                 var expectedBrowserRoot = Path.Combine(playwrightRoot, $"chromium-{expectedRevision}");
-                var installed = ContainsWindowsChromiumExecutable(expectedBrowserRoot);
+                var installed = PlaywrightPlatform.ContainsChromiumExecutable(expectedBrowserRoot);
                 log?.Invoke(installed
                     ? $"[browser] chromium-{expectedRevision} is installed."
                     : $"[browser] chromium-{expectedRevision} is missing (Playwright upgrade?); install required.");
@@ -41,7 +41,7 @@ public sealed partial class BrowserSession
             // an unnecessary download. A stale revision then still fails at launch, as it did before.
             log?.Invoke("[browser] could not read the expected Chromium revision; falling back to any installed revision.");
             return Directory.GetDirectories(playwrightRoot, "chromium-*")
-                .Any(ContainsWindowsChromiumExecutable);
+                .Any(PlaywrightPlatform.ContainsChromiumExecutable);
         }
         catch
         {
@@ -69,7 +69,7 @@ public sealed partial class BrowserSession
                 return 0;
             }
 
-            var playwrightRoot = Path.Combine(projectRoot, LocalPlaywrightBrowsersDirectoryName);
+            var playwrightRoot = PlaywrightPlatform.ResolveBrowsersPath(projectRoot);
             var expectedRevision = ResolveExpectedChromiumRevision();
             if (expectedRevision is null || !Directory.Exists(playwrightRoot))
             {
@@ -77,7 +77,7 @@ public sealed partial class BrowserSession
             }
 
             var expectedBrowserRoot = Path.Combine(playwrightRoot, $"chromium-{expectedRevision}");
-            if (!ContainsWindowsChromiumExecutable(expectedBrowserRoot))
+            if (!PlaywrightPlatform.ContainsChromiumExecutable(expectedBrowserRoot))
             {
                 log?.Invoke("[browser] skipping cleanup of old browser revisions: the expected one is not installed.");
                 return 0;
@@ -110,22 +110,6 @@ public sealed partial class BrowserSession
         }
 
         return removed;
-    }
-
-    /// <summary>
-    /// Finds Chromium in the exact revision folder without pinning Playwright's Windows archive name.
-    /// Recent packages use chrome-win64 while older packages used chrome-win.
-    /// </summary>
-    private static bool ContainsWindowsChromiumExecutable(string browserRoot)
-    {
-        if (!Directory.Exists(browserRoot))
-        {
-            return false;
-        }
-
-        return Directory.GetFiles(browserRoot, "chrome.exe", SearchOption.AllDirectories)
-            .Any(path => Path.GetFileName(Path.GetDirectoryName(path))?
-                .StartsWith("chrome-win", StringComparison.OrdinalIgnoreCase) == true);
     }
 
     /// <summary>

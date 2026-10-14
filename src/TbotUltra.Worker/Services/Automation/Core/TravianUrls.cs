@@ -80,10 +80,14 @@ internal static class TravianUrls
             return "artifact";
         }
 
-        var invalidChars = Path.GetInvalidFileNameChars();
-        var sanitized = new string(value.Select(ch => invalidChars.Contains(ch) ? '_' : ch).ToArray()).Trim();
+        var sanitized = new string(value.Select(ch => IsInvalidFileNameChar(ch) ? '_' : ch).ToArray()).Trim();
         return string.IsNullOrWhiteSpace(sanitized)
             ? "artifact"
             : sanitized;
     }
+
+    // Path.GetInvalidFileNameChars() only lists '/' and NUL on Linux. Use the Windows set everywhere so
+    // artifact names are identical on every host and a data folder can move between them.
+    private static bool IsInvalidFileNameChar(char ch)
+        => ch < 32 || ch is '"' or '<' or '>' or '|' or ':' or '*' or '?' or '\\' or '/';
 }
