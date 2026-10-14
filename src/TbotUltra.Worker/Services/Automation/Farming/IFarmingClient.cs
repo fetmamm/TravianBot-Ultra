@@ -30,6 +30,7 @@ public interface IFarmingClient
     // Sends every farm list in one action by clicking Travian's own "Start all farm lists" button. Returns
     // how many lists had an enabled Start button when clicked.
     Task<int> SendAllFarmListsViaStartAllButtonAsync(CancellationToken cancellationToken = default);
+    Task<FarmListSendBatchResult> SendAllFarmListsViaStartAllButtonWithResultsAsync(CancellationToken cancellationToken = default);
 
     Task<FarmListLossDeactivationResult> DeactivateFarmListLossTargetsAsync(
         bool includeUnoccupiedOasis,

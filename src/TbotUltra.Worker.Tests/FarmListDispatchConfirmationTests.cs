@@ -75,7 +75,7 @@ public sealed class FarmListDispatchConfirmationTests
         "private async Task<FarmListSendBatchResult> SendFarmListsSequentiallyAsync",
         "/// <summary>")]
     [InlineData(
-        "public async Task<int> SendAllFarmListsViaStartAllButtonAsync",
+        "public async Task<FarmListSendBatchResult> SendAllFarmListsViaStartAllButtonWithResultsAsync",
         "// Synthetic-dispatch fallback")]
     public void CompletedSendBatch_AppliesClickDelayAfterFinalConfirmation(
         string methodSignature,

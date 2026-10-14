@@ -104,11 +104,11 @@ public sealed class ContinuousRuntimeItemPreparationTests
 
         var item = Assert.Single(port.Queue.Items);
         Assert.Equal("send_farmlists", item.TaskName);
-        Assert.Equal("Send all enabled farmlists", item.DisplayName);
+        Assert.Equal("Send all farmlists", item.DisplayName);
     }
 
     [Fact]
-    public async Task SendAllFarming_WithNoEnabledLists_DoesNotQueue()
+    public async Task SendAllFarming_WithNoEnabledLists_StillQueuesAllOfficialLists()
     {
         var port = new InMemoryPort
         {
@@ -121,7 +121,7 @@ public sealed class ContinuousRuntimeItemPreparationTests
         await new ContinuousRuntimeItemPreparation(port).PrepareAsync(
             new BotOptions { ContinuousFarmSendMode = FarmingDefaults.SendModeAllAtOnce }, default);
 
-        Assert.Empty(port.Queue.Items);
+        Assert.Equal("Send all farmlists", Assert.Single(port.Queue.Items).DisplayName);
     }
 
     [Fact]

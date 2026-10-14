@@ -331,11 +331,17 @@ public sealed class FarmListsWorkflow(
         IReadOnlyList<FarmListStatusRow> rows,
         CancellationToken cancellationToken)
     {
-        var enabledRows = rows.Where(row => FarmListsViewModel.IsRealRow(row) && row.IsEnabled).ToList();
-        var attemptedKeys = GetReadyDispatchKeys(enabledRows, enabledOnly: true);
+        var sendAll = string.Equals(
+            FarmingDefaults.NormalizeSendMode(options.ContinuousFarmSendMode),
+            FarmingDefaults.SendModeAllAtOnce,
+            StringComparison.Ordinal);
+        var enabledRows = rows.Where(row => FarmListsViewModel.IsRealRow(row) && (sendAll || row.IsEnabled)).ToList();
+        var attemptedKeys = GetReadyDispatchKeys(enabledRows, enabledOnly: !sendAll);
         if (enabledRows.Count == 0)
         {
-            log("[farm-list] manual batch skipped: no farm lists are enabled.");
+            log(sendAll
+                ? "[farm-list] manual Send all skipped: no farm lists are available."
+                : "[farm-list] manual batch skipped: no farm lists are enabled.");
             return new FarmListBatchDispatchResult(0, []);
         }
         try
@@ -351,7 +357,9 @@ public sealed class FarmListsWorkflow(
                     .Select(id => id!.Trim())
                     .Distinct(StringComparer.OrdinalIgnoreCase)
                     .ToList();
-            var result = await client.SendSelectedWithResultsAsync(options, names, ids, log, cancellationToken);
+            var result = sendAll
+                ? await client.SendAllWithResultsAsync(options, log, cancellationToken)
+                : await client.SendSelectedWithResultsAsync(options, names, ids, log, cancellationToken);
             AppendHistory(options, result.SentLists, enabledRows);
             var confirmedKeys = result.SentLists
                 .Select(entry => FarmListDispatchStateStore.CreateKey(entry.ListId, entry.Name))

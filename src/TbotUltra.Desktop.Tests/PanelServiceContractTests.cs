@@ -189,6 +189,26 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
+    public async Task FarmListsWorkflow_SendAll_UsesOfficialButtonDespiteDisabledListToggles()
+    {
+        var client = new RecordingFarmingClient();
+        var service = CreateFarmListsWorkflow(client, CreateConfigStore());
+        var options = new BotOptions { ContinuousFarmSendMode = FarmingDefaults.SendModeAllAtOnce };
+        var rows = new[]
+        {
+            new FarmListStatusRow { Name = "A", ListId = "11", ActiveFarmCount = 1, TotalFarmCount = 1, IsEnabled = false },
+            new FarmListStatusRow { Name = "B", ListId = "12", ActiveFarmCount = 1, TotalFarmCount = 1, IsEnabled = false },
+        };
+
+        var result = await service.DispatchManyAsync(ViewRequest(options), rows, CancellationToken.None);
+
+        Assert.Equal(2, result.SentCount);
+        Assert.Contains("start-all", client.Calls);
+        Assert.DoesNotContain("selected", client.Calls);
+        Assert.All(rows, row => Assert.False(row.IsEnabled));
+    }
+
+    [Fact]
     public async Task FarmListsWorkflow_ProjectsMergedOverviewAndPreparesAddFlow()
     {
         var client = new RecordingFarmingClient();
@@ -1030,6 +1050,10 @@ public sealed class PanelServiceContractTests : IDisposable
             SelectedIds = ids;
             return Record("selected", cancellationToken, new FarmListSendBatchResult([], names.Take(3).Select(name => new FarmListSendEntry(name, null, DateTimeOffset.UtcNow, "success")).ToList()));
         }
+        public Task<FarmListSendBatchResult> SendAllWithResultsAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+            => Record("start-all", cancellationToken, new FarmListSendBatchResult(
+                [new FarmListSendEntry("A", "11"), new FarmListSendEntry("B", "12")],
+                [new FarmListSendEntry("A", "11", DateTimeOffset.UtcNow, "success"), new FarmListSendEntry("B", "12", DateTimeOffset.UtcNow, "success")]));
         private Task<T> Record<T>(string call, CancellationToken token, T result) { Calls.Add(call); CancellationTokens.Add(token); return Task.FromResult(result); }
     }
 

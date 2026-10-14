@@ -37,6 +37,9 @@ internal sealed class ManualFarmingOperation(IFarmingClient client)
     public Task<int> SendAllViaStartAllButtonAsync(CancellationToken cancellationToken)
         => client.SendAllFarmListsViaStartAllButtonAsync(cancellationToken);
 
+    public Task<FarmListSendBatchResult> SendAllViaStartAllButtonWithResultsAsync(CancellationToken cancellationToken)
+        => client.SendAllFarmListsViaStartAllButtonWithResultsAsync(cancellationToken);
+
     public Task<FarmAddBatchResult> AddFarmsAsync(
         string farmListName,
         string troopType,

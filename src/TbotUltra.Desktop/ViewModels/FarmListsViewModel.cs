@@ -148,7 +148,7 @@ public sealed class FarmListsViewModel : BaseViewModel
     public string DispatchModeDescription => SendMode switch
     {
         FarmingDefaults.SendModeSharedSchedule => "Only enabled lists run, all on the shared interval.",
-        FarmingDefaults.SendModeAllAtOnce => "Only enabled lists run together on the shared interval.",
+        FarmingDefaults.SendModeAllAtOnce => "Travian's Send all button sends every ready list, including lists toggled off below. List toggles are ignored in this mode.",
         _ => "Only enabled lists run, each on its own interval.",
     };
 

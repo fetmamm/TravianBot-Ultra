@@ -265,7 +265,7 @@ Published artifacts belong under `artifacts/`, never beside source files.
   loss-destination setup. WPF may gather dialog input and render returned views, but must not order or recreate
   those multi-step operations. The Farming panel is account-global: changing the selected village must never replace
   its rows, enabled state, or timers from a village-status cache; only the workflow's account snapshot/projection may
-  replace that view. The account-wide `Send all enabled` mode must have at most one active runtime queue item
+  replace that view. The account-wide `Send all` mode must have at most one active runtime queue item
   regardless of village count; its normal configured dispatch interval still controls retries. Dispatch eligibility
   is account-wide: any enabled village with Farming on permits `send_farmlists`, regardless of the queue item's
   legacy village metadata. The worker uses the current village or another owned Rally Point, not that metadata.
@@ -873,22 +873,23 @@ Published artifacts belong under `artifacts/`, never beside source files.
   Open the farm-list page from the current village. If its Rally Point is confirmed level 0,
   try other owned villages once each and use the first that verifies the Official farm-list page;
   do not construct a Rally Point during this fallback.
-  Every mode sends only UI-enabled farm lists ONE AT A TIME via
+  Shared and Individual schedules send only UI-enabled farm lists ONE AT A TIME via
   `SendFarmListsSequentiallyAsync`: click each list's Start,
   then wait for that exact list's `.farmListStatus svg.success` or `svg.error` response before advancing.
   Either marker means Travian processed the Start request and the list is marked sent; the "being raided"
   counter and disabled Start state are not dispatch confirmation.
   The wait between clicks is the "Send farmlists" action pacing (`FarmListStepDelayMin/MaxSeconds`, default
   1-4s, on the Settings pacing tab). A newly discovered list defaults OFF, including when no saved
-  selection exists; stable `lid` selections take precedence over names. Never use Travian's global
-  Start-all control for automatic or manual UI sends because it bypasses disabled lists.
+  selection exists; stable `lid` selections take precedence over names. `Send all` deliberately uses Travian's
+  global Start-all control and ignores the per-list UI toggles; it records only lists with a verified Official
+  success/error response. The disabled-looking list toggles retain their saved values for Shared/Individual modes.
   In "Individual schedule", every list requires an account-scoped Min/Max interval keyed by stable `lid`.
   When a list has no valid saved pair, copy and persist `ContinuousFarmDispatchDelay` as its initial values;
   those values are then independent and empty/partial edits are invalid rather than a runtime fallback.
   Persist the randomly selected `NextSendAtUtc` with `LastSentAtUtc`, advance only confirmed sends, and reuse
   that deadline after restart. Runtime edits and successful manual sends recalculate from the latest successful
   dispatch and wake the existing farming task. "Shared schedule" ignores individual deadlines and uses the global
-  whole-round delay for enabled lists; "Send all" uses the same whole-round delay for enabled lists.
+  whole-round delay for enabled lists; "Send all" uses the same whole-round delay for every ready Official list.
   The reset icon beside Next send makes all list deadlines ready immediately without changing selection or intervals.
   Each village header separately resets only that village's individual Min/Max intervals to Shared Interval after
   confirmation, preserving existing NextSend deadlines. Confirmed sends (success or error marker) append account/server

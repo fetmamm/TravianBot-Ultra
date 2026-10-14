@@ -69,6 +69,8 @@ public sealed class ManualFarmingOperationTests
                     [new("A", "1"), new("B", "2"), new("C", "3")]));
         }
         public Task<int> SendAllFarmListsViaStartAllButtonAsync(CancellationToken cancellationToken = default) => Record("start-all", cancellationToken, 4);
+        public Task<FarmListSendBatchResult> SendAllFarmListsViaStartAllButtonWithResultsAsync(CancellationToken cancellationToken = default)
+            => Task.FromResult(new FarmListSendBatchResult([], []));
         public Task<FarmListLossDeactivationResult> DeactivateFarmListLossTargetsAsync(bool includeUnoccupiedOasis, CancellationToken cancellationToken = default) => throw new NotSupportedException();
         public Task<FarmListLossDeactivationResult> HandleFarmListLossTargetsAsync(FarmListLossHandlingRequest request, CancellationToken cancellationToken = default)
         {

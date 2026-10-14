@@ -25,7 +25,8 @@ internal sealed class ContinuousFarmingOperation(IFarmingClient client)
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .Select(id => id.Trim())
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
-        if (selectedNames.Count <= 0 && selectedIds.Count <= 0)
+        var sendsAllLists = string.Equals(request.SendMode, FarmingDefaults.SendModeAllAtOnce, StringComparison.Ordinal);
+        if (!sendsAllLists && selectedNames.Count <= 0 && selectedIds.Count <= 0)
         {
             log("Continuous farming: no enabled farm lists; waiting for a list to be enabled.");
             return ContinuousFarmingDispatchResult.ForDefer("No farm lists are enabled.", Math.Max(60, request.DispatchDelaySeconds));
@@ -34,9 +35,10 @@ internal sealed class ContinuousFarmingOperation(IFarmingClient client)
         var overview = await client.ReadFarmListsOverviewAsync(cancellationToken);
         var matchingLists = overview
             .Where(item => item is not null
-                && (item.ListId is not null && selectedIds.Count > 0
-                    ? selectedIds.Contains(item.ListId)
-                    : selectedNames.Contains(item.Name, StringComparer.OrdinalIgnoreCase)))
+                && (sendsAllLists
+                    || (item.ListId is not null && selectedIds.Count > 0
+                        ? selectedIds.Contains(item.ListId)
+                        : selectedNames.Contains(item.Name, StringComparer.OrdinalIgnoreCase))))
             .ToList();
         if (matchingLists.Count <= 0)
         {
@@ -44,7 +46,7 @@ internal sealed class ContinuousFarmingOperation(IFarmingClient client)
                 ? $"Continuous farming: none of the selected farm lists ({string.Join(", ", selectedNames)}) were found on the farm page. They may have been renamed — re-analyze and re-select. Retrying in {request.DispatchDelaySeconds}s."
                 : $"Continuous farming: no farm lists were found on the farm page. Retrying in {request.DispatchDelaySeconds}s.");
             return ContinuousFarmingDispatchResult.ForDefer(
-                "Selected farm lists were not found on the farm page.",
+                sendsAllLists ? "No farm lists were found on the farm page." : "Selected farm lists were not found on the farm page.",
                 request.DispatchDelaySeconds);
         }
 
@@ -88,8 +90,10 @@ internal sealed class ContinuousFarmingOperation(IFarmingClient client)
             .Select(id => id!)
             .ToList();
         var scheduleLabel = usesIndividualSchedules ? "individual schedules" : "shared round";
-        log($"Continuous farming ({scheduleLabel}): sending {readyLists.Count}/{matchingLists.Count} ready list(s).");
-        var sendResult = await client.SendSelectedFarmListsNowAsync(dueNames, dueIds, cancellationToken);
+        log($"Continuous farming ({scheduleLabel}): sending {readyLists.Count}/{matchingLists.Count} ready list(s){(sendsAllLists ? " via Travian Start all" : string.Empty)}.");
+        var sendResult = sendsAllLists
+            ? await client.SendAllFarmListsViaStartAllButtonWithResultsAsync(cancellationToken)
+            : await client.SendSelectedFarmListsNowAsync(dueNames, dueIds, cancellationToken);
         log($"Continuous farming ({scheduleLabel}): {sendResult.SentCount} list(s) dispatched.");
         if (sendResult.SentLists.Count > 0)
         {

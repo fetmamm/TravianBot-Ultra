@@ -112,6 +112,21 @@
                                                        Margin="0,6,0,0"
                                                        TextWrapping="Wrap"
                                                        Visibility="Collapsed" />
+                                            <TextBlock Text="Send all is on: Travian sends every ready list. The dimmed list toggles are ignored."
+                                                       Foreground="{DynamicResource TextMutedBrush}"
+                                                       Margin="0,6,0,0"
+                                                       TextWrapping="Wrap">
+                                                <TextBlock.Style>
+                                                    <Style TargetType="TextBlock">
+                                                        <Setter Property="Visibility" Value="Collapsed" />
+                                                        <Style.Triggers>
+                                                            <DataTrigger Binding="{Binding SendAllLists}" Value="True">
+                                                                <Setter Property="Visibility" Value="Visible" />
+                                                            </DataTrigger>
+                                                        </Style.Triggers>
+                                                    </Style>
+                                                </TextBlock.Style>
+                                            </TextBlock>
                                         </StackPanel>
 
                                         <ScrollViewer Grid.Row="1" VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled">
@@ -186,11 +201,25 @@
                                                                     </Grid.ColumnDefinitions>
 
                                                                     <ToggleButton Grid.Column="0"
-                                                                                  Style="{StaticResource AutomationToggleStyle}"
                                                                                   VerticalAlignment="Center"
                                                                                   Margin="0,0,8,0"
-                                                                                  IsEnabled="{Binding HasFarmList}"
-                                                                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}" />
+                                                                                  IsChecked="{Binding IsEnabled, Mode=TwoWay}"
+                                                                                  ToolTipService.ShowOnDisabled="True">
+                                                                        <ToggleButton.Style>
+                                                                            <Style TargetType="ToggleButton" BasedOn="{StaticResource AutomationToggleStyle}">
+                                                                                <Setter Property="ToolTip" Value="Enable this list for Shared and Individual schedules." />
+                                                                                <Style.Triggers>
+                                                                                    <DataTrigger Binding="{Binding HasFarmList}" Value="False">
+                                                                                        <Setter Property="IsEnabled" Value="False" />
+                                                                                    </DataTrigger>
+                                                                                    <DataTrigger Binding="{Binding DataContext.SendAllLists, RelativeSource={RelativeSource AncestorType={x:Type views:FarmingPanel}}}" Value="True">
+                                                                                        <Setter Property="IsEnabled" Value="False" />
+                                                                                        <Setter Property="ToolTip" Value="Ignored in Send all: Travian sends every ready list, including lists toggled off here." />
+                                                                                    </DataTrigger>
+                                                                                </Style.Triggers>
+                                                                            </Style>
+                                                                        </ToggleButton.Style>
+                                                                    </ToggleButton>
 
                                                                     <Border Grid.Column="1"
                                                                             BorderBrush="{DynamicResource InfoBrush}"
@@ -478,7 +507,7 @@
                                                                          GroupName="FarmSendMode"
                                                                          HorizontalContentAlignment="Stretch"
                                                                          IsChecked="{Binding SendAllLists, Mode=TwoWay}">
-                                                                <TextBlock Text="Send all enabled" FontSize="12" FontWeight="SemiBold" Margin="3,0,0,0" />
+                                                                <TextBlock Text="Send all" FontSize="12" FontWeight="SemiBold" Margin="3,0,0,0" />
                                                             </RadioButton>
                                                         </Border>
                                                     </Grid>

@@ -719,7 +719,8 @@ public partial class MainWindow
             return;
         }
 
-        if (!_farmLists.Any(row => IsRealFarmListRow(row) && row.IsEnabled))
+        var sendAll = _farmListsViewModel.SendAllLists;
+        if (!sendAll && !_farmLists.Any(row => IsRealFarmListRow(row) && row.IsEnabled))
         {
             AppendLog("[farm-list] Send all toggled: no farm lists are toggled on.");
             AppDialog.Show(this, "No farm lists are toggled on.", "Send farmlists", MessageBoxButton.OK, MessageBoxImage.Information);
@@ -731,7 +732,7 @@ public partial class MainWindow
         var operationToken = _loopController.StartOperation("operation");
         SetFarmingFunctionRunning(true);
         BusyOverlay.ShowCancel = true;
-        ShowBusyOverlay("Send all now", "Sending enabled farmlists...");
+        ShowBusyOverlay("Send now", sendAll ? "Sending all ready farmlists..." : "Sending enabled farmlists...");
         try
         {
             var options = ApplySelectedVillageToOptions(LoadBotOptions());
@@ -747,7 +748,8 @@ public partial class MainWindow
             {
                 await RefreshVisibleFarmListHistoryAsync();
             }
-            CompleteOperation(operationId, operationSw, $"Sent enabled farmlists ({dispatch.SentCount} list(s)).");
+            CompleteOperation(operationId, operationSw,
+                $"Sent {(sendAll ? "all ready" : "enabled")} farmlists ({dispatch.SentCount} list(s)).");
         }
         catch (OperationCanceledException)
         {

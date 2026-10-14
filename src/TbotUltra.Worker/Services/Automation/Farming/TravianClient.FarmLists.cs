@@ -285,10 +285,12 @@ public sealed partial class TravianClient : IFarmingClient
             && selectedNames.Contains(listName);
     }
 
-    // Sends every farm list in one action by clicking Travian's own "Start all farm lists" button
-    // (button.startAllFarmLists) — the fast "send everything at once" path, in contrast to the sequential
-    // per-list send above. Returns the number of lists that had an enabled Start button when clicked.
     public async Task<int> SendAllFarmListsViaStartAllButtonAsync(CancellationToken cancellationToken = default)
+        => (await SendAllFarmListsViaStartAllButtonWithResultsAsync(cancellationToken)).SentCount;
+
+    // The scheduled Send all mode uses Travian's own button, independent of the program's list toggles.
+    // Preserve exact per-list confirmations for history and dispatch deadlines.
+    public async Task<FarmListSendBatchResult> SendAllFarmListsViaStartAllButtonWithResultsAsync(CancellationToken cancellationToken = default)
     {
         LogFunctionStarted();
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
@@ -304,6 +306,12 @@ public sealed partial class TravianClient : IFarmingClient
         await WaitForDispatchLimitToClearAsync(cancellationToken);
 
         var sendable = await ReadSendableFarmListsAsync(cancellationToken);
+        if (sendable.Count == 0)
+        {
+            Notify("[farm-list] start-all: no farm lists are ready on the Official page.");
+            return new FarmListSendBatchResult([], []);
+        }
+
         var clicked = await TryRealClickFarmButtonAsync(
             _page.Locator("#rallyPointFarmList button.startAllFarmLists, button.startAllFarmLists").First,
             JsDispatchStartAllFarmListsAsync,
@@ -317,13 +325,13 @@ public sealed partial class TravianClient : IFarmingClient
         var confirmations = await WaitForFarmListDispatchConfirmationsAsync(
             sendable.Select(entry => entry.Lid).ToArray(),
             cancellationToken);
-        var confirmedCount = 0;
+        var sent = new List<FarmListSendEntry>();
         foreach (var entry in sendable)
         {
             var confirmation = confirmations[entry.Lid];
             if (confirmation.IsConfirmed)
             {
-                confirmedCount++;
+                sent.Add(new FarmListSendEntry(entry.Name, entry.Lid, DateTimeOffset.UtcNow, confirmation.Description));
                 Notify(
                     $"[farm-list] start-all: '{entry.Name}' marked sent "
                     + $"(response={confirmation.Description}; Travian processed the Start request).");
@@ -336,13 +344,14 @@ public sealed partial class TravianClient : IFarmingClient
             }
         }
 
-        if (confirmedCount > 0)
+        if (sent.Count > 0)
         {
             await DelayBeforeClickAsync(cancellationToken, "after final confirmed farm list");
         }
 
-        Notify($"[farm-list] start-all completed: {confirmedCount}/{sendable.Count} list(s) confirmed attempted.");
-        return confirmedCount;
+        Notify($"[farm-list] start-all completed: {sent.Count}/{sendable.Count} list(s) confirmed attempted.");
+        return new FarmListSendBatchResult(
+            sendable.Select(entry => new FarmListSendEntry(entry.Name, entry.Lid)).ToList(), sent);
     }
 
     // Synthetic-dispatch fallback for the start-all button, used only when the real Playwright click is not

@@ -242,7 +242,8 @@ public sealed class FarmListsViewModelTests
 
         vm.SendAllLists = true;
 
-        Assert.Contains("Only enabled lists", vm.DispatchModeDescription);
+        Assert.Contains("including lists toggled off", vm.DispatchModeDescription);
+        Assert.Contains("List toggles are ignored", vm.DispatchModeDescription);
         Assert.True(vm.SendAllLists);
         Assert.False(vm.UseSharedSchedule);
     }

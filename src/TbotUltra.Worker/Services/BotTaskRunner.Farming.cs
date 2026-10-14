@@ -310,8 +310,15 @@ public sealed partial class BotTaskRunner
         Action<string> log,
         string? accountName = null,
         CancellationToken cancellationToken = default)
+        => (await SendAllFarmListsViaStartAllButtonWithResultsAsync(options, log, accountName, cancellationToken)).SentCount;
+
+    public async Task<FarmListSendBatchResult> SendAllFarmListsViaStartAllButtonWithResultsAsync(
+        BotOptions options,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
     {
-        var listCount = 0;
+        FarmListSendBatchResult result = new([], []);
         await ExecuteWithClientAsync(
             options,
             log,
@@ -322,10 +329,10 @@ public sealed partial class BotTaskRunner
             {
                 await client.LoginAsync(cancellationToken);
                 await RunFarmListLossDeactivationIfEnabledAsync(new TaskExecutionContext(this, options, client, log, cancellationToken, _ => { }));
-                listCount = await new ManualFarmingOperation(client).SendAllViaStartAllButtonAsync(cancellationToken);
+                result = await new ManualFarmingOperation(client).SendAllViaStartAllButtonWithResultsAsync(cancellationToken);
             });
 
-        return listCount;
+        return result;
     }
 
     public async Task<FarmAddBatchResult> AddFarmsFromCoordinatesAsync(

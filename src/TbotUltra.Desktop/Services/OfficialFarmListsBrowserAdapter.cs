@@ -13,6 +13,7 @@ public interface IFarmListsBrowserAdapter
     Task<FarmListCreateBatchResult> CreateListsAsync(BotOptions options, FarmListCreateRequest request, Action<string> log, IProgress<FarmListCreateProgress>? progress, CancellationToken cancellationToken);
     Task<FarmListSingleSendResult> SendOneWithResultAsync(BotOptions options, string farmListName, Action<string> log, CancellationToken cancellationToken);
     Task<FarmListSendBatchResult> SendSelectedWithResultsAsync(BotOptions options, IReadOnlyCollection<string> names, IReadOnlyCollection<string> ids, Action<string> log, CancellationToken cancellationToken);
+    Task<FarmListSendBatchResult> SendAllWithResultsAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken);
 }
 
 internal sealed class OfficialFarmListsBrowserAdapter(BotTaskRunner taskRunner) : IFarmListsBrowserAdapter
@@ -37,4 +38,7 @@ internal sealed class OfficialFarmListsBrowserAdapter(BotTaskRunner taskRunner) 
 
     public Task<FarmListSendBatchResult> SendSelectedWithResultsAsync(BotOptions options, IReadOnlyCollection<string> names, IReadOnlyCollection<string> ids, Action<string> log, CancellationToken cancellationToken)
         => taskRunner.SendSelectedFarmListsWithResultsNowAsync(options, names, ids, log, null, cancellationToken);
+
+    public Task<FarmListSendBatchResult> SendAllWithResultsAsync(BotOptions options, Action<string> log, CancellationToken cancellationToken)
+        => taskRunner.SendAllFarmListsViaStartAllButtonWithResultsAsync(options, log, null, cancellationToken);
 }

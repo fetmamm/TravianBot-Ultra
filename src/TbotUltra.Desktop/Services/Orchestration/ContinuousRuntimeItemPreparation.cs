@@ -369,9 +369,9 @@ internal sealed class ContinuousRuntimeItemPreparation(IContinuousRuntimeItemPre
             port.ClearFarmingMissingListsBlock();
         }
 
-        if (selection.Names.Count <= 0 && selection.Ids.Count <= 0)
+        if (!sendsAllListsAtOnce && selection.Names.Count <= 0 && selection.Ids.Count <= 0)
         {
-            port.LogVerbose("[farm-list] no lists are enabled; no automatic send was queued.", "farm-list-runtime-no-enabled-lists");
+            port.LogVerbose("[farm-list] no lists are enabled for the selected-list schedule; no automatic send was queued.", "farm-list-runtime-no-enabled-lists");
             return;
         }
 
@@ -404,13 +404,13 @@ internal sealed class ContinuousRuntimeItemPreparation(IContinuousRuntimeItemPre
             }
             runtimeItems.Ensure(new AutomationRuntimeItemSpec(
                 "send_farmlists",
-                sendsAllListsAtOnce ? "Send all enabled farmlists" : "Send selected farmlists",
+                sendsAllListsAtOnce ? "Send all farmlists" : "Send selected farmlists",
                 payload,
                 -50,
                 0,
                 village.Key));
             port.Log(sendsAllListsAtOnce
-                ? $"Continuous farming Send all enabled queued once for the account via village '{village.Name}'."
+                ? $"Continuous farming Send all queued once for the account via village '{village.Name}'."
                 : $"Continuous farming queued for village '{village.Name}'.");
         }
     }
