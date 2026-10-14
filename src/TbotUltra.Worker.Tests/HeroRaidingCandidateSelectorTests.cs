@@ -52,4 +52,26 @@ public sealed class HeroRaidingCandidateSelectorTests
             oases, 200, 0, 20, 10, ["Wood"], new HashSet<(int X, int Y)>(), now, wrappedWorldWidth: 401);
         Assert.Equal((-200, 0), (Assert.Single(wrapped).Oasis.X, wrapped[0].Oasis.Y));
     }
+
+    [Fact]
+    public void Select_DistinguishesPureCropBonusesWithoutChangingMapFilterType()
+    {
+        var now = DateTimeOffset.UtcNow;
+        var oases = new[]
+        {
+            new MapOasisEntry(1, 0, false, "Crop 25%", "Crop", "Rat 2", "", "", now),
+            new MapOasisEntry(2, 0, false, "Crop 50%", "Crop", "Rat 2", "", "", now),
+        };
+
+        var crop25 = HeroRaidingCandidateSelector.Select(
+            oases, 0, 0, 20, 10, ["Crop25"], new HashSet<(int X, int Y)>(), now);
+        var crop50 = HeroRaidingCandidateSelector.Select(
+            oases, 0, 0, 20, 10, ["Crop50"], new HashSet<(int X, int Y)>(), now);
+        var legacy = HeroRaidingCandidateSelector.Select(
+            oases, 0, 0, 20, 10, ["Crop"], new HashSet<(int X, int Y)>(), now);
+
+        Assert.Equal(1, Assert.Single(crop25).Oasis.X);
+        Assert.Equal(2, Assert.Single(crop50).Oasis.X);
+        Assert.Equal(2, legacy.Count);
+    }
 }

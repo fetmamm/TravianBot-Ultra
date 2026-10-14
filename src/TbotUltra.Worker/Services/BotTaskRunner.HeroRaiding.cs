@@ -211,8 +211,9 @@ public sealed partial class BotTaskRunner
             async client =>
             {
                 var types = options.HeroRaidingSelectedTypes.Split(',',
-                    StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
-                if (types.Length == 0)
+                    StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+                    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+                if (types.Count == 0)
                 {
                     result = new HeroRaidingScanResult(false, false, [], 0, 0,
                         "Select at least one oasis type before scanning.");
@@ -252,7 +253,7 @@ public sealed partial class BotTaskRunner
                 var candidates = new List<HeroRaidingScanCandidate>();
                 foreach (var oasis in discovery.ObservedOases)
                 {
-                    if (oasis.IsOccupied || !types.Contains(oasis.FilterType, StringComparer.OrdinalIgnoreCase)
+                    if (oasis.IsOccupied || !HeroRaidingCandidateSelector.MatchesSelectedType(oasis, types)
                         || !NatureTroopCatalog.TryParseGarrison(oasis.Animals, out var garrison))
                         continue;
                     var distance = Math.Sqrt(Math.Pow(oasis.X - readiness.VillageX, 2)

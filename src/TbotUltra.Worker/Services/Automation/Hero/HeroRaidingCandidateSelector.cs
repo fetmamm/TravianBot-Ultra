@@ -29,7 +29,7 @@ internal static class HeroRaidingCandidateSelector
         foreach (var oasis in oases)
         {
             if (oasis.IsOccupied || excluded.Contains((oasis.X, oasis.Y))
-                || !types.Contains(oasis.FilterType)
+                || !MatchesSelectedType(oasis, types)
                 || oasis.ObservedAtUtc is not DateTimeOffset observedAt
                 || observedAt > now
                 || now - observedAt > TimeSpan.FromMinutes(observationMinutes)
@@ -61,5 +61,20 @@ internal static class HeroRaidingCandidateSelector
             .ThenBy(candidate => candidate.Oasis.Y)
             .ThenBy(candidate => candidate.Oasis.X)
             .ToList();
+    }
+
+    internal static bool MatchesSelectedType(MapOasisEntry oasis, IReadOnlySet<string> selectedTypes)
+    {
+        if (!string.Equals(oasis.FilterType, "Crop", StringComparison.OrdinalIgnoreCase))
+            return selectedTypes.Contains(oasis.FilterType);
+
+        // The shared map scan still groups both pure-crop bonuses as "Crop".
+        // Hero raiding applies its narrower choice using the observed oasis bonus.
+        return oasis.OasisType switch
+        {
+            "Crop 25%" => selectedTypes.Contains("Crop25") || selectedTypes.Contains("Crop"),
+            "Crop 50%" => selectedTypes.Contains("Crop50") || selectedTypes.Contains("Crop"),
+            _ => false,
+        };
     }
 }

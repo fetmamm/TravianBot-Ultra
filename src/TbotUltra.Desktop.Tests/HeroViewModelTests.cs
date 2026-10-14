@@ -49,7 +49,12 @@ public sealed class HeroViewModelTests
         Assert.Equal(50, vm.HeroRaidingMaximumDistance);
         Assert.Equal(15, vm.HeroRaidingObservationMinutes);
         Assert.Equal("adventures", vm.HeroRaidingPriority);
-        Assert.Equal("Crop,Iron+Crop", vm.HeroRaidingSelectedTypes);
+        Assert.Equal("Iron+Crop,Crop25,Crop50", vm.HeroRaidingSelectedTypes);
+        Assert.True(vm.RaidCrop25);
+        Assert.True(vm.RaidCrop50);
+
+        vm.RaidCrop25 = false;
+        Assert.Equal("Iron+Crop,Crop50", vm.HeroRaidingSelectedTypes);
     }
 
     [Fact]

@@ -24,11 +24,18 @@
           <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"
                   BorderThickness="1" CornerRadius="8" Padding="14">
             <StackPanel>
-              <CheckBox Content="Enable hero raiding" IsChecked="{Binding HeroRaidingEnabled, Mode=TwoWay}"
-                        Style="{StaticResource ToggleSwitchStyle}"
-                        ToolTip="Account-wide. Sends the hero alone on Raid to safe animal oases. Automatically switches off if the outcome is unsafe or unknown." />
-              <TextBlock Text="The hero raids only when home and available. Empty or occupied oases are never targets."
-                         TextWrapping="Wrap" Foreground="{DynamicResource TextSubtleBrush}" Margin="0,8,0,14" />
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,14">
+                <CheckBox Content="Enable hero raiding" IsChecked="{Binding HeroRaidingEnabled, Mode=TwoWay}"
+                          Style="{StaticResource ToggleSwitchStyle}" />
+                <ContentControl Style="{StaticResource SettingInfoIconStyle}" Margin="8,0,0,0">
+                  <ContentControl.ToolTip>
+                    <ToolTip MaxWidth="320">
+                      <TextBlock TextWrapping="Wrap"
+                                 Text="Account-wide. Sends the hero alone on Raid to safe animal oases. The hero raids only when home and available. Empty or occupied oases are never targets. Automatically switches off if the outcome is unsafe or unknown." />
+                    </ToolTip>
+                  </ContentControl.ToolTip>
+                </ContentControl>
+              </StackPanel>
               <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                 <TextBlock Text="Minimum predicted HP after raid" VerticalAlignment="Center"
                            Foreground="{DynamicResource TextSecondaryBrush}" Width="220" />
@@ -59,18 +66,50 @@
                 </ComboBox>
               </StackPanel>
               <TextBlock Text="Oasis types" FontWeight="SemiBold" Foreground="{DynamicResource TextPrimaryBrush}" />
-              <WrapPanel Margin="0,8,0,12">
-                <CheckBox Content="Wood" IsChecked="{Binding RaidWood}" Margin="0,0,16,8" />
-                <CheckBox Content="Clay" IsChecked="{Binding RaidClay}" Margin="0,0,16,8" />
-                <CheckBox Content="Iron" IsChecked="{Binding RaidIron}" Margin="0,0,16,8" />
-                <CheckBox Content="Crop only" IsChecked="{Binding RaidCrop}" Margin="0,0,16,8" />
-                <CheckBox Content="Wood + Crop" IsChecked="{Binding RaidWoodCrop}" Margin="0,0,16,8" />
-                <CheckBox Content="Clay + Crop" IsChecked="{Binding RaidClayCrop}" Margin="0,0,16,8" />
-                <CheckBox Content="Iron + Crop" IsChecked="{Binding RaidIronCrop}" Margin="0,0,16,8" />
-              </WrapPanel>
-              <CheckBox Content="Auto use ointments" IsChecked="{Binding AutoUseOintments}" />
-              <TextBlock Text="Shared with Adventures. When off, the hero heals naturally."
-                         Foreground="{DynamicResource TextSubtleBrush}" Margin="20,4,0,0" />
+              <Grid Margin="0,8,0,12">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="*" />
+                </Grid.ColumnDefinitions>
+                <Border Grid.Column="0" Background="{DynamicResource AppBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                        CornerRadius="6" Padding="12,10" Margin="0,0,8,0">
+                  <StackPanel>
+                    <TextBlock Text="Resource oases" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8" />
+                    <CheckBox Content="Clay" IsChecked="{Binding RaidClay}" Margin="0,0,0,6" />
+                    <CheckBox Content="Iron" IsChecked="{Binding RaidIron}" Margin="0,0,0,6" />
+                    <CheckBox Content="Wood" IsChecked="{Binding RaidWood}" />
+                  </StackPanel>
+                </Border>
+                <Border Grid.Column="1" Background="{DynamicResource AppBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                        CornerRadius="6" Padding="12,10" Margin="0,0,8,0">
+                  <StackPanel>
+                    <TextBlock Text="Mixed oases" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8" />
+                    <CheckBox Content="Wood + Crop" IsChecked="{Binding RaidWoodCrop}" Margin="0,0,0,6" />
+                    <CheckBox Content="Clay + Crop" IsChecked="{Binding RaidClayCrop}" Margin="0,0,0,6" />
+                    <CheckBox Content="Iron + Crop" IsChecked="{Binding RaidIronCrop}" />
+                  </StackPanel>
+                </Border>
+                <Border Grid.Column="2" Background="{DynamicResource AppBackgroundBrush}"
+                        BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1"
+                        CornerRadius="6" Padding="12,10">
+                  <StackPanel>
+                    <TextBlock Text="Crop oases" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextSecondaryBrush}" Margin="0,0,0,8" />
+                    <CheckBox Content="Crop 25%" IsChecked="{Binding RaidCrop25}" Margin="0,0,0,6" />
+                    <CheckBox Content="Crop 50%" IsChecked="{Binding RaidCrop50}" />
+                  </StackPanel>
+                </Border>
+              </Grid>
+              <StackPanel Orientation="Horizontal">
+                <CheckBox Content="Auto use ointments" IsChecked="{Binding AutoUseOintments}" />
+                <ContentControl Style="{StaticResource SettingInfoIconStyle}" Margin="8,0,0,0"
+                                ToolTip="Shared with Adventures. When off, the hero heals naturally." />
+              </StackPanel>
             </StackPanel>
           </Border>
           <Border Background="{DynamicResource SurfaceBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}"

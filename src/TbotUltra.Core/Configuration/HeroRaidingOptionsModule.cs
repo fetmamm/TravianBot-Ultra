@@ -18,7 +18,7 @@ internal static class HeroRaidingOptionsModule
 
     private static readonly HashSet<string> KnownTypes = new(StringComparer.OrdinalIgnoreCase)
     {
-        "Wood", "Clay", "Iron", "Crop", "Wood+Crop", "Clay+Crop", "Iron+Crop",
+        "Wood", "Clay", "Iron", "Crop25", "Crop50", "Wood+Crop", "Clay+Crop", "Iron+Crop",
     };
 
     internal static IReadOnlyList<string> AccountScopedKeys { get; } =
@@ -103,6 +103,9 @@ internal static class HeroRaidingOptionsModule
     {
         if (selectedTypes is null) return DefaultSelectedTypes;
         return string.Join(',', selectedTypes.Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries)
+            .SelectMany(type => string.Equals(type, "Crop", StringComparison.OrdinalIgnoreCase)
+                ? new[] { "Crop25", "Crop50" }
+                : new[] { type })
             .Where(KnownTypes.Contains)
             .Distinct(StringComparer.OrdinalIgnoreCase));
     }

@@ -756,6 +756,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   Confirm, then use fresh hero-home state and HP for outcome; a combat report is optional diagnostic evidence.
   Post-raid comparison tolerates at most one HP percentage point
   of simulator rounding, never below the configured absolute HP minimum.
+  Its pure-crop 25% and 50% selections are independent; a saved legacy `Crop` selection enables both.
+  The shared Map Oasis Scan keeps its existing `Crop` filter and Hero raiding narrows it by observed bonus.
 - Official inventory cage removal uses the equipped Cage popup: click the equipped bag item once, set the full
   count, click Move once, and verify the equipped bag has the `empty` class and no Cage item. The inventory list
   can be filtered; do not require a visible inventory Cage to prove removal. Do not drag cages.

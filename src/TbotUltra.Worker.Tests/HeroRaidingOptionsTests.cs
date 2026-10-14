@@ -18,7 +18,8 @@ public sealed class HeroRaidingOptionsTests
         Assert.Equal(10, options.HeroRaidingObservationMinutes);
         Assert.Equal("raiding", options.HeroRaidingPriority);
         Assert.Contains("Wood+Crop", options.HeroRaidingSelectedTypes);
-        Assert.DoesNotContain(",Crop,", $",{options.HeroRaidingSelectedTypes},");
+        Assert.DoesNotContain("Crop25", options.HeroRaidingSelectedTypes);
+        Assert.DoesNotContain("Crop50", options.HeroRaidingSelectedTypes);
     }
 
     [Fact]
@@ -41,7 +42,21 @@ public sealed class HeroRaidingOptionsTests
         Assert.Equal(1, options.HeroRaidingMinimumHpPercent);
         Assert.Equal(50, options.HeroRaidingMaximumDistance);
         Assert.Equal(120, options.HeroRaidingObservationMinutes);
-        Assert.Equal("Crop,Clay+Crop", options.HeroRaidingSelectedTypes);
+        Assert.Equal("Crop25,Crop50,Clay+Crop", options.HeroRaidingSelectedTypes);
         Assert.Equal("adventures", options.HeroRaidingPriority);
+    }
+
+    [Fact]
+    public void Configuration_PreservesIndependentCropChoices()
+    {
+        var configuration = new ConfigurationBuilder().AddInMemoryCollection(
+            new Dictionary<string, string?>
+            {
+                [BotOptionPayloadKeys.HeroRaidingSelectedTypes] = "Crop50,Wood+Crop",
+            }).Build();
+
+        var options = BotOptionsFactory.FromConfiguration(configuration);
+
+        Assert.Equal("Crop50,Wood+Crop", options.HeroRaidingSelectedTypes);
     }
 }

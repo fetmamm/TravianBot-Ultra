@@ -302,13 +302,9 @@ cache/                     capital-state, manual-farming prefs
 
 ## Disclaimer
 
-This project is provided for educational purposes. Automating gameplay may
-violate the terms of service of Travian servers, and can lead
-to account bans. Use it at your own risk — the authors take no responsibility
-for any consequences of using this software.
-
-Credentials and per-account data are stored locally only (in `.env` and
-`config/`, all gitignored) and are never committed to this repository.
+This project is provided for educational purposes. Using bots or automation software violates Travian's rules and may result in account suspension or permanent bans.
+Use this software entirely at your own risk. The developer takes no responsibility or liability for banned accounts, lost progress, or any other consequences. Users are advised to be cautious and avoid excessive use. No usage is guaranteed to be safe or undetectable.
+Credentials and per-account data are stored locally only (in .env and config/, all gitignored) and are never committed to this repository.
 
 ---
 

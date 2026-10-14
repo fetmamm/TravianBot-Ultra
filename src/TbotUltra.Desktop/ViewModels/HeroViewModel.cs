@@ -81,7 +81,8 @@ public sealed class HeroViewModel : BaseViewModel
     private bool _raidWood = true;
     private bool _raidClay = true;
     private bool _raidIron = true;
-    private bool _raidCrop;
+    private bool _raidCrop25;
+    private bool _raidCrop50;
     private bool _raidWoodCrop = true;
     private bool _raidClayCrop = true;
     private bool _raidIronCrop = true;
@@ -470,7 +471,8 @@ public sealed class HeroViewModel : BaseViewModel
     public bool RaidWood { get => _raidWood; set => SetProperty(ref _raidWood, value); }
     public bool RaidClay { get => _raidClay; set => SetProperty(ref _raidClay, value); }
     public bool RaidIron { get => _raidIron; set => SetProperty(ref _raidIron, value); }
-    public bool RaidCrop { get => _raidCrop; set => SetProperty(ref _raidCrop, value); }
+    public bool RaidCrop25 { get => _raidCrop25; set => SetProperty(ref _raidCrop25, value); }
+    public bool RaidCrop50 { get => _raidCrop50; set => SetProperty(ref _raidCrop50, value); }
     public bool RaidWoodCrop { get => _raidWoodCrop; set => SetProperty(ref _raidWoodCrop, value); }
     public bool RaidClayCrop { get => _raidClayCrop; set => SetProperty(ref _raidClayCrop, value); }
     public bool RaidIronCrop { get => _raidIronCrop; set => SetProperty(ref _raidIronCrop, value); }
@@ -480,10 +482,11 @@ public sealed class HeroViewModel : BaseViewModel
         RaidWood ? "Wood" : null,
         RaidClay ? "Clay" : null,
         RaidIron ? "Iron" : null,
-        RaidCrop ? "Crop" : null,
         RaidWoodCrop ? "Wood+Crop" : null,
         RaidClayCrop ? "Clay+Crop" : null,
         RaidIronCrop ? "Iron+Crop" : null,
+        RaidCrop25 ? "Crop25" : null,
+        RaidCrop50 ? "Crop50" : null,
     }.Where(type => type is not null));
 
     /// <summary>
@@ -573,7 +576,8 @@ public sealed class HeroViewModel : BaseViewModel
         RaidWood = raidTypes.Contains("Wood");
         RaidClay = raidTypes.Contains("Clay");
         RaidIron = raidTypes.Contains("Iron");
-        RaidCrop = raidTypes.Contains("Crop");
+        RaidCrop25 = raidTypes.Contains("Crop25") || raidTypes.Contains("Crop");
+        RaidCrop50 = raidTypes.Contains("Crop50") || raidTypes.Contains("Crop");
         RaidWoodCrop = raidTypes.Contains("Wood+Crop");
         RaidClayCrop = raidTypes.Contains("Clay+Crop");
         RaidIronCrop = raidTypes.Contains("Iron+Crop");

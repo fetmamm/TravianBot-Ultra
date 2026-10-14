@@ -114,7 +114,7 @@ public sealed class PanelServiceContractTests : IDisposable
             HeroRaidingMaximumDistance = 30,
             HeroRaidingObservationMinutes = 12,
             HeroRaidingPriority = "adventures",
-            RaidCrop = true,
+            RaidCrop25 = true,
             RaidIron = false,
         };
         vm.LoadPriorityFromConfig("offence_bonus,resources,defence_bonus,fighting_strength");
@@ -143,7 +143,7 @@ public sealed class PanelServiceContractTests : IDisposable
         Assert.Equal(30, persisted[BotOptionPayloadKeys.HeroRaidingMaximumDistance]!.GetValue<int>());
         Assert.Equal(12, persisted[BotOptionPayloadKeys.HeroRaidingObservationMinutes]!.GetValue<int>());
         Assert.Equal("adventures", persisted[BotOptionPayloadKeys.HeroRaidingPriority]!.GetValue<string>());
-        Assert.Equal("Wood,Clay,Crop,Wood+Crop,Clay+Crop,Iron+Crop",
+        Assert.Equal("Wood,Clay,Wood+Crop,Clay+Crop,Iron+Crop,Crop25",
             persisted[BotOptionPayloadKeys.HeroRaidingSelectedTypes]!.GetValue<string>());
         Assert.False(persisted.ContainsKey("hero_hide_mode_enabled"));
         Assert.False(persisted.ContainsKey("hero_hide_mode"));
