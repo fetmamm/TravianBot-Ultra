@@ -895,7 +895,7 @@ public sealed class BotOptionsPayloadApplierTests
     }
 
     [Fact]
-    public void FromConfiguration_UsesResourcePercentTroopTrainingDefaultsWithoutCrop()
+    public void FromConfiguration_UsesResourcePercentTroopTrainingDefaultsWithAutomaticSelection()
     {
         var configuration = new ConfigurationBuilder()
             .AddInMemoryCollection(new Dictionary<string, string?>
@@ -917,9 +917,9 @@ public sealed class BotOptionsPayloadApplierTests
         {
             Assert.Equal("resource_percent", building.Item1);
             Assert.Equal(90, building.Item2);
-            Assert.True(building.Item3);
-            Assert.True(building.Item4);
-            Assert.True(building.Item5);
+            Assert.False(building.Item3);
+            Assert.False(building.Item4);
+            Assert.False(building.Item5);
             Assert.False(building.Item6);
         });
     }

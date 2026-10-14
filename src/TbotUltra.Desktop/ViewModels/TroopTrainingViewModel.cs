@@ -53,11 +53,11 @@ public sealed partial class TroopTrainingViewModel : BaseViewModel
 
     private bool _isConfigSuppressed;
     private string _infoText = string.Empty;
-    private bool _checkWood = true;
-    private bool _checkClay = true;
-    private bool _checkIron = true;
+    private bool _checkWood;
+    private bool _checkClay;
+    private bool _checkIron;
     private bool _checkCrop;
-    private bool _automaticResourceSelection;
+    private bool _automaticResourceSelection = true;
     private int _fallbackCooldownSeconds = 300;
     private bool _autoCelebrationEnabled;
     private bool _autoCelebrationExplicitlyConfigured;

@@ -21,7 +21,7 @@ public sealed record TroopTrainingBuildingPayload(
 {
     public bool MinimumTroopsEnabled { get; init; }
     public int MaximumMinimumTroops { get; init; } = 100;
-    public bool AutomaticResourceSelection { get; init; }
+    public bool AutomaticResourceSelection { get; init; } = true;
 }
 
 public sealed record TroopTrainingPayload(
@@ -70,11 +70,11 @@ public sealed record TroopTrainingPayload(
             || !TryReadInt(payload, keys.MinimumResourcesPercent, 0, 0, 100, out var minimumResourcesPercent)
             || !TryReadInt(payload, keys.TimedMinMinutes, 30, 1, int.MaxValue, out var timedMinMinutes)
             || !TryReadInt(payload, keys.TimedMaxMinutes, 120, 1, int.MaxValue, out var timedMaxMinutes)
-            || !TryReadBool(payload, keys.CheckWood, true, out var checkWood)
-            || !TryReadBool(payload, keys.CheckClay, true, out var checkClay)
-            || !TryReadBool(payload, keys.CheckIron, true, out var checkIron)
-            || !TryReadBool(payload, keys.CheckCrop, true, out var checkCrop)
-            || !TryReadBool(payload, keys.AutomaticResourceSelection, false, out var automaticResourceSelection))
+            || !TryReadBool(payload, keys.CheckWood, false, out var checkWood)
+            || !TryReadBool(payload, keys.CheckClay, false, out var checkClay)
+            || !TryReadBool(payload, keys.CheckIron, false, out var checkIron)
+            || !TryReadBool(payload, keys.CheckCrop, false, out var checkCrop)
+            || !TryReadBool(payload, keys.AutomaticResourceSelection, true, out var automaticResourceSelection))
         {
             return false;
         }

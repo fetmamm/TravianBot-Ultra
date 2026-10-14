@@ -22,7 +22,7 @@ internal sealed record TroopTrainingBuildingOptions(
 {
     public bool MinimumTroopsEnabled { get; init; }
     public int MaximumMinimumTroops { get; init; } = 100;
-    public bool AutomaticResourceSelection { get; init; }
+    public bool AutomaticResourceSelection { get; init; } = true;
 }
 
 internal sealed record TroopTrainingOptions(
@@ -277,14 +277,14 @@ internal static class TroopTrainingOptionsModule
             Math.Clamp(configuration.GetValue(keys.MinimumResourcesPercent, 90), 0, 100),
             Math.Max(1, configuration.GetValue(keys.TimedMinMinutes, 30)),
             Math.Max(1, configuration.GetValue(keys.TimedMaxMinutes, 120)),
-            configuration.GetValue(keys.CheckWood, true),
-            configuration.GetValue(keys.CheckClay, true),
-            configuration.GetValue(keys.CheckIron, true),
+            configuration.GetValue(keys.CheckWood, false),
+            configuration.GetValue(keys.CheckClay, false),
+            configuration.GetValue(keys.CheckIron, false),
             configuration.GetValue(keys.CheckCrop, false))
         {
             MinimumTroopsEnabled = configuration.GetValue(keys.MinimumTroopsEnabled, false),
             MaximumMinimumTroops = Math.Clamp(configuration.GetValue(keys.MaximumMinimumTroops, 100), 1, 10000),
-            AutomaticResourceSelection = configuration.GetValue(keys.AutomaticResourceSelection, false),
+            AutomaticResourceSelection = configuration.GetValue(keys.AutomaticResourceSelection, true),
         };
 
     private static string NormalizeRunMode(string? value)

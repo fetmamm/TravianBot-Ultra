@@ -168,6 +168,24 @@ public sealed class TroopTrainingViewModelTests
     }
 
     [Fact]
+    public void NewVillageTraining_DefaultsToAutomaticResourcesOnly()
+    {
+        var vm = new TroopTrainingViewModel();
+        vm.Initialize();
+
+        Assert.True(vm.AutomaticResourceSelection);
+        Assert.False(vm.CheckWood);
+        Assert.False(vm.CheckClay);
+        Assert.False(vm.CheckIron);
+        Assert.False(vm.CheckCrop);
+        Assert.All(new[] { vm.BuildVillageTrainingPayload().Barracks, vm.BuildVillageTrainingPayload().Stable, vm.BuildVillageTrainingPayload().Workshop }, building =>
+        {
+            Assert.True(building.AutomaticResourceSelection);
+            Assert.False(building.CheckWood || building.CheckClay || building.CheckIron || building.CheckCrop);
+        });
+    }
+
+    [Fact]
     public void TryValidateMinimumTroopRanges_RequiresAResourceForPercentMode()
     {
         var vm = new TroopTrainingViewModel();
@@ -178,6 +196,7 @@ public sealed class TroopTrainingViewModelTests
         vm.CheckClay = false;
         vm.CheckIron = false;
         vm.CheckCrop = false;
+        vm.AutomaticResourceSelection = false;
 
         Assert.False(vm.TryValidateMinimumTroopRanges(out var error));
         Assert.Contains("Select at least one resource", error);

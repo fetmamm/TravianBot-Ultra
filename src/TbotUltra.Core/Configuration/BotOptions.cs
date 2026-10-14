@@ -227,19 +227,19 @@ public sealed record BotOptions
     public int TroopTrainingBarracksTimedMaxMinutes { get; init; } = 120;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksCheckWood)]
-    public bool TroopTrainingBarracksCheckWood { get; init; } = true;
+    public bool TroopTrainingBarracksCheckWood { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksCheckClay)]
-    public bool TroopTrainingBarracksCheckClay { get; init; } = true;
+    public bool TroopTrainingBarracksCheckClay { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksCheckIron)]
-    public bool TroopTrainingBarracksCheckIron { get; init; } = true;
+    public bool TroopTrainingBarracksCheckIron { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksCheckCrop)]
     public bool TroopTrainingBarracksCheckCrop { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingBarracksAutomaticResourceSelection)]
-    public bool TroopTrainingBarracksAutomaticResourceSelection { get; init; }
+    public bool TroopTrainingBarracksAutomaticResourceSelection { get; init; } = true;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableEnabled)]
     public bool TroopTrainingStableEnabled { get; init; }
@@ -278,19 +278,19 @@ public sealed record BotOptions
     public int TroopTrainingStableTimedMaxMinutes { get; init; } = 120;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableCheckWood)]
-    public bool TroopTrainingStableCheckWood { get; init; } = true;
+    public bool TroopTrainingStableCheckWood { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableCheckClay)]
-    public bool TroopTrainingStableCheckClay { get; init; } = true;
+    public bool TroopTrainingStableCheckClay { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableCheckIron)]
-    public bool TroopTrainingStableCheckIron { get; init; } = true;
+    public bool TroopTrainingStableCheckIron { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableCheckCrop)]
     public bool TroopTrainingStableCheckCrop { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingStableAutomaticResourceSelection)]
-    public bool TroopTrainingStableAutomaticResourceSelection { get; init; }
+    public bool TroopTrainingStableAutomaticResourceSelection { get; init; } = true;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopEnabled)]
     public bool TroopTrainingWorkshopEnabled { get; init; }
@@ -329,19 +329,19 @@ public sealed record BotOptions
     public int TroopTrainingWorkshopTimedMaxMinutes { get; init; } = 120;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopCheckWood)]
-    public bool TroopTrainingWorkshopCheckWood { get; init; } = true;
+    public bool TroopTrainingWorkshopCheckWood { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopCheckClay)]
-    public bool TroopTrainingWorkshopCheckClay { get; init; } = true;
+    public bool TroopTrainingWorkshopCheckClay { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopCheckIron)]
-    public bool TroopTrainingWorkshopCheckIron { get; init; } = true;
+    public bool TroopTrainingWorkshopCheckIron { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopCheckCrop)]
     public bool TroopTrainingWorkshopCheckCrop { get; init; }
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingWorkshopAutomaticResourceSelection)]
-    public bool TroopTrainingWorkshopAutomaticResourceSelection { get; init; }
+    public bool TroopTrainingWorkshopAutomaticResourceSelection { get; init; } = true;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.TroopTrainingFallbackCooldownSeconds)]
     public int TroopTrainingFallbackCooldownSeconds { get; init; } = 300;

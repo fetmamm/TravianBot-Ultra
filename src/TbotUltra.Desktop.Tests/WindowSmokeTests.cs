@@ -65,6 +65,47 @@ public sealed class WindowSmokeTests
     }
 
     [Fact]
+    public void UpgradeTroopsTab_ShowsGreenToggleBeforeVillageAndWarnsWhenNoTroopsSelected()
+    {
+        _wpf.Run(() =>
+        {
+            var vm = new TroopTrainingViewModel();
+            vm.SmithyVillages.Add(new SmithyUpgradeVillageRow(
+                new VillageSettingsStore.VillageKeyInfo("xy:1|2", "Home", 1, 2, false), 0, false));
+            var panel = new TroopsHubPanel { DataContext = vm };
+            var window = new Window { Content = panel };
+            try
+            {
+                WpfSmokeFixture.PrepareOffscreen(window);
+                window.Show();
+                Assert.IsType<TabItem>(panel.FindName("UpgradeTroopsTabItem")).IsSelected = true;
+                window.UpdateLayout();
+
+                var troopsPanel = panel.UpgradeTroopsPanel;
+                var description = Assert.IsType<TextBlock>(troopsPanel.FindName("SmithyUpgradeDescription"));
+                Assert.Contains("runs Smithy upgrades independently of troop building", description.Text);
+                Assert.Equal(0, Grid.GetColumn(Assert.IsType<TextBlock>(troopsPanel.FindName("SmithyEnabledHeader"))));
+                Assert.Equal(1, Grid.GetColumn(Assert.IsType<TextBlock>(troopsPanel.FindName("SmithyVillageHeader"))));
+
+                var list = Assert.IsType<ItemsControl>(troopsPanel.FindName("SmithyVillagesList"));
+                var presenter = Assert.IsType<ContentPresenter>(list.ItemContainerGenerator.ContainerFromIndex(0));
+                var toggle = Assert.IsType<CheckBox>(presenter.ContentTemplate.FindName("SmithyVillageToggle", presenter));
+                var summary = Assert.IsType<TextBlock>(presenter.ContentTemplate.FindName("SmithySelectionSummary", presenter));
+                Assert.Equal(0, Grid.GetColumn(toggle));
+                Assert.Same(troopsPanel.FindResource("ToggleSwitchStyle"), toggle.Style);
+                Assert.Equal("No troops selected", summary.Text);
+                Assert.Equal(
+                    Assert.IsType<SolidColorBrush>(troopsPanel.FindResource("WarningTextBrush")).Color,
+                    Assert.IsType<SolidColorBrush>(summary.Foreground).Color);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void StartupProgressWindow_HasMatchingControlsAndCanCancelOffscreen()
     {
         _wpf.Run(() =>

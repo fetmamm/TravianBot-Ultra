@@ -108,6 +108,7 @@ public sealed class TroopTrainingQuickSettingsTests
     public void ResourcePercentMode_RequiresAtLeastOneSelectedResource()
     {
         var row = new TroopTrainingQuickVillageRow("v1", "Village 1", true, BuildSourcePayload(), "Teutons");
+        row.AutomaticResourceSelection = false;
         row.CheckWood = false;
         row.CheckClay = false;
         row.CheckIron = false;

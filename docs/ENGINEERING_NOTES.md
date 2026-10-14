@@ -258,6 +258,8 @@ Published artifacts belong under `artifacts/`, never beside source files.
   non-clickable when Gold Club is false or unknown, and execution gating must enforce the same rule.
 - Troop training has three amount modes: Maximum, Keep resources, and Random range. A finite max-queue setting
   limits the total queue after the new order; never use Travian's maximum shortcut when that would bypass the cap.
+- New troop-training settings default to Auto resource selection ON and Wood, Clay, Iron, Crop OFF for all training
+  buildings; explicit saved selections remain authoritative.
 - `FarmListsWorkflow` owns Farm Lists analysis plus projection, snapshot restore, create/add completion refresh,
   dispatch reconciliation, and the complete pause/analyze/choose/create-or-select/resume transaction used by
   loss-destination setup. WPF may gather dialog input and render returned views, but must not order or recreate

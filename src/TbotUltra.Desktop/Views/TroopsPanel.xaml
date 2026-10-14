@@ -57,8 +57,10 @@
                                             Margin="6,2,0,0"
                                             ToolTip="Choose troops and target levels for each village. The Automation Loop's Upgrade Troops group runs Smithy upgrades independently of troop building." />
                         </StackPanel>
-                        <TextBlock Text="Choose troops for a village, then turn on its upgrades."
+                        <TextBlock x:Name="SmithyUpgradeDescription"
+                                   Text="Choose troops and target levels for each village. The Automation Loop's Upgrade Troops group runs Smithy upgrades independently of troop building."
                                    Foreground="{DynamicResource TextSubtleBrush}"
+                                   TextWrapping="Wrap"
                                    Margin="0,0,0,12" />
                         <Border Background="{DynamicResource SurfaceAltBrush}"
                                 BorderBrush="{DynamicResource BorderBrush}"
@@ -67,17 +69,17 @@
                             <StackPanel>
                                 <Grid Margin="12,8" MinWidth="500">
                                     <Grid.ColumnDefinitions>
-                                        <ColumnDefinition Width="2*" />
-                                        <ColumnDefinition Width="2*" />
                                         <ColumnDefinition Width="90" />
+                                        <ColumnDefinition Width="2*" />
+                                        <ColumnDefinition Width="2*" />
                                         <ColumnDefinition Width="42" />
                                     </Grid.ColumnDefinitions>
-                                    <TextBlock Text="VILLAGE" FontSize="11" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextMutedBrush}" />
-                                    <TextBlock Grid.Column="1" Text="SELECTED TROOPS" FontSize="11" FontWeight="SemiBold"
-                                               Foreground="{DynamicResource TextMutedBrush}" />
-                                    <TextBlock Grid.Column="2" Text="ENABLED" FontSize="11" FontWeight="SemiBold"
+                                    <TextBlock x:Name="SmithyEnabledHeader" Grid.Column="0" Text="ENABLED" FontSize="11" FontWeight="SemiBold"
                                                Foreground="{DynamicResource TextMutedBrush}" HorizontalAlignment="Center" />
+                                    <TextBlock x:Name="SmithyVillageHeader" Grid.Column="1" Text="VILLAGE" FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextMutedBrush}" />
+                                    <TextBlock x:Name="SmithySelectedTroopsHeader" Grid.Column="2" Text="SELECTED TROOPS" FontSize="11" FontWeight="SemiBold"
+                                               Foreground="{DynamicResource TextMutedBrush}" />
                                 </Grid>
                                 <Border Height="1" Background="{DynamicResource BorderSubtleBrush}" />
                                 <ItemsControl x:Name="SmithyVillagesList" ItemsSource="{Binding SmithyVillages}">
@@ -88,24 +90,34 @@
                                                     Padding="12,9">
                                                 <Grid MinWidth="500">
                                                     <Grid.ColumnDefinitions>
-                                                        <ColumnDefinition Width="2*" />
-                                                        <ColumnDefinition Width="2*" />
                                                         <ColumnDefinition Width="90" />
+                                                        <ColumnDefinition Width="2*" />
+                                                        <ColumnDefinition Width="2*" />
                                                         <ColumnDefinition Width="42" />
                                                     </Grid.ColumnDefinitions>
-                                                    <TextBlock Text="{Binding VillageName}" FontWeight="SemiBold"
-                                                               Foreground="{DynamicResource TextPrimaryBrush}"
-                                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                    <TextBlock Grid.Column="1" Text="{Binding SelectionSummary}"
-                                                               Foreground="{DynamicResource TextSubtleBrush}"
-                                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
-                                                    <CheckBox x:Name="SmithyVillageToggle" Grid.Column="2"
-                                                              Style="{DynamicResource ToggleSwitchBlueStyle}"
+                                                    <CheckBox x:Name="SmithyVillageToggle" Grid.Column="0"
+                                                              Style="{DynamicResource ToggleSwitchStyle}"
                                                               IsChecked="{Binding IsEnabled, Mode=OneWay}"
                                                               Command="{Binding DataContext.ToggleSmithyVillageCommand, RelativeSource={RelativeSource AncestorType=UserControl}}"
                                                               CommandParameter="{Binding}"
                                                               HorizontalAlignment="Center" VerticalAlignment="Center"
                                                               ToolTip="Enable or disable Smithy upgrades for this village." />
+                                                    <TextBlock Grid.Column="1" Text="{Binding VillageName}" FontWeight="SemiBold"
+                                                               Foreground="{DynamicResource TextPrimaryBrush}"
+                                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis" />
+                                                    <TextBlock x:Name="SmithySelectionSummary" Grid.Column="2" Text="{Binding SelectionSummary}"
+                                                               VerticalAlignment="Center" TextTrimming="CharacterEllipsis">
+                                                        <TextBlock.Style>
+                                                            <Style TargetType="TextBlock">
+                                                                <Setter Property="Foreground" Value="{DynamicResource TextSubtleBrush}" />
+                                                                <Style.Triggers>
+                                                                    <DataTrigger Binding="{Binding SelectedTroopCount}" Value="0">
+                                                                        <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
+                                                                    </DataTrigger>
+                                                                </Style.Triggers>
+                                                            </Style>
+                                                        </TextBlock.Style>
+                                                    </TextBlock>
                                                     <Button x:Name="SmithyVillageSettingsButton" Grid.Column="3"
                                                             Content="&#xE713;" FontFamily="Segoe MDL2 Assets"
                                                             Width="26" Height="26" Padding="0"

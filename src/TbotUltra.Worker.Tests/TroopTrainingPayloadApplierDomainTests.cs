@@ -1,10 +1,69 @@
 using TbotUltra.Core.Configuration;
+using TbotUltra.Core.Tasks;
+using Microsoft.Extensions.Configuration;
 using Xunit;
 
 namespace TbotUltra.Worker.Tests;
 
 public sealed class TroopTrainingPayloadApplierDomainTests
 {
+    [Theory]
+    [InlineData("barracks")]
+    [InlineData("stable")]
+    [InlineData("workshop")]
+    public void MissingResourceSettings_DefaultToAutoOnly(string building)
+    {
+        var options = new BotOptions();
+        var configured = BotOptionsFactory.FromConfiguration(new ConfigurationBuilder().AddInMemoryCollection().Build());
+        Assert.True(TroopTrainingPayload.TryFromDictionary(new Dictionary<string, string>(), out var payload));
+
+        foreach (var values in new[] { ValuesFor(options, building), ValuesFor(configured, building) })
+        {
+            Assert.False(values.CheckWood || values.CheckClay || values.CheckIron || values.CheckCrop);
+            Assert.True(values.AutomaticResourceSelection);
+        }
+
+        var payloadBuilding = building switch
+        {
+            "barracks" => payload!.Barracks,
+            "stable" => payload!.Stable,
+            _ => payload!.Workshop,
+        };
+        Assert.False(payloadBuilding.CheckWood || payloadBuilding.CheckClay || payloadBuilding.CheckIron || payloadBuilding.CheckCrop);
+        Assert.True(payloadBuilding.AutomaticResourceSelection);
+    }
+
+    [Theory]
+    [InlineData("barracks")]
+    [InlineData("stable")]
+    [InlineData("workshop")]
+    public void ExplicitManualResourceSettings_ArePreserved(string building)
+    {
+        var keys = KeysFor(building);
+        var saved = new Dictionary<string, string>
+        {
+            [keys.CheckWood] = "true",
+            [keys.AutomaticResourceSelection] = "false",
+        };
+        var configuration = new ConfigurationBuilder()
+            .AddInMemoryCollection(saved.Select(item => new KeyValuePair<string, string?>(item.Key, item.Value)))
+            .Build();
+
+        var configured = ValuesFor(BotOptionsFactory.FromConfiguration(configuration), building);
+        Assert.True(configured.CheckWood);
+        Assert.False(configured.AutomaticResourceSelection);
+
+        Assert.True(TroopTrainingPayload.TryFromDictionary(saved, out var payload));
+        var payloadBuilding = building switch
+        {
+            "barracks" => payload!.Barracks,
+            "stable" => payload!.Stable,
+            _ => payload!.Workshop,
+        };
+        Assert.True(payloadBuilding.CheckWood);
+        Assert.False(payloadBuilding.AutomaticResourceSelection);
+    }
+
     [Theory]
     [InlineData("barracks")]
     [InlineData("stable")]
