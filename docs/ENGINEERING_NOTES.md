@@ -534,7 +534,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   configured random delay after the live celebration timer; a confirmed missing Town Hall disables that village's
   Town Hall group instead of deferring an impossible task.
 - Town Hall celebration automation must navigate explicitly to building tab `t=1`; some Official worlds open the
-  Management tab by default when only the building slot is supplied.
+  Management tab by default when only the building slot is supplied. If the verified slot page has no actionable
+  tab link, use one exact read-only `t=1` navigation and confirm the original village, tab URL, usable shell, and
+  celebration content before any start action; never repeat a celebration start click as navigation recovery.
 - Every editable numeric Settings field is validated before any config mutation. Decimal input uses invariant
   culture and requires a period; invalid format, out-of-range values, and Max below Min block Save/Sleep now with
   a warning focused on the offending field instead of silently substituting or clamping a value.

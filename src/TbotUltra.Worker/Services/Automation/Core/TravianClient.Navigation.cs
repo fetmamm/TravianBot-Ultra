@@ -937,30 +937,77 @@ public sealed partial class TravianClient
         }
     }
 
-    private async Task OpenSlotTabAsync(int slotId, int tab, CancellationToken cancellationToken)
+    private async Task OpenSlotTabAsync(int slotId, int tab, string expectedContentSelector, CancellationToken cancellationToken)
     {
         var tabPath = Paths.BuildBySlotTab(slotId, tab);
-        if (IsCurrentUrlForPath(tabPath) && !await IsPageMarkedStaleAsync())
+        if (IsCurrentUrlForPath(tabPath)
+            && !await IsPageMarkedStaleAsync()
+            && await _page.Locator(expectedContentSelector).First.IsVisibleAsync())
         {
             return;
         }
 
-        await OpenSlotFromOverviewAsync(slotId, cancellationToken);
-        var tabLink = $".contentNavi.subNavi a.tabItem[href*='id={slotId}'][href$='t={tab}']";
-        if (!await TryClickFirstVisibleEnabledAsync(tabLink, cancellationToken, reason: $"open slot {slotId} tab {tab}"))
+        var villageBeforeNavigation = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+        if (!VillageIdentityReconciler.HasCoordinates(villageBeforeNavigation))
         {
-            throw new InvalidOperationException(
-                $"Cannot open slot {slotId} tab {tab}: no visible tab link on '{_page.Url}'.");
+            throw new TransientNavigationException(
+                $"Cannot open slot {slotId} tab {tab}: active village coordinates are unavailable before navigation.");
+        }
+
+        await OpenSlotFromOverviewAsync(slotId, cancellationToken);
+        var villageAtSlot = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+        if (!TravianUrls.IsBuildPageForSlot(_page.Url, slotId)
+            || !VillageIdentityReconciler.SameCoordinates(villageBeforeNavigation, villageAtSlot))
+        {
+            throw new TransientNavigationException(
+                $"Cannot open slot {slotId} tab {tab}: slot page or active village changed before tab navigation. Current page: '{_page.Url}'.");
+        }
+
+        var tabLink = $".contentNavi.subNavi a.tabItem[href*='id={slotId}'][href$='t={tab}']";
+        if (!IsCurrentUrlForPath(tabPath))
+        {
+            var clicked = await TryClickFirstVisibleEnabledAsync(
+                tabLink, cancellationToken, reason: $"open slot {slotId} tab {tab}");
+            if (clicked)
+            {
+                await WaitForPageReadyAsync(cancellationToken);
+            }
+        }
+
+        if (!IsCurrentUrlForPath(tabPath)
+            || !await _page.Locator(expectedContentSelector).First.IsVisibleAsync())
+        {
+            var villageAfterClick = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+            if (!TravianUrls.IsBuildPageForSlot(_page.Url, slotId)
+                || !VillageIdentityReconciler.SameCoordinates(villageBeforeNavigation, villageAfterClick))
+            {
+                throw new TransientNavigationException(
+                    $"Cannot recover slot {slotId} tab {tab}: click left the verified slot or village. Current page: '{_page.Url}'.");
+            }
+
+            Notify($"[slot-nav] slot {slotId} tab {tab} link or content unavailable; recovering via exact read-only tab URL.");
+            if (IsCurrentUrlForPath(tabPath))
+            {
+                await ReloadOrGotoAsync(tabPath, cancellationToken);
+            }
+            else
+            {
+                await GotoAsync(tabPath, cancellationToken);
+            }
         }
 
         await WaitForPageReadyAsync(cancellationToken);
-        if (!IsCurrentUrlForPath(tabPath))
+        var villageAfterNavigation = await TryReadActiveVillageCoordsFromCurrentPageAsync(cancellationToken);
+        if (!IsCurrentUrlForPath(tabPath)
+            || !VillageIdentityReconciler.SameCoordinates(villageBeforeNavigation, villageAfterNavigation)
+            || !await CurrentPageHasUsableTravianShellAsync(cancellationToken)
+            || !await _page.Locator(expectedContentSelector).First.IsVisibleAsync())
         {
-            throw new InvalidOperationException(
-                $"Slot {slotId} tab {tab} click did not reach {tabPath}. Current page: '{_page.Url}'.");
+            throw new TransientNavigationException(
+                $"Cannot verify slot {slotId} tab {tab}: expected tab content and original village were not confirmed. Current page: '{_page.Url}'.");
         }
 
-        Notify($"[slot-nav] opened slot {slotId} tab {tab} via tab click.");
+        Notify($"[slot-nav] verified slot {slotId} tab {tab} for the original village.");
         InvalidateActiveConstructionsCache();
         await ApplyPacingDelayAsync(
             _config.ActionPacingPageLoadMinSeconds,

@@ -8,6 +8,7 @@ public sealed partial class TravianClient
 {
     private const int TownHallCelebrationRetrySeconds = 60;
     private const int TownHallBigCelebrationRequiredLevel = 10;
+    private const string TownHallCelebrationDetailsSelector = ".build_details.researches, .researches";
     internal const string TownHallCelebrationStartLinkSelector =
         ".cta a[href*='a=1'], .cta a[href*='celebr'], td.act a[href*='a=1'], td.act a[href*='celebr']";
 
@@ -48,7 +49,7 @@ public sealed partial class TravianClient
             ? ResolveRestartDelaySeconds(restartDelayMinMinutes, restartDelayMaxMinutes)
             : 0;
 
-        await OpenSlotTabAsync(townHallSlotId.Value, 1, cancellationToken);
+        await OpenSlotTabAsync(townHallSlotId.Value, 1, TownHallCelebrationDetailsSelector, cancellationToken);
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
         var mode = TownHallCelebrationDefaults.NormalizeMode(requestedMode);
@@ -146,7 +147,7 @@ public sealed partial class TravianClient
                 await WaitForPageReadyAsync(cancellationToken);
             }
 
-            await OpenSlotTabAsync(townHallSlotId.Value, 1, cancellationToken);
+            await OpenSlotTabAsync(townHallSlotId.Value, 1, TownHallCelebrationDetailsSelector, cancellationToken);
             await EnsureLoggedInAsync(cancellationToken: cancellationToken);
 
             var reread = await ReadTownHallCelebrationStatusFromCurrentPageAsync(cancellationToken);
