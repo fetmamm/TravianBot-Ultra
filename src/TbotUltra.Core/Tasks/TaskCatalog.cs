@@ -16,6 +16,7 @@ public static class TaskCatalog
         new("load_buildings_snapshot", TaskGroup.Account, "Load buildings snapshot", false, TaskPayloadKind.None),
         new("demolish_building_to_level", TaskGroup.Demolish, "Demolish building to level", false, TaskPayloadKind.BuildingDemolish),
         new("hero_manage", TaskGroup.Hero, "Hero manage", true, TaskPayloadKind.Hero),
+        new("hero_raid", TaskGroup.Hero, "Hero oasis raid", true, TaskPayloadKind.Hero),
         new("spend_hero_attribute_points", TaskGroup.Hero, "Spend hero attribute points", true, TaskPayloadKind.Hero),
         new("anti_starve_hero_crop", TaskGroup.Account, "Anti-starve hero crop", true, TaskPayloadKind.None),
         new("upgrade_troops_at_smithy", TaskGroup.Troops, "Upgrade troops at smithy", true, TaskPayloadKind.SmithyUpgrade),

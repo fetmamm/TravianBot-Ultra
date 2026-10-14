@@ -194,6 +194,31 @@ public static class AccountStoragePaths
             $"{NormalizeServerKey(serverUrl)}.json");
     }
 
+    public static string HeroRaidingAreaCachePath(string projectRoot, string accountName, string? serverUrl = null)
+    {
+        return Path.Combine(
+            AccountDirectory(projectRoot, accountName),
+            "cache",
+            "hero-raiding",
+            $"{NormalizeServerKey(serverUrl)}.json");
+    }
+
+    public static string HeroRaidingSchedulePath(string projectRoot, string accountName, string? serverUrl = null)
+    {
+        return Path.Combine(
+            AccountDirectory(projectRoot, accountName),
+            "hero_raiding",
+            $"{NormalizeServerKey(serverUrl)}.schedule.json");
+    }
+
+    public static string HeroRaidingPendingOutcomePath(string projectRoot, string accountName, string? serverUrl = null)
+    {
+        return Path.Combine(
+            AccountDirectory(projectRoot, accountName),
+            "hero_raiding",
+            $"{NormalizeServerKey(serverUrl)}.pending.json");
+    }
+
     public static string BulkMessageSentCachePath(string projectRoot, string accountName, string? serverUrl = null)
     {
         return Path.Combine(
@@ -281,6 +306,14 @@ public static class AccountStoragePaths
             "cache",
             "hero-ointments",
             $"{NormalizeServerKey(serverUrl)}.json");
+    }
+
+    public static string HeroRaidingExclusionsPath(string projectRoot, string accountName, string? serverUrl = null)
+    {
+        return Path.Combine(
+            AccountDirectory(projectRoot, accountName),
+            "hero-raiding",
+            $"{NormalizeServerKey(serverUrl)}-exclusions.json");
     }
 
     public static string IncomingAttacksSnapshotPath(string projectRoot, string accountName, string? serverUrl = null)

@@ -72,6 +72,7 @@ public static class SettingsConfigurationProjection
         ConstructionOptionsModule.WriteSettings(target, settings.Options);
         FarmingOptionsModule.WriteSettings(target, settings.Options);
         HeroOptionsModule.WriteSettings(target, settings.Options);
+        HeroRaidingOptionsModule.WriteSettings(target, settings.Options);
         PostLoginOptionsModule.WriteSettings(target, settings.Options, settings.General.QuickReloginEnabled);
         TroopTrainingOptionsModule.WriteSettings(target, settings.Options);
         return target;

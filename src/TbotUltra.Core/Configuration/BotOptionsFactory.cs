@@ -12,6 +12,7 @@ public static class BotOptionsFactory
         var actionPacing = ActionPacingOptionsModule.FromConfiguration(configuration);
         var construction = ConstructionOptionsModule.FromConfiguration(configuration);
         var hero = HeroOptionsModule.FromConfiguration(configuration);
+        var heroRaiding = HeroRaidingOptionsModule.FromConfiguration(configuration);
         var farming = FarmingOptionsModule.FromConfiguration(configuration);
         var postLogin = PostLoginOptionsModule.FromConfiguration(configuration);
         var troopTraining = TroopTrainingOptionsModule.FromConfiguration(configuration);
@@ -42,6 +43,7 @@ public static class BotOptionsFactory
         options = reinforcements.ApplyTo(options);
         options = actionPacing.ApplyTo(options);
         options = hero.ApplyTo(options);
+        options = heroRaiding.ApplyTo(options);
         return construction.ApplyTo(options);
     }
 

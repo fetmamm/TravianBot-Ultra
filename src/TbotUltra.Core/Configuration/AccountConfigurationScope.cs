@@ -6,6 +6,7 @@ public static class AccountConfigurationScope
     [
         .. ConstructionOptionsModule.AccountScopedKeys,
         .. HeroOptionsModule.AccountScopedKeys,
+        .. HeroRaidingOptionsModule.AccountScopedKeys,
         .. FarmingOptionsModule.AccountScopedKeys,
         .. PostLoginOptionsModule.AccountScopedKeys,
         .. TroopTrainingOptionsModule.AccountScopedKeys,

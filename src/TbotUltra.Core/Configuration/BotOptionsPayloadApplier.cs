@@ -6,6 +6,7 @@ public static class BotOptionsPayloadApplier
     {
         var construction = ConstructionOptionsModule.Apply(source, payload);
         var hero = HeroOptionsModule.Apply(source, payload);
+        var heroRaiding = HeroRaidingOptionsModule.Apply(source, payload);
         var farming = FarmingOptionsModule.Apply(source, payload);
         var postLogin = PostLoginOptionsModule.Apply(source, payload);
         var troopTraining = TroopTrainingOptionsModule.Apply(source, payload);
@@ -25,7 +26,8 @@ public static class BotOptionsPayloadApplier
         options = resourceTransfer.ApplyTo(options);
         options = reinforcements.ApplyTo(options);
         options = actionPacing.ApplyTo(options);
-        return hero.ApplyTo(options);
+        options = hero.ApplyTo(options);
+        return heroRaiding.ApplyTo(options);
     }
 
 }

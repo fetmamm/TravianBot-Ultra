@@ -120,6 +120,12 @@ public static class BotOptionPayloadKeys
     public const string HeroAutoAssignPoints = "hero_auto_assign_points";
     public const string HeroAutoUseOintments = "hero_auto_use_ointments";
     public const string HeroOintmentTargetHpPercent = "hero_ointment_target_hp_percent";
+    public const string HeroRaidingEnabled = "hero_raiding_enabled";
+    public const string HeroRaidingMinimumHpPercent = "hero_raiding_minimum_hp_percent";
+    public const string HeroRaidingMaximumDistance = "hero_raiding_maximum_distance";
+    public const string HeroRaidingObservationMinutes = "hero_raiding_observation_minutes";
+    public const string HeroRaidingSelectedTypes = "hero_raiding_selected_types";
+    public const string HeroRaidingPriority = "hero_raiding_priority";
     public const string HeroStatPriority = "hero_stat_priority";
     public const string HeroStatMaximums = "hero_stat_maximums";
     public const string HeroAdventurePickOrder = "hero_adventure_pick_order"; // "shortest" or "top"

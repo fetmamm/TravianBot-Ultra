@@ -734,6 +734,24 @@ public sealed record BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroOintmentTargetHpPercent)]
     public int HeroOintmentTargetHpPercent { get; init; } = 100;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroRaidingEnabled)]
+    public bool HeroRaidingEnabled { get; init; }
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroRaidingMinimumHpPercent)]
+    public int HeroRaidingMinimumHpPercent { get; init; } = 40;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroRaidingMaximumDistance)]
+    public int HeroRaidingMaximumDistance { get; init; } = 20;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroRaidingObservationMinutes)]
+    public int HeroRaidingObservationMinutes { get; init; } = 10;
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroRaidingSelectedTypes)]
+    public string HeroRaidingSelectedTypes { get; init; } = "Wood,Clay,Iron,Wood+Crop,Clay+Crop,Iron+Crop";
+
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroRaidingPriority)]
+    public string HeroRaidingPriority { get; init; } = "raiding";
+
     [ConfigurationKeyName("hero_stat_priority")]
     public string HeroStatPriority { get; init; } = "resources,fighting_strength,offence_bonus,defence_bonus";
 
