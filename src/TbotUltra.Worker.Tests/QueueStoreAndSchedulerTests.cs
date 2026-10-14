@@ -414,6 +414,7 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
                 "run_brewery_celebration",
                 "run_town_hall_celebration",
                 "send_farmlists",
+                "check_farmlists_alliance",
                 "send_resources_between_villages",
                 "send_reinforcements_between_villages",
                 "collect_tasks",

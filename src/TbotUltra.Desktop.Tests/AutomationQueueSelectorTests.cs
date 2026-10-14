@@ -280,6 +280,21 @@ public sealed class AutomationQueueSelectorTests
         Assert.Equal(0, commits);
     }
 
+    [Fact]
+    public void Select_RunsReadyVillageLessWorkDuringAVillageBatch()
+    {
+        var later = Candidate("current", "a", nextAttemptAt: Now.AddHours(1));
+        var transfer = Candidate("send_resources_between_villages", "a", group: QueueGroup.ResourceTransfer) with
+        {
+            VillageKey = null,
+        };
+
+        var result = Select([later, transfer], new VillageBatchSnapshot("a", 1));
+
+        Assert.Equal(transfer.Item.Id, result.Selected?.Id);
+        Assert.Equal(AutomationQueueSelectionReason.Selected, result.Reason);
+    }
+
     private static AutomationQueueSelectionResult Select(
         IReadOnlyList<ContinuousLoopSelectionCandidate> candidates,
         VillageBatchSnapshot batch,

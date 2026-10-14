@@ -203,6 +203,66 @@ public sealed class ContinuousRuntimeItemPreparationTests
         Assert.Empty(port.Queue.Items);
     }
 
+    [Fact]
+    public async Task FarmingPreparation_SchedulesFarmListAllianceCheckInAFarmingVillage()
+    {
+        var port = new InMemoryPort
+        {
+            EnabledGroups = [QueueGroup.Farming],
+            ConsideredGroups = [QueueGroup.Farming],
+            Villages = [new AutomationRuntimeVillage("1:2", "Alpha", null, false, 1, 2)],
+        };
+
+        await new ContinuousRuntimeItemPreparation(port).PrepareAsync(new BotOptions(), default);
+
+        Assert.Equal(TimeSpan.Zero, Assert.Single(port.FarmListAllianceCheckDelays));
+        Assert.Equal("1:2", Assert.Single(port.FarmListAllianceCheckPayloads)[BotOptionPayloadKeys.TargetVillageKey]);
+    }
+
+    [Fact]
+    public async Task VillageScopedPreparation_DoesNotScheduleFarmListAllianceCheck()
+    {
+        var port = new InMemoryPort
+        {
+            EnabledGroups = [QueueGroup.Farming],
+            ConsideredGroups = [QueueGroup.Farming],
+            Villages = [new AutomationRuntimeVillage("1:2", "Alpha", null, false, 1, 2)],
+        };
+
+        await new ContinuousRuntimeItemPreparation(port).PrepareAsync(
+            new BotOptions(),
+            default,
+            onlyVillage: port.Villages[0]);
+
+        Assert.Empty(port.FarmListAllianceCheckDelays);
+    }
+
+    [Fact]
+    public void FarmListAllianceCheckDelay_WaitsTwelveHoursAfterSuccessAndOneHourAfterFailure()
+    {
+        var now = new DateTimeOffset(2026, 10, 11, 12, 0, 0, TimeSpan.Zero);
+        var succeeded = new QueueItem
+        {
+            TaskName = "check_farmlists_alliance",
+            Status = QueueStatus.Succeeded,
+            UpdatedAt = now.AddHours(-2),
+        };
+        var failed = new QueueItem
+        {
+            TaskName = "check_farmlists_alliance",
+            Status = QueueStatus.Failed,
+            UpdatedAt = now.AddMinutes(-15),
+        };
+
+        Assert.Equal(TimeSpan.Zero, ContinuousLoopSelector.ResolveFarmListAllianceCheckDelay([], now, TimeSpan.Zero));
+        Assert.Equal(
+            TimeSpan.FromHours(11),
+            ContinuousLoopSelector.ResolveFarmListAllianceCheckDelay([succeeded], now, TimeSpan.FromHours(1)));
+        Assert.Equal(
+            TimeSpan.FromMinutes(45),
+            ContinuousLoopSelector.ResolveFarmListAllianceCheckDelay([succeeded, failed], now, TimeSpan.Zero));
+    }
+
     private sealed class InMemoryPort : IContinuousRuntimeItemPreparationPort
     {
         public IReadOnlyList<QueueGroup> EnabledGroups { get; init; } = [];
@@ -278,6 +338,14 @@ public sealed class ContinuousRuntimeItemPreparationTests
         public Dictionary<string, string> BuildReinforcementPayload(
             BotOptions options,
             IReadOnlyList<string> selectedSources) => [];
+        public List<TimeSpan> FarmListAllianceCheckDelays { get; } = [];
+        public List<Dictionary<string, string>> FarmListAllianceCheckPayloads { get; } = [];
+        public bool ScheduleFarmListAllianceCheck(Dictionary<string, string> payload, TimeSpan delay)
+        {
+            FarmListAllianceCheckPayloads.Add(payload);
+            FarmListAllianceCheckDelays.Add(delay);
+            return true;
+        }
         public bool ScheduleReinforcementSend(
             Dictionary<string, string> payload,
             TimeSpan delay,

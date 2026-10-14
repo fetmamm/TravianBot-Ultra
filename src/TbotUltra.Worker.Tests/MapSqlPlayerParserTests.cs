@@ -139,6 +139,7 @@ public sealed class MapSqlPlayerParserTests
         var player = Assert.Single(players);
         Assert.Equal("Alice", player.PlayerName);
         Assert.Equal("ALLY", player.Alliance);
+        Assert.Equal(2, player.PlayerId);
     }
 
     [Fact]

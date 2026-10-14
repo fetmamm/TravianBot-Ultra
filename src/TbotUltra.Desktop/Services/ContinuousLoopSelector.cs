@@ -170,6 +170,18 @@ internal static class ContinuousLoopSelector
                 && item.NextAttemptAt <= now);
     }
 
+    // The alliance check is rescheduled ~12h ahead after each run; as group head it must not block farm-list sends.
+    internal static QueueItem? SelectReadyFarmingGroupItem(
+        IReadOnlyList<QueueItem> villageItems,
+        DateTimeOffset now)
+    {
+        return SelectReadyGroupHead(villageItems, now)
+            ?? villageItems.FirstOrDefault(item =>
+                string.Equals(item.TaskName, "send_farmlists", StringComparison.OrdinalIgnoreCase)
+                && item.Status == QueueStatus.Pending
+                && item.NextAttemptAt <= now);
+    }
+
     internal static IReadOnlyList<QueueItem> SelectVillageItems(
         IReadOnlyList<QueueItem> orderedItems,
         IReadOnlyDictionary<Guid, string?> villageKeys,
@@ -241,6 +253,30 @@ internal static class ContinuousLoopSelector
         var maxMinutes = ReinforcementSendDefaults.NormalizeSendMaxMinutes(options.ReinforcementsSendMaxMinutes);
         var nextSendAt = lastSucceeded.Value.Add(ReinforcementSendDefaults.CalculateSendDelay(minMinutes, maxMinutes));
         var remaining = nextSendAt - now;
+        return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
+    }
+
+    internal static readonly TimeSpan FarmListAllianceCheckInterval = TimeSpan.FromHours(12);
+    internal static readonly TimeSpan FarmListAllianceCheckRetryDelay = TimeSpan.FromHours(1);
+
+    internal static TimeSpan ResolveFarmListAllianceCheckDelay(
+        IReadOnlyList<QueueItem> queueItems,
+        DateTimeOffset now,
+        TimeSpan jitter)
+    {
+        var lastFinished = queueItems
+            .Where(item => string.Equals(item.TaskName, "check_farmlists_alliance", StringComparison.OrdinalIgnoreCase))
+            .Where(item => item.Status is QueueStatus.Succeeded or QueueStatus.Failed)
+            .MaxBy(item => item.UpdatedAt);
+        if (lastFinished is null)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var nextRunAt = lastFinished.Status == QueueStatus.Succeeded
+            ? lastFinished.UpdatedAt + FarmListAllianceCheckInterval + jitter
+            : lastFinished.UpdatedAt + FarmListAllianceCheckRetryDelay;
+        var remaining = nextRunAt - now;
         return remaining > TimeSpan.Zero ? remaining : TimeSpan.Zero;
     }
 

@@ -583,6 +583,12 @@ public sealed partial class TravianClient
 
         [JsonPropertyName("disabled")]
         public bool Disabled { get; init; }
+
+        [JsonPropertyName("targetX")]
+        public int? TargetX { get; init; }
+
+        [JsonPropertyName("targetY")]
+        public int? TargetY { get; init; }
     }
 
     private sealed class FarmListTargetStateJs

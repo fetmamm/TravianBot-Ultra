@@ -169,7 +169,9 @@ internal static class AutomationQueueSelector
                 selectionPlan.OrderedItemsByGroup[group],
                 villageKeysByItemId,
                 villageKey,
-                includeVillageLess: group == QueueGroup.Hero);
+                // Account-wide runtime items (Hero, resource transfer, reinforcements) carry no village and
+                // would otherwise starve while village batches keep the loop busy.
+                includeVillageLess: true);
             var candidate = SelectReadyItemWithinGroup(
                 group,
                 villageItems,
@@ -254,8 +256,11 @@ internal static class AutomationQueueSelector
             return selectReadyConstruction(villageItems, now, preview);
         }
 
-        return group == QueueGroup.Hero
-            ? ContinuousLoopSelector.SelectReadyHeroGroupItem(villageItems, now)
-            : ContinuousLoopSelector.SelectReadyGroupHead(villageItems, now);
+        return group switch
+        {
+            QueueGroup.Hero => ContinuousLoopSelector.SelectReadyHeroGroupItem(villageItems, now),
+            QueueGroup.Farming => ContinuousLoopSelector.SelectReadyFarmingGroupItem(villageItems, now),
+            _ => ContinuousLoopSelector.SelectReadyGroupHead(villageItems, now),
+        };
     }
 }

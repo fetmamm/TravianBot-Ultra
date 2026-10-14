@@ -15,7 +15,8 @@ internal sealed record MapSqlVillage(
     string PlayerName,
     string? Alliance,
     long Population,
-    bool IsNatar);
+    bool IsNatar,
+    long? PlayerId = null);
 
 internal static class MapSqlPlayerParser
 {
@@ -377,6 +378,9 @@ internal static class MapSqlPlayerParser
 
         var alliance = CleanSqlValue(fields[9]);
         _ = long.TryParse(fields[10], NumberStyles.Integer, CultureInfo.InvariantCulture, out var population);
+        long? playerId = long.TryParse(fields[6], NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedPlayerId)
+            ? parsedPlayerId
+            : null;
         village = new MapSqlVillage(
             x,
             y,
@@ -384,7 +388,8 @@ internal static class MapSqlPlayerParser
             playerName.Trim(),
             string.IsNullOrWhiteSpace(alliance) ? null : alliance.Trim(),
             population,
-            string.Equals(NormalizeNameKey(playerName), "natars", StringComparison.Ordinal));
+            string.Equals(NormalizeNameKey(playerName), "natars", StringComparison.Ordinal),
+            playerId);
         return true;
     }
 

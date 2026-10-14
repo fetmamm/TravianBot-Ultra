@@ -53,6 +53,28 @@ public sealed class ContinuousLoopSelectorTests
     }
 
     [Fact]
+    public void SelectReadyFarmingGroupItem_AllowsFarmSendBehindDeferredAllianceCheck()
+    {
+        var deferredCheck = Item("check_farmlists_alliance", QueueStatus.Pending, 600);
+        var farmSend = Item("send_farmlists", QueueStatus.Pending, 0);
+
+        var result = ContinuousLoopSelector.SelectReadyFarmingGroupItem([deferredCheck, farmSend], Now);
+
+        Assert.Same(farmSend, result);
+    }
+
+    [Fact]
+    public void SelectReadyFarmingGroupItem_PreservesReadyAllianceCheckPriority()
+    {
+        var readyCheck = Item("check_farmlists_alliance", QueueStatus.Pending, 0);
+        var farmSend = Item("send_farmlists", QueueStatus.Pending, 0);
+
+        var result = ContinuousLoopSelector.SelectReadyFarmingGroupItem([readyCheck, farmSend], Now);
+
+        Assert.Same(readyCheck, result);
+    }
+
+    [Fact]
     public void BuildConsideredGroups_AppendsActiveManualGroupsOnce()
     {
         var manualConstruction = Item("upgrade_building_to_level", QueueStatus.Pending, 0);

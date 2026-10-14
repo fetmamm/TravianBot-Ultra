@@ -1815,6 +1815,15 @@ public sealed partial class TravianClient : IFarmingClient
 
                 const input = row.querySelector('input[data-slot-id]');
                 const wrapper = row.closest('.farmListWrapper');
+                const readCoordinate = (name) => {
+                  const href = row.querySelector('td.target a')?.getAttribute('href') || '';
+                  try {
+                    const value = new URL(href, location.origin).searchParams.get(name);
+                    return value !== null && /^-?\d+$/.test(value) ? parseInt(value, 10) : null;
+                  } catch {
+                    return null;
+                  }
+                };
                 return {
                   rowIndex,
                   slotId: input?.getAttribute('data-slot-id') || '',
@@ -1823,7 +1832,9 @@ public sealed partial class TravianClient : IFarmingClient
                   targetName: clean(row.querySelector('td.target a')?.textContent || row.querySelector('td.target')?.textContent || ''),
                   rowClass: classText(row),
                   raidClass: raidClasses.filter(Boolean).join(' '),
-                  disabled: row.classList.contains('disabled')
+                  disabled: row.classList.contains('disabled'),
+                  targetX: readCoordinate('x'),
+                  targetY: readCoordinate('y')
                 };
               });
             }

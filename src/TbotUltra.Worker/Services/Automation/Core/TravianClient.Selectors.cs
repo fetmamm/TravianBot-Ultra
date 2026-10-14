@@ -22,6 +22,7 @@ public sealed partial class TravianClient
         public const string Messages = "/messages";
         public const string MessagesWrite = "/messages/write";
         public const string Reports = "/report";
+        public const string AllianceMembers = "/alliance/profile/members";
 
         public const string FarmListFastUp = "/build.php?id=39&fastUP=0";
 

@@ -57,6 +57,8 @@ public sealed partial class BotTaskRunner
             ["run_town_hall_celebration"] = ExecuteRunTownHallCelebrationAsync,
             // Sends one of the selected farmlists that is ready right now.
             ["send_farmlists"] = ExecuteSendFarmlistsAsync,
+            // Deactivates farm-list targets owned by members of the own alliance (live member list).
+            ["check_farmlists_alliance"] = ExecuteCheckFarmlistsAllianceAsync,
             // Sends surplus resources from selected own villages to one target village.
             ["send_resources_between_villages"] = ExecuteSendResourcesBetweenVillagesAsync,
             // Sends selected troops from selected own villages to one target village as reinforcements.

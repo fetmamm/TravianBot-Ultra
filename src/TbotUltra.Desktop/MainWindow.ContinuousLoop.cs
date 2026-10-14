@@ -1022,6 +1022,26 @@ public partial class MainWindow
         return true;
     }
 
+    private bool ScheduleFarmListAllianceCheck(Dictionary<string, string> payload, TimeSpan delay)
+    {
+        var item = _botService.EnqueueRuntime(
+            "check_farmlists_alliance",
+            "Check farmlists against own alliance",
+            payload,
+            priority: -45,
+            maxRetries: 0);
+        if (delay > TimeSpan.Zero && !_botService.UpdateDeferredQueueItem(item.Id, payload, delay))
+        {
+            _botService.RemoveQueueItem(item.Id);
+            AppendLog("Farm-list alliance check: failed to schedule the next check.");
+            return false;
+        }
+
+        AppendLog($"Farm-list alliance check: next check in {FormatCountdown((int)Math.Ceiling(delay.TotalSeconds))}.");
+        RequestQueueUiRefresh();
+        return true;
+    }
+
     private void ScheduleNextReinforcementSendAfterSuccess(BotOptions options)
     {
         if (!GetContinuousLoopEnabledGroupsInOrder().Contains(QueueGroup.Reinforcements)
