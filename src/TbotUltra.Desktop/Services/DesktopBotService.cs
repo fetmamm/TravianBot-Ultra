@@ -143,8 +143,9 @@ public sealed class DesktopBotService : IDesktopBotService
     public Task<HeroRaidingScanResult> ScanHeroRaidingCandidatesAsync(
         BotOptions options,
         Action<string> log,
+        IProgress<HeroRaidingScanProgress>? progress,
         CancellationToken cancellationToken)
-        => _taskRunner.ScanHeroRaidingCandidatesAsync(options, log, cancellationToken: cancellationToken);
+        => _taskRunner.ScanHeroRaidingCandidatesAsync(options, log, cancellationToken: cancellationToken, progress: progress);
 
     public Task<MapSqlVillageImportResult> ImportAllVillagesAsync(
         BotOptions options,

@@ -1,6 +1,7 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using TbotUltra.Worker.Domain;
 using TbotUltra.Worker.Services;
 
 namespace TbotUltra.Desktop;
@@ -12,13 +13,34 @@ public partial class MainWindow
         if (_heroViewModel.IsHeroRaidingScanRunning) return;
         _heroViewModel.IsHeroRaidingScanRunning = true;
         _heroViewModel.HeroRaidingStatusText = "Scanning nearby oases...";
+        BusyOverlay.ShowCancel = true;
+        ShowBusyOverlay("Hero raiding: Scan now", "Preparing oasis scan...");
+        BusyOverlay.IsIndeterminate = false;
+        BusyOverlay.ProgressValue = 0;
         try
         {
+            var progress = new Progress<HeroRaidingScanProgress>(value =>
+            {
+                if (!BusyOverlay.IsBusy || !BusyOverlay.CancelEnabled) return;
+                var percent = value.TotalAreas == 0
+                    ? 0
+                    : (double)value.CompletedAreas / value.TotalAreas * 100;
+                BusyOverlay.ProgressValue = percent;
+                BusyOverlay.Text =
+                    $"{percent:0}% complete\n" +
+                    $"Map area {value.CompletedAreas}/{value.TotalAreas} - {value.TotalAreas - value.CompletedAreas} remaining\n" +
+                    $"{value.OasisCount} oases found, {value.SafeCandidateCount} safe";
+            });
             var result = await RunManualOperationAsync(
                 "Hero raiding: Scan now",
-                token => _botService.ScanHeroRaidingCandidatesAsync(LoadBotOptions(), AppendLog, token),
+                token => _botService.ScanHeroRaidingCandidatesAsync(LoadBotOptions(), AppendLog, progress, token),
                 CancellationToken.None);
             _heroViewModel.ApplyHeroRaidingScan(result);
+        }
+        catch (OperationCanceledException)
+        {
+            _heroViewModel.HeroRaidingStatusText = "Oasis scan canceled. Previous results were kept.";
+            AppendLog("[hero-raiding] manual oasis scan canceled; previous candidates kept.");
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
@@ -27,6 +49,7 @@ public partial class MainWindow
         }
         finally
         {
+            HideBusyOverlay();
             _heroViewModel.IsHeroRaidingScanRunning = false;
         }
     });

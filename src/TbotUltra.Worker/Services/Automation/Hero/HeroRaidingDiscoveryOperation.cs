@@ -43,7 +43,8 @@ internal sealed class HeroRaidingDiscoveryOperation(
 {
     internal async Task<HeroRaidingDiscoveryResult> ExecuteAsync(
         HeroRaidingDiscoveryInput input,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        IProgress<HeroRaidingScanProgress>? progress = null)
     {
         if (input.HeroVillageX is < -200 or > 200 || input.HeroVillageY is < -200 or > 200
             || input.MaximumDistance is < 1 or > 50 || input.ObservationMinutes is < 1 or > 120
@@ -75,8 +76,10 @@ internal sealed class HeroRaidingDiscoveryOperation(
                 Math.Min(200, input.HeroVillageY + input.MaximumDistance),
                 horizontalRadius, verticalRadius,
                 input.HeroVillageX, input.HeroVillageY);
+            progress?.Report(new HeroRaidingScanProgress(0, centers.Count, 0, 0));
 
             var retryAtLowerZoom = false;
+            var completedAreas = 0;
             foreach (var center in centers)
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -147,6 +150,8 @@ internal sealed class HeroRaidingDiscoveryOperation(
                     .ThenBy(candidate => candidate.Estimate.PredictedHpLoss)
                     .ThenBy(candidate => candidate.Candidate.DistanceFields)
                     .ToList();
+                completedAreas++;
+                progress?.Report(new HeroRaidingScanProgress(completedAreas, centers.Count, seen.Count, safe.Count));
                 if (safe.Count >= input.MinimumCandidates && !input.ScanAllAreas)
                 {
                     log($"[hero-raiding] found {safe.Count}/{input.MinimumCandidates} safe oasis candidate(s) after {readCount} map read(s), {cachedCount} cached area(s); automatic scan stopped.");

@@ -206,7 +206,8 @@ public sealed partial class BotTaskRunner
         BotOptions options,
         Action<string> log,
         string? accountName = null,
-        CancellationToken cancellationToken = default)
+        CancellationToken cancellationToken = default,
+        IProgress<HeroRaidingScanProgress>? progress = null)
     {
         HeroRaidingScanResult? result = null;
         await ExecuteWithClientAsync(options, log, accountName, interactive: true, cancellationToken,
@@ -246,7 +247,7 @@ public sealed partial class BotTaskRunner
                         readiness.HpPercent,
                         readiness.Mounted,
                         options.HeroRaidingMinimumHpPercent,
-                        ScanAllAreas: true), cancellationToken);
+                        ScanAllAreas: true), cancellationToken, progress);
 
                 if (discovery.SafeCandidates.Count == 0)
                     schedule.RecordNoCandidate(client.AccountName, client.ServerUrl, DateTimeOffset.UtcNow);

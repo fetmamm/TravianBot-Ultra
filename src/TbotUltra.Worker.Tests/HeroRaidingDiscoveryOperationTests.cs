@@ -1,4 +1,5 @@
 using TbotUltra.Worker.Services.Automation;
+using TbotUltra.Worker.Domain;
 using Xunit;
 
 namespace TbotUltra.Worker.Tests;
@@ -123,6 +124,62 @@ public sealed class HeroRaidingDiscoveryOperationTests
         {
             if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
         }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_ReportsAreaProgressForFullScan()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"tbot-hero-discovery-{Guid.NewGuid():N}");
+        try
+        {
+            var updates = new List<HeroRaidingScanProgress>();
+            var operation = new HeroRaidingDiscoveryOperation(
+                new ScriptedReader(RatOasis), root, "account", "https://ts1.travian.com", _ => { });
+
+            await operation.ExecuteAsync(Input() with { MaximumDistance = 20, ScanAllAreas = true },
+                CancellationToken.None, new RecordingProgress<HeroRaidingScanProgress>(updates.Add));
+
+            Assert.NotEmpty(updates);
+            Assert.Equal(0, updates[0].CompletedAreas);
+            Assert.True(updates[0].TotalAreas > 1);
+            Assert.Equal(updates[^1].TotalAreas, updates[^1].CompletedAreas);
+            Assert.True(updates[^1].OasisCount > 0);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
+    public async Task ExecuteAsync_CancelFromProgressStopsBeforeNextArea()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"tbot-hero-discovery-{Guid.NewGuid():N}");
+        try
+        {
+            var reader = new ScriptedReader(RatOasis);
+            var operation = new HeroRaidingDiscoveryOperation(
+                reader, root, "account", "https://ts1.travian.com", _ => { });
+            using var cts = new CancellationTokenSource();
+            var progress = new RecordingProgress<HeroRaidingScanProgress>(update =>
+            {
+                if (update.CompletedAreas == 1) cts.Cancel();
+            });
+
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => operation.ExecuteAsync(
+                Input() with { MaximumDistance = 20, ScanAllAreas = true }, cts.Token, progress));
+
+            Assert.Equal(1, reader.CallCount);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    private sealed class RecordingProgress<T>(Action<T> report) : IProgress<T>
+    {
+        public void Report(T value) => report(value);
     }
 
     private static HeroRaidingDiscoveryInput Input() => new(

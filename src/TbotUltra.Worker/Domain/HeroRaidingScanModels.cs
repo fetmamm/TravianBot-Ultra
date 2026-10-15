@@ -1,5 +1,11 @@
 namespace TbotUltra.Worker.Domain;
 
+public sealed record HeroRaidingScanProgress(
+    int CompletedAreas,
+    int TotalAreas,
+    int OasisCount,
+    int SafeCandidateCount);
+
 public sealed record HeroRaidingScanCandidate(
     int X,
     int Y,
