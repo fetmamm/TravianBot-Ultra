@@ -9,6 +9,33 @@ namespace TbotUltra.Desktop.Tests;
 public sealed class HeroViewModelTests
 {
     [Fact]
+    public void LoadingEnabledHeroRaiding_NeverExposesTemporaryOffStateToPersistence()
+    {
+        var vm = new HeroViewModel();
+        var enabledStatesSeenBySettingsWriter = new List<bool>();
+        vm.PropertyChanged += (_, _) => enabledStatesSeenBySettingsWriter.Add(vm.HeroRaidingEnabled);
+
+        vm.LoadSettingsFromConfig(new BotOptions
+        {
+            HeroMinHpForAdventure = 70,
+            HeroRaidingEnabled = true,
+        });
+
+        Assert.NotEmpty(enabledStatesSeenBySettingsWriter);
+        Assert.All(enabledStatesSeenBySettingsWriter, Assert.True);
+    }
+
+    [Fact]
+    public void ResetRuntimeState_PreservesEnabledHeroRaiding()
+    {
+        var vm = new HeroViewModel { HeroRaidingEnabled = true };
+
+        vm.ResetRuntimeState();
+
+        Assert.True(vm.HeroRaidingEnabled);
+    }
+
+    [Fact]
     public void HeroRaidingCandidates_KeepUnsafeAndUnknownOasesVisible()
     {
         var vm = new HeroViewModel();

@@ -141,6 +141,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   projection. Preserve account files, settings, queues, village caches, and saved login; only an explicit Login may
   admit a new browser session. Reusable controls keep their window-lifetime cancellation scopes across this reset;
   only real application shutdown may permanently cancel those scopes.
+- Hero Raiding's account-scoped enabled toggle survives restart, sleep, wake, and Reset program. Loading saved Hero
+  settings must not write intermediate ViewModel defaults back to config; only an explicit user toggle or the
+  existing safety-stop path may disable it.
 - Use the existing path provider. Never derive data paths from the executable working directory.
 - `ProjectRootLocator` uses the versioned solution file in source/CI and `config/bot.json` in deployed runtime;
   source tests must not depend on ignored runtime configuration.

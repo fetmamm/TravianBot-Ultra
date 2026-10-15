@@ -567,12 +567,12 @@ public sealed class HeroViewModel : BaseViewModel
     /// </summary>
     public void LoadSettingsFromConfig(BotOptions options)
     {
+        HeroRaidingEnabled = options.HeroRaidingEnabled;
         MinHpForAdventure = options.HeroMinHpForAdventure;
         AutoRevive = options.HeroAutoRevive;
         AutoAssignPoints = options.HeroAutoAssignPoints;
         AutoUseOintments = options.HeroAutoUseOintments;
         OintmentTargetHpPercent = options.HeroOintmentTargetHpPercent;
-        HeroRaidingEnabled = options.HeroRaidingEnabled;
         HeroRaidingMinimumHpPercent = options.HeroRaidingMinimumHpPercent;
         HeroRaidingMaximumDistance = options.HeroRaidingMaximumDistance;
         HeroRaidingObservationMinutes = options.HeroRaidingObservationMinutes;

@@ -35,6 +35,25 @@ public sealed class ResetProgramSourceTests
     }
 
     [Fact]
+    public void ReloadingSavedHeroSettings_DoesNotWriteTemporaryViewModelValuesBackToConfig()
+    {
+        var root = ProjectRootLocator.FindProjectRoot();
+        var source = File.ReadAllText(Path.Combine(root, "src", "TbotUltra.Desktop", "MainWindow.xaml.cs"));
+        var loadStart = source.IndexOf("private void LoadConfigToUi()", StringComparison.Ordinal);
+        var loadEnd = source.IndexOf("_resourcesViewModel.LoadSettingsFromConfig(options);", loadStart, StringComparison.Ordinal);
+        var load = source[loadStart..loadEnd];
+        var changedStart = source.IndexOf("private void HeroViewModel_PropertyChanged(", StringComparison.Ordinal);
+        var changedEnd = source.IndexOf("PersistHeroSettingsToConfig();", changedStart, StringComparison.Ordinal);
+        var changed = source[changedStart..changedEnd];
+
+        Assert.Contains("_suppressHeroSettingsConfigWrite = true;", load, StringComparison.Ordinal);
+        Assert.Contains("_heroViewModel.LoadSettingsFromConfig(options);", load, StringComparison.Ordinal);
+        Assert.Contains("finally", load, StringComparison.Ordinal);
+        Assert.Contains("_suppressHeroSettingsConfigWrite = false;", load, StringComparison.Ordinal);
+        Assert.Contains("if (_suppressHeroSettingsConfigWrite)", changed, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ResetProgramButton_UsesTheSoftDangerPalette()
     {
         var root = ProjectRootLocator.FindProjectRoot();

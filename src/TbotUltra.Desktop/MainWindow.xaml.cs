@@ -339,6 +339,7 @@ public partial class MainWindow : Window
     private bool _suppressAutomationLoopConfigWrite;
     private bool _suppressFarmListUiRefresh;
     private bool _suppressFarmingSettingsConfigWrite;
+    private bool _suppressHeroSettingsConfigWrite;
     private bool _farmingOperationBusy;
     private VillageStatus? _lastBuildingStatus;
     private VillageStatus? _lastResourceStatusForUi;
@@ -928,7 +929,15 @@ public partial class MainWindow : Window
         ApplyTroopTrainingTribeState(ResolveStoredTroopTrainingTribe());
         EnsureAutoCelebrationEnabledForBreweryGroup();
         _lastAutoCelebrationEnabledForChangeTracking = _troopTrainingViewModel.AutoCelebrationEnabled;
-        _heroViewModel.LoadSettingsFromConfig(options);
+        _suppressHeroSettingsConfigWrite = true;
+        try
+        {
+            _heroViewModel.LoadSettingsFromConfig(options);
+        }
+        finally
+        {
+            _suppressHeroSettingsConfigWrite = false;
+        }
 
         _resourcesViewModel.LoadSettingsFromConfig(options);
         ApplyResourceTransferConfigToUi(options);
@@ -1800,6 +1809,11 @@ public partial class MainWindow : Window
 
     private void HeroViewModel_PropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (_suppressHeroSettingsConfigWrite)
+        {
+            return;
+        }
+
         if (e.PropertyName is not (
             nameof(HeroViewModel.MinHpForAdventure)
             or nameof(HeroViewModel.AutoRevive)
