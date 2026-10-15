@@ -8,6 +8,7 @@ internal sealed record HeroRaidingOptions(
     int MinimumHpPercent,
     int MaximumDistance,
     int ObservationMinutes,
+    int MinimumCandidates,
     string SelectedTypes,
     string Priority);
 
@@ -27,6 +28,7 @@ internal static class HeroRaidingOptionsModule
         BotOptionPayloadKeys.HeroRaidingMinimumHpPercent,
         BotOptionPayloadKeys.HeroRaidingMaximumDistance,
         BotOptionPayloadKeys.HeroRaidingObservationMinutes,
+        BotOptionPayloadKeys.HeroRaidingMinimumCandidates,
         BotOptionPayloadKeys.HeroRaidingSelectedTypes,
         BotOptionPayloadKeys.HeroRaidingPriority,
     ];
@@ -36,6 +38,7 @@ internal static class HeroRaidingOptionsModule
         Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.HeroRaidingMinimumHpPercent, 40), 1, 100),
         Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.HeroRaidingMaximumDistance, 20), 1, 50),
         Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.HeroRaidingObservationMinutes, 10), 1, 120),
+        Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.HeroRaidingMinimumCandidates, 3), 1, 20),
         NormalizeTypes(configuration[BotOptionPayloadKeys.HeroRaidingSelectedTypes]),
         NormalizePriority(configuration[BotOptionPayloadKeys.HeroRaidingPriority]));
 
@@ -44,6 +47,7 @@ internal static class HeroRaidingOptionsModule
         options.HeroRaidingMinimumHpPercent,
         options.HeroRaidingMaximumDistance,
         options.HeroRaidingObservationMinutes,
+        options.HeroRaidingMinimumCandidates,
         options.HeroRaidingSelectedTypes,
         options.HeroRaidingPriority);
 
@@ -54,6 +58,7 @@ internal static class HeroRaidingOptionsModule
         target[BotOptionPayloadKeys.HeroRaidingMinimumHpPercent] = Math.Clamp(values.MinimumHpPercent, 1, 100);
         target[BotOptionPayloadKeys.HeroRaidingMaximumDistance] = Math.Clamp(values.MaximumDistance, 1, 50);
         target[BotOptionPayloadKeys.HeroRaidingObservationMinutes] = Math.Clamp(values.ObservationMinutes, 1, 120);
+        target[BotOptionPayloadKeys.HeroRaidingMinimumCandidates] = Math.Clamp(values.MinimumCandidates, 1, 20);
         target[BotOptionPayloadKeys.HeroRaidingSelectedTypes] = NormalizeTypes(values.SelectedTypes);
         target[BotOptionPayloadKeys.HeroRaidingPriority] = NormalizePriority(values.Priority);
     }
@@ -77,6 +82,9 @@ internal static class HeroRaidingOptionsModule
             else if (key.Equals(BotOptionPayloadKeys.HeroRaidingObservationMinutes, StringComparison.OrdinalIgnoreCase)
                 && int.TryParse(value, out var observationMinutes))
                 result = result with { ObservationMinutes = Math.Clamp(observationMinutes, 1, 120) };
+            else if (key.Equals(BotOptionPayloadKeys.HeroRaidingMinimumCandidates, StringComparison.OrdinalIgnoreCase)
+                && int.TryParse(value, out var minimumCandidates))
+                result = result with { MinimumCandidates = Math.Clamp(minimumCandidates, 1, 20) };
             else if (key.Equals(BotOptionPayloadKeys.HeroRaidingSelectedTypes, StringComparison.OrdinalIgnoreCase))
                 result = result with { SelectedTypes = NormalizeTypes(value) };
             else if (key.Equals(BotOptionPayloadKeys.HeroRaidingPriority, StringComparison.OrdinalIgnoreCase))
@@ -92,6 +100,7 @@ internal static class HeroRaidingOptionsModule
         HeroRaidingMinimumHpPercent = Math.Clamp(values.MinimumHpPercent, 1, 100),
         HeroRaidingMaximumDistance = Math.Clamp(values.MaximumDistance, 1, 50),
         HeroRaidingObservationMinutes = Math.Clamp(values.ObservationMinutes, 1, 120),
+        HeroRaidingMinimumCandidates = Math.Clamp(values.MinimumCandidates, 1, 20),
         HeroRaidingSelectedTypes = NormalizeTypes(values.SelectedTypes),
         HeroRaidingPriority = NormalizePriority(values.Priority),
     };

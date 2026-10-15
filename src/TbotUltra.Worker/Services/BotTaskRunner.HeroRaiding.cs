@@ -108,7 +108,8 @@ public sealed partial class BotTaskRunner
                 readiness.AttackStrength,
                 readiness.HpPercent,
                 readiness.Mounted,
-                context.Options.HeroRaidingMinimumHpPercent), context.CancellationToken);
+                context.Options.HeroRaidingMinimumHpPercent,
+                MinimumCandidates: context.Options.HeroRaidingMinimumCandidates), context.CancellationToken);
         if (discovery.SafeCandidates.Count == 0 && context.Options.HeroAutoUseOintments)
         {
             var targetHp = HeroCalc.NormalizeOintmentTargetHp(context.Options.HeroOintmentTargetHpPercent);
@@ -140,7 +141,8 @@ public sealed partial class BotTaskRunner
                         readiness.AttackStrength,
                         readiness.HpPercent,
                         readiness.Mounted,
-                        context.Options.HeroRaidingMinimumHpPercent), context.CancellationToken);
+                        context.Options.HeroRaidingMinimumHpPercent,
+                        MinimumCandidates: context.Options.HeroRaidingMinimumCandidates), context.CancellationToken);
                 }
             }
         }

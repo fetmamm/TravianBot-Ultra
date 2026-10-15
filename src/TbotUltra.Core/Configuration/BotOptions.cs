@@ -746,6 +746,9 @@ public sealed record BotOptions
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroRaidingObservationMinutes)]
     public int HeroRaidingObservationMinutes { get; init; } = 10;
 
+    [ConfigurationKeyName(BotOptionPayloadKeys.HeroRaidingMinimumCandidates)]
+    public int HeroRaidingMinimumCandidates { get; init; } = 3;
+
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroRaidingSelectedTypes)]
     public string HeroRaidingSelectedTypes { get; init; } = "Wood,Clay,Iron,Wood+Crop,Clay+Crop,Iron+Crop";
 

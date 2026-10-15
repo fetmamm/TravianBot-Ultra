@@ -1816,6 +1816,7 @@ public partial class MainWindow : Window
             or nameof(HeroViewModel.HeroRaidingMinimumHpPercent)
             or nameof(HeroViewModel.HeroRaidingMaximumDistance)
             or nameof(HeroViewModel.HeroRaidingObservationMinutes)
+            or nameof(HeroViewModel.HeroRaidingMinimumCandidates)
             or nameof(HeroViewModel.HeroRaidingPriority)
             or nameof(HeroViewModel.RaidWood)
             or nameof(HeroViewModel.RaidClay)

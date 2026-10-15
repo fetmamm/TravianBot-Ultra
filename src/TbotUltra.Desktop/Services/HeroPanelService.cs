@@ -37,6 +37,7 @@ public sealed class HeroPanelService(IHeroPanelClient client, BotConfigStore con
         config[BotOptionPayloadKeys.HeroRaidingMinimumHpPercent] = viewModel.HeroRaidingMinimumHpPercent;
         config[BotOptionPayloadKeys.HeroRaidingMaximumDistance] = viewModel.HeroRaidingMaximumDistance;
         config[BotOptionPayloadKeys.HeroRaidingObservationMinutes] = viewModel.HeroRaidingObservationMinutes;
+        config[BotOptionPayloadKeys.HeroRaidingMinimumCandidates] = viewModel.HeroRaidingMinimumCandidates;
         config[BotOptionPayloadKeys.HeroRaidingSelectedTypes] = viewModel.HeroRaidingSelectedTypes;
         config[BotOptionPayloadKeys.HeroRaidingPriority] = viewModel.HeroRaidingPriority;
         configStore.Save(config);

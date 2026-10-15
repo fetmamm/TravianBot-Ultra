@@ -16,6 +16,7 @@ public sealed class HeroRaidingOptionsTests
         Assert.Equal(40, options.HeroRaidingMinimumHpPercent);
         Assert.Equal(20, options.HeroRaidingMaximumDistance);
         Assert.Equal(10, options.HeroRaidingObservationMinutes);
+        Assert.Equal(3, options.HeroRaidingMinimumCandidates);
         Assert.Equal("raiding", options.HeroRaidingPriority);
         Assert.Contains("Wood+Crop", options.HeroRaidingSelectedTypes);
         Assert.DoesNotContain("Crop25", options.HeroRaidingSelectedTypes);
@@ -32,6 +33,7 @@ public sealed class HeroRaidingOptionsTests
                 [BotOptionPayloadKeys.HeroRaidingMinimumHpPercent] = "0",
                 [BotOptionPayloadKeys.HeroRaidingMaximumDistance] = "500",
                 [BotOptionPayloadKeys.HeroRaidingObservationMinutes] = "500",
+                [BotOptionPayloadKeys.HeroRaidingMinimumCandidates] = "500",
                 [BotOptionPayloadKeys.HeroRaidingSelectedTypes] = "Crop,Clay+Crop,Unknown,Crop",
                 [BotOptionPayloadKeys.HeroRaidingPriority] = "adventures",
             }).Build();
@@ -42,6 +44,7 @@ public sealed class HeroRaidingOptionsTests
         Assert.Equal(1, options.HeroRaidingMinimumHpPercent);
         Assert.Equal(50, options.HeroRaidingMaximumDistance);
         Assert.Equal(120, options.HeroRaidingObservationMinutes);
+        Assert.Equal(20, options.HeroRaidingMinimumCandidates);
         Assert.Equal("Crop25,Crop50,Clay+Crop", options.HeroRaidingSelectedTypes);
         Assert.Equal("adventures", options.HeroRaidingPriority);
     }

@@ -124,6 +124,7 @@ public static class BotOptionPayloadKeys
     public const string HeroRaidingMinimumHpPercent = "hero_raiding_minimum_hp_percent";
     public const string HeroRaidingMaximumDistance = "hero_raiding_maximum_distance";
     public const string HeroRaidingObservationMinutes = "hero_raiding_observation_minutes";
+    public const string HeroRaidingMinimumCandidates = "hero_raiding_minimum_candidates";
     public const string HeroRaidingSelectedTypes = "hero_raiding_selected_types";
     public const string HeroRaidingPriority = "hero_raiding_priority";
     public const string HeroStatPriority = "hero_stat_priority";

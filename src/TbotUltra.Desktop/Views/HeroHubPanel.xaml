@@ -59,6 +59,14 @@
                                 ToolTip="Maximum age of an oasis animal observation before its map area is scanned again. Older observations are not used to choose raids." />
               </StackPanel>
               <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                <TextBlock Text="Auto scan candidates" VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextSecondaryBrush}" Width="220" />
+                <TextBox Width="54" Text="{Binding HeroRaidingMinimumCandidates, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
+                <TextBlock Text="safe (1–20)" VerticalAlignment="Center" Margin="6,0,0,0" />
+                <ContentControl Style="{StaticResource SettingInfoIconStyle}" Margin="8,0,0,0"
+                                ToolTip="Automatic scanning stops when it has found this many distinct safe animal oases, reducing map requests. If fewer are found, it scans the full distance. Scan now always scans the full distance." />
+              </StackPanel>
+              <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                 <TextBlock Text="Hero priority" VerticalAlignment="Center"
                            Foreground="{DynamicResource TextSecondaryBrush}" Width="220" />
                 <ComboBox Width="172" SelectedValuePath="Tag"

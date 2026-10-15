@@ -79,6 +79,32 @@ public sealed class HeroRaidingDiscoveryOperationTests
     }
 
     [Fact]
+    public async Task ExecuteAsync_AutomaticScanContinuesUntilThreeSafeCandidates()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"tbot-hero-discovery-{Guid.NewGuid():N}");
+        try
+        {
+            var reader = new CoverageReader();
+            var operation = new HeroRaidingDiscoveryOperation(reader, root, "account", "https://ts1.travian.com", _ => { });
+
+            var result = await operation.ExecuteAsync(Input() with
+            {
+                MaximumDistance = 20,
+                MinimumCandidates = 3,
+            }, CancellationToken.None);
+
+            Assert.Equal(3, result.SafeCandidates.Count);
+            Assert.Equal(3, result.SafeCandidates.Select(candidate =>
+                (candidate.Candidate.Oasis.X, candidate.Candidate.Oasis.Y)).Distinct().Count());
+            Assert.True(result.AreasRead < 4);
+        }
+        finally
+        {
+            if (Directory.Exists(root)) Directory.Delete(root, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task ExecuteAsync_FallsBackFromRegionOverlayToDetailedZoom()
     {
         var root = Path.Combine(Path.GetTempPath(), $"tbot-hero-discovery-{Guid.NewGuid():N}");
@@ -109,7 +135,8 @@ public sealed class HeroRaidingDiscoveryOperationTests
         HeroAttackStrength: 8100,
         CurrentHpPercent: 100,
         HeroMounted: false,
-        MinimumHpPercent: 40);
+        MinimumHpPercent: 40,
+        MinimumCandidates: 1);
 
     private sealed class ScriptedReader(string json, bool overlayAtZoomThree = false) : IMapOasisAreaReader
     {
@@ -132,7 +159,7 @@ public sealed class HeroRaidingDiscoveryOperationTests
         {
             const string text = "{a:r1} {a.r1} 25%<br />{k.animals}<br /><div class=\"inlineIcon tooltipUnit\" title=\"\"><i class=\"unit u31\"></i><span class=\"value \">2</span></div>";
             var radius = zoomLevel == 3 ? 15 : zoomLevel == 2 ? 10 : 5;
-            var tiles = new[] { 1, 18 }
+            var tiles = new[] { -18, 1, 18 }
                 .Where(tileX => Math.Abs(tileX - x) <= radius && Math.Abs(y) <= radius)
                 .Select(tileX => new { x = tileX, y = 0, did = -1, title = "{k.fo}", text })
                 .ToArray();

@@ -113,6 +113,7 @@ public sealed class PanelServiceContractTests : IDisposable
             HeroRaidingMinimumHpPercent = 45,
             HeroRaidingMaximumDistance = 30,
             HeroRaidingObservationMinutes = 12,
+            HeroRaidingMinimumCandidates = 5,
             HeroRaidingPriority = "adventures",
             RaidCrop25 = true,
             RaidIron = false,
@@ -142,6 +143,7 @@ public sealed class PanelServiceContractTests : IDisposable
         Assert.Equal(45, persisted[BotOptionPayloadKeys.HeroRaidingMinimumHpPercent]!.GetValue<int>());
         Assert.Equal(30, persisted[BotOptionPayloadKeys.HeroRaidingMaximumDistance]!.GetValue<int>());
         Assert.Equal(12, persisted[BotOptionPayloadKeys.HeroRaidingObservationMinutes]!.GetValue<int>());
+        Assert.Equal(5, persisted[BotOptionPayloadKeys.HeroRaidingMinimumCandidates]!.GetValue<int>());
         Assert.Equal("adventures", persisted[BotOptionPayloadKeys.HeroRaidingPriority]!.GetValue<string>());
         Assert.Equal("Wood,Clay,Wood+Crop,Clay+Crop,Iron+Crop,Crop25",
             persisted[BotOptionPayloadKeys.HeroRaidingSelectedTypes]!.GetValue<string>());

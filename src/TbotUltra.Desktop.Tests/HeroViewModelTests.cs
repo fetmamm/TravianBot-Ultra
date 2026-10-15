@@ -51,6 +51,7 @@ public sealed class HeroViewModelTests
         Assert.Equal(40, vm.HeroRaidingMinimumHpPercent);
         Assert.Equal(20, vm.HeroRaidingMaximumDistance);
         Assert.Equal(10, vm.HeroRaidingObservationMinutes);
+        Assert.Equal(3, vm.HeroRaidingMinimumCandidates);
         Assert.Equal("raiding", vm.HeroRaidingPriority);
         Assert.Equal("Wood,Clay,Iron,Wood+Crop,Clay+Crop,Iron+Crop", vm.HeroRaidingSelectedTypes);
 
@@ -60,6 +61,7 @@ public sealed class HeroViewModelTests
             HeroRaidingMinimumHpPercent = 55,
             HeroRaidingMaximumDistance = 50,
             HeroRaidingObservationMinutes = 15,
+            HeroRaidingMinimumCandidates = 6,
             HeroRaidingPriority = "adventures",
             HeroRaidingSelectedTypes = "Crop,Iron+Crop",
         });
@@ -68,6 +70,7 @@ public sealed class HeroViewModelTests
         Assert.Equal(55, vm.HeroRaidingMinimumHpPercent);
         Assert.Equal(50, vm.HeroRaidingMaximumDistance);
         Assert.Equal(15, vm.HeroRaidingObservationMinutes);
+        Assert.Equal(6, vm.HeroRaidingMinimumCandidates);
         Assert.Equal("adventures", vm.HeroRaidingPriority);
         Assert.Equal("Iron+Crop,Crop25,Crop50", vm.HeroRaidingSelectedTypes);
         Assert.True(vm.RaidCrop25);

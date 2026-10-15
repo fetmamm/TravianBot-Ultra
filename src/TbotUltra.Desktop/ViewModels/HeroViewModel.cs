@@ -77,6 +77,7 @@ public sealed class HeroViewModel : BaseViewModel
     private int _heroRaidingMinimumHpPercent = 40;
     private int _heroRaidingMaximumDistance = 20;
     private int _heroRaidingObservationMinutes = 10;
+    private int _heroRaidingMinimumCandidates = 3;
     private string _heroRaidingPriority = "raiding";
     private bool _raidWood = true;
     private bool _raidClay = true;
@@ -461,6 +462,12 @@ public sealed class HeroViewModel : BaseViewModel
         set => SetProperty(ref _heroRaidingObservationMinutes, Math.Clamp(value, 1, 120));
     }
 
+    public int HeroRaidingMinimumCandidates
+    {
+        get => _heroRaidingMinimumCandidates;
+        set => SetProperty(ref _heroRaidingMinimumCandidates, Math.Clamp(value, 1, 20));
+    }
+
     public string HeroRaidingPriority
     {
         get => _heroRaidingPriority;
@@ -569,6 +576,7 @@ public sealed class HeroViewModel : BaseViewModel
         HeroRaidingMinimumHpPercent = options.HeroRaidingMinimumHpPercent;
         HeroRaidingMaximumDistance = options.HeroRaidingMaximumDistance;
         HeroRaidingObservationMinutes = options.HeroRaidingObservationMinutes;
+        HeroRaidingMinimumCandidates = options.HeroRaidingMinimumCandidates;
         HeroRaidingPriority = options.HeroRaidingPriority;
         var raidTypes = new HashSet<string>(
             (options.HeroRaidingSelectedTypes ?? string.Empty).Split(',', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries),

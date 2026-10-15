@@ -770,11 +770,12 @@ Published artifacts belong under `artifacts/`, never beside source files.
   can be filtered; do not require a visible inventory Cage to prove removal. Do not drag cages.
 - The Rally Point confirmation page exposes one-way travel duration. Persist the expected home check at roughly
   twice that duration before final Confirm; do not poll hero status every second while the raid is travelling.
-- Discover hero-raid targets from the hero's actual village, first local map area then center-out only if no safe
-  candidate exists. Cache areas per account+world with per-area timestamps; re-read observations older than the
+- Discover hero-raid targets from the hero's actual village, first local map area then center-out until the
+  configured number of distinct safe candidates is found (default 3, range 1–20), or after the full radius if
+  fewer exist. Cache areas per account+world with per-area timestamps; re-read observations older than the
   configured freshness limit (10 minutes by default). If no safe target exists, wait 60 minutes without an alarm;
-  explicit Scan now bypasses only that wait. Automatic discovery may stop at the first safe area, but explicit
-  Scan now must cover the entire configured radius and show every observed, unoccupied animal oasis of the selected
+  explicit Scan now bypasses only that wait. Automatic discovery may stop at its configured safe-candidate count,
+  but explicit Scan now must cover the entire configured radius and show every observed, unoccupied animal oasis of the selected
   types, including unsafe or unassessable candidates with a clear warning. User exclusions persist per account+world
   and must fail closed if unreadable.
 - Empty building slots contain one contract per available type; scope cost reads and transfer clicks to the exact
