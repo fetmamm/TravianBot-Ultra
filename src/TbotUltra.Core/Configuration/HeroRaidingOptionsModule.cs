@@ -37,7 +37,7 @@ internal static class HeroRaidingOptionsModule
         configuration.GetValue(BotOptionPayloadKeys.HeroRaidingEnabled, false),
         Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.HeroRaidingMinimumHpPercent, 40), 1, 100),
         Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.HeroRaidingMaximumDistance, 20), 1, 50),
-        Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.HeroRaidingObservationMinutes, 10), 1, 120),
+        Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.HeroRaidingObservationMinutes, 60), 1, 120),
         Math.Clamp(configuration.GetValue(BotOptionPayloadKeys.HeroRaidingMinimumCandidates, 3), 1, 20),
         NormalizeTypes(configuration[BotOptionPayloadKeys.HeroRaidingSelectedTypes]),
         NormalizePriority(configuration[BotOptionPayloadKeys.HeroRaidingPriority]));

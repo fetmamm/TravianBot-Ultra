@@ -3,7 +3,7 @@ using TbotUltra.Worker.Domain;
 
 namespace TbotUltra.Desktop.ViewModels;
 
-public sealed class HeroRaidingCandidateItem(HeroRaidingScanCandidate candidate) : BaseViewModel
+public sealed class HeroRaidingCandidateItem(HeroRaidingScanCandidate candidate, int minimumHpPercent) : BaseViewModel
 {
     private bool _isExcluded = candidate.IsExcluded;
 
@@ -17,7 +17,10 @@ public sealed class HeroRaidingCandidateItem(HeroRaidingScanCandidate candidate)
     public string Distance => candidate.DistanceFields.ToString("0.0");
     public bool IsSafe => candidate.IsSafe && !IsExcluded;
     public bool IsUnsafeEstimate => !candidate.IsSafe;
-    public string Safety => IsExcluded ? "Excluded" : candidate.IsSafe ? "Safe estimate"
+    public string Safety => IsExcluded ? "Excluded"
+        : candidate.IsSafe && candidate.PredictedHpAfterRaid is int hp && hp < minimumHpPercent + 10
+            ? "Borderline estimate"
+        : candidate.IsSafe ? "Safe estimate"
         : candidate.PredictedHpAfterRaid.HasValue ? "Unsafe estimate" : "Safety unknown";
     public DateTimeOffset ObservedAtUtc => candidate.ObservedAtUtc;
 

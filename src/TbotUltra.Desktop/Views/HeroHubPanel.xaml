@@ -48,7 +48,15 @@
                 <TextBlock Text="Maximum distance" VerticalAlignment="Center"
                            Foreground="{DynamicResource TextSecondaryBrush}" Width="220" />
                 <TextBox Width="54" Text="{Binding HeroRaidingMaximumDistance, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                <TextBlock Text="tiles (1–50)" VerticalAlignment="Center" Margin="6,0,0,0" />
+                <TextBlock Text="tiles" VerticalAlignment="Center" Margin="6,0,0,0" />
+                <ContentControl Style="{StaticResource SettingInfoIconStyle}" Margin="8,0,0,0">
+                  <ContentControl.ToolTip>
+                    <ToolTip MaxWidth="320">
+                      <TextBlock TextWrapping="Wrap"
+                                 Text="Maximum straight-line distance from the hero's home village to an oasis (1–50 tiles). Map areas are read across a surrounding square for coverage, but only oases within this circular distance are considered as raid candidates." />
+                    </ToolTip>
+                  </ContentControl.ToolTip>
+                </ContentControl>
               </StackPanel>
               <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                 <TextBlock Text="Observation freshness" VerticalAlignment="Center"
@@ -62,9 +70,9 @@
                 <TextBlock Text="Auto scan candidates" VerticalAlignment="Center"
                            Foreground="{DynamicResource TextSecondaryBrush}" Width="220" />
                 <TextBox Width="54" Text="{Binding HeroRaidingMinimumCandidates, Mode=TwoWay, UpdateSourceTrigger=LostFocus}" />
-                <TextBlock Text="safe (1–20)" VerticalAlignment="Center" Margin="6,0,0,0" />
+                <TextBlock Text="safe" VerticalAlignment="Center" Margin="6,0,0,0" />
                 <ContentControl Style="{StaticResource SettingInfoIconStyle}" Margin="8,0,0,0"
-                                ToolTip="Automatic scanning stops when it has found this many distinct safe animal oases, reducing map requests. If fewer are found, it scans the full distance. Scan now always scans the full distance." />
+                                ToolTip="Choose 1–20. Automatic scanning stops when it has found this many distinct safe animal oases, reducing map requests. If fewer are found, it scans the full distance. Scan now always scans the full distance." />
               </StackPanel>
               <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
                 <TextBlock Text="Hero priority" VerticalAlignment="Center"
@@ -140,8 +148,14 @@
                 <DataGrid.RowStyle>
                   <Style TargetType="DataGridRow">
                     <Style.Triggers>
-                      <DataTrigger Binding="{Binding IsUnsafeEstimate}" Value="True">
+                      <DataTrigger Binding="{Binding Safety}" Value="Unsafe estimate">
                         <Setter Property="Background" Value="{DynamicResource DangerBgBrush}" />
+                      </DataTrigger>
+                      <DataTrigger Binding="{Binding Safety}" Value="Borderline estimate">
+                        <Setter Property="Background" Value="{DynamicResource WarningBgBrush}" />
+                      </DataTrigger>
+                      <DataTrigger Binding="{Binding Safety}" Value="Safety unknown">
+                        <Setter Property="Background" Value="{DynamicResource WarningBgBrush}" />
                       </DataTrigger>
                     </Style.Triggers>
                   </Style>
@@ -162,7 +176,33 @@
                   <DataGridTextColumn Header="Predicted HP" Binding="{Binding PredictedHp}" IsReadOnly="True" Width="95" />
                   <DataGridTextColumn Header="Bounty / resource" Binding="{Binding EstimatedBounty}" IsReadOnly="True" Width="110" />
                   <DataGridTextColumn Header="Distance" Binding="{Binding Distance}" IsReadOnly="True" Width="70" />
-                  <DataGridTextColumn Header="Status" Binding="{Binding Safety}" IsReadOnly="True" Width="100" />
+                  <DataGridTemplateColumn Header="Status" Width="125" IsReadOnly="True">
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate>
+                        <TextBlock Text="{Binding Safety}" VerticalAlignment="Center">
+                          <TextBlock.Style>
+                            <Style TargetType="TextBlock">
+                              <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
+                              <Style.Triggers>
+                                <DataTrigger Binding="{Binding Safety}" Value="Safe estimate">
+                                  <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Safety}" Value="Unsafe estimate">
+                                  <Setter Property="Foreground" Value="{DynamicResource DangerTextBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Safety}" Value="Borderline estimate">
+                                  <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
+                                </DataTrigger>
+                                <DataTrigger Binding="{Binding Safety}" Value="Safety unknown">
+                                  <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
+                                </DataTrigger>
+                              </Style.Triggers>
+                            </Style>
+                          </TextBlock.Style>
+                        </TextBlock>
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
                 </DataGrid.Columns>
               </DataGrid>
             </StackPanel>

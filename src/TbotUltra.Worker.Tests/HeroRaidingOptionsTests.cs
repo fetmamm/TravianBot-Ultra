@@ -15,7 +15,7 @@ public sealed class HeroRaidingOptionsTests
         Assert.False(options.HeroRaidingEnabled);
         Assert.Equal(40, options.HeroRaidingMinimumHpPercent);
         Assert.Equal(20, options.HeroRaidingMaximumDistance);
-        Assert.Equal(10, options.HeroRaidingObservationMinutes);
+        Assert.Equal(60, options.HeroRaidingObservationMinutes);
         Assert.Equal(3, options.HeroRaidingMinimumCandidates);
         Assert.Equal("raiding", options.HeroRaidingPriority);
         Assert.Contains("Wood+Crop", options.HeroRaidingSelectedTypes);

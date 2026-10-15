@@ -18,14 +18,18 @@ public sealed class HeroViewModelTests
             new HeroRaidingScanCandidate(1, 0, "Wood 25%", "Rat 2", 90, 80, 1, false, true, now),
             new HeroRaidingScanCandidate(2, 0, "Wood 25%", "Bear 80", 15, 400, 2, false, false, now),
             new HeroRaidingScanCandidate(3, 0, "Wood 25%", "Unknown animals", null, null, 3, false, false, now),
+            new HeroRaidingScanCandidate(4, 0, "Wood 25%", "Rat 8", 45, 80, 4, false, true, now),
         ], 3, 0, "Scan complete"));
 
-        Assert.Equal(3, vm.HeroRaidingCandidates.Count);
+        Assert.Equal(4, vm.HeroRaidingCandidates.Count);
+        Assert.Equal("Safe estimate", vm.HeroRaidingCandidates[0].Safety);
         Assert.False(vm.HeroRaidingCandidates[0].IsUnsafeEstimate);
         Assert.Equal("Unsafe estimate", vm.HeroRaidingCandidates[1].Safety);
         Assert.True(vm.HeroRaidingCandidates[1].IsUnsafeEstimate);
         Assert.Equal("Safety unknown", vm.HeroRaidingCandidates[2].Safety);
         Assert.True(vm.HeroRaidingCandidates[2].IsUnsafeEstimate);
+        Assert.Equal("Borderline estimate", vm.HeroRaidingCandidates[3].Safety);
+        Assert.True(vm.HeroRaidingCandidates[3].IsSafe);
     }
 
     [Fact]
@@ -50,7 +54,7 @@ public sealed class HeroViewModelTests
         Assert.False(vm.HeroRaidingEnabled);
         Assert.Equal(40, vm.HeroRaidingMinimumHpPercent);
         Assert.Equal(20, vm.HeroRaidingMaximumDistance);
-        Assert.Equal(10, vm.HeroRaidingObservationMinutes);
+        Assert.Equal(60, vm.HeroRaidingObservationMinutes);
         Assert.Equal(3, vm.HeroRaidingMinimumCandidates);
         Assert.Equal("raiding", vm.HeroRaidingPriority);
         Assert.Equal("Wood,Clay,Iron,Wood+Crop,Clay+Crop,Iron+Crop", vm.HeroRaidingSelectedTypes);

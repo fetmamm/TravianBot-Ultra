@@ -13,12 +13,12 @@ public partial class MainWindow
         if (_heroViewModel.IsHeroRaidingScanRunning) return;
         _heroViewModel.IsHeroRaidingScanRunning = true;
         _heroViewModel.HeroRaidingStatusText = "Scanning nearby oases...";
-        BusyOverlay.ShowCancel = true;
-        ShowBusyOverlay("Hero raiding: Scan now", "Preparing oasis scan...");
-        BusyOverlay.IsIndeterminate = false;
-        BusyOverlay.ProgressValue = 0;
         try
         {
+            BusyOverlay.ShowCancel = true;
+            ShowBusyOverlay("Hero raiding: Scan now", "Preparing oasis scan...");
+            BusyOverlay.IsIndeterminate = false;
+            BusyOverlay.ProgressValue = 0;
             var progress = new Progress<HeroRaidingScanProgress>(value =>
             {
                 if (!BusyOverlay.IsBusy || !BusyOverlay.CancelEnabled) return;

@@ -76,7 +76,7 @@ public sealed class HeroViewModel : BaseViewModel
     private bool _heroRaidingEnabled;
     private int _heroRaidingMinimumHpPercent = 40;
     private int _heroRaidingMaximumDistance = 20;
-    private int _heroRaidingObservationMinutes = 10;
+    private int _heroRaidingObservationMinutes = 60;
     private int _heroRaidingMinimumCandidates = 3;
     private string _heroRaidingPriority = "raiding";
     private bool _raidWood = true;
@@ -146,7 +146,7 @@ public sealed class HeroViewModel : BaseViewModel
         HeroRaidingCandidates.Clear();
         foreach (var candidate in scan.Candidates)
         {
-            var item = new HeroRaidingCandidateItem(candidate);
+            var item = new HeroRaidingCandidateItem(candidate, HeroRaidingMinimumHpPercent);
             item.PropertyChanged += HeroRaidingCandidate_PropertyChanged;
             HeroRaidingCandidates.Add(item);
         }

@@ -744,7 +744,7 @@ public sealed record BotOptions
     public int HeroRaidingMaximumDistance { get; init; } = 20;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroRaidingObservationMinutes)]
-    public int HeroRaidingObservationMinutes { get; init; } = 10;
+    public int HeroRaidingObservationMinutes { get; init; } = 60;
 
     [ConfigurationKeyName(BotOptionPayloadKeys.HeroRaidingMinimumCandidates)]
     public int HeroRaidingMinimumCandidates { get; init; } = 3;
