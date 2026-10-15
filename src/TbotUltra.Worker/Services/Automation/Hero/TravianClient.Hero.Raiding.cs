@@ -15,6 +15,7 @@ internal sealed record HeroRaidingReadiness(
     int EquippedCages);
 
 internal sealed record HeroRaidingLiveOutcome(bool StateKnown, bool Home, bool Dead, int? HpPercent);
+internal enum HeroRaidDispatchState { Unknown, Home, Running, Dead }
 
 public sealed partial class TravianClient
 {
@@ -472,64 +473,73 @@ public sealed partial class TravianClient
         var finalConfirm = _page.Locator("button#confirmSendTroops.rallyPointConfirm[name='confirmSendTroops']");
         Notify($"[hero-raiding] confirmation verified; clicking final Confirm once for ({targetX}|{targetY}).");
         await DelayBeforeClickAsync(cancellationToken, "hero raiding: final Confirm");
-        await ClickLocatorAsync(finalConfirm, "hero-raiding-final-confirm", cancellationToken);
-        await WaitForSendTroopsCompletionAsync(cancellationToken);
-        if (await finalConfirm.CountAsync() != 0)
+        try
         {
-            Notify($"[hero-raiding] final Confirm did not visibly complete for ({targetX}|{targetY}); outcome is unknown and remains pending.");
-            return false;
+            await ClickLocatorAsync(finalConfirm, "hero-raiding-final-confirm", cancellationToken);
+        }
+        catch (PlaywrightException ex)
+        {
+            // The click can have reached Travian before Playwright loses the navigating page.
+            // Never click Confirm again; observe the global hero widget instead.
+            Notify($"[hero-raiding] final Confirm response was interrupted; checking hero status without resending: {ex.Message}");
         }
 
-        // The post-Confirm RP capture shows an outRaid row with a hero-only troop count.
-        // A generic RP return or heroRunning icon alone is not enough amid other attacks.
-        for (var attempt = 0; attempt < 6; attempt++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            if (attempt == 3)
-                await GotoAsync(Paths.RallyPointTroops, cancellationToken); // read-only recovery
-            if (await IsHeroRaidOutgoingVisibleAsync(readiness, targetX, targetY, cancellationToken))
-            {
-                Notify($"[hero-raiding] outgoing hero-only Raid verified at Rally Point for ({targetX}|{targetY}); combat outcome remains pending.");
-                return true;
-            }
-            await Task.Delay(500, cancellationToken);
-        }
-
-        Notify($"[hero-raiding] final Confirm left the page, but the exact outgoing hero Raid was not verified for ({targetX}|{targetY}); outcome is unknown and remains pending.");
-        return false;
+        var verified = await VerifyHeroRaidDispatchAsync(
+            ReadHeroRaidDispatchStateFromWidgetAsync, Task.Delay, Notify, cancellationToken);
+        Notify(verified
+            ? $"[hero-raiding] hero status changed from verified home to running after final Confirm for ({targetX}|{targetY}); combat outcome remains pending."
+            : $"[hero-raiding] hero did not become running after final Confirm for ({targetX}|{targetY}); send outcome is unknown and remains pending.");
+        return verified;
     }
 
-    private async Task<bool> IsHeroRaidOutgoingVisibleAsync(
-        HeroRaidingReadiness readiness,
-        int targetX,
-        int targetY,
-        CancellationToken cancellationToken)
+    private async Task<HeroRaidDispatchState> ReadHeroRaidDispatchStateFromWidgetAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        return await _page.EvaluateAsync<bool>(
+        var state = await _page.EvaluateAsync<string?>(
             """
-            ({sourceX, sourceY, targetX, targetY}) => {
-              const coordinates = element => {
-                const text = (element?.textContent || '').replace(/[‪-‮⁦-⁩‎‏]/g, '').replace(/−/g, '-');
-                const values = text.match(/-?\d+/g);
-                return values?.length === 2 ? values.map(Number) : null;
-              };
-              if (!document.querySelector('.heroStatus i.heroRunning')) return false;
-              return Array.from(document.querySelectorAll('table.troop_details.outRaid')).some(table => {
-                const headline = table.querySelector('.troopHeadline');
-                const source = coordinates(table.querySelector('th.coords .coordinates'));
-                const target = coordinates(headline?.querySelector('.coordinates'));
-                const troops = Array.from(table.querySelectorAll('tbody.units.last tr td.unit'))
-                  .map(cell => Number(cell.textContent.trim()));
-                return headline?.textContent?.includes('Raid unoccupied oasis')
-                  && source?.[0] === sourceX && source?.[1] === sourceY
-                  && target?.[0] === targetX && target?.[1] === targetY
-                  && troops.length === 11 && troops.slice(0, 10).every(value => value === 0)
-                  && troops[10] === 1;
-              });
+            () => {
+              const widgets = document.querySelectorAll('.heroStatus');
+              if (widgets.length !== 1) return null;
+              const widget = widgets[0];
+              const running = !!widget.querySelector('i.heroRunning');
+              const home = !!widget.querySelector('i.heroHome');
+              const dead = !!widget.querySelector('i.heroDead, i.heroReviving');
+              if (Number(running) + Number(home) + Number(dead) !== 1) return null;
+              return running ? 'Running' : home ? 'Home' : 'Dead';
             }
-            """,
-            new { sourceX = readiness.VillageX, sourceY = readiness.VillageY, targetX, targetY });
+            """);
+        return Enum.TryParse<HeroRaidDispatchState>(state, out var parsed) ? parsed : HeroRaidDispatchState.Unknown;
+    }
+
+    internal static async Task<bool> VerifyHeroRaidDispatchAsync(
+        Func<CancellationToken, Task<HeroRaidDispatchState>> readState,
+        Func<TimeSpan, CancellationToken, Task> delay,
+        Action<string> log,
+        CancellationToken cancellationToken)
+    {
+        // The exact hero-only Raid was checked on the confirmation page, and the hero was
+        // positively home immediately before the one-shot Confirm. A Running transition
+        // is sufficient dispatch evidence without scanning thousands of Rally Point rows.
+        for (var attempt = 1; attempt <= 12; attempt++)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            try
+            {
+                var state = await readState(cancellationToken);
+                if (state == HeroRaidDispatchState.Running) return true;
+                if (state == HeroRaidDispatchState.Dead)
+                {
+                    log("[hero-raiding] hero status became dead during send verification.");
+                    return false;
+                }
+            }
+            catch (PlaywrightException ex) when (IsTransientExecutionContextError(ex))
+            {
+                log($"[hero-raiding] hero widget read crossed a navigation ({attempt}/12); retrying without another Confirm click.");
+            }
+            if (attempt < 12) await delay(TimeSpan.FromMilliseconds(500), cancellationToken);
+        }
+        return false;
     }
 
     private sealed record HeroRaidingEquipmentRead(bool Mounted, bool Cages, int Count);

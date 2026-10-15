@@ -757,8 +757,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
   by the hero alone using Raid. Read current HP, effective strength, mount, and equipment live before choosing a
   target; stale or unknown garrisons are not safety evidence. The predicted post-raid HP threshold defaults to 40%
   and is an approximation, not a guarantee. Verify send and outcome; an unknown outcome or unexpected hero damage
-  disables raiding until the user enables it again. Verify the exact hero-only outgoing Raid in Rally Point after
-  Confirm, then use fresh hero-home state and HP for outcome; a combat report is optional diagnostic evidence.
+  disables raiding until the user enables it again. Verify the exact hero-only Raid on the confirmation page and
+  require a home-to-running change in the global hero-status card after the one-shot Confirm; do not scan Rally Point
+  outgoing rows (which can be huge) or repeat Confirm when navigation interrupts its response. Then use fresh
+  hero-home state and HP for outcome; a combat report is optional diagnostic evidence.
   Post-raid comparison tolerates at most one HP percentage point
   of simulator rounding, never below the configured absolute HP minimum.
   Its pure-crop 25% and 50% selections are independent; a saved legacy `Crop` selection enables both.
