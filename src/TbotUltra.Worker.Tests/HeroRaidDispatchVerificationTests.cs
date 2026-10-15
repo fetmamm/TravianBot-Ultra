@@ -53,4 +53,19 @@ public sealed class HeroRaidDispatchVerificationTests
         Assert.False(verified);
         Assert.Equal(12, reads);
     }
+
+    [Fact]
+    public void RaidForm_PacesFocusAndTypesCoordinatesAndHero()
+    {
+        var source = File.ReadAllText(Path.Combine(ProjectRootLocator.FindProjectRoot(),
+            "src", "TbotUltra.Worker", "Services", "Automation", "Hero", "TravianClient.Hero.Raiding.cs"));
+        var start = source.IndexOf("internal async Task PrepareHeroRaidingSendFormAsync(", StringComparison.Ordinal);
+        var end = source.IndexOf("internal async Task<bool> SendHeroRaidAsync(", start, StringComparison.Ordinal);
+        Assert.True(start >= 0 && end > start);
+        var form = source[start..end];
+
+        Assert.Contains("DelayBeforeClickAsync(cancellationToken, \"hero raiding: focus X coordinate\");\n        await TypeHumanlyAsync(xInput", form, StringComparison.Ordinal);
+        Assert.Contains("DelayBeforeClickAsync(cancellationToken, \"hero raiding: focus Y coordinate\");\n        await TypeHumanlyAsync(yInput", form, StringComparison.Ordinal);
+        Assert.Contains("DelayBeforeClickAsync(cancellationToken, \"hero raiding: focus hero count\");\n        await TypeHumanlyAsync(heroInput", form, StringComparison.Ordinal);
+    }
 }

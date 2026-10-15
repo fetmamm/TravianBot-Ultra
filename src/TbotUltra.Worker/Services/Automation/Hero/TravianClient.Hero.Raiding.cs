@@ -377,8 +377,11 @@ public sealed partial class TravianClient
             || await raidRadio.CountAsync() != 1 || await raidRadio.IsDisabledAsync())
             throw new InvalidOperationException("Hero raid stopped: exact coordinate or Raid controls were not available.");
 
+        await DelayBeforeClickAsync(cancellationToken, "hero raiding: focus X coordinate");
         await TypeHumanlyAsync(xInput, targetX.ToString(CultureInfo.InvariantCulture), cancellationToken);
+        await DelayBeforeClickAsync(cancellationToken, "hero raiding: focus Y coordinate");
         await TypeHumanlyAsync(yInput, targetY.ToString(CultureInfo.InvariantCulture), cancellationToken);
+        await DelayBeforeClickAsync(cancellationToken, "hero raiding: focus hero count");
         await TypeHumanlyAsync(heroInput, "1", cancellationToken);
         await DelayBeforeClickAsync(cancellationToken, "hero raiding: select Raid");
         await ClickLocatorAsync(raidRadio, "hero-raiding-select-raid", cancellationToken);
