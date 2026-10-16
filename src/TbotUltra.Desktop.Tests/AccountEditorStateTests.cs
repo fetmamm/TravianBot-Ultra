@@ -48,6 +48,7 @@ public sealed class AccountEditorStateTests
         Assert.False(AccountEditorState.HasChanges(baseline, baseline with { ServerUrl = "https://example.com" }));
         Assert.True(AccountEditorState.HasChanges(baseline, baseline with { Username = "User" }));
         Assert.True(AccountEditorState.HasChanges(baseline, baseline with { ProxyServer = "socks5://other:1080" }));
+        Assert.True(AccountEditorState.HasChanges(baseline, baseline with { HideIpFromUi = false }));
     }
 
     [Fact]
@@ -118,6 +119,15 @@ public sealed class AccountEditorStateTests
         Assert.False(result.ProxyEnabled);
         Assert.Equal(string.Empty, result.ProxyServer);
         Assert.Equal("user", result.Username);
+        Assert.True(result.HideIpFromUi);
+    }
+
+    [Fact]
+    public void BuildAccountEntry_PreservesVisibleIpPreference()
+    {
+        var result = AccountEditorState.BuildAccountEntry(Input(hideIpFromUi: false));
+
+        Assert.False(result.HideIpFromUi);
     }
 
     [Fact]
@@ -210,7 +220,8 @@ public sealed class AccountEditorStateTests
         string proxyPort = "",
         bool manualLogin = false,
         string password = "password",
-        string displayName = "")
+        string displayName = "",
+        bool hideIpFromUi = true)
         => new(
             "user",
             password,
@@ -224,7 +235,8 @@ public sealed class AccountEditorStateTests
             proxyPort,
             EditingExistingAccount: false,
             ExistingAccountName: string.Empty,
-            DisplayName: displayName);
+            DisplayName: displayName,
+            HideIpFromUi: hideIpFromUi);
 
     private static ProxyLibraryEntry Entry(string name, string host, string? assigned, long? latencyMs = null)
         => new()

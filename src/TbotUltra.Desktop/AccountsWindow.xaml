@@ -209,6 +209,13 @@
                         <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="6,0,0,0"
                                         ToolTip="Blocks browser startup unless this account has a valid working proxy configured.&#10;Use this to avoid exposing your own IP address to Travian." />
                     </StackPanel>
+                    <StackPanel Orientation="Horizontal" Margin="0,6,0,0">
+                        <CheckBox x:Name="HideIpFromUiCheckBox"
+                                  Content="Hide IP from UI"
+                                  VerticalAlignment="Center" />
+                        <ContentControl Style="{DynamicResource InfoTooltipIconStyle}" Margin="6,0,0,0"
+                                        ToolTip="Hides IP addresses and proxy endpoints from the main window.&#10;Useful when taking screenshots or sharing the screen." />
+                    </StackPanel>
                 </StackPanel>
                 <Grid Grid.Row="5" Grid.Column="1" Margin="0,12,14,8">
                     <Grid.RowDefinitions>

@@ -73,6 +73,7 @@ public sealed class EnvAccountStore
                     ProxyId = values.GetValueOrDefault($"{prefix}PROXY_ID", string.Empty),
                     ProxyServer = values.GetValueOrDefault($"{prefix}PROXY_SERVER", string.Empty),
                     NeverUseOwnIp = ParseBool(values.GetValueOrDefault($"{prefix}NEVER_USE_OWN_IP", string.Empty)),
+                    HideIpFromUi = ParseBool(values.GetValueOrDefault($"{prefix}HIDE_IP_FROM_UI", string.Empty), defaultValue: true),
                     IsActive = string.Equals(name, active, StringComparison.OrdinalIgnoreCase),
                 };
             }).ToList();
@@ -130,6 +131,7 @@ public sealed class EnvAccountStore
             values[$"{prefix}PROXY_ID"] = account.ProxyId.Trim();
             values[$"{prefix}PROXY_SERVER"] = account.ProxyServer.Trim();
             values[$"{prefix}NEVER_USE_OWN_IP"] = account.NeverUseOwnIp ? "true" : "false";
+            values[$"{prefix}HIDE_IP_FROM_UI"] = account.HideIpFromUi ? "true" : "false";
 
             WriteValues(values);
         }
@@ -324,6 +326,8 @@ public sealed class EnvAccountStore
             lines.Add($"{prefix}PROXY_SERVER={EnvFileParser.FormatValue(values.GetValueOrDefault($"{prefix}PROXY_SERVER", string.Empty))}");
             var neverUseOwnIp = ParseBool(values.GetValueOrDefault($"{prefix}NEVER_USE_OWN_IP", string.Empty));
             lines.Add($"{prefix}NEVER_USE_OWN_IP={(neverUseOwnIp ? "true" : "false")}");
+            var hideIpFromUi = ParseBool(values.GetValueOrDefault($"{prefix}HIDE_IP_FROM_UI", string.Empty), defaultValue: true);
+            lines.Add($"{prefix}HIDE_IP_FROM_UI={(hideIpFromUi ? "true" : "false")}");
             lines.Add(string.Empty);
         }
 
@@ -345,9 +349,18 @@ public sealed class EnvAccountStore
             .ToList();
     }
 
-    // Lenient: only an explicit "true" (any casing) is on; empty/missing/anything else is off.
-    private static bool ParseBool(string? value)
-        => string.Equals(value?.Trim(), "true", StringComparison.OrdinalIgnoreCase);
+    // Lenient: only explicit true/false values override the caller's compatibility default.
+    private static bool ParseBool(string? value, bool defaultValue = false)
+    {
+        if (string.Equals(value?.Trim(), "true", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        return string.Equals(value?.Trim(), "false", StringComparison.OrdinalIgnoreCase)
+            ? false
+            : defaultValue;
+    }
 
     private static string NormalizeName(string raw)
     {

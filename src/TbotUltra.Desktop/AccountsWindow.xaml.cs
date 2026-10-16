@@ -196,6 +196,7 @@ public partial class AccountsWindow : Window
         // Order matters: UseProxyCheckBox_Changed re-checks "Use proxy" while the previous account's
         // "Never use own IP" is still on, which would leave the checkbox and the fields disagreeing.
         NeverUseOwnIpCheckBox.IsChecked = selected.NeverUseOwnIp;
+        HideIpFromUiCheckBox.IsChecked = selected.HideIpFromUi;
         UseProxyCheckBox.IsChecked = selected.ProxyEnabled;
         SafeRunAccountEditorAction(() =>
         {
@@ -1285,7 +1286,8 @@ public partial class AccountsWindow : Window
             _editorProxyUsername,
             _editorProxyPassword,
             ResolveEditorProxyId(proxyServer),
-            DisplayNameTextBox.Text));
+            DisplayNameTextBox.Text,
+            HideIpFromUiCheckBox.IsChecked == true));
     }
 
     private void SelectByName(string name)
@@ -1318,6 +1320,7 @@ public partial class AccountsWindow : Window
         // but every proxy control (including the saved-proxy list) disabled until the user toggled the
         // checkbox off and on again.
         NeverUseOwnIpCheckBox.IsChecked = false;
+        HideIpFromUiCheckBox.IsChecked = true;
         UseProxyCheckBox.IsChecked = false;
         _suppressProxyRotationChange = true;
         UseProxyRotationCheckBox.IsChecked = false;
@@ -1414,7 +1417,8 @@ public partial class AccountsWindow : Window
             UseProxyCheckBox.IsChecked == true,
             BuildProxyServerString(),
             NeverUseOwnIpCheckBox.IsChecked == true,
-            DisplayNameTextBox.Text.Trim());
+            DisplayNameTextBox.Text.Trim(),
+            HideIpFromUiCheckBox.IsChecked == true);
 
     private void SetProxyFieldsEnabled(bool enabled)
     {

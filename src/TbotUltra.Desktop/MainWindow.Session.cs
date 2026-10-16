@@ -724,6 +724,7 @@ public partial class MainWindow
         ProxyId = source.ProxyId,
         ProxyServer = source.ProxyServer,
         NeverUseOwnIp = source.NeverUseOwnIp,
+        HideIpFromUi = source.HideIpFromUi,
         IsActive = source.IsActive,
     };
 

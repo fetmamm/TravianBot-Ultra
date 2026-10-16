@@ -12,7 +12,8 @@ internal sealed record AccountEditorSnapshot(
     bool ProxyEnabled,
     string ProxyServer,
     bool NeverUseOwnIp,
-    string DisplayName = "");
+    string DisplayName = "",
+    bool HideIpFromUi = true);
 
 // Availability drives the row color in the saved-proxy picker so the user can see at a glance which
 // proxies are free to pick: LockedToOther = red, UsedByOthers = yellow, Ok = the normal text color.
@@ -56,7 +57,8 @@ internal sealed record AccountEditorInput(
     string ProxyUsername = "",
     string ProxyPassword = "",
     string ProxyId = "",
-    string DisplayName = "");
+    string DisplayName = "",
+    bool HideIpFromUi = true);
 
 /// <summary>
 /// Stateless account-editor state comparisons and saved-proxy presentation ordering.
@@ -122,6 +124,7 @@ internal static class AccountEditorState
             ProxyId = input.ProxyId,
             ProxyServer = proxyServer,
             NeverUseOwnIp = neverUseOwnIp,
+            HideIpFromUi = input.HideIpFromUi,
         };
     }
 
@@ -168,7 +171,8 @@ internal static class AccountEditorState
             || current.ProxyEnabled != baseline.ProxyEnabled
             || !string.Equals(current.ProxyServer, baseline.ProxyServer, StringComparison.Ordinal)
             || current.NeverUseOwnIp != baseline.NeverUseOwnIp
-            || !string.Equals(current.DisplayName, baseline.DisplayName, StringComparison.Ordinal);
+            || !string.Equals(current.DisplayName, baseline.DisplayName, StringComparison.Ordinal)
+            || current.HideIpFromUi != baseline.HideIpFromUi;
     }
 
     internal static List<SavedProxyOption> BuildSavedProxyOptions(

@@ -1,6 +1,6 @@
 # Engineering Notes
 
-Last updated: 2026-10-15
+Last updated: 2026-10-17
 
 Read this file before changing architecture, selectors, paths, browser behavior, persisted state, queueing,
 or server logic. Keep it short and current: durable rules belong here; detailed decisions belong in ADRs;
@@ -194,6 +194,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
   snapshots; unavailable targets remain unselected, existing active village queue work is projected first, storage
   additions are confirmed once across all selected villages, and the final cross-village insert is atomic.
 - New settings require the complete pipeline: model, defaults, load/save, ViewModel, UI, and tests.
+- The account proxy card lives in the main topbar between Active village and Gold. `Hide IP from UI`
+  is account-scoped, defaults on for new and legacy accounts, and masks both resolved IP addresses and
+  configured proxy endpoints in that card.
 - `Always start Chrome minimized` is a global General setting. Apply it to the main visible browser at
   launch with both Chromium's minimized flag and a best-effort CDP window-state confirmation.
 - Roman construction priority is an account-scoped Construction setting. It applies to every Roman village;

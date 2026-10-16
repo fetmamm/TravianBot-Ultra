@@ -130,36 +130,6 @@
 
                 <Border Grid.Row="3" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
                     <StackPanel>
-                        <TextBlock Text="Proxy" Foreground="{DynamicResource TextSubtleBrush}" Margin="0,0,0,5" />
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="Auto" />
-                                <ColumnDefinition Width="*" />
-                            </Grid.ColumnDefinitions>
-                            <Ellipse x:Name="ProxyStatusIndicator"
-                                     Width="10"
-                                     Height="10"
-                                     Fill="{DynamicResource WarningTextBrush}"
-                                     VerticalAlignment="Top"
-                                     Margin="0,4,7,0" />
-                            <StackPanel Grid.Column="1" Orientation="Horizontal">
-                                <TextBlock x:Name="ProxyStatusTextBlock"
-                                           Text="No proxy is used"
-                                           Foreground="{DynamicResource WarningTextBrush}"
-                                           VerticalAlignment="Center" />
-                                <TextBlock x:Name="ProxyStatusDetailTextBlock"
-                                           Margin="5,0,0,0"
-                                           VerticalAlignment="Center"
-                                           Foreground="{DynamicResource TextMutedBrush}"
-                                           FontSize="10"
-                                           Visibility="Collapsed" />
-                            </StackPanel>
-                        </Grid>
-                    </StackPanel>
-                </Border>
-
-                <Border Grid.Row="4" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
-                    <StackPanel>
                         <DockPanel Margin="0,0,0,5" LastChildFill="False">
                             <TextBlock DockPanel.Dock="Left" Text="Village" Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
                             <!-- Switch village lives here (next to the dropdown) so the bot's working village can be
@@ -507,6 +477,37 @@
 
                 <!-- Right group: everything else, right-aligned -->
                 <StackPanel Grid.Column="2" Orientation="Horizontal">
+                    <Border x:Name="ProxyStatusCard" Style="{StaticResource MetricCard}" Width="150">
+                        <StackPanel>
+                            <TextBlock Text="Proxy" Style="{StaticResource MetricLabel}" />
+                            <Grid>
+                                <Grid.ColumnDefinitions>
+                                    <ColumnDefinition Width="Auto" />
+                                    <ColumnDefinition Width="*" />
+                                </Grid.ColumnDefinitions>
+                                <Ellipse x:Name="ProxyStatusIndicator"
+                                         Width="9"
+                                         Height="9"
+                                         Fill="{DynamicResource WarningTextBrush}"
+                                         VerticalAlignment="Center"
+                                         Margin="0,0,6,0" />
+                                <StackPanel Grid.Column="1">
+                                    <TextBlock x:Name="ProxyStatusTextBlock"
+                                               Text="No proxy is used"
+                                               Foreground="{DynamicResource WarningTextBrush}"
+                                               FontWeight="SemiBold"
+                                               FontSize="12"
+                                               TextTrimming="CharacterEllipsis" />
+                                    <TextBlock x:Name="ProxyStatusDetailTextBlock"
+                                               Foreground="{DynamicResource TextMutedBrush}"
+                                               FontSize="9"
+                                               TextTrimming="CharacterEllipsis"
+                                               Visibility="Collapsed" />
+                                </StackPanel>
+                            </Grid>
+                        </StackPanel>
+                    </Border>
+
                     <Border Style="{StaticResource MetricCard}">
                         <StackPanel>
                             <TextBlock Text="Gold" Style="{StaticResource MetricLabel}" />

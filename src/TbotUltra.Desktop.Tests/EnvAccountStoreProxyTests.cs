@@ -26,12 +26,29 @@ public sealed class EnvAccountStoreProxyTests : IDisposable
             ProxyEnabled = true,
             ProxyId = "proxy-id",
             ProxyServer = "1.2.3.4:8080",
+            HideIpFromUi = false,
         }, setActive: true);
 
         var loaded = store.ListAccounts().Single(a => a.Name == "alice");
         Assert.True(loaded.ProxyEnabled);
         Assert.Equal("proxy-id", loaded.ProxyId);
         Assert.Equal("1.2.3.4:8080", loaded.ProxyServer);
+        Assert.False(loaded.HideIpFromUi);
+    }
+
+    [Fact]
+    public void LegacyAccount_DefaultsToHiddenIp()
+    {
+        File.WriteAllText(_envPath,
+            "TBOT_ACTIVE_ACCOUNT=alice\n" +
+            "TBOT_ACCOUNTS=alice\n" +
+            "TBOT_ALICE_USERNAME=alice\n" +
+            "TBOT_ALICE_PASSWORD=secret\n" +
+            "TBOT_ALICE_SERVER_URL=https://ts1.travian.eu\n");
+
+        var loaded = new EnvAccountStore(_envPath).ListAccounts().Single();
+
+        Assert.True(loaded.HideIpFromUi);
     }
 
     [Fact]
