@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Manage your Tbot Ultra account and prepaid license.">
+  <title>My account · Tbot Ultra</title>
+  <link rel="stylesheet" href="styles.css">
+  <script defer src="config.js"></script>
+  <script defer src="site.js"></script>
+</head>
+<body data-page="account">
+  <header class="site-header">
+    <a class="brand" href="index.html"><span class="brand-mark">T</span>Tbot Ultra</a>
+    <nav><a href="index.html#pricing">Pricing</a><a class="button small" data-download href="#">Download</a></nav>
+  </header>
+
+  <main class="account-shell">
+    <section class="account-heading">
+      <div class="eyebrow">Tbot account</div>
+      <h1>License control,<br><span>in one place.</span></h1>
+      <p>Sign in with the same email and password you use in the program.</p>
+    </section>
+
+    <div id="notice" class="notice" role="status" hidden></div>
+
+    <section id="auth-panel" class="panel auth-panel">
+      <div class="tab-row" role="tablist">
+        <button class="tab active" type="button" data-auth-tab="signin">Sign in</button>
+        <button class="tab" type="button" data-auth-tab="signup">Create account</button>
+        <button class="tab" type="button" data-auth-tab="reset">Reset password</button>
+      </div>
+      <form id="auth-form">
+        <label>Email<input id="email" type="email" autocomplete="email" required></label>
+        <label id="password-row">Password<input id="password" type="password" autocomplete="current-password" minlength="8" required></label>
+        <button id="auth-submit" class="button primary full" type="submit">Sign in</button>
+      </form>
+      <p id="auth-help" class="fine-print">Use the account connected to your Tbot license.</p>
+      <p class="fine-print">Creating an account is subject to the <a href="terms.html">Terms</a>. See how account data is handled in the <a href="privacy.html">Privacy notice</a>.</p>
+    </section>
+
+    <section id="recovery-panel" class="panel auth-panel" hidden>
+      <h2>Choose a new password</h2>
+      <form id="recovery-form">
+        <label>New password<input id="new-password" type="password" autocomplete="new-password" minlength="8" required></label>
+        <button class="button primary full" type="submit">Save new password</button>
+      </form>
+    </section>
+
+    <section id="dashboard" hidden>
+      <div class="dashboard-top">
+        <div><div class="eyebrow">Signed in as</div><div id="account-email" class="account-email"></div></div>
+        <button id="signout" class="button" type="button">Sign out</button>
+      </div>
+
+      <div class="dashboard-grid">
+        <article class="panel status-card">
+          <div class="card-label">Current access</div>
+          <div id="license-tier" class="status-title">Loading…</div>
+          <p id="license-detail"></p>
+          <button id="refresh-status" class="text-button" type="button">Refresh status</button>
+        </article>
+
+        <article class="panel">
+          <div class="card-label">Existing user</div>
+          <h2>Redeem a code</h2>
+          <form id="promo-form" class="inline-form">
+            <input id="promo-code" aria-label="Promotion code" placeholder="TBU-XXXX-XXXX-XXXX-XXXX" required>
+            <button class="button" type="submit">Redeem</button>
+          </form>
+        </article>
+
+        <article class="panel wide">
+          <div class="card-label">Registered program copies</div>
+          <div class="panel-heading"><h2>Maximum two copies</h2><span id="copy-count"></span></div>
+          <div id="copies" class="copies-list"></div>
+        </article>
+
+        <article class="panel wide">
+          <div class="card-label">Prepaid packages</div>
+          <div class="panel-heading"><h2>Add access time</h2><span>No auto-renewal</span></div>
+          <p class="fine-print" data-checkout-mode hidden></p>
+          <p class="fine-print">Purchases are subject to the <a href="terms.html">Terms</a>. Eligible purchases use Stripe Managed Payments as the merchant-of-record service.</p>
+          <div class="package-row">
+            <button type="button" data-buy="1"><strong>1 month</strong><span>€2.99</span></button>
+            <button type="button" data-buy="2"><strong>2 months</strong><span>€4.99</span></button>
+            <button type="button" data-buy="6"><strong>6 months</strong><span>€13.99</span></button>
+            <button type="button" data-buy="12"><strong>12 months</strong><span>€24.99</span></button>
+          </div>
+        </article>
+
+        <article class="panel wide">
+          <div class="card-label">Purchase history</div>
+          <div id="purchases" class="purchase-list"></div>
+        </article>
+      </div>
+    </section>
+  </main>
+  <footer>
+    <span>© <span data-year></span> Tbot Ultra</span>
+    <span class="footer-links"><a href="terms.html">Terms</a><a href="privacy.html">Privacy</a><a href="contact.html">Contact</a></span>
+  </footer>
+</body>
+</html>
