@@ -225,7 +225,7 @@ public partial class MainWindow
     // one opens regardless of whether buildings have been loaded yet.
     internal void OnShowBuildingSlotsClicked()
     {
-        new BuildingSlotsWindow { Owner = this }.ShowDialog();
+        new BuildingSlotsWindow { Owner = this }.Show();
     }
 
     private void QueueBuildingTemplatePlans(IReadOnlyList<BuildingTemplateQueueSelection> selections)

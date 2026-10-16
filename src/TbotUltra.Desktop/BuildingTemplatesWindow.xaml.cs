@@ -192,7 +192,7 @@ public partial class BuildingTemplatesWindow : Window, INotifyPropertyChanged
 
     private void ShowBuildingSlotsButton_Click(object sender, RoutedEventArgs e)
     {
-        new BuildingSlotsWindow { Owner = this }.ShowDialog();
+        new BuildingSlotsWindow { Owner = this }.Show();
     }
 
     private void LoadBuildingOptions(string tribe)
