@@ -1,0 +1,11 @@
+project_id = "Tbot_ultra_new"
+
+[auth]
+site_url = "https://tbot-ultra.pages.dev"
+additional_redirect_urls = ["https://tbot-ultra.pages.dev/account.html"]
+
+[functions.license-api]
+verify_jwt = true
+
+[functions.stripe-webhook]
+verify_jwt = false
