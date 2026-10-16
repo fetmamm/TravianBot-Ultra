@@ -269,6 +269,31 @@ public sealed class SettingsWindowTests : IDisposable
     }
 
     [Fact]
+    public void PacingCategory_StartsSessionAndSmartSleepCardsCollapsed()
+    {
+        _wpf.Run(() =>
+        {
+            var window = new SettingsWindow(
+                CreateStore(new JsonObject()),
+                initialCategory: SettingsCategory.Pacing);
+            try
+            {
+                var sessionPacing = Assert.IsType<Expander>(window.FindName("SessionPacingExpander"));
+                var smartSleep = Assert.IsType<Expander>(window.FindName("SmartSleepExpander"));
+
+                Assert.False(sessionPacing.IsExpanded);
+                Assert.False(smartSleep.IsExpanded);
+                Assert.NotNull(window.FindName("SessionRunMinMinutesTextBox"));
+                Assert.NotNull(window.FindName("SmartSleepMinimumOpportunityTextBox"));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
     public void PacingCategory_ShowsSmartSleepRecommendation()
     {
         _wpf.Run(() =>
