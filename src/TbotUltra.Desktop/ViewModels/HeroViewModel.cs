@@ -89,6 +89,7 @@ public sealed class HeroViewModel : BaseViewModel
     private bool _raidIronCrop = true;
     private string _heroRaidingStatusText = "No oasis scan yet.";
     private bool _isHeroRaidingScanRunning;
+    private bool _isHeroRaidingBrowserOpening;
 
     public HeroViewModel()
     {
@@ -138,6 +139,18 @@ public sealed class HeroViewModel : BaseViewModel
     }
 
     public bool CanScanHeroRaiding => !IsHeroRaidingScanRunning;
+
+    public bool IsHeroRaidingBrowserOpening
+    {
+        get => _isHeroRaidingBrowserOpening;
+        set
+        {
+            if (SetProperty(ref _isHeroRaidingBrowserOpening, value))
+                OnPropertyChanged(nameof(CanOpenHeroRaidingCandidate));
+        }
+    }
+
+    public bool CanOpenHeroRaidingCandidate => !IsHeroRaidingBrowserOpening;
 
     public void ApplyHeroRaidingScan(HeroRaidingScanResult scan)
     {

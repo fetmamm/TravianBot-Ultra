@@ -20,9 +20,9 @@ public sealed class HeroRaidingCandidateItem(HeroRaidingScanCandidate candidate,
     public bool IsUnsafeEstimate => !candidate.IsSafe;
     public string Safety => IsExcluded ? "Excluded"
         : candidate.IsSafe && candidate.PredictedHpAfterRaid is int hp && hp < minimumHpPercent + 10
-            ? "Borderline estimate"
-        : candidate.IsSafe ? "Safe estimate"
-        : candidate.PredictedHpAfterRaid.HasValue ? "Unsafe estimate" : "Safety unknown";
+            ? "Borderline"
+        : candidate.IsSafe ? "Safe"
+        : candidate.PredictedHpAfterRaid.HasValue ? "Unsafe" : "Unknown";
     public DateTimeOffset ObservedAtUtc => candidate.ObservedAtUtc;
 
     public bool IsExcluded

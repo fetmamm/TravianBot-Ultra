@@ -39,6 +39,39 @@ public sealed class HeroRaidingManualUiSourceTests
     }
 
     [Fact]
+    public void CandidateList_UsesFullWidthAndRequestedColumnOrder()
+    {
+        var root = ProjectRootLocator.FindProjectRoot();
+        var xaml = File.ReadAllText(Path.Combine(
+            root, "src", "TbotUltra.Desktop", "Views", "HeroHubPanel.xaml"));
+
+        Assert.DoesNotContain("MaxWidth=\"860\"", xaml, StringComparison.Ordinal);
+        var exclude = xaml.IndexOf("Header=\"Exclude\"", StringComparison.Ordinal);
+        var distance = xaml.IndexOf("Header=\"Distance\"", exclude, StringComparison.Ordinal);
+        var coordinates = xaml.IndexOf("Header=\"Coordinates\"", exclude, StringComparison.Ordinal);
+        var estimate = xaml.IndexOf("Header=\"Estimate\"", exclude, StringComparison.Ordinal);
+        var open = xaml.IndexOf("Header=\"Open\"", exclude, StringComparison.Ordinal);
+        Assert.True(exclude >= 0 && distance > exclude && coordinates > distance);
+        Assert.True(estimate > coordinates && open > estimate);
+    }
+
+    [Fact]
+    public void ManualMapOpen_BypassesPagePacingAndSuppressesUnneededUiSync()
+    {
+        var root = ProjectRootLocator.FindProjectRoot();
+        var mapClient = File.ReadAllText(Path.Combine(
+            root, "src", "TbotUltra.Worker", "Services", "Automation", "Features",
+            "TravianClient.MapOasis.cs"));
+        var navigation = File.ReadAllText(Path.Combine(
+            root, "src", "TbotUltra.Worker", "Services", "Automation", "Core",
+            "TravianClient.Navigation.cs"));
+
+        Assert.Contains("usePageLoadPacing: false", mapClient, StringComparison.Ordinal);
+        Assert.Contains("_suppressEnsureUiSyncDepth++", mapClient, StringComparison.Ordinal);
+        Assert.Contains("if (usePageLoadPacing)", navigation, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void ManualScan_UsesReadinessThatAllowsTheHeroToBeAway()
     {
         var root = ProjectRootLocator.FindProjectRoot();

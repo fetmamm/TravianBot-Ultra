@@ -49,13 +49,13 @@ public sealed class HeroViewModelTests
         ], 3, 0, "Scan complete"));
 
         Assert.Equal(4, vm.HeroRaidingCandidates.Count);
-        Assert.Equal("Safe estimate", vm.HeroRaidingCandidates[0].Safety);
+        Assert.Equal("Safe", vm.HeroRaidingCandidates[0].Safety);
         Assert.False(vm.HeroRaidingCandidates[0].IsUnsafeEstimate);
-        Assert.Equal("Unsafe estimate", vm.HeroRaidingCandidates[1].Safety);
+        Assert.Equal("Unsafe", vm.HeroRaidingCandidates[1].Safety);
         Assert.True(vm.HeroRaidingCandidates[1].IsUnsafeEstimate);
-        Assert.Equal("Safety unknown", vm.HeroRaidingCandidates[2].Safety);
+        Assert.Equal("Unknown", vm.HeroRaidingCandidates[2].Safety);
         Assert.True(vm.HeroRaidingCandidates[2].IsUnsafeEstimate);
-        Assert.Equal("Borderline estimate", vm.HeroRaidingCandidates[3].Safety);
+        Assert.Equal("Borderline", vm.HeroRaidingCandidates[3].Safety);
         Assert.True(vm.HeroRaidingCandidates[3].IsSafe);
     }
 
@@ -70,6 +70,19 @@ public sealed class HeroViewModelTests
 
         vm.IsHeroRaidingScanRunning = false;
         Assert.True(vm.CanScanHeroRaiding);
+    }
+
+    [Fact]
+    public void HeroRaidingMapButtons_DisableTogetherWhileNavigationRuns()
+    {
+        var vm = new HeroViewModel();
+        Assert.True(vm.CanOpenHeroRaidingCandidate);
+
+        vm.IsHeroRaidingBrowserOpening = true;
+        Assert.False(vm.CanOpenHeroRaidingCandidate);
+
+        vm.IsHeroRaidingBrowserOpening = false;
+        Assert.True(vm.CanOpenHeroRaidingCandidate);
     }
 
     [Fact]

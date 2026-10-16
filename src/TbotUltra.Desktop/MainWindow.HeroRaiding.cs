@@ -61,16 +61,25 @@ public partial class MainWindow
     internal Task OnHeroRaidingOpenInBrowserClicked(int x, int y)
     {
         if (!RequireTravianLoginForHeroRaiding()) return Task.CompletedTask;
+        if (_heroViewModel.IsHeroRaidingBrowserOpening) return Task.CompletedTask;
+        _heroViewModel.IsHeroRaidingBrowserOpening = true;
         return GuardUiAsync(async () =>
         {
-            await RunManualOperationAsync(
-                "Open oasis in browser",
-                async token =>
-                {
-                    await _botService.OpenMapTileAsync(LoadBotOptions(), x, y, AppendLog, token);
-                    return true;
-                },
-                CancellationToken.None);
+            try
+            {
+                await RunManualOperationAsync(
+                    "Open oasis in browser",
+                    async token =>
+                    {
+                        await _botService.OpenMapTileAsync(LoadBotOptions(), x, y, AppendLog, token);
+                        return true;
+                    },
+                    CancellationToken.None);
+            }
+            finally
+            {
+                _heroViewModel.IsHeroRaidingBrowserOpening = false;
+            }
         });
     }
 

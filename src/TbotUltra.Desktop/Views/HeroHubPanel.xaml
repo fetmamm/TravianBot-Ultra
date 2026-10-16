@@ -15,8 +15,9 @@
       <views:HeroPanel x:Name="HeroInventoryPanel" Section="Hero inventory" />
     </TabItem>
     <TabItem x:Name="HeroRaidingTabItem" Header="Hero raiding">
-      <ScrollViewer VerticalScrollBarVisibility="Auto" Background="{DynamicResource AppBackgroundBrush}">
-        <StackPanel Margin="14" MaxWidth="860" HorizontalAlignment="Left">
+      <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Disabled"
+                    HorizontalContentAlignment="Stretch" Background="{DynamicResource AppBackgroundBrush}">
+        <StackPanel Margin="14" HorizontalAlignment="Stretch">
           <TextBlock Text="Hero raiding" FontSize="22" FontWeight="SemiBold"
                      Foreground="{DynamicResource TextPrimaryBrush}" />
           <TextBlock Text="Raid unoccupied oases with animals using the hero alone."
@@ -148,13 +149,13 @@
                 <DataGrid.RowStyle>
                   <Style TargetType="DataGridRow">
                     <Style.Triggers>
-                      <DataTrigger Binding="{Binding Safety}" Value="Unsafe estimate">
+                      <DataTrigger Binding="{Binding Safety}" Value="Unsafe">
                         <Setter Property="Background" Value="{DynamicResource DangerBgBrush}" />
                       </DataTrigger>
-                      <DataTrigger Binding="{Binding Safety}" Value="Borderline estimate">
+                      <DataTrigger Binding="{Binding Safety}" Value="Borderline">
                         <Setter Property="Background" Value="{DynamicResource WarningBgBrush}" />
                       </DataTrigger>
-                      <DataTrigger Binding="{Binding Safety}" Value="Safety unknown">
+                      <DataTrigger Binding="{Binding Safety}" Value="Unknown">
                         <Setter Property="Background" Value="{DynamicResource WarningBgBrush}" />
                       </DataTrigger>
                     </Style.Triggers>
@@ -170,21 +171,13 @@
                       </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                   </DataGridTemplateColumn>
+                  <DataGridTextColumn Header="Distance" Binding="{Binding Distance}" IsReadOnly="True" Width="70" />
                   <DataGridTextColumn Header="Coordinates" Binding="{Binding Coordinates}" IsReadOnly="True" Width="90" />
                   <DataGridTextColumn Header="Type" Binding="{Binding OasisType}" IsReadOnly="True" Width="110" />
                   <DataGridTextColumn Header="Animals" Binding="{Binding Animals}" IsReadOnly="True" Width="*" MinWidth="130" />
                   <DataGridTextColumn Header="Predicted HP" Binding="{Binding PredictedHp}" IsReadOnly="True" Width="95" />
                   <DataGridTextColumn Header="Bounty / resource" Binding="{Binding EstimatedBounty}" IsReadOnly="True" Width="110" />
-                  <DataGridTextColumn Header="Distance" Binding="{Binding Distance}" IsReadOnly="True" Width="70" />
-                  <DataGridTemplateColumn Header="Open" Width="120" IsReadOnly="True">
-                    <DataGridTemplateColumn.CellTemplate>
-                      <DataTemplate>
-                        <Button Content="Open in browser" Padding="8,3"
-                                Click="HeroRaidingOpenInBrowserButton_Click" />
-                      </DataTemplate>
-                    </DataGridTemplateColumn.CellTemplate>
-                  </DataGridTemplateColumn>
-                  <DataGridTemplateColumn Header="Status" Width="125" IsReadOnly="True">
+                  <DataGridTemplateColumn Header="Estimate" Width="100" IsReadOnly="True">
                     <DataGridTemplateColumn.CellTemplate>
                       <DataTemplate>
                         <TextBlock Text="{Binding Safety}" VerticalAlignment="Center">
@@ -192,22 +185,31 @@
                             <Style TargetType="TextBlock">
                               <Setter Property="Foreground" Value="{DynamicResource TextSecondaryBrush}" />
                               <Style.Triggers>
-                                <DataTrigger Binding="{Binding Safety}" Value="Safe estimate">
+                                <DataTrigger Binding="{Binding Safety}" Value="Safe">
                                   <Setter Property="Foreground" Value="{DynamicResource SuccessTextBrush}" />
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding Safety}" Value="Unsafe estimate">
+                                <DataTrigger Binding="{Binding Safety}" Value="Unsafe">
                                   <Setter Property="Foreground" Value="{DynamicResource DangerTextBrush}" />
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding Safety}" Value="Borderline estimate">
+                                <DataTrigger Binding="{Binding Safety}" Value="Borderline">
                                   <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
                                 </DataTrigger>
-                                <DataTrigger Binding="{Binding Safety}" Value="Safety unknown">
+                                <DataTrigger Binding="{Binding Safety}" Value="Unknown">
                                   <Setter Property="Foreground" Value="{DynamicResource WarningTextBrush}" />
                                 </DataTrigger>
                               </Style.Triggers>
                             </Style>
                           </TextBlock.Style>
                         </TextBlock>
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
+                  <DataGridTemplateColumn Header="Open" Width="120" IsReadOnly="True">
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate>
+                        <Button Content="Open in browser" Padding="8,3"
+                                IsEnabled="{Binding DataContext.CanOpenHeroRaidingCandidate, RelativeSource={RelativeSource AncestorType=UserControl}}"
+                                Click="HeroRaidingOpenInBrowserButton_Click" />
                       </DataTemplate>
                     </DataGridTemplateColumn.CellTemplate>
                   </DataGridTemplateColumn>

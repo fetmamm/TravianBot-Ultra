@@ -325,7 +325,11 @@ public sealed partial class TravianClient
         }
     }
 
-    private async Task GotoAsync(string pathOrUrl, CancellationToken cancellationToken)
+    private Task GotoAsync(string pathOrUrl, CancellationToken cancellationToken)
+        => GotoAsync(pathOrUrl, cancellationToken, usePageLoadPacing: true);
+
+    private async Task GotoAsync(string pathOrUrl, CancellationToken cancellationToken,
+        bool usePageLoadPacing)
     {
         var url = TravianUrls.ToAbsoluteUrl(ServerUrl, pathOrUrl);
         var beforeUrl = _page.Url;
@@ -411,12 +415,15 @@ public sealed partial class TravianClient
 
             Notify($"[nav] GOTO done target='{url}' current='{_page.Url}' pages={TryGetPageCountForDiagnostics()}");
             InvalidateActiveConstructionsCache();
-            await ApplyPacingDelayAsync(
-                _config.ActionPacingPageLoadMinSeconds,
-                _config.ActionPacingPageLoadMaxSeconds,
-                "page-load-pacing",
-                "after page load",
-                cancellationToken);
+            if (usePageLoadPacing)
+            {
+                await ApplyPacingDelayAsync(
+                    _config.ActionPacingPageLoadMinSeconds,
+                    _config.ActionPacingPageLoadMaxSeconds,
+                    "page-load-pacing",
+                    "after page load",
+                    cancellationToken);
+            }
             await TryDismissOneTimeGoldShopOfferAsync(cancellationToken);
             await TryDismissContinuePromptAsync(cancellationToken);
             trace.Complete("success", $"httpStatus={httpStatus?.ToString() ?? "-"} current={BrowserTraceSanitizer.SanitizeUrl(_page.Url)}", _page.Url);
