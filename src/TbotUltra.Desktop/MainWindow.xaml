@@ -32,6 +32,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
+                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
@@ -50,6 +51,15 @@
                 </StackPanel>
 
                 <Border Grid.Row="1" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
+                    <StackPanel>
+                        <Button x:Name="LicenseAccountButton" Content="Tbot account" Click="LicenseAccountButton_Click" />
+                        <TextBlock x:Name="LicenseCountdownText" Text="Sign in to start automation"
+                                   Foreground="{DynamicResource TextSubtleBrush}" FontSize="11"
+                                   TextWrapping="Wrap" Margin="2,4,2,0" />
+                    </StackPanel>
+                </Border>
+
+                <Border Grid.Row="2" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,4">
                             <TextBlock Text="Account" Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
@@ -97,7 +107,7 @@
                     </StackPanel>
                 </Border>
 
-                <Border Grid.Row="2" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
+                <Border Grid.Row="3" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
                     <Grid>
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="*" />
@@ -122,7 +132,7 @@
                     </Grid>
                 </Border>
 
-                <Border Grid.Row="3" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
+                <Border Grid.Row="4" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
                     <StackPanel>
                         <TextBlock Text="Proxy" Foreground="{DynamicResource TextSubtleBrush}" Margin="0,0,0,5" />
                         <Grid>
@@ -152,7 +162,7 @@
                     </StackPanel>
                 </Border>
 
-                <Border Grid.Row="4" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
+                <Border Grid.Row="5" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,5" LastChildFill="False">
                             <TextBlock DockPanel.Dock="Left" Text="Village" Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
@@ -182,7 +192,7 @@
                     </StackPanel>
                 </Border>
 
-                <StackPanel Grid.Row="5">
+                <StackPanel Grid.Row="6">
                     <!-- Monochrome line icons (Segoe MDL2 Assets) per the reference; tinted with the
                          button's own foreground. Glyph codepoints can be swapped freely if one looks off. -->
                     <StackPanel.Resources>
@@ -252,7 +262,7 @@
                     </Button>
                 </StackPanel>
 
-                <Border Grid.Row="6" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7">
+                <Border Grid.Row="7" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7">
                     <StackPanel>
                         <Border x:Name="LoopStateBadge"
                                 Background="{DynamicResource StateIdleBrush}"

@@ -1,0 +1,47 @@
+<Window x:Class="TbotUltra.Desktop.RedeemCodeWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        Title="Redeem code" Width="430" Height="285" ResizeMode="NoResize"
+        WindowStartupLocation="CenterOwner" Background="{DynamicResource AppBackgroundBrush}">
+    <Grid>
+        <StackPanel x:Name="RedeemContent" Margin="22">
+            <TextBlock Text="Redeem existing-user code" FontSize="21" FontWeight="SemiBold"
+                       Foreground="{DynamicResource TextPrimaryBrush}" />
+            <TextBlock Text="Paste the personal code you received. It can only be used once."
+                       Margin="0,5,0,16" TextWrapping="Wrap"
+                       Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBlock Text="Code" Foreground="{DynamicResource TextSecondaryBrush}" />
+            <TextBox x:Name="CodeBox" Margin="0,5,0,8" />
+            <TextBlock x:Name="ErrorText" MinHeight="18" TextWrapping="Wrap"
+                       Foreground="{DynamicResource DangerTextBrush}" />
+            <Grid Margin="0,12,0,0">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Button Grid.Column="1" Content="Cancel" Padding="14,5" Margin="0,0,8,0"
+                        IsCancel="True" />
+                <Button x:Name="RedeemButton" Grid.Column="2" Content="Redeem code" Padding="14,5"
+                        IsDefault="True" Background="{DynamicResource SuccessBgBrush}"
+                        Foreground="{DynamicResource SuccessTextBrush}"
+                        BorderBrush="{DynamicResource SuccessBorderBrush}" Click="Redeem_Click" />
+            </Grid>
+        </StackPanel>
+
+        <Grid x:Name="RedeemLoadingOverlay" Panel.ZIndex="10" Visibility="Collapsed"
+              Background="{DynamicResource OverlayScrimBrush}">
+            <Border Width="300" Padding="20" HorizontalAlignment="Center" VerticalAlignment="Center"
+                    Background="{DynamicResource SurfaceBrush}"
+                    BorderBrush="{DynamicResource FocusBorderBrush}" BorderThickness="1"
+                    CornerRadius="9">
+                <StackPanel>
+                    <TextBlock Text="Redeeming code..." FontSize="15" FontWeight="SemiBold"
+                               Foreground="{DynamicResource TextPrimaryBrush}" />
+                    <ProgressBar Height="6" Margin="0,14,0,0" IsIndeterminate="True"
+                                 Foreground="{DynamicResource InfoBrush}" />
+                </StackPanel>
+            </Border>
+        </Grid>
+    </Grid>
+</Window>

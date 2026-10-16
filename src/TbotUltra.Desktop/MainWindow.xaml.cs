@@ -419,6 +419,15 @@ public partial class MainWindow : Window
         _sessionLogPath = Path.Combine(_projectRoot, "logs", $"TbotUltra_Log_{DateTime.Now:yyyyMMdd_HHmmss}.txt");
         InitializeSessionLogFile();
         _sessionLogWriter = new SerialFileAppendWriter(_sessionLogPath);
+        try
+        {
+            UpdateChecker.LoadRepositoryConfig(_projectRoot);
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[update] Repository configuration ignored: {FormatExceptionForLog(ex)}");
+        }
+        InitializeLicensing();
         BrowserStatePersistence.ClearAllSavedStates(_projectRoot, AppendLog);
         if (BuildingCatalogService.CatalogLoadError is { } catalogError)
         {
@@ -471,6 +480,7 @@ public partial class MainWindow : Window
         taskRunner.LobbyWorldSelectionRequested = SelectLobbyWorldAsync;
         taskRunner.ManualLoginConfirmationRequested = ConfirmManualLoginAsync;
         taskRunner.LobbyWorldServerResolved = SaveResolvedLobbyWorldServerAsync;
+        taskRunner.AutomationUseLeaseFactory = AcquireBotUseLeaseAsync;
         // One-time migration of the old shared config/queue.json into the active account's per-account
         // queue file. Runs before the store is used so the recover/clear logic below sees the migrated items.
         QueueMigration.MigrateLegacyGlobalQueue(_projectRoot, _accountStore.ActiveAccountName(), AppendLog);

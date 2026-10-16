@@ -5,6 +5,7 @@ config/accounts.json
 
 # --- Per-account / runtime working data (keep the repo empty for new users) ---
 config/bot.json
+config/license-copy.json
 config/queue.json
 config/queue.json.lock
 config/building_templates.json
@@ -53,6 +54,8 @@ artifacts/
 .vs/
 .vscode/
 .idea/
+.wrangler/
+supabase/.temp/
 *.user
 *.rsuser
 *.suo
@@ -78,3 +81,6 @@ Reports/report_20260706_230827.png
 docs/Logs to analyze/TbotUltra_Log_20260823_093748_edit.txt
 /docs/DOM
 /docs/Issues to analyze
+/config/license-copy.json
+/config/license-session.dat
+/config/license-offline.dat

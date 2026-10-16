@@ -109,6 +109,7 @@ public sealed partial class BotTaskRunner
     public Func<LobbyWorldSelectionRequest, CancellationToken, Task<string?>>? LobbyWorldSelectionRequested { get; set; }
     public Func<ManualLoginConfirmationRequest, CancellationToken, Task<bool>>? ManualLoginConfirmationRequested { get; set; }
     public Func<LobbyWorldServerResolution, CancellationToken, Task>? LobbyWorldServerResolved { get; set; }
+    public Func<CancellationToken, ValueTask<IAsyncDisposable>>? AutomationUseLeaseFactory { get; set; }
     public event Action<FarmLossDestinationChange>? FarmLossDestinationChanged;
     public event Action<FarmListHistoryUpdated>? FarmListHistoryUpdated;
     public event Action<VerifiedActiveVillage>? ActiveVillageVerified;
@@ -583,6 +584,9 @@ public sealed partial class BotTaskRunner
         await _sessionGate.WaitAsync(cancellationToken);
         try
         {
+            await using var automationUseLease = AutomationUseLeaseFactory is null
+                ? null
+                : await AutomationUseLeaseFactory(cancellationToken);
             var lease = await AcquireClientLeaseAsync(options, account, log, interactive, cancellationToken);
             var effectiveSaveStateMode = saveStateMode;
             try

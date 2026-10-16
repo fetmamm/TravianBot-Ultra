@@ -74,6 +74,12 @@ public partial class MainWindow
             return;
         }
 
+        if (await AcquireLicenseRunAsync() is null)
+        {
+            _automationDesk.EndManualVillageStatusRound();
+            return;
+        }
+
         var cancellationToken = _loopController.StartOperation("village-scan-now");
         try
         {
@@ -96,6 +102,7 @@ public partial class MainWindow
         {
             _loopController.DisposeOperation();
             _automationDesk.EndManualVillageStatusRound();
+            await ReleaseLicenseRunAsync();
         }
     }
 
@@ -442,7 +449,16 @@ public partial class MainWindow
         _automationDesk.BeginAutoQueueRun(Interlocked.Increment(ref _operationCounter));
         LogConservativeAutomationWarnings(AutomationExecutionOptions.WithoutImplicitVillageTarget(LoadBotOptions()));
         AppendLog($"[AUTOQ {_automationDesk.AutoQueueRunLogId}] START");
-        var result = await _automationDesk.StartAsync(new AutomationStart(AutomationRunMode.AutoQueue, context));
+        AutomationStartResult result;
+        try
+        {
+            result = await _automationDesk.StartAsync(new AutomationStart(AutomationRunMode.AutoQueue, context));
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[automation] Auto Queue start failed: {FormatExceptionForLog(ex)}");
+            return;
+        }
         if (result is AutomationStartResult.Busy)
         {
             AppendLog("[automation] Auto Queue start skipped because another run owns the gate.");

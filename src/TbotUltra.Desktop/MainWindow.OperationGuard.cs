@@ -23,6 +23,11 @@ public partial class MainWindow
         Action<bool> toggleBusy,
         Func<string, CancellationToken, Task<string>> body)
     {
+        if (await AcquireLicenseRunAsync() is null)
+        {
+            return;
+        }
+
         var operationId = BeginOperation(operationName);
         var operationSw = Stopwatch.StartNew();
         var operationToken = _loopController.StartOperation("operation");
@@ -45,6 +50,7 @@ public partial class MainWindow
         {
             toggleBusy(false);
             DisposeOperationCts();
+            await ReleaseLicenseRunAsync();
         }
     }
 }

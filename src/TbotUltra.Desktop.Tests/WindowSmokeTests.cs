@@ -4,6 +4,7 @@ using System.Windows.Media;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
 using TbotUltra.Desktop.Services;
+using TbotUltra.Desktop.Services.Licensing;
 using TbotUltra.Desktop.ViewModels;
 using TbotUltra.Desktop.Views;
 using Xunit;
@@ -23,6 +24,134 @@ public sealed class WindowSmokeTests
     public WindowSmokeTests(WpfSmokeFixture wpf)
     {
         _wpf = wpf;
+    }
+
+    [Fact]
+    public void LicenseAccountWindow_ShowsClearSignedOutStateAndLoadingCard()
+    {
+        _wpf.Run(() =>
+        {
+            using var client = new TbotLicenseClient(
+                new TbotLicenseSettings("https://example.supabase.co", "publishable-key"));
+            var window = new LicenseAccountWindow(client,
+                new LicenseCopyIdentity(Guid.NewGuid(), new string('a', 64)));
+            try
+            {
+                Assert.Equal("Not signed in", Assert.IsType<TextBlock>(
+                    window.FindName("AccountStatusTitle")).Text);
+                Assert.Equal(Visibility.Visible, Assert.IsType<Border>(
+                    window.FindName("SessionStatusBorder")).Visibility);
+                Assert.Equal(Visibility.Visible, Assert.IsType<Grid>(
+                    window.FindName("SignedOutActionsPanel")).Visibility);
+                Assert.Equal(Visibility.Collapsed, Assert.IsType<Border>(
+                    window.FindName("ProgramCopiesPanel")).Visibility);
+                Assert.Equal(Visibility.Visible, Assert.IsType<Grid>(
+                    window.FindName("LoadingOverlay")).Visibility);
+                Assert.Equal("Open account website", Assert.IsType<Button>(
+                    window.FindName("OpenWebsiteButton")).Content);
+                var selectedPackage = Assert.IsType<RadioButton>(
+                    window.FindName("Package6Button"));
+                Assert.True(selectedPackage.IsChecked);
+                selectedPackage.ApplyTemplate();
+                var selectedCard = Assert.IsType<Border>(
+                    selectedPackage.Template.FindName("Card", selectedPackage));
+                Assert.Equal(
+                    Assert.IsType<SolidColorBrush>(window.FindResource("SuccessBorderBrush")).Color,
+                    Assert.IsType<SolidColorBrush>(selectedCard.BorderBrush).Color);
+                Assert.False(Assert.IsType<RadioButton>(
+                    window.FindName("Package1Button")).IsChecked);
+                Assert.Equal(
+                    Assert.IsType<SolidColorBrush>(window.FindResource("ControlBackgroundBrush")).Color,
+                    Assert.IsType<SolidColorBrush>(Assert.IsType<ListBox>(
+                        window.FindName("CopiesList")).Background).Color);
+                var removeCopyBackground = Assert.IsType<SolidColorBrush>(Assert.IsType<Button>(
+                    window.FindName("RemoveCopyButton")).Background).Color;
+                Assert.Equal(removeCopyBackground, Assert.IsType<SolidColorBrush>(Assert.IsType<Button>(
+                    window.FindName("OpenCheckoutButton")).Background).Color);
+                Assert.Equal(removeCopyBackground, Assert.IsType<SolidColorBrush>(Assert.IsType<Button>(
+                    window.FindName("RedeemCodeButton")).Background).Color);
+                Assert.Null(window.FindName("MessagePanel"));
+                var signInButton = Assert.IsType<Button>(window.FindName("SignInButton"));
+                Assert.Equal(
+                    Assert.IsType<SolidColorBrush>(window.FindResource("SuccessBgBrush")).Color,
+                    Assert.IsType<SolidColorBrush>(signInButton.Background).Color);
+                Assert.Equal("Create account", Assert.IsType<Button>(
+                    window.FindName("CreateButton")).Content);
+                Assert.Null(window.FindName("AuthPanel"));
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void LicenseAuthWindow_ValidatesCredentialsBeforeRequest()
+    {
+        _wpf.Run(() =>
+        {
+            using var client = new TbotLicenseClient(
+                new TbotLicenseSettings("https://example.supabase.co", "publishable-key"));
+            var window = new LicenseAuthWindow(client,
+                new LicenseCopyIdentity(Guid.NewGuid(), new string('a', 64)),
+                createAccount: false,
+                "https://example.com/account");
+            try
+            {
+                Assert.Equal("Sign in", Assert.IsType<Button>(
+                    window.FindName("SubmitButton")).Content);
+                Assert.Equal("Open account website", Assert.IsType<Button>(
+                    window.FindName("OpenWebsiteButton")).Content);
+                Assert.Equal(Visibility.Collapsed, Assert.IsType<Grid>(
+                    window.FindName("LoadingOverlay")).Visibility);
+
+                Assert.IsType<Button>(window.FindName("SubmitButton"))
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+                var error = Assert.IsType<TextBlock>(window.FindName("ErrorText"));
+                Assert.Equal("Enter your email and password.", error.Text);
+                Assert.Equal(
+                    Assert.IsType<SolidColorBrush>(window.FindResource("DangerTextBrush")).Color,
+                    Assert.IsType<SolidColorBrush>(error.Foreground).Color);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void RedeemCodeWindow_ExplainsEmptyAndInvalidCodes()
+    {
+        _wpf.Run(() =>
+        {
+            using var client = new TbotLicenseClient(
+                new TbotLicenseSettings("https://example.supabase.co", "publishable-key"));
+            var window = new RedeemCodeWindow(client);
+            try
+            {
+                Assert.Equal(Visibility.Collapsed, Assert.IsType<Grid>(
+                    window.FindName("RedeemLoadingOverlay")).Visibility);
+                Assert.Equal("That code is invalid or has already been used.",
+                    RedeemCodeWindow.FriendlyRedeemError(
+                        "Invalid or already redeemed promotion code"));
+
+                var redeemButton = Assert.IsType<Button>(window.FindName("RedeemButton"));
+                Assert.Equal(
+                    Assert.IsType<SolidColorBrush>(window.FindResource("SuccessBgBrush")).Color,
+                    Assert.IsType<SolidColorBrush>(redeemButton.Background).Color);
+                redeemButton.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+                Assert.Equal("Paste your code first.", Assert.IsType<TextBlock>(
+                    window.FindName("ErrorText")).Text);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
     }
 
     [Fact]

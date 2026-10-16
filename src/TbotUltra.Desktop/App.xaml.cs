@@ -1,4 +1,5 @@
 using System.IO;
+using System.Security.Cryptography;
 using System.Text;
 using System.Windows;
 using System.Windows.Threading;
@@ -18,6 +19,7 @@ public partial class App : Application
     private bool _hasLoadedMainWindow;
     private bool _startupCanceled;
     private StartupProgressWindow? _startupProgressWindow;
+    private Mutex? _copyInstanceMutex;
 
     /// <summary>
     /// Application-wide service provider. Populated in <see cref="OnStartup"/>
@@ -28,6 +30,21 @@ public partial class App : Application
 
     protected override void OnStartup(StartupEventArgs e)
     {
+        var copyPath = Path.GetFullPath(AppContext.BaseDirectory)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .ToUpperInvariant();
+        var copyHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(copyPath)))[..24];
+        _copyInstanceMutex = new Mutex(true, $"Local\\TbotUltra-{copyHash}", out var ownsCopyInstance);
+        if (!ownsCopyInstance)
+        {
+            _copyInstanceMutex.Dispose();
+            _copyInstanceMutex = null;
+            MessageBox.Show("This Tbot copy is already running. Use a second extracted folder for the second copy.",
+                "Tbot Ultra", MessageBoxButton.OK, MessageBoxImage.Information);
+            Shutdown(3);
+            return;
+        }
+
         DispatcherUnhandledException += App_DispatcherUnhandledException;
         AppDomain.CurrentDomain.UnhandledException += CurrentDomain_UnhandledException;
         TaskScheduler.UnobservedTaskException += TaskScheduler_UnobservedTaskException;
@@ -127,6 +144,9 @@ public partial class App : Application
 
         _serviceProvider?.Dispose();
         _serviceProvider = null;
+        _copyInstanceMutex?.ReleaseMutex();
+        _copyInstanceMutex?.Dispose();
+        _copyInstanceMutex = null;
 
         base.OnExit(e);
     }

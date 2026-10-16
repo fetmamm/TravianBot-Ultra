@@ -379,6 +379,8 @@ public partial class MainWindow
             _loopController.CancelQueueAutoRunRoot();
             _loopController.CancelSessionScope();
             await _automationDesk.DisposeAsync();
+            await ReleaseLicenseRunAsync(force: true);
+            _licenseDisplayTimer.Stop();
             ClosePopupWindows();
 
             await _villageCacheWriter.WhenIdleAsync();
@@ -428,6 +430,7 @@ public partial class MainWindow
                 System.Diagnostics.Debug.WriteLine($"Could not flush background UI persistence during shutdown: {ex}");
             }
             _backgroundTasks.Dispose();
+            _licenseClient?.Dispose();
             _shutdownCompleted = true;
             _shutdownInProgress = false;
             Application.Current.Shutdown();
