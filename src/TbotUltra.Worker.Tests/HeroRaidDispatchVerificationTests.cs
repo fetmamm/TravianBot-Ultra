@@ -58,7 +58,8 @@ public sealed class HeroRaidDispatchVerificationTests
     public void RaidForm_PacesFocusAndTypesCoordinatesAndHero()
     {
         var source = File.ReadAllText(Path.Combine(ProjectRootLocator.FindProjectRoot(),
-            "src", "TbotUltra.Worker", "Services", "Automation", "Hero", "TravianClient.Hero.Raiding.cs"));
+                "src", "TbotUltra.Worker", "Services", "Automation", "Hero", "TravianClient.Hero.Raiding.cs"))
+            .Replace("\r\n", "\n", StringComparison.Ordinal);
         var start = source.IndexOf("internal async Task PrepareHeroRaidingSendFormAsync(", StringComparison.Ordinal);
         var end = source.IndexOf("internal async Task<bool> SendHeroRaidAsync(", start, StringComparison.Ordinal);
         Assert.True(start >= 0 && end > start);
