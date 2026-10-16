@@ -57,8 +57,11 @@ Published artifacts belong under `artifacts/`, never beside source files.
   Desktop may use its protected, previously verified paid cache for at most 24 hours during network failure;
   trial and free time always require the server. A license lease covers active `BotTaskRunner` work or a bounded
   manual operation only; Continuous Loop/Auto Queue idle time and Smart Sleep must not hold a lease. Keep licensing
-  independent of the user-configured `SessionPacer`. The encrypted Tbot account refresh token lives under `config/`
-  and must survive normal restarts and self-updates. Account UI must state signed-in status explicitly and cover
+  independent of the user-configured `SessionPacer`, and keep server traffic outside the UI admission gate. Adjacent
+  browser operations may reuse one lease during a bounded 10-second release grace period; renew the lease near its
+  server expiry instead of starting and stopping it per navigation. The encrypted Tbot account refresh token lives
+  under `config/` and must survive normal restarts and self-updates. Account UI must state signed-in status explicitly
+  and cover
   remote account loads with the themed progress overlay so unloaded controls never flash their default WPF colors.
   A registered copy means one installation folder, not one physical computer; two processes from the same folder
   share its `license-copy.json`. Supabase RPCs that return `void` legitimately answer with HTTP 204, so the Edge

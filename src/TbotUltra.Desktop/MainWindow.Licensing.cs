@@ -11,6 +11,7 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
+    private static readonly TimeSpan LicenseReleaseGracePeriod = TimeSpan.FromSeconds(10);
     private TbotLicenseClient? _licenseClient;
     private LicenseCopyIdentity? _licenseCopy;
     private TbotLicenseStatus? _licenseStatus;
@@ -22,6 +23,7 @@ public partial class MainWindow
     private int _licenseScopeCount;
     private volatile bool _licenseRunUsable;
     private CancellationTokenSource? _licenseRenewalCancellation;
+    private CancellationTokenSource? _licenseReleaseDelayCancellation;
 
     private void InitializeLicensing()
     {
@@ -170,6 +172,7 @@ public partial class MainWindow
         await _licenseRunGate.WaitAsync(cancellationToken);
         try
         {
+            CancelPendingLicenseRelease();
             if (_licenseRunId is not null)
             {
                 if (!_licenseRunUsable) return null;
@@ -237,33 +240,104 @@ public partial class MainWindow
 
     private async Task ReleaseLicenseRunAsync(bool force = false)
     {
+        Guid runId;
         await _licenseRunGate.WaitAsync();
         try
         {
-            if (_licenseRunId is not { } runId) return;
+            if (_licenseRunId is not { } activeRunId) return;
+            runId = activeRunId;
             if (force) _licenseScopeCount = 1;
             _licenseScopeCount = Math.Max(0, _licenseScopeCount - 1);
             if (_licenseScopeCount > 0) return;
-            _licenseRunId = null;
-            _licenseRunUsable = false;
-            _licenseRenewalCancellation?.Cancel();
-            _licenseRenewalCancellation?.Dispose();
-            _licenseRenewalCancellation = null;
-            try
+
+            if (!force)
             {
-                if (_licenseClient is not null) await _licenseClient.StopAsync(runId);
-                AppendLog("[license] Automation lease stopped.");
+                ScheduleLicenseRelease(runId);
+                return;
             }
-            catch (Exception ex)
-            {
-                AppendLog($"[license] Lease stop failed; it will expire on the server: {FormatExceptionForLog(ex)}");
-            }
-            await RefreshLicenseStatusAsync();
+
+            CancelPendingLicenseRelease();
+            DetachLicenseRun();
         }
         finally
         {
             _licenseRunGate.Release();
         }
+
+        await StopLicenseRunOnServerAsync(runId);
+    }
+
+    private void ScheduleLicenseRelease(Guid runId)
+    {
+        if (_licenseReleaseDelayCancellation is not null) return;
+        var cancellation = new CancellationTokenSource();
+        _licenseReleaseDelayCancellation = cancellation;
+        _ = CompleteScheduledLicenseReleaseAsync(runId, cancellation);
+    }
+
+    private async Task CompleteScheduledLicenseReleaseAsync(Guid runId,
+        CancellationTokenSource cancellation)
+    {
+        try
+        {
+            await Task.Delay(LicenseReleaseGracePeriod, cancellation.Token);
+            await _licenseRunGate.WaitAsync(cancellation.Token);
+            try
+            {
+                if (!ReferenceEquals(_licenseReleaseDelayCancellation, cancellation)
+                    || _licenseRunId != runId || _licenseScopeCount > 0)
+                {
+                    return;
+                }
+
+                _licenseReleaseDelayCancellation = null;
+                DetachLicenseRun();
+            }
+            finally
+            {
+                _licenseRunGate.Release();
+            }
+
+            await StopLicenseRunOnServerAsync(runId);
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
+            // A new browser operation reused the active lease before the grace period ended.
+        }
+        finally
+        {
+            cancellation.Dispose();
+        }
+    }
+
+    private void CancelPendingLicenseRelease()
+    {
+        var cancellation = _licenseReleaseDelayCancellation;
+        _licenseReleaseDelayCancellation = null;
+        cancellation?.Cancel();
+    }
+
+    private void DetachLicenseRun()
+    {
+        _licenseRunId = null;
+        _licenseRunUsable = false;
+        _licenseRenewalCancellation?.Cancel();
+        _licenseRenewalCancellation?.Dispose();
+        _licenseRenewalCancellation = null;
+    }
+
+    private async Task StopLicenseRunOnServerAsync(Guid runId)
+    {
+        try
+        {
+            if (_licenseClient is not null) await _licenseClient.StopAsync(runId);
+            AppendLog("[license] Automation lease stopped after the active browser-operation burst.");
+        }
+        catch (Exception ex)
+        {
+            AppendLog($"[license] Lease stop failed; it will expire on the server: {FormatExceptionForLog(ex)}");
+        }
+        await RefreshLicenseStatusAsync();
     }
 
     private async ValueTask<IAsyncDisposable> AcquireBotUseLeaseAsync(CancellationToken cancellationToken)
