@@ -986,6 +986,9 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - When Travian leaves a valid Add-target lookup unresolved, close/reopen the form and retry that same coordinate once
   before marking it failed. Definitive invalid-coordinate, occupied-oasis, duplicate, and verified Save outcomes are
   never retried; an exhausted lookup retry must state that Save was not attempted.
+- Add farms defaults to trusting explicit occupancy from the latest raw map-oasis scan: only rows confirmed
+  unoccupied are planned and no live owner check is requested. The user may turn this off to live-check every
+  candidate; including occupied oases bypasses both filters.
 - Add farms target protection reads the resolved `.targetWrapper .player` and `.targetWrapper .alliance` before Save.
   The account player is always excluded; the optional current-alliance and account-scoped player/alliance lists use
   normalized exact matching. Missing identity retries the lookup once and must never click Save. Cache resolved

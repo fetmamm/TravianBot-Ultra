@@ -401,6 +401,13 @@
                             <CheckBox x:Name="IncludeOccupiedCheckBox" Margin="0,6,0,0"
                                       Content="Include occupied oases"
                                       Checked="InputChanged" Unchecked="InputChanged" />
+                            <CheckBox x:Name="TrustSavedOasisOccupancyCheckBox"
+                                      Margin="0,8,0,0"
+                                      Content="Trust raw scan occupancy (faster)"
+                                      IsChecked="True"
+                                      ToolTip="Skip entries marked occupied in the latest raw map scan instead of checking every oasis live."
+                                      Checked="InputChanged"
+                                      Unchecked="InputChanged" />
                         </StackPanel>
                     </Border>
 

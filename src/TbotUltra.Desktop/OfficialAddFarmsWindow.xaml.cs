@@ -528,6 +528,11 @@ public partial class OfficialAddFarmsWindow : Window
         }
 
         var sourceCount = (SourceListComboBox.SelectedItem as SourceOption)?.SelectedCount ?? 0;
+        if (TrustSavedOasisOccupancyCheckBox is not null)
+        {
+            TrustSavedOasisOccupancyCheckBox.IsEnabled = IncludeOccupiedCheckBox?.IsChecked != true;
+        }
+
         var populationMode = (PopulationFilterComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString() ?? "all";
         PopulationTextBox.IsEnabled = populationMode is "under" or "over";
         var distanceMode = (DistanceFilterModeComboBox.SelectedItem as ComboBoxItem)?.Tag?.ToString()
@@ -619,7 +624,8 @@ public partial class OfficialAddFarmsWindow : Window
             FillModeRadioButton.IsChecked == true,
             AmountComboBox.SelectedItem is int selectedAmount ? selectedAmount : 0,
             SkipDuplicatesCheckBox.IsChecked == true,
-            ExcludeNatarsCheckBox.IsChecked == true));
+            ExcludeNatarsCheckBox.IsChecked == true,
+            TrustSavedOasisOccupancyCheckBox.IsChecked == true));
     }
 
     private bool TryReadFilters(

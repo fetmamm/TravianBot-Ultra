@@ -366,6 +366,81 @@ public sealed class PanelServiceContractTests : IDisposable
     }
 
     [Fact]
+    public void FarmListsWorkflow_TrustsSavedOasisOccupancyWithoutLiveChecks()
+    {
+        var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());
+        var rows = new[]
+        {
+            new TravcoListStore.TravcoSavedRow { Coordinates = "1|1", OasisType = "Wood", IsOccupied = false },
+            new TravcoListStore.TravcoSavedRow { Coordinates = "2|2", OasisType = "Wood", IsOccupied = true },
+            new TravcoListStore.TravcoSavedRow { Coordinates = "3|3", OasisType = "Wood", IsOccupied = null },
+        };
+
+        var plans = workflow.CreateAddSession(ViewRequest(new BotOptions()), () => []).BuildPlans(
+            new OfficialFarmAddPlanRequest(
+                Guid.NewGuid(),
+                "Map Oasis_Wood",
+                rows,
+                [new OfficialFarmAddTarget("A", 0, true)],
+                new HashSet<string>(),
+                "distance_asc",
+                "all",
+                0,
+                null,
+                null,
+                null,
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Wood" },
+                IncludeOccupied: false,
+                SkipLowPopulationVillages: false,
+                IsOasisList: true,
+                FillAvailable: true,
+                RequestedAmount: 100,
+                SkipDuplicates: true,
+                TrustSavedOasisOccupancy: true));
+
+        var coordinate = Assert.Single(Assert.Single(plans).Coordinates);
+        Assert.Equal((1, 1), (coordinate.X, coordinate.Y));
+        Assert.False(coordinate.RequireUnoccupiedOasis);
+    }
+
+    [Fact]
+    public void FarmListsWorkflow_LiveChecksOasesWhenSavedOccupancyIsNotTrusted()
+    {
+        var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());
+        var rows = new[]
+        {
+            new TravcoListStore.TravcoSavedRow { Coordinates = "1|1", OasisType = "Wood", IsOccupied = false },
+            new TravcoListStore.TravcoSavedRow { Coordinates = "2|2", OasisType = "Wood", IsOccupied = true },
+        };
+
+        var plans = workflow.CreateAddSession(ViewRequest(new BotOptions()), () => []).BuildPlans(
+            new OfficialFarmAddPlanRequest(
+                Guid.NewGuid(),
+                "Map Oasis_Wood",
+                rows,
+                [new OfficialFarmAddTarget("A", 0, true)],
+                new HashSet<string>(),
+                "distance_asc",
+                "all",
+                0,
+                null,
+                null,
+                null,
+                new HashSet<string>(StringComparer.OrdinalIgnoreCase) { "Wood" },
+                IncludeOccupied: false,
+                SkipLowPopulationVillages: false,
+                IsOasisList: true,
+                FillAvailable: true,
+                RequestedAmount: 100,
+                SkipDuplicates: true,
+                TrustSavedOasisOccupancy: false));
+
+        var coordinates = Assert.Single(plans).Coordinates;
+        Assert.Equal(2, coordinates.Count);
+        Assert.All(coordinates, coordinate => Assert.True(coordinate.RequireUnoccupiedOasis));
+    }
+
+    [Fact]
     public async Task FarmListsWorkflow_OwnsSnapshotRoundTripAndTimerRebase()
     {
         var workflow = CreateFarmListsWorkflow(new RecordingFarmingClient(), CreateConfigStore());

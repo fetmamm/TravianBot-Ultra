@@ -951,6 +951,12 @@ public sealed class FarmListsWorkflow(
     {
         var workingExisting = new HashSet<string>(request.ExistingCoordinates, StringComparer.OrdinalIgnoreCase);
         var plans = new List<OfficialFarmAddPlan>();
+        var trustSavedOasisOccupancy = request.IsOasisList
+                                       && !request.IncludeOccupied
+                                       && request.TrustSavedOasisOccupancy;
+        var sourceRows = trustSavedOasisOccupancy
+            ? request.SourceRows.Where(row => row.IsOccupied == false).ToList()
+            : request.SourceRows;
         foreach (var target in request.Targets.Where(target => target.Selected))
         {
             const int officialFarmListCapacity = 100;
@@ -964,9 +970,9 @@ public sealed class FarmListsWorkflow(
             }
 
             var coordinates = OfficialFarmSelection.Filter(
-                request.SourceRows,
+                sourceRows,
                 workingExisting,
-                request.SourceRows.Count,
+                sourceRows.Count,
                 request.Order,
                 request.PopulationMode,
                 request.PopulationLimit,
@@ -976,7 +982,9 @@ public sealed class FarmListsWorkflow(
                 request.OasisTypes,
                 request.IncludeOccupied,
                 request.SkipLowPopulationVillages,
-                requireUnoccupiedOasis: request.IsOasisList && !request.IncludeOccupied,
+                requireUnoccupiedOasis: request.IsOasisList
+                                         && !request.IncludeOccupied
+                                         && !trustSavedOasisOccupancy,
                 minimumDistance: request.MinimumDistance,
                 excludeNatars: request.ExcludeNatars);
             if (coordinates.Count == 0)
@@ -1611,7 +1619,8 @@ public sealed record OfficialFarmAddPlanRequest(
     bool FillAvailable,
     int RequestedAmount,
     bool SkipDuplicates,
-    bool ExcludeNatars = false);
+    bool ExcludeNatars = false,
+    bool TrustSavedOasisOccupancy = true);
 
 internal sealed class FarmListsCreateSession(
     FarmListsWorkflow workflow,
