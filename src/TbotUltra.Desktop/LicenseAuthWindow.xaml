@@ -1,26 +1,62 @@
 <Window x:Class="TbotUltra.Desktop.LicenseAuthWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-        Title="Tbot account" Width="430" Height="390" ResizeMode="NoResize"
+        Title="Tbot account" Width="430" Height="340" ResizeMode="NoResize"
         WindowStartupLocation="CenterOwner" Background="{DynamicResource AppBackgroundBrush}">
     <Grid>
         <StackPanel Margin="22">
-            <TextBlock x:Name="HeadingText" FontSize="21" FontWeight="SemiBold"
-                       Foreground="{DynamicResource TextPrimaryBrush}" />
+            <DockPanel LastChildFill="True">
+                <Button x:Name="OpenWebsiteButton" DockPanel.Dock="Right" Content="Open website"
+                        Margin="12,0,0,0" Padding="10,4" VerticalAlignment="Center"
+                        Click="OpenWebsite_Click" />
+                <TextBlock x:Name="HeadingText" FontSize="21" FontWeight="SemiBold"
+                           VerticalAlignment="Center"
+                           Foreground="{DynamicResource TextPrimaryBrush}" />
+            </DockPanel>
             <TextBlock x:Name="DescriptionText" Margin="0,5,0,16" TextWrapping="Wrap"
                        Foreground="{DynamicResource TextSecondaryBrush}" />
 
             <TextBlock Text="Email" Foreground="{DynamicResource TextSecondaryBrush}" />
             <TextBox x:Name="EmailBox" Margin="0,5,0,10" />
             <TextBlock Text="Password" Foreground="{DynamicResource TextSecondaryBrush}" />
-            <PasswordBox x:Name="PasswordBox" Margin="0,5,0,8" />
+            <Grid Margin="0,5,0,10">
+                <Grid.ColumnDefinitions>
+                    <ColumnDefinition Width="*" />
+                    <ColumnDefinition Width="Auto" />
+                </Grid.ColumnDefinitions>
+                <Grid>
+                    <PasswordBox x:Name="PasswordBox" />
+                    <TextBox x:Name="VisiblePasswordBox" Visibility="Collapsed" />
+                </Grid>
+                <ToggleButton x:Name="PasswordRevealButton" Grid.Column="1" Width="34"
+                              Margin="6,0,0,0" ToolTip="Show password"
+                              Checked="PasswordReveal_Changed" Unchecked="PasswordReveal_Changed">
+                    <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE890;" />
+                </ToggleButton>
+            </Grid>
+            <StackPanel x:Name="ConfirmPasswordPanel" Visibility="Collapsed">
+                <TextBlock Text="Confirm password" Foreground="{DynamicResource TextSecondaryBrush}" />
+                <Grid Margin="0,5,0,8">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="*" />
+                        <ColumnDefinition Width="Auto" />
+                    </Grid.ColumnDefinitions>
+                    <Grid>
+                        <PasswordBox x:Name="ConfirmPasswordBox" />
+                        <TextBox x:Name="VisibleConfirmPasswordBox" Visibility="Collapsed" />
+                    </Grid>
+                    <ToggleButton x:Name="ConfirmPasswordRevealButton" Grid.Column="1" Width="34"
+                                  Margin="6,0,0,0" ToolTip="Show password"
+                                  Checked="ConfirmPasswordReveal_Changed"
+                                  Unchecked="ConfirmPasswordReveal_Changed">
+                        <TextBlock FontFamily="Segoe MDL2 Assets" Text="&#xE890;" />
+                    </ToggleButton>
+                </Grid>
+            </StackPanel>
             <TextBlock x:Name="ErrorText" MinHeight="18" TextWrapping="Wrap"
                        Foreground="{DynamicResource DangerTextBrush}" />
 
-            <Button x:Name="OpenWebsiteButton" Content="Open account website"
-                    Margin="0,10,0,12" Padding="12,5" HorizontalAlignment="Stretch"
-                    Click="OpenWebsite_Click" />
-            <Grid>
+            <Grid Margin="0,12,0,0">
                 <Grid.ColumnDefinitions>
                     <ColumnDefinition Width="*" />
                     <ColumnDefinition Width="Auto" />

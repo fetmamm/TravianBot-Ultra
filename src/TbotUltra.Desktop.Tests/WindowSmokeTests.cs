@@ -1,5 +1,6 @@
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
 using System.Windows.Media;
 using TbotUltra.Core.Configuration;
 using TbotUltra.Desktop.Models;
@@ -45,12 +46,17 @@ public sealed class WindowSmokeTests
                     window.FindName("SignedOutActionsPanel")).Visibility);
                 Assert.Equal(Visibility.Collapsed, Assert.IsType<Border>(
                     window.FindName("ProgramCopiesPanel")).Visibility);
+                var programCopiesPanel = Assert.IsType<Border>(window.FindName("ProgramCopiesPanel"));
+                var buyPanel = Assert.IsType<Border>(window.FindName("BuyPanel"));
+                var accountCards = Assert.IsType<StackPanel>(programCopiesPanel.Parent);
+                Assert.True(accountCards.Children.IndexOf(programCopiesPanel) <
+                            accountCards.Children.IndexOf(buyPanel));
                 Assert.Equal(Visibility.Visible, Assert.IsType<Grid>(
                     window.FindName("LoadingOverlay")).Visibility);
-                Assert.Equal("Open account website", Assert.IsType<Button>(
+                Assert.Equal("Open website", Assert.IsType<Button>(
                     window.FindName("OpenWebsiteButton")).Content);
                 var selectedPackage = Assert.IsType<RadioButton>(
-                    window.FindName("Package6Button"));
+                    window.FindName("Package2Button"));
                 Assert.True(selectedPackage.IsChecked);
                 selectedPackage.ApplyTemplate();
                 var selectedCard = Assert.IsType<Border>(
@@ -59,7 +65,7 @@ public sealed class WindowSmokeTests
                     Assert.IsType<SolidColorBrush>(window.FindResource("SuccessBorderBrush")).Color,
                     Assert.IsType<SolidColorBrush>(selectedCard.BorderBrush).Color);
                 Assert.False(Assert.IsType<RadioButton>(
-                    window.FindName("Package1Button")).IsChecked);
+                    window.FindName("Package6Button")).IsChecked);
                 Assert.Equal(
                     Assert.IsType<SolidColorBrush>(window.FindResource("ControlBackgroundBrush")).Color,
                     Assert.IsType<SolidColorBrush>(Assert.IsType<ListBox>(
@@ -101,8 +107,10 @@ public sealed class WindowSmokeTests
             {
                 Assert.Equal("Sign in", Assert.IsType<Button>(
                     window.FindName("SubmitButton")).Content);
-                Assert.Equal("Open account website", Assert.IsType<Button>(
+                Assert.Equal("Open website", Assert.IsType<Button>(
                     window.FindName("OpenWebsiteButton")).Content);
+                Assert.Equal(Visibility.Collapsed, Assert.IsType<StackPanel>(
+                    window.FindName("ConfirmPasswordPanel")).Visibility);
                 Assert.Equal(Visibility.Collapsed, Assert.IsType<Grid>(
                     window.FindName("LoadingOverlay")).Visibility);
 
@@ -114,6 +122,49 @@ public sealed class WindowSmokeTests
                 Assert.Equal(
                     Assert.IsType<SolidColorBrush>(window.FindResource("DangerTextBrush")).Color,
                     Assert.IsType<SolidColorBrush>(error.Foreground).Color);
+            }
+            finally
+            {
+                window.Close();
+            }
+        });
+    }
+
+    [Fact]
+    public void LicenseAuthWindow_ConfirmsNewPasswordAndCanRevealIt()
+    {
+        _wpf.Run(() =>
+        {
+            using var client = new TbotLicenseClient(
+                new TbotLicenseSettings("https://example.supabase.co", "publishable-key"));
+            var window = new LicenseAuthWindow(client,
+                new LicenseCopyIdentity(Guid.NewGuid(), new string('a', 64)),
+                createAccount: true,
+                "https://example.com/account");
+            try
+            {
+                Assert.Equal(Visibility.Visible, Assert.IsType<StackPanel>(
+                    window.FindName("ConfirmPasswordPanel")).Visibility);
+                Assert.Equal("Open website", Assert.IsType<Button>(
+                    window.FindName("OpenWebsiteButton")).Content);
+
+                Assert.IsType<TextBox>(window.FindName("EmailBox")).Text = "person@example.com";
+                var passwordBox = Assert.IsType<PasswordBox>(window.FindName("PasswordBox"));
+                passwordBox.Password = "password";
+                var revealButton = Assert.IsType<ToggleButton>(
+                    window.FindName("PasswordRevealButton"));
+                revealButton.IsChecked = true;
+                Assert.Equal(Visibility.Visible, Assert.IsType<TextBox>(
+                    window.FindName("VisiblePasswordBox")).Visibility);
+                Assert.Equal("password", Assert.IsType<TextBox>(
+                    window.FindName("VisiblePasswordBox")).Text);
+
+                Assert.IsType<PasswordBox>(window.FindName("ConfirmPasswordBox")).Password = "different";
+                Assert.IsType<Button>(window.FindName("SubmitButton"))
+                    .RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+
+                Assert.Equal("The passwords do not match.", Assert.IsType<TextBlock>(
+                    window.FindName("ErrorText")).Text);
             }
             finally
             {

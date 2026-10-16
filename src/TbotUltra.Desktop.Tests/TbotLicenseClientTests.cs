@@ -87,6 +87,42 @@ public sealed class TbotLicenseClientTests
     }
 
     [Fact]
+    public async Task AccountEmailRemainsAvailableAfterSignOutAndRestart()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), $"tbot-license-{Guid.NewGuid():N}");
+        var sessionPath = Path.Combine(directory, "license-session.dat");
+        try
+        {
+            using var http = new HttpClient(new ReplyHandler(_ => Task.FromResult(
+                new HttpResponseMessage(HttpStatusCode.OK)
+                {
+                    Content = new StringContent("""
+                        {"access_token":"token","refresh_token":"refresh-token","expires_in":3600}
+                        """, Encoding.UTF8, "application/json"),
+                })));
+            using (var client = new TbotLicenseClient(
+                       new TbotLicenseSettings("https://example.supabase.co", "publishable-key"),
+                       sessionPath, http))
+            {
+                await client.SignInAsync("person@example.com", "password");
+                client.SignOut();
+                Assert.Equal("person@example.com", client.RememberedEmail);
+            }
+
+            using var restartedClient = new TbotLicenseClient(
+                new TbotLicenseSettings("https://example.supabase.co", "publishable-key"),
+                sessionPath, new HttpClient(new ReplyHandler(_ => throw new InvalidOperationException())));
+
+            Assert.False(restartedClient.IsSignedIn);
+            Assert.Equal("person@example.com", restartedClient.RememberedEmail);
+        }
+        finally
+        {
+            if (Directory.Exists(directory)) Directory.Delete(directory, recursive: true);
+        }
+    }
+
+    [Fact]
     public async Task SignedInCopyCanReadStatusAndStartAndStopLease()
     {
         var calls = new List<(string Path, string? Authorization, string? Body)>();

@@ -32,7 +32,7 @@ foreach ($relativePath in $requiredFiles) {
     }
 }
 
-foreach ($privateName in @("license-copy.json", "license-session.dat", "license-offline.dat")) {
+foreach ($privateName in @("license-copy.json", "license-session.dat", "license-offline.dat", "license-email.dat")) {
     if (Test-Path -LiteralPath (Join-Path $resolvedPackageRoot "config\$privateName")) {
         throw "Release bundle contains private per-user license data: $privateName"
     }

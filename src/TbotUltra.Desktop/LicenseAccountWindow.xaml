@@ -54,7 +54,7 @@
             <StackPanel Margin="22">
                 <DockPanel Margin="0,0,0,16" LastChildFill="True">
                     <Button x:Name="OpenWebsiteButton" DockPanel.Dock="Right"
-                            Content="Open account website" Padding="12,5"
+                            Content="Open website" Padding="12,5"
                             Margin="12,0,0,0" VerticalAlignment="Center" Click="OpenWebsite_Click" />
                     <StackPanel>
                         <TextBlock Text="Tbot account" FontSize="24" FontWeight="SemiBold"
@@ -120,64 +120,7 @@
                     </Grid>
                 </Border>
 
-                <Border x:Name="BuyPanel" Style="{StaticResource AccountCardStyle}">
-                    <StackPanel>
-                        <TextBlock Text="Buy prepaid time" Style="{StaticResource SectionTitleStyle}" />
-                        <TextBlock Text="Choose a prepaid package, then continue to secure payment."
-                                   Margin="0,4,0,10" Foreground="{DynamicResource TextSubtleBrush}" />
-                        <UniformGrid x:Name="PackageOptionsPanel" Columns="2">
-                            <RadioButton x:Name="Package1Button" GroupName="LicensePackage" Tag="1"
-                                         Style="{StaticResource PackageCardStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="1 month" FontWeight="SemiBold" />
-                                    <TextBlock Text="€2.99" Margin="0,4,0,0"
-                                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                                </StackPanel>
-                            </RadioButton>
-                            <RadioButton x:Name="Package2Button" GroupName="LicensePackage" Tag="2"
-                                         Style="{StaticResource PackageCardStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="2 months" FontWeight="SemiBold" />
-                                    <TextBlock Text="€4.99" Margin="0,4,0,0"
-                                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                                </StackPanel>
-                            </RadioButton>
-                            <RadioButton x:Name="Package6Button" GroupName="LicensePackage" Tag="6"
-                                         IsChecked="True" Style="{StaticResource PackageCardStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="6 months" FontWeight="SemiBold" />
-                                    <TextBlock Text="€13.99" Margin="0,4,0,0"
-                                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                                </StackPanel>
-                            </RadioButton>
-                            <RadioButton x:Name="Package12Button" GroupName="LicensePackage" Tag="12"
-                                         Style="{StaticResource PackageCardStyle}">
-                                <StackPanel>
-                                    <TextBlock Text="12 months" FontWeight="SemiBold" />
-                                    <TextBlock Text="€24.99" Margin="0,4,0,0"
-                                               Foreground="{DynamicResource TextSecondaryBrush}" />
-                                </StackPanel>
-                            </RadioButton>
-                        </UniformGrid>
-                        <Button x:Name="OpenCheckoutButton" Content="Open Stripe Checkout" Padding="12,5"
-                                HorizontalAlignment="Stretch" Margin="0,2,0,0" Click="Buy_Click" />
-                        <Border Height="1" Margin="0,14,0,12"
-                                Background="{DynamicResource BorderSubtleBrush}" />
-                        <Grid>
-                            <Grid.ColumnDefinitions>
-                                <ColumnDefinition Width="*" />
-                                <ColumnDefinition Width="Auto" />
-                            </Grid.ColumnDefinitions>
-                            <TextBlock Text="Have an existing-user code?"
-                                       VerticalAlignment="Center"
-                                       Foreground="{DynamicResource TextSecondaryBrush}" />
-                            <Button x:Name="RedeemCodeButton" Grid.Column="1" Content="Redeem code" Padding="12,4"
-                                    Click="Redeem_Click" />
-                        </Grid>
-                    </StackPanel>
-                </Border>
-
-                <Border x:Name="ProgramCopiesPanel" Style="{StaticResource AccountCardStyle}" Margin="0">
+                <Border x:Name="ProgramCopiesPanel" Style="{StaticResource AccountCardStyle}">
                     <StackPanel>
                         <Grid>
                             <Grid.ColumnDefinitions>
@@ -228,6 +171,64 @@
                         </ListBox>
                     </StackPanel>
                 </Border>
+
+                <Border x:Name="BuyPanel" Style="{StaticResource AccountCardStyle}" Margin="0">
+                    <StackPanel>
+                        <TextBlock Text="Buy prepaid time" Style="{StaticResource SectionTitleStyle}" />
+                        <TextBlock Text="Choose a prepaid package, then continue to secure payment."
+                                   Margin="0,4,0,10" Foreground="{DynamicResource TextSubtleBrush}" />
+                        <UniformGrid x:Name="PackageOptionsPanel" Columns="2">
+                            <RadioButton x:Name="Package1Button" GroupName="LicensePackage" Tag="1"
+                                         Style="{StaticResource PackageCardStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="1 month" FontWeight="SemiBold" />
+                                    <TextBlock Text="€2.99" Margin="0,4,0,0"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="Package2Button" GroupName="LicensePackage" Tag="2"
+                                         IsChecked="True" Style="{StaticResource PackageCardStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="2 months" FontWeight="SemiBold" />
+                                    <TextBlock Text="€4.99" Margin="0,4,0,0"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="Package6Button" GroupName="LicensePackage" Tag="6"
+                                         Style="{StaticResource PackageCardStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="6 months" FontWeight="SemiBold" />
+                                    <TextBlock Text="€13.99" Margin="0,4,0,0"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                </StackPanel>
+                            </RadioButton>
+                            <RadioButton x:Name="Package12Button" GroupName="LicensePackage" Tag="12"
+                                         Style="{StaticResource PackageCardStyle}">
+                                <StackPanel>
+                                    <TextBlock Text="12 months" FontWeight="SemiBold" />
+                                    <TextBlock Text="€24.99" Margin="0,4,0,0"
+                                               Foreground="{DynamicResource TextSecondaryBrush}" />
+                                </StackPanel>
+                            </RadioButton>
+                        </UniformGrid>
+                        <Button x:Name="OpenCheckoutButton" Content="Open Stripe Checkout" Padding="12,5"
+                                HorizontalAlignment="Stretch" Margin="0,2,0,0" Click="Buy_Click" />
+                        <Border Height="1" Margin="0,14,0,12"
+                                Background="{DynamicResource BorderSubtleBrush}" />
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="Auto" />
+                            </Grid.ColumnDefinitions>
+                            <TextBlock Text="Have an existing-user code?"
+                                       VerticalAlignment="Center"
+                                       Foreground="{DynamicResource TextSecondaryBrush}" />
+                            <Button x:Name="RedeemCodeButton" Grid.Column="1" Content="Redeem code" Padding="12,4"
+                                    Click="Redeem_Click" />
+                        </Grid>
+                    </StackPanel>
+                </Border>
+
             </StackPanel>
         </ScrollViewer>
 

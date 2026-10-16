@@ -64,6 +64,7 @@ public sealed class TbotLicenseClient : IDisposable
     private readonly TbotLicenseSettings _settings;
     private readonly string? _sessionPath;
     private readonly string? _offlinePath;
+    private readonly string? _rememberedEmailPath;
     private readonly string _installationHash;
     private readonly Action<string>? _log;
     private readonly SemaphoreSlim _sessionGate = new(1, 1);
@@ -72,6 +73,7 @@ public sealed class TbotLicenseClient : IDisposable
     private DateTimeOffset _expiresAt;
     private OfflinePaidCache? _offlinePaidCache;
     private Guid? _registeredCopyId;
+    public string? RememberedEmail { get; private set; }
 
     private sealed record OfflinePaidCache(Guid CopyId, string InstallationHash, DateTimeOffset VerifiedAt,
         DateTimeOffset FullAccessUntil, DateTimeOffset LastSeenAt);
@@ -82,6 +84,9 @@ public sealed class TbotLicenseClient : IDisposable
         _settings = settings;
         _sessionPath = sessionPath;
         _offlinePath = sessionPath is null ? null : Path.Combine(Path.GetDirectoryName(sessionPath)!, "license-offline.dat");
+        _rememberedEmailPath = sessionPath is null
+            ? null
+            : Path.Combine(Path.GetDirectoryName(sessionPath)!, "license-email.dat");
         var installationPath = sessionPath is null
             ? "in-memory"
             : Path.GetFullPath(Path.GetDirectoryName(sessionPath)!).TrimEnd(
@@ -101,6 +106,18 @@ public sealed class TbotLicenseClient : IDisposable
             {
                 File.Delete(sessionPath);
                 _log?.Invoke($"[license] Saved account session was unreadable: {ex.Message}");
+            }
+        }
+        if (_rememberedEmailPath is not null && File.Exists(_rememberedEmailPath))
+        {
+            try
+            {
+                RememberedEmail = ReadProtected(_rememberedEmailPath);
+            }
+            catch (Exception ex) when (ex is FormatException or CryptographicException or IOException)
+            {
+                File.Delete(_rememberedEmailPath);
+                _log?.Invoke($"[license] Saved account email was unreadable: {ex.Message}");
             }
         }
         if (_refreshToken is not null && _offlinePath is not null && File.Exists(_offlinePath))
@@ -134,6 +151,7 @@ public sealed class TbotLicenseClient : IDisposable
         };
         using var response = await _http.SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
+        RememberEmail(email);
     }
 
     public async Task SignInAsync(string email, string password, CancellationToken cancellationToken = default)
@@ -147,6 +165,7 @@ public sealed class TbotLicenseClient : IDisposable
         using var response = await _http.SendAsync(request, cancellationToken);
         await EnsureSuccessAsync(response, cancellationToken);
         await SaveSessionAsync(response, cancellationToken);
+        RememberEmail(email);
     }
 
     public async Task<string?> GetAccountEmailAsync(CancellationToken cancellationToken = default)
@@ -170,6 +189,16 @@ public sealed class TbotLicenseClient : IDisposable
         _expiresAt = default;
         if (_sessionPath is not null && File.Exists(_sessionPath)) File.Delete(_sessionPath);
         ClearOfflineCache();
+    }
+
+    private void RememberEmail(string email)
+    {
+        RememberedEmail = email.Trim();
+        if (_rememberedEmailPath is not null)
+        {
+            WriteProtected(_rememberedEmailPath, RememberedEmail);
+            _log?.Invoke("[license] Account email saved for the next sign-in.");
+        }
     }
 
     public async Task<TbotLicenseStatus> GetStatusAsync(CancellationToken cancellationToken = default)
