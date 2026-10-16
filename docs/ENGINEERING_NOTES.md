@@ -1,6 +1,6 @@
 # Engineering Notes
 
-Last updated: 2026-10-14
+Last updated: 2026-10-15
 
 Read this file before changing architecture, selectors, paths, browser behavior, persisted state, queueing,
 or server logic. Keep it short and current: durable rules belong here; detailed decisions belong in ADRs;
@@ -53,6 +53,16 @@ Published artifacts belong under `artifacts/`, never beside source files.
 - `LoopController` owns loop lifecycle and cancellation. UI code must not create competing loop state.
 - `AutomationDesk` is Desktop's single owner for Continuous Loop and Auto Queue orchestration. `MainWindow`
   retains only the desk; its composition root constructs the desk's internal runtime modules and mode passes.
+- Supabase is the authority for Tbot license periods, registered copies and the shared daily free quota.
+  Desktop may use its protected, previously verified paid cache for at most 24 hours during network failure;
+  trial and free time always require the server. A license lease covers active `BotTaskRunner` work or a bounded
+  manual operation only; Continuous Loop/Auto Queue idle time and Smart Sleep must not hold a lease. Keep licensing
+  independent of the user-configured `SessionPacer`. The encrypted Tbot account refresh token lives under `config/`
+  and must survive normal restarts and self-updates. Account UI must state signed-in status explicitly and cover
+  remote account loads with the themed progress overlay so unloaded controls never flash their default WPF colors.
+  A registered copy means one installation folder, not one physical computer; two processes from the same folder
+  share its `license-copy.json`. Supabase RPCs that return `void` legitimately answer with HTTP 204, so the Edge
+  adapter accepts an empty success only for those named write operations and still requires JSON for status/leases.
 - `SessionSleepLifecycle` owns capture, graceful stop, browser close, wake login retry, and automation restore.
   `SessionPacer` owns timing/state transitions; `MainWindow` only adapts WPF, browser, login, and automation effects.
 - Long-running UI commands use the shared busy/guard pattern, expose Cancel when supported, and restore UI
