@@ -32,7 +32,6 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="Auto" />
-                    <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                     <RowDefinition Height="Auto" />
                 </Grid.RowDefinitions>
@@ -104,35 +103,32 @@
                                         Click="ReenableAccountButton_Click" />
                             </StackPanel>
                         </Border>
+                        <Grid Margin="0,7,0,0">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <Button x:Name="LoginButton"
+                                    Grid.Column="0"
+                                    Margin="0,0,3,0"
+                                    Content="Login"
+                                    Background="{DynamicResource SuccessBgBrush}"
+                                    Foreground="{DynamicResource SuccessTextBrush}"
+                                    BorderBrush="{DynamicResource SuccessBorderBrush}"
+                                    Click="LoginButton_Click" />
+                            <Button x:Name="LogoutButton"
+                                    Grid.Column="1"
+                                    Margin="3,0,0,0"
+                                    Content="Logout"
+                                    Background="{DynamicResource ControlBackgroundBrush}"
+                                    Foreground="{DynamicResource TextSubtleBrush}"
+                                    BorderBrush="{DynamicResource BorderBrush}"
+                                    Click="LogoutButton_Click" />
+                        </Grid>
                     </StackPanel>
                 </Border>
 
                 <Border Grid.Row="3" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
-                    <Grid>
-                        <Grid.ColumnDefinitions>
-                            <ColumnDefinition Width="*" />
-                            <ColumnDefinition Width="*" />
-                        </Grid.ColumnDefinitions>
-                        <Button x:Name="LoginButton"
-                                Grid.Column="0"
-                                Margin="0,0,3,0"
-                                Content="Login"
-                                Background="{DynamicResource SuccessBgBrush}"
-                                Foreground="{DynamicResource SuccessTextBrush}"
-                                BorderBrush="{DynamicResource SuccessBorderBrush}"
-                                Click="LoginButton_Click" />
-                        <Button x:Name="LogoutButton"
-                                Grid.Column="1"
-                                Margin="3,0,0,0"
-                                Content="Logout"
-                                Background="{DynamicResource ControlBackgroundBrush}"
-                                Foreground="{DynamicResource TextSubtleBrush}"
-                                BorderBrush="{DynamicResource BorderBrush}"
-                                Click="LogoutButton_Click" />
-                    </Grid>
-                </Border>
-
-                <Border Grid.Row="4" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
                     <StackPanel>
                         <TextBlock Text="Proxy" Foreground="{DynamicResource TextSubtleBrush}" Margin="0,0,0,5" />
                         <Grid>
@@ -162,7 +158,7 @@
                     </StackPanel>
                 </Border>
 
-                <Border Grid.Row="5" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
+                <Border Grid.Row="4" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7" Margin="0,0,0,6">
                     <StackPanel>
                         <DockPanel Margin="0,0,0,5" LastChildFill="False">
                             <TextBlock DockPanel.Dock="Left" Text="Village" Foreground="{DynamicResource TextSubtleBrush}" VerticalAlignment="Center" />
@@ -192,7 +188,7 @@
                     </StackPanel>
                 </Border>
 
-                <StackPanel Grid.Row="6">
+                <StackPanel Grid.Row="5">
                     <!-- Monochrome line icons (Segoe MDL2 Assets) per the reference; tinted with the
                          button's own foreground. Glyph codepoints can be swapped freely if one looks off. -->
                     <StackPanel.Resources>
@@ -262,7 +258,7 @@
                     </Button>
                 </StackPanel>
 
-                <Border Grid.Row="7" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7">
+                <Border Grid.Row="6" Background="{DynamicResource SurfaceAltBrush}" BorderBrush="{DynamicResource BorderSubtleBrush}" BorderThickness="1" CornerRadius="8" Padding="7">
                     <StackPanel>
                         <Border x:Name="LoopStateBadge"
                                 Background="{DynamicResource StateIdleBrush}"

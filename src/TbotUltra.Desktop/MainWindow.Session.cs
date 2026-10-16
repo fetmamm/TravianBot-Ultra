@@ -24,7 +24,19 @@ public partial class MainWindow
 
     // Login button clicked
     private async void LoginButton_Click(object sender, RoutedEventArgs e)
-        => await GuardUiAsync(() => ExecuteLoginFlowAsync());
+    {
+        if (_licenseClient?.IsSignedIn != true)
+        {
+            AppDialog.Show(this,
+                "Sign in to your Tbot account before logging in to Travian. Open Tbot account, sign in, then try again.",
+                "Tbot account required",
+                MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
+
+        await GuardUiAsync(() => ExecuteLoginFlowAsync());
+    }
 
     // Login function as the button is clicked
     private async Task ExecuteLoginFlowAsync(
