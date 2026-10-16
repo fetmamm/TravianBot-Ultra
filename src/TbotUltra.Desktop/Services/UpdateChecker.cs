@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Text.RegularExpressions;
 
 namespace TbotUltra.Desktop.Services;
 
@@ -13,12 +14,31 @@ namespace TbotUltra.Desktop.Services;
 // so the UI never blocks or alarms on a failed check.
 public static class UpdateChecker
 {
-    public const string RepoOwner = "fetmamm";
-    public const string RepoName = "TravianBot-Ultra";
-    public const string ReleasesPageUrl = $"https://github.com/{RepoOwner}/{RepoName}/releases";
-    private const string LatestReleaseApiUrl = $"https://api.github.com/repos/{RepoOwner}/{RepoName}/releases/latest";
+    private static string _repoOwner = "fetmamm";
+    private static string _repoName = "Tbot-Ultra-Releases";
+    public static string ReleasesPageUrl => $"https://github.com/{_repoOwner}/{_repoName}/releases";
+    private static string LatestReleaseApiUrl => $"https://api.github.com/repos/{_repoOwner}/{_repoName}/releases/latest";
 
     private static readonly HttpClient Http = CreateClient();
+
+    public static void LoadRepositoryConfig(string projectRoot)
+    {
+        var path = Path.Combine(projectRoot, "config", "update.json");
+        if (!File.Exists(path)) path = Path.Combine(projectRoot, ".release-template", "config", "update.json");
+        if (!File.Exists(path)) return;
+
+        using var document = JsonDocument.Parse(File.ReadAllText(path));
+        var owner = document.RootElement.GetProperty("owner").GetString();
+        var repository = document.RootElement.GetProperty("repository").GetString();
+        if (owner is null || repository is null ||
+            !Regex.IsMatch(owner, "^[A-Za-z0-9-]{1,39}$") ||
+            !Regex.IsMatch(repository, "^[A-Za-z0-9_.-]{1,100}$"))
+        {
+            throw new InvalidDataException("Update repository configuration is invalid.");
+        }
+        _repoOwner = owner;
+        _repoName = repository;
+    }
 
     public sealed record ReleaseInfo(
         string LatestVersion,

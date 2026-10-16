@@ -19,6 +19,8 @@ $requiredFiles = @(
     "config\bot.json",
     "config\queue.json",
     "config\servers.user.json",
+    "config\license.json",
+    "config\update.json",
     ".playwright\node\win32_x64\node.exe"
 )
 
@@ -27,6 +29,12 @@ foreach ($relativePath in $requiredFiles) {
     $path = Join-Path $resolvedPackageRoot $relativePath
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         throw "Release bundle is missing required file: $relativePath"
+    }
+}
+
+foreach ($privateName in @("license-copy.json", "license-session.dat", "license-offline.dat")) {
+    if (Test-Path -LiteralPath (Join-Path $resolvedPackageRoot "config\$privateName")) {
+        throw "Release bundle contains private per-user license data: $privateName"
     }
 }
 

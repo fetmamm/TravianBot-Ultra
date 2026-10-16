@@ -4,7 +4,8 @@ No installation needed.
 1. Extract the zip to a folder where you have write access (e.g. your Desktop, NOT Program Files).
 2. Move or rename the extracted folder wherever you like - it stays self-contained.
 3. Run Tbot Ultra.exe inside the folder.
-4. Add your account and server inside the app (Account -> Manage), then log in.
+4. Create or sign in to your Tbot account in the app (Tbot account).
+5. Add your Travian account and server inside the app (Account -> Manage), then log in.
 
 Always distribute and extract the complete portable zip. Tbot Ultra.exe cannot be
 used by itself because the bundled config, Playwright driver and Chromium are required.
@@ -13,7 +14,9 @@ You do NOT need to edit .env or config files by hand - the app writes them for y
 when you save your account and settings.
 
 Running multiple accounts at the same time:
-- Extract a SEPARATE copy of the portable folder for each account
+- You can register up to TWO separate program copies on one Tbot account.
+- Both copies may run on the same computer, with any of your Travian accounts.
+- Extract a SEPARATE copy of the portable folder for each running copy
   (e.g. Tbot-account1\, Tbot-account2\).
 - Each folder has its own config, account, browser session and logs, so they
   run fully isolated and can run simultaneously.

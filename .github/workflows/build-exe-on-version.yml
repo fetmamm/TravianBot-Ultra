@@ -327,11 +327,24 @@ jobs:
         id: create_release
         env:
           GH_TOKEN: ${{ github.token }}
+          PUBLIC_RELEASE_TOKEN: ${{ secrets.RELEASE_REPO_TOKEN }}
+          PUBLIC_RELEASE_REPOSITORY: ${{ vars.PUBLIC_RELEASE_REPOSITORY }}
           TAG_NAME: ${{ steps.version.outputs.tag }}
           VERSION_NUMBER: ${{ steps.version.outputs.version }}
           PORTABLE_NAME: ${{ steps.version.outputs.portable_name }}
         shell: pwsh
         run: |
+          $releaseRepository = $env:GITHUB_REPOSITORY
+          $targetRef = $env:GITHUB_SHA
+          if (-not [string]::IsNullOrWhiteSpace($env:PUBLIC_RELEASE_REPOSITORY)) {
+            if ([string]::IsNullOrWhiteSpace($env:PUBLIC_RELEASE_TOKEN)) {
+              throw "PUBLIC_RELEASE_REPOSITORY requires the RELEASE_REPO_TOKEN secret."
+            }
+            $releaseRepository = $env:PUBLIC_RELEASE_REPOSITORY
+            $targetRef = "main"
+            $env:GH_TOKEN = $env:PUBLIC_RELEASE_TOKEN
+          }
+
           $portablePath = Join-Path $PWD "temp_build_out\dist\$env:PORTABLE_NAME"
           $checksumPath = Join-Path (Split-Path -Parent $portablePath) "$env:PORTABLE_NAME.sha256 (dont download this)"
 
@@ -351,34 +364,34 @@ jobs:
 
           The matching checksum asset is only for verifying the downloaded zip; ordinary users should download the portable zip above.
 
-          Set up your account and server inside the app (Account -> Manage). No manual editing of .env or config files is needed.
+          Create or sign in to your Tbot account in the app, then set up your Travian account (Account -> Manage).
 
-          Tip: for multiple accounts, extract a separate copy of the portable folder per account and run them at the same time. Do not run two instances from the same folder.
+          You may register up to two separate portable copies on your Tbot account. Both may run on the same computer. Do not run two instances from the same folder.
           "@
 
-          gh release view $env:TAG_NAME --repo $env:GITHUB_REPOSITORY *> $null
+          gh release view $env:TAG_NAME --repo $releaseRepository *> $null
           $releaseExists = $LASTEXITCODE -eq 0
           if ($releaseExists) {
             gh release edit $env:TAG_NAME `
-              --repo $env:GITHUB_REPOSITORY `
-              --target $env:GITHUB_SHA `
+              --repo $releaseRepository `
+              --target $targetRef `
               --title "Tbot Ultra $env:VERSION_NUMBER" `
               --notes $notes
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
             gh release upload $env:TAG_NAME $portablePath $checksumPath `
-              --repo $env:GITHUB_REPOSITORY `
+              --repo $releaseRepository `
               --clobber
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           } else {
             gh release create $env:TAG_NAME $portablePath $checksumPath `
-              --repo $env:GITHUB_REPOSITORY `
-              --target $env:GITHUB_SHA `
+              --repo $releaseRepository `
+              --target $targetRef `
               --title "Tbot Ultra $env:VERSION_NUMBER" `
               --notes $notes
             if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           }
 
-          $releaseUrl = gh release view $env:TAG_NAME --repo $env:GITHUB_REPOSITORY --json url -q ".url"
+          $releaseUrl = gh release view $env:TAG_NAME --repo $releaseRepository --json url -q ".url"
           if ([string]::IsNullOrWhiteSpace($releaseUrl)) {
             throw "Release was created, but release URL could not be resolved."
           }
