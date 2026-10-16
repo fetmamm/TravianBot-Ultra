@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="description" content="Tbot Ultra — focused automation for Official Travian.">
+  <meta name="description" content="Tbot Ultra desktop automation for Official Travian.">
   <title>Tbot Ultra</title>
   <link rel="stylesheet" href="styles.css">
   <script defer src="config.js"></script>
@@ -13,6 +13,7 @@
   <header class="site-header">
     <a class="brand" href="index.html" aria-label="Tbot Ultra home"><span class="brand-mark">T</span>Tbot Ultra</a>
     <nav aria-label="Primary navigation">
+      <a href="#overview">Overview</a>
       <a href="#pricing">Pricing</a>
       <a href="account.html">My account</a>
       <a class="button small" data-download href="#">Download</a>
@@ -21,52 +22,48 @@
 
   <main>
     <section class="hero shell">
-      <div class="eyebrow">Official Travian automation · Windows</div>
-      <h1>Less clicking.<br><span>More control.</span></h1>
-      <p class="hero-copy">Tbot Ultra keeps routine village work moving while showing exactly what it is doing. One account covers all your Travian accounts and up to two program copies.</p>
-      <div class="actions">
-        <a class="button primary" data-download href="#">Download for Windows</a>
-        <a class="button" href="account.html">Open my account</a>
-      </div>
-      <p class="fine-print">Portable download. Extract the complete zip and run Tbot Ultra.exe.</p>
-    </section>
-
-    <section class="signal-strip" aria-label="Key license facts">
-      <div><strong>3 days</strong><span>Full trial from first automation start</span></div>
-      <div><strong>3 hours</strong><span>Daily automation after the trial</span></div>
-      <div><strong>2 copies</strong><span>Both may run on the same computer</span></div>
-    </section>
-
-    <section class="shell split-section">
-      <div>
-        <div class="eyebrow">Built for daily use</div>
-        <h2>Automation you can still follow.</h2>
-      </div>
-      <div class="feature-list">
-        <article><span>01</span><div><h3>Shared account</h3><p>Your Tbot license follows your email login and covers every Travian account you manage.</p></div></article>
-        <article><span>02</span><div><h3>Clear time status</h3><p>The app shows remaining trial, paid, or daily free time without taking over the interface.</p></div></article>
-        <article><span>03</span><div><h3>Prepaid only</h3><p>Buy a fixed period when you need it. Packages do not renew automatically.</p></div></article>
-      </div>
-    </section>
-
-    <section id="pricing" class="pricing-section">
-      <div class="shell">
-        <div class="eyebrow">Prepaid access</div>
-        <h2>Choose the time that fits.</h2>
-        <p class="section-copy">Purchased time is added after any full access you already have. Prices are intended as final euro prices, including applicable tax.</p>
-        <div class="price-grid">
-          <article><div class="duration">1 month</div><div class="price">€2.99</div><a href="account.html" class="text-link">Buy in my account →</a></article>
-          <article><div class="duration">2 months</div><div class="price">€4.99</div><a href="account.html" class="text-link">Buy in my account →</a></article>
-          <article class="featured"><div class="tag">Best value</div><div class="duration">6 months</div><div class="price">€13.99</div><a href="account.html" class="text-link">Buy in my account →</a></article>
-          <article><div class="duration">12 months</div><div class="price">€24.99</div><a href="account.html" class="text-link">Buy in my account →</a></article>
+      <div class="hero-content">
+        <div class="eyebrow">Windows desktop app</div>
+        <h1>Travian automation, kept simple.</h1>
+        <p class="hero-copy">Run routine tasks, see what is active, and manage access from one Tbot account.</p>
+        <div class="actions">
+          <a class="button primary" data-download href="#">Download</a>
+          <a class="button" href="account.html">My account</a>
         </div>
-        <p class="fine-print centered" data-checkout-mode>Payments will open in Stripe Checkout when sales are enabled.</p>
+        <p class="fine-print">Portable Windows app · Extract the zip and run Tbot Ultra.exe</p>
+      </div>
+
+      <div id="overview" class="app-preview" aria-label="Reserved area for a Tbot Ultra screenshot">
+        <div class="preview-bar"><span></span><span></span><span></span><strong>Tbot Ultra</strong></div>
+        <div class="preview-empty">
+          <span>Program preview</span>
+          <small>Screenshots will be added here</small>
+        </div>
       </div>
     </section>
 
-    <section class="shell final-cta">
-      <div><div class="eyebrow">Start when you are ready</div><h2>Your trial clock starts with automation, not download.</h2></div>
-      <a class="button primary" data-download href="#">Get Tbot Ultra</a>
+    <section class="facts shell" aria-label="License overview">
+      <div><strong>3 days</strong><span>Full trial</span></div>
+      <div><strong>3 hours/day</strong><span>Free use afterwards</span></div>
+      <div><strong>2 copies</strong><span>Per account</span></div>
+    </section>
+
+    <section id="pricing" class="pricing-section shell">
+      <div class="section-heading">
+        <div>
+          <div class="eyebrow">Pricing</div>
+          <h2>Prepaid access</h2>
+        </div>
+        <p>One-time payment. No automatic renewal.</p>
+      </div>
+
+      <div class="price-list">
+        <a href="account.html"><span>1 month</span><strong>€2.99</strong><em>Choose</em></a>
+        <a href="account.html"><span>2 months</span><strong>€4.99</strong><em>Choose</em></a>
+        <a href="account.html"><span>6 months</span><strong>€13.99</strong><em>Choose</em></a>
+        <a href="account.html"><span>12 months</span><strong>€24.99</strong><em>Choose</em></a>
+      </div>
+      <p class="fine-print" data-checkout-mode hidden></p>
     </section>
   </main>
 
