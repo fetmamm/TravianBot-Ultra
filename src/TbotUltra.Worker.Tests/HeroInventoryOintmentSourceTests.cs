@@ -26,4 +26,25 @@ public sealed class HeroInventoryOintmentSourceTests
         Assert.Contains("pageRead.OintmentCount", method, StringComparison.Ordinal);
         Assert.DoesNotContain("ReadHeroOintmentInventoryInfoAsync", method, StringComparison.Ordinal);
     }
+
+    [Fact]
+    public void AutomaticOintmentUse_IsPositionIndependentAndCarriesStableIdentity()
+    {
+        var root = ProjectRootLocator.FindProjectRoot();
+        var source = File.ReadAllText(Path.Combine(
+            root,
+            "src",
+            "TbotUltra.Worker",
+            "Services",
+            "Automation",
+            "Hero",
+            "TravianClient.Hero.Inventory.cs"));
+
+        Assert.DoesNotContain("inventory_5", source, StringComparison.Ordinal);
+        Assert.Contains("document.querySelectorAll('.heroItem')", source, StringComparison.Ordinal);
+        Assert.Contains("itemId: picked.node.getAttribute('data-id')", source, StringComparison.Ordinal);
+        Assert.Contains("itemRefKey: picked.node.getAttribute('data-refkey')", source, StringComparison.Ordinal);
+        Assert.Contains("ClickHeroOintmentItemAsync(info, cancellationToken)", source, StringComparison.Ordinal);
+        Assert.Contains("Hero ointment click did not open the use dialog", source, StringComparison.Ordinal);
+    }
 }

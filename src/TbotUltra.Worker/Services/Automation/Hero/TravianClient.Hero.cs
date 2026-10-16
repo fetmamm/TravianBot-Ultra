@@ -907,8 +907,11 @@ public sealed partial class TravianClient : IHeroClient
         [JsonPropertyName("count")]
         public int Count { get; init; }
 
-        [JsonPropertyName("itemIndex")]
-        public int ItemIndex { get; init; } = -1;
+        [JsonPropertyName("itemId")]
+        public string? ItemId { get; init; }
+
+        [JsonPropertyName("itemRefKey")]
+        public string? ItemRefKey { get; init; }
     }
 
     private sealed class HeroSidebarStatusJs

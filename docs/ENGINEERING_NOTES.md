@@ -1015,8 +1015,10 @@ Published artifacts belong under `artifacts/`, never beside source files.
   DOM once without navigation, then defer. Recheck immediately before the first Adventures navigation, with every
   running, reinforcing, or scoped movement-timer signal taking precedence over a stale home signal.
 - Automatic ointment use is triggered only for a home, living Hero with an available adventure when HP reaches or
-  falls below the configured adventure minimum. Identify the inventory item by Official Travian's `item106`
-  contract (with `inventory_5` as a fixture-backed fallback), pace both clicks, and verify live HP after Use. A
+  falls below the configured adventure minimum. Identify the inventory item in any `.heroItem` position by Official
+  Travian's `item106` contract (with localized item text as fallback), carry its stable item identity from read to
+  click, pace both clicks, and verify live HP after Use. Never infer item type from an inventory position. A missing
+  use dialog is a bounded failed attempt rather than a task failure. A
   confirmed empty ointment inventory creates a silent, persisted 12-hour account+server cooldown; HP regeneration,
   changed adventure count, and process restart must not bypass it. A later real inventory read finding ointments
   clears the cooldown immediately.

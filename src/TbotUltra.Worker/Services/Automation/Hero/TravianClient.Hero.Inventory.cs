@@ -97,7 +97,7 @@ public sealed partial class TravianClient
         }
 
         Notify($"Hero ointments found: {info.Count}. Trying to use {useCount} to reach {normalizedTarget}% HP.");
-        var clicked = await ClickHeroOintmentItemAsync(info.ItemIndex, cancellationToken);
+        var clicked = await ClickHeroOintmentItemAsync(info, cancellationToken);
         if (!clicked)
         {
             _lastHeroOintmentMissKey = retryKey;
@@ -105,11 +105,20 @@ public sealed partial class TravianClient
             return HeroOintmentUseResult.AttemptedWithoutUse;
         }
 
-        await _page.Locator(".heroConsumablesPopup").WaitForAsync(new LocatorWaitForOptions
+        try
         {
-            State = WaitForSelectorState.Visible,
-            Timeout = 5_000,
-        });
+            await _page.Locator(".heroConsumablesPopup").WaitForAsync(new LocatorWaitForOptions
+            {
+                State = WaitForSelectorState.Visible,
+                Timeout = 5_000,
+            });
+        }
+        catch (Exception ex) when (ex is TimeoutException or PlaywrightException)
+        {
+            _lastHeroOintmentMissKey = retryKey;
+            Notify($"Hero ointment click did not open the use dialog: {ex.Message}");
+            return HeroOintmentUseResult.AttemptedWithoutUse;
+        }
         var submitted = await ConfirmHeroOintmentUseAsync(useCount, cancellationToken);
         if (!submitted)
         {
@@ -188,32 +197,20 @@ public sealed partial class TravianClient
                 if (match) return Number(match[1] || match[2]) || 1;
                 return 1;
               };
-              const selectors = [
-                '.heroItem:has(.item106)',
-                '.heroItem[data-refkey="inventory_5"]',
-                '#inventory .item',
-                '#items .item',
-                '.inventory .item',
-                '.heroInventory .item',
-                '.hero_inventory .item',
-                '[class*="inventory" i] [class*="item" i]',
-                '[data-title], [data-tooltip], [data-tip], img[title], img[alt]'
-              ];
-              const nodes = Array.from(new Set(selectors.flatMap(selector => Array.from(document.querySelectorAll(selector)))));
-              const candidates = nodes
+              const candidates = Array.from(document.querySelectorAll('.heroItem'))
                 .filter(isVisible)
                 .map((node) => ({ node, text: readText(node) }))
-                .filter(item => item.node.matches('.heroItem[data-refkey="inventory_5"]')
-                  || !!item.node.querySelector('.item106')
+                .filter(item => !!item.node.querySelector('.item106')
                   || matchesOintment(item.text));
               if (candidates.length === 0) {
-                return JSON.stringify({ found: false, count: 0, itemIndex: -1 });
+                return JSON.stringify({ found: false, count: 0, itemId: '', itemRefKey: '' });
               }
               const picked = candidates[0];
               return JSON.stringify({
                 found: true,
                 count: parseCount(picked.node),
-                itemIndex: candidates.indexOf(picked)
+                itemId: picked.node.getAttribute('data-id') || '',
+                itemRefKey: picked.node.getAttribute('data-refkey') || ''
               });
             }
             """);
@@ -222,13 +219,15 @@ public sealed partial class TravianClient
             ?? new HeroOintmentInventoryInfo();
     }
 
-    private async Task<bool> ClickHeroOintmentItemAsync(int ointmentIndex, CancellationToken cancellationToken)
+    private async Task<bool> ClickHeroOintmentItemAsync(
+        HeroOintmentInventoryInfo ointment,
+        CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         await DelayBeforeClickAsync(cancellationToken); // Action pacing "Click" delay
         return await _page.EvaluateAsync<bool>(
             """
-            (ointmentIndex) => {
+            (identity) => {
               const clean = (value) => (value || '').replace(/\s+/g, ' ').trim();
               const isVisible = (node) => {
                 if (!node) return false;
@@ -260,31 +259,24 @@ public sealed partial class TravianClient
                 return clean(parts.filter(Boolean).join(' '));
               };
               const matchesOintment = (text) => /(^|[^a-z])(ointment|ointments|salve|salves|salva|salvor|salbe|salben)([^a-z]|$)/i.test(text);
-              const selectors = [
-                '.heroItem:has(.item106)',
-                '.heroItem[data-refkey="inventory_5"]',
-                '#inventory .item',
-                '#items .item',
-                '.inventory .item',
-                '.heroInventory .item',
-                '.hero_inventory .item',
-                '[class*="inventory" i] [class*="item" i]',
-                '[data-title], [data-tooltip], [data-tip], img[title], img[alt]'
-              ];
-              const nodes = Array.from(new Set(selectors.flatMap(selector => Array.from(document.querySelectorAll(selector)))));
-              const candidates = nodes
+              const candidates = Array.from(document.querySelectorAll('.heroItem'))
                 .filter(isVisible)
-                .filter(node => node.matches('.heroItem[data-refkey="inventory_5"]')
-                  || !!node.querySelector('.item106')
+                .filter(node => !!node.querySelector('.item106')
                   || matchesOintment(readText(node)));
-              const item = candidates[ointmentIndex];
+              const item = candidates.find(node => identity.itemId
+                ? node.getAttribute('data-id') === identity.itemId
+                : identity.itemRefKey && node.getAttribute('data-refkey') === identity.itemRefKey);
               if (!item) return false;
               const target = item.querySelector('button:not([disabled]), a, [role="button"], img') || item;
               target.click();
               return true;
             }
             """,
-            ointmentIndex);
+            new Dictionary<string, string?>
+            {
+                ["itemId"] = ointment.ItemId,
+                ["itemRefKey"] = ointment.ItemRefKey,
+            });
     }
 
     private async Task<bool> ConfirmHeroOintmentUseAsync(int useCount, CancellationToken cancellationToken)
