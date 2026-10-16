@@ -12,7 +12,8 @@ internal sealed record HeroRaidingReadiness(
     int HpPercent,
     bool Mounted,
     bool CagesEquipped,
-    int EquippedCages);
+    int EquippedCages,
+    bool IsHome);
 
 internal sealed record HeroRaidingLiveOutcome(bool StateKnown, bool Home, bool Dead, int? HpPercent);
 internal enum HeroRaidDispatchState { Unknown, Home, Running, Dead }
@@ -63,12 +64,22 @@ public sealed partial class TravianClient
 
     /// <summary>Reads live Official attributes and equipment; never relies on cached point allocation.</summary>
     internal async Task<HeroRaidingReadiness?> ReadHeroRaidingReadinessAsync(CancellationToken cancellationToken)
+        => await ReadHeroRaidingReadinessCoreAsync(requireHome: true, cancellationToken);
+
+    /// <summary>Reads the same live values for a user-requested scan, which may run while the hero is away.</summary>
+    internal async Task<HeroRaidingReadiness?> ReadHeroRaidingScanReadinessAsync(
+        CancellationToken cancellationToken)
+        => await ReadHeroRaidingReadinessCoreAsync(requireHome: false, cancellationToken);
+
+    private async Task<HeroRaidingReadiness?> ReadHeroRaidingReadinessCoreAsync(
+        bool requireHome, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
         await EnsureLoggedInAsync(cancellationToken: cancellationToken);
         await EnsurePageForReadAsync(Paths.HeroAttributes, "hero raiding readiness", cancellationToken);
         await WaitForPageReadyAsync(cancellationToken);
-        if (!await IsHeroHomeOnCurrentPageAsync(cancellationToken))
+        var heroIsHome = await IsHeroHomeOnCurrentPageAsync(cancellationToken);
+        if (requireHome && !heroIsHome)
         {
             Notify("[hero-raiding] hero is not positively confirmed home; discovery deferred.");
             return null;
@@ -98,9 +109,9 @@ public sealed partial class TravianClient
             }
             """);
         var strengthDigits = new string((strengthText ?? string.Empty).Where(char.IsDigit).ToArray());
-        if (!VillageIdentityReconciler.HasCoordinates(villageCoordinates) && !home.Away && !string.IsNullOrWhiteSpace(home.Name))
+        if (!VillageIdentityReconciler.HasCoordinates(villageCoordinates) && !string.IsNullOrWhiteSpace(home.Name))
             villageCoordinates = await ReadHeroRaidingHomeCoordinatesFromMapAsync(home.Name, cancellationToken);
-        if (home.Away || !VillageIdentityReconciler.HasCoordinates(villageCoordinates) || hp is not > 0
+        if ((requireHome && home.Away) || !VillageIdentityReconciler.HasCoordinates(villageCoordinates) || hp is not > 0
             || !int.TryParse(strengthDigits, out var strength) || strength <= 0)
             throw new InvalidOperationException("Hero raiding could not verify the hero's live home village, HP, or total fighting strength.");
 
@@ -124,12 +135,14 @@ public sealed partial class TravianClient
             throw new InvalidOperationException("Hero raiding could not verify the equipped horse and bag slots.");
         var equipment = JsonSerializer.Deserialize<HeroRaidingEquipmentRead>(equipmentJson,
             new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
-        if (equipment is null || !await IsHeroHomeOnCurrentPageAsync(cancellationToken))
+        var heroStillHome = await IsHeroHomeOnCurrentPageAsync(cancellationToken);
+        if (equipment is null || (requireHome && !heroStillHome))
             throw new InvalidOperationException("Hero raiding equipment or home status changed while reading readiness.");
 
-        Notify($"[hero-raiding] hero readiness: village=({villageCoordinates.X}|{villageCoordinates.Y}), strength={strength}, HP={hp}%, mounted={equipment.Mounted}, cages={equipment.Count}.");
+        var confirmedHome = !home.Away && heroIsHome && heroStillHome;
+        Notify($"[hero-raiding] hero readiness: village=({villageCoordinates.X}|{villageCoordinates.Y}), strength={strength}, HP={hp}%, mounted={equipment.Mounted}, cages={equipment.Count}, home={confirmedHome}.");
         return new HeroRaidingReadiness(villageCoordinates.X!.Value, villageCoordinates.Y!.Value, strength, hp.Value,
-            equipment.Mounted, equipment.Cages, equipment.Count);
+            equipment.Mounted, equipment.Cages, equipment.Count, confirmedHome);
     }
 
     internal static (int? X, int? Y) ResolveHeroRaidingVillage(

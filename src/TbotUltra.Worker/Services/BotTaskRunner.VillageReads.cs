@@ -365,6 +365,24 @@ public sealed partial class BotTaskRunner
         return capture ?? throw new InvalidOperationException("Could not capture the current map API area.");
     }
 
+    public Task OpenMapTileAsync(
+        BotOptions options,
+        int x,
+        int y,
+        Action<string> log,
+        string? accountName = null,
+        CancellationToken cancellationToken = default)
+    {
+        return ExecuteWithClientAsync(
+            options,
+            log,
+            accountName,
+            interactive: false,
+            cancellationToken,
+            client => client.OpenMapTileAsync(x, y, cancellationToken),
+            saveStateMode: BrowserStateSaveMode.Skip);
+    }
+
     public async Task<ReportPngResult> SaveReportScreenshotAsync(
         BotOptions options,
         string filePath,

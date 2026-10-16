@@ -131,6 +131,17 @@ public sealed class HeroViewModelTests
     }
 
     [Fact]
+    public void HeroRaidingCandidate_UsesCoordinatesForMapPath()
+    {
+        var candidate = new HeroRaidingCandidateItem(
+            new HeroRaidingScanCandidate(-118, 86, "Wood 25%", "Rat 2", 85, 80, 2.2,
+                false, true, DateTimeOffset.UtcNow),
+            minimumHpPercent: 40);
+
+        Assert.Equal("/karte.php?x=-118&y=86", candidate.MapPath);
+    }
+
+    [Fact]
     public void ApplyObservedInventory_OnlyReportsAnIncreaseForTheSameAccountAndServer()
     {
         var vm = new HeroViewModel();

@@ -223,11 +223,11 @@ public sealed partial class BotTaskRunner
                     return;
                 }
 
-                var readiness = await client.ReadHeroRaidingReadinessAsync(cancellationToken);
+                var readiness = await client.ReadHeroRaidingScanReadinessAsync(cancellationToken);
                 if (readiness is null)
                 {
                     result = new HeroRaidingScanResult(false, false, [], 0, 0,
-                        "The hero is not confirmed home and available. Scan again after the hero returns.");
+                        "The hero's village and attributes could not be read for the oasis scan.");
                     return;
                 }
 
@@ -282,11 +282,13 @@ public sealed partial class BotTaskRunner
                     .ThenByDescending(candidate => candidate.PredictedHpAfterRaid)
                     .ToList();
                 var message = $"Found {candidates.Count} animal oasis candidate(s); {discovery.SafeCandidates.Count} safe estimate(s).";
+                if (!readiness.IsHome)
+                    message += " The hero is away; results are available for manual review.";
                 if (discovery.SafeCandidates.Count == 0)
                     message += " The next automatic discovery is in 60 minutes; Scan now can retry earlier.";
                 if (readiness.CagesEquipped)
                     message += " Cages are equipped and must be removed before raiding.";
-                result = new HeroRaidingScanResult(true, readiness.CagesEquipped, candidates,
+                result = new HeroRaidingScanResult(readiness.IsHome, readiness.CagesEquipped, candidates,
                     discovery.AreasRead, discovery.CachedAreasUsed, message);
                 log($"[hero-raiding] scan complete: {message} areasRead={discovery.AreasRead}, cached={discovery.CachedAreasUsed}.");
             });

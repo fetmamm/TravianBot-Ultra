@@ -176,6 +176,14 @@
                   <DataGridTextColumn Header="Predicted HP" Binding="{Binding PredictedHp}" IsReadOnly="True" Width="95" />
                   <DataGridTextColumn Header="Bounty / resource" Binding="{Binding EstimatedBounty}" IsReadOnly="True" Width="110" />
                   <DataGridTextColumn Header="Distance" Binding="{Binding Distance}" IsReadOnly="True" Width="70" />
+                  <DataGridTemplateColumn Header="Open" Width="120" IsReadOnly="True">
+                    <DataGridTemplateColumn.CellTemplate>
+                      <DataTemplate>
+                        <Button Content="Open in browser" Padding="8,3"
+                                Click="HeroRaidingOpenInBrowserButton_Click" />
+                      </DataTemplate>
+                    </DataGridTemplateColumn.CellTemplate>
+                  </DataGridTemplateColumn>
                   <DataGridTemplateColumn Header="Status" Width="125" IsReadOnly="True">
                     <DataGridTemplateColumn.CellTemplate>
                       <DataTemplate>

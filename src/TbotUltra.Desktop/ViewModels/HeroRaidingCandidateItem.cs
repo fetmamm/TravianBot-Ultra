@@ -10,6 +10,7 @@ public sealed class HeroRaidingCandidateItem(HeroRaidingScanCandidate candidate,
     public int X => candidate.X;
     public int Y => candidate.Y;
     public string Coordinates => $"{X}|{Y}";
+    public string MapPath => $"/karte.php?x={X}&y={Y}";
     public string OasisType => candidate.OasisType;
     public string Animals => candidate.Animals;
     public string PredictedHp => candidate.PredictedHpAfterRaid is int hp ? $"{hp}%" : "Unknown";

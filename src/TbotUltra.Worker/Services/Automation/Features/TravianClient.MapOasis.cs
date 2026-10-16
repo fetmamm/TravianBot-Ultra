@@ -12,6 +12,17 @@ public sealed partial class TravianClient : IMapOasisAreaReader
         await WaitForPageReadyAsync(cancellationToken);
     }
 
+    internal async Task OpenMapTileAsync(int x, int y, CancellationToken cancellationToken)
+    {
+        if (x is < -200 or > 200 || y is < -200 or > 200)
+            throw new ArgumentOutOfRangeException(nameof(x), "Map coordinates must be between -200 and 200.");
+        await EnsureLoggedInAsync(cancellationToken: cancellationToken);
+        var path = $"{Paths.Map}?x={x}&y={y}";
+        Notify($"[hero-raiding] opening oasis map tile ({x}|{y}) in the Travian browser.");
+        await GotoAsync(path, cancellationToken);
+        await WaitForPageReadyAsync(cancellationToken);
+    }
+
     public Task<string> ReadMapAreaAsync(int x, int y, CancellationToken cancellationToken)
         => ReadMapAreaAsync(x, y, zoomLevel: 3, cancellationToken);
 

@@ -469,6 +469,12 @@ public Task ExecuteLoginAsync(BotOptions options, Action<string> log, bool keepB
         return _taskRunner.CaptureCurrentMapAreaAsync(options, log, null, cancellationToken);
     }
 
+    public Task OpenMapTileAsync(BotOptions options, int x, int y, Action<string> log,
+        CancellationToken cancellationToken)
+    {
+        return _taskRunner.OpenMapTileAsync(options, x, y, log, null, cancellationToken);
+    }
+
     public Task<ReportPngResult> SaveReportScreenshotAsync(BotOptions options, string filePath, bool hideAttacker, bool hideDefender, Action<string> log, CancellationToken cancellationToken)
     {
         return _taskRunner.SaveReportScreenshotAsync(options, filePath, hideAttacker, hideDefender, log, null, cancellationToken);
