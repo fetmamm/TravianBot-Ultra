@@ -63,6 +63,8 @@ Current migration state (2026-10-17): steps 1 and 2 are complete. `fetmamm/Tbot-
 
 For the Cloudflare token, create a scoped API token with **Account / Cloudflare Pages / Edit** for the account that owns `tbot-ultra`. Store it only as the private repository secret `CLOUDFLARE_API_TOKEN`. After setting the account ID variable, enable `CLOUDFLARE_PAGES_DEPLOY_ENABLED=true`, run the workflow manually once, and verify that `/config.js` still says `checkoutMode: "sandbox"` and downloads point to `fetmamm/TravianBot-Ultra`.
 
+`scripts/Invoke-PublicReleaseCutover.ps1` audits repository visibility, stars, required secrets, variables, the deployed sandbox website, and the prepared release-only tree. Run it without parameters for a read-only readiness report. Its `-Apply` path refuses to run without the exact confirmation phrase documented by the script; it then force-replaces public `main`, removes source branches, and moves existing release tags to the release-only root so ordinary tag archives no longer contain source.
+
 Users download the complete portable zip from the public repository's Releases page. They extract it into a writable folder and sign in to their Tbot account. A person may register two separate folders, including both on the same computer; two instances must not share one folder.
 
 ## 5. Website, then launch
