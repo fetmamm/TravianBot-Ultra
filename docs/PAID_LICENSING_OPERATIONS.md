@@ -54,12 +54,14 @@ Migration order:
 1. Rename `Tbot-Ultra-Releases` to `Tbot-Ultra-Source` and make it private.
 2. Mirror all source branches and tags to it and verify commit IDs and repository visibility.
 3. Recreate the Actions secrets and set `PUBLIC_RELEASE_REPOSITORY`.
-4. Reconnect Cloudflare Pages to the private repository and verify a sandbox deployment.
+4. Add the Cloudflare Pages credential to the private repository, enable `.github/workflows/deploy-website.yml`, and verify a sandbox deployment to the existing `tbot-ultra` project.
 5. Create and validate a release-only public history from `.public-release-template/`.
 6. After explicit final approval, replace public branches and tags, then publish and verify `0.7.9`.
 7. Keep Stripe and the website in sandbox mode throughout this migration; production payment cutover remains the final launch change.
 
-Current migration state (2026-10-17): steps 1 and 2 are complete. `fetmamm/Tbot-Ultra-Source` is private and its `main`, `V0.6.2`, `V0.6.5`, and `V0.7.9` heads match the corresponding source commits; all version tags were copied. `PUBLIC_RELEASE_REPOSITORY=fetmamm/TravianBot-Ultra` is configured. The private repository still needs `RELEASE_REPO_TOKEN` and `DISCORD_ANNOUNCEMENT_WEBHOOK_URL`, and Cloudflare Pages still needs to be reconnected before public history is changed. The public repository remains untouched and retains 12 stars, six detached-capable public forks, its issues, and releases.
+Current migration state (2026-10-17): steps 1 and 2 are complete. `fetmamm/Tbot-Ultra-Source` is private and its `main`, `V0.6.2`, `V0.6.5`, and `V0.7.9` heads match the corresponding source commits; all version tags were copied. `PUBLIC_RELEASE_REPOSITORY=fetmamm/TravianBot-Ultra` is configured. The private repository still needs `RELEASE_REPO_TOKEN`, `DISCORD_ANNOUNCEMENT_WEBHOOK_URL`, and `CLOUDFLARE_API_TOKEN`. Set `CLOUDFLARE_ACCOUNT_ID` to the Pages account ID and keep `CLOUDFLARE_PAGES_DEPLOY_ENABLED=false` until the token exists. The existing Git-integrated Pages project cannot be relinked to another repository without recreation, so the private workflow uses Wrangler Direct Upload to retain the current `tbot-ultra.pages.dev` project and address. The public repository remains source-bearing until the final cutover and retains 12 stars, six detached-capable public forks, its issues, and releases.
+
+For the Cloudflare token, create a scoped API token with **Account / Cloudflare Pages / Edit** for the account that owns `tbot-ultra`. Store it only as the private repository secret `CLOUDFLARE_API_TOKEN`. After setting the account ID variable, enable `CLOUDFLARE_PAGES_DEPLOY_ENABLED=true`, run the workflow manually once, and verify that `/config.js` still says `checkoutMode: "sandbox"` and downloads point to `fetmamm/TravianBot-Ultra`.
 
 Users download the complete portable zip from the public repository's Releases page. They extract it into a writable folder and sign in to their Tbot account. A person may register two separate folders, including both on the same computer; two instances must not share one folder.
 

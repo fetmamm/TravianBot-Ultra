@@ -1,0 +1,36 @@
+name: Deploy Website
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - V0.7.9
+    paths:
+      - website/**
+      - .github/workflows/deploy-website.yml
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: tbot-ultra-website-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: ${{ vars.CLOUDFLARE_PAGES_DEPLOY_ENABLED == 'true' }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Deploy static website
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          command: pages deploy website --project-name=tbot-ultra --branch=main
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
