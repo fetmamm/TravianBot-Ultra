@@ -1972,7 +1972,10 @@ public partial class MainWindow : Window
             ApplyLocalBreweryCelebrationStatus(status);
         }
         UpdateBuildQueueStatusText();
-        UpdateAutomationLoopRunningIndicators();
+        if (IsMainTabSelected(DashboardTabItem))
+        {
+            UpdateAutomationLoopRunningIndicators();
+        }
         RefreshVillagePicker(status);
     }
 

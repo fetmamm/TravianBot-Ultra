@@ -293,7 +293,7 @@ public partial class MainWindow
             }
         }
 
-        await Dispatcher.InvokeAsync(() => RefreshQueueUi());
+        await Dispatcher.InvokeAsync(() => RequestQueueUiRefresh());
     }
 
     // Makes every pending (deferred) construction item ready to retry right now. Used when the user
@@ -329,7 +329,7 @@ public partial class MainWindow
             AppendLog($"Construction waits reset ({source}): {resetCount} item(s) will retry now.");
         }
 
-        RefreshQueueUi();
+        RequestQueueUiRefresh();
     }
 
     // A fresh login represents a new player visit. Ready, queue-full and humanize-waiting rows get
@@ -455,7 +455,7 @@ public partial class MainWindow
             {
                 AppendLog($"[construction-{source}-fill] released {released} construction row(s) for immediate live validation while humanization is disabled.");
         RequestContinuousAutomationWake();
-                RefreshQueueUi();
+                RequestQueueUiRefresh();
             }
             return;
         }
@@ -522,7 +522,7 @@ public partial class MainWindow
         {
             AppendLog($"[construction-{source}-fill] prepared {prepared} construction row(s) to fill available slots without construction start delay.");
         RequestContinuousAutomationWake();
-            RefreshQueueUi();
+            RequestQueueUiRefresh();
         }
     }
 
@@ -598,7 +598,7 @@ public partial class MainWindow
 
         AppendLog($"Construction resource waits released ({source}): {released} village head(s) will retry now.");
         RequestContinuousAutomationWake();
-        RefreshQueueUi();
+        RequestQueueUiRefresh();
     }
 
     private void ClearConstructionLoginFillForBlockedHead(QueueItem blocker, string source)
@@ -844,7 +844,7 @@ public partial class MainWindow
             }
         }
 
-        await Dispatcher.InvokeAsync(() => RefreshQueueUi());
+        await Dispatcher.InvokeAsync(() => RequestQueueUiRefresh());
     }
 
     // A deferred construct can already have queued level 1 before waiting for another level.
