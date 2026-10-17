@@ -70,6 +70,11 @@ Published artifacts belong under `artifacts/`, never beside source files.
   `SessionPacer` owns timing/state transitions; `MainWindow` only adapts WPF, browser, login, and automation effects.
 - Long-running UI commands use the shared busy/guard pattern, expose Cancel when supported, and restore UI
   state in `finally`.
+- High-volume browser, pacing, and scan diagnostics must keep flowing to the session log and browser statistics,
+  but must bypass the WPF log collection while the Logs view is hidden. Background queue/status events use the
+  coalesced UI refresh path; only direct user actions may force an immediate full projection.
+- License stop is best-effort and bounded to five seconds. Release local lease state first, do not retry stop
+  requests, and let the server lease expire after a timeout so sleep and shutdown cannot be held for 20 seconds.
 - A dispatcher exception raised before any WPF window has loaded is a fatal startup failure: log it and explicitly
   shut down the application so a failed `StartupUri` construction cannot leave an invisible process running.
 
