@@ -15,7 +15,7 @@ namespace TbotUltra.Desktop.Services;
 public static class UpdateChecker
 {
     private static string _repoOwner = "fetmamm";
-    private static string _repoName = "Tbot-Ultra-Releases";
+    private static string _repoName = "TravianBot-Ultra";
     public static string ReleasesPageUrl => $"https://github.com/{_repoOwner}/{_repoName}/releases";
     private static string LatestReleaseApiUrl => $"https://api.github.com/repos/{_repoOwner}/{_repoName}/releases/latest";
 

@@ -39,13 +39,27 @@ Keep `website/config.js` in `checkoutMode: "sandbox"` during development. Before
 
 ## 4. GitHub distribution
 
-The public, binary-only repository is [fetmamm/Tbot-Ultra-Releases](https://github.com/fetmamm/Tbot-Ultra-Releases). It has a `main` branch with download instructions and no source code. `.release-template/config/update.json`, the website download link, and the app's support link point to it.
+The established [fetmamm/TravianBot-Ultra](https://github.com/fetmamm/TravianBot-Ultra) repository remains public and becomes the binary release repository. Keeping this repository identity preserves its stars, release URLs, Discord links, and the update endpoint used by installed versions. `.release-template/config/update.json`, the website download link, the app support link, and the default update checker all point to it.
 
-Build and publish one transition version through the old releases channel so existing installations learn the new update location. Only after that version is available should the release workflow be switched to the public repository.
+The empty public `fetmamm/Tbot-Ultra-Releases` repository is repurposed as private `fetmamm/Tbot-Ultra-Source`. Mirror every source branch and tag there and verify the private copy before changing public history. GitHub Actions then runs in the private repository and publishes the portable zip and SHA256 asset to `fetmamm/TravianBot-Ultra`.
 
-Transition version `0.7.9` is prepared locally. Its assembled portable folder and final extracted zip both passed metadata, structure, bundled-browser, and startup-readiness checks on 2026-10-16; all 1,652 Worker tests and 1,730 Desktop tests passed. It has not been published yet.
+After the private mirror and release workflow are verified, replace every public source branch and source-bearing tag with a new release-only history. Keep a minimal `main` branch with download instructions and release metadata. This makes normal browsing and new clones source-free while retaining the public repository and its stars. It cannot remove source already present in external clones or detached public forks, and old Git objects or pull-request references may remain reachable.
 
-In the private source repository, set GitHub Actions variable `PUBLIC_RELEASE_REPOSITORY` to `fetmamm/Tbot-Ultra-Releases`, and secret `RELEASE_REPO_TOKEN` to a fine-grained token with **Contents: read and write** on only the public releases repository. The workflow will publish the portable zip and SHA256 asset there. Verify that the new version's update button opens the public release. Make the source repository private only after testing the transition. Old already-distributed builds cannot be recalled.
+Version `0.7.9` is prepared but must be rebuilt after the 2026-10-17 desktop changes. The earlier assembled portable folder and extracted zip passed metadata, structure, browser, startup, and test checks before those changes. Publish `0.7.9` to `fetmamm/TravianBot-Ultra`; both old and new installations continue checking that same release endpoint, so no repository transition release is required.
+
+In `fetmamm/Tbot-Ultra-Source`, set GitHub Actions variable `PUBLIC_RELEASE_REPOSITORY` to `fetmamm/TravianBot-Ultra`. Add `RELEASE_REPO_TOKEN` as a fine-grained token with **Contents: read and write** on only the public repository, and recreate `DISCORD_ANNOUNCEMENT_WEBHOOK_URL` because Actions secrets do not move with Git history. Verify that a release publishes to the public repository, the Discord message links to that release, and the application's update button opens the same public release.
+
+Migration order:
+
+1. Rename `Tbot-Ultra-Releases` to `Tbot-Ultra-Source` and make it private.
+2. Mirror all source branches and tags to it and verify commit IDs and repository visibility.
+3. Recreate the Actions secrets and set `PUBLIC_RELEASE_REPOSITORY`.
+4. Reconnect Cloudflare Pages to the private repository and verify a sandbox deployment.
+5. Create and validate a release-only public history from `.public-release-template/`.
+6. After explicit final approval, replace public branches and tags, then publish and verify `0.7.9`.
+7. Keep Stripe and the website in sandbox mode throughout this migration; production payment cutover remains the final launch change.
+
+Current migration state (2026-10-17): steps 1 and 2 are complete. `fetmamm/Tbot-Ultra-Source` is private and its `main`, `V0.6.2`, `V0.6.5`, and `V0.7.9` heads match the corresponding source commits; all version tags were copied. `PUBLIC_RELEASE_REPOSITORY=fetmamm/TravianBot-Ultra` is configured. The private repository still needs `RELEASE_REPO_TOKEN` and `DISCORD_ANNOUNCEMENT_WEBHOOK_URL`, and Cloudflare Pages still needs to be reconnected before public history is changed. The public repository remains untouched and retains 12 stars, six detached-capable public forks, its issues, and releases.
 
 Users download the complete portable zip from the public repository's Releases page. They extract it into a writable folder and sign in to their Tbot account. A person may register two separate folders, including both on the same computer; two instances must not share one folder.
 

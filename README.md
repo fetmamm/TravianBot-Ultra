@@ -120,7 +120,7 @@ Most functions is possible to configure as you like
 
 ## Known bugs:
 
-Please visit the [issues page](https://github.com/fetmamm/Tbot-Ultra-Releases/issues) for known bugs or the [Discord channel](https://discord.gg/7bgzKy9sHK).
+Please visit the [issues page](https://github.com/fetmamm/TravianBot-Ultra/issues) for known bugs or the [Discord channel](https://discord.gg/7bgzKy9sHK).
 
 ---
 
