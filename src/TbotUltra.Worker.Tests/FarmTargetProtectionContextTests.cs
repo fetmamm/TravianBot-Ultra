@@ -70,6 +70,17 @@ public sealed class FarmTargetProtectionContextTests
     }
 
     [Fact]
+    public void ParseFarmTargetIdentity_ResolvesPlayerWithoutAllianceBox()
+    {
+        using var document = System.Text.Json.JsonDocument.Parse(
+            """{"isResolved":true,"playerName":"iceman","alliance":null,"allianceBoxFound":false}""");
+
+        var identity = TravianClient.ParseFarmTargetIdentity(document.RootElement);
+
+        Assert.Equal(new FarmTargetIdentity(true, "iceman", null), identity);
+    }
+
+    [Fact]
     public void ParseFarmTargetIdentity_ReturnsUnresolvedForMalformedPayload()
     {
         using var document = System.Text.Json.JsonDocument.Parse("[]");

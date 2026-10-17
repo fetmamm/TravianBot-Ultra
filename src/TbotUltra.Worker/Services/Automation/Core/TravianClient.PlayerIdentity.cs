@@ -55,10 +55,12 @@ public sealed partial class TravianClient
               const alliance = !allianceText || /^no alliance$/i.test(allianceText)
                 ? null
                 : allianceText;
+              // Some worlds (e.g. Rise of Governors) omit the alliance box for players without an alliance.
               return {
-                isResolved: playerName.length > 0 && !!allianceElement,
+                isResolved: playerName.length > 0,
                 playerName: playerName || null,
-                alliance
+                alliance,
+                allianceBoxFound: !!allianceElement
               };
             }
             """,
@@ -68,10 +70,11 @@ public sealed partial class TravianClient
                 alliance = Selectors.CurrentAllianceName,
             }).WaitAsync(cancellationToken);
         var identity = ParseFarmTargetIdentity(payload);
+        var allianceBoxFound = payload.TryGetProperty("allianceBoxFound", out var boxNode) && boxNode.ValueKind == JsonValueKind.True;
 
         Notify(identity.IsResolved
             ? $"[farm-list] Target protection identity loaded for '{identity.PlayerName}' " +
-              $"(alliance='{identity.Alliance ?? "None"}')."
+              $"(alliance='{identity.Alliance ?? "None"}', allianceBox={(allianceBoxFound ? "found" : "missing")})."
             : "[farm-list] Target protection identity was unavailable in the global sidebar.");
         return identity;
     }
