@@ -20,6 +20,7 @@ public partial class MainWindow
 {
     private string? _villageOverviewTownHallCacheAccount;
     private IReadOnlyDictionary<string, TownHallCelebrationState>? _villageOverviewTownHallCache;
+    private string? _lastVillagePickerPresentationSignature;
 
     private void InvalidateVillageOverviewTownHallCache()
     {
@@ -444,6 +445,10 @@ public partial class MainWindow
             .Where(v => !string.IsNullOrWhiteSpace(v.Name))
             .Select(v => $"{GetVillageKey(v.Url, v.CoordX, v.CoordY, v.Name)}|{v.Name}|{v.CoordX}|{v.CoordY}|{v.IsCapital}|{v.Population}|{v.Tribe}"));
     }
+
+    internal static string BuildVillagePickerPresentationSignature(VillageStatus status)
+        => $"{BuildVillageSignature(status.Villages)}|active={status.ActiveVillage}|"
+           + $"{status.ActiveVillageCoordX},{status.ActiveVillageCoordY}";
 
     private void ReconcileConfirmedVillageList(IReadOnlyList<Village> villages, string source)
     {

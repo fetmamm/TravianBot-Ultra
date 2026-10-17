@@ -45,6 +45,7 @@ public partial class MainWindow
                 }
                 else if (ReferenceEquals(targetTab, DashboardTabItem))
                 {
+                    _resourcesViewModel.TickLiveForecasts();
                     UpdateAutomationLoopRunningIndicators();
                     RefreshVillageActivityIndicatorsOnDashboard();
                 }

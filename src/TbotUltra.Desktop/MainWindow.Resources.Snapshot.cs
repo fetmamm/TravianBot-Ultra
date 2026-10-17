@@ -198,7 +198,6 @@ public partial class MainWindow
             _lastLoggedResourceUiSummaryByVillage[resourceUiVillage] = resourceUiSignature;
             AppendLog($"[resource-ui] village='{status.ActiveVillage}' | {BuildResourceLogSummary(status)}");
         }
-        ApplyResourceTransferVillageResourceStatus(status);
         ApplyResourceRowsAndVillageStatus(status, includeQueuedTargets: true);
         TriggerDeferredConstructionWaitRefresh(status, "resource_status_refresh");
         TriggerDeferredTroopTrainingWaitRefresh(status, "resource_status_refresh");

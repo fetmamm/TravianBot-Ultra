@@ -592,7 +592,10 @@ public partial class MainWindow : Window
                 TickNextTaskUi();
                 _troopTrainingViewModel.TickCountdowns(serverNow);
                 TickSmithyUpgradeCountdown();
-                _resourcesViewModel.TickLiveForecasts();
+                if (dashboardTabSelected || IsMainTabSelected(ResourcesTabItem))
+                {
+                    _resourcesViewModel.TickLiveForecasts();
+                }
 
                 if (IsMainTabSelected(QueueTabItem))
                 {
@@ -1975,6 +1978,13 @@ public partial class MainWindow : Window
 
     private void RefreshVillagePicker(VillageStatus status)
     {
+        var signature = BuildVillagePickerPresentationSignature(status);
+        if (string.Equals(signature, _lastVillagePickerPresentationSignature, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        _lastVillagePickerPresentationSignature = signature;
         SyncDashboardVillageUiFromVillages(
             status.Villages,
             status.ActiveVillage,
