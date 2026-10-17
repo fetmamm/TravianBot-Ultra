@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.IO;
+using System.Collections.Concurrent;
 using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Text.Json;
@@ -345,8 +346,12 @@ public partial class MainWindow : Window
     private VillageStatus? _lastResourceStatusForUi;
     private readonly object _pendingLogSync = new();
     private readonly LinkedList<PendingLogMessage> _pendingLogMessages = new();
+    private readonly ConcurrentQueue<PendingLogMessage> _pendingBackgroundDiagnosticLogs = new();
     private readonly object _sessionLogWriteSync = new();
     private bool _logFlushQueued;
+    private int _backgroundDiagnosticProcessorRunning;
+    private Task? _backgroundDiagnosticProcessorTask;
+    private volatile bool _logsPresentationVisible;
     private bool _restartContinuousLoopAfterStop;
     private bool _startContinuousLoopAfterQueueStop;
     private bool _restartAutoQueueAfterLanguageGate;

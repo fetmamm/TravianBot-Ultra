@@ -422,6 +422,7 @@ public partial class MainWindow
             FlushPendingLogsBeforeClearingBrowserStatistics();
             try
             {
+                await FlushBackgroundDiagnosticLogsAsync();
                 await FlushBrowserStatisticsSavesAsync();
                 await _sessionLogWriter.DisposeAsync();
             }

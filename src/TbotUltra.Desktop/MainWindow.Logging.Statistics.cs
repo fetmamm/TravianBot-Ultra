@@ -8,6 +8,7 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
+    private readonly object _browserStatisticsSync = new();
     private readonly object _browserStatisticsSaveSync = new();
     private readonly Dictionary<string, BrowserStatisticsSaveRequest> _pendingBrowserStatisticsSaves =
         new(StringComparer.OrdinalIgnoreCase);
@@ -25,15 +26,21 @@ public partial class MainWindow
             return false;
         }
 
-        var session = GetBrowserSessionStatistics(accountName);
-        var lifetime = GetBrowserLifetimeStatistics(accountName);
-        var nowUtc = DateTimeOffset.UtcNow;
-        var sessionChanged = BrowserActivityStatisticsParser.TryApply(line, session, nowUtc);
-        var lifetimeChanged = BrowserActivityStatisticsParser.TryApply(line, lifetime, nowUtc);
-        return sessionChanged || lifetimeChanged;
+        lock (_browserStatisticsSync)
+        {
+            var session = GetBrowserSessionStatistics(accountName);
+            var lifetime = GetBrowserLifetimeStatistics(accountName);
+            var nowUtc = DateTimeOffset.UtcNow;
+            var sessionChanged = BrowserActivityStatisticsParser.TryApply(line, session, nowUtc);
+            var lifetimeChanged = BrowserActivityStatisticsParser.TryApply(line, lifetime, nowUtc);
+            return sessionChanged || lifetimeChanged;
+        }
     }
 
     private void PersistAndRefreshBrowserActivityStatistics()
+        => PersistBrowserActivityStatistics(refreshUi: true);
+
+    private void PersistBrowserActivityStatistics(bool refreshUi)
     {
         var accountName = _uiActiveAccountName;
         if (string.IsNullOrWhiteSpace(accountName))
@@ -41,7 +48,11 @@ public partial class MainWindow
             return;
         }
 
-        var snapshot = CloneBrowserStatistics(GetBrowserLifetimeStatistics(accountName));
+        BrowserActivityStatisticsSnapshot snapshot;
+        lock (_browserStatisticsSync)
+        {
+            snapshot = CloneBrowserStatistics(GetBrowserLifetimeStatistics(accountName));
+        }
         lock (_browserStatisticsSaveSync)
         {
             _pendingBrowserStatisticsSaves[accountName] = new BrowserStatisticsSaveRequest(accountName, snapshot);
@@ -52,7 +63,7 @@ public partial class MainWindow
             }
         }
 
-        if (IsMainTabSelected(LogsTabItem) || _logsPopupStatisticsTextBox is not null)
+        if (refreshUi && (IsMainTabSelected(LogsTabItem) || _logsPopupStatisticsTextBox is not null))
         {
             RefreshBrowserStatisticsUi();
         }
@@ -167,8 +178,13 @@ public partial class MainWindow
             return;
         }
 
-        var session = GetBrowserSessionStatistics(accountName);
-        var lifetime = GetBrowserLifetimeStatistics(accountName);
+        BrowserActivityStatisticsSnapshot session;
+        BrowserActivityStatisticsSnapshot lifetime;
+        lock (_browserStatisticsSync)
+        {
+            session = CloneBrowserStatistics(GetBrowserSessionStatistics(accountName));
+            lifetime = CloneBrowserStatistics(GetBrowserLifetimeStatistics(accountName));
+        }
         BrowserStatisticsAccountTextBlock.Text = $"Browser statistics — {accountName}";
         BrowserStatisticsPeriodTextBlock.Text =
             $"Session since {FormatStatisticsDate(session.FirstRecordedUtc)} · " +
@@ -219,10 +235,13 @@ public partial class MainWindow
             return;
         }
 
-        _browserSessionStatistics[AccountStoragePaths.NormalizeAccountKey(accountName)] = new BrowserActivityStatisticsSnapshot
+        lock (_browserStatisticsSync)
         {
-            FirstRecordedUtc = DateTimeOffset.UtcNow,
-        };
+            _browserSessionStatistics[AccountStoragePaths.NormalizeAccountKey(accountName)] = new BrowserActivityStatisticsSnapshot
+            {
+                FirstRecordedUtc = DateTimeOffset.UtcNow,
+            };
+        }
         RefreshBrowserStatisticsUi();
         StatusTextBlock.Text = $"Session browser statistics cleared for {accountName}.";
     }
@@ -248,7 +267,10 @@ public partial class MainWindow
         }
 
         var empty = new BrowserActivityStatisticsSnapshot();
-        _browserLifetimeStatistics[AccountStoragePaths.NormalizeAccountKey(accountName)] = empty;
+        lock (_browserStatisticsSync)
+        {
+            _browserLifetimeStatistics[AccountStoragePaths.NormalizeAccountKey(accountName)] = empty;
+        }
         BrowserActivityStatisticsStore.Clear(_projectRoot, accountName);
         RefreshBrowserStatisticsUi();
         StatusTextBlock.Text = $"Lifetime browser statistics cleared for {accountName}.";
@@ -262,8 +284,13 @@ public partial class MainWindow
             return "No active account.";
         }
 
-        var session = GetBrowserSessionStatistics(accountName);
-        var lifetime = GetBrowserLifetimeStatistics(accountName);
+        BrowserActivityStatisticsSnapshot session;
+        BrowserActivityStatisticsSnapshot lifetime;
+        lock (_browserStatisticsSync)
+        {
+            session = CloneBrowserStatistics(GetBrowserSessionStatistics(accountName));
+            lifetime = CloneBrowserStatistics(GetBrowserLifetimeStatistics(accountName));
+        }
         var builder = new StringBuilder();
         builder.AppendLine($"Browser statistics — {accountName}");
         builder.AppendLine($"Session since {FormatStatisticsDate(session.FirstRecordedUtc)} | Lifetime since {FormatStatisticsDate(lifetime.FirstRecordedUtc)}");

@@ -715,8 +715,10 @@ public partial class MainWindow
             _logsPopupLogList = null;
             _logsPopupAlarmList = null;
             _logsPopupStatisticsTextBox = null;
+            _logsPresentationVisible = IsMainTabSelected(LogsTabItem);
         };
         closeButton.Click += (_, _) => _logsPopupWindow?.Close();
         _logsPopupWindow.Show();
+        _logsPresentationVisible = true;
     }
 }

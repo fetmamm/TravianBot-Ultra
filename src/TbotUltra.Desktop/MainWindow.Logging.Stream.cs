@@ -18,17 +18,28 @@ namespace TbotUltra.Desktop;
 
 public partial class MainWindow
 {
-    private sealed record PendingLogMessage(string Message, AutomationLogMetadata? Context);
+    private sealed record PendingLogMessage(
+        string Message,
+        AutomationLogMetadata? Context,
+        DateTimeOffset ServerTimestamp);
 
     private void AppendLog(string message)
     {
         try
         {
+            var pending = new PendingLogMessage(
+                message ?? string.Empty,
+                CaptureDesktopLogContext(),
+                GetServerNow());
+            if (!LogPresentationPolicy.ShouldQueueForUi(pending.Message, _logsPresentationVisible))
+            {
+                QueueBackgroundDiagnosticLog(pending);
+                return;
+            }
+
             lock (_pendingLogSync)
             {
-                _pendingLogMessages.AddLast(new PendingLogMessage(
-                    message ?? string.Empty,
-                    CaptureDesktopLogContext()));
+                _pendingLogMessages.AddLast(pending);
                 if (_logFlushQueued)
                 {
                     return;
@@ -181,7 +192,7 @@ public partial class MainWindow
                 {
                     browserStatisticsChanged |= TryRecordBrowserActivityStatistics(part);
                     var humanPart = AutomationLogContext.FormatForHuman(part, pending.Context);
-                    var line = $"[{GetServerNow():yyyy-MM-dd HH:mm:ss}] {humanPart}";
+                    var line = $"[{pending.ServerTimestamp:yyyy-MM-dd HH:mm:ss}] {humanPart}";
                     var isAlarm = IsAlarmMessage(part);
                     _terminalEntries.Insert(0, new TerminalEntryRow
                     {
@@ -317,6 +328,84 @@ public partial class MainWindow
 
     private void FlushPendingLogsToUiMeasured()
         => MeasureUiWork("log UI flush", FlushPendingLogsToUi);
+
+    private void QueueBackgroundDiagnosticLog(PendingLogMessage pending)
+    {
+        _pendingBackgroundDiagnosticLogs.Enqueue(pending);
+        if (Interlocked.CompareExchange(ref _backgroundDiagnosticProcessorRunning, 1, 0) != 0)
+        {
+            return;
+        }
+
+        _backgroundDiagnosticProcessorTask = Task.Run(ProcessBackgroundDiagnosticLogsAsync);
+    }
+
+    private async Task ProcessBackgroundDiagnosticLogsAsync()
+    {
+        try
+        {
+            // Gather short bursts into one file/statistics update instead of scheduling one unit of
+            // work per browser trace line.
+            await Task.Delay(50).ConfigureAwait(false);
+            var lines = new List<string>();
+            var statisticsChanged = false;
+            while (_pendingBackgroundDiagnosticLogs.TryDequeue(out var pending))
+            {
+                var parts = pending.Message.Replace("\r\n", "\n").Replace('\r', '\n')
+                    .Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+                foreach (var part in parts)
+                {
+                    statisticsChanged |= TryRecordBrowserActivityStatistics(part);
+                    if (ShouldWriteLineToSessionLog(part))
+                    {
+                        var humanPart = AutomationLogContext.FormatForHuman(part, pending.Context);
+                        lines.Add($"[{pending.ServerTimestamp:yyyy-MM-dd HH:mm:ss}] {humanPart}");
+                    }
+                }
+            }
+
+            if (lines.Count > 0)
+            {
+                _sessionLogWriter.Append(lines);
+            }
+
+            if (statisticsChanged)
+            {
+                PersistBrowserActivityStatistics(refreshUi: false);
+            }
+        }
+        catch (Exception ex)
+        {
+            Debug.WriteLine($"Background diagnostic log processing failed: {ex}");
+        }
+        finally
+        {
+            Interlocked.Exchange(ref _backgroundDiagnosticProcessorRunning, 0);
+            if (!_pendingBackgroundDiagnosticLogs.IsEmpty
+                && Interlocked.CompareExchange(ref _backgroundDiagnosticProcessorRunning, 1, 0) == 0)
+            {
+                _backgroundDiagnosticProcessorTask = Task.Run(ProcessBackgroundDiagnosticLogsAsync);
+            }
+        }
+    }
+
+    private async Task FlushBackgroundDiagnosticLogsAsync()
+    {
+        while (true)
+        {
+            var pending = _backgroundDiagnosticProcessorTask;
+            if (pending is not null)
+            {
+                await pending.ConfigureAwait(false);
+            }
+
+            if (_pendingBackgroundDiagnosticLogs.IsEmpty
+                && Volatile.Read(ref _backgroundDiagnosticProcessorRunning) == 0)
+            {
+                return;
+            }
+        }
+    }
 
     private void UpdateStatusFromVisibleLog(
         string? fallbackRawMessage = null,

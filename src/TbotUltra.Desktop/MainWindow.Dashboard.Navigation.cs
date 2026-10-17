@@ -34,6 +34,8 @@ public partial class MainWindow
             if (targetTab is not null)
             {
                 MainTabControl.SelectedItem = targetTab;
+                _logsPresentationVisible = ReferenceEquals(targetTab, LogsTabItem)
+                    || _logsPopupWindow?.IsVisible == true;
                 if (ReferenceEquals(targetTab, FarmingTabItem))
                 {
                     RefreshFarmListsItemsControl();
