@@ -54,6 +54,10 @@ jobs:
       - name: Build
         run: dotnet build TbotUltra.sln -c Release --no-restore
 
+      - name: Install test Chromium
+        shell: pwsh
+        run: ./scripts/Install-TestChromium.ps1
+
       - name: Test
         shell: pwsh
         run: |

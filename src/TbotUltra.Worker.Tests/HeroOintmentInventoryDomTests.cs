@@ -101,9 +101,31 @@ public sealed class HeroOintmentInventoryDomTests
 
     private static string ResolveChromiumExecutable()
     {
-        var browserRoot = Path.Combine(ProjectRootLocator.FindProjectRoot(), "ms-playwright");
-        var executable = Directory.EnumerateFiles(browserRoot, "chrome.exe", SearchOption.AllDirectories)
-            .FirstOrDefault(path => path.Contains("chromium-", StringComparison.OrdinalIgnoreCase));
-        return Assert.IsType<string>(executable);
+        var projectRoot = ProjectRootLocator.FindProjectRoot();
+        var configuredRoot = Environment.GetEnvironmentVariable("PLAYWRIGHT_BROWSERS_PATH");
+        var browserRoots = new[]
+        {
+            configuredRoot,
+            Path.Combine(projectRoot, "temp_build_out", "playwright-browsers"),
+            Path.Combine(projectRoot, "ms-playwright"),
+        };
+
+        foreach (var browserRoot in browserRoots.Where(path => !string.IsNullOrWhiteSpace(path)))
+        {
+            if (!Directory.Exists(browserRoot))
+            {
+                continue;
+            }
+
+            var executable = Directory.EnumerateFiles(browserRoot!, "chrome.exe", SearchOption.AllDirectories)
+                .FirstOrDefault(path => path.Contains("chromium-", StringComparison.OrdinalIgnoreCase));
+            if (executable is not null)
+            {
+                return executable;
+            }
+        }
+
+        throw new Xunit.Sdk.XunitException(
+            "Test Chromium is missing. Run scripts/Install-TestChromium.ps1 before the Worker tests.");
     }
 }
