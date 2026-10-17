@@ -413,6 +413,8 @@ public sealed class QueueStoreAndSchedulerTests : IDisposable
                 "anti_starve_hero_crop",
                 "upgrade_troops_at_smithy",
                 "build_troops",
+                "train_settlers",
+                "found_village",
                 "run_brewery_celebration",
                 "run_town_hall_celebration",
                 "send_farmlists",

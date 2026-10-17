@@ -19,6 +19,9 @@
     <TabItem x:Name="EvasionTabItem" Header="Evasion">
       <views:TroopEvasionPanel x:Name="EvasionContent" />
     </TabItem>
+    <TabItem x:Name="ExpansionTabItem" Header="Expansion">
+      <views:ExpansionPanel x:Name="ExpansionContent" />
+    </TabItem>
     <TabItem x:Name="CatapultWavesTabItem" Header="Catapult waves">
       <views:ReinforcementsPanel x:Name="CatapultWavesContent" Section="Catapult" />
     </TabItem>

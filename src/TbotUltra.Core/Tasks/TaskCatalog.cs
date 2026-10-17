@@ -21,6 +21,8 @@ public static class TaskCatalog
         new("anti_starve_hero_crop", TaskGroup.Account, "Anti-starve hero crop", true, TaskPayloadKind.None),
         new("upgrade_troops_at_smithy", TaskGroup.Troops, "Upgrade troops at smithy", true, TaskPayloadKind.SmithyUpgrade),
         new("build_troops", TaskGroup.TroopTraining, "Build troops", true, TaskPayloadKind.TroopTraining),
+        new("train_settlers", TaskGroup.Account, "Train settlers", false, TaskPayloadKind.None),
+        new("found_village", TaskGroup.Account, "Found new village", false, TaskPayloadKind.None),
         new("run_brewery_celebration", TaskGroup.BreweryCelebration, "Run brewery celebration", true, TaskPayloadKind.Brewery),
         new("run_town_hall_celebration", TaskGroup.TownHallCelebration, "Run Town Hall celebration", true, TaskPayloadKind.None),
         new("send_farmlists", TaskGroup.Farming, "Send farmlists", true, TaskPayloadKind.Farming),

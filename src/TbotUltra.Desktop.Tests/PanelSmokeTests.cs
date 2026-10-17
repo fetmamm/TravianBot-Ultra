@@ -414,7 +414,7 @@ public sealed class PanelSmokeTests
             var tabs = Assert.IsType<TabControl>(panel.FindName("TroopsTabControl"));
 
             Assert.Equal(
-                new[] { "Build Troops", "Upgrade troops", "Reinforcements", "Incoming attacks", "Evasion", "Catapult waves", "Brewery celebration" },
+                new[] { "Build Troops", "Upgrade troops", "Reinforcements", "Incoming attacks", "Evasion", "Expansion", "Catapult waves", "Brewery celebration" },
                 tabs.Items.Cast<TabItem>().Select(item => item.Header?.ToString() ?? string.Empty).ToArray());
         });
     }

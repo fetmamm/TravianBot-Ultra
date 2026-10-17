@@ -52,6 +52,10 @@ public sealed partial class BotTaskRunner
             ["upgrade_troops_at_smithy"] = ExecuteUpgradeTroopsAtSmithyAsync,
             // Builds troops from Barracks, Stable, or Workshop based on configured rules.
             ["build_troops"] = ExecuteBuildTroopsAsync,
+            // Trains the settlers needed for the free expansion slots of the Residence/Palace.
+            ["train_settlers"] = ExecuteTrainSettlersAsync,
+            // Sends 3 settlers to found a new village on target_building_slot_or_name ("xy:X|Y").
+            ["found_village"] = ExecuteFoundVillageAsync,
             // Starts or tracks the Teutons brewery celebration.
             ["run_brewery_celebration"] = ExecuteRunBreweryCelebrationAsync,
             // Starts or tracks Town Hall celebrations.

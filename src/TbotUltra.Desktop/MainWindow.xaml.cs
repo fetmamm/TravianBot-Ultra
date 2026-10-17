@@ -468,6 +468,8 @@ public partial class MainWindow : Window
         TroopsHubPanelControl.EvasionPanel.SettingsChanged += TroopEvasionSettingsChanged;
         TroopsHubPanelControl.EvasionPanel.ValidateRequested += TroopEvasionValidateRequested;
         TroopsHubPanelControl.EvasionPanel.EnableValidationRequested += ValidateTroopEvasionEnable;
+        TroopsHubPanelControl.ExpansionPanel.TrainSettlersRequested += ExpansionTrainSettlersRequested;
+        TroopsHubPanelControl.ExpansionPanel.FoundVillageRequested += ExpansionFoundVillageRequested;
         _villageCacheWriter = new LatestSnapshotWriter<VillageCacheWrite>(write =>
         {
             _villageCacheStore.Save(write.AccountName, write.Snapshot);
