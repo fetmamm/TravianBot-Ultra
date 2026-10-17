@@ -45,8 +45,8 @@ public sealed class AlarmClassificationTests
     }
 
     [Theory]
-    [InlineData("[farm-list] send: 'Rainbow' marked sent (response=success+error; Travian processed the Start request).")]
-    [InlineData("[farm-list] start-all: 'Steppes' marked sent (response=error; Travian processed the Start request).")]
+    [InlineData("[farm-list] send: 'Rainbow' marked sent (processed; some targets were skipped; Travian processed the Start request).")]
+    [InlineData("[farm-list] start-all: 'Steppes' marked sent (processed; Travian processed the Start request).")]
     public void ConfirmedFarmListResponse_IsNotAlarm(string message)
     {
         Assert.False(MainWindow.IsAlarmMessage(message));

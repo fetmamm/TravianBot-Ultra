@@ -11,4 +11,12 @@ internal readonly record struct FarmListDispatchConfirmation(bool HasSuccess, bo
         (false, true) => "error",
         _ => "none",
     };
+
+    internal string LogDescription => (HasSuccess, HasError) switch
+    {
+        (true, true) => "processed; some targets were skipped",
+        (true, false) => "confirmed",
+        (false, true) => "processed",
+        _ => "unconfirmed",
+    };
 }

@@ -148,7 +148,7 @@ public sealed partial class TravianClient : IFarmingClient
         await Task.Delay(Random.Shared.Next(150, 350), cancellationToken); // Random wait
         var remaining = await ReadFarmListTimerSecondsByNameAsync(farmListName, cancellationToken);
         Notify(
-            $"[farm-list] '{farmListName}' marked sent (response={confirmation.Description}) — "
+            $"[farm-list] '{farmListName}' marked sent ({confirmation.LogDescription}) — "
             + $"next ready in {(remaining is > 0 ? TravianParsing.FormatDuration(remaining.Value) : "now")}");
         await DelayBeforeClickAsync(cancellationToken, "after final confirmed farm list");
         return new FarmListSingleSendResult(remaining,
@@ -245,7 +245,7 @@ public sealed partial class TravianClient : IFarmingClient
                 sent.Add(new FarmListSendEntry(entry.Name, entry.Lid, DateTimeOffset.UtcNow, confirmation.Description));
                 Notify(
                     $"[farm-list] send: '{entry.Name}' marked sent "
-                    + $"(response={confirmation.Description}; Travian processed the Start request).");
+                    + $"({confirmation.LogDescription}; Travian processed the Start request).");
             }
             else
             {
@@ -334,7 +334,7 @@ public sealed partial class TravianClient : IFarmingClient
                 sent.Add(new FarmListSendEntry(entry.Name, entry.Lid, DateTimeOffset.UtcNow, confirmation.Description));
                 Notify(
                     $"[farm-list] start-all: '{entry.Name}' marked sent "
-                    + $"(response={confirmation.Description}; Travian processed the Start request).");
+                    + $"({confirmation.LogDescription}; Travian processed the Start request).");
             }
             else
             {

@@ -6,20 +6,22 @@ namespace TbotUltra.Worker.Tests;
 public sealed class FarmListDispatchConfirmationTests
 {
     [Theory]
-    [InlineData(false, false, false, "none")]
-    [InlineData(true, false, true, "success")]
-    [InlineData(false, true, true, "error")]
-    [InlineData(true, true, true, "success+error")]
+    [InlineData(false, false, false, "none", "unconfirmed")]
+    [InlineData(true, false, true, "success", "confirmed")]
+    [InlineData(false, true, true, "error", "processed")]
+    [InlineData(true, true, true, "success+error", "processed; some targets were skipped")]
     public void Confirmation_TreatsEitherOfficialResponseMarkerAsSent(
         bool hasSuccess,
         bool hasError,
         bool expectedConfirmed,
-        string expectedDescription)
+        string expectedDescription,
+        string expectedLogDescription)
     {
         var confirmation = new FarmListDispatchConfirmation(hasSuccess, hasError);
 
         Assert.Equal(expectedConfirmed, confirmation.IsConfirmed);
         Assert.Equal(expectedDescription, confirmation.Description);
+        Assert.Equal(expectedLogDescription, confirmation.LogDescription);
     }
 
     [Fact]
