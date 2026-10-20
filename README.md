@@ -58,7 +58,7 @@ The application checks this repository for new releases and displays an update n
 
 ## Support and community
 
-- [Tbot Ultra website](https://tbot-ultra.pages.dev)
+- [Tbot Ultra website](https://tbotultra.com)
 - [Discord community](https://discord.gg/7bgzKy9sHK)
 - [Report a problem or request a feature](../../issues)
 
